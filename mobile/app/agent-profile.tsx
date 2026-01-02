@@ -71,25 +71,30 @@ export default function AgentProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Dark Teal Header */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.welcomeText}>Welcome back,</Text>
-          <Text style={styles.clientName}>{params.clientName}</Text>
+    <View style={styles.outerContainer}>
+      {/* Dark teal for status bar area */}
+      <SafeAreaView style={styles.topSafeArea} />
+      
+      {/* Off-white for bottom safe area */}
+      <SafeAreaView style={styles.container}>
+        {/* Dark Teal Header */}
+        <View style={styles.header}>
+          <View style={styles.headerContent}>
+            <Text style={styles.welcomeText}>Welcome back,</Text>
+            <Text style={styles.clientName}>{params.clientName}</Text>
+          </View>
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+            <Text style={styles.logoutText}>Sign Out</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <Text style={styles.logoutText}>Sign Out</Text>
-        </TouchableOpacity>
-      </View>
 
-      {/* Main Content Area with off-white background */}
-      <View style={styles.mainContent}>
-        <ScrollView 
-          style={styles.scrollView} 
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
+        {/* Main Content Area with off-white background */}
+        <View style={styles.mainContent}>
+          <ScrollView 
+            style={styles.scrollView} 
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
           {/* Agent Card */}
           <View style={styles.agentCard}>
             {/* Prominent Section Label */}
@@ -177,16 +182,24 @@ export default function AgentProfileScreen() {
               claims, or coverage options.
             </Text>
           </View>
-        </ScrollView>
-      </View>
-    </SafeAreaView>
+          </ScrollView>
+        </View>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  outerContainer: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
+  },
+  topSafeArea: {
+    backgroundColor: '#0D4D4D',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#0D4D4D',
+    backgroundColor: '#F8F9FA',
   },
   header: {
     flexDirection: 'row',

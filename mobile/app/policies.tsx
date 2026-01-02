@@ -121,31 +121,39 @@ export default function PoliciesScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3DD6C3" />
-          <Text style={styles.loadingText}>Loading policies...</Text>
-        </View>
-      </SafeAreaView>
+      <View style={styles.outerContainer}>
+        <SafeAreaView style={styles.topSafeArea} />
+        <SafeAreaView style={styles.container}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#3DD6C3" />
+            <Text style={styles.loadingText}>Loading policies...</Text>
+          </View>
+        </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Dark Teal Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-          <Text style={styles.backArrow}>←</Text>
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>My Policies</Text>
-          <Text style={styles.headerSubtitle}>
-            {policies.length} {policies.length === 1 ? 'policy' : 'policies'}
-          </Text>
+    <View style={styles.outerContainer}>
+      {/* Dark teal for status bar area */}
+      <SafeAreaView style={styles.topSafeArea} />
+      
+      {/* Off-white for bottom safe area */}
+      <SafeAreaView style={styles.container}>
+        {/* Dark Teal Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+            <Text style={styles.backArrow}>←</Text>
+          </TouchableOpacity>
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>My Policies</Text>
+            <Text style={styles.headerSubtitle}>
+              {policies.length} {policies.length === 1 ? 'policy' : 'policies'}
+            </Text>
+          </View>
         </View>
-      </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {error ? (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
@@ -250,20 +258,29 @@ export default function PoliciesScreen() {
             })}
           </View>
         )}
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  outerContainer: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
+  },
+  topSafeArea: {
+    backgroundColor: '#0D4D4D',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#0D4D4D',
+    backgroundColor: '#F8F9FA',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#F8F9FA',
   },
   loadingText: {
     marginTop: 16,
