@@ -11,6 +11,12 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 
+// Get first name from full name
+const getFirstName = (fullName: string | undefined) => {
+  if (!fullName) return 'Agent';
+  return fullName.split(' ')[0];
+};
+
 export default function AgentProfileScreen() {
   const params = useLocalSearchParams<{
     agentId: string;
@@ -34,6 +40,8 @@ export default function AgentProfileScreen() {
   const photoUri = hasValidPhoto 
     ? `data:image/jpeg;base64,${params.agentPhotoBase64}` 
     : null;
+
+  const agentFirstName = getFirstName(params.agentName);
 
   const handleCall = () => {
     if (params.agentPhone) {
@@ -78,7 +86,10 @@ export default function AgentProfileScreen() {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Agent Card */}
         <View style={styles.agentCard}>
-          <Text style={styles.sectionLabel}>YOUR INSURANCE AGENT</Text>
+          {/* Prominent Section Label */}
+          <View style={styles.sectionLabelContainer}>
+            <Text style={styles.sectionLabel}>YOUR INSURANCE AGENT</Text>
+          </View>
           
           {/* Agent Avatar */}
           <View style={styles.avatarContainer}>
@@ -100,19 +111,19 @@ export default function AgentProfileScreen() {
           {/* Agent Name */}
           <Text style={styles.agentName}>{params.agentName}</Text>
 
-          {/* Contact Info */}
+          {/* Contact Buttons */}
           <View style={styles.contactContainer}>
             {params.agentEmail ? (
               <TouchableOpacity style={styles.contactItem} onPress={handleEmail}>
                 <View style={styles.contactIcon}>
-                  <Text style={styles.contactIconText}>✉️</Text>
+                  {/* Professional Email Icon */}
+                  <View style={styles.emailIconOuter}>
+                    <View style={styles.emailIconInner} />
+                  </View>
                 </View>
-                <View style={styles.contactInfo}>
-                  <Text style={styles.contactLabel}>Email</Text>
-                  <Text style={styles.contactValue}>{params.agentEmail}</Text>
-                </View>
+                <Text style={styles.contactText}>Email {agentFirstName}</Text>
                 <View style={styles.contactArrow}>
-                  <Text style={styles.contactArrowText}>→</Text>
+                  <Text style={styles.contactArrowText}>›</Text>
                 </View>
               </TouchableOpacity>
             ) : null}
@@ -120,14 +131,15 @@ export default function AgentProfileScreen() {
             {params.agentPhone ? (
               <TouchableOpacity style={styles.contactItem} onPress={handleCall}>
                 <View style={[styles.contactIcon, styles.phoneIcon]}>
-                  <Text style={styles.contactIconText}>📞</Text>
+                  {/* Professional Phone Icon */}
+                  <View style={styles.phoneIconShape}>
+                    <View style={styles.phoneIconEarpiece} />
+                    <View style={styles.phoneIconBody} />
+                  </View>
                 </View>
-                <View style={styles.contactInfo}>
-                  <Text style={styles.contactLabel}>Phone</Text>
-                  <Text style={styles.contactValue}>{params.agentPhone}</Text>
-                </View>
+                <Text style={styles.contactText}>Call {agentFirstName}</Text>
                 <View style={styles.contactArrow}>
-                  <Text style={styles.contactArrowText}>→</Text>
+                  <Text style={styles.contactArrowText}>›</Text>
                 </View>
               </TouchableOpacity>
             ) : null}
@@ -137,13 +149,18 @@ export default function AgentProfileScreen() {
         {/* Primary Action Button */}
         <TouchableOpacity style={styles.primaryButton} onPress={handleViewPolicies}>
           <View style={styles.buttonIconContainer}>
-            <Text style={styles.buttonIcon}>📋</Text>
+            {/* Professional Document Icon */}
+            <View style={styles.docIcon}>
+              <View style={styles.docIconLine} />
+              <View style={styles.docIconLine} />
+              <View style={styles.docIconLineShort} />
+            </View>
           </View>
           <View style={styles.buttonContent}>
             <Text style={styles.primaryButtonText}>View My Policies</Text>
             <Text style={styles.buttonSubtext}>See your coverage details</Text>
           </View>
-          <Text style={styles.buttonArrow}>→</Text>
+          <Text style={styles.buttonArrow}>›</Text>
         </TouchableOpacity>
 
         {/* Help Section */}
@@ -220,12 +237,19 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
   },
+  sectionLabelContainer: {
+    backgroundColor: '#0D4D4D',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginBottom: 24,
+    alignSelf: 'center',
+  },
   sectionLabel: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#3DD6C3',
-    letterSpacing: 1.5,
-    marginBottom: 20,
+    color: '#FFFFFF',
+    letterSpacing: 2,
     textAlign: 'center',
   },
   avatarContainer: {
@@ -233,23 +257,25 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     backgroundColor: '#0D4D4D',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 4,
+    borderColor: '#3DD6C3',
   },
   avatarImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     borderWidth: 4,
     borderColor: '#3DD6C3',
     backgroundColor: '#F8F9FA',
   },
   avatarText: {
-    fontSize: 40,
+    fontSize: 44,
     fontWeight: '700',
     color: '#FFFFFF',
   },
@@ -258,7 +284,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#2D3748',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   contactContainer: {
     gap: 12,
@@ -269,11 +295,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8F9FA',
     borderRadius: 14,
     padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   contactIcon: {
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: 12,
     backgroundColor: '#0D4D4D',
     justifyContent: 'center',
     alignItems: 'center',
@@ -282,35 +310,68 @@ const styles = StyleSheet.create({
   phoneIcon: {
     backgroundColor: '#0099FF',
   },
-  contactIconText: {
-    fontSize: 20,
+  // Professional Email Icon
+  emailIconOuter: {
+    width: 22,
+    height: 16,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    borderRadius: 3,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingTop: 2,
   },
-  contactInfo: {
+  emailIconInner: {
+    width: 12,
+    height: 8,
+    borderTopWidth: 2,
+    borderLeftWidth: 2,
+    borderRightWidth: 2,
+    borderColor: '#FFFFFF',
+    transform: [{ rotate: '180deg' }],
+    borderTopLeftRadius: 2,
+    borderTopRightRadius: 2,
+  },
+  // Professional Phone Icon
+  phoneIconShape: {
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  phoneIconEarpiece: {
+    width: 18,
+    height: 18,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    borderRadius: 9,
+    position: 'absolute',
+  },
+  phoneIconBody: {
+    width: 8,
+    height: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 4,
+  },
+  contactText: {
     flex: 1,
-  },
-  contactLabel: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginBottom: 2,
-    fontWeight: '500',
-  },
-  contactValue: {
-    fontSize: 16,
+    fontSize: 17,
     color: '#2D3748',
     fontWeight: '600',
   },
   contactArrow: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#3DD6C3',
     justifyContent: 'center',
     alignItems: 'center',
   },
   contactArrowText: {
-    fontSize: 18,
+    fontSize: 22,
     color: '#FFFFFF',
     fontWeight: '600',
+    marginTop: -2,
   },
   primaryButton: {
     flexDirection: 'row',
@@ -334,8 +395,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 16,
   },
-  buttonIcon: {
-    fontSize: 26,
+  // Professional Document Icon
+  docIcon: {
+    width: 24,
+    height: 28,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 3,
+    padding: 5,
+    justifyContent: 'center',
+    gap: 4,
+  },
+  docIconLine: {
+    height: 2,
+    backgroundColor: '#3DD6C3',
+    borderRadius: 1,
+  },
+  docIconLineShort: {
+    height: 2,
+    width: '60%',
+    backgroundColor: '#3DD6C3',
+    borderRadius: 1,
   },
   buttonContent: {
     flex: 1,
@@ -352,9 +431,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   buttonArrow: {
-    fontSize: 24,
+    fontSize: 28,
     color: '#FFFFFF',
-    fontWeight: '600',
+    fontWeight: '400',
   },
   helpSection: {
     backgroundColor: '#FFFFFF',
