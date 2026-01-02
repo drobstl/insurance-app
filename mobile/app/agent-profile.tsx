@@ -83,95 +83,102 @@ export default function AgentProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Agent Card */}
-        <View style={styles.agentCard}>
-          {/* Prominent Section Label */}
-          <View style={styles.sectionLabelContainer}>
-            <Text style={styles.sectionLabel}>YOUR INSURANCE AGENT</Text>
-          </View>
-          
-          {/* Agent Avatar */}
-          <View style={styles.avatarContainer}>
-            {hasValidPhoto && photoUri && !imageError ? (
-              <Image
-                source={{ uri: photoUri }}
-                style={styles.avatarImage}
-                onError={() => setImageError(true)}
-              />
-            ) : (
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {params.agentName?.charAt(0)?.toUpperCase() || 'A'}
-                </Text>
-              </View>
-            )}
-          </View>
+      {/* Main Content Area with off-white background */}
+      <View style={styles.mainContent}>
+        <ScrollView 
+          style={styles.scrollView} 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Agent Card */}
+          <View style={styles.agentCard}>
+            {/* Prominent Section Label */}
+            <View style={styles.sectionLabelContainer}>
+              <Text style={styles.sectionLabel}>YOUR INSURANCE AGENT</Text>
+            </View>
+            
+            {/* Agent Avatar */}
+            <View style={styles.avatarContainer}>
+              {hasValidPhoto && photoUri && !imageError ? (
+                <Image
+                  source={{ uri: photoUri }}
+                  style={styles.avatarImage}
+                  onError={() => setImageError(true)}
+                />
+              ) : (
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>
+                    {params.agentName?.charAt(0)?.toUpperCase() || 'A'}
+                  </Text>
+                </View>
+              )}
+            </View>
 
-          {/* Agent Name */}
-          <Text style={styles.agentName}>{params.agentName}</Text>
+            {/* Agent Name */}
+            <Text style={styles.agentName}>{params.agentName}</Text>
 
-          {/* Contact Buttons */}
-          <View style={styles.contactContainer}>
-            {params.agentEmail ? (
-              <TouchableOpacity style={styles.contactItem} onPress={handleEmail}>
-                <View style={styles.contactIcon}>
-                  {/* Professional Email Icon */}
-                  <View style={styles.emailIconOuter}>
-                    <View style={styles.emailIconInner} />
+            {/* Contact Buttons */}
+            <View style={styles.contactContainer}>
+              {params.agentEmail ? (
+                <TouchableOpacity style={styles.contactItem} onPress={handleEmail}>
+                  <View style={styles.contactIcon}>
+                    {/* Professional Email Icon */}
+                    <View style={styles.emailIconOuter}>
+                      <View style={styles.emailIconInner} />
+                    </View>
                   </View>
-                </View>
-                <Text style={styles.contactText}>Email {agentFirstName}</Text>
-                <View style={styles.contactArrow}>
-                  <Text style={styles.contactArrowText}>›</Text>
-                </View>
-              </TouchableOpacity>
-            ) : null}
-
-            {params.agentPhone ? (
-              <TouchableOpacity style={styles.contactItem} onPress={handleCall}>
-                <View style={[styles.contactIcon, styles.phoneIcon]}>
-                  {/* Professional Phone Icon */}
-                  <View style={styles.phoneIconShape}>
-                    <View style={styles.phoneIconEarpiece} />
-                    <View style={styles.phoneIconBody} />
+                  <Text style={styles.contactText}>Email {agentFirstName}</Text>
+                  <View style={styles.contactArrow}>
+                    <Text style={styles.contactArrowText}>›</Text>
                   </View>
-                </View>
-                <Text style={styles.contactText}>Call {agentFirstName}</Text>
-                <View style={styles.contactArrow}>
-                  <Text style={styles.contactArrowText}>›</Text>
-                </View>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        </View>
+                </TouchableOpacity>
+              ) : null}
 
-        {/* Primary Action Button */}
-        <TouchableOpacity style={styles.primaryButton} onPress={handleViewPolicies}>
-          <View style={styles.buttonIconContainer}>
-            {/* Professional Document Icon */}
-            <View style={styles.docIcon}>
-              <View style={styles.docIconLine} />
-              <View style={styles.docIconLine} />
-              <View style={styles.docIconLineShort} />
+              {params.agentPhone ? (
+                <TouchableOpacity style={styles.contactItem} onPress={handleCall}>
+                  <View style={[styles.contactIcon, styles.phoneIcon]}>
+                    {/* Professional Cell Phone Icon */}
+                    <View style={styles.cellPhoneOuter}>
+                      <View style={styles.cellPhoneScreen} />
+                      <View style={styles.cellPhoneButton} />
+                    </View>
+                  </View>
+                  <Text style={styles.contactText}>Call {agentFirstName}</Text>
+                  <View style={styles.contactArrow}>
+                    <Text style={styles.contactArrowText}>›</Text>
+                  </View>
+                </TouchableOpacity>
+              ) : null}
             </View>
           </View>
-          <View style={styles.buttonContent}>
-            <Text style={styles.primaryButtonText}>View My Policies</Text>
-            <Text style={styles.buttonSubtext}>See your coverage details</Text>
-          </View>
-          <Text style={styles.buttonArrow}>›</Text>
-        </TouchableOpacity>
 
-        {/* Help Section */}
-        <View style={styles.helpSection}>
-          <Text style={styles.helpTitle}>Need Help?</Text>
-          <Text style={styles.helpText}>
-            Contact your agent directly for questions about your policies, 
-            claims, or coverage options.
-          </Text>
-        </View>
-      </ScrollView>
+          {/* Primary Action Button */}
+          <TouchableOpacity style={styles.primaryButton} onPress={handleViewPolicies}>
+            <View style={styles.buttonIconContainer}>
+              {/* Professional Document Icon */}
+              <View style={styles.docIcon}>
+                <View style={styles.docIconLine} />
+                <View style={styles.docIconLine} />
+                <View style={styles.docIconLineShort} />
+              </View>
+            </View>
+            <View style={styles.buttonContent}>
+              <Text style={styles.primaryButtonText}>View My Policies</Text>
+              <Text style={styles.buttonSubtext}>See your coverage details</Text>
+            </View>
+            <Text style={styles.buttonArrow}>›</Text>
+          </TouchableOpacity>
+
+          {/* Help Section */}
+          <View style={styles.helpSection}>
+            <Text style={styles.helpTitle}>Need Help?</Text>
+            <Text style={styles.helpText}>
+              Contact your agent directly for questions about your policies, 
+              claims, or coverage options.
+            </Text>
+          </View>
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -179,7 +186,7 @@ export default function AgentProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D4D4D',
+    backgroundColor: '#F8F9FA',
   },
   header: {
     flexDirection: 'row',
@@ -216,15 +223,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  scrollView: {
+  mainContent: {
     flex: 1,
     backgroundColor: '#F8F9FA',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+  },
+  scrollView: {
+    flex: 1,
   },
   scrollContent: {
     padding: 20,
     paddingTop: 24,
+    paddingBottom: 40,
   },
   agentCard: {
     backgroundColor: '#FFFFFF',
@@ -332,26 +341,28 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 2,
     borderTopRightRadius: 2,
   },
-  // Professional Phone Icon
-  phoneIconShape: {
-    width: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  phoneIconEarpiece: {
-    width: 18,
-    height: 18,
-    borderWidth: 3,
+  // Professional Cell Phone Icon
+  cellPhoneOuter: {
+    width: 14,
+    height: 22,
+    borderWidth: 2,
     borderColor: '#FFFFFF',
-    borderRadius: 9,
-    position: 'absolute',
+    borderRadius: 3,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 2,
   },
-  phoneIconBody: {
+  cellPhoneScreen: {
     width: 8,
-    height: 8,
+    height: 12,
     backgroundColor: '#FFFFFF',
-    borderRadius: 4,
+    borderRadius: 1,
+  },
+  cellPhoneButton: {
+    width: 4,
+    height: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 2,
   },
   contactText: {
     flex: 1,
