@@ -64,15 +64,18 @@ export default function AgentProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.welcomeText}>Welcome, {params.clientName}</Text>
-          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-            <Text style={styles.logoutText}>Sign Out</Text>
-          </TouchableOpacity>
+      {/* Dark Teal Header */}
+      <View style={styles.header}>
+        <View style={styles.headerContent}>
+          <Text style={styles.welcomeText}>Welcome back,</Text>
+          <Text style={styles.clientName}>{params.clientName}</Text>
         </View>
+        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+          <Text style={styles.logoutText}>Sign Out</Text>
+        </TouchableOpacity>
+      </View>
 
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Agent Card */}
         <View style={styles.agentCard}>
           <Text style={styles.sectionLabel}>YOUR INSURANCE AGENT</Text>
@@ -102,13 +105,15 @@ export default function AgentProfileScreen() {
             {params.agentEmail ? (
               <TouchableOpacity style={styles.contactItem} onPress={handleEmail}>
                 <View style={styles.contactIcon}>
-                  <Text style={styles.contactIconText}>✉</Text>
+                  <Text style={styles.contactIconText}>✉️</Text>
                 </View>
                 <View style={styles.contactInfo}>
                   <Text style={styles.contactLabel}>Email</Text>
                   <Text style={styles.contactValue}>{params.agentEmail}</Text>
                 </View>
-                <Text style={styles.contactAction}>→</Text>
+                <View style={styles.contactArrow}>
+                  <Text style={styles.contactArrowText}>→</Text>
+                </View>
               </TouchableOpacity>
             ) : null}
 
@@ -121,25 +126,25 @@ export default function AgentProfileScreen() {
                   <Text style={styles.contactLabel}>Phone</Text>
                   <Text style={styles.contactValue}>{params.agentPhone}</Text>
                 </View>
-                <Text style={styles.contactAction}>→</Text>
+                <View style={styles.contactArrow}>
+                  <Text style={styles.contactArrowText}>→</Text>
+                </View>
               </TouchableOpacity>
             ) : null}
           </View>
         </View>
 
-        {/* Quick Actions */}
-        <View style={styles.actionsSection}>
-          <TouchableOpacity style={styles.primaryButton} onPress={handleViewPolicies}>
-            <View style={styles.buttonIconContainer}>
-              <Text style={styles.buttonIcon}>📋</Text>
-            </View>
-            <View style={styles.buttonContent}>
-              <Text style={styles.primaryButtonText}>View My Policies</Text>
-              <Text style={styles.buttonSubtext}>See your coverage details</Text>
-            </View>
-            <Text style={styles.buttonArrow}>→</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Primary Action Button */}
+        <TouchableOpacity style={styles.primaryButton} onPress={handleViewPolicies}>
+          <View style={styles.buttonIconContainer}>
+            <Text style={styles.buttonIcon}>📋</Text>
+          </View>
+          <View style={styles.buttonContent}>
+            <Text style={styles.primaryButtonText}>View My Policies</Text>
+            <Text style={styles.buttonSubtext}>See your coverage details</Text>
+          </View>
+          <Text style={styles.buttonArrow}>→</Text>
+        </TouchableOpacity>
 
         {/* Help Section */}
         <View style={styles.helpSection}>
@@ -149,7 +154,6 @@ export default function AgentProfileScreen() {
             claims, or coverage options.
           </Text>
         </View>
-
       </ScrollView>
     </SafeAreaView>
   );
@@ -158,49 +162,69 @@ export default function AgentProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
-  },
-  scrollContent: {
-    padding: 20,
+    backgroundColor: '#0D4D4D',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
-    marginTop: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    backgroundColor: '#0D4D4D',
+  },
+  headerContent: {
+    flex: 1,
   },
   welcomeText: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#f8fafc',
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '500',
+  },
+  clientName: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginTop: 2,
   },
   logoutButton: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#1e293b',
-    borderRadius: 8,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   logoutText: {
-    color: '#94a3b8',
-    fontSize: 14,
-    fontWeight: '500',
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  scrollView: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingTop: 24,
   },
   agentCard: {
-    backgroundColor: '#1e293b',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 24,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#334155',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
   sectionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748b',
-    letterSpacing: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#3DD6C3',
+    letterSpacing: 1.5,
     marginBottom: 20,
     textAlign: 'center',
   },
@@ -212,34 +236,29 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#10b981',
+    backgroundColor: '#0D4D4D',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
   },
   avatarImage: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    borderWidth: 3,
-    borderColor: '#10b981',
-    backgroundColor: '#1e293b',
+    borderWidth: 4,
+    borderColor: '#3DD6C3',
+    backgroundColor: '#F8F9FA',
   },
   avatarText: {
     fontSize: 40,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#FFFFFF',
   },
   agentName: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#f8fafc',
+    color: '#2D3748',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   contactContainer: {
     gap: 12,
@@ -247,21 +266,21 @@ const styles = StyleSheet.create({
   contactItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0f172a',
-    borderRadius: 12,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 14,
     padding: 16,
   },
   contactIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#0D4D4D',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
   phoneIcon: {
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    backgroundColor: '#0099FF',
   },
   contactIconText: {
     fontSize: 20,
@@ -270,79 +289,92 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contactLabel: {
-    fontSize: 12,
-    color: '#64748b',
+    fontSize: 13,
+    color: '#6B7280',
     marginBottom: 2,
+    fontWeight: '500',
   },
   contactValue: {
     fontSize: 16,
-    color: '#f8fafc',
-    fontWeight: '500',
+    color: '#2D3748',
+    fontWeight: '600',
   },
-  contactAction: {
+  contactArrow: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#3DD6C3',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  contactArrowText: {
     fontSize: 18,
-    color: '#64748b',
-  },
-  actionsSection: {
-    marginBottom: 24,
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#10b981',
+    backgroundColor: '#3DD6C3',
     borderRadius: 16,
     padding: 20,
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    marginBottom: 20,
+    shadowColor: '#3DD6C3',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
   },
   buttonIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
   },
   buttonIcon: {
-    fontSize: 24,
+    fontSize: 26,
   },
   buttonContent: {
     flex: 1,
   },
   primaryButtonText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#FFFFFF',
     marginBottom: 2,
   },
   buttonSubtext: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontWeight: '500',
   },
   buttonArrow: {
     fontSize: 24,
-    color: '#ffffff',
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   helpSection: {
-    backgroundColor: '#1e293b',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 20,
-    borderWidth: 1,
-    borderColor: '#334155',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   helpTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#f8fafc',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0D4D4D',
     marginBottom: 8,
   },
   helpText: {
-    fontSize: 14,
-    color: '#94a3b8',
-    lineHeight: 22,
+    fontSize: 16,
+    color: '#6B7280',
+    lineHeight: 24,
   },
 });

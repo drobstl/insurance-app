@@ -44,33 +44,33 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-[#0D4D4D] flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         {/* Logo/Brand Section */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-500 rounded-2xl mb-4 shadow-lg shadow-emerald-500/30">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-[#3DD6C3] rounded-2xl mb-4 shadow-lg shadow-[#3DD6C3]/30">
             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
           </div>
           <h1 className="text-3xl font-bold text-white tracking-tight">Agent Portal</h1>
-          <p className="text-slate-400 mt-2">Sign in to manage your insurance clients</p>
+          <p className="text-white/70 mt-2">Sign in to manage your insurance clients</p>
         </div>
 
         {/* Login Form Card */}
-        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-8 shadow-2xl">
+        <div className="bg-white rounded-2xl p-8 shadow-2xl">
           <form onSubmit={handleLogin} className="space-y-6">
             {error && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
-                <svg className="w-5 h-5 text-red-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+                <svg className="w-5 h-5 text-red-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <p className="text-red-400 text-sm">{error}</p>
+                <p className="text-red-600 text-sm">{error}</p>
               </div>
             )}
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="email" className="block text-sm font-semibold text-[#2D3748] mb-2">
                 Email Address
               </label>
               <input
@@ -79,13 +79,13 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+                className="w-full px-4 py-3 bg-[#F8F9FA] border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
                 placeholder="agent@insurance.com"
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="password" className="block text-sm font-semibold text-[#2D3748] mb-2">
                 Password
               </label>
               <input
@@ -94,7 +94,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+                className="w-full px-4 py-3 bg-[#F8F9FA] border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
                 placeholder="••••••••"
               />
             </div>
@@ -102,7 +102,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-500/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/40 transition-all duration-200 flex items-center justify-center gap-2"
+              className="w-full py-3 px-4 bg-[#3DD6C3] hover:bg-[#2cc5b2] disabled:bg-[#3DD6C3]/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg shadow-[#3DD6C3]/30 hover:shadow-[#3DD6C3]/40 transition-all duration-200 flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
@@ -119,9 +119,9 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-slate-400">
+            <p className="text-gray-600">
               Don&apos;t have an account?{' '}
-              <Link href="/signup" className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors">
+              <Link href="/signup" className="text-[#3DD6C3] hover:text-[#0D4D4D] font-semibold transition-colors">
                 Create one
               </Link>
             </p>
@@ -129,11 +129,10 @@ export default function LoginPage() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-slate-500 text-sm mt-8">
+        <p className="text-center text-white/60 text-sm mt-8">
           © 2026 Insurance Agent Portal. All rights reserved.
         </p>
       </div>
     </div>
   );
 }
-

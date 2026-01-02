@@ -94,58 +94,55 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Dark Teal Header Section */}
+      <View style={styles.headerSection}>
+        <View style={styles.logoIcon}>
+          <Text style={styles.logoIconText}>✓</Text>
+        </View>
+        <Text style={styles.title}>My Insurance</Text>
+        <Text style={styles.subtitle}>Access your policy information</Text>
+      </View>
+
+      {/* White Content Section */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
+        style={styles.contentSection}
       >
-        <View style={styles.content}>
-          {/* Logo Section */}
-          <View style={styles.logoContainer}>
-            <View style={styles.logoIcon}>
-              <Text style={styles.logoIconText}>✓</Text>
+        <View style={styles.formContainer}>
+          <Text style={styles.label}>Client Code</Text>
+          <TextInput
+            style={styles.input}
+            value={clientCode}
+            onChangeText={(text) => {
+              setClientCode(text.toUpperCase());
+              setError('');
+            }}
+            placeholder="Enter your code"
+            placeholderTextColor="#9CA3AF"
+            autoCapitalize="characters"
+            autoCorrect={false}
+            editable={!loading}
+          />
+
+          {error ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
             </View>
-            <Text style={styles.title}>My Insurance</Text>
-            <Text style={styles.subtitle}>Access your policy information</Text>
-          </View>
+          ) : null}
 
-          {/* Form Section */}
-          <View style={styles.formContainer}>
-            <Text style={styles.label}>Client Code</Text>
-            <TextInput
-              style={styles.input}
-              value={clientCode}
-              onChangeText={(text) => {
-                setClientCode(text.toUpperCase());
-                setError('');
-              }}
-              placeholder="Enter your code"
-              placeholderTextColor="#64748b"
-              autoCapitalize="characters"
-              autoCorrect={false}
-              editable={!loading}
-            />
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={styles.buttonText}>Sign In</Text>
+            )}
+          </TouchableOpacity>
 
-            {error ? (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
-
-            <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={handleLogin}
-              disabled={loading}
-              activeOpacity={0.8}
-            >
-              {loading ? (
-                <ActivityIndicator color="#ffffff" />
-              ) : (
-                <Text style={styles.buttonText}>Sign In</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* Help Text */}
           <Text style={styles.helpText}>
             Your client code was provided by your insurance agent.
             Contact your agent if you need assistance.
@@ -159,108 +156,114 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#0D4D4D',
   },
-  keyboardView: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-    justifyContent: 'center',
-  },
-  logoContainer: {
+  headerSection: {
     alignItems: 'center',
-    marginBottom: 48,
+    paddingTop: 60,
+    paddingBottom: 40,
+    paddingHorizontal: 24,
   },
   logoIcon: {
     width: 80,
     height: 80,
     borderRadius: 20,
-    backgroundColor: '#10b981',
+    backgroundColor: '#3DD6C3',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#10b981',
+    marginBottom: 20,
+    shadowColor: '#3DD6C3',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.4,
     shadowRadius: 16,
     elevation: 8,
   },
   logoIconText: {
-    fontSize: 36,
-    color: '#ffffff',
+    fontSize: 38,
+    color: '#FFFFFF',
     fontWeight: 'bold',
   },
   title: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '700',
-    color: '#f8fafc',
+    color: '#FFFFFF',
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#94a3b8',
+    fontSize: 17,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '500',
+  },
+  contentSection: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
   },
   formContainer: {
-    marginBottom: 32,
+    flex: 1,
+    paddingHorizontal: 28,
+    paddingTop: 36,
+    justifyContent: 'flex-start',
   },
   label: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#cbd5e1',
-    marginBottom: 8,
+    color: '#2D3748',
+    marginBottom: 10,
   },
   input: {
-    backgroundColor: '#1e293b',
-    borderWidth: 1,
-    borderColor: '#334155',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    fontSize: 18,
-    color: '#f8fafc',
-    marginBottom: 16,
-    letterSpacing: 2,
+    backgroundColor: '#F8F9FA',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderRadius: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    fontSize: 22,
+    color: '#2D3748',
+    marginBottom: 20,
+    letterSpacing: 3,
     textAlign: 'center',
+    fontWeight: '600',
   },
   errorContainer: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    backgroundColor: '#FEF2F2',
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderColor: '#FECACA',
     borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
+    padding: 14,
+    marginBottom: 20,
   },
   errorText: {
-    color: '#f87171',
-    fontSize: 14,
+    color: '#DC2626',
+    fontSize: 15,
     textAlign: 'center',
+    fontWeight: '500',
   },
   button: {
-    backgroundColor: '#10b981',
-    borderRadius: 12,
-    paddingVertical: 16,
+    backgroundColor: '#3DD6C3',
+    borderRadius: 14,
+    paddingVertical: 18,
     alignItems: 'center',
-    shadowColor: '#10b981',
+    shadowColor: '#3DD6C3',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.35,
     shadowRadius: 8,
     elevation: 4,
+    marginBottom: 24,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '600',
+    color: '#FFFFFF',
+    fontSize: 19,
+    fontWeight: '700',
   },
   helpText: {
-    fontSize: 13,
-    color: '#64748b',
+    fontSize: 15,
+    color: '#6B7280',
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 22,
   },
 });
-

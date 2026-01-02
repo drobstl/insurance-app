@@ -90,13 +90,13 @@ export default function PoliciesScreen() {
   const getStatusStyle = (status: string) => {
     switch (status) {
       case 'Active':
-        return { backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981' };
+        return { backgroundColor: '#D1FAE5', color: '#065F46', borderColor: '#3DD6C3' };
       case 'Pending':
-        return { backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' };
+        return { backgroundColor: '#FEF3C7', color: '#92400E', borderColor: '#F59E0B' };
       case 'Lapsed':
-        return { backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' };
+        return { backgroundColor: '#FEE2E2', color: '#991B1B', borderColor: '#EF4444' };
       default:
-        return { backgroundColor: 'rgba(148, 163, 184, 0.15)', color: '#94a3b8' };
+        return { backgroundColor: '#F3F4F6', color: '#4B5563', borderColor: '#D1D5DB' };
     }
   };
 
@@ -123,7 +123,7 @@ export default function PoliciesScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#10b981" />
+          <ActivityIndicator size="large" color="#3DD6C3" />
           <Text style={styles.loadingText}>Loading policies...</Text>
         </View>
       </SafeAreaView>
@@ -132,18 +132,20 @@ export default function PoliciesScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
+      {/* Dark Teal Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>My Policies</Text>
-          <Text style={styles.headerSubtitle}>{policies.length} {policies.length === 1 ? 'policy' : 'policies'}</Text>
+          <Text style={styles.headerSubtitle}>
+            {policies.length} {policies.length === 1 ? 'policy' : 'policies'}
+          </Text>
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {error ? (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
@@ -170,13 +172,15 @@ export default function PoliciesScreen() {
                   {/* Card Header */}
                   <View style={styles.cardHeader}>
                     <View style={styles.policyTypeContainer}>
-                      <Text style={styles.policyIcon}>{getPolicyIcon(policy.policyType)}</Text>
+                      <View style={styles.policyIconContainer}>
+                        <Text style={styles.policyIcon}>{getPolicyIcon(policy.policyType)}</Text>
+                      </View>
                       <View>
                         <Text style={styles.policyType}>{policy.policyType}</Text>
                         <Text style={styles.policyNumber}>#{policy.policyNumber}</Text>
                       </View>
                     </View>
-                    <View style={[styles.statusBadge, { backgroundColor: statusStyle.backgroundColor }]}>
+                    <View style={[styles.statusBadge, { backgroundColor: statusStyle.backgroundColor, borderColor: statusStyle.borderColor }]}>
                       <Text style={[styles.statusText, { color: statusStyle.color }]}>
                         {policy.status}
                       </Text>
@@ -195,9 +199,9 @@ export default function PoliciesScreen() {
 
                     {/* Amount of Protection for Mortgage Protection */}
                     {policy.policyType === 'Mortgage Protection' && policy.amountOfProtection && (
-                      <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>Amount of Protection</Text>
-                        <Text style={styles.detailValueLarge}>
+                      <View style={styles.protectionHighlight}>
+                        <Text style={styles.protectionLabel}>Amount of Protection</Text>
+                        <Text style={styles.protectionValue}>
                           {policy.amountOfProtection} {policy.protectionUnit === 'months' ? 'Months' : 'Years'}
                         </Text>
                       </View>
@@ -254,38 +258,40 @@ export default function PoliciesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#0D4D4D',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#F8F9FA',
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
-    color: '#94a3b8',
+    fontSize: 17,
+    color: '#0D4D4D',
+    fontWeight: '500',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
+    backgroundColor: '#0D4D4D',
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: 12,
-    backgroundColor: '#1e293b',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
   },
   backArrow: {
     fontSize: 24,
-    color: '#f8fafc',
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   headerContent: {
     flex: 1,
@@ -293,46 +299,59 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#f8fafc',
+    color: '#FFFFFF',
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: '#64748b',
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.8)',
     marginTop: 2,
+    fontWeight: '500',
+  },
+  scrollView: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
   scrollContent: {
     padding: 20,
+    paddingTop: 24,
   },
   errorContainer: {
     alignItems: 'center',
     padding: 32,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
   },
   errorText: {
     fontSize: 16,
-    color: '#f87171',
+    color: '#DC2626',
     textAlign: 'center',
     marginBottom: 16,
+    fontWeight: '500',
   },
   retryButton: {
-    backgroundColor: '#1e293b',
+    backgroundColor: '#3DD6C3',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
   },
   retryText: {
-    color: '#f8fafc',
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
   emptyContainer: {
     alignItems: 'center',
-    padding: 48,
+    padding: 40,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
   },
   emptyIcon: {
     width: 80,
     height: 80,
     borderRadius: 20,
-    backgroundColor: '#1e293b',
+    backgroundColor: '#0D4D4D',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
@@ -342,60 +361,74 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#f8fafc',
+    fontWeight: '700',
+    color: '#2D3748',
     marginBottom: 8,
   },
   emptyText: {
-    fontSize: 14,
-    color: '#64748b',
+    fontSize: 16,
+    color: '#6B7280',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 24,
   },
   policyList: {
     gap: 16,
   },
   policyCard: {
-    backgroundColor: '#1e293b',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#334155',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
+    borderBottomColor: '#F3F4F6',
   },
   policyTypeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
+  policyIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#0D4D4D',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   policyIcon: {
-    fontSize: 28,
+    fontSize: 24,
   },
   policyType: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#f8fafc',
+    fontWeight: '700',
+    color: '#2D3748',
   },
   policyNumber: {
-    fontSize: 13,
-    color: '#64748b',
+    fontSize: 14,
+    color: '#6B7280',
     marginTop: 2,
+    fontWeight: '500',
   },
   statusBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
+    borderWidth: 1,
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
   },
   cardBody: {
     padding: 16,
@@ -404,11 +437,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
+    borderBottomColor: '#F3F4F6',
   },
   insuranceCompanyValue: {
-    fontSize: 16,
-    color: '#f8fafc',
+    fontSize: 17,
+    color: '#2D3748',
     fontWeight: '600',
   },
   detailRow: {
@@ -416,69 +449,88 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 12,
-    color: '#64748b',
+    color: '#6B7280',
     marginBottom: 4,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    fontWeight: '600',
   },
   detailValue: {
-    fontSize: 16,
-    color: '#f8fafc',
-    fontWeight: '500',
-  },
-  detailValueLarge: {
-    fontSize: 18,
-    color: '#10b981',
+    fontSize: 17,
+    color: '#2D3748',
     fontWeight: '600',
+  },
+  protectionHighlight: {
+    backgroundColor: '#D1FAE5',
+    borderWidth: 2,
+    borderColor: '#3DD6C3',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  protectionLabel: {
+    fontSize: 12,
+    color: '#0D4D4D',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    fontWeight: '700',
+  },
+  protectionValue: {
+    fontSize: 26,
+    color: '#0D4D4D',
+    fontWeight: '700',
   },
   amountGrid: {
     flexDirection: 'row',
-    backgroundColor: '#0f172a',
+    backgroundColor: '#F8F9FA',
     borderRadius: 12,
     overflow: 'hidden',
   },
   amountItem: {
     flex: 1,
-    padding: 16,
+    padding: 14,
     alignItems: 'center',
   },
   amountDivider: {
     width: 1,
-    backgroundColor: '#334155',
+    backgroundColor: '#E5E7EB',
   },
   amountLabel: {
-    fontSize: 12,
-    color: '#64748b',
+    fontSize: 11,
+    color: '#6B7280',
     marginBottom: 4,
     textTransform: 'uppercase',
+    fontWeight: '600',
   },
   amountValue: {
-    fontSize: 18,
-    color: '#f8fafc',
+    fontSize: 16,
+    color: '#2D3748',
     fontWeight: '700',
   },
   ownerSection: {
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#334155',
+    borderTopColor: '#F3F4F6',
     flexDirection: 'row',
-    gap: 24,
+    gap: 20,
   },
   ownerItem: {
     flex: 1,
   },
   ownerLabel: {
     fontSize: 11,
-    color: '#64748b',
+    color: '#6B7280',
     marginBottom: 2,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    fontWeight: '600',
   },
   ownerValue: {
-    fontSize: 14,
-    color: '#cbd5e1',
-    fontWeight: '500',
+    fontSize: 15,
+    color: '#2D3748',
+    fontWeight: '600',
   },
 });
-
