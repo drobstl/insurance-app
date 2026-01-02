@@ -186,7 +186,7 @@ export default function AgentProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#0D4D4D',
   },
   header: {
     flexDirection: 'row',
