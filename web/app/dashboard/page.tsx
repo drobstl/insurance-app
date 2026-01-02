@@ -1,0 +1,1747 @@
+'use client';
+
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { onAuthStateChanged, signOut, User } from 'firebase/auth';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp, Timestamp, getDoc, getDocs, setDoc } from 'firebase/firestore';
+import { auth, db } from '../../firebase';
+
+interface Client {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  clientCode?: string;
+  createdAt: Timestamp;
+  agentId: string;
+}
+
+interface Policy {
+  id: string;
+  policyType: string;
+  policyNumber: string;
+  insuranceCompany: string;
+  policyOwner: string;
+  beneficiary: string;
+  coverageAmount: number;
+  premiumAmount: number;
+  renewalDate?: string;
+  amountOfProtection?: number;
+  protectionUnit?: 'months' | 'years';
+  status: 'Active' | 'Pending' | 'Lapsed';
+  createdAt: Timestamp;
+}
+
+interface AgentProfile {
+  name?: string;
+  email?: string;
+  phoneNumber?: string;
+  photoURL?: string;
+  photoBase64?: string;
+}
+
+interface PolicyFormData {
+  policyType: string;
+  policyNumber: string;
+  insuranceCompany: string;
+  policyOwner: string;
+  beneficiary: string;
+  coverageAmount: string;
+  premiumAmount: string;
+  renewalMonth: string;
+  renewalYear: string;
+  amountOfProtection: string;
+  protectionUnit: 'months' | 'years';
+  status: 'Active' | 'Pending' | 'Lapsed';
+}
+
+const POLICY_TYPES = ['IUL', 'Term Life', 'Whole Life', 'Mortgage Protection', 'Other'];
+const POLICY_STATUSES = ['Active', 'Pending', 'Lapsed'] as const;
+
+const MONTHS = [
+  { value: '01', label: 'January' },
+  { value: '02', label: 'February' },
+  { value: '03', label: 'March' },
+  { value: '04', label: 'April' },
+  { value: '05', label: 'May' },
+  { value: '06', label: 'June' },
+  { value: '07', label: 'July' },
+  { value: '08', label: 'August' },
+  { value: '09', label: 'September' },
+  { value: '10', label: 'October' },
+  { value: '11', label: 'November' },
+  { value: '12', label: 'December' },
+];
+
+const getDefaultPolicyFormData = (): PolicyFormData => ({
+  policyType: 'IUL',
+  policyNumber: '',
+  insuranceCompany: '',
+  policyOwner: '',
+  beneficiary: '',
+  coverageAmount: '',
+  premiumAmount: '',
+  renewalMonth: '',
+  renewalYear: '',
+  amountOfProtection: '',
+  protectionUnit: 'years',
+  status: 'Active',
+});
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [clientsLoading, setClientsLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '' });
+  const [formError, setFormError] = useState('');
+  const [formSuccess, setFormSuccess] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Client search state
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Policy management state
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [policies, setPolicies] = useState<Policy[]>([]);
+  const [policiesLoading, setPoliciesLoading] = useState(false);
+  const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+  const [policyFormData, setPolicyFormData] = useState<PolicyFormData>(getDefaultPolicyFormData());
+  const [policyFormError, setPolicyFormError] = useState('');
+  const [policyFormSuccess, setPolicyFormSuccess] = useState(false);
+  const [policySubmitting, setPolicySubmitting] = useState(false);
+
+  // Edit/Delete state
+  const [editingPolicy, setEditingPolicy] = useState<Policy | null>(null);
+  const [deleteConfirmPolicy, setDeleteConfirmPolicy] = useState<Policy | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Delete client state
+  const [deleteConfirmClient, setDeleteConfirmClient] = useState<Client | null>(null);
+  const [deletingClient, setDeletingClient] = useState(false);
+
+  // Agent profile state
+  const [agentProfile, setAgentProfile] = useState<AgentProfile>({});
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [profilePhoneNumber, setProfilePhoneNumber] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  // Track total active policies across all clients
+  const [totalActivePolicies, setTotalActivePolicies] = useState(0);
+
+  // Filtered clients based on search
+  const filteredClients = useMemo(() => {
+    if (!searchQuery.trim()) return clients;
+    const query = searchQuery.toLowerCase().trim();
+    return clients.filter(client =>
+      client.name.toLowerCase().includes(query) ||
+      client.email.toLowerCase().includes(query) ||
+      client.phone.toLowerCase().includes(query)
+    );
+  }, [clients, searchQuery]);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+        setLoading(false);
+      } else {
+        router.push('/login');
+      }
+    });
+
+    return () => unsubscribe();
+  }, [router]);
+
+  // Fetch agent profile from Firestore
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchAgentProfile = async () => {
+      try {
+        const agentDoc = await getDoc(doc(db, 'agents', user.uid));
+        if (agentDoc.exists()) {
+          const data = agentDoc.data();
+          setAgentProfile({
+            name: data.name,
+            email: data.email,
+            phoneNumber: data.phoneNumber,
+            photoBase64: data.photoBase64,
+            photoURL: data.photoURL,
+          });
+          setProfilePhoneNumber(data.phoneNumber || '');
+        }
+      } catch (error) {
+        console.error('Error fetching agent profile:', error);
+      }
+    };
+
+    fetchAgentProfile();
+  }, [user]);
+
+  // Fetch clients from Firestore
+  useEffect(() => {
+    if (!user) return;
+
+    const clientsRef = collection(db, 'agents', user.uid, 'clients');
+    const q = query(clientsRef, orderBy('createdAt', 'desc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const clientList: Client[] = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      } as Client));
+      setClients(clientList);
+      setClientsLoading(false);
+    }, (error) => {
+      console.error('Error fetching clients:', error);
+      setClientsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Count total active policies across all clients
+  useEffect(() => {
+    if (!user || clients.length === 0) {
+      setTotalActivePolicies(0);
+      return;
+    }
+
+    const unsubscribes: (() => void)[] = [];
+    let totalActive = 0;
+    let loadedCount = 0;
+
+    clients.forEach((client) => {
+      const policiesRef = collection(db, 'agents', user.uid, 'clients', client.id, 'policies');
+      const unsubscribe = onSnapshot(policiesRef, (snapshot) => {
+        const activeCount = snapshot.docs.filter(doc => doc.data().status === 'Active').length;
+        totalActive += activeCount;
+        loadedCount++;
+        
+        if (loadedCount === clients.length) {
+          setTotalActivePolicies(totalActive);
+        }
+      });
+      unsubscribes.push(unsubscribe);
+    });
+
+    return () => {
+      unsubscribes.forEach(unsub => unsub());
+    };
+  }, [user, clients]);
+
+  // Fetch policies for selected client
+  useEffect(() => {
+    if (!user || !selectedClient) {
+      setPolicies([]);
+      return;
+    }
+
+    setPoliciesLoading(true);
+    const policiesRef = collection(db, 'agents', user.uid, 'clients', selectedClient.id, 'policies');
+    const q = query(policiesRef, orderBy('createdAt', 'desc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const policyList: Policy[] = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      } as Policy));
+      setPolicies(policyList);
+      setPoliciesLoading(false);
+    }, (error) => {
+      console.error('Error fetching policies:', error);
+      setPoliciesLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user, selectedClient]);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.push('/login');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
+  const handleOpenModal = () => {
+    setIsModalOpen(true);
+    setFormData({ name: '', email: '', phone: '' });
+    setFormError('');
+    setFormSuccess(false);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setFormData({ name: '', email: '', phone: '' });
+    setFormError('');
+    setFormSuccess(false);
+  };
+
+  // Generate a unique client code
+  const generateClientCode = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  };
+
+  const handleSubmitClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    setFormError('');
+    setFormSuccess(false);
+    setSubmitting(true);
+
+    try {
+      const clientCode = generateClientCode();
+      const clientsRef = collection(db, 'agents', user.uid, 'clients');
+      await addDoc(clientsRef, {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        clientCode: clientCode,
+        createdAt: serverTimestamp(),
+        agentId: user.uid,
+      });
+
+      setFormSuccess(true);
+      setFormData({ name: '', email: '', phone: '' });
+
+      setTimeout(() => {
+        handleCloseModal();
+      }, 1500);
+    } catch (error) {
+      console.error('Error adding client:', error);
+      setFormError('Failed to add client. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSelectClient = useCallback((client: Client) => {
+    setSelectedClient(client);
+  }, []);
+
+  const handleCloseClientView = useCallback(() => {
+    setSelectedClient(null);
+    setPolicies([]);
+  }, []);
+
+  const handleOpenPolicyModal = (policy?: Policy) => {
+    setIsPolicyModalOpen(true);
+    setEditingPolicy(policy || null);
+    
+    if (policy) {
+      // Pre-fill form for editing
+      const [year, month] = policy.renewalDate ? policy.renewalDate.split('-') : ['', ''];
+      setPolicyFormData({
+        policyType: policy.policyType,
+        policyNumber: policy.policyNumber,
+        insuranceCompany: policy.insuranceCompany || '',
+        policyOwner: policy.policyOwner || '',
+        beneficiary: policy.beneficiary || '',
+        coverageAmount: policy.coverageAmount.toString(),
+        premiumAmount: policy.premiumAmount.toString(),
+        renewalMonth: month || '',
+        renewalYear: year || '',
+        amountOfProtection: policy.amountOfProtection?.toString() || '',
+        protectionUnit: policy.protectionUnit || 'years',
+        status: policy.status,
+      });
+    } else {
+      setPolicyFormData(getDefaultPolicyFormData());
+    }
+    
+    setPolicyFormError('');
+    setPolicyFormSuccess(false);
+  };
+
+  const handleClosePolicyModal = () => {
+    setIsPolicyModalOpen(false);
+    setEditingPolicy(null);
+    setPolicyFormData(getDefaultPolicyFormData());
+    setPolicyFormError('');
+    setPolicyFormSuccess(false);
+  };
+
+  const handleSubmitPolicy = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !selectedClient) return;
+
+    setPolicyFormError('');
+    setPolicyFormSuccess(false);
+    setPolicySubmitting(true);
+
+    try {
+      // Build renewal date from month/year if Term Life
+      let renewalDate: string | undefined;
+      if (policyFormData.policyType === 'Term Life' && policyFormData.renewalMonth && policyFormData.renewalYear) {
+        renewalDate = `${policyFormData.renewalYear}-${policyFormData.renewalMonth}-01`;
+      }
+
+      const policyData: Record<string, unknown> = {
+        policyType: policyFormData.policyType,
+        policyNumber: policyFormData.policyNumber,
+        insuranceCompany: policyFormData.insuranceCompany,
+        policyOwner: policyFormData.policyOwner,
+        beneficiary: policyFormData.beneficiary,
+        coverageAmount: parseFloat(policyFormData.coverageAmount),
+        premiumAmount: parseFloat(policyFormData.premiumAmount),
+        status: policyFormData.status,
+      };
+
+      // Add conditional fields
+      if (policyFormData.policyType === 'Term Life' && renewalDate) {
+        policyData.renewalDate = renewalDate;
+      }
+      if (policyFormData.policyType === 'Mortgage Protection' && policyFormData.amountOfProtection) {
+        policyData.amountOfProtection = parseInt(policyFormData.amountOfProtection);
+        policyData.protectionUnit = policyFormData.protectionUnit;
+      }
+
+      if (editingPolicy) {
+        // Update existing policy
+        const policyRef = doc(db, 'agents', user.uid, 'clients', selectedClient.id, 'policies', editingPolicy.id);
+        await updateDoc(policyRef, policyData);
+      } else {
+        // Add new policy
+        const policiesRef = collection(db, 'agents', user.uid, 'clients', selectedClient.id, 'policies');
+        await addDoc(policiesRef, {
+          ...policyData,
+          createdAt: serverTimestamp(),
+        });
+      }
+
+      setPolicyFormSuccess(true);
+      setPolicyFormData(getDefaultPolicyFormData());
+
+      setTimeout(() => {
+        handleClosePolicyModal();
+      }, 1500);
+    } catch (error) {
+      console.error('Error saving policy:', error);
+      setPolicyFormError(`Failed to ${editingPolicy ? 'update' : 'add'} policy. Please try again.`);
+    } finally {
+      setPolicySubmitting(false);
+    }
+  };
+
+  const handleDeletePolicy = async () => {
+    if (!user || !selectedClient || !deleteConfirmPolicy) return;
+
+    setDeleting(true);
+    try {
+      const policyRef = doc(db, 'agents', user.uid, 'clients', selectedClient.id, 'policies', deleteConfirmPolicy.id);
+      await deleteDoc(policyRef);
+      setDeleteConfirmPolicy(null);
+    } catch (error) {
+      console.error('Error deleting policy:', error);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteClient = async () => {
+    if (!user || !deleteConfirmClient) return;
+
+    setDeletingClient(true);
+    try {
+      // First, delete all policies for this client
+      const policiesRef = collection(db, 'agents', user.uid, 'clients', deleteConfirmClient.id, 'policies');
+      const policiesSnapshot = await getDocs(policiesRef);
+      const deletePromises = policiesSnapshot.docs.map(policyDoc => 
+        deleteDoc(doc(db, 'agents', user.uid, 'clients', deleteConfirmClient.id, 'policies', policyDoc.id))
+      );
+      await Promise.all(deletePromises);
+
+      // Then delete the client document
+      await deleteDoc(doc(db, 'agents', user.uid, 'clients', deleteConfirmClient.id));
+
+      // Clear selection if deleted client was selected
+      if (selectedClient?.id === deleteConfirmClient.id) {
+        setSelectedClient(null);
+        setPolicies([]);
+      }
+
+      setDeleteConfirmClient(null);
+    } catch (error) {
+      console.error('Error deleting client:', error);
+    } finally {
+      setDeletingClient(false);
+    }
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user || !e.target.files || e.target.files.length === 0) return;
+
+    const file = e.target.files[0];
+    if (!file.type.startsWith('image/')) {
+      return;
+    }
+
+    setUploadingPhoto(true);
+    try {
+      // Resize and compress image to base64
+      const base64 = await resizeAndCompressImage(file, 400, 0.8);
+      
+      // Save base64 string directly to Firestore
+      await setDoc(doc(db, 'agents', user.uid), { photoBase64: base64 }, { merge: true });
+
+      setAgentProfile(prev => ({ ...prev, photoBase64: base64 }));
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  // Helper function to resize and compress image to base64
+  const resizeAndCompressImage = (file: File, maxSize: number, quality: number): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new window.Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Scale down if larger than maxSize
+          if (width > height) {
+            if (width > maxSize) {
+              height = Math.round((height * maxSize) / width);
+              width = maxSize;
+            }
+          } else {
+            if (height > maxSize) {
+              width = Math.round((width * maxSize) / height);
+              height = maxSize;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Could not get canvas context'));
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Convert to base64 JPEG with quality setting
+          const base64 = canvas.toDataURL('image/jpeg', quality);
+          // Remove the data:image/jpeg;base64, prefix - we'll add it back when displaying
+          const base64Data = base64.split(',')[1];
+          resolve(base64Data);
+        };
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user) return;
+
+    setSavingProfile(true);
+    try {
+      await setDoc(doc(db, 'agents', user.uid), { phoneNumber: profilePhoneNumber }, { merge: true });
+      setAgentProfile(prev => ({ ...prev, phoneNumber: profilePhoneNumber }));
+      setIsProfileModalOpen(false);
+    } catch (error) {
+      console.error('Error saving profile:', error);
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Active':
+        return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+      case 'Pending':
+        return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+      case 'Lapsed':
+        return 'bg-red-500/20 text-red-400 border-red-500/30';
+      default:
+        return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+    }
+  };
+
+  const getPolicyTypeIcon = (type: string) => {
+    switch (type) {
+      case 'IUL':
+        return (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+          </svg>
+        );
+      case 'Term Life':
+        return (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        );
+      case 'Whole Life':
+        return (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+        );
+      case 'Mortgage Protection':
+        return (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          </svg>
+        );
+      default:
+        return (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        );
+    }
+  };
+
+  // Generate year options (current year to 40 years in the future)
+  const yearOptions = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let i = 0; i <= 40; i++) {
+      years.push(currentYear + i);
+    }
+    return years;
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <svg className="animate-spin w-10 h-10 text-emerald-500" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <p className="text-slate-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      {/* Navigation Bar */}
+      <nav className="bg-slate-800/50 backdrop-blur-xl border-b border-slate-700/50 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Logo */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <span className="text-xl font-bold text-white">Agent Portal</span>
+            </div>
+
+            {/* User Menu */}
+            <div className="flex items-center gap-3">
+              {/* Profile Button */}
+              <button
+                onClick={() => setIsProfileModalOpen(true)}
+                className="flex items-center gap-3 px-3 py-2 bg-slate-700/30 hover:bg-slate-700/50 rounded-xl border border-slate-600/30 transition-all duration-200 group"
+              >
+                {agentProfile.photoBase64 ? (
+                  <img
+                    src={`data:image/jpeg;base64,${agentProfile.photoBase64}`}
+                    alt="Profile"
+                    className="w-8 h-8 rounded-full object-cover border-2 border-slate-600 group-hover:border-purple-500/50 transition-colors"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center border-2 border-slate-600 group-hover:border-purple-500/50 transition-colors">
+                    <span className="text-sm font-bold text-white">
+                      {agentProfile.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'A'}
+                    </span>
+                  </div>
+                )}
+                <div className="hidden sm:block text-left">
+                  <p className="text-sm font-medium text-white">{agentProfile.name || 'Agent'}</p>
+                  <p className="text-xs text-slate-400">{user?.email}</p>
+                </div>
+                <svg className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 hover:text-white rounded-xl border border-slate-600/50 transition-all duration-200 flex items-center gap-2 text-sm font-medium"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Welcome Section */}
+        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-8 shadow-2xl">
+          <div className="flex items-start gap-6">
+            <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold text-white mb-2">Welcome back!</h1>
+              <p className="text-slate-400 text-lg">
+                You&apos;re signed in as <span className="text-emerald-400 font-medium">{user?.email}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+          <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-slate-400 text-sm">Total Clients</p>
+                <p className="text-2xl font-bold text-white">{clients.length}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-emerald-500/20 rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-slate-400 text-sm">Active Policies</p>
+                <p className="text-2xl font-bold text-white">{totalActivePolicies}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-amber-500/20 rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-slate-400 text-sm">Pending Reviews</p>
+                <p className="text-2xl font-bold text-white">0</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Clients Section */}
+        <div className="mt-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <h2 className="text-2xl font-bold text-white">Your Clients</h2>
+            <button
+              onClick={handleOpenModal}
+              className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-xl shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/40 transition-all duration-200 flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Add Client
+            </button>
+          </div>
+
+          {/* Search Bar */}
+          {clients.length > 0 && (
+            <div className="mb-6">
+              <div className="relative">
+                <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search clients by name, email, or phone..."
+                  className="w-full pl-12 pr-12 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-700/50 hover:bg-slate-600/50 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {clientsLoading ? (
+            <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-12 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-4">
+                <svg className="animate-spin w-8 h-8 text-emerald-500" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                <p className="text-slate-400">Loading clients...</p>
+              </div>
+            </div>
+          ) : clients.length === 0 ? (
+            // Empty State
+            <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-12">
+              <div className="flex flex-col items-center text-center">
+                <div className="w-20 h-20 bg-slate-700/50 rounded-2xl flex items-center justify-center mb-6">
+                  <svg className="w-10 h-10 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold text-white mb-2">No clients yet</h3>
+                <p className="text-slate-400 mb-6 max-w-md">
+                  Get started by adding your first client. You&apos;ll be able to manage their information and policies all in one place.
+                </p>
+                <button
+                  onClick={handleOpenModal}
+                  className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-xl shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/40 transition-all duration-200 flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Add Your First Client
+                </button>
+              </div>
+            </div>
+          ) : filteredClients.length === 0 ? (
+            // No Search Results
+            <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-12">
+              <div className="flex flex-col items-center text-center">
+                <div className="w-16 h-16 bg-slate-700/50 rounded-2xl flex items-center justify-center mb-4">
+                  <svg className="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-white mb-2">No clients found</h3>
+                <p className="text-slate-400 mb-4">
+                  No clients match &ldquo;{searchQuery}&rdquo;. Try a different search term.
+                </p>
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 hover:text-white font-medium rounded-xl border border-slate-600/50 transition-all duration-200"
+                >
+                  Clear Search
+                </button>
+              </div>
+            </div>
+          ) : (
+            // Client List
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredClients.map((client) => (
+                <div
+                  key={client.id}
+                  className={`bg-slate-800/50 backdrop-blur-xl rounded-2xl border p-6 transition-all duration-200 group ${
+                    selectedClient?.id === client.id
+                      ? 'border-emerald-500/50 bg-slate-800/70 ring-1 ring-emerald-500/20'
+                      : 'border-slate-700/50 hover:border-slate-600/50 hover:bg-slate-800/70'
+                  }`}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-blue-500/20">
+                      {client.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg font-semibold text-white truncate group-hover:text-emerald-400 transition-colors">
+                        {client.name}
+                      </h3>
+                      <div className="mt-2 space-y-1.5">
+                        <div className="flex items-center gap-2 text-slate-400">
+                          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                          <span className="text-sm truncate">{client.email}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-slate-400">
+                          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
+                          <span className="text-sm">{client.phone}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Client Code Badge */}
+                  {client.clientCode && (
+                    <div className="mt-3 flex items-center justify-between bg-slate-900/50 rounded-lg px-3 py-2">
+                      <span className="text-xs text-slate-500">Client Code:</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-mono font-semibold text-emerald-400 tracking-wider">{client.clientCode}</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(client.clientCode || '');
+                            // Show brief feedback
+                            const btn = e.currentTarget;
+                            const originalHTML = btn.innerHTML;
+                            btn.innerHTML = '<svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>';
+                            setTimeout(() => { btn.innerHTML = originalHTML; }, 1500);
+                          }}
+                          className="p-1.5 rounded-md bg-slate-700/50 hover:bg-slate-600/50 text-slate-400 hover:text-white transition-colors"
+                          title="Copy code"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {/* View Policies Button */}
+                  <button
+                    onClick={() => handleSelectClient(client)}
+                    className={`w-full mt-4 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
+                      selectedClient?.id === client.id
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600/50 hover:text-white border border-slate-600/50'
+                    }`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    {selectedClient?.id === client.id ? 'Viewing Policies' : 'Manage Policies'}
+                  </button>
+                  {/* Delete Client Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteConfirmClient(client);
+                    }}
+                    className="w-full mt-2 px-4 py-2 rounded-xl font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete Client
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Selected Client Policies Section */}
+        {selectedClient && (
+          <div className="mt-8 bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 overflow-hidden">
+            {/* Header */}
+            <div className="p-6 border-b border-slate-700/50 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">Policies for {selectedClient.name}</h3>
+                  <p className="text-slate-400 text-sm">{policies.length} {policies.length === 1 ? 'policy' : 'policies'} total</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => handleOpenPolicyModal()}
+                  className="px-4 py-2.5 bg-purple-500 hover:bg-purple-600 text-white font-semibold rounded-xl shadow-lg shadow-purple-500/30 hover:shadow-purple-500/40 transition-all duration-200 flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Add Policy
+                </button>
+                <button
+                  onClick={handleCloseClientView}
+                  className="w-10 h-10 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Policies Content */}
+            <div className="p-6">
+              {policiesLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="flex flex-col items-center gap-4">
+                    <svg className="animate-spin w-8 h-8 text-purple-500" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    <p className="text-slate-400">Loading policies...</p>
+                  </div>
+                </div>
+              ) : policies.length === 0 ? (
+                // Empty Policies State
+                <div className="flex flex-col items-center text-center py-12">
+                  <div className="w-16 h-16 bg-slate-700/50 rounded-2xl flex items-center justify-center mb-4">
+                    <svg className="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <h4 className="text-lg font-semibold text-white mb-2">No policies yet</h4>
+                  <p className="text-slate-400 mb-4 max-w-sm">
+                    Add a policy to start tracking coverage for this client.
+                  </p>
+                  <button
+                    onClick={() => handleOpenPolicyModal()}
+                    className="px-5 py-2.5 bg-purple-500 hover:bg-purple-600 text-white font-semibold rounded-xl shadow-lg shadow-purple-500/30 hover:shadow-purple-500/40 transition-all duration-200 flex items-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Add First Policy
+                  </button>
+                </div>
+              ) : (
+                // Policy List
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {policies.map((policy) => (
+                    <div
+                      key={policy.id}
+                      className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-5 hover:border-slate-600/50 transition-all duration-200"
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center text-purple-400">
+                            {getPolicyTypeIcon(policy.policyType)}
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-white">{policy.policyType}</h4>
+                            <p className="text-slate-500 text-sm">#{policy.policyNumber}</p>
+                          </div>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(policy.status)}`}>
+                          {policy.status}
+                        </span>
+                      </div>
+                      
+                      {/* Insurance Company */}
+                      {policy.insuranceCompany && (
+                        <div className="mb-4 pb-4 border-b border-slate-700/50">
+                          <p className="text-slate-500 text-xs uppercase tracking-wide mb-1">Insurance Company</p>
+                          <p className="text-white font-medium">{policy.insuranceCompany}</p>
+                        </div>
+                      )}
+
+                      {/* Policy Owner & Beneficiary */}
+                      {(policy.policyOwner || policy.beneficiary) && (
+                        <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-slate-700/50">
+                          {policy.policyOwner && (
+                            <div>
+                              <p className="text-slate-500 text-xs uppercase tracking-wide mb-1">Owner</p>
+                              <p className="text-white text-sm">{policy.policyOwner}</p>
+                            </div>
+                          )}
+                          {policy.beneficiary && (
+                            <div>
+                              <p className="text-slate-500 text-xs uppercase tracking-wide mb-1">Beneficiary</p>
+                              <p className="text-white text-sm">{policy.beneficiary}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        {policy.policyType === 'Mortgage Protection' && policy.amountOfProtection && (
+                          <div className="col-span-2">
+                            <p className="text-slate-500 text-xs uppercase tracking-wide mb-1">Amount of Protection</p>
+                            <p className="text-white font-semibold">{policy.amountOfProtection} {policy.protectionUnit === 'months' ? 'Months' : 'Years'}</p>
+                          </div>
+                        )}
+                        {policy.policyType === 'Term Life' && policy.renewalDate && (
+                          <div className="col-span-2">
+                            <p className="text-slate-500 text-xs uppercase tracking-wide mb-1">Renewal Date</p>
+                            <p className="text-white">{formatDate(policy.renewalDate)}</p>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-slate-500 text-xs uppercase tracking-wide mb-1">Death Benefit</p>
+                          <p className="text-white font-semibold">{formatCurrency(policy.coverageAmount)}</p>
+                        </div>
+                        <div>
+                          <p className="text-slate-500 text-xs uppercase tracking-wide mb-1">Premium</p>
+                          <p className="text-white font-semibold">{formatCurrency(policy.premiumAmount)}/mo</p>
+                        </div>
+                      </div>
+
+                      {/* Edit/Delete Actions */}
+                      <div className="flex gap-2 mt-4 pt-4 border-t border-slate-700/50">
+                        <button
+                          onClick={() => handleOpenPolicyModal(policy)}
+                          className="flex-1 px-3 py-2 bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 hover:text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirmPolicy(policy)}
+                          className="flex-1 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 border border-red-500/20"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Add Client Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={handleCloseModal}
+          />
+          <div className="relative w-full max-w-md bg-slate-800 rounded-2xl border border-slate-700/50 shadow-2xl transform transition-all">
+            <div className="flex items-center justify-between p-6 border-b border-slate-700/50">
+              <h3 className="text-xl font-bold text-white">Add New Client</h3>
+              <button
+                onClick={handleCloseModal}
+                className="w-8 h-8 rounded-lg bg-slate-700/50 hover:bg-slate-600/50 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={handleSubmitClient} className="p-6 space-y-5">
+              {formError && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
+                  <svg className="w-5 h-5 text-red-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-red-400 text-sm">{formError}</p>
+                </div>
+              )}
+              {formSuccess && (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 flex items-start gap-3">
+                  <svg className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-emerald-400 text-sm">Client added successfully!</p>
+                </div>
+              )}
+              <div>
+                <label htmlFor="clientName" className="block text-sm font-medium text-slate-300 mb-2">
+                  Client Name
+                </label>
+                <input
+                  id="clientName"
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+                  placeholder="John Doe"
+                />
+              </div>
+              <div>
+                <label htmlFor="clientEmail" className="block text-sm font-medium text-slate-300 mb-2">
+                  Email Address
+                </label>
+                <input
+                  id="clientEmail"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+                  placeholder="john@example.com"
+                />
+              </div>
+              <div>
+                <label htmlFor="clientPhone" className="block text-sm font-medium text-slate-300 mb-2">
+                  Phone Number
+                </label>
+                <input
+                  id="clientPhone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  required
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+                  placeholder="(555) 123-4567"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="flex-1 py-3 px-4 bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 hover:text-white font-semibold rounded-xl border border-slate-600/50 transition-all duration-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || formSuccess}
+                  className="flex-1 py-3 px-4 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-500/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/40 transition-all duration-200 flex items-center justify-center gap-2"
+                >
+                  {submitting ? (
+                    <>
+                      <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Adding...
+                    </>
+                  ) : (
+                    'Add Client'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Policy Modal */}
+      {isPolicyModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={handleClosePolicyModal}
+          />
+          <div className="relative w-full max-w-lg bg-slate-800 rounded-2xl border border-slate-700/50 shadow-2xl transform transition-all max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-slate-700/50 sticky top-0 bg-slate-800 z-10">
+              <div>
+                <h3 className="text-xl font-bold text-white">
+                  {editingPolicy ? 'Edit Policy' : 'Add New Policy'}
+                </h3>
+                <p className="text-slate-400 text-sm">For {selectedClient?.name}</p>
+              </div>
+              <button
+                onClick={handleClosePolicyModal}
+                className="w-8 h-8 rounded-lg bg-slate-700/50 hover:bg-slate-600/50 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={handleSubmitPolicy} className="p-6 space-y-5">
+              {policyFormError && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
+                  <svg className="w-5 h-5 text-red-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-red-400 text-sm">{policyFormError}</p>
+                </div>
+              )}
+              {policyFormSuccess && (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 flex items-start gap-3">
+                  <svg className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-emerald-400 text-sm">Policy {editingPolicy ? 'updated' : 'added'} successfully!</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="policyType" className="block text-sm font-medium text-slate-300 mb-2">
+                    Policy Type
+                  </label>
+                  <select
+                    id="policyType"
+                    value={policyFormData.policyType}
+                    onChange={(e) => setPolicyFormData({ ...policyFormData, policyType: e.target.value })}
+                    required
+                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                  >
+                    {POLICY_TYPES.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="policyStatus" className="block text-sm font-medium text-slate-300 mb-2">
+                    Status
+                  </label>
+                  <select
+                    id="policyStatus"
+                    value={policyFormData.status}
+                    onChange={(e) => setPolicyFormData({ ...policyFormData, status: e.target.value as 'Active' | 'Pending' | 'Lapsed' })}
+                    required
+                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                  >
+                    {POLICY_STATUSES.map((status) => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Policy Number & Insurance Company */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="policyNumber" className="block text-sm font-medium text-slate-300 mb-2">
+                    Policy Number
+                  </label>
+                  <input
+                    id="policyNumber"
+                    type="text"
+                    value={policyFormData.policyNumber}
+                    onChange={(e) => setPolicyFormData({ ...policyFormData, policyNumber: e.target.value })}
+                    required
+                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                    placeholder="POL-2026-001234"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="insuranceCompany" className="block text-sm font-medium text-slate-300 mb-2">
+                    Insurance Company
+                  </label>
+                  <input
+                    id="insuranceCompany"
+                    type="text"
+                    value={policyFormData.insuranceCompany}
+                    onChange={(e) => setPolicyFormData({ ...policyFormData, insuranceCompany: e.target.value })}
+                    required
+                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                    placeholder="State Farm, MetLife, etc."
+                  />
+                </div>
+              </div>
+
+              {/* Policy Owner & Beneficiary */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="policyOwner" className="block text-sm font-medium text-slate-300 mb-2">
+                    Policy Owner Name
+                  </label>
+                  <input
+                    id="policyOwner"
+                    type="text"
+                    value={policyFormData.policyOwner}
+                    onChange={(e) => setPolicyFormData({ ...policyFormData, policyOwner: e.target.value })}
+                    required
+                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                    placeholder="John Doe"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="beneficiary" className="block text-sm font-medium text-slate-300 mb-2">
+                    Beneficiary Name
+                  </label>
+                  <input
+                    id="beneficiary"
+                    type="text"
+                    value={policyFormData.beneficiary}
+                    onChange={(e) => setPolicyFormData({ ...policyFormData, beneficiary: e.target.value })}
+                    required
+                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                    placeholder="Jane Doe"
+                  />
+                </div>
+              </div>
+
+              {/* Conditional: Amount of Protection for Mortgage Protection only */}
+              {policyFormData.policyType === 'Mortgage Protection' && (
+                <div>
+                  <label htmlFor="amountOfProtection" className="block text-sm font-medium text-slate-300 mb-2">
+                    Amount of Protection
+                  </label>
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <input
+                        id="amountOfProtection"
+                        type="number"
+                        min="1"
+                        max="480"
+                        value={policyFormData.amountOfProtection}
+                        onChange={(e) => setPolicyFormData({ ...policyFormData, amountOfProtection: e.target.value })}
+                        required
+                        className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                        placeholder={policyFormData.protectionUnit === 'months' ? '360' : '30'}
+                      />
+                    </div>
+                    <div className="w-32">
+                      <select
+                        id="protectionUnit"
+                        value={policyFormData.protectionUnit}
+                        onChange={(e) => setPolicyFormData({ ...policyFormData, protectionUnit: e.target.value as 'months' | 'years' })}
+                        className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                      >
+                        <option value="years">Years</option>
+                        <option value="months">Months</option>
+                      </select>
+                    </div>
+                  </div>
+                  <p className="text-slate-500 text-xs mt-2">Enter the protection duration (e.g., 30 Years or 360 Months)</p>
+                </div>
+              )}
+
+              {/* Conditional: Renewal Date for Term Life only */}
+              {policyFormData.policyType === 'Term Life' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Renewal Date
+                  </label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <select
+                        value={policyFormData.renewalMonth}
+                        onChange={(e) => setPolicyFormData({ ...policyFormData, renewalMonth: e.target.value })}
+                        required
+                        className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                      >
+                        <option value="">Month</option>
+                        {MONTHS.map((month) => (
+                          <option key={month.value} value={month.value}>{month.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <select
+                        value={policyFormData.renewalYear}
+                        onChange={(e) => setPolicyFormData({ ...policyFormData, renewalYear: e.target.value })}
+                        required
+                        className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                      >
+                        <option value="">Year</option>
+                        {yearOptions.map((year) => (
+                          <option key={year} value={year}>{year}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <p className="text-slate-500 text-xs mt-2">Select the month and year of policy renewal</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="coverageAmount" className="block text-sm font-medium text-slate-300 mb-2">
+                    Death Benefit
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">$</span>
+                    <input
+                      id="coverageAmount"
+                      type="number"
+                      min="0"
+                      step="1000"
+                      value={policyFormData.coverageAmount}
+                      onChange={(e) => setPolicyFormData({ ...policyFormData, coverageAmount: e.target.value })}
+                      required
+                      className="w-full pl-8 pr-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                      placeholder="500000"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="premiumAmount" className="block text-sm font-medium text-slate-300 mb-2">
+                    Monthly Premium
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">$</span>
+                    <input
+                      id="premiumAmount"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={policyFormData.premiumAmount}
+                      onChange={(e) => setPolicyFormData({ ...policyFormData, premiumAmount: e.target.value })}
+                      required
+                      className="w-full pl-8 pr-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                      placeholder="250"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleClosePolicyModal}
+                  className="flex-1 py-3 px-4 bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 hover:text-white font-semibold rounded-xl border border-slate-600/50 transition-all duration-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={policySubmitting || policyFormSuccess}
+                  className="flex-1 py-3 px-4 bg-purple-500 hover:bg-purple-600 disabled:bg-purple-500/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg shadow-purple-500/30 hover:shadow-purple-500/40 transition-all duration-200 flex items-center justify-center gap-2"
+                >
+                  {policySubmitting ? (
+                    <>
+                      <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      {editingPolicy ? 'Updating...' : 'Adding...'}
+                    </>
+                  ) : (
+                    editingPolicy ? 'Update Policy' : 'Add Policy'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmPolicy && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setDeleteConfirmPolicy(null)}
+          />
+          <div className="relative w-full max-w-md bg-slate-800 rounded-2xl border border-slate-700/50 shadow-2xl p-6">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 bg-red-500/20 rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Delete Policy?</h3>
+                <p className="text-slate-400 text-sm">This action cannot be undone.</p>
+              </div>
+            </div>
+            <p className="text-slate-300 mb-6">
+              Are you sure you want to delete the <span className="font-semibold text-white">{deleteConfirmPolicy.policyType}</span> policy #{deleteConfirmPolicy.policyNumber}?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirmPolicy(null)}
+                className="flex-1 py-3 px-4 bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 hover:text-white font-semibold rounded-xl border border-slate-600/50 transition-all duration-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeletePolicy}
+                disabled={deleting}
+                className="flex-1 py-3 px-4 bg-red-500 hover:bg-red-600 disabled:bg-red-500/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg shadow-red-500/30 hover:shadow-red-500/40 transition-all duration-200 flex items-center justify-center gap-2"
+              >
+                {deleting ? (
+                  <>
+                    <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete Policy'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Client Confirmation Dialog */}
+      {deleteConfirmClient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setDeleteConfirmClient(null)}
+          />
+          <div className="relative w-full max-w-md bg-slate-800 rounded-2xl border border-slate-700/50 shadow-2xl p-6">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 bg-red-500/20 rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Delete Client?</h3>
+                <p className="text-slate-400 text-sm">This action cannot be undone.</p>
+              </div>
+            </div>
+            <p className="text-slate-300 mb-6">
+              Are you sure you want to delete <span className="font-semibold text-white">{deleteConfirmClient.name}</span>? This will permanently remove the client and <span className="text-red-400 font-semibold">all their policies</span>.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirmClient(null)}
+                className="flex-1 py-3 px-4 bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 hover:text-white font-semibold rounded-xl border border-slate-600/50 transition-all duration-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteClient}
+                disabled={deletingClient}
+                className="flex-1 py-3 px-4 bg-red-500 hover:bg-red-600 disabled:bg-red-500/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg shadow-red-500/30 hover:shadow-red-500/40 transition-all duration-200 flex items-center justify-center gap-2"
+              >
+                {deletingClient ? (
+                  <>
+                    <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete Client'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Agent Profile Modal */}
+      {isProfileModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setIsProfileModalOpen(false)}
+          />
+          <div className="relative w-full max-w-md bg-slate-800 rounded-2xl border border-slate-700/50 shadow-2xl overflow-hidden">
+            <div className="p-6 border-b border-slate-700/50">
+              <h2 className="text-xl font-bold text-white">Edit Profile</h2>
+              <p className="text-slate-400 text-sm mt-1">Update your profile information</p>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Profile Photo Section */}
+              <div className="flex flex-col items-center">
+                <div className="relative">
+                  {agentProfile.photoBase64 ? (
+                    <img
+                      src={`data:image/jpeg;base64,${agentProfile.photoBase64}`}
+                      alt="Profile"
+                      className="w-24 h-24 rounded-full object-cover border-4 border-slate-600"
+                    />
+                  ) : (
+                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center border-4 border-slate-600">
+                      <span className="text-4xl font-bold text-white">
+                        {agentProfile.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'A'}
+                      </span>
+                    </div>
+                  )}
+                  <label className="absolute bottom-0 right-0 w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center cursor-pointer hover:bg-purple-600 transition-colors shadow-lg">
+                    {uploadingPhoto ? (
+                      <svg className="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handlePhotoUpload}
+                      disabled={uploadingPhoto}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                <p className="text-slate-400 text-sm mt-3">Click camera icon to upload photo</p>
+              </div>
+
+              {/* Phone Number Field */}
+              <div>
+                <label htmlFor="profilePhoneNumber" className="block text-sm font-medium text-slate-300 mb-2">
+                  Phone Number
+                </label>
+                <input
+                  id="profilePhoneNumber"
+                  type="tel"
+                  value={profilePhoneNumber}
+                  onChange={(e) => setProfilePhoneNumber(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                  placeholder="(555) 123-4567"
+                />
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-slate-700/50 flex gap-3">
+              <button
+                onClick={() => setIsProfileModalOpen(false)}
+                className="flex-1 py-3 px-4 bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 hover:text-white font-semibold rounded-xl border border-slate-600/50 transition-all duration-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveProfile}
+                disabled={savingProfile}
+                className="flex-1 py-3 px-4 bg-purple-500 hover:bg-purple-600 disabled:bg-purple-500/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg shadow-purple-500/30 hover:shadow-purple-500/40 transition-all duration-200 flex items-center justify-center gap-2"
+              >
+                {savingProfile ? (
+                  <>
+                    <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Saving...
+                  </>
+                ) : (
+                  'Save Changes'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
