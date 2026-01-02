@@ -118,7 +118,7 @@ export default function SubscribePage() {
             <div className="bg-[#0D4D4D] py-8 px-6 text-center">
               <h3 className="text-xl font-semibold text-white mb-2">Professional Plan</h3>
               <div className="flex items-baseline justify-center gap-1">
-                <span className="text-5xl font-bold text-[#3DD6C3]">$39</span>
+                <span className="text-5xl font-bold text-[#3DD6C3]">$9.99</span>
                 <span className="text-[#9CA3AF] text-lg">/month</span>
               </div>
             </div>

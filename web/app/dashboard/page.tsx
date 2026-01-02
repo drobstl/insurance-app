@@ -750,7 +750,7 @@ export default function DashboardPage() {
                   : 'Subscribe Now'}
               </button>
               <p className="text-sm text-[#9CA3AF] mt-4">
-                Only $39/month for unlimited clients and policies
+                Only $9.99/month for unlimited clients and policies
               </p>
             </div>
           </div>
