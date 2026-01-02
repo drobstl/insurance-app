@@ -80,8 +80,8 @@ export default function AgentProfileScreen() {
         {/* Dark Teal Header */}
         <View style={styles.header}>
           <View style={styles.headerContent}>
-            <Text style={styles.welcomeText}>Welcome back,</Text>
-            <Text style={styles.clientName}>{params.clientName}</Text>
+          <Text style={styles.welcomeText}>Welcome back,</Text>
+          <Text style={styles.clientName}>{getFirstName(params.clientName)}</Text>
           </View>
           <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
             <Text style={styles.logoutText}>Sign Out</Text>
