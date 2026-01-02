@@ -400,11 +400,13 @@ const styles = StyleSheet.create({
   primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F59E0B',
+    backgroundColor: '#0D4D4D',
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
-    shadowColor: '#F59E0B',
+    borderWidth: 3,
+    borderColor: '#fdcc02',
+    shadowColor: '#0D4D4D',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
     shadowRadius: 12,
@@ -414,7 +416,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 14,
-    backgroundColor: 'rgba(13, 77, 77, 0.15)',
+    backgroundColor: 'rgba(61, 214, 195, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -423,7 +425,7 @@ const styles = StyleSheet.create({
   docIcon: {
     width: 24,
     height: 28,
-    backgroundColor: '#0D4D4D',
+    backgroundColor: '#3DD6C3',
     borderRadius: 3,
     padding: 5,
     justifyContent: 'center',
@@ -431,13 +433,13 @@ const styles = StyleSheet.create({
   },
   docIconLine: {
     height: 2,
-    backgroundColor: '#F59E0B',
+    backgroundColor: '#0D4D4D',
     borderRadius: 1,
   },
   docIconLineShort: {
     height: 2,
     width: '60%',
-    backgroundColor: '#F59E0B',
+    backgroundColor: '#0D4D4D',
     borderRadius: 1,
   },
   buttonContent: {
@@ -446,18 +448,18 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#0D4D4D',
+    color: '#3DD6C3',
     marginBottom: 2,
   },
   buttonSubtext: {
     fontSize: 14,
-    color: '#0D4D4D',
+    color: '#3DD6C3',
     opacity: 0.8,
     fontWeight: '500',
   },
   buttonArrow: {
     fontSize: 28,
-    color: '#0D4D4D',
+    color: '#3DD6C3',
     fontWeight: '400',
   },
   helpSection: {
