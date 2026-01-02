@@ -38,6 +38,9 @@ interface AgentProfile {
   phoneNumber?: string;
   photoURL?: string;
   photoBase64?: string;
+  subscriptionStatus?: string;
+  stripeCustomerId?: string;
+  subscriptionId?: string;
 }
 
 interface PolicyFormData {
@@ -129,6 +132,9 @@ export default function DashboardPage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
 
+  // Subscription state
+  const [portalLoading, setPortalLoading] = useState(false);
+
   // Track total active policies across all clients
   const [totalActivePolicies, setTotalActivePolicies] = useState(0);
 
@@ -171,6 +177,9 @@ export default function DashboardPage() {
             phoneNumber: data.phoneNumber,
             photoBase64: data.photoBase64,
             photoURL: data.photoURL,
+            subscriptionStatus: data.subscriptionStatus,
+            stripeCustomerId: data.stripeCustomerId,
+            subscriptionId: data.subscriptionId,
           });
           setProfilePhoneNumber(data.phoneNumber || '');
         }
@@ -266,6 +275,35 @@ export default function DashboardPage() {
       router.push('/login');
     } catch (error) {
       console.error('Error signing out:', error);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    if (!user) return;
+
+    setPortalLoading(true);
+    try {
+      const response = await fetch('/api/stripe/create-portal-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.uid,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create portal session');
+      }
+
+      window.location.href = data.url;
+    } catch (error) {
+      console.error('Error opening customer portal:', error);
+      alert('Failed to open subscription management. Please try again.');
+      setPortalLoading(false);
     }
   };
 
@@ -652,6 +690,70 @@ export default function DashboardPage() {
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
           <p className="text-[#2D3748]">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Check for subscription status
+  if (agentProfile.subscriptionStatus !== 'active') {
+    return (
+      <div className="min-h-screen bg-[#F8F9FA]">
+        {/* Navigation Bar */}
+        <nav className="bg-[#0D4D4D]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#3DD6C3] rounded-xl flex items-center justify-center shadow-lg shadow-[#3DD6C3]/30">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                </div>
+                <span className="text-xl font-bold text-white">Agent Portal</span>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 text-white/80 hover:text-white transition-colors text-sm"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </nav>
+
+        {/* Subscription Required Message */}
+        <div className="flex items-center justify-center min-h-[calc(100vh-64px)] p-4">
+          <div className="max-w-md w-full">
+            <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+              <div className="w-16 h-16 bg-[#FEF3C7] rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg className="w-8 h-8 text-[#D97706]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-[#0D4D4D] mb-3">Subscription Required</h2>
+              <p className="text-[#6B7280] mb-6">
+                {agentProfile.subscriptionStatus === 'canceled' 
+                  ? 'Your subscription has been canceled. Please resubscribe to continue using the dashboard.'
+                  : agentProfile.subscriptionStatus === 'past_due'
+                  ? 'Your payment is past due. Please update your payment method to continue.'
+                  : 'You need an active subscription to access the agent dashboard and manage your clients.'}
+              </p>
+              <button
+                onClick={() => router.push('/subscribe')}
+                className="w-full py-3 px-6 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
+                {agentProfile.subscriptionStatus === 'canceled' || agentProfile.subscriptionStatus === 'past_due' 
+                  ? 'Reactivate Subscription' 
+                  : 'Subscribe Now'}
+              </button>
+              <p className="text-sm text-[#9CA3AF] mt-4">
+                Only $39/month for unlimited clients and policies
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -1712,6 +1814,42 @@ export default function DashboardPage() {
                   placeholder="(555) 123-4567"
                 />
               </div>
+
+              {/* Subscription Management */}
+              {agentProfile.stripeCustomerId && (
+                <div className="pt-4 border-t border-gray-200">
+                  <label className="block text-sm font-medium text-gray-600 mb-2">
+                    Subscription
+                  </label>
+                  <div className="flex items-center justify-between p-3 bg-[#D1FAE5] rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-[#0D4D4D] rounded-full flex items-center justify-center">
+                        <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <span className="text-[#0D4D4D] font-medium">Active Subscription</span>
+                    </div>
+                    <button
+                      onClick={handleManageSubscription}
+                      disabled={portalLoading}
+                      className="px-3 py-1.5 bg-[#0D4D4D] hover:bg-[#0A3D3D] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                    >
+                      {portalLoading ? (
+                        <>
+                          <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Loading...
+                        </>
+                      ) : (
+                        'Manage'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-6 border-t border-gray-200 flex gap-3">

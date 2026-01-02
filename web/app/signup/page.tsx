@@ -32,7 +32,7 @@ export default function SignupPage() {
         createdAt: serverTimestamp(),
       });
 
-      router.push('/dashboard');
+      router.push('/subscribe');
     } catch (err: unknown) {
       if (err instanceof Error) {
         const errorMessage = err.message;
