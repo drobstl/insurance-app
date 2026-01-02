@@ -14,9 +14,6 @@ import { router } from 'expo-router';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
-// Peace Sans font family constant
-const FONT_FAMILY = 'PeaceSans';
-
 export default function LoginScreen() {
   const [clientCode, setClientCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -184,18 +181,18 @@ const styles = StyleSheet.create({
   logoIconText: {
     fontSize: 38,
     color: '#FFFFFF',
-    fontFamily: FONT_FAMILY,
+    fontWeight: 'bold',
   },
   title: {
-    fontSize: 34,
-    fontFamily: FONT_FAMILY,
+    fontSize: 32,
+    fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 17,
     color: 'rgba(255, 255, 255, 0.8)',
-    fontFamily: FONT_FAMILY,
+    fontWeight: '500',
   },
   contentSection: {
     flex: 1,
@@ -211,7 +208,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 16,
-    fontFamily: FONT_FAMILY,
+    fontWeight: '600',
     color: '#2D3748',
     marginBottom: 10,
   },
@@ -227,7 +224,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     letterSpacing: 3,
     textAlign: 'center',
-    fontFamily: FONT_FAMILY,
+    fontWeight: '600',
   },
   errorContainer: {
     backgroundColor: '#FEF2F2',
@@ -241,7 +238,7 @@ const styles = StyleSheet.create({
     color: '#DC2626',
     fontSize: 15,
     textAlign: 'center',
-    fontFamily: FONT_FAMILY,
+    fontWeight: '500',
   },
   button: {
     backgroundColor: '#3DD6C3',
@@ -260,14 +257,13 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#FFFFFF',
-    fontSize: 20,
-    fontFamily: FONT_FAMILY,
+    fontSize: 19,
+    fontWeight: '700',
   },
   helpText: {
     fontSize: 15,
     color: '#6B7280',
     textAlign: 'center',
     lineHeight: 22,
-    fontFamily: FONT_FAMILY,
   },
 });

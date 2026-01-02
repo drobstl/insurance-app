@@ -11,9 +11,6 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 
-// Peace Sans font family constant
-const FONT_FAMILY = 'PeaceSans';
-
 export default function AgentProfileScreen() {
   const params = useLocalSearchParams<{
     agentId: string;
@@ -181,11 +178,11 @@ const styles = StyleSheet.create({
   welcomeText: {
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.8)',
-    fontFamily: FONT_FAMILY,
+    fontWeight: '500',
   },
   clientName: {
-    fontSize: 26,
-    fontFamily: FONT_FAMILY,
+    fontSize: 24,
+    fontWeight: '700',
     color: '#FFFFFF',
     marginTop: 2,
   },
@@ -200,7 +197,7 @@ const styles = StyleSheet.create({
   logoutText: {
     color: '#FFFFFF',
     fontSize: 15,
-    fontFamily: FONT_FAMILY,
+    fontWeight: '600',
   },
   scrollView: {
     flex: 1,
@@ -224,8 +221,8 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   sectionLabel: {
-    fontSize: 15,
-    fontFamily: FONT_FAMILY,
+    fontSize: 13,
+    fontWeight: '700',
     color: '#3DD6C3',
     letterSpacing: 1.5,
     marginBottom: 20,
@@ -253,12 +250,12 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: 40,
-    fontFamily: FONT_FAMILY,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
   agentName: {
-    fontSize: 30,
-    fontFamily: FONT_FAMILY,
+    fontSize: 28,
+    fontWeight: '700',
     color: '#2D3748',
     textAlign: 'center',
     marginBottom: 20,
@@ -295,12 +292,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6B7280',
     marginBottom: 2,
-    fontFamily: FONT_FAMILY,
+    fontWeight: '500',
   },
   contactValue: {
     fontSize: 16,
     color: '#2D3748',
-    fontFamily: FONT_FAMILY,
+    fontWeight: '600',
   },
   contactArrow: {
     width: 36,
@@ -313,7 +310,7 @@ const styles = StyleSheet.create({
   contactArrowText: {
     fontSize: 18,
     color: '#FFFFFF',
-    fontFamily: FONT_FAMILY,
+    fontWeight: '600',
   },
   primaryButton: {
     flexDirection: 'row',
@@ -344,20 +341,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   primaryButtonText: {
-    fontSize: 22,
-    fontFamily: FONT_FAMILY,
+    fontSize: 20,
+    fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 2,
   },
   buttonSubtext: {
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.85)',
-    fontFamily: FONT_FAMILY,
+    fontWeight: '500',
   },
   buttonArrow: {
     fontSize: 24,
     color: '#FFFFFF',
-    fontFamily: FONT_FAMILY,
+    fontWeight: '600',
   },
   helpSection: {
     backgroundColor: '#FFFFFF',
@@ -370,8 +367,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   helpTitle: {
-    fontSize: 20,
-    fontFamily: FONT_FAMILY,
+    fontSize: 18,
+    fontWeight: '700',
     color: '#0D4D4D',
     marginBottom: 8,
   },
@@ -379,6 +376,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6B7280',
     lineHeight: 24,
-    fontFamily: FONT_FAMILY,
   },
 });
