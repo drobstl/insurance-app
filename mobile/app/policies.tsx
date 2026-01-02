@@ -12,6 +12,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { collection, getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
+// Peace Sans font family constant
+const FONT_FAMILY = 'PeaceSans';
+
 interface Policy {
   id: string;
   policyType: string;
@@ -270,7 +273,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 17,
     color: '#0D4D4D',
-    fontWeight: '500',
+    fontFamily: FONT_FAMILY,
   },
   header: {
     flexDirection: 'row',
@@ -291,21 +294,21 @@ const styles = StyleSheet.create({
   backArrow: {
     fontSize: 24,
     color: '#FFFFFF',
-    fontWeight: '600',
+    fontFamily: FONT_FAMILY,
   },
   headerContent: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 26,
+    fontFamily: FONT_FAMILY,
     color: '#FFFFFF',
   },
   headerSubtitle: {
     fontSize: 15,
     color: 'rgba(255, 255, 255, 0.8)',
     marginTop: 2,
-    fontWeight: '500',
+    fontFamily: FONT_FAMILY,
   },
   scrollView: {
     flex: 1,
@@ -328,7 +331,7 @@ const styles = StyleSheet.create({
     color: '#DC2626',
     textAlign: 'center',
     marginBottom: 16,
-    fontWeight: '500',
+    fontFamily: FONT_FAMILY,
   },
   retryButton: {
     backgroundColor: '#3DD6C3',
@@ -339,7 +342,7 @@ const styles = StyleSheet.create({
   retryText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: FONT_FAMILY,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -360,8 +363,8 @@ const styles = StyleSheet.create({
     fontSize: 36,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 22,
+    fontFamily: FONT_FAMILY,
     color: '#2D3748',
     marginBottom: 8,
   },
@@ -370,19 +373,22 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     lineHeight: 24,
+    fontFamily: FONT_FAMILY,
   },
   policyList: {
-    gap: 16,
+    gap: 20,
   },
   policyCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    borderWidth: 2,
+    borderColor: '#0D4D4D',
+    shadowColor: '#0D4D4D',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -391,7 +397,7 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#E5E7EB',
   },
   policyTypeContainer: {
     flexDirection: 'row',
@@ -411,14 +417,14 @@ const styles = StyleSheet.create({
   },
   policyType: {
     fontSize: 18,
-    fontWeight: '700',
+    fontFamily: FONT_FAMILY,
     color: '#2D3748',
   },
   policyNumber: {
     fontSize: 14,
     color: '#6B7280',
     marginTop: 2,
-    fontWeight: '500',
+    fontFamily: FONT_FAMILY,
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -428,7 +434,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: FONT_FAMILY,
   },
   cardBody: {
     padding: 16,
@@ -442,7 +448,7 @@ const styles = StyleSheet.create({
   insuranceCompanyValue: {
     fontSize: 17,
     color: '#2D3748',
-    fontWeight: '600',
+    fontFamily: FONT_FAMILY,
   },
   detailRow: {
     marginBottom: 16,
@@ -453,12 +459,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    fontWeight: '600',
+    fontFamily: FONT_FAMILY,
   },
   detailValue: {
     fontSize: 17,
     color: '#2D3748',
-    fontWeight: '600',
+    fontFamily: FONT_FAMILY,
   },
   protectionHighlight: {
     backgroundColor: '#D1FAE5',
@@ -475,12 +481,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     textTransform: 'uppercase',
     letterSpacing: 1,
-    fontWeight: '700',
+    fontFamily: FONT_FAMILY,
   },
   protectionValue: {
-    fontSize: 26,
+    fontSize: 28,
     color: '#0D4D4D',
-    fontWeight: '700',
+    fontFamily: FONT_FAMILY,
   },
   amountGrid: {
     flexDirection: 'row',
@@ -502,12 +508,12 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginBottom: 4,
     textTransform: 'uppercase',
-    fontWeight: '600',
+    fontFamily: FONT_FAMILY,
   },
   amountValue: {
     fontSize: 16,
     color: '#2D3748',
-    fontWeight: '700',
+    fontFamily: FONT_FAMILY,
   },
   ownerSection: {
     marginTop: 16,
@@ -526,11 +532,11 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    fontWeight: '600',
+    fontFamily: FONT_FAMILY,
   },
   ownerValue: {
     fontSize: 15,
     color: '#2D3748',
-    fontWeight: '600',
+    fontFamily: FONT_FAMILY,
   },
 });
