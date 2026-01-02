@@ -100,18 +100,67 @@ export default function PoliciesScreen() {
     }
   };
 
-  const getPolicyIcon = (type: string) => {
+  const renderPolicyIcon = (type: string) => {
     switch (type) {
       case 'IUL':
-        return '📈';
+        // Chart/Growth icon
+        return (
+          <View style={styles.iconWrapper}>
+            <View style={styles.chartIcon}>
+              <View style={[styles.chartBar, { height: 8 }]} />
+              <View style={[styles.chartBar, { height: 14 }]} />
+              <View style={[styles.chartBar, { height: 20 }]} />
+            </View>
+          </View>
+        );
       case 'Term Life':
-        return '⏱️';
+        // Clock/Timer icon
+        return (
+          <View style={styles.iconWrapper}>
+            <View style={styles.clockIcon}>
+              <View style={styles.clockFace}>
+                <View style={styles.clockHand} />
+                <View style={styles.clockHandShort} />
+              </View>
+            </View>
+          </View>
+        );
       case 'Whole Life':
-        return '🛡️';
+        // Shield icon
+        return (
+          <View style={styles.iconWrapper}>
+            <View style={styles.shieldIcon}>
+              <View style={styles.shieldCheck} />
+            </View>
+          </View>
+        );
       case 'Mortgage Protection':
-        return '🏠';
+        // Home with family icon
+        return (
+          <View style={styles.iconWrapper}>
+            <View style={styles.homeIcon}>
+              <View style={styles.homeRoof} />
+              <View style={styles.homeBody}>
+                <View style={styles.familyContainer}>
+                  <View style={styles.familyPersonLarge} />
+                  <View style={styles.familyPersonSmall} />
+                  <View style={styles.familyPersonSmall} />
+                </View>
+              </View>
+            </View>
+          </View>
+        );
       default:
-        return '📄';
+        // Document icon
+        return (
+          <View style={styles.iconWrapper}>
+            <View style={styles.docIconPol}>
+              <View style={styles.docLinePol} />
+              <View style={styles.docLinePol} />
+              <View style={[styles.docLinePol, { width: '60%' }]} />
+            </View>
+          </View>
+        );
     }
   };
 
@@ -181,7 +230,7 @@ export default function PoliciesScreen() {
                   <View style={styles.cardHeader}>
                     <View style={styles.policyTypeContainer}>
                       <View style={styles.policyIconContainer}>
-                        <Text style={styles.policyIcon}>{getPolicyIcon(policy.policyType)}</Text>
+                        {renderPolicyIcon(policy.policyType)}
                       </View>
                       <View>
                         <Text style={styles.policyType}>{policy.policyType}</Text>
@@ -425,8 +474,141 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  policyIcon: {
-    fontSize: 24,
+  // Icon wrapper
+  iconWrapper: {
+    width: 28,
+    height: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // Chart icon for IUL
+  chartIcon: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 3,
+  },
+  chartBar: {
+    width: 6,
+    backgroundColor: '#3DD6C3',
+    borderRadius: 2,
+  },
+  // Clock icon for Term Life
+  clockIcon: {
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clockFace: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: '#3DD6C3',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clockHand: {
+    position: 'absolute',
+    width: 2,
+    height: 7,
+    backgroundColor: '#3DD6C3',
+    top: 3,
+    borderRadius: 1,
+  },
+  clockHandShort: {
+    position: 'absolute',
+    width: 5,
+    height: 2,
+    backgroundColor: '#3DD6C3',
+    right: 4,
+    borderRadius: 1,
+  },
+  // Shield icon for Whole Life
+  shieldIcon: {
+    width: 20,
+    height: 24,
+    backgroundColor: '#3DD6C3',
+    borderTopLeftRadius: 4,
+    borderTopRightRadius: 4,
+    borderBottomLeftRadius: 10,
+    borderBottomRightRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shieldCheck: {
+    width: 10,
+    height: 6,
+    borderLeftWidth: 2,
+    borderBottomWidth: 2,
+    borderColor: '#0D4D4D',
+    transform: [{ rotate: '-45deg' }],
+    marginTop: -2,
+  },
+  // Home with family icon for Mortgage Protection
+  homeIcon: {
+    width: 26,
+    height: 24,
+    alignItems: 'center',
+  },
+  homeRoof: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 13,
+    borderRightWidth: 13,
+    borderBottomWidth: 10,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#3DD6C3',
+  },
+  homeBody: {
+    width: 20,
+    height: 12,
+    backgroundColor: '#3DD6C3',
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingBottom: 2,
+  },
+  familyContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  familyPersonLarge: {
+    width: 5,
+    height: 8,
+    backgroundColor: '#0D4D4D',
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
+    borderBottomLeftRadius: 1,
+    borderBottomRightRadius: 1,
+  },
+  familyPersonSmall: {
+    width: 4,
+    height: 6,
+    backgroundColor: '#0D4D4D',
+    borderTopLeftRadius: 2,
+    borderTopRightRadius: 2,
+    borderBottomLeftRadius: 1,
+    borderBottomRightRadius: 1,
+  },
+  // Document icon for default
+  docIconPol: {
+    width: 18,
+    height: 22,
+    backgroundColor: '#3DD6C3',
+    borderRadius: 2,
+    padding: 3,
+    justifyContent: 'center',
+    gap: 3,
+  },
+  docLinePol: {
+    height: 2,
+    width: '100%',
+    backgroundColor: '#0D4D4D',
+    borderRadius: 1,
   },
   policyType: {
     fontSize: 18,
