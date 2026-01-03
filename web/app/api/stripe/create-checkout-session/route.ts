@@ -86,10 +86,20 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ sessionId: session.id, url: session.url });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error creating checkout session:', error);
+    
+    // Return more detailed error for debugging
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const stripeError = error as { type?: string; code?: string };
+    
     return NextResponse.json(
-      { error: 'Failed to create checkout session' },
+      { 
+        error: 'Failed to create checkout session',
+        details: errorMessage,
+        stripeErrorType: stripeError?.type,
+        stripeErrorCode: stripeError?.code,
+      },
       { status: 500 }
     );
   }
