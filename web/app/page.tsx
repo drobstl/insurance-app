@@ -337,12 +337,15 @@ export default function LandingPage() {
 
       {/* Coming Soon Section - Quility Style */}
       <section className="py-20 bg-[#0D4D4D] relative overflow-hidden">
-        {/* Grid Pattern Background */}
-        <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-20">
+        {/* Grid Pattern Background - Top Right Corner Only */}
+        <div className="absolute right-0 top-0 w-[400px] h-[320px] opacity-30">
           <div className="absolute inset-0" style={{
             backgroundImage: `linear-gradient(to right, #3DD6C3 1px, transparent 1px), linear-gradient(to bottom, #3DD6C3 1px, transparent 1px)`,
-            backgroundSize: '40px 40px'
+            backgroundSize: '32px 32px'
           }}></div>
+          {/* Fade effect at edges */}
+          <div className="absolute inset-0 bg-gradient-to-l from-transparent via-transparent to-[#0D4D4D]"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0D4D4D] via-transparent to-transparent"></div>
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
