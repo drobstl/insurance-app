@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
     marginRight: 14,
   },
   phoneIcon: {
-    backgroundColor: '#0099FF',
+    backgroundColor: '#fdcc02',
   },
   // Professional Email Icon
   emailIconOuter: {
@@ -449,11 +449,11 @@ const styles = StyleSheet.create({
   primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fdcc02',
+    backgroundColor: '#0099FF',
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
-    shadowColor: '#fdcc02',
+    shadowColor: '#0099FF',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
     shadowRadius: 12,
@@ -463,7 +463,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 14,
-    backgroundColor: 'rgba(13, 77, 77, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -472,7 +472,7 @@ const styles = StyleSheet.create({
   docIcon: {
     width: 24,
     height: 28,
-    backgroundColor: '#0D4D4D',
+    backgroundColor: '#FFFFFF',
     borderRadius: 3,
     padding: 5,
     justifyContent: 'center',
@@ -480,13 +480,13 @@ const styles = StyleSheet.create({
   },
   docIconLine: {
     height: 2,
-    backgroundColor: '#fdcc02',
+    backgroundColor: '#0099FF',
     borderRadius: 1,
   },
   docIconLineShort: {
     height: 2,
     width: '60%',
-    backgroundColor: '#fdcc02',
+    backgroundColor: '#0099FF',
     borderRadius: 1,
   },
   buttonContent: {
@@ -495,18 +495,18 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#0D4D4D',
+    color: '#FFFFFF',
     marginBottom: 2,
   },
   buttonSubtext: {
     fontSize: 14,
-    color: '#0D4D4D',
+    color: '#FFFFFF',
     opacity: 0.85,
     fontWeight: '500',
   },
   buttonArrow: {
     fontSize: 28,
-    color: '#0D4D4D',
+    color: '#FFFFFF',
     fontWeight: '400',
   },
   helpSection: {
