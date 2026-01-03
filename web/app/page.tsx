@@ -335,8 +335,102 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Coming Soon Section */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#fdcc02]/20 rounded-full mb-4">
+              <svg className="w-5 h-5 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span className="text-[#0D4D4D] font-semibold text-sm uppercase tracking-wide">Coming Soon</span>
+            </div>
+            <h2 className="text-3xl md:text-4xl font-bold text-[#0D4D4D] mb-4">
+              What's On The Roadmap
+            </h2>
+            <p className="text-xl text-[#6B7280] max-w-2xl mx-auto">
+              Exciting features in development to make your client relationships even stronger
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {/* Coming Soon Feature 1 - AI Document Parsing */}
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-8 border-2 border-dashed border-gray-300 relative overflow-hidden group hover:border-[#3DD6C3] transition-colors">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gray-200/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+              <div className="relative">
+                <div className="w-14 h-14 bg-gray-200 group-hover:bg-[#0D4D4D] rounded-xl flex items-center justify-center mb-6 transition-colors">
+                  <svg className="w-7 h-7 text-gray-500 group-hover:text-[#3DD6C3] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">AI Document Parsing</h3>
+                <p className="text-gray-500 text-lg">
+                  Upload policy documents and automatically extract all information. Stop typing, start uploading.
+                </p>
+                <div className="mt-4 flex items-center gap-2 text-sm text-gray-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Q2 2026</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Coming Soon Feature 2 - Smart Renewal Notifications */}
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-8 border-2 border-dashed border-gray-300 relative overflow-hidden group hover:border-[#3DD6C3] transition-colors">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gray-200/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+              <div className="relative">
+                <div className="w-14 h-14 bg-gray-200 group-hover:bg-[#0D4D4D] rounded-xl flex items-center justify-center mb-6 transition-colors">
+                  <svg className="w-7 h-7 text-gray-500 group-hover:text-[#3DD6C3] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">Smart Renewal Notifications</h3>
+                <p className="text-gray-500 text-lg">
+                  Automated push notifications to clients for policy renewals and rewrite opportunities.
+                </p>
+                <div className="mt-4 flex items-center gap-2 text-sm text-gray-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Q2 2026</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Coming Soon Feature 3 - Advanced Analytics */}
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-8 border-2 border-dashed border-gray-300 relative overflow-hidden group hover:border-[#3DD6C3] transition-colors">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gray-200/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+              <div className="relative">
+                <div className="w-14 h-14 bg-gray-200 group-hover:bg-[#0D4D4D] rounded-xl flex items-center justify-center mb-6 transition-colors">
+                  <svg className="w-7 h-7 text-gray-500 group-hover:text-[#3DD6C3] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">Advanced Analytics</h3>
+                <p className="text-gray-500 text-lg">
+                  Track retention rates, policy revenue, and client engagement metrics—all in one dashboard.
+                </p>
+                <div className="mt-4 flex items-center gap-2 text-sm text-gray-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Q3 2026</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center mt-10">
+            <p className="text-gray-500">
+              Have a feature request? <a href="mailto:support@agentforlife.app" className="text-[#3DD6C3] hover:underline font-medium">Let us know!</a>
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* How It Works */}
-      <section id="how-it-works" className="py-20 bg-white">
+      <section id="how-it-works" className="py-20 bg-[#F8F9FA]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-[#0D4D4D] mb-4">
