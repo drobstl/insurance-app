@@ -316,19 +316,16 @@ export default function LandingPage() {
               </p>
             </div>
 
-            {/* Feature 6 - Coming Soon */}
-            <div className="bg-white rounded-2xl p-8 shadow-sm hover:shadow-lg transition-shadow border border-gray-100 relative overflow-hidden">
-              <div className="absolute top-4 right-4 px-3 py-1 bg-[#fdcc02] text-[#0D4D4D] text-xs font-bold rounded-full">
-                COMING SOON
-              </div>
+            {/* Feature 6 - Agency Branding */}
+            <div className="bg-white rounded-2xl p-8 shadow-sm hover:shadow-lg transition-shadow border border-gray-100">
               <div className="w-14 h-14 bg-[#0D4D4D] rounded-xl flex items-center justify-center mb-6">
                 <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">Smart Notifications</h3>
+              <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">Agency Branding</h3>
               <p className="text-[#6B7280] text-lg">
-                Push notifications to clients for policy renewals and rewrite opportunities. Never miss a touchpoint.
+                Add your agency logo and name. Your clients see your professional brand alongside your personal profile.
               </p>
             </div>
           </div>
@@ -352,6 +349,12 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Left Side - Heading & Description */}
             <div>
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#fdcc02] rounded-full mb-6">
+                <svg className="w-4 h-4 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <span className="text-[#0D4D4D] font-bold text-sm uppercase tracking-wide">Coming Soon</span>
+              </div>
               <h2 className="text-3xl md:text-4xl font-bold text-[#3DD6C3] mb-6 italic">
                 Powerful features coming soon to supercharge your practice
               </h2>
