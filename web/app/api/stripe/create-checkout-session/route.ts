@@ -9,7 +9,7 @@ const PRICE_IDS = {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, email, plan = 'monthly', couponCode } = await request.json();
+    const { userId, email, plan = 'monthly' } = await request.json();
 
     if (!userId || !email) {
       return NextResponse.json(
@@ -58,8 +58,9 @@ export async function POST(request: NextRequest) {
       customerId = customer.id;
     }
 
-    // Build checkout session options
-    const sessionOptions = {
+    // Create checkout session with all options
+    // allow_promotion_codes lets users enter promo codes at checkout
+    const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],
       line_items: [
@@ -71,6 +72,7 @@ export async function POST(request: NextRequest) {
       mode: 'subscription',
       success_url: `${appUrl}/dashboard?subscription=success`,
       cancel_url: `${appUrl}/subscribe?canceled=true`,
+      allow_promotion_codes: true,
       metadata: {
         firebaseUserId: userId,
         plan: plan,
@@ -81,15 +83,7 @@ export async function POST(request: NextRequest) {
           plan: plan,
         },
       },
-    };
-
-    // Always allow promotion codes at checkout
-    // Users can enter their promo code in the Stripe checkout page
-    // Stripe will validate the code automatically
-    sessionOptions.allow_promotion_codes = true;
-
-    // Create checkout session
-    const session = await stripe.checkout.sessions.create(sessionOptions);
+    });
 
     return NextResponse.json({ sessionId: session.id, url: session.url });
   } catch (error) {
