@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
-import { getStripe } from '../../lib/stripe-client';
 
 export default function SubscribePage() {
   const [user, setUser] = useState<User | null>(null);
@@ -62,17 +61,11 @@ export default function SubscribePage() {
         throw new Error(data.error || 'Failed to create checkout session');
       }
 
-      const stripe = await getStripe();
-      if (!stripe) {
-        throw new Error('Failed to load Stripe');
-      }
-
-      const { error: stripeError } = await stripe.redirectToCheckout({
-        sessionId: data.sessionId,
-      });
-
-      if (stripeError) {
-        throw new Error(stripeError.message);
+      // Redirect to Stripe Checkout using the session URL
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error('No checkout URL returned');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
