@@ -67,6 +67,8 @@ export default function LoginScreen() {
         const agentName = (agentData.name as string) || 'Your Agent';
         const agentEmail = (agentData.email as string) || '';
         const agentPhone = (agentData.phoneNumber as string) || '';
+        const agencyName = (agentData.agencyName as string) || '';
+        const agencyLogoBase64 = (agentData.agencyLogoBase64 as string) || '';
         const clientName = (foundClientData.name as string) || 'Client';
         
         router.push({
@@ -77,6 +79,8 @@ export default function LoginScreen() {
             agentEmail: agentEmail,
             agentPhone: agentPhone,
             agentPhotoBase64: photoBase64,
+            agencyName: agencyName,
+            agencyLogoBase64: agencyLogoBase64,
             clientId: foundClientId,
             clientName: clientName,
           },

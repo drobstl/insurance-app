@@ -24,6 +24,8 @@ export default function AgentProfileScreen() {
     agentEmail: string;
     agentPhone: string;
     agentPhotoBase64: string;
+    agencyName: string;
+    agencyLogoBase64: string;
     clientId: string;
     clientName: string;
   }>();
@@ -36,9 +38,20 @@ export default function AgentProfileScreen() {
     params.agentPhotoBase64 !== 'undefined' &&
     params.agentPhotoBase64 !== 'null';
 
+  // Check if we have a valid agency logo
+  const hasAgencyLogo = params.agencyLogoBase64 && 
+    params.agencyLogoBase64.length > 0 && 
+    params.agencyLogoBase64 !== 'undefined' &&
+    params.agencyLogoBase64 !== 'null';
+
   // Create the data URI for the image
   const photoUri = hasValidPhoto 
     ? `data:image/jpeg;base64,${params.agentPhotoBase64}` 
+    : null;
+
+  // Create the data URI for agency logo
+  const agencyLogoUri = hasAgencyLogo 
+    ? `data:image/jpeg;base64,${params.agencyLogoBase64}` 
     : null;
 
   const agentFirstName = getFirstName(params.agentName);
@@ -121,6 +134,22 @@ export default function AgentProfileScreen() {
 
             {/* Agent Name */}
             <Text style={styles.agentName}>{params.agentName}</Text>
+            
+            {/* Agency Name */}
+            {params.agencyName ? (
+              <Text style={styles.agencyName}>{params.agencyName}</Text>
+            ) : null}
+
+            {/* Agency Logo */}
+            {agencyLogoUri ? (
+              <View style={styles.agencyLogoContainer}>
+                <Image
+                  source={{ uri: agencyLogoUri }}
+                  style={styles.agencyLogo}
+                  resizeMode="contain"
+                />
+              </View>
+            ) : null}
 
             {/* Contact Buttons */}
             <View style={styles.contactContainer}>
@@ -306,7 +335,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#2D3748',
     textAlign: 'center',
+    marginBottom: 4,
+  },
+  agencyName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  agencyLogoContainer: {
+    alignItems: 'center',
     marginBottom: 24,
+    backgroundColor: '#FFFFFF',
+    padding: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  agencyLogo: {
+    width: 60,
+    height: 60,
   },
   contactContainer: {
     gap: 12,

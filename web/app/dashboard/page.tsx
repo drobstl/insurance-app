@@ -41,6 +41,8 @@ interface AgentProfile {
   subscriptionStatus?: string;
   stripeCustomerId?: string;
   subscriptionId?: string;
+  agencyName?: string;
+  agencyLogoBase64?: string;
 }
 
 interface PolicyFormData {
@@ -129,7 +131,9 @@ export default function DashboardPage() {
   const [agentProfile, setAgentProfile] = useState<AgentProfile>({});
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [profilePhoneNumber, setProfilePhoneNumber] = useState('');
+  const [profileAgencyName, setProfileAgencyName] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [uploadingAgencyLogo, setUploadingAgencyLogo] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Subscription state
@@ -180,8 +184,11 @@ export default function DashboardPage() {
             subscriptionStatus: data.subscriptionStatus,
             stripeCustomerId: data.stripeCustomerId,
             subscriptionId: data.subscriptionId,
+            agencyName: data.agencyName,
+            agencyLogoBase64: data.agencyLogoBase64,
           });
           setProfilePhoneNumber(data.phoneNumber || '');
+          setProfileAgencyName(data.agencyName || '');
         }
       } catch (error) {
         console.error('Error fetching agent profile:', error);
@@ -591,13 +598,44 @@ export default function DashboardPage() {
     });
   };
 
+  const handleAgencyLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user || !e.target.files || e.target.files.length === 0) return;
+
+    const file = e.target.files[0];
+    if (!file.type.startsWith('image/')) {
+      return;
+    }
+
+    setUploadingAgencyLogo(true);
+    try {
+      // Resize and compress image to base64 (smaller size for logo)
+      const base64 = await resizeAndCompressImage(file, 200, 0.8);
+      
+      // Save base64 string directly to Firestore
+      await setDoc(doc(db, 'agents', user.uid), { agencyLogoBase64: base64 }, { merge: true });
+
+      setAgentProfile(prev => ({ ...prev, agencyLogoBase64: base64 }));
+    } catch (error) {
+      console.error('Error uploading agency logo:', error);
+    } finally {
+      setUploadingAgencyLogo(false);
+    }
+  };
+
   const handleSaveProfile = async () => {
     if (!user) return;
 
     setSavingProfile(true);
     try {
-      await setDoc(doc(db, 'agents', user.uid), { phoneNumber: profilePhoneNumber }, { merge: true });
-      setAgentProfile(prev => ({ ...prev, phoneNumber: profilePhoneNumber }));
+      await setDoc(doc(db, 'agents', user.uid), { 
+        phoneNumber: profilePhoneNumber,
+        agencyName: profileAgencyName,
+      }, { merge: true });
+      setAgentProfile(prev => ({ 
+        ...prev, 
+        phoneNumber: profilePhoneNumber,
+        agencyName: profileAgencyName,
+      }));
       setIsProfileModalOpen(false);
     } catch (error) {
       console.error('Error saving profile:', error);
@@ -1813,6 +1851,73 @@ export default function DashboardPage() {
                   className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
                   placeholder="(555) 123-4567"
                 />
+              </div>
+
+              {/* Agency Name Field */}
+              <div>
+                <label htmlFor="profileAgencyName" className="block text-sm font-medium text-gray-600 mb-2">
+                  Agency Name
+                </label>
+                <input
+                  id="profileAgencyName"
+                  type="text"
+                  value={profileAgencyName}
+                  onChange={(e) => setProfileAgencyName(e.target.value)}
+                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                  placeholder="Your Agency Name"
+                />
+              </div>
+
+              {/* Agency Logo Section */}
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-2">
+                  Agency Logo
+                </label>
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    {agentProfile.agencyLogoBase64 ? (
+                      <img
+                        src={`data:image/jpeg;base64,${agentProfile.agencyLogoBase64}`}
+                        alt="Agency Logo"
+                        className="w-16 h-16 rounded-xl object-contain bg-white border-2 border-gray-200 p-1"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300">
+                        <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <label className="inline-flex items-center gap-2 px-4 py-2 bg-[#0D4D4D] hover:bg-[#0A3D3D] text-white text-sm font-medium rounded-lg cursor-pointer transition-colors">
+                      {uploadingAgencyLogo ? (
+                        <>
+                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          Upload Logo
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={handleAgencyLogoUpload}
+                        disabled={uploadingAgencyLogo}
+                        className="hidden"
+                      />
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1">PNG or JPG (max 200KB)</p>
+                  </div>
+                </div>
               </div>
 
               {/* Subscription Management */}
