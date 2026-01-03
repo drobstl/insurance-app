@@ -59,33 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Build checkout session options
-    interface CheckoutSessionOptions {
-      customer: string;
-      payment_method_types: ('card')[];
-      line_items: Array<{
-        price: string;
-        quantity: number;
-      }>;
-      mode: 'subscription';
-      success_url: string;
-      cancel_url: string;
-      metadata: {
-        firebaseUserId: string;
-        plan: string;
-      };
-      subscription_data: {
-        metadata: {
-          firebaseUserId: string;
-          plan: string;
-        };
-      };
-      allow_promotion_codes?: boolean;
-      discounts?: Array<{
-        promotion_code: string;
-      }>;
-    }
-
-    const sessionOptions: CheckoutSessionOptions = {
+    const sessionOptions = {
       customer: customerId,
       payment_method_types: ['card'],
       line_items: [
@@ -109,36 +83,10 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    // Handle coupon/promo code
-    if (couponCode && couponCode.trim()) {
-      try {
-        // Try to find the promotion code in Stripe
-        const promotionCodes = await stripe.promotionCodes.list({
-          code: couponCode.trim(),
-          active: true,
-          limit: 1,
-        });
-
-        if (promotionCodes.data.length > 0) {
-          // Valid promotion code found - apply it
-          sessionOptions.discounts = [
-            {
-              promotion_code: promotionCodes.data[0].id,
-            },
-          ];
-        } else {
-          // No valid promo code found, but still allow checkout
-          // Optionally enable the promo code input at checkout
-          sessionOptions.allow_promotion_codes = true;
-        }
-      } catch {
-        // If there's an error looking up the code, just enable manual entry
-        sessionOptions.allow_promotion_codes = true;
-      }
-    } else {
-      // No code provided - allow users to enter one at checkout
-      sessionOptions.allow_promotion_codes = true;
-    }
+    // Always allow promotion codes at checkout
+    // Users can enter their promo code in the Stripe checkout page
+    // Stripe will validate the code automatically
+    sessionOptions.allow_promotion_codes = true;
 
     // Create checkout session
     const session = await stripe.checkout.sessions.create(sessionOptions);
