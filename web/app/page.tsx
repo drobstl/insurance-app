@@ -335,118 +335,78 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Coming Soon Section */}
-      <section className="py-20 bg-gradient-to-b from-white to-[#F0F7FF]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#0099FF]/10 rounded-full mb-4 border border-[#0099FF]/20">
-              <svg className="w-5 h-5 text-[#0099FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <span className="text-[#0099FF] font-semibold text-sm uppercase tracking-wide">Coming Soon</span>
-            </div>
-            <h2 className="text-3xl md:text-4xl font-bold text-[#0D4D4D] mb-4">
-              What's On The Roadmap
-            </h2>
-            <p className="text-xl text-[#6B7280] max-w-2xl mx-auto">
-              Exciting features in development to make your client relationships even stronger
-            </p>
-          </div>
+      {/* Coming Soon Section - Quility Style */}
+      <section className="py-20 bg-[#0D4D4D] relative overflow-hidden">
+        {/* Grid Pattern Background */}
+        <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-20">
+          <div className="absolute inset-0" style={{
+            backgroundImage: `linear-gradient(to right, #3DD6C3 1px, transparent 1px), linear-gradient(to bottom, #3DD6C3 1px, transparent 1px)`,
+            backgroundSize: '40px 40px'
+          }}></div>
+        </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Coming Soon Feature 1 - One-Tap Referrals */}
-            <div className="bg-white rounded-2xl p-6 border-2 border-dashed border-[#0099FF]/30 relative overflow-hidden group hover:border-[#0099FF] hover:shadow-lg hover:shadow-[#0099FF]/10 transition-all duration-300">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-[#0099FF]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-              <div className="relative">
-                <div className="w-12 h-12 bg-[#0099FF]/10 group-hover:bg-[#0099FF] rounded-xl flex items-center justify-center mb-5 transition-colors">
-                  <svg className="w-6 h-6 text-[#0099FF] group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Left Side - Heading & Description */}
+            <div>
+              <h2 className="text-3xl md:text-4xl font-bold text-[#3DD6C3] mb-6 italic">
+                Powerful features coming soon to supercharge your practice
+              </h2>
+              <p className="text-xl text-white/80 leading-relaxed">
+                We're constantly building new tools to help you strengthen client relationships, save time, and grow your business. Here's what's on the roadmap.
+              </p>
+              <div className="mt-8">
+                <a href="mailto:support@agentforlife.app" className="inline-flex items-center gap-2 text-[#3DD6C3] hover:text-white transition-colors font-medium">
+                  <span>Have a feature request? Let us know</span>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                   </svg>
-                </div>
-                <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">One-Tap Referrals</h3>
-                <p className="text-[#6B7280] text-base">
-                  Clients refer you to friends with one tap. Opens contacts, creates group text intro, shares your contact card.
-                </p>
-                <div className="mt-4 flex items-center gap-2 text-sm text-[#0099FF]">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className="font-medium">Q2 2026</span>
-                </div>
+                </a>
               </div>
             </div>
 
-            {/* Coming Soon Feature 2 - AI Document Parsing */}
-            <div className="bg-white rounded-2xl p-6 border-2 border-dashed border-[#0099FF]/30 relative overflow-hidden group hover:border-[#0099FF] hover:shadow-lg hover:shadow-[#0099FF]/10 transition-all duration-300">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-[#0099FF]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-              <div className="relative">
-                <div className="w-12 h-12 bg-[#0099FF]/10 group-hover:bg-[#0099FF] rounded-xl flex items-center justify-center mb-5 transition-colors">
-                  <svg className="w-6 h-6 text-[#0099FF] group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            {/* Right Side - Feature List with Icons */}
+            <div className="space-y-6">
+              {/* Feature 1 - One-Tap Referrals */}
+              <div className="flex items-center gap-5 group">
+                <div className="w-14 h-14 rounded-full border-2 border-[#3DD6C3] flex items-center justify-center flex-shrink-0 group-hover:bg-[#3DD6C3]/10 transition-colors">
+                  <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">AI Document Parsing</h3>
-                <p className="text-[#6B7280] text-base">
-                  Upload policy documents and automatically extract all information. Stop typing, start uploading.
-                </p>
-                <div className="mt-4 flex items-center gap-2 text-sm text-[#0099FF]">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <span className="text-white text-xl font-medium">One-Tap Referrals</span>
+              </div>
+
+              {/* Feature 2 - AI Document Parsing */}
+              <div className="flex items-center gap-5 group">
+                <div className="w-14 h-14 rounded-full border-2 border-[#3DD6C3] flex items-center justify-center flex-shrink-0 group-hover:bg-[#3DD6C3]/10 transition-colors">
+                  <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
-                  <span className="font-medium">Q2 2026</span>
                 </div>
+                <span className="text-white text-xl font-medium">AI Document Parsing</span>
+              </div>
+
+              {/* Feature 3 - Smart Notifications */}
+              <div className="flex items-center gap-5 group">
+                <div className="w-14 h-14 rounded-full border-2 border-[#3DD6C3] flex items-center justify-center flex-shrink-0 group-hover:bg-[#3DD6C3]/10 transition-colors">
+                  <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                </div>
+                <span className="text-white text-xl font-medium">Smart Renewal Notifications</span>
+              </div>
+
+              {/* Feature 4 - Advanced Analytics */}
+              <div className="flex items-center gap-5 group">
+                <div className="w-14 h-14 rounded-full border-2 border-[#3DD6C3] flex items-center justify-center flex-shrink-0 group-hover:bg-[#3DD6C3]/10 transition-colors">
+                  <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                </div>
+                <span className="text-white text-xl font-medium">Advanced Analytics</span>
               </div>
             </div>
-
-            {/* Coming Soon Feature 3 - Smart Renewal Notifications */}
-            <div className="bg-white rounded-2xl p-6 border-2 border-dashed border-[#0099FF]/30 relative overflow-hidden group hover:border-[#0099FF] hover:shadow-lg hover:shadow-[#0099FF]/10 transition-all duration-300">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-[#0099FF]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-              <div className="relative">
-                <div className="w-12 h-12 bg-[#0099FF]/10 group-hover:bg-[#0099FF] rounded-xl flex items-center justify-center mb-5 transition-colors">
-                  <svg className="w-6 h-6 text-[#0099FF] group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">Smart Notifications</h3>
-                <p className="text-[#6B7280] text-base">
-                  Automated push notifications to clients for policy renewals and rewrite opportunities.
-                </p>
-                <div className="mt-4 flex items-center gap-2 text-sm text-[#0099FF]">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className="font-medium">Q2 2026</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Coming Soon Feature 4 - Advanced Analytics */}
-            <div className="bg-white rounded-2xl p-6 border-2 border-dashed border-[#0099FF]/30 relative overflow-hidden group hover:border-[#0099FF] hover:shadow-lg hover:shadow-[#0099FF]/10 transition-all duration-300">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-[#0099FF]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-              <div className="relative">
-                <div className="w-12 h-12 bg-[#0099FF]/10 group-hover:bg-[#0099FF] rounded-xl flex items-center justify-center mb-5 transition-colors">
-                  <svg className="w-6 h-6 text-[#0099FF] group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">Advanced Analytics</h3>
-                <p className="text-[#6B7280] text-base">
-                  Track retention rates, policy revenue, and client engagement metrics in one dashboard.
-                </p>
-                <div className="mt-4 flex items-center gap-2 text-sm text-[#0099FF]">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className="font-medium">Q3 2026</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="text-center mt-10">
-            <p className="text-[#6B7280]">
-              Have a feature request? <a href="mailto:support@agentforlife.app" className="text-[#0099FF] hover:underline font-medium">Let us know!</a>
-            </p>
           </div>
         </div>
       </section>
@@ -736,5 +696,8 @@ export default function LandingPage() {
         </div>
       </footer>
     </div>
+  );
+}
+
   );
 }
