@@ -491,74 +491,119 @@ export default function LandingPage() {
               Simple, Transparent Pricing
             </h2>
             <p className="text-xl text-white/70">
-              One plan. Everything included. No surprises.
+              Choose the plan that works best for you. Cancel anytime.
             </p>
           </div>
 
-          <div className="max-w-lg mx-auto">
-            <div className="bg-white rounded-3xl overflow-hidden shadow-2xl">
-              <div className="bg-[#3DD6C3] p-8 text-center">
-                <h3 className="text-xl font-semibold text-[#0D4D4D] mb-2">Professional Plan</h3>
+          <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-6">
+            {/* Monthly Plan */}
+            <div className="bg-white rounded-3xl overflow-hidden shadow-xl border-2 border-transparent hover:border-[#3DD6C3]/50 transition-all">
+              <div className="bg-white p-8 text-center border-b border-gray-100">
+                <h3 className="text-lg font-semibold text-[#6B7280] mb-2">Monthly</h3>
                 <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-6xl font-bold text-[#0D4D4D]">$9.99</span>
-                  <span className="text-[#0D4D4D]/70 text-xl">/month</span>
+                  <span className="text-5xl font-bold text-[#0D4D4D]">$9.99</span>
+                  <span className="text-[#6B7280] text-lg">/month</span>
                 </div>
-                <p className="text-[#0D4D4D]/80 mt-2">Unlimited clients. Unlimited policies. Cancel anytime.</p>
+                <p className="text-[#6B7280] mt-2 text-sm">Billed monthly</p>
               </div>
 
               <div className="p-8">
-                <ul className="space-y-4 mb-8">
+                <ul className="space-y-3 mb-8">
                   <li className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-full bg-[#D1FAE5] flex items-center justify-center flex-shrink-0">
-                      <svg className="w-4 h-4 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                    <span className="text-[#2D3748] text-lg">Personalized mobile app for your clients</span>
+                    <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-[#2D3748]">Unlimited clients & policies</span>
                   </li>
                   <li className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-full bg-[#D1FAE5] flex items-center justify-center flex-shrink-0">
-                      <svg className="w-4 h-4 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                    <span className="text-[#2D3748] text-lg">Unlimited client and policy management</span>
+                    <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-[#2D3748]">Client mobile app access</span>
                   </li>
                   <li className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-full bg-[#D1FAE5] flex items-center justify-center flex-shrink-0">
-                      <svg className="w-4 h-4 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                    <span className="text-[#2D3748] text-lg">Agent profile customization with photo</span>
+                    <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-[#2D3748]">Agent profile & branding</span>
                   </li>
                   <li className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-full bg-[#D1FAE5] flex items-center justify-center flex-shrink-0">
-                      <svg className="w-4 h-4 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                    <span className="text-[#2D3748] text-lg">Secure cloud storage</span>
-                  </li>
-                  <li className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-full bg-[#D1FAE5] flex items-center justify-center flex-shrink-0">
-                      <svg className="w-4 h-4 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                    <span className="text-[#2D3748] text-lg">Priority support</span>
+                    <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-[#2D3748]">Priority support</span>
                   </li>
                 </ul>
 
-                <Link href="/signup" className="block w-full py-4 bg-[#0D4D4D] hover:bg-[#0A3D3D] text-white text-lg font-semibold rounded-xl transition-colors text-center">
+                <Link href="/signup" className="block w-full py-3.5 bg-white hover:bg-gray-50 text-[#0D4D4D] text-lg font-semibold rounded-xl transition-colors text-center border-2 border-[#0D4D4D]">
                   Get Started
                 </Link>
-                <p className="text-center text-[#9CA3AF] text-sm mt-4">
-                  Cancel anytime
-                </p>
+              </div>
+            </div>
+
+            {/* Annual Plan - Highlighted */}
+            <div className="bg-white rounded-3xl overflow-hidden shadow-2xl border-2 border-[#3DD6C3] relative">
+              {/* Best Value Badge */}
+              <div className="absolute -top-0 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                <span className="px-4 py-1.5 bg-[#fdcc02] text-[#0D4D4D] text-sm font-bold rounded-full shadow-lg">
+                  SAVE 17%
+                </span>
+              </div>
+              
+              <div className="bg-[#3DD6C3] p-8 text-center">
+                <h3 className="text-lg font-semibold text-[#0D4D4D] mb-2">Annual</h3>
+                <div className="flex items-baseline justify-center gap-1">
+                  <span className="text-5xl font-bold text-[#0D4D4D]">$100</span>
+                  <span className="text-[#0D4D4D]/70 text-lg">/year</span>
+                </div>
+                <p className="text-[#0D4D4D]/80 mt-2 text-sm">Only $8.33/month • Save $20!</p>
+              </div>
+
+              <div className="p-8">
+                <ul className="space-y-3 mb-8">
+                  <li className="flex items-center gap-3">
+                    <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-[#2D3748]">Unlimited clients & policies</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-[#2D3748]">Client mobile app access</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-[#2D3748]">Agent profile & branding</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-[#2D3748]">Priority support</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <svg className="w-5 h-5 text-[#fdcc02] flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                    </svg>
+                    <span className="text-[#2D3748] font-medium">2 months FREE</span>
+                  </li>
+                </ul>
+
+                <Link href="/signup" className="block w-full py-3.5 bg-[#0D4D4D] hover:bg-[#0A3D3D] text-white text-lg font-semibold rounded-xl transition-colors text-center shadow-lg">
+                  Get Started
+                </Link>
               </div>
             </div>
           </div>
+
+          {/* Promo Code Hint */}
+          <p className="text-center text-white/60 text-sm mt-8">
+            Have a promo code? You can apply it at checkout.
+          </p>
         </div>
       </section>
 
