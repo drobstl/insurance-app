@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { onAuthStateChanged, signOut, User } from 'firebase/auth';
+import { onAuthStateChanged, signOut, User, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp, Timestamp, getDoc, getDocs, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 
@@ -135,6 +135,15 @@ export default function DashboardPage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadingAgencyLogo, setUploadingAgencyLogo] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
+  
+  // Password change state
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
 
   // Subscription state
   const [portalLoading, setPortalLoading] = useState(false);
@@ -641,6 +650,73 @@ export default function DashboardPage() {
       console.error('Error saving profile:', error);
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!user || !user.email) return;
+
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    // Validation
+    if (!currentPassword) {
+      setPasswordError('Please enter your current password.');
+      return;
+    }
+    if (!newPassword) {
+      setPasswordError('Please enter a new password.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordError('New password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New passwords do not match.');
+      return;
+    }
+    if (currentPassword === newPassword) {
+      setPasswordError('New password must be different from current password.');
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      // Re-authenticate user first
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(user, credential);
+
+      // Update password
+      await updatePassword(user, newPassword);
+
+      setPasswordSuccess('Password changed successfully!');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      
+      // Hide success message and close section after 3 seconds
+      setTimeout(() => {
+        setPasswordSuccess('');
+        setShowPasswordSection(false);
+      }, 3000);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        const errorMessage = error.message;
+        if (errorMessage.includes('wrong-password') || errorMessage.includes('invalid-credential')) {
+          setPasswordError('Current password is incorrect.');
+        } else if (errorMessage.includes('weak-password')) {
+          setPasswordError('Password is too weak. Please use a stronger password.');
+        } else if (errorMessage.includes('requires-recent-login')) {
+          setPasswordError('Please log out and log back in before changing your password.');
+        } else {
+          setPasswordError('Failed to change password. Please try again.');
+        }
+      } else {
+        setPasswordError('An unexpected error occurred.');
+      }
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -1791,13 +1867,13 @@ export default function DashboardPage() {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setIsProfileModalOpen(false)}
           />
-          <div className="relative w-full max-w-md bg-slate-800 rounded-2xl border border-gray-200 shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
+          <div className="relative w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-gray-200 shrink-0">
               <h2 className="text-xl font-bold text-[#2D3748]">Edit Profile</h2>
               <p className="text-gray-500 text-sm mt-1">Update your profile information</p>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 overflow-y-auto flex-1">
               {/* Profile Photo Section */}
               <div className="flex flex-col items-center">
                 <div className="relative">
@@ -1955,9 +2031,118 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
+
+              {/* Change Password Section */}
+              <div className="pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => {
+                    setShowPasswordSection(!showPasswordSection);
+                    setPasswordError('');
+                    setPasswordSuccess('');
+                    setCurrentPassword('');
+                    setNewPassword('');
+                    setConfirmPassword('');
+                  }}
+                  className="flex items-center justify-between w-full text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-[#0D4D4D] rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                      </svg>
+                    </div>
+                    <span className="text-sm font-medium text-gray-600">Change Password</span>
+                  </div>
+                  <svg className={`w-5 h-5 text-gray-400 transition-transform ${showPasswordSection ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {showPasswordSection && (
+                  <div className="mt-4 space-y-4">
+                    {passwordError && (
+                      <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2">
+                        <svg className="w-4 h-4 text-red-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p className="text-red-600 text-sm">{passwordError}</p>
+                      </div>
+                    )}
+
+                    {passwordSuccess && (
+                      <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-start gap-2">
+                        <svg className="w-4 h-4 text-green-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <p className="text-green-600 text-sm">{passwordSuccess}</p>
+                      </div>
+                    )}
+
+                    <div>
+                      <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-600 mb-1">
+                        Current Password
+                      </label>
+                      <input
+                        id="currentPassword"
+                        type="password"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200 text-sm"
+                        placeholder="Enter current password"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="newPassword" className="block text-sm font-medium text-gray-600 mb-1">
+                        New Password
+                      </label>
+                      <input
+                        id="newPassword"
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200 text-sm"
+                        placeholder="Enter new password (min 6 characters)"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-600 mb-1">
+                        Confirm New Password
+                      </label>
+                      <input
+                        id="confirmPassword"
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200 text-sm"
+                        placeholder="Confirm new password"
+                      />
+                    </div>
+
+                    <button
+                      onClick={handleChangePassword}
+                      disabled={changingPassword}
+                      className="w-full py-2.5 px-4 bg-[#0D4D4D] hover:bg-[#0A3D3D] disabled:bg-[#0D4D4D]/50 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-all duration-200 flex items-center justify-center gap-2 text-sm"
+                    >
+                      {changingPassword ? (
+                        <>
+                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Updating...
+                        </>
+                      ) : (
+                        'Update Password'
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="p-6 border-t border-gray-200 flex gap-3">
+            <div className="p-6 border-t border-gray-200 flex gap-3 shrink-0 bg-white">
               <button
                 onClick={() => setIsProfileModalOpen(false)}
                 className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-[#2D3748] font-semibold rounded-xl border border-gray-200 transition-all duration-200"
@@ -1967,7 +2152,7 @@ export default function DashboardPage() {
               <button
                 onClick={handleSaveProfile}
                 disabled={savingProfile}
-                className="flex-1 py-3 px-4 bg-purple-500 hover:bg-purple-600 disabled:bg-purple-500/50 disabled:cursor-not-allowed text-[#2D3748] font-semibold rounded-xl shadow-lg shadow-purple-500/30 hover:shadow-purple-500/40 transition-all duration-200 flex items-center justify-center gap-2"
+                className="flex-1 py-3 px-4 bg-[#3DD6C3] hover:bg-[#2BB5A5] disabled:bg-[#3DD6C3]/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg shadow-[#3DD6C3]/30 hover:shadow-[#3DD6C3]/40 transition-all duration-200 flex items-center justify-center gap-2"
               >
                 {savingProfile ? (
                   <>
