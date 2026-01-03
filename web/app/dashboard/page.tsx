@@ -1868,157 +1868,185 @@ export default function DashboardPage() {
             onClick={() => setIsProfileModalOpen(false)}
           />
           <div className="relative w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="p-6 border-b border-gray-200 shrink-0">
-              <h2 className="text-xl font-bold text-[#2D3748]">Edit Profile</h2>
-              <p className="text-gray-500 text-sm mt-1">Update your profile information</p>
+            {/* Header with dark teal background */}
+            <div className="bg-[#0D4D4D] p-6 shrink-0">
+              <h2 className="text-xl font-bold text-white">Profile Settings</h2>
+              <p className="text-white/70 text-sm mt-1">Manage your account and preferences</p>
             </div>
 
-            <div className="p-6 space-y-6 overflow-y-auto flex-1">
+            <div className="p-6 space-y-6 overflow-y-auto flex-1 bg-[#F8F9FA]">
               {/* Profile Photo Section */}
-              <div className="flex flex-col items-center">
-                <div className="relative">
-                  {agentProfile.photoBase64 ? (
-                    <img
-                      src={`data:image/jpeg;base64,${agentProfile.photoBase64}`}
-                      alt="Profile"
-                      className="w-24 h-24 rounded-full object-cover border-4 border-slate-600"
-                    />
-                  ) : (
-                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center border-4 border-slate-600">
-                      <span className="text-4xl font-bold text-[#2D3748]">
-                        {agentProfile.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'A'}
-                      </span>
-                    </div>
-                  )}
-                  <label className="absolute bottom-0 right-0 w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center cursor-pointer hover:bg-purple-600 transition-colors shadow-lg">
-                    {uploadingPhoto ? (
-                      <svg className="animate-spin w-4 h-4 text-[#2D3748]" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4 text-[#2D3748]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                    )}
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      onChange={handlePhotoUpload}
-                      disabled={uploadingPhoto}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-                <p className="text-gray-500 text-sm mt-3">Click camera icon to upload photo</p>
-              </div>
-
-              {/* Phone Number Field */}
-              <div>
-                <label htmlFor="profilePhoneNumber" className="block text-sm font-medium text-gray-600 mb-2">
-                  Phone Number
-                </label>
-                <input
-                  id="profilePhoneNumber"
-                  type="tel"
-                  value={profilePhoneNumber}
-                  onChange={(e) => setProfilePhoneNumber(e.target.value)}
-                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
-                  placeholder="(555) 123-4567"
-                />
-              </div>
-
-              {/* Agency Name Field */}
-              <div>
-                <label htmlFor="profileAgencyName" className="block text-sm font-medium text-gray-600 mb-2">
-                  Agency Name
-                </label>
-                <input
-                  id="profileAgencyName"
-                  type="text"
-                  value={profileAgencyName}
-                  onChange={(e) => setProfileAgencyName(e.target.value)}
-                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
-                  placeholder="Your Agency Name"
-                />
-              </div>
-
-              {/* Agency Logo Section */}
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-2">
-                  Agency Logo
-                </label>
-                <div className="flex items-center gap-4">
+              <div className="bg-white rounded-xl p-6 border border-gray-200">
+                <div className="flex flex-col items-center">
                   <div className="relative">
-                    {agentProfile.agencyLogoBase64 ? (
+                    {agentProfile.photoBase64 ? (
                       <img
-                        src={`data:image/jpeg;base64,${agentProfile.agencyLogoBase64}`}
-                        alt="Agency Logo"
-                        className="w-16 h-16 rounded-xl object-contain bg-white border-2 border-gray-200 p-1"
+                        src={`data:image/jpeg;base64,${agentProfile.photoBase64}`}
+                        alt="Profile"
+                        className="w-24 h-24 rounded-full object-cover border-4 border-[#3DD6C3] shadow-lg"
                       />
                     ) : (
-                      <div className="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300">
-                        <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                        </svg>
+                      <div className="w-24 h-24 rounded-full bg-[#0D4D4D] flex items-center justify-center border-4 border-[#3DD6C3] shadow-lg">
+                        <span className="text-4xl font-bold text-[#3DD6C3]">
+                          {agentProfile.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'A'}
+                        </span>
                       </div>
                     )}
-                  </div>
-                  <div className="flex-1">
-                    <label className="inline-flex items-center gap-2 px-4 py-2 bg-[#0D4D4D] hover:bg-[#0A3D3D] text-white text-sm font-medium rounded-lg cursor-pointer transition-colors">
-                      {uploadingAgencyLogo ? (
-                        <>
-                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                          </svg>
-                          Uploading...
-                        </>
+                    <label className="absolute bottom-0 right-0 w-9 h-9 bg-[#3DD6C3] rounded-full flex items-center justify-center cursor-pointer hover:bg-[#2BB5A5] transition-colors shadow-lg border-2 border-white">
+                      {uploadingPhoto ? (
+                        <svg className="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
                       ) : (
-                        <>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          Upload Logo
-                        </>
+                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
                       )}
                       <input
                         type="file"
                         accept="image/jpeg,image/png,image/webp"
-                        onChange={handleAgencyLogoUpload}
-                        disabled={uploadingAgencyLogo}
+                        onChange={handlePhotoUpload}
+                        disabled={uploadingPhoto}
                         className="hidden"
                       />
                     </label>
-                    <p className="text-xs text-gray-500 mt-1">PNG or JPG (max 200KB)</p>
+                  </div>
+                  <p className="text-[#0D4D4D] font-medium mt-3">{agentProfile.name || 'Your Name'}</p>
+                  <p className="text-gray-500 text-sm">{agentProfile.email || user?.email}</p>
+                </div>
+              </div>
+
+              {/* Contact Information Card */}
+              <div className="bg-white rounded-xl p-5 border border-gray-200">
+                <h3 className="text-sm font-semibold text-[#0D4D4D] uppercase tracking-wide mb-4 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                  Contact Info
+                </h3>
+                <div>
+                  <label htmlFor="profilePhoneNumber" className="block text-sm font-medium text-[#2D3748] mb-2">
+                    Phone Number
+                  </label>
+                  <input
+                    id="profilePhoneNumber"
+                    type="tel"
+                    value={profilePhoneNumber}
+                    onChange={(e) => setProfilePhoneNumber(e.target.value)}
+                    className="w-full px-4 py-3 bg-[#F8F9FA] border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
+                    placeholder="(555) 123-4567"
+                  />
+                </div>
+              </div>
+
+              {/* Agency Branding Card */}
+              <div className="bg-white rounded-xl p-5 border border-gray-200">
+                <h3 className="text-sm font-semibold text-[#0D4D4D] uppercase tracking-wide mb-4 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                  Agency Branding
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="profileAgencyName" className="block text-sm font-medium text-[#2D3748] mb-2">
+                      Agency Name
+                    </label>
+                    <input
+                      id="profileAgencyName"
+                      type="text"
+                      value={profileAgencyName}
+                      onChange={(e) => setProfileAgencyName(e.target.value)}
+                      className="w-full px-4 py-3 bg-[#F8F9FA] border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
+                      placeholder="Your Agency Name"
+                    />
+                  </div>
+
+                  {/* Agency Logo */}
+                  <div>
+                    <label className="block text-sm font-medium text-[#2D3748] mb-2">
+                      Agency Logo
+                    </label>
+                    <div className="flex items-center gap-4">
+                      <div className="relative">
+                        {agentProfile.agencyLogoBase64 ? (
+                          <img
+                            src={`data:image/jpeg;base64,${agentProfile.agencyLogoBase64}`}
+                            alt="Agency Logo"
+                            className="w-16 h-16 rounded-xl object-contain bg-white border-2 border-[#3DD6C3] p-1"
+                          />
+                        ) : (
+                          <div className="w-16 h-16 rounded-xl bg-[#F8F9FA] flex items-center justify-center border-2 border-dashed border-[#3DD6C3]/50">
+                            <svg className="w-6 h-6 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <label className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#0D4D4D] hover:bg-[#0A3D3D] text-white text-sm font-medium rounded-xl cursor-pointer transition-colors">
+                          {uploadingAgencyLogo ? (
+                            <>
+                              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                              Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              Upload Logo
+                            </>
+                          )}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={handleAgencyLogoUpload}
+                            disabled={uploadingAgencyLogo}
+                            className="hidden"
+                          />
+                        </label>
+                        <p className="text-xs text-gray-500 mt-1">PNG or JPG (max 200KB)</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Subscription Management */}
               {agentProfile.stripeCustomerId && (
-                <div className="pt-4 border-t border-gray-200">
-                  <label className="block text-sm font-medium text-gray-600 mb-2">
+                <div className="bg-white rounded-xl p-5 border border-gray-200">
+                  <h3 className="text-sm font-semibold text-[#0D4D4D] uppercase tracking-wide mb-4 flex items-center gap-2">
+                    <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
                     Subscription
-                  </label>
-                  <div className="flex items-center justify-between p-3 bg-[#D1FAE5] rounded-xl">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-[#0D4D4D] rounded-full flex items-center justify-center">
-                        <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  </h3>
+                  <div className="flex items-center justify-between p-4 bg-[#D1FAE5] rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-[#0D4D4D] rounded-full flex items-center justify-center">
+                        <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
                       </div>
-                      <span className="text-[#0D4D4D] font-medium">Active Subscription</span>
+                      <div>
+                        <span className="text-[#0D4D4D] font-semibold block">Active</span>
+                        <span className="text-[#0D4D4D]/70 text-sm">$9.99/month</span>
+                      </div>
                     </div>
                     <button
                       onClick={handleManageSubscription}
                       disabled={portalLoading}
-                      className="px-3 py-1.5 bg-[#0D4D4D] hover:bg-[#0A3D3D] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                      className="px-4 py-2 bg-[#0D4D4D] hover:bg-[#0A3D3D] text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
                       {portalLoading ? (
                         <>
-                          <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                           </svg>
@@ -2032,8 +2060,8 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              {/* Change Password Section */}
-              <div className="pt-4 border-t border-gray-200">
+              {/* Security Section */}
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <button
                   onClick={() => {
                     setShowPasswordSection(!showPasswordSection);
@@ -2043,116 +2071,123 @@ export default function DashboardPage() {
                     setNewPassword('');
                     setConfirmPassword('');
                   }}
-                  className="flex items-center justify-between w-full text-left"
+                  className="flex items-center justify-between w-full p-5 text-left hover:bg-gray-50 transition-colors"
                 >
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-[#0D4D4D] rounded-full flex items-center justify-center">
-                      <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-[#0D4D4D] rounded-xl flex items-center justify-center">
+                      <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                       </svg>
                     </div>
-                    <span className="text-sm font-medium text-gray-600">Change Password</span>
+                    <div>
+                      <span className="text-sm font-semibold text-[#0D4D4D] block">Change Password</span>
+                      <span className="text-xs text-gray-500">Update your account password</span>
+                    </div>
                   </div>
-                  <svg className={`w-5 h-5 text-gray-400 transition-transform ${showPasswordSection ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className={`w-5 h-5 text-[#3DD6C3] transition-transform ${showPasswordSection ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
 
                 {showPasswordSection && (
-                  <div className="mt-4 space-y-4">
-                    {passwordError && (
-                      <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2">
-                        <svg className="w-4 h-4 text-red-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <p className="text-red-600 text-sm">{passwordError}</p>
-                      </div>
-                    )}
-
-                    {passwordSuccess && (
-                      <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-start gap-2">
-                        <svg className="w-4 h-4 text-green-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        <p className="text-green-600 text-sm">{passwordSuccess}</p>
-                      </div>
-                    )}
-
-                    <div>
-                      <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-600 mb-1">
-                        Current Password
-                      </label>
-                      <input
-                        id="currentPassword"
-                        type="password"
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200 text-sm"
-                        placeholder="Enter current password"
-                      />
-                    </div>
-
-                    <div>
-                      <label htmlFor="newPassword" className="block text-sm font-medium text-gray-600 mb-1">
-                        New Password
-                      </label>
-                      <input
-                        id="newPassword"
-                        type="password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200 text-sm"
-                        placeholder="Enter new password (min 6 characters)"
-                      />
-                    </div>
-
-                    <div>
-                      <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-600 mb-1">
-                        Confirm New Password
-                      </label>
-                      <input
-                        id="confirmPassword"
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200 text-sm"
-                        placeholder="Confirm new password"
-                      />
-                    </div>
-
-                    <button
-                      onClick={handleChangePassword}
-                      disabled={changingPassword}
-                      className="w-full py-2.5 px-4 bg-[#0D4D4D] hover:bg-[#0A3D3D] disabled:bg-[#0D4D4D]/50 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-all duration-200 flex items-center justify-center gap-2 text-sm"
-                    >
-                      {changingPassword ? (
-                        <>
-                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  <div className="px-5 pb-5 space-y-4 border-t border-gray-100">
+                    <div className="pt-4">
+                      {passwordError && (
+                        <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2 mb-4">
+                          <svg className="w-4 h-4 text-red-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          Updating...
-                        </>
-                      ) : (
-                        'Update Password'
+                          <p className="text-red-600 text-sm">{passwordError}</p>
+                        </div>
                       )}
-                    </button>
+
+                      {passwordSuccess && (
+                        <div className="bg-[#D1FAE5] border border-[#3DD6C3]/30 rounded-xl p-3 flex items-start gap-2 mb-4">
+                          <svg className="w-4 h-4 text-[#0D4D4D] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          <p className="text-[#0D4D4D] text-sm font-medium">{passwordSuccess}</p>
+                        </div>
+                      )}
+
+                      <div className="space-y-3">
+                        <div>
+                          <label htmlFor="currentPassword" className="block text-sm font-medium text-[#2D3748] mb-1.5">
+                            Current Password
+                          </label>
+                          <input
+                            id="currentPassword"
+                            type="password"
+                            value={currentPassword}
+                            onChange={(e) => setCurrentPassword(e.target.value)}
+                            className="w-full px-4 py-3 bg-[#F8F9FA] border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
+                            placeholder="Enter current password"
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="newPassword" className="block text-sm font-medium text-[#2D3748] mb-1.5">
+                            New Password
+                          </label>
+                          <input
+                            id="newPassword"
+                            type="password"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            className="w-full px-4 py-3 bg-[#F8F9FA] border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
+                            placeholder="Min 6 characters"
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="confirmPassword" className="block text-sm font-medium text-[#2D3748] mb-1.5">
+                            Confirm New Password
+                          </label>
+                          <input
+                            id="confirmPassword"
+                            type="password"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className="w-full px-4 py-3 bg-[#F8F9FA] border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
+                            placeholder="Confirm new password"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={handleChangePassword}
+                        disabled={changingPassword}
+                        className="w-full mt-4 py-3 px-4 bg-[#3DD6C3] hover:bg-[#2BB5A5] disabled:bg-[#3DD6C3]/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-[#3DD6C3]/20"
+                      >
+                        {changingPassword ? (
+                          <>
+                            <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            Updating...
+                          </>
+                        ) : (
+                          'Update Password'
+                        )}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="p-6 border-t border-gray-200 flex gap-3 shrink-0 bg-white">
+            <div className="p-5 border-t border-gray-200 flex gap-3 shrink-0 bg-white">
               <button
                 onClick={() => setIsProfileModalOpen(false)}
-                className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-[#2D3748] font-semibold rounded-xl border border-gray-200 transition-all duration-200"
+                className="flex-1 py-3 px-4 bg-white hover:bg-gray-50 text-[#2D3748] font-semibold rounded-xl border-2 border-gray-200 hover:border-gray-300 transition-all duration-200"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveProfile}
                 disabled={savingProfile}
-                className="flex-1 py-3 px-4 bg-[#3DD6C3] hover:bg-[#2BB5A5] disabled:bg-[#3DD6C3]/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg shadow-[#3DD6C3]/30 hover:shadow-[#3DD6C3]/40 transition-all duration-200 flex items-center justify-center gap-2"
+                className="flex-1 py-3 px-4 bg-[#0D4D4D] hover:bg-[#0A3D3D] disabled:bg-[#0D4D4D]/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg shadow-[#0D4D4D]/20 hover:shadow-[#0D4D4D]/30 transition-all duration-200 flex items-center justify-center gap-2"
               >
                 {savingProfile ? (
                   <>
