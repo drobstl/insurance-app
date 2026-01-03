@@ -353,18 +353,40 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {/* Coming Soon Feature 1 - AI Document Parsing */}
-            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-8 border-2 border-dashed border-gray-300 relative overflow-hidden group hover:border-[#3DD6C3] transition-colors">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Coming Soon Feature 1 - One-Tap Referrals */}
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-dashed border-gray-300 relative overflow-hidden group hover:border-[#3DD6C3] transition-colors">
               <div className="absolute top-0 right-0 w-32 h-32 bg-gray-200/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
               <div className="relative">
-                <div className="w-14 h-14 bg-gray-200 group-hover:bg-[#0D4D4D] rounded-xl flex items-center justify-center mb-6 transition-colors">
-                  <svg className="w-7 h-7 text-gray-500 group-hover:text-[#3DD6C3] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-12 h-12 bg-gray-200 group-hover:bg-[#0D4D4D] rounded-xl flex items-center justify-center mb-5 transition-colors">
+                  <svg className="w-6 h-6 text-gray-500 group-hover:text-[#3DD6C3] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">One-Tap Referrals</h3>
+                <p className="text-gray-500 text-base">
+                  Clients refer you to friends with one tap. Opens contacts, creates group text intro, shares your contact card.
+                </p>
+                <div className="mt-4 flex items-center gap-2 text-sm text-gray-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Q2 2026</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Coming Soon Feature 2 - AI Document Parsing */}
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-dashed border-gray-300 relative overflow-hidden group hover:border-[#3DD6C3] transition-colors">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gray-200/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+              <div className="relative">
+                <div className="w-12 h-12 bg-gray-200 group-hover:bg-[#0D4D4D] rounded-xl flex items-center justify-center mb-5 transition-colors">
+                  <svg className="w-6 h-6 text-gray-500 group-hover:text-[#3DD6C3] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">AI Document Parsing</h3>
-                <p className="text-gray-500 text-lg">
+                <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">AI Document Parsing</h3>
+                <p className="text-gray-500 text-base">
                   Upload policy documents and automatically extract all information. Stop typing, start uploading.
                 </p>
                 <div className="mt-4 flex items-center gap-2 text-sm text-gray-400">
@@ -376,17 +398,17 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Coming Soon Feature 2 - Smart Renewal Notifications */}
-            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-8 border-2 border-dashed border-gray-300 relative overflow-hidden group hover:border-[#3DD6C3] transition-colors">
+            {/* Coming Soon Feature 3 - Smart Renewal Notifications */}
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-dashed border-gray-300 relative overflow-hidden group hover:border-[#3DD6C3] transition-colors">
               <div className="absolute top-0 right-0 w-32 h-32 bg-gray-200/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
               <div className="relative">
-                <div className="w-14 h-14 bg-gray-200 group-hover:bg-[#0D4D4D] rounded-xl flex items-center justify-center mb-6 transition-colors">
-                  <svg className="w-7 h-7 text-gray-500 group-hover:text-[#3DD6C3] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-12 h-12 bg-gray-200 group-hover:bg-[#0D4D4D] rounded-xl flex items-center justify-center mb-5 transition-colors">
+                  <svg className="w-6 h-6 text-gray-500 group-hover:text-[#3DD6C3] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                   </svg>
                 </div>
-                <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">Smart Renewal Notifications</h3>
-                <p className="text-gray-500 text-lg">
+                <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">Smart Notifications</h3>
+                <p className="text-gray-500 text-base">
                   Automated push notifications to clients for policy renewals and rewrite opportunities.
                 </p>
                 <div className="mt-4 flex items-center gap-2 text-sm text-gray-400">
@@ -398,18 +420,18 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Coming Soon Feature 3 - Advanced Analytics */}
-            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-8 border-2 border-dashed border-gray-300 relative overflow-hidden group hover:border-[#3DD6C3] transition-colors">
+            {/* Coming Soon Feature 4 - Advanced Analytics */}
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 border-2 border-dashed border-gray-300 relative overflow-hidden group hover:border-[#3DD6C3] transition-colors">
               <div className="absolute top-0 right-0 w-32 h-32 bg-gray-200/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
               <div className="relative">
-                <div className="w-14 h-14 bg-gray-200 group-hover:bg-[#0D4D4D] rounded-xl flex items-center justify-center mb-6 transition-colors">
-                  <svg className="w-7 h-7 text-gray-500 group-hover:text-[#3DD6C3] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-12 h-12 bg-gray-200 group-hover:bg-[#0D4D4D] rounded-xl flex items-center justify-center mb-5 transition-colors">
+                  <svg className="w-6 h-6 text-gray-500 group-hover:text-[#3DD6C3] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
                 </div>
-                <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">Advanced Analytics</h3>
-                <p className="text-gray-500 text-lg">
-                  Track retention rates, policy revenue, and client engagement metrics—all in one dashboard.
+                <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">Advanced Analytics</h3>
+                <p className="text-gray-500 text-base">
+                  Track retention rates, policy revenue, and client engagement metrics in one dashboard.
                 </p>
                 <div className="mt-4 flex items-center gap-2 text-sm text-gray-400">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
