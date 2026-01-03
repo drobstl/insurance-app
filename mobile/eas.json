@@ -1,11 +1,15 @@
 {
   "cli": {
-    "version": ">= 5.0.0"
+    "version": ">= 5.0.0",
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "ios": {
+        "simulator": false
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -14,11 +18,14 @@
       }
     },
     "production": {
+      "distribution": "store",
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "autoIncrement": "buildNumber"
       },
       "android": {
-        "buildType": "apk"
+        "buildType": "app-bundle",
+        "autoIncrement": "versionCode"
       }
     }
   },
@@ -32,4 +39,3 @@
     }
   }
 }
-

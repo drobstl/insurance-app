@@ -9,6 +9,7 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "privacy": "public",
+    "privacyPolicyUrl": "https://agentforlife.app/privacy",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.danielroberts.agentforlife",
@@ -52,8 +53,9 @@
       "typedRoutes": true
     },
     "extra": {
+      "router": {},
       "eas": {
-        "projectId": "your-project-id"
+        "projectId": "6765db0c-dbc2-48e1-8082-ec16e721c096"
       }
     },
     "owner": "danielroberts"
