@@ -29,8 +29,16 @@ export default function LandingPage() {
           <div className="flex items-center justify-between h-16 md:h-20">
             <div className="flex items-center gap-2">
               <div className="w-10 h-10 bg-[#3DD6C3] rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                {/* Logo: Person with connection nodes - representing agent-client relationships */}
+                <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                  {/* Central person */}
+                  <circle cx="12" cy="7" r="3" />
+                  <path d="M12 12c-3 0-5 2-5 4v2h10v-2c0-2-2-4-5-4z" />
+                  {/* Connection nodes */}
+                  <circle cx="4" cy="10" r="2" opacity="0.7" />
+                  <circle cx="20" cy="10" r="2" opacity="0.7" />
+                  {/* Connection lines */}
+                  <path d="M6 10h3M15 10h3" stroke="currentColor" strokeWidth="1.5" fill="none" opacity="0.7" />
                 </svg>
               </div>
               <span className="text-xl font-bold text-white">AgentForLife</span>
@@ -90,7 +98,7 @@ export default function LandingPage() {
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row justify-center lg:justify-start gap-4">
                 <Link href="/signup" className="px-8 py-4 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-lg font-semibold rounded-full transition-all shadow-lg shadow-[#3DD6C3]/30 hover:shadow-[#3DD6C3]/50 flex items-center justify-center gap-2">
-                  Get Started Free
+                  Get Started
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                   </svg>
@@ -185,12 +193,19 @@ export default function LandingPage() {
       {/* Value Proposition */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl mx-auto text-center">
+          <div className="max-w-4xl mx-auto text-center">
+            {/* Powerful Quote */}
+            <div className="bg-[#0D4D4D] rounded-2xl p-8 mb-12 shadow-xl">
+              <p className="text-2xl md:text-3xl text-white font-medium italic leading-relaxed">
+                "At the end of an appointment, if your clients don't have this app on their phone, <span className="text-[#3DD6C3] font-bold not-italic">are you really even their agent?</span>"
+              </p>
+            </div>
+
             <h2 className="text-3xl md:text-4xl font-bold text-[#0D4D4D] mb-6">
               Position yourself as more than just a contact in their phone
             </h2>
             <p className="text-xl text-[#6B7280] mb-8">
-              With AgentForLife, you get a <span className="text-[#0D4D4D] font-semibold">white-label mobile app</span> that puts YOUR brand directly in your clients' hands. 
+              With AgentForLife, you get a <span className="text-[#0D4D4D] font-semibold">personalized mobile app</span> that puts YOUR identity directly in your clients' hands—your logo, your photo, your phone number, your email. 
               It's not our app with your name on it—it's <span className="text-[#3DD6C3] font-semibold">YOUR app</span>, built to strengthen the relationships that drive your business.
             </p>
             <div className="flex flex-wrap justify-center gap-6">
@@ -243,9 +258,9 @@ export default function LandingPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">White-Label Mobile App</h3>
+              <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">Your Personal Mobile App</h3>
               <p className="text-[#6B7280] text-lg">
-                Your logo, your colors, your brand. Clients see YOU, not us. It's their app with your identity.
+                Your logo, your photo, your contact info. Clients see YOU—your name, your face, your direct line. It's their app with your identity.
               </p>
             </div>
 
@@ -411,7 +426,7 @@ export default function LandingPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
                     </div>
-                    <span className="text-[#2D3748] text-lg">White-label mobile app for your clients</span>
+                    <span className="text-[#2D3748] text-lg">Personalized mobile app for your clients</span>
                   </li>
                   <li className="flex items-center gap-3">
                     <div className="w-6 h-6 rounded-full bg-[#D1FAE5] flex items-center justify-center flex-shrink-0">
@@ -448,10 +463,10 @@ export default function LandingPage() {
                 </ul>
 
                 <Link href="/signup" className="block w-full py-4 bg-[#0D4D4D] hover:bg-[#0A3D3D] text-white text-lg font-semibold rounded-xl transition-colors text-center">
-                  Start Your Free Trial
+                  Get Started
                 </Link>
                 <p className="text-center text-[#9CA3AF] text-sm mt-4">
-                  No credit card required to start
+                  Cancel anytime
                 </p>
               </div>
             </div>
@@ -554,13 +569,13 @@ export default function LandingPage() {
             Stop being just another contact. Start building relationships that last a lifetime.
           </p>
           <Link href="/signup" className="inline-flex items-center gap-2 px-10 py-5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-xl font-semibold rounded-full transition-all shadow-lg shadow-[#3DD6C3]/30 hover:shadow-[#3DD6C3]/50">
-            Get Started Free
+            Get Started
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
             </svg>
           </Link>
           <p className="text-white/60 mt-4">
-            No credit card required • Cancel anytime
+            Only $9.99/month • Cancel anytime
           </p>
         </div>
       </section>
@@ -571,8 +586,16 @@ export default function LandingPage() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-2">
               <div className="w-10 h-10 bg-[#3DD6C3] rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                {/* Logo: Person with connection nodes - representing agent-client relationships */}
+                <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                  {/* Central person */}
+                  <circle cx="12" cy="7" r="3" />
+                  <path d="M12 12c-3 0-5 2-5 4v2h10v-2c0-2-2-4-5-4z" />
+                  {/* Connection nodes */}
+                  <circle cx="4" cy="10" r="2" opacity="0.7" />
+                  <circle cx="20" cy="10" r="2" opacity="0.7" />
+                  {/* Connection lines */}
+                  <path d="M6 10h3M15 10h3" stroke="currentColor" strokeWidth="1.5" fill="none" opacity="0.7" />
                 </svg>
               </div>
               <span className="text-xl font-bold text-white">AgentForLife</span>
