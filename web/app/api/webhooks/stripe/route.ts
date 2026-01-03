@@ -28,7 +28,9 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   }
 
   // Get subscription details
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+  const subscriptionResponse = await stripe.subscriptions.retrieve(subscriptionId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const subscription = subscriptionResponse as any;
 
   // Update Firestore
   const agentRef = doc(db, 'agents', userId);
@@ -36,16 +38,17 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     subscriptionStatus: 'active',
     stripeCustomerId: customerId,
     subscriptionId: subscriptionId,
-    subscriptionStartDate: new Date(subscription.current_period_start * 1000),
-    subscriptionCurrentPeriodEnd: new Date(subscription.current_period_end * 1000),
+    subscriptionStartDate: subscription.current_period_start ? new Date(subscription.current_period_start * 1000) : new Date(),
+    subscriptionCurrentPeriodEnd: subscription.current_period_end ? new Date(subscription.current_period_end * 1000) : new Date(),
   });
 
   console.log(`Subscription activated for user ${userId}`);
 }
 
-async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
-  const userId = subscription.metadata?.firebaseUserId || 
-    await getFirebaseUserIdFromCustomer(subscription.customer as string);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleSubscriptionUpdated(subscriptionData: any) {
+  const userId = subscriptionData.metadata?.firebaseUserId || 
+    await getFirebaseUserIdFromCustomer(subscriptionData.customer as string);
 
   if (!userId) {
     console.error('Could not find Firebase user ID for subscription update');
@@ -60,21 +63,22 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     return;
   }
 
-  const status = subscription.status === 'active' || subscription.status === 'trialing' 
+  const status = subscriptionData.status === 'active' || subscriptionData.status === 'trialing' 
     ? 'active' 
-    : subscription.status;
+    : subscriptionData.status;
 
   await updateDoc(agentRef, {
     subscriptionStatus: status,
-    subscriptionCurrentPeriodEnd: new Date(subscription.current_period_end * 1000),
+    subscriptionCurrentPeriodEnd: subscriptionData.current_period_end ? new Date(subscriptionData.current_period_end * 1000) : new Date(),
   });
 
   console.log(`Subscription updated for user ${userId}: ${status}`);
 }
 
-async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
-  const userId = subscription.metadata?.firebaseUserId || 
-    await getFirebaseUserIdFromCustomer(subscription.customer as string);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleSubscriptionDeleted(subscriptionData: any) {
+  const userId = subscriptionData.metadata?.firebaseUserId || 
+    await getFirebaseUserIdFromCustomer(subscriptionData.customer as string);
 
   if (!userId) {
     console.error('Could not find Firebase user ID for subscription deletion');
