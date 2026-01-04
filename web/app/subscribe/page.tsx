@@ -14,8 +14,6 @@ export default function SubscribePage() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [error, setError] = useState('');
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('annual');
-  const [showPromoInput, setShowPromoInput] = useState(false);
-  const [promoCode, setPromoCode] = useState('');
   const router = useRouter();
 
   useEffect(() => {
@@ -58,7 +56,6 @@ export default function SubscribePage() {
           userId: user.uid,
           email: user.email,
           plan: selectedPlan,
-          couponCode: promoCode.trim() || undefined,
         }),
       });
 
@@ -251,53 +248,6 @@ export default function SubscribePage() {
                 </li>
               </ul>
 
-              {/* Promo Code Section */}
-              <div className="mb-6">
-                {!showPromoInput ? (
-                  <button
-                    onClick={() => setShowPromoInput(true)}
-                    className="text-[#3DD6C3] hover:text-[#2BB5A5] text-sm font-medium flex items-center gap-1 mx-auto"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                    </svg>
-                    Have a promo code?
-                  </button>
-                ) : (
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-[#2D3748]">Promo Code</label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={promoCode}
-                        onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                        placeholder="Enter code"
-                        className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] uppercase"
-                      />
-                      <button
-                        onClick={() => {
-                          setShowPromoInput(false);
-                          setPromoCode('');
-                        }}
-                        className="px-3 py-2 text-gray-400 hover:text-gray-600"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                    {promoCode && (
-                      <p className="text-xs text-[#3DD6C3] flex items-center gap-1">
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Code "{promoCode}" will be applied at checkout
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-
               {error && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
                   {error}
@@ -326,6 +276,9 @@ export default function SubscribePage() {
 
               <p className="text-center text-sm text-[#9CA3AF] mt-4">
                 Secure payment powered by Stripe
+              </p>
+              <p className="text-center text-xs text-[#9CA3AF] mt-2">
+                Have a promo code? You can enter it on the checkout page.
               </p>
             </div>
           </div>
