@@ -29,732 +29,473 @@ export default function LandingPage() {
           <div className="flex items-center justify-between h-16 md:h-20">
             <div className="flex items-center gap-2">
               <div className="w-10 h-10 bg-[#3DD6C3] rounded-xl flex items-center justify-center">
-                {/* Logo: Person with connection nodes - representing agent-client relationships */}
                 <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-                  {/* Central person */}
                   <circle cx="12" cy="7" r="3" />
                   <path d="M12 12c-3 0-5 2-5 4v2h10v-2c0-2-2-4-5-4z" />
-                  {/* Connection nodes */}
                   <circle cx="4" cy="10" r="2" opacity="0.7" />
                   <circle cx="20" cy="10" r="2" opacity="0.7" />
-                  {/* Connection lines */}
                   <path d="M6 10h3M15 10h3" stroke="currentColor" strokeWidth="1.5" fill="none" opacity="0.7" />
                 </svg>
               </div>
               <span className="text-xl font-bold text-white">AgentForLife</span>
             </div>
             <div className="hidden md:flex items-center gap-8">
-              <button onClick={() => scrollToSection('features')} className="text-white/80 hover:text-white transition-colors">Features</button>
+              <button onClick={() => scrollToSection('benefits')} className="text-white/80 hover:text-white transition-colors">Why It Works</button>
               <button onClick={() => scrollToSection('pricing')} className="text-white/80 hover:text-white transition-colors">Pricing</button>
-              <button onClick={() => scrollToSection('how-it-works')} className="text-white/80 hover:text-white transition-colors">How It Works</button>
+              <button onClick={() => scrollToSection('roadmap')} className="text-white/80 hover:text-white transition-colors">Roadmap</button>
             </div>
             <div className="flex items-center gap-3">
               <Link href="/login" className="text-white/80 hover:text-white transition-colors hidden sm:block">
                 Login
               </Link>
               <Link href="/signup" className="px-5 py-2.5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white font-semibold rounded-full transition-colors">
-                Get Started
+                Get the System
               </Link>
             </div>
           </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative bg-[#0D4D4D] pt-24 pb-20 md:pt-32 md:pb-32 overflow-hidden">
+      {/* Hero Section - Aggressive, Punchy */}
+      <section className="relative bg-[#0D4D4D] pt-28 pb-20 md:pt-36 md:pb-28 overflow-hidden">
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-20 left-10 w-72 h-72 bg-[#3DD6C3] rounded-full blur-3xl"></div>
           <div className="absolute bottom-10 right-10 w-96 h-96 bg-[#3DD6C3] rounded-full blur-3xl"></div>
         </div>
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div className="text-center lg:text-left">
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
-                Don't be another number in their contacts.{' '}
-                <span className="text-[#3DD6C3]">Be their Agent For Life.</span>
+        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-6">
+            Stop Buying Leads.{' '}
+            <span className="text-[#3DD6C3]">Start Fortifying Your Book.</span>
           </h1>
-              <p className="text-xl md:text-2xl text-white/80 mb-8 max-w-2xl">
-                A white-label app right on your client's phone, made to foster direct, deepened client relationships.
-              </p>
-              
-              {/* Key Benefits */}
-              <div className="flex flex-wrap justify-center lg:justify-start gap-4 mb-10">
-                <div className="flex items-center gap-2 px-5 py-3 bg-white/10 rounded-full border border-white/20">
-                  <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-white font-medium">Increase retention</span>
-                </div>
-                <div className="flex items-center gap-2 px-5 py-3 bg-white/10 rounded-full border border-white/20">
-                  <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-white font-medium">Deepen the relationship</span>
-                </div>
-              </div>
-
-              {/* CTA Buttons */}
-              <div className="flex flex-col sm:flex-row justify-center lg:justify-start gap-4">
-                <Link href="/signup" className="px-8 py-4 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-lg font-semibold rounded-full transition-all shadow-lg shadow-[#3DD6C3]/30 hover:shadow-[#3DD6C3]/50 flex items-center justify-center gap-2">
-                  Get Started
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                  </svg>
-                </Link>
-                <button onClick={() => scrollToSection('features')} className="px-8 py-4 bg-white/10 hover:bg-white/20 text-white text-lg font-semibold rounded-full transition-all border border-white/30 flex items-center justify-center gap-2">
-                  See How It Works
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {/* Phone Mockup */}
-            <div className="relative hidden lg:flex justify-center">
-              <div className="relative">
-                {/* Phone Frame */}
-                <div className="w-72 h-[580px] bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl border-4 border-[#2a2a2a]">
-                  <div className="w-full h-full bg-[#F8F9FA] rounded-[2.5rem] overflow-hidden relative">
-                    {/* Phone Screen Content */}
-                    <div className="bg-[#0D4D4D] pt-12 pb-6 px-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <span className="text-white/60 text-sm">← Back</span>
-                        <span className="text-white/60 text-sm">Sign Out</span>
-                      </div>
-                      <div className="text-center">
-                        <div className="w-20 h-20 bg-[#3DD6C3] rounded-full mx-auto mb-3 flex items-center justify-center text-white text-2xl font-bold">
-                          DR
-                        </div>
-                        <h3 className="text-white font-bold text-lg">Daniel Roberts</h3>
-                        <p className="text-white/70 text-sm">Your Insurance Agent</p>
-                      </div>
-                    </div>
-                    <div className="p-4 space-y-3">
-                      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-[#0D4D4D] rounded-full flex items-center justify-center">
-                            <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                            </svg>
-                          </div>
-                          <span className="text-[#2D3748] font-medium">Call Daniel</span>
-                        </div>
-                      </div>
-                      <div className="bg-[#fdcc02] rounded-xl p-4 shadow-sm">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-[#0D4D4D] rounded-full flex items-center justify-center">
-                            <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                          </div>
-                          <span className="text-[#0D4D4D] font-bold">View My Policies</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                {/* Floating Elements */}
-                <div className="absolute -top-4 -right-8 bg-white rounded-xl p-3 shadow-xl">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                      <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                    <span className="text-sm font-medium text-gray-700">Policy Active</span>
-                  </div>
-                </div>
-                <div className="absolute -bottom-4 -left-8 bg-white rounded-xl p-3 shadow-xl">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-[#0D4D4D] rounded-full flex items-center justify-center">
-                      <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                    </div>
-                    <span className="text-sm font-medium text-gray-700">Bank-Level Security</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <p className="text-xl md:text-2xl text-white/80 mb-10 max-w-3xl mx-auto leading-relaxed">
+            Replace weak, shared leads with <span className="text-white font-semibold">warm, organic referrals</span>. Agent For Life helps you own the relationship, explode your retention rate, and <span className="text-[#fdcc02] font-semibold">kill chargebacks</span> before they happen.
+          </p>
+          
+          {/* Primary CTA */}
+          <Link href="/signup" className="inline-flex items-center gap-3 px-10 py-5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-xl font-bold rounded-full transition-all shadow-lg shadow-[#3DD6C3]/40 hover:shadow-[#3DD6C3]/60 hover:scale-105">
+            Get the System
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+            </svg>
+          </Link>
+          <p className="text-white/50 mt-4 text-sm">$9.99/month • Cancel anytime • Results in days</p>
         </div>
 
         {/* Wave Divider */}
         <div className="absolute bottom-0 left-0 right-0">
-          <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M0 120L60 105C120 90 240 60 360 45C480 30 600 30 720 37.5C840 45 960 60 1080 67.5C1200 75 1320 75 1380 75L1440 75V120H1380C1320 120 1200 120 1080 120C960 120 840 120 720 120C600 120 480 120 360 120C240 120 120 120 60 120H0Z" fill="white"/>
+          <svg viewBox="0 0 1440 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0 100L60 85C120 70 240 40 360 30C480 20 600 30 720 40C840 50 960 60 1080 60C1200 60 1320 50 1380 45L1440 40V100H0Z" fill="white"/>
           </svg>
         </div>
       </section>
 
-      {/* Value Proposition */}
-      <section className="py-20 bg-white">
+      {/* The Big Four - Benefits Grid */}
+      <section id="benefits" className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-4xl mx-auto text-center">
-            {/* Powerful Quote */}
-            <div className="bg-[#0D4D4D] rounded-2xl p-8 mb-12 shadow-xl">
-              <p className="text-2xl md:text-3xl text-white font-medium italic leading-relaxed">
-                "At the end of an appointment, if your clients don't have this app on their phone, <span className="text-[#3DD6C3] font-bold not-italic">are you really even their agent?</span>"
-              </p>
-            </div>
-
-            <h2 className="text-3xl md:text-4xl font-bold text-[#0D4D4D] mb-6">
-              Position yourself as more than just a contact in their phone
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
+              Four Ways to <span className="text-[#3DD6C3]">Dominate</span> Insurance Sales
             </h2>
-            <p className="text-xl text-[#6B7280] mb-8">
-              With AgentForLife, you get a <span className="text-[#0D4D4D] font-semibold">personalized mobile app</span> that puts YOUR identity directly in your clients' hands—your logo, your photo, your phone number, your email. 
-              It's not our app with your name on it—it's <span className="text-[#3DD6C3] font-semibold">YOUR app</span>, built to strengthen the relationships that drive your business.
+            <p className="text-xl text-[#6B7280] max-w-2xl mx-auto">
+              Stop playing defense. Start building an untouchable book of business.
             </p>
-            <div className="flex flex-wrap justify-center gap-6">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-[#D1FAE5] rounded-full flex items-center justify-center">
-                  <svg className="w-6 h-6 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                </div>
-                <span className="text-lg font-medium text-[#2D3748]">Client Retention</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-[#D1FAE5] rounded-full flex items-center justify-center">
-                  <svg className="w-6 h-6 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                  </svg>
-                </div>
-                <span className="text-lg font-medium text-[#2D3748]">Deeper Relationships</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-[#D1FAE5] rounded-full flex items-center justify-center">
-                  <svg className="w-6 h-6 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6 lg:gap-8">
+            {/* Benefit 1 - Retention */}
+            <div className="bg-[#F8F9FA] rounded-2xl p-8 border-l-4 border-[#3DD6C3] hover:shadow-lg transition-shadow">
+              <div className="flex items-start gap-5">
+                <div className="w-14 h-14 bg-[#0D4D4D] rounded-xl flex items-center justify-center flex-shrink-0">
+                  <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                   </svg>
                 </div>
-                <span className="text-lg font-medium text-[#2D3748]">Complete Trust</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section id="features" className="py-20 bg-[#F8F9FA]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-[#0D4D4D] mb-4">
-              Everything You Need to Stay Connected
-            </h2>
-            <p className="text-xl text-[#6B7280] max-w-2xl mx-auto">
-              Powerful features designed to strengthen your client relationships
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {/* Feature 1 */}
-            <div className="bg-white rounded-2xl p-8 shadow-sm hover:shadow-lg transition-shadow border border-gray-100">
-              <div className="w-14 h-14 bg-[#0D4D4D] rounded-xl flex items-center justify-center mb-6">
-                <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">Your Personal Mobile App</h3>
-              <p className="text-[#6B7280] text-lg">
-                Your logo, your photo, your contact info. Clients see YOU—your name, your face, your direct line. It's their app with your identity.
-              </p>
-            </div>
-
-            {/* Feature 2 */}
-            <div className="bg-white rounded-2xl p-8 shadow-sm hover:shadow-lg transition-shadow border border-gray-100">
-              <div className="w-14 h-14 bg-[#0D4D4D] rounded-xl flex items-center justify-center mb-6">
-                <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">Always Accessible</h3>
-              <p className="text-[#6B7280] text-lg">
-                Your contact info, photo, and agency details right at their fingertips. Click-to-call and email built in.
-              </p>
-            </div>
-
-            {/* Feature 3 */}
-            <div className="bg-white rounded-2xl p-8 shadow-sm hover:shadow-lg transition-shadow border border-gray-100">
-              <div className="w-14 h-14 bg-[#0D4D4D] rounded-xl flex items-center justify-center mb-6">
-                <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">Complete Policy Management</h3>
-              <p className="text-[#6B7280] text-lg">
-                Clients view all their policy details, coverage amounts, and renewal dates in one organized place.
-              </p>
-            </div>
-
-            {/* Feature 4 */}
-            <div className="bg-white rounded-2xl p-8 shadow-sm hover:shadow-lg transition-shadow border border-gray-100">
-              <div className="w-14 h-14 bg-[#0D4D4D] rounded-xl flex items-center justify-center mb-6">
-                <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">Unlimited Clients & Policies</h3>
-              <p className="text-[#6B7280] text-lg">
-                Manage your entire book of business with no limits. Add as many clients and policies as you need.
-              </p>
-            </div>
-
-            {/* Feature 5 */}
-            <div className="bg-white rounded-2xl p-8 shadow-sm hover:shadow-lg transition-shadow border border-gray-100">
-              <div className="w-14 h-14 bg-[#0D4D4D] rounded-xl flex items-center justify-center mb-6">
-                <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">Bank-Level Security</h3>
-              <p className="text-[#6B7280] text-lg">
-                All client data is encrypted and securely stored. Your clients' information is protected at all times.
-              </p>
-            </div>
-
-            {/* Feature 6 - Agency Branding */}
-            <div className="bg-white rounded-2xl p-8 shadow-sm hover:shadow-lg transition-shadow border border-gray-100">
-              <div className="w-14 h-14 bg-[#0D4D4D] rounded-xl flex items-center justify-center mb-6">
-                <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">Agency Branding</h3>
-              <p className="text-[#6B7280] text-lg">
-                Add your agency logo and name. Your clients see your professional brand alongside your personal profile.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Coming Soon Section - Quility Style */}
-      <section className="py-24 bg-[#0D4D4D] relative overflow-hidden">
-        {/* Grid Pattern Background - Top Right Corner Only */}
-        <div className="absolute right-0 top-0 w-[400px] h-[320px] opacity-30">
-          <div className="absolute inset-0" style={{
-            backgroundImage: `linear-gradient(to right, #3DD6C3 1px, transparent 1px), linear-gradient(to bottom, #3DD6C3 1px, transparent 1px)`,
-            backgroundSize: '32px 32px'
-          }}></div>
-          {/* Fade effect at edges */}
-          <div className="absolute inset-0 bg-gradient-to-l from-transparent via-transparent to-[#0D4D4D]"></div>
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0D4D4D] via-transparent to-transparent"></div>
-        </div>
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-          {/* Prominent Coming Soon Badge */}
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-3 px-6 py-3 bg-[#fdcc02] rounded-2xl shadow-lg shadow-[#fdcc02]/30 mb-8 animate-pulse">
-              <div className="w-8 h-8 bg-[#0D4D4D] rounded-full flex items-center justify-center">
-                <svg className="w-5 h-5 text-[#fdcc02]" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-              <span className="text-[#0D4D4D] font-bold text-lg uppercase tracking-wider">On The Roadmap</span>
-              <div className="w-2 h-2 bg-[#0D4D4D] rounded-full animate-ping"></div>
-            </div>
-            <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
-              We're Just <span className="text-[#3DD6C3] italic">Getting Started</span>
-            </h2>
-            <p className="text-xl text-white/70 max-w-2xl mx-auto">
-              Powerful features coming soon to supercharge your practice and deepen client relationships.
-            </p>
-          </div>
-
-          {/* Feature Cards Grid */}
-          <div className="grid md:grid-cols-3 gap-6 lg:gap-8">
-            {/* Feature 1 - One-Tap Referrals */}
-            <div className="group bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 hover:border-[#3DD6C3]/50 hover:bg-white/10 transition-all duration-300">
-              <div className="w-16 h-16 rounded-2xl bg-[#3DD6C3]/20 flex items-center justify-center mb-6 group-hover:bg-[#3DD6C3]/30 transition-colors">
-                <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold text-white mb-3">One-Tap Referrals</h3>
-              <p className="text-white/70 leading-relaxed">
-                Clients refer you to friends and family with one tap. Auto-creates a group text intro and shares your contact card.
-              </p>
-            </div>
-
-            {/* Feature 2 - AI Document Parsing */}
-            <div className="group bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 hover:border-[#3DD6C3]/50 hover:bg-white/10 transition-all duration-300">
-              <div className="w-16 h-16 rounded-2xl bg-[#3DD6C3]/20 flex items-center justify-center mb-6 group-hover:bg-[#3DD6C3]/30 transition-colors">
-                <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 8h.01M9 8a1 1 0 110 0 1 1 0 010 0z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold text-white mb-3">AI Document Parsing</h3>
-              <p className="text-white/70 leading-relaxed">
-                Upload policy documents—we'll extract all the info automatically. Stop typing, start uploading.
-              </p>
-            </div>
-
-            {/* Feature 3 - Smart Renewal Notifications */}
-            <div className="group bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 hover:border-[#3DD6C3]/50 hover:bg-white/10 transition-all duration-300">
-              <div className="w-16 h-16 rounded-2xl bg-[#3DD6C3]/20 flex items-center justify-center mb-6 group-hover:bg-[#3DD6C3]/30 transition-colors">
-                <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold text-white mb-3">Smart Renewal Alerts</h3>
-              <p className="text-white/70 leading-relaxed">
-                Automated push notifications for policy renewals and rewrite opportunities. Never miss a renewal again.
-              </p>
-            </div>
-
-            {/* Feature 4 - Smart Push Notifications */}
-            <div className="group bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 hover:border-[#3DD6C3]/50 hover:bg-white/10 transition-all duration-300">
-              <div className="w-16 h-16 rounded-2xl bg-[#3DD6C3]/20 flex items-center justify-center mb-6 group-hover:bg-[#3DD6C3]/30 transition-colors relative">
-                <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                {/* Notification badge */}
-                <div className="absolute -top-1 -right-1 w-5 h-5 bg-[#3DD6C3] rounded-full flex items-center justify-center">
-                  <svg className="w-3 h-3 text-[#0D4D4D]" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
-                  </svg>
+                <div>
+                  <h3 className="text-2xl font-bold text-[#0D4D4D] mb-2">Explode Retention</h3>
+                  <p className="text-[#6B7280] text-lg leading-relaxed">
+                    Build a wall around your clients. Stop the churn and <span className="text-[#0D4D4D] font-semibold">eliminate the sting of chargebacks</span>. When you're in their pocket, competitors can't touch you.
+                  </p>
                 </div>
               </div>
-              <h3 className="text-xl font-bold text-white mb-3">Smart Push Notifications</h3>
-              <p className="text-white/70 leading-relaxed">
-                Automatically send personalized messages on birthdays, policy anniversaries, and holidays. Build stronger relationships without lifting a finger.
-              </p>
             </div>
 
-            {/* Feature 5 - Biometric Security */}
-            <div className="group bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 hover:border-[#3DD6C3]/50 hover:bg-white/10 transition-all duration-300">
-              <div className="w-16 h-16 rounded-2xl bg-[#3DD6C3]/20 flex items-center justify-center mb-6 group-hover:bg-[#3DD6C3]/30 transition-colors">
-                <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
-                </svg>
+            {/* Benefit 2 - Referrals */}
+            <div className="bg-[#F8F9FA] rounded-2xl p-8 border-l-4 border-[#3DD6C3] hover:shadow-lg transition-shadow">
+              <div className="flex items-start gap-5">
+                <div className="w-14 h-14 bg-[#0D4D4D] rounded-xl flex items-center justify-center flex-shrink-0">
+                  <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-[#0D4D4D] mb-2">Warm Referrals on Demand</h3>
+                  <p className="text-[#6B7280] text-lg leading-relaxed">
+                    Turn every policy into a referral machine. <span className="text-[#0D4D4D] font-semibold">Stop cold-calling</span>—start closing people who actually want to talk to you.
+                  </p>
+                </div>
               </div>
-              <h3 className="text-xl font-bold text-white mb-3">Biometric Security</h3>
-              <p className="text-white/70 leading-relaxed">
-                Instant login with Face ID or fingerprint. Bank-level security with your security code always available as backup. Works on iPhone and Android.
-              </p>
             </div>
-          </div>
 
-          {/* Feature Request CTA */}
-          <div className="mt-12 text-center">
-            <a href="mailto:support@agentforlife.app" className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-full border border-white/20 text-white font-medium transition-all">
-              <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              <span>Have a feature idea? We'd love to hear it</span>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-              </svg>
-            </a>
+            {/* Benefit 3 - Leads */}
+            <div className="bg-[#F8F9FA] rounded-2xl p-8 border-l-4 border-[#3DD6C3] hover:shadow-lg transition-shadow">
+              <div className="flex items-start gap-5">
+                <div className="w-14 h-14 bg-[#0D4D4D] rounded-xl flex items-center justify-center flex-shrink-0">
+                  <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-[#0D4D4D] mb-2">Organic Leads That Close</h3>
+                  <p className="text-[#6B7280] text-lg leading-relaxed">
+                    Generate high-intent inbound prospects from your own network—not a third-party list that's been sold five times over.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Benefit 4 - Relationship */}
+            <div className="bg-[#F8F9FA] rounded-2xl p-8 border-l-4 border-[#3DD6C3] hover:shadow-lg transition-shadow">
+              <div className="flex items-start gap-5">
+                <div className="w-14 h-14 bg-[#0D4D4D] rounded-xl flex items-center justify-center flex-shrink-0">
+                  <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-[#0D4D4D] mb-2">Own the Relationship</h3>
+                  <p className="text-[#6B7280] text-lg leading-relaxed">
+                    Transition from "vendor" to <span className="text-[#0D4D4D] font-semibold">trusted advisor</span>. When you own the relationship, price shopping stops cold.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* How It Works */}
-      <section id="how-it-works" className="py-20 bg-[#F8F9FA]">
+      {/* The Hamster Wheel - Problem/Solution */}
+      <section className="py-20 bg-[#0D4D4D]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-[#0D4D4D] mb-4">
-              Get Started in Minutes
+            <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4">
+              Escape the <span className="text-[#fdcc02]">Hamster Wheel</span>
             </h2>
-            <p className="text-xl text-[#6B7280] max-w-2xl mx-auto">
-              Four simple steps to transform your client relationships
+            <p className="text-xl text-white/70 max-w-2xl mx-auto">
+              You know the cycle. Buy leads → Close deals → Watch them walk → Repeat. Let's break it.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {/* Step 1 */}
-            <div className="text-center">
-              <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mx-auto mb-6 text-2xl font-bold text-[#3DD6C3]">
-                1
+          <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
+            {/* The Old Way */}
+            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-red-500/30">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-bold text-red-400">The Old Way</h3>
               </div>
-              <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">Sign Up & Customize</h3>
-              <p className="text-[#6B7280]">
-                Create your account and customize your agent profile with your photo, contact info, and branding.
-              </p>
+              <ul className="space-y-4">
+                <li className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-red-400 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-white/80 text-lg">Buying shared leads at premium prices</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-red-400 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-white/80 text-lg">Weak relationships = constant price shopping</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-red-400 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-white/80 text-lg">Chargebacks eating your commissions</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-red-400 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-white/80 text-lg">Running just to stay in place</span>
+                </li>
+              </ul>
             </div>
 
-            {/* Step 2 */}
-            <div className="text-center">
-              <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mx-auto mb-6 text-2xl font-bold text-[#3DD6C3]">
-                2
+            {/* The Agent For Life Way */}
+            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-[#3DD6C3]/50">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 bg-[#3DD6C3]/20 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-bold text-[#3DD6C3]">The Agent For Life Way</h3>
               </div>
-              <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">Add Your Clients</h3>
-              <p className="text-[#6B7280]">
-                Import your existing clients and their policies. Each client gets a unique access code.
-              </p>
+              <ul className="space-y-4">
+                <li className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-[#3DD6C3] mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-white/80 text-lg">High-trust clients who <span className="text-white font-semibold">stay for life</span></span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-[#3DD6C3] mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-white/80 text-lg">Self-sustaining referral loop</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-[#3DD6C3] mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-white/80 text-lg">Automated rewrites & renewals</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-[#3DD6C3] mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-white/80 text-lg"><span className="text-white font-semibold">Growing</span> instead of just surviving</span>
+                </li>
+              </ul>
             </div>
+          </div>
+        </div>
+      </section>
 
-            {/* Step 3 */}
+      {/* How It Works - Quick Version */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
+              Up and Running in <span className="text-[#3DD6C3]">10 Minutes</span>
+            </h2>
+          </div>
+
+          <div className="grid md:grid-cols-4 gap-8">
             <div className="text-center">
-              <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mx-auto mb-6 text-2xl font-bold text-[#3DD6C3]">
-                3
-              </div>
-              <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">Share the Code</h3>
-              <p className="text-[#6B7280]">
-                Give your clients their unique code. They download the app and enter it to connect with you.
-              </p>
+              <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl font-bold text-[#3DD6C3]">1</div>
+              <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">Sign Up</h3>
+              <p className="text-[#6B7280]">Add your photo, contact info, and agency branding.</p>
             </div>
-
-            {/* Step 4 */}
             <div className="text-center">
-              <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mx-auto mb-6 text-2xl font-bold text-[#3DD6C3]">
-                4
-              </div>
-              <h3 className="text-xl font-bold text-[#0D4D4D] mb-3">Stay Connected</h3>
-              <p className="text-[#6B7280]">
-                Your clients now have direct access to you and their policies—building trust that lasts a lifetime.
+              <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl font-bold text-[#3DD6C3]">2</div>
+              <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">Add Clients</h3>
+              <p className="text-[#6B7280]">Import your book. Each client gets a unique code.</p>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl font-bold text-[#3DD6C3]">3</div>
+              <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">Share the App</h3>
+              <p className="text-[#6B7280]">Hand off the code. They download your branded app.</p>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl font-bold text-[#3DD6C3]">4</div>
+              <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">Watch Retention Climb</h3>
+              <p className="text-[#6B7280]">They call YOU. Referrals roll in. Chargebacks stop.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Social Proof - Compact */}
+      <section className="py-16 bg-[#F8F9FA]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
+              Agents Are <span className="text-[#3DD6C3]">Winning</span>
+            </h2>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+              <p className="text-[#2D3748] text-lg mb-4 italic">
+                "Retention up 23%. Clients reach out to ME now instead of calling the carrier."
               </p>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#0D4D4D] rounded-full flex items-center justify-center text-white font-bold text-sm">SM</div>
+                <div>
+                  <p className="font-semibold text-[#0D4D4D] text-sm">Sarah M.</p>
+                  <p className="text-xs text-[#6B7280]">8 years in the game</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+              <p className="text-[#2D3748] text-lg mb-4 italic">
+                "Older clients love it. No more digging through papers. They feel taken care of."
+              </p>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#0D4D4D] rounded-full flex items-center justify-center text-white font-bold text-sm">JT</div>
+                <div>
+                  <p className="font-semibold text-[#0D4D4D] text-sm">James T.</p>
+                  <p className="text-xs text-[#6B7280]">Agency Owner, 15 years</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+              <p className="text-[#2D3748] text-lg mb-4 italic">
+                "Stopped answering 'what's my coverage?' calls. I spend more time actually selling."
+              </p>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#0D4D4D] rounded-full flex items-center justify-center text-white font-bold text-sm">LR</div>
+                <div>
+                  <p className="font-semibold text-[#0D4D4D] text-sm">Lisa R.</p>
+                  <p className="text-xs text-[#6B7280]">Life Insurance Specialist</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* Pricing Section */}
-      <section id="pricing" className="py-20 bg-[#0D4D4D]">
+      <section id="pricing" className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-              Simple, Transparent Pricing
+            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
+              Less Than One <span className="text-[#3DD6C3]">Canceled Policy</span>
             </h2>
-            <p className="text-xl text-white/70">
-              Choose the plan that works best for you. Cancel anytime.
+            <p className="text-xl text-[#6B7280]">
+              How much does a chargeback cost you? This pays for itself with one saved client.
             </p>
           </div>
 
           <div className="max-w-3xl mx-auto">
-            {/* Pricing Cards Container */}
-            <div className="bg-white rounded-3xl overflow-hidden shadow-2xl">
+            <div className="bg-[#0D4D4D] rounded-3xl overflow-hidden shadow-2xl">
               <div className="grid md:grid-cols-2">
-                {/* Monthly Plan */}
-                <div className="p-8 md:border-r border-b md:border-b-0 border-gray-100">
+                {/* Monthly */}
+                <div className="p-8 border-b md:border-b-0 md:border-r border-white/10">
                   <div className="text-center mb-6">
-                    <h3 className="text-lg font-semibold text-[#6B7280] mb-4">Monthly</h3>
+                    <h3 className="text-lg font-semibold text-white/70 mb-4">Monthly</h3>
                     <div className="flex items-baseline justify-center gap-1">
-                      <span className="text-5xl font-bold text-[#0D4D4D]">$9.99</span>
-                      <span className="text-[#6B7280] text-lg">/mo</span>
+                      <span className="text-5xl font-bold text-white">$9.99</span>
+                      <span className="text-white/50 text-lg">/mo</span>
                     </div>
-                    <p className="text-[#9CA3AF] mt-2 text-sm">Billed monthly</p>
                   </div>
-
                   <ul className="space-y-3 mb-8">
-                    <li className="flex items-center gap-3">
-                      <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span className="text-[#2D3748]">Unlimited clients & policies</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span className="text-[#2D3748]">Client mobile app</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span className="text-[#2D3748]">Profile & branding</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span className="text-[#2D3748]">Priority support</span>
-                    </li>
+                    {['Unlimited clients', 'Unlimited policies', 'Your branded app', 'Priority support'].map((item, i) => (
+                      <li key={i} className="flex items-center gap-3">
+                        <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-white/80">{item}</span>
+                      </li>
+                    ))}
                   </ul>
-
-                  <Link href="/signup" className="block w-full py-3.5 bg-white hover:bg-gray-50 text-[#0D4D4D] text-lg font-semibold rounded-xl transition-colors text-center border-2 border-[#0D4D4D]">
+                  <Link href="/signup" className="block w-full py-3.5 bg-white/10 hover:bg-white/20 text-white text-lg font-semibold rounded-xl transition-colors text-center border border-white/20">
                     Get Started
                   </Link>
                 </div>
 
-                {/* Annual Plan - Highlighted */}
-                <div className="p-8 bg-gradient-to-b from-[#3DD6C3]/10 to-transparent relative">
-                  {/* Best Value Badge */}
+                {/* Annual */}
+                <div className="p-8 bg-[#3DD6C3]/10 relative">
                   <div className="absolute top-4 right-4">
-                    <span className="px-3 py-1 bg-[#fdcc02] text-[#0D4D4D] text-xs font-bold rounded-full">
-                      BEST VALUE
-                    </span>
+                    <span className="px-3 py-1 bg-[#fdcc02] text-[#0D4D4D] text-xs font-bold rounded-full">SAVE 17%</span>
                   </div>
-
                   <div className="text-center mb-6">
                     <h3 className="text-lg font-semibold text-[#3DD6C3] mb-4">Annual</h3>
                     <div className="flex items-baseline justify-center gap-1">
-                      <span className="text-5xl font-bold text-[#0D4D4D]">$100</span>
-                      <span className="text-[#6B7280] text-lg">/yr</span>
+                      <span className="text-5xl font-bold text-white">$100</span>
+                      <span className="text-white/50 text-lg">/yr</span>
                     </div>
-                    <p className="text-[#3DD6C3] mt-2 text-sm font-medium">Save $20 — only $8.33/mo</p>
+                    <p className="text-[#3DD6C3] mt-2 text-sm font-medium">That's $8.33/mo</p>
                   </div>
-
                   <ul className="space-y-3 mb-8">
-                    <li className="flex items-center gap-3">
-                      <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span className="text-[#2D3748]">Unlimited clients & policies</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span className="text-[#2D3748]">Client mobile app</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span className="text-[#2D3748]">Profile & branding</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span className="text-[#2D3748]">Priority support</span>
-                    </li>
+                    {['Everything in Monthly', '2 months FREE', 'Lock in your rate', 'Best value'].map((item, i) => (
+                      <li key={i} className="flex items-center gap-3">
+                        <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-white/80">{item}</span>
+                      </li>
+                    ))}
                   </ul>
-
-                  <Link href="/signup" className="block w-full py-3.5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-lg font-semibold rounded-xl transition-colors text-center shadow-lg shadow-[#3DD6C3]/30">
+                  <Link href="/signup" className="block w-full py-3.5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-lg font-semibold rounded-xl transition-colors text-center shadow-lg">
                     Get Started
                   </Link>
                 </div>
               </div>
             </div>
-
-            {/* Promo Code Hint */}
-            <p className="text-center text-white/60 text-sm mt-6">
-              Have a promo code? You can apply it at checkout.
+            <p className="text-center text-[#6B7280] text-sm mt-6">
+              Promo code? Enter it at checkout.
             </p>
           </div>
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section className="py-20 bg-[#F8F9FA]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-[#0D4D4D] mb-4">
-              What Agents Are Saying
+      {/* Coming Soon / Roadmap */}
+      <section id="roadmap" className="py-20 bg-[#0D4D4D] relative overflow-hidden">
+        <div className="absolute right-0 top-0 w-[300px] h-[200px] opacity-20">
+          <div className="absolute inset-0" style={{ backgroundImage: `linear-gradient(to right, #3DD6C3 1px, transparent 1px), linear-gradient(to bottom, #3DD6C3 1px, transparent 1px)`, backgroundSize: '24px 24px' }}></div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#fdcc02] rounded-full mb-6">
+              <svg className="w-5 h-5 text-[#0D4D4D]" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span className="text-[#0D4D4D] font-bold text-sm uppercase tracking-wide">On The Roadmap</span>
+            </div>
+            <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4">
+              More <span className="text-[#3DD6C3]">Firepower</span> Coming
             </h2>
-            <p className="text-xl text-[#6B7280]">
-              Join hundreds of agents who've transformed their client relationships
-            </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {/* Testimonial 1 */}
-            <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
-              <div className="flex gap-1 mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <svg key={i} className="w-5 h-5 text-[#fdcc02]" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                ))}
+          <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {[
+              { icon: '🔗', title: 'One-Tap Referrals', desc: 'Clients share you instantly' },
+              { icon: '🤖', title: 'AI Doc Parsing', desc: 'Upload policies, we extract' },
+              { icon: '🔔', title: 'Smart Renewal Alerts', desc: 'Never miss a renewal' },
+              { icon: '📅', title: 'Auto Birthday Messages', desc: 'Stay top of mind' },
+              { icon: '🔐', title: 'Face ID Login', desc: 'Bank-level security' },
+            ].map((item, i) => (
+              <div key={i} className="bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10 hover:border-[#3DD6C3]/50 transition-all text-center">
+                <div className="text-3xl mb-3">{item.icon}</div>
+                <h3 className="text-white font-bold mb-1">{item.title}</h3>
+                <p className="text-white/60 text-sm">{item.desc}</p>
               </div>
-              <p className="text-[#2D3748] text-lg mb-6">
-                "My retention rate has increased by 23% since I started using AgentForLife. Clients actually reach out to ME now instead of calling the carrier."
-              </p>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-[#0D4D4D] rounded-full flex items-center justify-center text-white font-bold">
-                  SM
-                </div>
-                <div>
-                  <p className="font-semibold text-[#0D4D4D]">Sarah M.</p>
-                  <p className="text-sm text-[#6B7280]">Independent Agent, 8 years</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Testimonial 2 */}
-            <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
-              <div className="flex gap-1 mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <svg key={i} className="w-5 h-5 text-[#fdcc02]" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                ))}
-              </div>
-              <p className="text-[#2D3748] text-lg mb-6">
-                "My older clients especially love it. They don't have to dig through papers—everything's right there on their phone. They feel taken care of."
-              </p>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-[#0D4D4D] rounded-full flex items-center justify-center text-white font-bold">
-                  JT
-                </div>
-                <div>
-                  <p className="font-semibold text-[#0D4D4D]">James T.</p>
-                  <p className="text-sm text-[#6B7280]">Agency Owner, 15 years</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Testimonial 3 */}
-            <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
-              <div className="flex gap-1 mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <svg key={i} className="w-5 h-5 text-[#fdcc02]" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                ))}
-              </div>
-              <p className="text-[#2D3748] text-lg mb-6">
-                "The time I save not answering 'what's my coverage?' calls is incredible. Clients look it up themselves and I spend more time actually selling."
-              </p>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-[#0D4D4D] rounded-full flex items-center justify-center text-white font-bold">
-                  LR
-                </div>
-                <div>
-                  <p className="font-semibold text-[#0D4D4D]">Lisa R.</p>
-                  <p className="text-sm text-[#6B7280]">Life Insurance Specialist, 5 years</p>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
       {/* Final CTA */}
-      <section className="py-20 bg-[#0D4D4D]">
+      <section className="py-20 bg-[#F8F9FA]">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
-            Ready to Be Their Agent For Life?
+          <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-6">
+            Stop Renting Leads.<br />
+            <span className="text-[#3DD6C3]">Start Owning Relationships.</span>
           </h2>
-          <p className="text-xl text-white/80 mb-10 max-w-2xl mx-auto">
-            Stop being just another contact. Start building relationships that last a lifetime.
+          <p className="text-xl text-[#6B7280] mb-10 max-w-2xl mx-auto">
+            The agents who thrive don't chase—they attract. Get the system that makes clients stick.
           </p>
-          <Link href="/signup" className="inline-flex items-center gap-2 px-10 py-5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-xl font-semibold rounded-full transition-all shadow-lg shadow-[#3DD6C3]/30 hover:shadow-[#3DD6C3]/50">
-            Get Started
+          <Link href="/signup" className="inline-flex items-center gap-3 px-10 py-5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-xl font-bold rounded-full transition-all shadow-lg shadow-[#3DD6C3]/40 hover:shadow-[#3DD6C3]/60 hover:scale-105">
+            Get the System
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
             </svg>
           </Link>
-          <p className="text-white/60 mt-4">
-            Only $9.99/month • Cancel anytime
+          <p className="text-[#6B7280] mt-4">
+            $9.99/month • No contracts • Cancel anytime
           </p>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-[#0A3D3D] py-12">
+      <footer className="bg-[#0D4D4D] py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-2">
               <div className="w-10 h-10 bg-[#3DD6C3] rounded-xl flex items-center justify-center">
-                {/* Logo: Person with connection nodes - representing agent-client relationships */}
                 <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-                  {/* Central person */}
                   <circle cx="12" cy="7" r="3" />
                   <path d="M12 12c-3 0-5 2-5 4v2h10v-2c0-2-2-4-5-4z" />
-                  {/* Connection nodes */}
                   <circle cx="4" cy="10" r="2" opacity="0.7" />
                   <circle cx="20" cy="10" r="2" opacity="0.7" />
-                  {/* Connection lines */}
                   <path d="M6 10h3M15 10h3" stroke="currentColor" strokeWidth="1.5" fill="none" opacity="0.7" />
                 </svg>
               </div>
@@ -763,18 +504,13 @@ export default function LandingPage() {
 
             <nav className="flex flex-wrap justify-center gap-6">
               <Link href="/login" className="text-white/70 hover:text-white transition-colors">Login</Link>
-              <a href="mailto:support@agentforlife.com" className="text-white/70 hover:text-white transition-colors">Contact</a>
-              <Link href="/privacy" className="text-white/70 hover:text-white transition-colors">Privacy Policy</Link>
-              <Link href="/terms" className="text-white/70 hover:text-white transition-colors">Terms of Service</Link>
+              <a href="mailto:support@agentforlife.app" className="text-white/70 hover:text-white transition-colors">Contact</a>
+              <Link href="/privacy" className="text-white/70 hover:text-white transition-colors">Privacy</Link>
+              <Link href="/terms" className="text-white/70 hover:text-white transition-colors">Terms</Link>
             </nav>
 
             <p className="text-white/50 text-sm">
-              © 2026 AgentForLife. All rights reserved.
-            </p>
-          </div>
-          <div className="mt-8 pt-8 border-t border-white/10 text-center">
-            <p className="text-[#3DD6C3] font-medium italic">
-              "Insurance relationships that last."
+              © 2026 AgentForLife
             </p>
           </div>
         </div>
