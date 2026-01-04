@@ -62,7 +62,10 @@ export default function SubscribePage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create checkout session');
+        // Show detailed error for debugging
+        const errorMsg = data.details || data.error || 'Failed to create checkout session';
+        console.error('Checkout error:', data);
+        throw new Error(errorMsg);
       }
 
       // Redirect to Stripe Checkout using the session URL
