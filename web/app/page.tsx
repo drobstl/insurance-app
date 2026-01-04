@@ -406,6 +406,25 @@ export default function LandingPage() {
                 Automated push notifications for policy renewals and rewrite opportunities. Never miss a renewal again.
               </p>
             </div>
+
+            {/* Feature 4 - Smart Push Notifications */}
+            <div className="group bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 hover:border-[#3DD6C3]/50 hover:bg-white/10 transition-all duration-300">
+              <div className="w-16 h-16 rounded-2xl bg-[#3DD6C3]/20 flex items-center justify-center mb-6 group-hover:bg-[#3DD6C3]/30 transition-colors relative">
+                <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {/* Notification badge */}
+                <div className="absolute -top-1 -right-1 w-5 h-5 bg-[#3DD6C3] rounded-full flex items-center justify-center">
+                  <svg className="w-3 h-3 text-[#0D4D4D]" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
+                  </svg>
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-white mb-3">Smart Push Notifications</h3>
+              <p className="text-white/70 leading-relaxed">
+                Automatically send personalized messages on birthdays, policy anniversaries, and holidays. Build stronger relationships without lifting a finger.
+              </p>
+            </div>
           </div>
 
           {/* Feature Request CTA */}
