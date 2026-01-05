@@ -156,8 +156,9 @@ export default function DashboardPage() {
   // Subscription state
   const [portalLoading, setPortalLoading] = useState(false);
 
-  // Track total active policies across all clients
+  // Track total active and pending policies across all clients
   const [totalActivePolicies, setTotalActivePolicies] = useState(0);
+  const [totalPendingPolicies, setTotalPendingPolicies] = useState(0);
 
   // Filtered clients based on search
   const filteredClients = useMemo(() => {
@@ -237,27 +238,33 @@ export default function DashboardPage() {
     return () => unsubscribe();
   }, [user]);
 
-  // Count total active policies across all clients
+  // Count total active and pending policies across all clients
   useEffect(() => {
     if (!user || clients.length === 0) {
       setTotalActivePolicies(0);
+      setTotalPendingPolicies(0);
       return;
     }
 
     const unsubscribes: (() => void)[] = [];
-    let totalActive = 0;
-    let loadedCount = 0;
+    const policyCounts: { [clientId: string]: { active: number; pending: number } } = {};
 
     clients.forEach((client) => {
+      policyCounts[client.id] = { active: 0, pending: 0 };
+      
       const policiesRef = collection(db, 'agents', user.uid, 'clients', client.id, 'policies');
       const unsubscribe = onSnapshot(policiesRef, (snapshot) => {
         const activeCount = snapshot.docs.filter(doc => doc.data().status === 'Active').length;
-        totalActive += activeCount;
-        loadedCount++;
+        const pendingCount = snapshot.docs.filter(doc => doc.data().status === 'Pending').length;
         
-        if (loadedCount === clients.length) {
-          setTotalActivePolicies(totalActive);
-        }
+        policyCounts[client.id] = { active: activeCount, pending: pendingCount };
+        
+        // Calculate totals from all clients
+        const totalActive = Object.values(policyCounts).reduce((sum, counts) => sum + counts.active, 0);
+        const totalPending = Object.values(policyCounts).reduce((sum, counts) => sum + counts.pending, 0);
+        
+        setTotalActivePolicies(totalActive);
+        setTotalPendingPolicies(totalPending);
       });
       unsubscribes.push(unsubscribe);
     });
@@ -1110,14 +1117,14 @@ export default function DashboardPage() {
 
           <div className="bg-white rounded-2xl border border-gray-200 p-6">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-amber-500/20 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-12 h-12 bg-[#fdcc02]/20 rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-[#fdcc02]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
               <div>
-                <p className="text-gray-500 text-sm">Pending Reviews</p>
-                <p className="text-2xl font-bold text-[#2D3748]">0</p>
+                <p className="text-gray-500 text-sm">Pending Policies</p>
+                <p className="text-2xl font-bold text-[#2D3748]">{totalPendingPolicies}</p>
               </div>
             </div>
           </div>
