@@ -150,6 +150,17 @@ export default function PoliciesScreen() {
             </View>
           </View>
         );
+      case 'Accidental':
+        // Warning/Triangle icon for Accidental
+        return (
+          <View style={styles.iconWrapper}>
+            <View style={styles.accidentalIcon}>
+              <View style={styles.triangleOuter} />
+              <View style={styles.exclamationMark} />
+              <View style={styles.exclamationDot} />
+            </View>
+          </View>
+        );
       default:
         // Document icon
         return (
@@ -272,17 +283,31 @@ export default function PoliciesScreen() {
                       </View>
                     )}
 
-                    <View style={styles.amountGrid}>
-                      <View style={styles.amountItem}>
-                        <Text style={styles.amountLabel}>Death Benefit</Text>
-                        <Text style={styles.amountValue}>{formatCurrency(policy.coverageAmount)}</Text>
+                    {/* Accidental - Death Benefit Prominent */}
+                    {policy.policyType === 'Accidental' ? (
+                      <View>
+                        <View style={styles.accidentalDeathBenefit}>
+                          <Text style={styles.accidentalDeathLabel}>Death Benefit</Text>
+                          <Text style={styles.accidentalDeathValue}>{formatCurrency(policy.coverageAmount)}</Text>
+                        </View>
+                        <View style={styles.accidentalPremium}>
+                          <Text style={styles.amountLabel}>Premium</Text>
+                          <Text style={styles.amountValue}>{formatCurrency(policy.premiumAmount)}/mo</Text>
+                        </View>
                       </View>
-                      <View style={styles.amountDivider} />
-                      <View style={styles.amountItem}>
-                        <Text style={styles.amountLabel}>Premium</Text>
-                        <Text style={styles.amountValue}>{formatCurrency(policy.premiumAmount)}/mo</Text>
+                    ) : (
+                      <View style={styles.amountGrid}>
+                        <View style={styles.amountItem}>
+                          <Text style={styles.amountLabel}>Death Benefit</Text>
+                          <Text style={styles.amountValue}>{formatCurrency(policy.coverageAmount)}</Text>
+                        </View>
+                        <View style={styles.amountDivider} />
+                        <View style={styles.amountItem}>
+                          <Text style={styles.amountLabel}>Premium</Text>
+                          <Text style={styles.amountValue}>{formatCurrency(policy.premiumAmount)}/mo</Text>
+                        </View>
                       </View>
-                    </View>
+                    )}
 
                     {/* Owner & Beneficiary */}
                     {(policy.policyOwner || policy.beneficiary) && (
@@ -733,5 +758,66 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#2D3748',
     fontWeight: '600',
+  },
+  // Accidental icon styles
+  accidentalIcon: {
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  triangleOuter: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 12,
+    borderRightWidth: 12,
+    borderBottomWidth: 22,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#3DD6C3',
+    position: 'absolute',
+  },
+  exclamationMark: {
+    width: 3,
+    height: 10,
+    backgroundColor: '#0D4D4D',
+    borderRadius: 1.5,
+    position: 'absolute',
+    top: 6,
+  },
+  exclamationDot: {
+    width: 4,
+    height: 4,
+    backgroundColor: '#0D4D4D',
+    borderRadius: 2,
+    position: 'absolute',
+    top: 18,
+  },
+  // Accidental policy display styles
+  accidentalDeathBenefit: {
+    backgroundColor: 'rgba(61, 214, 195, 0.15)',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(61, 214, 195, 0.3)',
+    alignItems: 'center',
+  },
+  accidentalDeathLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  accidentalDeathValue: {
+    fontSize: 28,
+    color: '#0D4D4D',
+    fontWeight: '800',
+  },
+  accidentalPremium: {
+    alignItems: 'center',
+    paddingVertical: 8,
   },
 });
