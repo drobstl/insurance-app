@@ -127,6 +127,14 @@ export default function DashboardPage() {
   const [deleteConfirmClient, setDeleteConfirmClient] = useState<Client | null>(null);
   const [deletingClient, setDeletingClient] = useState(false);
 
+  // Import clients state
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importData, setImportData] = useState<{ name: string; email: string; phone: string }[]>([]);
+  const [importError, setImportError] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importSuccess, setImportSuccess] = useState(false);
+
   // Agent profile state
   const [agentProfile, setAgentProfile] = useState<AgentProfile>({});
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -379,6 +387,125 @@ export default function DashboardPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Parse CSV file for import
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportError('');
+    setImportData([]);
+    setImportSuccess(false);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const lines = text.split('\n').filter(line => line.trim());
+        
+        if (lines.length < 2) {
+          setImportError('CSV file must have a header row and at least one data row.');
+          return;
+        }
+
+        // Parse header to find column indices
+        const header = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/"/g, ''));
+        
+        // Find column indices (flexible matching)
+        const nameIdx = header.findIndex(h => h.includes('name') || h === 'full name' || h === 'contact');
+        const emailIdx = header.findIndex(h => h.includes('email') || h.includes('e-mail'));
+        const phoneIdx = header.findIndex(h => h.includes('phone') || h.includes('tel') || h.includes('mobile') || h.includes('cell'));
+
+        if (nameIdx === -1) {
+          setImportError('CSV must have a "Name" column. Found columns: ' + header.join(', '));
+          return;
+        }
+
+        // Parse data rows
+        const parsedData: { name: string; email: string; phone: string }[] = [];
+        
+        for (let i = 1; i < lines.length; i++) {
+          // Handle CSV with quoted fields
+          const row = lines[i].match(/("([^"]|"")*"|[^,]*)/g)?.map(field => 
+            field.trim().replace(/^"|"$/g, '').replace(/""/g, '"')
+          ) || [];
+          
+          if (row.length === 0 || !row[nameIdx]?.trim()) continue;
+          
+          parsedData.push({
+            name: row[nameIdx]?.trim() || '',
+            email: emailIdx !== -1 ? (row[emailIdx]?.trim() || '') : '',
+            phone: phoneIdx !== -1 ? (row[phoneIdx]?.trim() || '') : '',
+          });
+        }
+
+        if (parsedData.length === 0) {
+          setImportError('No valid client data found in the CSV file.');
+          return;
+        }
+
+        setImportData(parsedData);
+      } catch {
+        setImportError('Failed to parse CSV file. Please check the format.');
+      }
+    };
+
+    reader.onerror = () => {
+      setImportError('Failed to read the file. Please try again.');
+    };
+
+    reader.readAsText(file);
+  };
+
+  // Bulk import clients
+  const handleImportClients = async () => {
+    if (!user || importData.length === 0) return;
+
+    setImporting(true);
+    setImportProgress(0);
+    setImportError('');
+
+    try {
+      const clientsRef = collection(db, 'agents', user.uid, 'clients');
+      const total = importData.length;
+      let imported = 0;
+
+      for (const client of importData) {
+        const clientCode = generateClientCode();
+        await addDoc(clientsRef, {
+          name: client.name,
+          email: client.email,
+          phone: client.phone,
+          clientCode: clientCode,
+          createdAt: serverTimestamp(),
+          agentId: user.uid,
+        });
+        imported++;
+        setImportProgress(Math.round((imported / total) * 100));
+      }
+
+      setImportSuccess(true);
+      setTimeout(() => {
+        setIsImportModalOpen(false);
+        setImportData([]);
+        setImportSuccess(false);
+        setImportProgress(0);
+      }, 2000);
+    } catch (error) {
+      console.error('Error importing clients:', error);
+      setImportError('Failed to import some clients. Please try again.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleCloseImportModal = () => {
+    setIsImportModalOpen(false);
+    setImportData([]);
+    setImportError('');
+    setImportSuccess(false);
+    setImportProgress(0);
   };
 
   const handleSelectClient = useCallback((client: Client) => {
@@ -1000,15 +1127,26 @@ export default function DashboardPage() {
         <div className="mt-8">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <h2 className="text-2xl font-bold text-[#2D3748]">Your Clients</h2>
-            <button
-              onClick={handleOpenModal}
-              className="px-4 py-2.5 bg-[#3DD6C3] hover:bg-[#2cc5b2] text-[#2D3748] font-semibold rounded-xl shadow-lg shadow-[#3DD6C3]/30 hover:shadow-emerald-500/40 transition-all duration-200 flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Add Client
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsImportModalOpen(true)}
+                className="px-4 py-2.5 bg-white hover:bg-gray-50 text-[#0D4D4D] font-semibold rounded-xl border-2 border-[#0D4D4D] transition-all duration-200 flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Import CSV
+              </button>
+              <button
+                onClick={handleOpenModal}
+                className="px-4 py-2.5 bg-[#3DD6C3] hover:bg-[#2cc5b2] text-[#2D3748] font-semibold rounded-xl shadow-lg shadow-[#3DD6C3]/30 hover:shadow-emerald-500/40 transition-all duration-200 flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Add Client
+              </button>
+            </div>
           </div>
 
           {/* Search Bar */}
@@ -1467,6 +1605,204 @@ export default function DashboardPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Import Clients Modal */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={handleCloseImportModal}
+          />
+          <div className="relative w-full max-w-2xl bg-white rounded-2xl border border-gray-200 shadow-2xl transform transition-all max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h3 className="text-xl font-bold text-[#0D4D4D]">Import Clients from CSV</h3>
+                <p className="text-gray-500 text-sm mt-1">Upload a CSV file with your contacts</p>
+              </div>
+              <button
+                onClick={handleCloseImportModal}
+                className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#2D3748] transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1">
+              {/* Upload Section */}
+              {importData.length === 0 && !importSuccess && (
+                <div className="space-y-4">
+                  <div className="bg-[#F8F9FA] rounded-xl p-6 border-2 border-dashed border-gray-300 text-center">
+                    <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p className="text-[#2D3748] font-medium mb-2">Upload your contact list</p>
+                    <p className="text-gray-500 text-sm mb-4">CSV file with Name, Email, and Phone columns</p>
+                    <label className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0D4D4D] hover:bg-[#0A3D3D] text-white font-medium rounded-lg cursor-pointer transition-colors">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                      </svg>
+                      Choose File
+                      <input
+                        type="file"
+                        accept=".csv"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <h4 className="font-medium text-blue-800 mb-2 flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      CSV Format Tips
+                    </h4>
+                    <ul className="text-sm text-blue-700 space-y-1">
+                      <li>• First row should be headers (Name, Email, Phone)</li>
+                      <li>• Name column is required, Email and Phone are optional</li>
+                      <li>• Exports from Google Contacts, Outlook, or Excel work great</li>
+                    </ul>
+                  </div>
+
+                  {importError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+                      <svg className="w-5 h-5 text-red-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-red-600 text-sm">{importError}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Preview Section */}
+              {importData.length > 0 && !importSuccess && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-[#0D4D4D]">Preview ({importData.length} clients)</h4>
+                      <p className="text-sm text-gray-500">Review before importing</p>
+                    </div>
+                    <button
+                      onClick={() => setImportData([])}
+                      className="text-sm text-gray-500 hover:text-red-500 transition-colors"
+                    >
+                      Clear & Upload New
+                    </button>
+                  </div>
+
+                  <div className="bg-[#F8F9FA] rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="overflow-x-auto max-h-64">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-100 sticky top-0">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-semibold text-[#2D3748]">#</th>
+                            <th className="px-4 py-3 text-left font-semibold text-[#2D3748]">Name</th>
+                            <th className="px-4 py-3 text-left font-semibold text-[#2D3748]">Email</th>
+                            <th className="px-4 py-3 text-left font-semibold text-[#2D3748]">Phone</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {importData.slice(0, 50).map((client, idx) => (
+                            <tr key={idx} className="hover:bg-white transition-colors">
+                              <td className="px-4 py-2 text-gray-500">{idx + 1}</td>
+                              <td className="px-4 py-2 text-[#2D3748] font-medium">{client.name}</td>
+                              <td className="px-4 py-2 text-gray-600">{client.email || '—'}</td>
+                              <td className="px-4 py-2 text-gray-600">{client.phone || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {importData.length > 50 && (
+                      <div className="px-4 py-2 bg-gray-100 text-sm text-gray-500 text-center">
+                        ...and {importData.length - 50} more
+                      </div>
+                    )}
+                  </div>
+
+                  {importing && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-[#2D3748]">Importing clients...</span>
+                        <span className="text-[#3DD6C3] font-medium">{importProgress}%</span>
+                      </div>
+                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-[#3DD6C3] transition-all duration-300"
+                          style={{ width: `${importProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {importError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+                      <svg className="w-5 h-5 text-red-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-red-600 text-sm">{importError}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Success State */}
+              {importSuccess && (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <h4 className="text-xl font-bold text-[#0D4D4D] mb-2">Import Complete!</h4>
+                  <p className="text-gray-500">{importData.length} clients have been added to your book.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            {importData.length > 0 && !importSuccess && (
+              <div className="p-6 border-t border-gray-200 bg-gray-50 flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleCloseImportModal}
+                  disabled={importing}
+                  className="flex-1 py-3 px-4 bg-white hover:bg-gray-100 text-gray-600 font-semibold rounded-xl border border-gray-200 transition-all duration-200 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleImportClients}
+                  disabled={importing}
+                  className="flex-1 py-3 px-4 bg-[#3DD6C3] hover:bg-[#2cc5b2] disabled:bg-[#3DD6C3]/50 disabled:cursor-not-allowed text-[#2D3748] font-semibold rounded-xl shadow-lg shadow-[#3DD6C3]/30 transition-all duration-200 flex items-center justify-center gap-2"
+                >
+                  {importing ? (
+                    <>
+                      <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      Import {importData.length} Clients
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
