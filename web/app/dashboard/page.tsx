@@ -1153,7 +1153,7 @@ export default function DashboardPage() {
           {clients.length > 0 && (
             <div className="mb-6">
               <div className="relative">
-                <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
                 <input
@@ -1192,7 +1192,7 @@ export default function DashboardPage() {
             <div className="bg-white rounded-2xl border border-gray-200 p-12">
               <div className="flex flex-col items-center text-center">
                 <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mb-6">
-                  <svg className="w-10 h-10 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-10 h-10 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                 </div>
@@ -1216,7 +1216,7 @@ export default function DashboardPage() {
             <div className="bg-white rounded-2xl border border-gray-200 p-12">
               <div className="flex flex-col items-center text-center">
                 <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
-                  <svg className="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                 </div>
@@ -1271,7 +1271,7 @@ export default function DashboardPage() {
                   {/* Client Code Badge */}
                   {client.clientCode && (
                     <div className="mt-3 flex items-center justify-between bg-white rounded-lg px-3 py-2">
-                      <span className="text-xs text-slate-500">Client Code:</span>
+                      <span className="text-xs text-gray-500">Client Code:</span>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-mono font-semibold text-[#3DD6C3] tracking-wider">{client.clientCode}</span>
                         <button
@@ -1346,7 +1346,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => handleOpenPolicyModal()}
-                  className="px-4 py-2.5 bg-purple-500 hover:bg-purple-600 text-[#2D3748] font-semibold rounded-xl shadow-lg shadow-purple-500/30 hover:shadow-purple-500/40 transition-all duration-200 flex items-center gap-2"
+                  className="px-4 py-2.5 bg-[#0099FF] hover:bg-[#0088DD] text-white font-semibold rounded-xl shadow-lg shadow-[#0099FF]/30 hover:shadow-[#0099FF]/40 transition-all duration-200 flex items-center gap-2"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -1369,7 +1369,7 @@ export default function DashboardPage() {
               {policiesLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="flex flex-col items-center gap-4">
-                    <svg className="animate-spin w-8 h-8 text-purple-500" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin w-8 h-8 text-[#0099FF]" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
@@ -1380,7 +1380,7 @@ export default function DashboardPage() {
                 // Empty Policies State
                 <div className="flex flex-col items-center text-center py-12">
                   <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
-                    <svg className="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                   </div>
@@ -1390,7 +1390,7 @@ export default function DashboardPage() {
                   </p>
                   <button
                     onClick={() => handleOpenPolicyModal()}
-                    className="px-5 py-2.5 bg-purple-500 hover:bg-purple-600 text-[#2D3748] font-semibold rounded-xl shadow-lg shadow-purple-500/30 hover:shadow-purple-500/40 transition-all duration-200 flex items-center gap-2"
+                    className="px-5 py-2.5 bg-[#0099FF] hover:bg-[#0088DD] text-white font-semibold rounded-xl shadow-lg shadow-[#0099FF]/30 hover:shadow-[#0099FF]/40 transition-all duration-200 flex items-center gap-2"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -1408,12 +1408,12 @@ export default function DashboardPage() {
                     >
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center text-purple-400">
+                          <div className="w-10 h-10 bg-[#0099FF]/20 rounded-lg flex items-center justify-center text-[#0099FF]">
                             {getPolicyTypeIcon(policy.policyType)}
                           </div>
                           <div>
                             <h4 className="font-semibold text-[#2D3748]">{policy.policyType}</h4>
-                            <p className="text-slate-500 text-sm">#{policy.policyNumber}</p>
+                            <p className="text-gray-500 text-sm">#{policy.policyNumber}</p>
                           </div>
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(policy.status)}`}>
@@ -1424,7 +1424,7 @@ export default function DashboardPage() {
                       {/* Insurance Company */}
                       {policy.insuranceCompany && (
                         <div className="mb-4 pb-4 border-b border-gray-200">
-                          <p className="text-slate-500 text-xs uppercase tracking-wide mb-1">Insurance Company</p>
+                          <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Insurance Company</p>
                           <p className="text-[#2D3748] font-medium">{policy.insuranceCompany}</p>
                         </div>
                       )}
@@ -1434,13 +1434,13 @@ export default function DashboardPage() {
                         <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-gray-200">
                           {policy.policyOwner && (
                             <div>
-                              <p className="text-slate-500 text-xs uppercase tracking-wide mb-1">Owner</p>
+                              <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Owner</p>
                               <p className="text-[#2D3748] text-sm">{policy.policyOwner}</p>
                             </div>
                           )}
                           {policy.beneficiary && (
                             <div>
-                              <p className="text-slate-500 text-xs uppercase tracking-wide mb-1">Beneficiary</p>
+                              <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Beneficiary</p>
                               <p className="text-[#2D3748] text-sm">{policy.beneficiary}</p>
                             </div>
                           )}
@@ -1450,22 +1450,22 @@ export default function DashboardPage() {
                       <div className="grid grid-cols-2 gap-4">
                         {policy.policyType === 'Mortgage Protection' && policy.amountOfProtection && (
                           <div className="col-span-2">
-                            <p className="text-slate-500 text-xs uppercase tracking-wide mb-1">Amount of Protection</p>
+                            <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Amount of Protection</p>
                             <p className="text-[#2D3748] font-semibold">{policy.amountOfProtection} {policy.protectionUnit === 'months' ? 'Months' : 'Years'}</p>
                           </div>
                         )}
                         {policy.policyType === 'Term Life' && policy.renewalDate && (
                           <div className="col-span-2">
-                            <p className="text-slate-500 text-xs uppercase tracking-wide mb-1">Renewal Date</p>
+                            <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Renewal Date</p>
                             <p className="text-[#2D3748]">{formatDate(policy.renewalDate)}</p>
                           </div>
                         )}
                         <div>
-                          <p className="text-slate-500 text-xs uppercase tracking-wide mb-1">Death Benefit</p>
+                          <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Death Benefit</p>
                           <p className="text-[#2D3748] font-semibold">{formatCurrency(policy.coverageAmount)}</p>
                         </div>
                         <div>
-                          <p className="text-slate-500 text-xs uppercase tracking-wide mb-1">Premium</p>
+                          <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Premium</p>
                           <p className="text-[#2D3748] font-semibold">{formatCurrency(policy.premiumAmount)}/mo</p>
                         </div>
                       </div>
@@ -1859,7 +1859,7 @@ export default function DashboardPage() {
                     value={policyFormData.policyType}
                     onChange={(e) => setPolicyFormData({ ...policyFormData, policyType: e.target.value })}
                     required
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                   >
                     {POLICY_TYPES.map((type) => (
                       <option key={type} value={type}>{type}</option>
@@ -1875,7 +1875,7 @@ export default function DashboardPage() {
                     value={policyFormData.status}
                     onChange={(e) => setPolicyFormData({ ...policyFormData, status: e.target.value as 'Active' | 'Pending' | 'Lapsed' })}
                     required
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                   >
                     {POLICY_STATUSES.map((status) => (
                       <option key={status} value={status}>{status}</option>
@@ -1896,7 +1896,7 @@ export default function DashboardPage() {
                     value={policyFormData.policyNumber}
                     onChange={(e) => setPolicyFormData({ ...policyFormData, policyNumber: e.target.value })}
                     required
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                     placeholder="POL-2026-001234"
                   />
                 </div>
@@ -1910,7 +1910,7 @@ export default function DashboardPage() {
                     value={policyFormData.insuranceCompany}
                     onChange={(e) => setPolicyFormData({ ...policyFormData, insuranceCompany: e.target.value })}
                     required
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                     placeholder="State Farm, MetLife, etc."
                   />
                 </div>
@@ -1928,7 +1928,7 @@ export default function DashboardPage() {
                     value={policyFormData.policyOwner}
                     onChange={(e) => setPolicyFormData({ ...policyFormData, policyOwner: e.target.value })}
                     required
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                     placeholder="John Doe"
                   />
                 </div>
@@ -1942,7 +1942,7 @@ export default function DashboardPage() {
                     value={policyFormData.beneficiary}
                     onChange={(e) => setPolicyFormData({ ...policyFormData, beneficiary: e.target.value })}
                     required
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                     placeholder="Jane Doe"
                   />
                 </div>
@@ -1964,7 +1964,7 @@ export default function DashboardPage() {
                         value={policyFormData.amountOfProtection}
                         onChange={(e) => setPolicyFormData({ ...policyFormData, amountOfProtection: e.target.value })}
                         required
-                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                         placeholder={policyFormData.protectionUnit === 'months' ? '360' : '30'}
                       />
                     </div>
@@ -1973,14 +1973,14 @@ export default function DashboardPage() {
                         id="protectionUnit"
                         value={policyFormData.protectionUnit}
                         onChange={(e) => setPolicyFormData({ ...policyFormData, protectionUnit: e.target.value as 'months' | 'years' })}
-                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                       >
                         <option value="years">Years</option>
                         <option value="months">Months</option>
                       </select>
                     </div>
                   </div>
-                  <p className="text-slate-500 text-xs mt-2">Enter the protection duration (e.g., 30 Years or 360 Months)</p>
+                  <p className="text-gray-500 text-xs mt-2">Enter the protection duration (e.g., 30 Years or 360 Months)</p>
                 </div>
               )}
 
@@ -1996,7 +1996,7 @@ export default function DashboardPage() {
                         value={policyFormData.renewalMonth}
                         onChange={(e) => setPolicyFormData({ ...policyFormData, renewalMonth: e.target.value })}
                         required
-                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                       >
                         <option value="">Month</option>
                         {MONTHS.map((month) => (
@@ -2009,7 +2009,7 @@ export default function DashboardPage() {
                         value={policyFormData.renewalYear}
                         onChange={(e) => setPolicyFormData({ ...policyFormData, renewalYear: e.target.value })}
                         required
-                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                       >
                         <option value="">Year</option>
                         {yearOptions.map((year) => (
@@ -2018,7 +2018,7 @@ export default function DashboardPage() {
                       </select>
                     </div>
                   </div>
-                  <p className="text-slate-500 text-xs mt-2">Select the month and year of policy renewal</p>
+                  <p className="text-gray-500 text-xs mt-2">Select the month and year of policy renewal</p>
                 </div>
               )}
 
@@ -2028,7 +2028,7 @@ export default function DashboardPage() {
                     Death Benefit
                   </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                     <input
                       id="coverageAmount"
                       type="number"
@@ -2037,7 +2037,7 @@ export default function DashboardPage() {
                       value={policyFormData.coverageAmount}
                       onChange={(e) => setPolicyFormData({ ...policyFormData, coverageAmount: e.target.value })}
                       required
-                      className="w-full pl-8 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                      className="w-full pl-8 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                       placeholder="500000"
                     />
                   </div>
@@ -2047,7 +2047,7 @@ export default function DashboardPage() {
                     Monthly Premium
                   </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                     <input
                       id="premiumAmount"
                       type="number"
@@ -2056,7 +2056,7 @@ export default function DashboardPage() {
                       value={policyFormData.premiumAmount}
                       onChange={(e) => setPolicyFormData({ ...policyFormData, premiumAmount: e.target.value })}
                       required
-                      className="w-full pl-8 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-all duration-200"
+                      className="w-full pl-8 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                       placeholder="250"
                     />
                   </div>
@@ -2074,7 +2074,7 @@ export default function DashboardPage() {
                 <button
                   type="submit"
                   disabled={policySubmitting || policyFormSuccess}
-                  className="flex-1 py-3 px-4 bg-purple-500 hover:bg-purple-600 disabled:bg-purple-500/50 disabled:cursor-not-allowed text-[#2D3748] font-semibold rounded-xl shadow-lg shadow-purple-500/30 hover:shadow-purple-500/40 transition-all duration-200 flex items-center justify-center gap-2"
+                  className="flex-1 py-3 px-4 bg-[#0099FF] hover:bg-[#0088DD] disabled:bg-[#0099FF]/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg shadow-[#0099FF]/30 hover:shadow-[#0099FF]/40 transition-all duration-200 flex items-center justify-center gap-2"
                 >
                   {policySubmitting ? (
                     <>
