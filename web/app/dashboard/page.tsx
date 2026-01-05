@@ -1462,9 +1462,9 @@ export default function DashboardPage() {
                       
                       <div className="grid grid-cols-2 gap-4">
                         {policy.policyType === 'Mortgage Protection' && policy.amountOfProtection && (
-                          <div className="col-span-2">
+                          <div className="col-span-2 bg-[#3DD6C3]/10 rounded-lg p-3 border border-[#3DD6C3]/30">
                             <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Amount of Protection</p>
-                            <p className="text-[#2D3748] font-semibold">{policy.amountOfProtection} {policy.protectionUnit === 'months' ? 'Months' : 'Years'}</p>
+                            <p className="text-[#0D4D4D] text-xl font-bold">{policy.amountOfProtection} {policy.protectionUnit === 'months' ? 'Months' : 'Years'}</p>
                           </div>
                         )}
                         {policy.policyType === 'Term Life' && policy.renewalDate && (
