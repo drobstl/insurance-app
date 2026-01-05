@@ -867,13 +867,13 @@ export default function DashboardPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Active':
-        return 'bg-[#3DD6C3]/20 text-[#3DD6C3] border-emerald-500/30';
+        return 'bg-[#3DD6C3]/20 text-[#0D4D4D] border-[#3DD6C3]/30';
       case 'Pending':
         return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
       case 'Lapsed':
         return 'bg-red-500/20 text-red-400 border-red-500/30';
       default:
-        return 'bg-slate-500/20 text-gray-500 border-slate-500/30';
+        return 'bg-gray-200/50 text-gray-500 border-gray-300/50';
     }
   };
 
@@ -1065,7 +1065,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
           <div className="flex items-start gap-6">
             <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center shadow-lg">
-              <svg className="w-8 h-8 text-[#2D3748]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
               </svg>
             </div>
@@ -1139,7 +1139,7 @@ export default function DashboardPage() {
               </button>
               <button
                 onClick={handleOpenModal}
-                className="px-4 py-2.5 bg-[#3DD6C3] hover:bg-[#2cc5b2] text-[#2D3748] font-semibold rounded-xl shadow-lg shadow-[#3DD6C3]/30 hover:shadow-emerald-500/40 transition-all duration-200 flex items-center gap-2"
+                className="px-4 py-2.5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-[#0D4D4D] font-semibold rounded-xl shadow-lg shadow-[#3DD6C3]/30 hover:shadow-[#3DD6C3]/40 transition-all duration-200 flex items-center gap-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -1161,7 +1161,7 @@ export default function DashboardPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search clients by name, email, or phone..."
-                  className="w-full pl-12 pr-12 py-3 bg-slate-800/50 border border-gray-200 rounded-xl text-[#2D3748] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+                  className="w-full pl-12 pr-12 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
                 />
                 {searchQuery && (
                   <button
@@ -1180,7 +1180,7 @@ export default function DashboardPage() {
           {clientsLoading ? (
             <div className="bg-white rounded-2xl border border-gray-200 p-12 flex items-center justify-center">
               <div className="flex flex-col items-center gap-4">
-                <svg className="animate-spin w-8 h-8 text-emerald-500" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin w-8 h-8 text-[#3DD6C3]" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
@@ -1202,7 +1202,7 @@ export default function DashboardPage() {
                 </p>
                 <button
                   onClick={handleOpenModal}
-                  className="px-6 py-3 bg-[#3DD6C3] hover:bg-[#2cc5b2] text-[#2D3748] font-semibold rounded-xl shadow-lg shadow-[#3DD6C3]/30 hover:shadow-emerald-500/40 transition-all duration-200 flex items-center gap-2"
+                  className="px-6 py-3 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-[#0D4D4D] font-semibold rounded-xl shadow-lg shadow-[#3DD6C3]/30 hover:shadow-[#3DD6C3]/40 transition-all duration-200 flex items-center gap-2"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -1240,12 +1240,12 @@ export default function DashboardPage() {
                   key={client.id}
                   className={`bg-white rounded-2xl border p-6 transition-all duration-200 group ${
                     selectedClient?.id === client.id
-                      ? 'border-emerald-500/50 bg-slate-800/70 ring-1 ring-emerald-500/20'
-                      : 'border-gray-200 hover:border-gray-200 hover:bg-slate-800/70'
+                      ? 'border-[#3DD6C3] bg-[#3DD6C3]/5 ring-1 ring-[#3DD6C3]/20'
+                      : 'border-gray-200 hover:border-[#3DD6C3]/50 hover:bg-[#F8F9FA]'
                   }`}
                 >
                   <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center text-[#2D3748] font-bold text-lg shadow-lg shadow-blue-500/20">
+                    <div className="w-12 h-12 bg-gradient-to-br from-[#3DD6C3] to-[#0D4D4D] rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-[#3DD6C3]/30">
                       {client.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1299,8 +1299,8 @@ export default function DashboardPage() {
                     onClick={() => handleSelectClient(client)}
                     className={`w-full mt-4 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
                       selectedClient?.id === client.id
-                        ? 'bg-[#3DD6C3]/20 text-[#3DD6C3] border border-emerald-500/30'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-[#2D3748] border border-gray-200'
+                        ? 'bg-[#3DD6C3]/20 text-[#0D4D4D] border border-[#3DD6C3]/50'
+                        : 'bg-gray-100 text-gray-600 hover:bg-[#3DD6C3]/10 hover:text-[#0D4D4D] border border-gray-200 hover:border-[#3DD6C3]/30'
                     }`}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1333,8 +1333,8 @@ export default function DashboardPage() {
             {/* Header */}
             <div className="p-6 border-b border-gray-200 flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl flex items-center justify-center">
-                  <svg className="w-6 h-6 text-[#2D3748]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-12 h-12 bg-gradient-to-br from-[#0D4D4D] to-[#0A3D3D] rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
@@ -1507,7 +1507,7 @@ export default function DashboardPage() {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={handleCloseModal}
           />
-          <div className="relative w-full max-w-md bg-slate-800 rounded-2xl border border-gray-200 shadow-2xl transform transition-all">
+          <div className="relative w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl transform transition-all">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <h3 className="text-xl font-bold text-[#2D3748]">Add New Client</h3>
               <button
@@ -1529,7 +1529,7 @@ export default function DashboardPage() {
                 </div>
               )}
               {formSuccess && (
-                <div className="bg-[#3DD6C3]/10 border border-emerald-500/30 rounded-xl p-4 flex items-start gap-3">
+                <div className="bg-[#3DD6C3]/10 border border-[#3DD6C3]/30 rounded-xl p-4 flex items-start gap-3">
                   <svg className="w-5 h-5 text-[#3DD6C3] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
@@ -1546,7 +1546,7 @@ export default function DashboardPage() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
-                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
                   placeholder="John Doe"
                 />
               </div>
@@ -1560,7 +1560,7 @@ export default function DashboardPage() {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   required
-                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
                   placeholder="john@example.com"
                 />
               </div>
@@ -1574,7 +1574,7 @@ export default function DashboardPage() {
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   required
-                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all duration-200"
+                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
                   placeholder="(555) 123-4567"
                 />
               </div>
@@ -1589,7 +1589,7 @@ export default function DashboardPage() {
                 <button
                   type="submit"
                   disabled={submitting || formSuccess}
-                  className="flex-1 py-3 px-4 bg-[#3DD6C3] hover:bg-[#2cc5b2] disabled:bg-[#3DD6C3]/50 disabled:cursor-not-allowed text-[#2D3748] font-semibold rounded-xl shadow-lg shadow-[#3DD6C3]/30 hover:shadow-emerald-500/40 transition-all duration-200 flex items-center justify-center gap-2"
+                  className="flex-1 py-3 px-4 bg-[#3DD6C3] hover:bg-[#2BB5A5] disabled:bg-[#3DD6C3]/50 disabled:cursor-not-allowed text-[#0D4D4D] font-semibold rounded-xl shadow-lg shadow-[#3DD6C3]/30 hover:shadow-[#3DD6C3]/40 transition-all duration-200 flex items-center justify-center gap-2"
                 >
                   {submitting ? (
                     <>
@@ -1814,8 +1814,8 @@ export default function DashboardPage() {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={handleClosePolicyModal}
           />
-          <div className="relative w-full max-w-lg bg-slate-800 rounded-2xl border border-gray-200 shadow-2xl transform transition-all max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-slate-800 z-10">
+          <div className="relative w-full max-w-lg bg-white rounded-2xl border border-gray-200 shadow-2xl transform transition-all max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
               <div>
                 <h3 className="text-xl font-bold text-[#2D3748]">
                   {editingPolicy ? 'Edit Policy' : 'Add New Policy'}
@@ -1841,7 +1841,7 @@ export default function DashboardPage() {
                 </div>
               )}
               {policyFormSuccess && (
-                <div className="bg-[#3DD6C3]/10 border border-emerald-500/30 rounded-xl p-4 flex items-start gap-3">
+                <div className="bg-[#3DD6C3]/10 border border-[#3DD6C3]/30 rounded-xl p-4 flex items-start gap-3">
                   <svg className="w-5 h-5 text-[#3DD6C3] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
@@ -2101,10 +2101,10 @@ export default function DashboardPage() {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setDeleteConfirmPolicy(null)}
           />
-          <div className="relative w-full max-w-md bg-slate-800 rounded-2xl border border-gray-200 shadow-2xl p-6">
+          <div className="relative w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl p-6">
             <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 bg-red-500/20 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
               </div>
@@ -2126,7 +2126,7 @@ export default function DashboardPage() {
               <button
                 onClick={handleDeletePolicy}
                 disabled={deleting}
-                className="flex-1 py-3 px-4 bg-red-500 hover:bg-red-600 disabled:bg-red-500/50 disabled:cursor-not-allowed text-[#2D3748] font-semibold rounded-xl shadow-lg shadow-red-500/30 hover:shadow-red-500/40 transition-all duration-200 flex items-center justify-center gap-2"
+                className="flex-1 py-3 px-4 bg-red-500 hover:bg-red-600 disabled:bg-red-500/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg shadow-red-500/30 hover:shadow-red-500/40 transition-all duration-200 flex items-center justify-center gap-2"
               >
                 {deleting ? (
                   <>
@@ -2152,10 +2152,10 @@ export default function DashboardPage() {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setDeleteConfirmClient(null)}
           />
-          <div className="relative w-full max-w-md bg-slate-800 rounded-2xl border border-gray-200 shadow-2xl p-6">
+          <div className="relative w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl p-6">
             <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 bg-red-500/20 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
               </div>
@@ -2165,7 +2165,7 @@ export default function DashboardPage() {
               </div>
             </div>
             <p className="text-gray-600 mb-6">
-              Are you sure you want to delete <span className="font-semibold text-[#2D3748]">{deleteConfirmClient.name}</span>? This will permanently remove the client and <span className="text-red-400 font-semibold">all their policies</span>.
+              Are you sure you want to delete <span className="font-semibold text-[#2D3748]">{deleteConfirmClient.name}</span>? This will permanently remove the client and <span className="text-red-500 font-semibold">all their policies</span>.
             </p>
             <div className="flex gap-3">
               <button
