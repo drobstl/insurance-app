@@ -175,91 +175,210 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* See It In Action - Phone Mockup */}
+      <section className="py-20 bg-[#0D4D4D] overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Text Content */}
+            <div className="text-center lg:text-left">
+              <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-6">
+                Your App. Your Brand.{' '}
+                <span className="text-[#3DD6C3]">Their Phone.</span>
+              </h2>
+              <p className="text-xl text-white/80 mb-8 leading-relaxed">
+                Every client gets YOUR app—with your photo, your contact info, and their policies at their fingertips. 
+                When they need insurance help, <span className="text-[#fdcc02] font-semibold">you're the first call</span>, not the carrier.
+              </p>
+              <ul className="space-y-4 mb-8">
+                <li className="flex items-center gap-3 justify-center lg:justify-start">
+                  <div className="w-8 h-8 bg-[#3DD6C3]/20 rounded-full flex items-center justify-center">
+                    <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-white/80 text-lg">One-tap call and email</span>
+                </li>
+                <li className="flex items-center gap-3 justify-center lg:justify-start">
+                  <div className="w-8 h-8 bg-[#3DD6C3]/20 rounded-full flex items-center justify-center">
+                    <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-white/80 text-lg">All policies in one place</span>
+                </li>
+                <li className="flex items-center gap-3 justify-center lg:justify-start">
+                  <div className="w-8 h-8 bg-[#3DD6C3]/20 rounded-full flex items-center justify-center">
+                    <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-white/80 text-lg">Your face, your branding</span>
+                </li>
+              </ul>
+              <Link href="/signup" className="inline-flex items-center gap-2 px-8 py-4 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-lg font-bold rounded-full transition-all shadow-lg shadow-[#3DD6C3]/30">
+                Get the System
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
+              </Link>
+            </div>
+
+            {/* Phone Mockup */}
+            <div className="relative flex justify-center lg:justify-end">
+              <div className="relative">
+                {/* Phone Frame */}
+                <div className="w-72 h-[580px] bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl border-4 border-[#2a2a2a]">
+                  <div className="w-full h-full bg-[#F8F9FA] rounded-[2.5rem] overflow-hidden relative">
+                    {/* Phone Screen Content */}
+                    <div className="bg-[#0D4D4D] pt-12 pb-6 px-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-white/60 text-sm">← Back</span>
+                        <span className="text-white/60 text-sm">Sign Out</span>
+                      </div>
+                      <div className="text-center">
+                        <div className="w-20 h-20 bg-[#3DD6C3] rounded-full mx-auto mb-3 flex items-center justify-center text-white text-2xl font-bold">
+                          DR
+                        </div>
+                        <h3 className="text-white font-bold text-lg">Daniel Roberts</h3>
+                        <p className="text-white/70 text-sm">Your Insurance Agent</p>
+                      </div>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-[#0D4D4D] rounded-full flex items-center justify-center">
+                            <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg>
+                          </div>
+                          <span className="text-[#2D3748] font-medium">Call Daniel</span>
+                        </div>
+                      </div>
+                      <div className="bg-[#fdcc02] rounded-xl p-4 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-[#0D4D4D] rounded-full flex items-center justify-center">
+                            <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <span className="text-[#0D4D4D] font-bold">View My Policies</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {/* Floating Elements */}
+                <div className="absolute -top-4 -right-8 bg-white rounded-xl p-3 shadow-xl hidden sm:block">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">Policy Active</span>
+                  </div>
+                </div>
+                <div className="absolute -bottom-4 -left-8 bg-white rounded-xl p-3 shadow-xl hidden sm:block">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-[#0D4D4D] rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">Bank-Level Security</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* The Hamster Wheel - Problem/Solution */}
-      <section className="py-20 bg-[#0D4D4D]">
+      <section className="py-20 bg-[#F8F9FA]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4">
+            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
               Escape the <span className="text-[#fdcc02]">Hamster Wheel</span>
             </h2>
-            <p className="text-xl text-white/70 max-w-2xl mx-auto">
+            <p className="text-xl text-[#6B7280] max-w-2xl mx-auto">
               You know the cycle. Buy leads → Close deals → Watch them walk → Repeat. Let's break it.
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
             {/* The Old Way */}
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-red-500/30">
+            <div className="bg-white rounded-2xl p-8 border-2 border-red-200 shadow-sm">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center">
-                  <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </div>
-                <h3 className="text-2xl font-bold text-red-400">The Old Way</h3>
+                <h3 className="text-2xl font-bold text-red-600">The Old Way</h3>
               </div>
               <ul className="space-y-4">
                 <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-red-400 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <svg className="w-5 h-5 text-red-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-white/80 text-lg">Buying shared leads at premium prices</span>
+                  <span className="text-[#2D3748] text-lg">Buying shared leads at premium prices</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-red-400 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <svg className="w-5 h-5 text-red-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-white/80 text-lg">Weak relationships = constant price shopping</span>
+                  <span className="text-[#2D3748] text-lg">Weak relationships = constant price shopping</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-red-400 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <svg className="w-5 h-5 text-red-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-white/80 text-lg">Chargebacks eating your commissions</span>
+                  <span className="text-[#2D3748] text-lg">Chargebacks eating your commissions</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-red-400 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <svg className="w-5 h-5 text-red-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-white/80 text-lg">Running just to stay in place</span>
+                  <span className="text-[#2D3748] text-lg">Running just to stay in place</span>
                 </li>
               </ul>
             </div>
 
             {/* The Agent For Life Way */}
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-[#3DD6C3]/50">
+            <div className="bg-white rounded-2xl p-8 border-2 border-[#3DD6C3] shadow-sm">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 bg-[#3DD6C3]/20 rounded-full flex items-center justify-center">
-                  <svg className="w-6 h-6 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-12 h-12 bg-[#D1FAE5] rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <h3 className="text-2xl font-bold text-[#3DD6C3]">The Agent For Life Way</h3>
+                <h3 className="text-2xl font-bold text-[#0D4D4D]">The Agent For Life Way</h3>
               </div>
               <ul className="space-y-4">
                 <li className="flex items-start gap-3">
                   <svg className="w-5 h-5 text-[#3DD6C3] mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-white/80 text-lg">High-trust clients who <span className="text-white font-semibold">stay for life</span></span>
+                  <span className="text-[#2D3748] text-lg">High-trust clients who <span className="text-[#0D4D4D] font-semibold">stay for life</span></span>
                 </li>
                 <li className="flex items-start gap-3">
                   <svg className="w-5 h-5 text-[#3DD6C3] mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-white/80 text-lg">Self-sustaining referral loop</span>
+                  <span className="text-[#2D3748] text-lg">Self-sustaining referral loop</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <svg className="w-5 h-5 text-[#3DD6C3] mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-white/80 text-lg">Automated rewrites & renewals</span>
+                  <span className="text-[#2D3748] text-lg">Automated rewrites & renewals</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <svg className="w-5 h-5 text-[#3DD6C3] mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-white/80 text-lg"><span className="text-white font-semibold">Growing</span> instead of just surviving</span>
+                  <span className="text-[#2D3748] text-lg"><span className="text-[#0D4D4D] font-semibold">Growing</span> instead of just surviving</span>
                 </li>
               </ul>
             </div>
@@ -446,19 +565,60 @@ export default function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {[
-              { icon: '🔗', title: 'One-Tap Referrals', desc: 'Clients share you instantly' },
-              { icon: '🤖', title: 'AI Doc Parsing', desc: 'Upload policies, we extract' },
-              { icon: '🔔', title: 'Smart Renewal Alerts', desc: 'Never miss a renewal' },
-              { icon: '📅', title: 'Auto Birthday Messages', desc: 'Stay top of mind' },
-              { icon: '🔐', title: 'Face ID Login', desc: 'Bank-level security' },
-            ].map((item, i) => (
-              <div key={i} className="bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10 hover:border-[#3DD6C3]/50 transition-all text-center">
-                <div className="text-3xl mb-3">{item.icon}</div>
-                <h3 className="text-white font-bold mb-1">{item.title}</h3>
-                <p className="text-white/60 text-sm">{item.desc}</p>
+            {/* One-Tap Referrals */}
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10 hover:border-[#3DD6C3]/50 transition-all text-center group">
+              <div className="w-14 h-14 rounded-xl bg-[#3DD6C3]/20 flex items-center justify-center mb-3 mx-auto group-hover:bg-[#3DD6C3]/30 transition-colors">
+                <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
               </div>
-            ))}
+              <h3 className="text-white font-bold mb-1">One-Tap Referrals</h3>
+              <p className="text-white/60 text-sm">Clients share you instantly</p>
+            </div>
+
+            {/* AI Doc Parsing */}
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10 hover:border-[#3DD6C3]/50 transition-all text-center group">
+              <div className="w-14 h-14 rounded-xl bg-[#3DD6C3]/20 flex items-center justify-center mb-3 mx-auto group-hover:bg-[#3DD6C3]/30 transition-colors">
+                <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <h3 className="text-white font-bold mb-1">AI Doc Parsing</h3>
+              <p className="text-white/60 text-sm">Upload policies, we extract</p>
+            </div>
+
+            {/* Smart Renewal Alerts */}
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10 hover:border-[#3DD6C3]/50 transition-all text-center group">
+              <div className="w-14 h-14 rounded-xl bg-[#3DD6C3]/20 flex items-center justify-center mb-3 mx-auto group-hover:bg-[#3DD6C3]/30 transition-colors">
+                <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+              </div>
+              <h3 className="text-white font-bold mb-1">Smart Renewal Alerts</h3>
+              <p className="text-white/60 text-sm">Never miss a renewal</p>
+            </div>
+
+            {/* Auto Birthday Messages */}
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10 hover:border-[#3DD6C3]/50 transition-all text-center group">
+              <div className="w-14 h-14 rounded-xl bg-[#3DD6C3]/20 flex items-center justify-center mb-3 mx-auto group-hover:bg-[#3DD6C3]/30 transition-colors">
+                <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h3 className="text-white font-bold mb-1">Auto Birthday Messages</h3>
+              <p className="text-white/60 text-sm">Stay top of mind</p>
+            </div>
+
+            {/* Face ID Login */}
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10 hover:border-[#3DD6C3]/50 transition-all text-center group">
+              <div className="w-14 h-14 rounded-xl bg-[#3DD6C3]/20 flex items-center justify-center mb-3 mx-auto group-hover:bg-[#3DD6C3]/30 transition-colors">
+                <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
+                </svg>
+              </div>
+              <h3 className="text-white font-bold mb-1">Face ID Login</h3>
+              <p className="text-white/60 text-sm">Bank-level security</p>
+            </div>
           </div>
         </div>
       </section>
