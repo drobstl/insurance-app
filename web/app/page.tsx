@@ -236,10 +236,12 @@ export default function LandingPage() {
                         <span className="text-white/60 text-sm">Sign Out</span>
                       </div>
                       <div className="text-center">
-                        <div className="w-20 h-20 bg-[#3DD6C3] rounded-full mx-auto mb-3 flex items-center justify-center text-white text-2xl font-bold">
-                          DR
+                        <div className="w-20 h-20 bg-[#3DD6C3] rounded-full mx-auto mb-3 flex items-center justify-center">
+                          <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                          </svg>
                         </div>
-                        <h3 className="text-white font-bold text-lg">Daniel Roberts</h3>
+                        <h3 className="text-white font-bold text-lg">Your Name Here</h3>
                         <p className="text-white/70 text-sm">Your Insurance Agent</p>
                       </div>
                     </div>
@@ -251,7 +253,7 @@ export default function LandingPage() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                             </svg>
                           </div>
-                          <span className="text-[#2D3748] font-medium">Call Daniel</span>
+                          <span className="text-[#2D3748] font-medium">Call Your Agent</span>
                         </div>
                       </div>
                       <div className="bg-[#fdcc02] rounded-xl p-4 shadow-sm">
