@@ -5,6 +5,46 @@ import { useEffect, useState } from 'react';
 
 export default function LandingPage() {
   const [isScrolled, setIsScrolled] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [bookSize, setBookSize] = useState(250000);
+  const [bookSizeInput, setBookSizeInput] = useState('250,000');
+  const [retentionRate, setRetentionRate] = useState(70);
+  const [referralRate, setReferralRate] = useState(5);
+  const [rewriteRate, setRewriteRate] = useState(10);
+
+  // Calculator logic
+  const lostRevenue = bookSize * (1 - retentionRate / 100);
+  const perPercentValue = bookSize * 0.01;
+  
+  // Average policy value assumption ($1,200/year)
+  const avgPolicyValue = 1200;
+  const totalClients = Math.round(bookSize / avgPolicyValue);
+  
+  // Missed referrals: industry average is 20-30% with good systems, most agents get 5%
+  const potentialReferralRate = 25; // What's possible with the system
+  const missedReferrals = Math.round(totalClients * ((potentialReferralRate - referralRate) / 100));
+  const missedReferralRevenue = missedReferrals * avgPolicyValue;
+  
+  // Missed rewrites: industry average with good follow-up is 30-40%, most agents get 10%
+  const potentialRewriteRate = 35; // What's possible with the system
+  const missedRewrites = Math.round(totalClients * ((potentialRewriteRate - rewriteRate) / 100));
+  const missedRewriteRevenue = missedRewrites * avgPolicyValue;
+  
+  // Total missed opportunity
+  const totalMissedOpportunity = lostRevenue + missedReferralRevenue + missedRewriteRevenue;
+
+  // Format number with commas
+  const formatNumber = (num: number) => {
+    return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  };
+
+  // Handle book size input change
+  const handleBookSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/[^0-9]/g, '');
+    const numValue = parseInt(rawValue) || 0;
+    setBookSize(numValue);
+    setBookSizeInput(numValue > 0 ? formatNumber(numValue) : '');
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -21,22 +61,54 @@ export default function LandingPage() {
     }
   };
 
+  const toggleFaq = (index: number) => {
+    setOpenFaq(openFaq === index ? null : index);
+  };
+
+  const faqItems = [
+    {
+      question: "How can insurance agents improve client retention?",
+      answer: "Focus on three things: consistent touchpoints, easy access to information, and personalized service. Agent For Life handles all three by putting you directly in your client's phone with a branded app. They can view policies, contact you instantly, and receive timely updates—making you irreplaceable instead of forgettable."
+    },
+    {
+      question: "How do I get more referrals from existing clients?",
+      answer: "Make referring you effortless. Agent For Life includes One-Tap Referrals—clients can refer you to friends and family with a single tap, complete with your business card attached. They pick a contact, and a pre-written message with your info is ready to send. You're automatically included in the text thread so you can follow up immediately."
+    },
+    {
+      question: "How do insurance agents generate rewrites and keep clients updating coverage?",
+      answer: "Stay accessible when life changes happen. Marriages, new homes, job changes—these are rewrite opportunities, not lapses. Agent For Life keeps you top-of-mind so clients call YOU when they need to update coverage, not a competitor or the carrier. Rewrites become natural conversations instead of cold outreach."
+    },
+    {
+      question: "How do I stop insurance chargebacks and policy cancellations?",
+      answer: "Chargebacks happen when relationships are weak. Agent For Life strengthens the agent-client bond by keeping you accessible and visible. When clients feel taken care of and can reach you easily, they don't shop around or let policies lapse. Many agents see chargeback reductions within the first 90 days."
+    },
+    {
+      question: "Does Agent For Life replace my current lead generation?",
+      answer: "No—it multiplies the value of every lead you already buy or generate. Instead of getting one sale and moving on, you turn each client into a retention win, a referral source, AND a rewrite opportunity. Think of it as turning every lead into 3x the revenue: initial sale + referrals + future rewrites."
+    },
+    {
+      question: "What exactly is Agent For Life?",
+      answer: "It's a white-label mobile app system. You get a web dashboard where you manage clients and policies. Each client gets a unique code to download YOUR branded app (with your photo, name, and contact info). The app shows their policies and gives them one-tap access to you. You own the relationship."
+    },
+    {
+      question: "What carriers does it work with?",
+      answer: "All of them. Agent For Life doesn't integrate with carriers—it's carrier-agnostic. You manually add policy details for your clients in the dashboard. This works for independent agents regardless of which carriers you're appointed with."
+    }
+  ];
+
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? 'bg-[#0D4D4D] shadow-lg' : 'bg-transparent'}`}>
+      <header>
+        <nav 
+          className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? 'bg-[#0D4D4D] shadow-lg' : 'bg-transparent'}`}
+          role="navigation"
+          aria-label="Main navigation"
+        >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 md:h-20">
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-[#3DD6C3] rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-                  <circle cx="12" cy="7" r="3" />
-                  <path d="M12 12c-3 0-5 2-5 4v2h10v-2c0-2-2-4-5-4z" />
-                  <circle cx="4" cy="10" r="2" opacity="0.7" />
-                  <circle cx="20" cy="10" r="2" opacity="0.7" />
-                  <path d="M6 10h3M15 10h3" stroke="currentColor" strokeWidth="1.5" fill="none" opacity="0.7" />
-                </svg>
-              </div>
+              <img src="/logo.png" alt="AgentForLife Logo" className="w-[70px] h-[70px] object-contain bg-[#005851] rounded-xl" />
               <span className="text-xl font-bold text-white">AgentForLife</span>
             </div>
             <div className="hidden md:flex items-center gap-8">
@@ -55,8 +127,10 @@ export default function LandingPage() {
           </div>
         </div>
       </nav>
+      </header>
 
-      {/* Hero Section - Aggressive, Punchy */}
+      <main>
+      {/* Hero Section */}
       <section className="relative bg-[#0D4D4D] pt-28 pb-20 md:pt-36 md:pb-28 overflow-hidden">
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-10">
@@ -66,11 +140,11 @@ export default function LandingPage() {
 
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-6">
-            Stop Buying Leads.{' '}
-            <span className="text-[#3DD6C3]">Start Fortifying Your Book.</span>
+            Build a Book That Pays For Life—{' '}
+            <span className="text-[#3DD6C3]">And Turns Every Sale Into Three More.</span>
           </h1>
           <p className="text-xl md:text-2xl text-white/80 mb-10 max-w-3xl mx-auto leading-relaxed">
-            Replace weak, shared leads with <span className="text-white font-semibold">warm, organic referrals</span>. Agent For Life helps you own the relationship, explode your retention rate, and <span className="text-[#fdcc02] font-semibold">kill chargebacks</span> before they happen.
+            You're getting <span className="text-[#fdcc02] font-semibold">25% of the income</span> you should be earning. Agent For Life helps you own the relationship, explode your retention rate, and <span className="text-[#fdcc02] font-semibold">kill chargebacks</span> before they happen—while automating referrals and <span className="text-white font-semibold">rewrites</span> that turn one sale into three.
           </p>
           
           {/* Primary CTA */}
@@ -91,11 +165,204 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* The Efficiency Gap - Pull Quote Section */}
+      <section className="py-16 md:py-20 bg-[#3DD6C3]" aria-labelledby="efficiency-gap-heading">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 id="efficiency-gap-heading" className="sr-only">The Efficiency Gap</h2>
+          <blockquote className="text-2xl md:text-3xl lg:text-4xl font-bold text-[#0D4D4D] leading-relaxed">
+            <p>
+              "If you're only getting <span className="bg-[#0D4D4D] text-white px-2 py-1 rounded">one sale per lead</span>, you're leaving <span className="bg-[#0D4D4D] text-white px-2 py-1 rounded">75% on the table</span>. Stop the 'one-and-done' cycle and start building an asset that compounds: 1 client + 2 referrals + 1 rewrite = <span className="bg-[#0D4D4D] text-white px-2 py-1 rounded">3x your income per lead</span>."
+            </p>
+          </blockquote>
+        </div>
+      </section>
+
+      {/* Churn Calculator Section */}
+      <section className="py-20 bg-white" aria-labelledby="calculator-heading">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-10">
+            <h2 id="calculator-heading" className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
+              How Much Are You <span className="text-red-500">Leaving on the Table?</span>
+            </h2>
+            <p className="text-lg text-[#6B7280]">
+              Calculate your missed revenue from churn, lost referrals, and missed rewrites.
+            </p>
+          </div>
+
+          {/* Calculator Card */}
+          <div className="bg-[#F8F9FA] rounded-2xl p-8 md:p-10 shadow-lg border border-gray-200" role="form" aria-label="Client retention cost calculator">
+            {/* Annual Book Size Input */}
+            <div className="mb-8">
+              <label 
+                htmlFor="bookSize" 
+                className="block text-lg font-semibold text-[#0D4D4D] mb-3"
+              >
+                Annual Book Size ($)
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#6B7280] text-xl font-medium">$</span>
+                <input
+                  type="text"
+                  id="bookSize"
+                  value={bookSizeInput}
+                  onChange={handleBookSizeChange}
+                  placeholder="Enter your annual book size"
+                  className="w-full pl-10 pr-4 py-4 text-xl font-medium text-[#0D4D4D] bg-white border-2 border-gray-200 rounded-xl focus:border-[#3DD6C3] focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/20 transition-all"
+                  aria-label="Annual book size in dollars"
+                  min="0"
+                />
+              </div>
+            </div>
+
+            {/* Retention Rate Slider */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <label 
+                  htmlFor="retentionRate" 
+                  className="text-base font-semibold text-[#0D4D4D]"
+                >
+                  Current Retention Rate
+                </label>
+                <span className="text-xl font-bold text-[#3DD6C3]">{retentionRate}%</span>
+              </div>
+              <input
+                type="range"
+                id="retentionRate"
+                min="40"
+                max="95"
+                value={retentionRate}
+                onChange={(e) => setRetentionRate(parseInt(e.target.value))}
+                className="w-full h-3 bg-gray-200 rounded-full appearance-none cursor-pointer slider-thumb"
+                aria-label="Current retention rate percentage"
+                style={{
+                  background: `linear-gradient(to right, #3DD6C3 0%, #3DD6C3 ${((retentionRate - 40) / 55) * 100}%, #E5E7EB ${((retentionRate - 40) / 55) * 100}%, #E5E7EB 100%)`
+                }}
+              />
+              <div className="flex justify-between text-xs text-[#6B7280] mt-1">
+                <span>40%</span>
+                <span>95%</span>
+              </div>
+            </div>
+
+            {/* Referral Rate Slider */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <label 
+                  htmlFor="referralRate" 
+                  className="text-base font-semibold text-[#0D4D4D]"
+                >
+                  Current Referral Rate
+                </label>
+                <span className="text-xl font-bold text-[#fdcc02]">{referralRate}%</span>
+              </div>
+              <input
+                type="range"
+                id="referralRate"
+                min="0"
+                max="25"
+                value={referralRate}
+                onChange={(e) => setReferralRate(parseInt(e.target.value))}
+                className="w-full h-3 bg-gray-200 rounded-full appearance-none cursor-pointer slider-thumb"
+                aria-label="Current referral rate percentage"
+                style={{
+                  background: `linear-gradient(to right, #fdcc02 0%, #fdcc02 ${(referralRate / 25) * 100}%, #E5E7EB ${(referralRate / 25) * 100}%, #E5E7EB 100%)`
+                }}
+              />
+              <div className="flex justify-between text-xs text-[#6B7280] mt-1">
+                <span>0%</span>
+                <span>25% (possible)</span>
+              </div>
+            </div>
+
+            {/* Rewrite Rate Slider */}
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-3">
+                <label 
+                  htmlFor="rewriteRate" 
+                  className="text-base font-semibold text-[#0D4D4D]"
+                >
+                  Current Rewrite Rate
+                </label>
+                <span className="text-xl font-bold text-[#0D4D4D]">{rewriteRate}%</span>
+              </div>
+              <input
+                type="range"
+                id="rewriteRate"
+                min="0"
+                max="35"
+                value={rewriteRate}
+                onChange={(e) => setRewriteRate(parseInt(e.target.value))}
+                className="w-full h-3 bg-gray-200 rounded-full appearance-none cursor-pointer slider-thumb"
+                aria-label="Current rewrite rate percentage"
+                style={{
+                  background: `linear-gradient(to right, #0D4D4D 0%, #0D4D4D ${(rewriteRate / 35) * 100}%, #E5E7EB ${(rewriteRate / 35) * 100}%, #E5E7EB 100%)`
+                }}
+              />
+              <div className="flex justify-between text-xs text-[#6B7280] mt-1">
+                <span>0%</span>
+                <span>35% (possible)</span>
+              </div>
+            </div>
+
+            {/* Results Display */}
+            <div className="bg-white rounded-xl p-6 md:p-8 border-2 border-red-100 mb-8">
+              {bookSize > 0 ? (
+                <>
+                  <p className="text-center mb-2">
+                    <span className="text-base text-[#6B7280]">You're leaving on the table</span>
+                  </p>
+                  <p className="text-center mb-4">
+                    <span className="text-4xl md:text-5xl font-extrabold text-red-500 transition-all duration-300">
+                      ${formatNumber(totalMissedOpportunity)}
+                    </span>
+                    <span className="text-lg text-red-400 block mt-1">/year</span>
+                  </p>
+                  
+                  {/* Breakdown */}
+                  <div className="space-y-3 mb-6 text-sm">
+                    <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                      <span className="text-[#6B7280]">Lost to churn ({100 - retentionRate}%)</span>
+                      <span className="font-semibold text-red-500">-${formatNumber(lostRevenue)}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                      <span className="text-[#6B7280]">Missed referrals ({missedReferrals} clients)</span>
+                      <span className="font-semibold text-[#fdcc02]">-${formatNumber(missedReferralRevenue)}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2">
+                      <span className="text-[#6B7280]">Missed rewrites ({missedRewrites} opportunities)</span>
+                      <span className="font-semibold text-[#0D4D4D]">-${formatNumber(missedRewriteRevenue)}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-[#D1FAE5] rounded-lg p-4 border border-[#3DD6C3]">
+                    <p className="text-center text-[#0D4D4D] text-sm">
+                      <span className="font-bold">Agent For Life</span> helps you capture this revenue with <span className="font-bold text-[#3DD6C3]">one-tap referrals</span>, automated follow-ups, and staying top-of-mind.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <p className="text-center text-[#6B7280] py-4">
+                  Enter your annual book size to see your potential losses.
+                </p>
+              )}
+            </div>
+
+            {/* CTA Button */}
+            <Link 
+              href="/signup" 
+              className="block w-full py-4 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-xl font-bold rounded-xl transition-all text-center shadow-lg shadow-[#3DD6C3]/30 hover:shadow-[#3DD6C3]/50 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              Stop the Leak – Get the System
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* The Big Four - Benefits Grid */}
-      <section id="benefits" className="py-20 bg-white">
+      <section id="benefits" className="py-20 bg-white" aria-labelledby="benefits-heading">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
+            <h2 id="benefits-heading" className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
               Four Ways to <span className="text-[#3DD6C3]">Dominate</span> Insurance Sales
             </h2>
             <p className="text-xl text-[#6B7280] max-w-2xl mx-auto">
@@ -104,61 +371,64 @@ export default function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-2 gap-6 lg:gap-8">
-            {/* Benefit 1 - Retention */}
-            <div className="bg-[#F8F9FA] rounded-2xl p-8 border-l-4 border-[#3DD6C3] hover:shadow-lg transition-shadow">
+            {/* Benefit 1 - Fortify Retention & Kill Chargebacks */}
+            <article className="bg-[#F8F9FA] rounded-2xl p-8 border-l-4 border-[#3DD6C3] hover:shadow-lg transition-shadow">
               <div className="flex items-start gap-5">
-                <div className="w-14 h-14 bg-[#0D4D4D] rounded-xl flex items-center justify-center flex-shrink-0">
+                <div className="w-14 h-14 bg-[#0D4D4D] rounded-xl flex items-center justify-center flex-shrink-0" aria-hidden="true">
                   <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold text-[#0D4D4D] mb-2">Explode Retention</h3>
+                  <h3 className="text-2xl font-bold text-[#0D4D4D] mb-2">Fortify Retention & Kill Chargebacks</h3>
                   <p className="text-[#6B7280] text-lg leading-relaxed">
-                    Build a wall around your clients. Stop the churn and <span className="text-[#0D4D4D] font-semibold">eliminate the sting of chargebacks</span>. When you're in their pocket, competitors can't touch you.
+                    Build a wall around your clients. When you're in their pocket—literally—competitors can't touch you. Your app makes you the first call, not the carrier. <span className="text-[#0D4D4D] font-semibold">Price shopping stops. Chargebacks become rare exceptions</span> instead of a monthly gut punch.
                   </p>
                 </div>
               </div>
-            </div>
+            </article>
 
-            {/* Benefit 2 - Referrals */}
-            <div className="bg-[#F8F9FA] rounded-2xl p-8 border-l-4 border-[#3DD6C3] hover:shadow-lg transition-shadow">
+            {/* Benefit 2 - Automate Rewrites & Renewals */}
+            <article className="bg-[#F8F9FA] rounded-2xl p-8 border-l-4 border-[#3DD6C3] hover:shadow-lg transition-shadow">
               <div className="flex items-start gap-5">
-                <div className="w-14 h-14 bg-[#0D4D4D] rounded-xl flex items-center justify-center flex-shrink-0">
+                <div className="w-14 h-14 bg-[#0D4D4D] rounded-xl flex items-center justify-center flex-shrink-0" aria-hidden="true">
                   <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-[#0D4D4D] mb-2">Automate Rewrites & Renewals</h3>
+                  <p className="text-[#6B7280] text-lg leading-relaxed">
+                    Life changes fast—marriages, new homes, kids, job changes. Your app keeps you top-of-mind when those moments happen. Instead of losing touch, you're the <span className="text-[#0D4D4D] font-semibold">first call when they need to update coverage</span>. Rewrites aren't a sales push—they're natural conversations that happen because you stayed accessible.
+                  </p>
+                </div>
+              </div>
+            </article>
+
+            {/* Benefit 3 - Turn Every Client Into a Referral Machine */}
+            <article className="bg-[#F8F9FA] rounded-2xl p-8 border-l-4 border-[#fdcc02] hover:shadow-lg transition-shadow relative overflow-hidden">
+              <div className="absolute top-4 right-4">
+                <span className="px-2 py-1 bg-[#fdcc02] text-[#0D4D4D] text-xs font-bold rounded-full">NOW LIVE</span>
+              </div>
+              <div className="flex items-start gap-5">
+                <div className="w-14 h-14 bg-[#fdcc02] rounded-xl flex items-center justify-center flex-shrink-0" aria-hidden="true">
+                  <svg className="w-7 h-7 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold text-[#0D4D4D] mb-2">Warm Referrals on Demand</h3>
+                  <h3 className="text-2xl font-bold text-[#0D4D4D] mb-2">One-Tap Referrals</h3>
                   <p className="text-[#6B7280] text-lg leading-relaxed">
-                    Turn every policy into a referral machine. <span className="text-[#0D4D4D] font-semibold">Stop cold-calling</span>—start closing people who actually want to talk to you.
+                    <span className="text-[#0D4D4D] font-semibold">Stop cold-calling strangers.</span> Clients tap "Refer" → pick a contact → your business card and a pre-written message are ready to send. You're automatically added to the text thread so you can follow up instantly. <span className="text-[#0D4D4D] font-semibold">Turn happy clients into your best lead source</span>—effortlessly.
                   </p>
                 </div>
               </div>
-            </div>
+            </article>
 
-            {/* Benefit 3 - Leads */}
-            <div className="bg-[#F8F9FA] rounded-2xl p-8 border-l-4 border-[#3DD6C3] hover:shadow-lg transition-shadow">
+            {/* Benefit 4 - Own the Relationship */}
+            <article className="bg-[#F8F9FA] rounded-2xl p-8 border-l-4 border-[#3DD6C3] hover:shadow-lg transition-shadow">
               <div className="flex items-start gap-5">
-                <div className="w-14 h-14 bg-[#0D4D4D] rounded-xl flex items-center justify-center flex-shrink-0">
-                  <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-2xl font-bold text-[#0D4D4D] mb-2">Organic Leads That Close</h3>
-                  <p className="text-[#6B7280] text-lg leading-relaxed">
-                    Generate high-intent inbound prospects from your own network—not a third-party list that's been sold five times over.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Benefit 4 - Relationship */}
-            <div className="bg-[#F8F9FA] rounded-2xl p-8 border-l-4 border-[#3DD6C3] hover:shadow-lg transition-shadow">
-              <div className="flex items-start gap-5">
-                <div className="w-14 h-14 bg-[#0D4D4D] rounded-xl flex items-center justify-center flex-shrink-0">
+                <div className="w-14 h-14 bg-[#0D4D4D] rounded-xl flex items-center justify-center flex-shrink-0" aria-hidden="true">
                   <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                   </svg>
@@ -166,22 +436,22 @@ export default function LandingPage() {
                 <div>
                   <h3 className="text-2xl font-bold text-[#0D4D4D] mb-2">Own the Relationship</h3>
                   <p className="text-[#6B7280] text-lg leading-relaxed">
-                    Transition from "vendor" to <span className="text-[#0D4D4D] font-semibold">trusted advisor</span>. When you own the relationship, price shopping stops cold.
+                    Transition from "vendor" to <span className="text-[#0D4D4D] font-semibold">trusted advisor</span>. When you own the relationship, price shopping stops cold. You're not just their insurance agent—you're their insurance agent <span className="text-[#0D4D4D] font-semibold">for life</span>.
                   </p>
                 </div>
               </div>
-            </div>
+            </article>
           </div>
         </div>
       </section>
 
       {/* See It In Action - Phone Mockup */}
-      <section className="py-20 bg-[#0D4D4D] overflow-hidden">
+      <section className="py-20 bg-[#0D4D4D] overflow-hidden" aria-labelledby="app-demo-heading">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Text Content */}
             <div className="text-center lg:text-left">
-              <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-6">
+              <h2 id="app-demo-heading" className="text-3xl md:text-4xl font-extrabold text-white mb-6">
                 Your App. Your Brand.{' '}
                 <span className="text-[#3DD6C3]">Their Phone.</span>
               </h2>
@@ -197,6 +467,14 @@ export default function LandingPage() {
                     </svg>
                   </div>
                   <span className="text-white/80 text-lg">One-tap call and email</span>
+                </li>
+                <li className="flex items-center gap-3 justify-center lg:justify-start">
+                  <div className="w-8 h-8 bg-[#fdcc02]/20 rounded-full flex items-center justify-center">
+                    <svg className="w-4 h-4 text-[#fdcc02]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-white/80 text-lg"><span className="text-[#fdcc02] font-semibold">One-tap referrals</span> with your business card</span>
                 </li>
                 <li className="flex items-center gap-3 justify-center lg:justify-start">
                   <div className="w-8 h-8 bg-[#3DD6C3]/20 rounded-full flex items-center justify-center">
@@ -224,10 +502,10 @@ export default function LandingPage() {
             </div>
 
             {/* Phone Mockup */}
-            <div className="relative flex justify-center lg:justify-end">
+            <div className="relative flex justify-center lg:justify-end" role="img" aria-label="Insurance agent branded mobile app interface showing agent profile, contact options, and policy viewing features">
               <div className="relative">
                 {/* Phone Frame */}
-                <div className="w-72 h-[580px] bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl border-4 border-[#2a2a2a]">
+                <div className="w-72 h-[580px] bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl border-4 border-[#2a2a2a]" aria-hidden="true">
                   <div className="w-full h-full bg-[#F8F9FA] rounded-[2.5rem] overflow-hidden relative">
                     {/* Phone Screen Content */}
                     <div className="bg-[#0D4D4D] pt-12 pb-6 px-6">
@@ -245,25 +523,35 @@ export default function LandingPage() {
                         <p className="text-white/70 text-sm">Your Insurance Agent</p>
                       </div>
                     </div>
-                    <div className="p-4 space-y-3">
-                      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                    <div className="p-4 space-y-2">
+                      <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-100">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-[#0D4D4D] rounded-full flex items-center justify-center">
-                            <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div className="w-9 h-9 bg-[#0D4D4D] rounded-full flex items-center justify-center">
+                            <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                             </svg>
                           </div>
-                          <span className="text-[#2D3748] font-medium">Call Your Agent</span>
+                          <span className="text-[#2D3748] font-medium text-sm">Call Agent</span>
                         </div>
                       </div>
-                      <div className="bg-[#fdcc02] rounded-xl p-4 shadow-sm">
+                      <div className="bg-[#D1FAE5] rounded-xl p-3 shadow-sm border-2 border-[#3DD6C3]">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-[#0D4D4D] rounded-full flex items-center justify-center">
-                            <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div className="w-9 h-9 bg-[#3DD6C3] rounded-full flex items-center justify-center">
+                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                          </div>
+                          <span className="text-[#0D4D4D] font-bold text-sm">Refer Agent ✨</span>
+                        </div>
+                      </div>
+                      <div className="bg-[#0099FF] rounded-xl p-3 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center">
+                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                           </div>
-                          <span className="text-[#0D4D4D] font-bold">View My Policies</span>
+                          <span className="text-white font-bold text-sm">View Policies</span>
                         </div>
                       </div>
                     </div>
@@ -297,10 +585,10 @@ export default function LandingPage() {
       </section>
 
       {/* The Hamster Wheel - Problem/Solution */}
-      <section className="py-20 bg-[#F8F9FA]">
+      <section className="py-20 bg-[#F8F9FA]" aria-labelledby="hamster-wheel-heading">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
+            <h2 id="hamster-wheel-heading" className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
               Escape the <span className="text-[#fdcc02]">Hamster Wheel</span>
             </h2>
             <p className="text-xl text-[#6B7280] max-w-2xl mx-auto">
@@ -309,90 +597,122 @@ export default function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
-            {/* The Old Way */}
-            <div className="bg-white rounded-2xl p-8 border-2 border-red-200 shadow-sm">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                  <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+            {/* The Old Way - with red tint overlay */}
+            <div className="relative bg-white rounded-2xl p-8 border-2 border-red-300 shadow-sm overflow-hidden">
+              {/* Subtle red overlay */}
+              <div className="absolute inset-0 bg-red-50/50 pointer-events-none"></div>
+              <div className="relative">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </div>
+                  <h3 className="text-2xl font-bold text-red-600">The Old Way</h3>
                 </div>
-                <h3 className="text-2xl font-bold text-red-600">The Old Way</h3>
+                <ul className="space-y-4">
+                  <li className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-red-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-[#2D3748] text-lg">Buying shared leads at premium prices</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-red-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-[#2D3748] text-lg font-semibold">1 sale per lead = 25% of potential income</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-red-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-[#2D3748] text-lg">Weak relationships = constant price shopping</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-red-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-[#2D3748] text-lg">Chargebacks eating your commissions</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-red-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-[#2D3748] text-lg">Clients disappear when life changes</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-red-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-[#2D3748] text-lg">Running just to stay in place</span>
+                  </li>
+                </ul>
               </div>
-              <ul className="space-y-4">
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-red-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-[#2D3748] text-lg">Buying shared leads at premium prices</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-red-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-[#2D3748] text-lg">Weak relationships = constant price shopping</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-red-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-[#2D3748] text-lg">Chargebacks eating your commissions</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-red-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-[#2D3748] text-lg">Running just to stay in place</span>
-                </li>
-              </ul>
             </div>
 
-            {/* The Agent For Life Way */}
-            <div className="bg-white rounded-2xl p-8 border-2 border-[#3DD6C3] shadow-sm">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 bg-[#D1FAE5] rounded-full flex items-center justify-center">
-                  <svg className="w-6 h-6 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
+            {/* The Agent For Life Way - with green highlight */}
+            <div className="relative bg-white rounded-2xl p-8 border-2 border-[#3DD6C3] shadow-sm overflow-hidden">
+              {/* Subtle green overlay */}
+              <div className="absolute inset-0 bg-[#D1FAE5]/30 pointer-events-none"></div>
+              <div className="relative">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 bg-[#D1FAE5] rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <h3 className="text-2xl font-bold text-[#0D4D4D]">The Agent For Life Way</h3>
                 </div>
-                <h3 className="text-2xl font-bold text-[#0D4D4D]">The Agent For Life Way</h3>
+                <ul className="space-y-4">
+                  <li className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-[#3DD6C3] mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-[#2D3748] text-lg font-semibold text-[#0D4D4D]">3+ sales per lead <span className="text-[#6B7280] font-normal">(client + referrals + rewrites)</span></span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-[#3DD6C3] mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-[#2D3748] text-lg">High-trust clients who <span className="text-[#0D4D4D] font-semibold">stay for life</span></span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-[#fdcc02] mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-[#2D3748] text-lg"><span className="text-[#0D4D4D] font-semibold">One-tap referrals</span> with your business card</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-[#3DD6C3] mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-[#2D3748] text-lg"><span className="text-[#0D4D4D] font-semibold">Automated rewrites</span> when life changes happen</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-[#3DD6C3] mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-[#2D3748] text-lg">Chargebacks become rare exceptions</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-[#3DD6C3] mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-[#2D3748] text-lg"><span className="text-[#0D4D4D] font-semibold">Growing</span> instead of just surviving</span>
+                  </li>
+                </ul>
               </div>
-              <ul className="space-y-4">
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-[#3DD6C3] mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-[#2D3748] text-lg">High-trust clients who <span className="text-[#0D4D4D] font-semibold">stay for life</span></span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-[#3DD6C3] mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-[#2D3748] text-lg">Self-sustaining referral loop</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-[#3DD6C3] mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-[#2D3748] text-lg">Automated rewrites & renewals</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-[#3DD6C3] mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-[#2D3748] text-lg"><span className="text-[#0D4D4D] font-semibold">Growing</span> instead of just surviving</span>
-                </li>
-              </ul>
             </div>
           </div>
         </div>
       </section>
 
       {/* How It Works - Quick Version */}
-      <section className="py-20 bg-white">
+      <section className="py-20 bg-white" aria-labelledby="how-it-works-heading">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
+            <h2 id="how-it-works-heading" className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
               Up and Running in <span className="text-[#3DD6C3]">10 Minutes</span>
             </h2>
           </div>
@@ -415,18 +735,18 @@ export default function LandingPage() {
             </div>
             <div className="text-center">
               <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl font-bold text-[#3DD6C3]">4</div>
-              <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">Watch Retention Climb</h3>
-              <p className="text-[#6B7280]">They call YOU. Referrals roll in. Chargebacks stop.</p>
+              <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">Watch the Multiplier Effect</h3>
+              <p className="text-[#6B7280]">They call YOU first. Referrals roll in. Life changes trigger rewrites, not lapses. Chargebacks stop.</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* Social Proof - Compact */}
-      <section className="py-16 bg-[#F8F9FA]">
+      <section className="py-16 bg-[#F8F9FA]" aria-labelledby="testimonials-heading">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
+            <h2 id="testimonials-heading" className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
               Agents Are <span className="text-[#3DD6C3]">Winning</span>
             </h2>
           </div>
@@ -473,14 +793,14 @@ export default function LandingPage() {
       </section>
 
       {/* Pricing Section */}
-      <section id="pricing" className="py-20 bg-white">
+      <section id="pricing" className="py-20 bg-white" aria-labelledby="pricing-heading">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
+            <h2 id="pricing-heading" className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
               Less Than One <span className="text-[#3DD6C3]">Canceled Policy</span>
             </h2>
             <p className="text-xl text-[#6B7280]">
-              How much does a chargeback cost you? This pays for itself with one saved client.
+              How much does a chargeback cost you? This pays for itself with one saved client, one referral policy, or one rewrite.
             </p>
           </div>
 
@@ -548,36 +868,25 @@ export default function LandingPage() {
       </section>
 
       {/* Coming Soon / Roadmap */}
-      <section id="roadmap" className="py-20 bg-[#0D4D4D] relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-[300px] h-[200px] opacity-20">
+      <section id="roadmap" className="py-20 bg-[#0D4D4D] relative overflow-hidden" aria-labelledby="roadmap-heading">
+        <div className="absolute right-0 top-0 w-[300px] h-[200px] opacity-20" aria-hidden="true">
           <div className="absolute inset-0" style={{ backgroundImage: `linear-gradient(to right, #3DD6C3 1px, transparent 1px), linear-gradient(to bottom, #3DD6C3 1px, transparent 1px)`, backgroundSize: '24px 24px' }}></div>
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="text-center mb-12">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#fdcc02] rounded-full mb-6">
-              <svg className="w-5 h-5 text-[#0D4D4D]" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-[#0D4D4D]" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
               <span className="text-[#0D4D4D] font-bold text-sm uppercase tracking-wide">On The Roadmap</span>
             </div>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4">
+            <h2 id="roadmap-heading" className="text-3xl md:text-4xl font-extrabold text-white mb-4">
               More <span className="text-[#3DD6C3]">Firepower</span> Coming
             </h2>
           </div>
 
-          <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {/* One-Tap Referrals */}
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10 hover:border-[#3DD6C3]/50 transition-all text-center group">
-              <div className="w-14 h-14 rounded-xl bg-[#3DD6C3]/20 flex items-center justify-center mb-3 mx-auto group-hover:bg-[#3DD6C3]/30 transition-colors">
-                <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                </svg>
-              </div>
-              <h3 className="text-white font-bold mb-1">One-Tap Referrals</h3>
-              <p className="text-white/60 text-sm">Clients share you instantly</p>
-            </div>
-
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* AI Doc Parsing */}
             <div className="bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10 hover:border-[#3DD6C3]/50 transition-all text-center group">
               <div className="w-14 h-14 rounded-xl bg-[#3DD6C3]/20 flex items-center justify-center mb-3 mx-auto group-hover:bg-[#3DD6C3]/30 transition-colors">
@@ -626,9 +935,9 @@ export default function LandingPage() {
       </section>
 
       {/* Final CTA */}
-      <section className="py-20 bg-[#F8F9FA]">
+      <section className="py-20 bg-[#F8F9FA]" aria-labelledby="final-cta-heading">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-6">
+          <h2 id="final-cta-heading" className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-6">
             Stop Renting Leads.<br />
             <span className="text-[#3DD6C3]">Start Owning Relationships.</span>
           </h2>
@@ -647,20 +956,81 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* FAQ Section */}
+      <section id="faq" className="py-20 bg-white" aria-labelledby="faq-heading">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 id="faq-heading" className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
+              Common <span className="text-[#3DD6C3]">Questions</span>
+            </h2>
+          </div>
+
+          <div className="space-y-4" role="list">
+            {faqItems.map((item, index) => (
+              <article 
+                key={index} 
+                className="border border-gray-200 rounded-xl overflow-hidden bg-[#F8F9FA] hover:border-[#3DD6C3]/50 transition-colors"
+                role="listitem"
+              >
+                <button
+                  onClick={() => toggleFaq(index)}
+                  className="w-full px-6 py-5 text-left flex items-center justify-between gap-4 min-h-[56px]"
+                  aria-expanded={openFaq === index}
+                  aria-controls={`faq-answer-${index}`}
+                >
+                  <span className="text-lg font-semibold text-[#0D4D4D]">{item.question}</span>
+                  <svg 
+                    className={`w-5 h-5 text-[#3DD6C3] flex-shrink-0 transition-transform duration-200 ${openFaq === index ? 'rotate-180' : ''}`} 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                <div 
+                  id={`faq-answer-${index}`}
+                  className={`overflow-hidden transition-all duration-300 ease-in-out ${openFaq === index ? 'max-h-96' : 'max-h-0'}`}
+                  role="region"
+                  aria-labelledby={`faq-question-${index}`}
+                >
+                  <div className="px-6 pb-5 pt-0">
+                    <p className="text-[#6B7280] text-base leading-relaxed">{item.answer}</p>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+
+        {/* FAQ Schema Markup for SEO */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              "mainEntity": faqItems.map(item => ({
+                "@type": "Question",
+                "name": item.question,
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": item.answer
+                }
+              }))
+            })
+          }}
+        />
+      </section>
+      </main>
+
       {/* Footer */}
-      <footer className="bg-[#0D4D4D] py-12">
+      <footer className="bg-[#0D4D4D] py-12" role="contentinfo">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-[#3DD6C3] rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-                  <circle cx="12" cy="7" r="3" />
-                  <path d="M12 12c-3 0-5 2-5 4v2h10v-2c0-2-2-4-5-4z" />
-                  <circle cx="4" cy="10" r="2" opacity="0.7" />
-                  <circle cx="20" cy="10" r="2" opacity="0.7" />
-                  <path d="M6 10h3M15 10h3" stroke="currentColor" strokeWidth="1.5" fill="none" opacity="0.7" />
-                </svg>
-              </div>
+              <img src="/logo.png" alt="AgentForLife Logo" className="w-10 h-10 object-contain bg-[#005851] rounded-lg" />
               <span className="text-xl font-bold text-white">AgentForLife</span>
             </div>
 

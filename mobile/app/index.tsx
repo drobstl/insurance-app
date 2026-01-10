@@ -69,6 +69,8 @@ export default function LoginScreen() {
         const agentPhone = (agentData.phoneNumber as string) || '';
         const agencyName = (agentData.agencyName as string) || '';
         const agencyLogoBase64 = (agentData.agencyLogoBase64 as string) || '';
+        const referralMessage = (agentData.referralMessage as string) || '';
+        const businessCardBase64 = (agentData.businessCardBase64 as string) || '';
         const clientName = (foundClientData.name as string) || 'Client';
         
         router.push({
@@ -83,6 +85,8 @@ export default function LoginScreen() {
             agencyLogoBase64: agencyLogoBase64,
             clientId: foundClientId,
             clientName: clientName,
+            referralMessage: referralMessage,
+            businessCardBase64: businessCardBase64,
           },
         });
       } else {
@@ -97,74 +101,88 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Dark Teal Header Section */}
-      <View style={styles.headerSection}>
-        <View style={styles.logoIcon}>
-          <Text style={styles.logoIconText}>✓</Text>
+    <View style={styles.outerContainer}>
+      {/* Status bar area with teal background */}
+      <SafeAreaView style={styles.topSafeArea} />
+      
+      <View style={styles.container}>
+        {/* Dark Teal Header Section */}
+        <View style={styles.headerSection}>
+          <View style={styles.logoIcon}>
+            <Text style={styles.logoIconText}>✓</Text>
+          </View>
+          <Text style={styles.title}>My Insurance</Text>
+          <Text style={styles.subtitle}>Access your policy information</Text>
         </View>
-        <Text style={styles.title}>My Insurance</Text>
-        <Text style={styles.subtitle}>Access your policy information</Text>
-      </View>
 
-      {/* White Content Section */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.contentSection}
-      >
-        <View style={styles.formContainer}>
-          <Text style={styles.label}>Client Code</Text>
-          <TextInput
-            style={styles.input}
-            value={clientCode}
-            onChangeText={(text) => {
-              setClientCode(text.toUpperCase());
-              setError('');
-            }}
-            placeholder="Enter your code"
-            placeholderTextColor="#9CA3AF"
-            autoCapitalize="characters"
-            autoCorrect={false}
-            editable={!loading}
-          />
+        {/* White Content Section - extends to bottom */}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.contentSection}
+        >
+          <SafeAreaView style={styles.formSafeArea}>
+            <View style={styles.formContainer}>
+              <Text style={styles.label}>Client Code</Text>
+              <TextInput
+                style={styles.input}
+                value={clientCode}
+                onChangeText={(text) => {
+                  setClientCode(text.toUpperCase());
+                  setError('');
+                }}
+                placeholder="Enter your code"
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="characters"
+                autoCorrect={false}
+                editable={!loading}
+              />
 
-          {error ? (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
+              {error ? (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
+
+              <TouchableOpacity
+                style={[styles.button, loading && styles.buttonDisabled]}
+                onPress={handleLogin}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.buttonText}>Sign In</Text>
+                )}
+              </TouchableOpacity>
+
+              <Text style={styles.helpText}>
+                Your client code was provided by your insurance agent.
+                Contact your agent if you need assistance.
+              </Text>
             </View>
-          ) : null}
-
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <Text style={styles.buttonText}>Sign In</Text>
-            )}
-          </TouchableOpacity>
-
-          <Text style={styles.helpText}>
-            Your client code was provided by your insurance agent.
-            Contact your agent if you need assistance.
-          </Text>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  outerContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF', // White at the bottom
+  },
+  topSafeArea: {
+    backgroundColor: '#0D4D4D',
+  },
   container: {
     flex: 1,
     backgroundColor: '#0D4D4D',
   },
   headerSection: {
     alignItems: 'center',
-    paddingTop: 60,
+    paddingTop: 40,
     paddingBottom: 40,
     paddingHorizontal: 24,
   },
@@ -203,6 +221,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
+  },
+  formSafeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
   },
   formContainer: {
     flex: 1,

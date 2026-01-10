@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,8 +8,16 @@ import {
   Linking,
   ScrollView,
   Image,
+  Alert,
+  Platform,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as Contacts from 'expo-contacts';
+import * as SMS from 'expo-sms';
+import * as FileSystem from 'expo-file-system/legacy';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+import Confetti from '../components/confetti';
 
 // Get first name from full name
 const getFirstName = (fullName: string | undefined) => {
@@ -28,9 +36,35 @@ export default function AgentProfileScreen() {
     agencyLogoBase64: string;
     clientId: string;
     clientName: string;
+    referralMessage: string;
+    businessCardBase64: string;
   }>();
 
   const [imageError, setImageError] = useState(false);
+  const [isReferring, setIsReferring] = useState(false);
+  const [businessCardBase64, setBusinessCardBase64] = useState<string | null>(null);
+  const [showConfetti, setShowConfetti] = useState(true);
+
+  // Fetch the business card directly from Firestore (too large for URL params)
+  useEffect(() => {
+    const fetchBusinessCard = async () => {
+      if (!params.agentId) return;
+      
+      try {
+        const agentDoc = await getDoc(doc(db, 'agents', params.agentId));
+        if (agentDoc.exists()) {
+          const data = agentDoc.data();
+          if (data.businessCardBase64) {
+            setBusinessCardBase64(data.businessCardBase64);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching business card:', error);
+      }
+    };
+    
+    fetchBusinessCard();
+  }, [params.agentId]);
 
   // Check if we have a valid base64 photo
   const hasValidPhoto = params.agentPhotoBase64 && 
@@ -83,8 +117,166 @@ export default function AgentProfileScreen() {
     router.replace('/');
   };
 
+  const handleReferral = async () => {
+    setIsReferring(true);
+    
+    try {
+      // Request permission to access contacts
+      const { status } = await Contacts.requestPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please allow access to your contacts to send a referral.',
+          [{ text: 'OK' }]
+        );
+        setIsReferring(false);
+        return;
+      }
+
+      // Open contact picker
+      const contact = await Contacts.presentContactPickerAsync();
+      
+      if (!contact) {
+        // User cancelled
+        setIsReferring(false);
+        return;
+      }
+
+      // Get the referral's name - check multiple fields since iOS may store it differently
+      let referralFirstName = 'Friend';
+      
+      // Try to get the first name from contact object
+      if (contact.firstName && contact.firstName.trim()) {
+        referralFirstName = contact.firstName.trim();
+      } else if (contact.name && contact.name.trim()) {
+        // Fall back to full name and extract first name
+        referralFirstName = contact.name.trim().split(' ')[0];
+      } else if (contact.lastName && contact.lastName.trim()) {
+        // If only last name is available, use it
+        referralFirstName = contact.lastName.trim();
+      }
+      
+      const referralName = contact.name || `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || referralFirstName;
+      
+      // Get phone number from contact
+      let referralPhone = '';
+      if (contact.phoneNumbers && contact.phoneNumbers.length > 0) {
+        referralPhone = contact.phoneNumbers[0].number || '';
+      }
+
+      if (!referralPhone) {
+        Alert.alert(
+          'No Phone Number',
+          'The selected contact does not have a phone number.',
+          [{ text: 'OK' }]
+        );
+        setIsReferring(false);
+        return;
+      }
+
+      // Check if SMS is available
+      const isAvailable = await SMS.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert(
+          'SMS Not Available',
+          'Your device does not support sending SMS messages.',
+          [{ text: 'OK' }]
+        );
+        setIsReferring(false);
+        return;
+      }
+
+      // Get client's first name
+      const clientFirstName = getFirstName(params.clientName);
+
+      // Build the referral message
+      // Use custom message if provided, otherwise use default
+      let message = params.referralMessage;
+      if (!message || message === 'undefined' || message === 'null') {
+        message = `Hey [referral], I just got helped by [agent] getting protection to pay off our mortgage if something happens to me. I really liked the way [agent] was able to help me and thought they might be able to help you too.`;
+      }
+
+      // Replace placeholders
+      message = message
+        .replace(/\[referral\]/gi, referralFirstName)
+        .replace(/\[agent\]/gi, agentFirstName)
+        .replace(/\[Agent-First-Name\]/gi, agentFirstName)
+        .replace(/\[client\]/gi, clientFirstName);
+
+      // Build recipients array - include agent phone if available
+      const recipients = [referralPhone];
+      if (params.agentPhone) {
+        // Clean the agent phone number
+        const cleanAgentPhone = params.agentPhone.replace(/[^0-9+]/g, '');
+        if (cleanAgentPhone && !recipients.includes(cleanAgentPhone)) {
+          recipients.push(cleanAgentPhone);
+        }
+      }
+
+      // Check if we have a business card to attach (fetched from Firestore)
+      let attachments: SMS.SMSAttachment[] | undefined;
+      
+      if (businessCardBase64 && businessCardBase64.length > 0) {
+        try {
+          // Save the business card to a temp file using legacy FileSystem API
+          const fileUri = `${FileSystem.cacheDirectory}business_card_${Date.now()}.jpg`;
+          
+          // Write base64 data to file
+          await FileSystem.writeAsStringAsync(fileUri, businessCardBase64, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          
+          // Verify the file was created
+          const fileInfo = await FileSystem.getInfoAsync(fileUri);
+          
+          if (fileInfo.exists) {
+            attachments = [{
+              uri: fileUri,
+              mimeType: 'image/jpeg',
+              filename: `${agentFirstName}_business_card.jpg`,
+            }];
+          }
+        } catch (attachError) {
+          console.log('Could not attach business card:', attachError);
+          // Continue without attachment
+        }
+      }
+
+      // Send the SMS (with attachment if available)
+      const { result } = await SMS.sendSMSAsync(
+        recipients,
+        message,
+        attachments ? { attachments } : undefined
+      );
+
+      if (result === 'sent') {
+        Alert.alert(
+          'Referral Sent!',
+          `Thank you for referring ${agentFirstName} to ${referralFirstName}!`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Referral error:', error);
+      Alert.alert(
+        'Error',
+        'There was an error sending the referral. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsReferring(false);
+    }
+  };
+
   return (
     <View style={styles.outerContainer}>
+      {/* Confetti celebration on login */}
+      <Confetti 
+        isVisible={showConfetti} 
+        onComplete={() => setShowConfetti(false)} 
+      />
+      
       {/* Dark teal for status bar area */}
       <SafeAreaView style={styles.topSafeArea} />
       
@@ -183,8 +375,40 @@ export default function AgentProfileScreen() {
                   </View>
                 </TouchableOpacity>
               ) : null}
+
             </View>
           </View>
+
+          {/* Referral Button - Red Primary Style */}
+          <TouchableOpacity 
+            style={styles.referralButton} 
+            onPress={handleReferral}
+            disabled={isReferring}
+          >
+            <View style={styles.referralButtonIconContainer}>
+              {/* Two People with Dotted Line Icon */}
+              <View style={styles.referralIconInner}>
+                <View style={styles.personIcon}>
+                  <View style={styles.personHead} />
+                  <View style={styles.personBody} />
+                </View>
+                <View style={styles.dottedLine}>
+                  <View style={styles.dot} />
+                  <View style={styles.dot} />
+                  <View style={styles.dot} />
+                </View>
+                <View style={styles.personIcon}>
+                  <View style={styles.personHead} />
+                  <View style={styles.personBody} />
+                </View>
+              </View>
+            </View>
+            <View style={styles.buttonContent}>
+              <Text style={styles.primaryButtonText}>{`Refer ${agentFirstName}`}</Text>
+              <Text style={styles.buttonSubtext}>Share with friends & family</Text>
+            </View>
+            <Text style={styles.buttonArrow}>›</Text>
+          </TouchableOpacity>
 
           {/* Primary Action Button */}
           <TouchableOpacity style={styles.primaryButton} onPress={handleViewPolicies}>
@@ -529,5 +753,63 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6B7280',
     lineHeight: 24,
+  },
+  // Referral button styles - red primary button
+  referralButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e31837',
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 16,
+    shadowColor: '#e31837',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  referralButtonIconContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  referralIconInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+  },
+  personIcon: {
+    alignItems: 'center',
+  },
+  personHead: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+    marginBottom: 1,
+  },
+  personBody: {
+    width: 9,
+    height: 6,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 4.5,
+    borderTopRightRadius: 4.5,
+  },
+  dottedLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    marginHorizontal: 2,
+  },
+  dot: {
+    width: 2,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: '#FFFFFF',
   },
 });

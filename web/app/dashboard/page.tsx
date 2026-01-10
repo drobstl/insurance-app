@@ -43,6 +43,8 @@ interface AgentProfile {
   subscriptionId?: string;
   agencyName?: string;
   agencyLogoBase64?: string;
+  businessCardBase64?: string;
+  referralMessage?: string;
 }
 
 interface PolicyFormData {
@@ -142,7 +144,9 @@ export default function DashboardPage() {
   const [profileAgencyName, setProfileAgencyName] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadingAgencyLogo, setUploadingAgencyLogo] = useState(false);
+  const [uploadingBusinessCard, setUploadingBusinessCard] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [referralMessage, setReferralMessage] = useState('');
   
   // Password change state
   const [showPasswordSection, setShowPasswordSection] = useState(false);
@@ -159,6 +163,11 @@ export default function DashboardPage() {
   // Track total active and pending policies across all clients
   const [totalActivePolicies, setTotalActivePolicies] = useState(0);
   const [totalPendingPolicies, setTotalPendingPolicies] = useState(0);
+
+  // Sidebar state for Quility-style layout
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'clients' | 'activity'>('clients');
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
   // Filtered clients based on search
   const filteredClients = useMemo(() => {
@@ -204,9 +213,12 @@ export default function DashboardPage() {
             subscriptionId: data.subscriptionId,
             agencyName: data.agencyName,
             agencyLogoBase64: data.agencyLogoBase64,
+            businessCardBase64: data.businessCardBase64,
+            referralMessage: data.referralMessage,
           });
           setProfilePhoneNumber(data.phoneNumber || '');
           setProfileAgencyName(data.agencyName || '');
+          setReferralMessage(data.referralMessage || '');
         }
       } catch (error) {
         console.error('Error fetching agent profile:', error);
@@ -765,6 +777,43 @@ export default function DashboardPage() {
     }
   };
 
+  const handleDeleteAgencyLogo = async () => {
+    if (!user) return;
+    
+    if (!confirm('Are you sure you want to delete your agency logo?')) return;
+    
+    try {
+      await setDoc(doc(db, 'agents', user.uid), { agencyLogoBase64: '' }, { merge: true });
+      setAgentProfile(prev => ({ ...prev, agencyLogoBase64: '' }));
+    } catch (error) {
+      console.error('Error deleting agency logo:', error);
+    }
+  };
+
+  const handleBusinessCardUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user || !e.target.files || !e.target.files[0]) return;
+    
+    const file = e.target.files[0];
+    if (!file.type.startsWith('image/')) {
+      return;
+    }
+
+    setUploadingBusinessCard(true);
+    try {
+      // Resize and compress image to base64 (larger size for business card readability)
+      const base64 = await resizeAndCompressImage(file, 800, 0.85);
+      
+      // Save base64 string directly to Firestore
+      await setDoc(doc(db, 'agents', user.uid), { businessCardBase64: base64 }, { merge: true });
+
+      setAgentProfile(prev => ({ ...prev, businessCardBase64: base64 }));
+    } catch (error) {
+      console.error('Error uploading business card:', error);
+    } finally {
+      setUploadingBusinessCard(false);
+    }
+  };
+
   const handleSaveProfile = async () => {
     if (!user) return;
 
@@ -773,11 +822,13 @@ export default function DashboardPage() {
       await setDoc(doc(db, 'agents', user.uid), { 
         phoneNumber: profilePhoneNumber,
         agencyName: profileAgencyName,
+        referralMessage: referralMessage,
       }, { merge: true });
       setAgentProfile(prev => ({ 
         ...prev, 
         phoneNumber: profilePhoneNumber,
         agencyName: profileAgencyName,
+        referralMessage: referralMessage,
       }));
       setIsProfileModalOpen(false);
     } catch (error) {
@@ -874,7 +925,7 @@ export default function DashboardPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Active':
-        return 'bg-[#3DD6C3]/20 text-[#0D4D4D] border-[#3DD6C3]/30';
+        return 'bg-[#44bbaa]/20 text-[#005851] border-[#45bcaa]/30';
       case 'Pending':
         return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
       case 'Lapsed':
@@ -937,13 +988,13 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F8F9FA] flex items-center justify-center">
+      <div className="min-h-screen bg-[#e4e4e4] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <svg className="animate-spin w-10 h-10 text-[#3DD6C3]" fill="none" viewBox="0 0 24 24">
+          <svg className="animate-spin w-10 h-10 text-[#45bcaa]" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
-          <p className="text-[#2D3748]">Loading...</p>
+          <p className="text-[#000000]">Loading...</p>
         </div>
       </div>
     );
@@ -952,13 +1003,13 @@ export default function DashboardPage() {
   // Check for subscription status
   if (agentProfile.subscriptionStatus !== 'active') {
     return (
-      <div className="min-h-screen bg-[#F8F9FA]">
+      <div className="min-h-screen bg-[#e4e4e4]">
         {/* Navigation Bar */}
-        <nav className="bg-[#0D4D4D]">
+        <nav className="bg-[#005851]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-[#3DD6C3] rounded-xl flex items-center justify-center shadow-lg shadow-[#3DD6C3]/30">
+                <div className="w-10 h-10 bg-[#44bbaa] rounded-[5px] flex items-center justify-center shadow-lg shadow-[#45bcaa]/30">
                   <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                   </svg>
@@ -978,13 +1029,13 @@ export default function DashboardPage() {
         {/* Subscription Required Message */}
         <div className="flex items-center justify-center min-h-[calc(100vh-64px)] p-4">
           <div className="max-w-md w-full">
-            <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+            <div className="bg-white rounded-[5px] shadow-xl p-8 text-center">
               <div className="w-16 h-16 bg-[#FEF3C7] rounded-full flex items-center justify-center mx-auto mb-6">
                 <svg className="w-8 h-8 text-[#D97706]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
-              <h2 className="text-2xl font-bold text-[#0D4D4D] mb-3">Subscription Required</h2>
+              <h2 className="text-2xl font-bold text-[#005851] mb-3">Subscription Required</h2>
               <p className="text-[#6B7280] mb-6">
                 {agentProfile.subscriptionStatus === 'canceled' 
                   ? 'Your subscription has been canceled. Please resubscribe to continue using the dashboard.'
@@ -994,7 +1045,7 @@ export default function DashboardPage() {
               </p>
               <button
                 onClick={() => router.push('/subscribe')}
-                className="w-full py-3 px-6 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+                className="w-full py-3 px-6 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors flex items-center justify-center gap-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -1014,352 +1065,349 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA]">
-      {/* Navigation Bar */}
-      <nav className="bg-[#0D4D4D] sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+    <div className="min-h-screen bg-[#e4e4e4] flex">
+      {/* Collapsible Left Sidebar - Quility Style */}
+      <aside 
+        className={`fixed left-0 top-0 h-full bg-[#005851] z-50 transition-all duration-300 ${sidebarExpanded ? 'w-56' : 'w-16'}`}
+        onMouseEnter={() => setSidebarExpanded(true)}
+        onMouseLeave={() => setSidebarExpanded(false)}
+      >
             {/* Logo */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-[#3DD6C3] rounded-xl flex items-center justify-center shadow-lg shadow-[#3DD6C3]/30">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-              </div>
-              <span className="text-xl font-bold text-white">Agent Portal</span>
+        <div className="h-14 flex items-center px-4 border-b border-white/10">
+          <img src="/logo.png" alt="Logo" className="w-12 h-12 object-contain bg-[#005851] rounded-lg" />
+          <span className={`ml-3 text-white font-extrabold text-lg tracking-wide whitespace-nowrap overflow-hidden transition-all duration-300 ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
+            AgentForLife
+          </span>
             </div>
 
-            {/* User Menu */}
-            <div className="flex items-center gap-3">
-              {/* Profile Button */}
+        {/* Navigation Items */}
+        <nav className="mt-4 px-2 space-y-1">
+          {/* Dashboard */}
+          <button
+            onClick={() => setActiveSection('dashboard')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group ${
+              activeSection === 'dashboard' ? 'bg-[#daf3f0] text-[#005851]' : 'text-white/80 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+            </svg>
+            <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
+              Dashboard
+            </span>
+          </button>
+
+          {/* Clients */}
+          <button
+            onClick={() => setActiveSection('clients')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group ${
+              activeSection === 'clients' ? 'bg-[#daf3f0] text-[#005851]' : 'text-white/80 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
+              Clients
+            </span>
+          </button>
+
+          {/* Activity */}
+          <button
+            onClick={() => setActiveSection('activity')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group ${
+              activeSection === 'activity' ? 'bg-[#daf3f0] text-[#005851]' : 'text-white/80 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+            <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
+              Activity
+            </span>
+          </button>
+
+          {/* Settings */}
               <button
                 onClick={() => setIsProfileModalOpen(true)}
-                className="flex items-center gap-3 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-xl border border-white/20 transition-all duration-200 group"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white"
+          >
+            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
+              Settings
+            </span>
+          </button>
+        </nav>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="flex-1 ml-16 flex flex-col min-h-screen">
+        {/* Top Header Bar - Quility Style */}
+        <header className="h-14 bg-white border-b border-[#d0d0d0] sticky top-0 z-40 flex items-center justify-between px-6">
+          {/* Left: Branding */}
+          <div className="flex items-center gap-2">
+            <span className="text-[#005851] font-extrabold text-lg tracking-wide">AGENTFORLIFE</span>
+            <span className="text-[#d0d0d0]">|</span>
+            <span className="text-[#707070] font-medium">Agent Portal</span>
+          </div>
+
+          {/* Right: Actions & Profile */}
+          <div className="flex items-center gap-4">
+            {/* Search Icon */}
+            <button className="w-9 h-9 rounded-[5px] hover:bg-[#f1f1f1] flex items-center justify-center text-[#707070] hover:text-[#005851] transition-colors">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </button>
+
+            {/* Profile Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-[5px] hover:bg-[#f1f1f1] transition-colors"
               >
                 {agentProfile.photoBase64 ? (
                   <img
                     src={`data:image/jpeg;base64,${agentProfile.photoBase64}`}
                     alt="Profile"
-                    className="w-8 h-8 rounded-full object-cover border-2 border-[#3DD6C3] transition-colors"
+                    className="w-8 h-8 rounded-full object-cover border-2 border-[#45bcaa]"
                   />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-[#3DD6C3] flex items-center justify-center border-2 border-[#3DD6C3] transition-colors">
-                    <span className="text-sm font-bold text-white">
+                  <div className="w-8 h-8 rounded-full bg-[#44bbaa] flex items-center justify-center text-white font-bold text-sm">
                       {agentProfile.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'A'}
-                    </span>
                   </div>
                 )}
-                <div className="hidden sm:block text-left">
-                  <p className="text-sm font-medium text-white">{agentProfile.name || 'Agent'}</p>
-                  <p className="text-xs text-white/70">{user?.email}</p>
+                <div className="hidden md:block text-left">
+                  <p className="text-sm font-medium text-[#000000]">{agentProfile.name || 'Agent'}</p>
+                  <p className="text-xs text-[#707070]">{agentProfile.agencyName || 'Agency'}</p>
                 </div>
-                <svg className="w-4 h-4 text-white/70 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <svg className={`w-4 h-4 text-[#707070] transition-transform ${showProfileDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl border border-white/20 transition-all duration-200 flex items-center gap-2 text-sm font-medium"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Welcome Section */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
-          <div className="flex items-start gap-6">
-            <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center shadow-lg">
-              <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+              {/* Dropdown Menu */}
+              {showProfileDropdown && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowProfileDropdown(false)} />
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-[5px] shadow-xl border border-[#d0d0d0] py-2 z-50">
+              <button
+                      onClick={() => { setIsProfileModalOpen(true); setShowProfileDropdown(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#000000] hover:bg-[#f1f1f1] transition-colors"
+              >
+                      <svg className="w-5 h-5 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                      <span className="text-sm font-medium">My Account</span>
+              </button>
+                    {agentProfile.stripeCustomerId && (
+                      <button
+                        onClick={() => { handleManageSubscription(); setShowProfileDropdown(false); }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#000000] hover:bg-[#f1f1f1] transition-colors"
+                      >
+                        <svg className="w-5 h-5 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
               </svg>
-            </div>
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold text-[#2D3748] mb-2">Welcome back!</h1>
-              <p className="text-gray-500 text-lg">
-                You&apos;re signed in as <span className="text-[#3DD6C3] font-medium">{user?.email}</span>
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-[#0099FF]/10 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-[#0099FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        <span className="text-sm font-medium">Subscription</span>
+                      </button>
+                    )}
+                    <div className="border-t border-[#d0d0d0] my-2" />
+                    <button
+                      onClick={() => { handleLogout(); setShowProfileDropdown(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#000000] hover:bg-[#f1f1f1] transition-colors"
+                    >
+                      <svg className="w-5 h-5 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
+                      <span className="text-sm font-medium">Logout</span>
+                    </button>
               </div>
-              <div>
-                <p className="text-gray-500 text-sm">Total Clients</p>
-                <p className="text-2xl font-bold text-[#2D3748]">{clients.length}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-gray-200 p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-[#3DD6C3]/20 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-gray-500 text-sm">Active Policies</p>
-                <p className="text-2xl font-bold text-[#2D3748]">{totalActivePolicies}</p>
+                </>
+              )}
               </div>
             </div>
-          </div>
+        </header>
 
-          <div className="bg-white rounded-2xl border border-gray-200 p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-[#fdcc02]/20 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-[#fdcc02]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-gray-500 text-sm">Pending Policies</p>
-                <p className="text-2xl font-bold text-[#2D3748]">{totalPendingPolicies}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Clients Section */}
-        <div className="mt-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <h2 className="text-2xl font-bold text-[#2D3748]">Your Clients</h2>
-            <div className="flex gap-3">
+        {/* Main Content + Right Sidebar */}
+        <div className="flex flex-1">
+          {/* Center Content */}
+          <main className="flex-1 p-6 overflow-auto">
+            {/* Action Bar - Quility Style */}
+            <div className="bg-white rounded-[5px] border border-[#d0d0d0] p-4 mb-6">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
               <button
-                onClick={() => setIsImportModalOpen(true)}
-                className="px-4 py-2.5 bg-white hover:bg-gray-50 text-[#0D4D4D] font-semibold rounded-xl border-2 border-[#0D4D4D] transition-all duration-200 flex items-center gap-2"
+                    onClick={handleOpenModal}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
-                Import CSV
+                    Add Client
               </button>
               <button
-                onClick={handleOpenModal}
-                className="px-4 py-2.5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-[#0D4D4D] font-semibold rounded-xl shadow-lg shadow-[#3DD6C3]/30 hover:shadow-[#3DD6C3]/40 transition-all duration-200 flex items-center gap-2"
+                    onClick={() => setIsImportModalOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-[#f1f1f1] text-[#005851] font-semibold rounded-[5px] border border-[#45bcaa] transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
-                Add Client
+                    Import CSV
               </button>
-            </div>
           </div>
 
-          {/* Search Bar */}
+                {/* Search */}
           {clients.length > 0 && (
-            <div className="mb-6">
-              <div className="relative">
-                <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="relative flex-1 max-w-md">
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search clients by name, email, or phone..."
-                  className="w-full pl-12 pr-12 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#2D3748] transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
+                      placeholder="Search clients..."
+                      className="w-full pl-10 pr-4 py-2.5 bg-[#f8f8f8] border border-[#a4a4a4bf] rounded-[5px] text-[#000000] placeholder-[#707070] focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa] transition-all"
+                    />
+                  </div>
                 )}
               </div>
             </div>
-          )}
 
+            {/* Clients Section */}
+            <div className="bg-white rounded-[5px] border border-[#d0d0d0]">
+              <div className="p-4 border-b border-[#d0d0d0]">
+                <h2 className="text-lg font-semibold text-[#000000]">My Clients</h2>
+                <p className="text-sm text-[#707070]">{clients.length} total clients</p>
+              </div>
+              <div className="p-4">
           {clientsLoading ? (
-            <div className="bg-white rounded-2xl border border-gray-200 p-12 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-4">
-                <svg className="animate-spin w-8 h-8 text-[#3DD6C3]" fill="none" viewBox="0 0 24 24">
+                  <div className="flex items-center justify-center py-8">
+                    <svg className="animate-spin w-8 h-8 text-[#45bcaa]" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
-                <p className="text-gray-500">Loading clients...</p>
-              </div>
             </div>
           ) : clients.length === 0 ? (
-            // Empty State
-            <div className="bg-white rounded-2xl border border-gray-200 p-12">
-              <div className="flex flex-col items-center text-center">
-                <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mb-6">
-                  <svg className="w-10 h-10 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  <div className="flex flex-col items-center text-center py-8">
+                    <div className="w-16 h-16 bg-[#f1f1f1] rounded-[5px] flex items-center justify-center mb-4">
+                      <svg className="w-8 h-8 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                 </div>
-                <h3 className="text-xl font-semibold text-[#2D3748] mb-2">No clients yet</h3>
-                <p className="text-gray-500 mb-6 max-w-md">
-                  Get started by adding your first client. You&apos;ll be able to manage their information and policies all in one place.
-                </p>
+                    <h3 className="text-lg font-semibold text-[#000000] mb-2">No clients yet</h3>
+                    <p className="text-[#707070] mb-4 max-w-sm text-sm">Add your first client to get started.</p>
                 <button
                   onClick={handleOpenModal}
-                  className="px-6 py-3 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-[#0D4D4D] font-semibold rounded-xl shadow-lg shadow-[#3DD6C3]/30 hover:shadow-[#3DD6C3]/40 transition-all duration-200 flex items-center gap-2"
+                      className="px-4 py-2 bg-[#44bbaa] hover:bg-[#005751] text-white font-medium rounded-[5px] transition-colors text-sm"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  Add Your First Client
+                      Add Client
                 </button>
-              </div>
             </div>
           ) : filteredClients.length === 0 ? (
-            // No Search Results
-            <div className="bg-white rounded-2xl border border-gray-200 p-12">
-              <div className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
-                  <svg className="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex flex-col items-center text-center py-8">
+                    <div className="w-12 h-12 bg-[#f1f1f1] rounded-[5px] flex items-center justify-center mb-3">
+                      <svg className="w-6 h-6 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-[#2D3748] mb-2">No clients found</h3>
-                <p className="text-gray-500 mb-4">
-                  No clients match &ldquo;{searchQuery}&rdquo;. Try a different search term.
-                </p>
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-[#2D3748] font-medium rounded-xl border border-gray-200 transition-all duration-200"
-                >
-                  Clear Search
-                </button>
-              </div>
+                    <h3 className="text-sm font-semibold text-[#000000] mb-1">No clients found</h3>
+                    <p className="text-[#707070] text-sm">No clients match your search.</p>
             </div>
           ) : (
-            // Client List
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-[#f1f1f1]">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-[#000000] uppercase tracking-wide">Name</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-[#000000] uppercase tracking-wide">Email</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-[#000000] uppercase tracking-wide">Phone</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-[#000000] uppercase tracking-wide">Code</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-[#000000] uppercase tracking-wide">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#d0d0d0]">
               {filteredClients.map((client) => (
-                <div
+                          <tr 
                   key={client.id}
-                  className={`bg-white rounded-2xl border p-6 transition-all duration-200 group ${
-                    selectedClient?.id === client.id
-                      ? 'border-[#3DD6C3] bg-[#3DD6C3]/5 ring-1 ring-[#3DD6C3]/20'
-                      : 'border-gray-200 hover:border-[#3DD6C3]/50 hover:bg-[#F8F9FA]'
-                  }`}
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-[#3DD6C3] to-[#0D4D4D] rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-[#3DD6C3]/30">
+                            className={`hover:bg-[#f1f1f1] transition-colors cursor-pointer ${
+                              selectedClient?.id === client.id ? 'bg-[#daf3f0]' : ''
+                            }`}
+                            onClick={() => handleSelectClient(client)}
+                          >
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-[#44bbaa] rounded-full flex items-center justify-center text-white font-bold text-sm">
                       {client.name.charAt(0).toUpperCase()}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-semibold text-[#2D3748] truncate group-hover:text-[#3DD6C3] transition-colors">
-                        {client.name}
-                      </h3>
-                      <div className="mt-2 space-y-1.5">
-                        <div className="flex items-center gap-2 text-gray-500">
-                          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                          </svg>
-                          <span className="text-sm truncate">{client.email}</span>
+                                <span className="font-medium text-[#000000]">{client.name}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-gray-500">
-                          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                          </svg>
-                          <span className="text-sm">{client.phone}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  {/* Client Code Badge */}
+                            </td>
+                            <td className="px-4 py-3 text-[#707070] text-sm">{client.email}</td>
+                            <td className="px-4 py-3 text-[#707070] text-sm">{client.phone}</td>
+                            <td className="px-4 py-3">
                   {client.clientCode && (
-                    <div className="mt-3 flex items-center justify-between bg-white rounded-lg px-3 py-2">
-                      <span className="text-xs text-gray-500">Client Code:</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-mono font-semibold text-[#3DD6C3] tracking-wider">{client.clientCode}</span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigator.clipboard.writeText(client.clientCode || '');
-                            // Show brief feedback
-                            const btn = e.currentTarget;
-                            const originalHTML = btn.innerHTML;
-                            btn.innerHTML = '<svg class="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>';
-                            setTimeout(() => { btn.innerHTML = originalHTML; }, 1500);
-                          }}
-                          className="p-1.5 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-[#2D3748] transition-colors"
-                          title="Copy code"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  {/* View Policies Button */}
+                                <span className="font-mono text-sm text-[#45bcaa] font-medium">{client.clientCode}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex items-center justify-end gap-2">
                   <button
-                    onClick={() => handleSelectClient(client)}
-                    className={`w-full mt-4 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
+                                  onClick={(e) => { e.stopPropagation(); handleSelectClient(client); }}
+                                  className={`p-2 rounded-[5px] transition-colors ${
                       selectedClient?.id === client.id
-                        ? 'bg-[#3DD6C3]/20 text-[#0D4D4D] border border-[#3DD6C3]/50'
-                        : 'bg-gray-100 text-gray-600 hover:bg-[#3DD6C3]/10 hover:text-[#0D4D4D] border border-gray-200 hover:border-[#3DD6C3]/30'
-                    }`}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    {selectedClient?.id === client.id ? 'Viewing Policies' : 'Manage Policies'}
-                  </button>
-                  {/* Delete Client Button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeleteConfirmClient(client);
-                    }}
-                    className="w-full mt-2 px-4 py-2 rounded-xl font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    Delete Client
-                  </button>
-                </div>
-              ))}
+                                      ? 'bg-[#44bbaa] text-white' 
+                                      : 'bg-[#f1f1f1] text-[#707070] hover:bg-[#daf3f0] hover:text-[#005851]'
+                                  }`}
+                                  title="View Policies"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setDeleteConfirmClient(client); }}
+                                  className="p-2 rounded-[5px] bg-[#f1f1f1] text-[#707070] hover:bg-red-100 hover:text-red-500 transition-colors"
+                                  title="Delete Client"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
 
-        {/* Selected Client Policies Section */}
-        {selectedClient && (
-          <div className="mt-8 bg-white rounded-2xl border border-gray-200 overflow-hidden">
+            {/* Selected Client Policies Section */}
+            {selectedClient && (
+          <div className="mt-8 bg-white rounded-[5px] border border-gray-200 overflow-hidden">
             {/* Header */}
             <div className="p-6 border-b border-gray-200 flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-[#0D4D4D] to-[#0A3D3D] rounded-xl flex items-center justify-center">
-                  <svg className="w-6 h-6 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-12 h-12 bg-gradient-to-br from-[#005851] to-[#0A3D3D] rounded-[5px] flex items-center justify-center">
+                  <svg className="w-6 h-6 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-[#2D3748]">Policies for {selectedClient.name}</h3>
+                  <h3 className="text-xl font-bold text-[#000000]">Policies for {selectedClient.name}</h3>
                   <p className="text-gray-500 text-sm">{policies.length} {policies.length === 1 ? 'policy' : 'policies'} total</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => handleOpenPolicyModal()}
-                  className="px-4 py-2.5 bg-[#0099FF] hover:bg-[#0088DD] text-white font-semibold rounded-xl shadow-lg shadow-[#0099FF]/30 hover:shadow-[#0099FF]/40 transition-all duration-200 flex items-center gap-2"
+                  className="px-4 py-2.5 bg-[#0099FF] hover:bg-[#0088DD] text-white font-semibold rounded-[5px] shadow-lg shadow-[#0099FF]/30 hover:shadow-[#0099FF]/40 transition-all duration-200 flex items-center gap-2"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -1368,7 +1416,7 @@ export default function DashboardPage() {
                 </button>
                 <button
                   onClick={handleCloseClientView}
-                  className="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#2D3748] transition-colors"
+                  className="w-10 h-10 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#000000] transition-colors"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1392,18 +1440,18 @@ export default function DashboardPage() {
               ) : policies.length === 0 ? (
                 // Empty Policies State
                 <div className="flex flex-col items-center text-center py-12">
-                  <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
+                  <div className="w-16 h-16 bg-gray-100 rounded-[5px] flex items-center justify-center mb-4">
                     <svg className="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                   </div>
-                  <h4 className="text-lg font-semibold text-[#2D3748] mb-2">No policies yet</h4>
+                  <h4 className="text-lg font-semibold text-[#000000] mb-2">No policies yet</h4>
                   <p className="text-gray-500 mb-4 max-w-sm">
                     Add a policy to start tracking coverage for this client.
                   </p>
                   <button
                     onClick={() => handleOpenPolicyModal()}
-                    className="px-5 py-2.5 bg-[#0099FF] hover:bg-[#0088DD] text-white font-semibold rounded-xl shadow-lg shadow-[#0099FF]/30 hover:shadow-[#0099FF]/40 transition-all duration-200 flex items-center gap-2"
+                    className="px-5 py-2.5 bg-[#0099FF] hover:bg-[#0088DD] text-white font-semibold rounded-[5px] shadow-lg shadow-[#0099FF]/30 hover:shadow-[#0099FF]/40 transition-all duration-200 flex items-center gap-2"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -1417,7 +1465,7 @@ export default function DashboardPage() {
                   {policies.map((policy) => (
                     <div
                       key={policy.id}
-                      className="bg-white rounded-xl border border-gray-200 p-5 hover:border-gray-200 transition-all duration-200"
+                      className="bg-white rounded-[5px] border border-gray-200 p-5 hover:border-gray-200 transition-all duration-200"
                     >
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3">
@@ -1425,7 +1473,7 @@ export default function DashboardPage() {
                             {getPolicyTypeIcon(policy.policyType)}
                           </div>
                           <div>
-                            <h4 className="font-semibold text-[#2D3748]">{policy.policyType}</h4>
+                            <h4 className="font-semibold text-[#000000]">{policy.policyType}</h4>
                             <p className="text-gray-500 text-sm">#{policy.policyNumber}</p>
                           </div>
                         </div>
@@ -1438,7 +1486,7 @@ export default function DashboardPage() {
                       {policy.insuranceCompany && (
                         <div className="mb-4 pb-4 border-b border-gray-200">
                           <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Insurance Company</p>
-                          <p className="text-[#2D3748] font-medium">{policy.insuranceCompany}</p>
+                          <p className="text-[#000000] font-medium">{policy.insuranceCompany}</p>
                         </div>
                       )}
 
@@ -1448,13 +1496,13 @@ export default function DashboardPage() {
                           {policy.policyOwner && (
                             <div>
                               <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Owner</p>
-                              <p className="text-[#2D3748] text-sm">{policy.policyOwner}</p>
+                              <p className="text-[#000000] text-sm">{policy.policyOwner}</p>
                             </div>
                           )}
                           {policy.beneficiary && (
                             <div>
                               <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Beneficiary</p>
-                              <p className="text-[#2D3748] text-sm">{policy.beneficiary}</p>
+                              <p className="text-[#000000] text-sm">{policy.beneficiary}</p>
                             </div>
                           )}
                         </div>
@@ -1462,37 +1510,37 @@ export default function DashboardPage() {
                       
                       <div className="grid grid-cols-2 gap-4">
                         {policy.policyType === 'Mortgage Protection' && policy.amountOfProtection && (
-                          <div className="col-span-2 bg-[#3DD6C3]/10 rounded-lg p-3 border border-[#3DD6C3]/30">
+                          <div className="col-span-2 bg-[#44bbaa]/10 rounded-lg p-3 border border-[#45bcaa]/30">
                             <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Amount of Protection</p>
-                            <p className="text-[#0D4D4D] text-xl font-bold">{policy.amountOfProtection} {policy.protectionUnit === 'months' ? 'Months' : 'Years'}</p>
+                            <p className="text-[#005851] text-xl font-bold">{policy.amountOfProtection} {policy.protectionUnit === 'months' ? 'Months' : 'Years'}</p>
                           </div>
                         )}
                         {policy.policyType === 'Term Life' && policy.renewalDate && (
                           <div className="col-span-2">
                             <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Renewal Date</p>
-                            <p className="text-[#2D3748]">{formatDate(policy.renewalDate)}</p>
+                            <p className="text-[#000000]">{formatDate(policy.renewalDate)}</p>
                           </div>
                         )}
                         {policy.policyType === 'Accidental' ? (
                           <>
-                            <div className="col-span-2 bg-[#3DD6C3]/10 rounded-lg p-3 border border-[#3DD6C3]/30">
+                            <div className="col-span-2 bg-[#44bbaa]/10 rounded-lg p-3 border border-[#45bcaa]/30">
                               <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Death Benefit</p>
-                              <p className="text-[#0D4D4D] text-xl font-bold">{formatCurrency(policy.coverageAmount)}</p>
+                              <p className="text-[#005851] text-xl font-bold">{formatCurrency(policy.coverageAmount)}</p>
                             </div>
                             <div className="col-span-2">
                               <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Premium</p>
-                              <p className="text-[#2D3748] font-semibold">{formatCurrency(policy.premiumAmount)}/mo</p>
+                              <p className="text-[#000000] font-semibold">{formatCurrency(policy.premiumAmount)}/mo</p>
                             </div>
                           </>
                         ) : (
                           <>
                             <div>
                               <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Death Benefit</p>
-                              <p className="text-[#2D3748] font-semibold">{formatCurrency(policy.coverageAmount)}</p>
+                              <p className="text-[#000000] font-semibold">{formatCurrency(policy.coverageAmount)}</p>
                             </div>
                             <div>
                               <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Premium</p>
-                              <p className="text-[#2D3748] font-semibold">{formatCurrency(policy.premiumAmount)}/mo</p>
+                              <p className="text-[#000000] font-semibold">{formatCurrency(policy.premiumAmount)}/mo</p>
                             </div>
                           </>
                         )}
@@ -1502,7 +1550,7 @@ export default function DashboardPage() {
                       <div className="flex gap-2 mt-4 pt-4 border-t border-gray-200">
                         <button
                           onClick={() => handleOpenPolicyModal(policy)}
-                          className="flex-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-[#2D3748] rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                          className="flex-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-[#000000] rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -1528,6 +1576,119 @@ export default function DashboardPage() {
         )}
       </main>
 
+          {/* Right Sidebar - Business At a Glance */}
+          <aside className="w-72 bg-white border-l border-[#d0d0d0] p-4 hidden lg:block overflow-y-auto">
+            <h3 className="text-sm font-semibold text-[#000000] mb-4">Your Business At a Glance</h3>
+            
+            {/* Stats Cards */}
+            <div className="space-y-3">
+              {/* Clients */}
+              <div className="bg-[#f1f1f1] rounded-[5px] p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-[#0099FF]/10 rounded-[5px] flex items-center justify-center">
+                      <svg className="w-5 h-5 text-[#0099FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[#707070]">Total Clients</p>
+                      <p className="text-xl font-bold text-[#000000]">{clients.length}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Active Policies */}
+              <div className="bg-[#f1f1f1] rounded-[5px] p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-[#44bbaa]/20 rounded-[5px] flex items-center justify-center">
+                      <svg className="w-5 h-5 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[#707070]">Active Policies</p>
+                      <p className="text-xl font-bold text-[#45bcaa]">{totalActivePolicies}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pending Policies */}
+              <div className="bg-[#f1f1f1] rounded-[5px] p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-[#fdcc02]/20 rounded-[5px] flex items-center justify-center">
+                      <svg className="w-5 h-5 text-[#fdcc02]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[#707070]">Pending Policies</p>
+                      <p className="text-xl font-bold text-[#fdcc02]">{totalPendingPolicies}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="mt-6">
+              <h4 className="text-sm font-semibold text-[#000000] mb-3">Quick Actions</h4>
+              <div className="space-y-2">
+                <button
+                  onClick={handleOpenModal}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 bg-[#daf3f0] hover:bg-[#cbfbef] text-[#005851] font-medium rounded-[5px] transition-colors text-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  </svg>
+                  Add New Client
+                </button>
+                <button
+                  onClick={() => setIsImportModalOpen(true)}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 bg-[#f1f1f1] hover:bg-[#e4e4e4] text-[#005851] font-medium rounded-[5px] transition-colors text-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  Import Contacts
+                </button>
+              </div>
+            </div>
+
+            {/* Selected Client Preview */}
+            {selectedClient && (
+              <div className="mt-6">
+                <h4 className="text-sm font-semibold text-[#000000] mb-3">Selected Client</h4>
+                <div className="bg-[#daf3f0] rounded-[5px] p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-[#005851] rounded-full flex items-center justify-center text-white font-bold">
+                      {selectedClient.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-[#005851] truncate">{selectedClient.name}</p>
+                      <p className="text-xs text-[#337973] truncate">{selectedClient.email}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-[#45bcaa]/30 flex items-center justify-between">
+                    <span className="text-xs text-[#337973]">{policies.length} policies</span>
+                    <button
+                      onClick={handleCloseClientView}
+                      className="text-xs text-[#005851] hover:text-[#003e3a] font-medium"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </aside>
+        </div>
+      </div>
+
       {/* Add Client Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1535,12 +1696,12 @@ export default function DashboardPage() {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={handleCloseModal}
           />
-          <div className="relative w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl transform transition-all">
+          <div className="relative w-full max-w-md bg-white rounded-[5px] border border-gray-200 shadow-2xl transform transition-all">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-[#2D3748]">Add New Client</h3>
+              <h3 className="text-xl font-bold text-[#000000]">Add New Client</h3>
               <button
                 onClick={handleCloseModal}
-                className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#2D3748] transition-colors"
+                className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#000000] transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1549,7 +1710,7 @@ export default function DashboardPage() {
             </div>
             <form onSubmit={handleSubmitClient} className="p-6 space-y-5">
               {formError && (
-                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
+                <div className="bg-red-500/10 border border-red-500/30 rounded-[5px] p-4 flex items-start gap-3">
                   <svg className="w-5 h-5 text-red-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
@@ -1557,11 +1718,11 @@ export default function DashboardPage() {
                 </div>
               )}
               {formSuccess && (
-                <div className="bg-[#3DD6C3]/10 border border-[#3DD6C3]/30 rounded-xl p-4 flex items-start gap-3">
-                  <svg className="w-5 h-5 text-[#3DD6C3] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="bg-[#44bbaa]/10 border border-[#45bcaa]/30 rounded-[5px] p-4 flex items-start gap-3">
+                  <svg className="w-5 h-5 text-[#45bcaa] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <p className="text-[#3DD6C3] text-sm">Client added successfully!</p>
+                  <p className="text-[#45bcaa] text-sm">Client added successfully!</p>
                 </div>
               )}
               <div>
@@ -1574,7 +1735,7 @@ export default function DashboardPage() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
-                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
+                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa] transition-all duration-200"
                   placeholder="John Doe"
                 />
               </div>
@@ -1588,7 +1749,7 @@ export default function DashboardPage() {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   required
-                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
+                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa] transition-all duration-200"
                   placeholder="john@example.com"
                 />
               </div>
@@ -1602,7 +1763,7 @@ export default function DashboardPage() {
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   required
-                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
+                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa] transition-all duration-200"
                   placeholder="(555) 123-4567"
                 />
               </div>
@@ -1610,14 +1771,14 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-[#2D3748] font-semibold rounded-xl border border-gray-200 transition-all duration-200"
+                  className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-[#000000] font-semibold rounded-[5px] border border-gray-200 transition-all duration-200"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting || formSuccess}
-                  className="flex-1 py-3 px-4 bg-[#3DD6C3] hover:bg-[#2BB5A5] disabled:bg-[#3DD6C3]/50 disabled:cursor-not-allowed text-[#0D4D4D] font-semibold rounded-xl shadow-lg shadow-[#3DD6C3]/30 hover:shadow-[#3DD6C3]/40 transition-all duration-200 flex items-center justify-center gap-2"
+                  className="flex-1 py-3 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-[#44bbaa]/50 disabled:cursor-not-allowed text-[#005851] font-semibold rounded-[5px] shadow-lg shadow-[#45bcaa]/30 hover:shadow-[#45bcaa]/40 transition-all duration-200 flex items-center justify-center gap-2"
                 >
                   {submitting ? (
                     <>
@@ -1644,15 +1805,15 @@ export default function DashboardPage() {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={handleCloseImportModal}
           />
-          <div className="relative w-full max-w-2xl bg-white rounded-2xl border border-gray-200 shadow-2xl transform transition-all max-h-[90vh] flex flex-col">
+          <div className="relative w-full max-w-2xl bg-white rounded-[5px] border border-gray-200 shadow-2xl transform transition-all max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <div>
-                <h3 className="text-xl font-bold text-[#0D4D4D]">Import Clients from CSV</h3>
+                <h3 className="text-xl font-bold text-[#005851]">Import Clients from CSV</h3>
                 <p className="text-gray-500 text-sm mt-1">Upload a CSV file with your contacts</p>
               </div>
               <button
                 onClick={handleCloseImportModal}
-                className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#2D3748] transition-colors"
+                className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#000000] transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1664,13 +1825,13 @@ export default function DashboardPage() {
               {/* Upload Section */}
               {importData.length === 0 && !importSuccess && (
                 <div className="space-y-4">
-                  <div className="bg-[#F8F9FA] rounded-xl p-6 border-2 border-dashed border-gray-300 text-center">
+                  <div className="bg-[#e4e4e4] rounded-[5px] p-6 border-2 border-dashed border-gray-300 text-center">
                     <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
-                    <p className="text-[#2D3748] font-medium mb-2">Upload your contact list</p>
+                    <p className="text-[#000000] font-medium mb-2">Upload your contact list</p>
                     <p className="text-gray-500 text-sm mb-4">CSV file with Name, Email, and Phone columns</p>
-                    <label className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0D4D4D] hover:bg-[#0A3D3D] text-white font-medium rounded-lg cursor-pointer transition-colors">
+                    <label className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#005851] hover:bg-[#0A3D3D] text-white font-medium rounded-lg cursor-pointer transition-colors">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                       </svg>
@@ -1714,7 +1875,7 @@ export default function DashboardPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-semibold text-[#0D4D4D]">Preview ({importData.length} clients)</h4>
+                      <h4 className="font-semibold text-[#005851]">Preview ({importData.length} clients)</h4>
                       <p className="text-sm text-gray-500">Review before importing</p>
                     </div>
                     <button
@@ -1725,22 +1886,22 @@ export default function DashboardPage() {
                     </button>
                   </div>
 
-                  <div className="bg-[#F8F9FA] rounded-xl border border-gray-200 overflow-hidden">
+                  <div className="bg-[#e4e4e4] rounded-[5px] border border-gray-200 overflow-hidden">
                     <div className="overflow-x-auto max-h-64">
                       <table className="w-full text-sm">
                         <thead className="bg-gray-100 sticky top-0">
                           <tr>
-                            <th className="px-4 py-3 text-left font-semibold text-[#2D3748]">#</th>
-                            <th className="px-4 py-3 text-left font-semibold text-[#2D3748]">Name</th>
-                            <th className="px-4 py-3 text-left font-semibold text-[#2D3748]">Email</th>
-                            <th className="px-4 py-3 text-left font-semibold text-[#2D3748]">Phone</th>
+                            <th className="px-4 py-3 text-left font-semibold text-[#000000]">#</th>
+                            <th className="px-4 py-3 text-left font-semibold text-[#000000]">Name</th>
+                            <th className="px-4 py-3 text-left font-semibold text-[#000000]">Email</th>
+                            <th className="px-4 py-3 text-left font-semibold text-[#000000]">Phone</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                           {importData.slice(0, 50).map((client, idx) => (
                             <tr key={idx} className="hover:bg-white transition-colors">
                               <td className="px-4 py-2 text-gray-500">{idx + 1}</td>
-                              <td className="px-4 py-2 text-[#2D3748] font-medium">{client.name}</td>
+                              <td className="px-4 py-2 text-[#000000] font-medium">{client.name}</td>
                               <td className="px-4 py-2 text-gray-600">{client.email || '—'}</td>
                               <td className="px-4 py-2 text-gray-600">{client.phone || '—'}</td>
                             </tr>
@@ -1758,12 +1919,12 @@ export default function DashboardPage() {
                   {importing && (
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
-                        <span className="text-[#2D3748]">Importing clients...</span>
-                        <span className="text-[#3DD6C3] font-medium">{importProgress}%</span>
+                        <span className="text-[#000000]">Importing clients...</span>
+                        <span className="text-[#45bcaa] font-medium">{importProgress}%</span>
                       </div>
                       <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                         <div 
-                          className="h-full bg-[#3DD6C3] transition-all duration-300"
+                          className="h-full bg-[#44bbaa] transition-all duration-300"
                           style={{ width: `${importProgress}%` }}
                         />
                       </div>
@@ -1789,7 +1950,7 @@ export default function DashboardPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
-                  <h4 className="text-xl font-bold text-[#0D4D4D] mb-2">Import Complete!</h4>
+                  <h4 className="text-xl font-bold text-[#005851] mb-2">Import Complete!</h4>
                   <p className="text-gray-500">{importData.length} clients have been added to your book.</p>
                 </div>
               )}
@@ -1802,7 +1963,7 @@ export default function DashboardPage() {
                   type="button"
                   onClick={handleCloseImportModal}
                   disabled={importing}
-                  className="flex-1 py-3 px-4 bg-white hover:bg-gray-100 text-gray-600 font-semibold rounded-xl border border-gray-200 transition-all duration-200 disabled:opacity-50"
+                  className="flex-1 py-3 px-4 bg-white hover:bg-gray-100 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-all duration-200 disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -1810,7 +1971,7 @@ export default function DashboardPage() {
                   type="button"
                   onClick={handleImportClients}
                   disabled={importing}
-                  className="flex-1 py-3 px-4 bg-[#3DD6C3] hover:bg-[#2cc5b2] disabled:bg-[#3DD6C3]/50 disabled:cursor-not-allowed text-[#2D3748] font-semibold rounded-xl shadow-lg shadow-[#3DD6C3]/30 transition-all duration-200 flex items-center justify-center gap-2"
+                  className="flex-1 py-3 px-4 bg-[#44bbaa] hover:bg-[#2cc5b2] disabled:bg-[#44bbaa]/50 disabled:cursor-not-allowed text-[#000000] font-semibold rounded-[5px] shadow-lg shadow-[#45bcaa]/30 transition-all duration-200 flex items-center justify-center gap-2"
                 >
                   {importing ? (
                     <>
@@ -1842,17 +2003,17 @@ export default function DashboardPage() {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={handleClosePolicyModal}
           />
-          <div className="relative w-full max-w-lg bg-white rounded-2xl border border-gray-200 shadow-2xl transform transition-all max-h-[90vh] overflow-y-auto">
+          <div className="relative w-full max-w-lg bg-white rounded-[5px] border border-gray-200 shadow-2xl transform transition-all max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
               <div>
-                <h3 className="text-xl font-bold text-[#2D3748]">
+                <h3 className="text-xl font-bold text-[#000000]">
                   {editingPolicy ? 'Edit Policy' : 'Add New Policy'}
                 </h3>
                 <p className="text-gray-500 text-sm">For {selectedClient?.name}</p>
               </div>
               <button
                 onClick={handleClosePolicyModal}
-                className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#2D3748] transition-colors"
+                className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#000000] transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1861,7 +2022,7 @@ export default function DashboardPage() {
             </div>
             <form onSubmit={handleSubmitPolicy} className="p-6 space-y-5">
               {policyFormError && (
-                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
+                <div className="bg-red-500/10 border border-red-500/30 rounded-[5px] p-4 flex items-start gap-3">
                   <svg className="w-5 h-5 text-red-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
@@ -1869,11 +2030,11 @@ export default function DashboardPage() {
                 </div>
               )}
               {policyFormSuccess && (
-                <div className="bg-[#3DD6C3]/10 border border-[#3DD6C3]/30 rounded-xl p-4 flex items-start gap-3">
-                  <svg className="w-5 h-5 text-[#3DD6C3] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="bg-[#44bbaa]/10 border border-[#45bcaa]/30 rounded-[5px] p-4 flex items-start gap-3">
+                  <svg className="w-5 h-5 text-[#45bcaa] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <p className="text-[#3DD6C3] text-sm">Policy {editingPolicy ? 'updated' : 'added'} successfully!</p>
+                  <p className="text-[#45bcaa] text-sm">Policy {editingPolicy ? 'updated' : 'added'} successfully!</p>
                 </div>
               )}
 
@@ -1887,7 +2048,7 @@ export default function DashboardPage() {
                     value={policyFormData.policyType}
                     onChange={(e) => setPolicyFormData({ ...policyFormData, policyType: e.target.value })}
                     required
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                   >
                     {POLICY_TYPES.map((type) => (
                       <option key={type} value={type}>{type}</option>
@@ -1903,7 +2064,7 @@ export default function DashboardPage() {
                     value={policyFormData.status}
                     onChange={(e) => setPolicyFormData({ ...policyFormData, status: e.target.value as 'Active' | 'Pending' | 'Lapsed' })}
                     required
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                   >
                     {POLICY_STATUSES.map((status) => (
                       <option key={status} value={status}>{status}</option>
@@ -1924,7 +2085,7 @@ export default function DashboardPage() {
                     value={policyFormData.policyNumber}
                     onChange={(e) => setPolicyFormData({ ...policyFormData, policyNumber: e.target.value })}
                     required
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                     placeholder="POL-2026-001234"
                   />
                 </div>
@@ -1938,7 +2099,7 @@ export default function DashboardPage() {
                     value={policyFormData.insuranceCompany}
                     onChange={(e) => setPolicyFormData({ ...policyFormData, insuranceCompany: e.target.value })}
                     required
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                     placeholder="State Farm, MetLife, etc."
                   />
                 </div>
@@ -1956,7 +2117,7 @@ export default function DashboardPage() {
                     value={policyFormData.policyOwner}
                     onChange={(e) => setPolicyFormData({ ...policyFormData, policyOwner: e.target.value })}
                     required
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                     placeholder="John Doe"
                   />
                 </div>
@@ -1970,7 +2131,7 @@ export default function DashboardPage() {
                     value={policyFormData.beneficiary}
                     onChange={(e) => setPolicyFormData({ ...policyFormData, beneficiary: e.target.value })}
                     required
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                     placeholder="Jane Doe"
                   />
                 </div>
@@ -1992,7 +2153,7 @@ export default function DashboardPage() {
                         value={policyFormData.amountOfProtection}
                         onChange={(e) => setPolicyFormData({ ...policyFormData, amountOfProtection: e.target.value })}
                         required
-                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                         placeholder={policyFormData.protectionUnit === 'months' ? '360' : '30'}
                       />
                     </div>
@@ -2001,7 +2162,7 @@ export default function DashboardPage() {
                         id="protectionUnit"
                         value={policyFormData.protectionUnit}
                         onChange={(e) => setPolicyFormData({ ...policyFormData, protectionUnit: e.target.value as 'months' | 'years' })}
-                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                       >
                         <option value="years">Years</option>
                         <option value="months">Months</option>
@@ -2024,7 +2185,7 @@ export default function DashboardPage() {
                         value={policyFormData.renewalMonth}
                         onChange={(e) => setPolicyFormData({ ...policyFormData, renewalMonth: e.target.value })}
                         required
-                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                       >
                         <option value="">Month</option>
                         {MONTHS.map((month) => (
@@ -2037,7 +2198,7 @@ export default function DashboardPage() {
                         value={policyFormData.renewalYear}
                         onChange={(e) => setPolicyFormData({ ...policyFormData, renewalYear: e.target.value })}
                         required
-                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                       >
                         <option value="">Year</option>
                         {yearOptions.map((year) => (
@@ -2065,7 +2226,7 @@ export default function DashboardPage() {
                       value={policyFormData.coverageAmount}
                       onChange={(e) => setPolicyFormData({ ...policyFormData, coverageAmount: e.target.value })}
                       required
-                      className="w-full pl-8 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                      className="w-full pl-8 pr-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                       placeholder="500000"
                     />
                   </div>
@@ -2084,7 +2245,7 @@ export default function DashboardPage() {
                       value={policyFormData.premiumAmount}
                       onChange={(e) => setPolicyFormData({ ...policyFormData, premiumAmount: e.target.value })}
                       required
-                      className="w-full pl-8 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                      className="w-full pl-8 pr-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                       placeholder="250"
                     />
                   </div>
@@ -2095,14 +2256,14 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={handleClosePolicyModal}
-                  className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-[#2D3748] font-semibold rounded-xl border border-gray-200 transition-all duration-200"
+                  className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-[#000000] font-semibold rounded-[5px] border border-gray-200 transition-all duration-200"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={policySubmitting || policyFormSuccess}
-                  className="flex-1 py-3 px-4 bg-[#0099FF] hover:bg-[#0088DD] disabled:bg-[#0099FF]/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg shadow-[#0099FF]/30 hover:shadow-[#0099FF]/40 transition-all duration-200 flex items-center justify-center gap-2"
+                  className="flex-1 py-3 px-4 bg-[#0099FF] hover:bg-[#0088DD] disabled:bg-[#0099FF]/50 disabled:cursor-not-allowed text-white font-semibold rounded-[5px] shadow-lg shadow-[#0099FF]/30 hover:shadow-[#0099FF]/40 transition-all duration-200 flex items-center justify-center gap-2"
                 >
                   {policySubmitting ? (
                     <>
@@ -2129,32 +2290,32 @@ export default function DashboardPage() {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setDeleteConfirmPolicy(null)}
           />
-          <div className="relative w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl p-6">
+          <div className="relative w-full max-w-md bg-white rounded-[5px] border border-gray-200 shadow-2xl p-6">
             <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-red-100 rounded-[5px] flex items-center justify-center">
                 <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
               </div>
               <div>
-                <h3 className="text-lg font-bold text-[#2D3748]">Delete Policy?</h3>
+                <h3 className="text-lg font-bold text-[#000000]">Delete Policy?</h3>
                 <p className="text-gray-500 text-sm">This action cannot be undone.</p>
               </div>
             </div>
             <p className="text-gray-600 mb-6">
-              Are you sure you want to delete the <span className="font-semibold text-[#2D3748]">{deleteConfirmPolicy.policyType}</span> policy #{deleteConfirmPolicy.policyNumber}?
+              Are you sure you want to delete the <span className="font-semibold text-[#000000]">{deleteConfirmPolicy.policyType}</span> policy #{deleteConfirmPolicy.policyNumber}?
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteConfirmPolicy(null)}
-                className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-[#2D3748] font-semibold rounded-xl border border-gray-200 transition-all duration-200"
+                className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-[#000000] font-semibold rounded-[5px] border border-gray-200 transition-all duration-200"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeletePolicy}
                 disabled={deleting}
-                className="flex-1 py-3 px-4 bg-red-500 hover:bg-red-600 disabled:bg-red-500/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg shadow-red-500/30 hover:shadow-red-500/40 transition-all duration-200 flex items-center justify-center gap-2"
+                className="flex-1 py-3 px-4 bg-red-500 hover:bg-red-600 disabled:bg-red-500/50 disabled:cursor-not-allowed text-white font-semibold rounded-[5px] shadow-lg shadow-red-500/30 hover:shadow-red-500/40 transition-all duration-200 flex items-center justify-center gap-2"
               >
                 {deleting ? (
                   <>
@@ -2180,32 +2341,32 @@ export default function DashboardPage() {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setDeleteConfirmClient(null)}
           />
-          <div className="relative w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl p-6">
+          <div className="relative w-full max-w-md bg-white rounded-[5px] border border-gray-200 shadow-2xl p-6">
             <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-red-100 rounded-[5px] flex items-center justify-center">
                 <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
               </div>
               <div>
-                <h3 className="text-lg font-bold text-[#2D3748]">Delete Client?</h3>
+                <h3 className="text-lg font-bold text-[#000000]">Delete Client?</h3>
                 <p className="text-gray-500 text-sm">This action cannot be undone.</p>
               </div>
             </div>
             <p className="text-gray-600 mb-6">
-              Are you sure you want to delete <span className="font-semibold text-[#2D3748]">{deleteConfirmClient.name}</span>? This will permanently remove the client and <span className="text-red-500 font-semibold">all their policies</span>.
+              Are you sure you want to delete <span className="font-semibold text-[#000000]">{deleteConfirmClient.name}</span>? This will permanently remove the client and <span className="text-red-500 font-semibold">all their policies</span>.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteConfirmClient(null)}
-                className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-[#2D3748] font-semibold rounded-xl border border-gray-200 transition-all duration-200"
+                className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-[#000000] font-semibold rounded-[5px] border border-gray-200 transition-all duration-200"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteClient}
                 disabled={deletingClient}
-                className="flex-1 py-3 px-4 bg-red-500 hover:bg-red-600 disabled:bg-red-500/50 disabled:cursor-not-allowed text-[#2D3748] font-semibold rounded-xl shadow-lg shadow-red-500/30 hover:shadow-red-500/40 transition-all duration-200 flex items-center justify-center gap-2"
+                className="flex-1 py-3 px-4 bg-red-500 hover:bg-red-600 disabled:bg-red-500/50 disabled:cursor-not-allowed text-[#000000] font-semibold rounded-[5px] shadow-lg shadow-red-500/30 hover:shadow-red-500/40 transition-all duration-200 flex items-center justify-center gap-2"
               >
                 {deletingClient ? (
                   <>
@@ -2231,32 +2392,32 @@ export default function DashboardPage() {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setIsProfileModalOpen(false)}
           />
-          <div className="relative w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+          <div className="relative w-full max-w-md bg-white rounded-[5px] border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
             {/* Header with dark teal background */}
-            <div className="bg-[#0D4D4D] p-6 shrink-0">
+            <div className="bg-[#005851] p-6 shrink-0">
               <h2 className="text-xl font-bold text-white">Profile Settings</h2>
               <p className="text-white/70 text-sm mt-1">Manage your account and preferences</p>
             </div>
 
-            <div className="p-6 space-y-6 overflow-y-auto flex-1 bg-[#F8F9FA]">
+            <div className="p-6 space-y-6 overflow-y-auto flex-1 bg-[#e4e4e4]">
               {/* Profile Photo Section */}
-              <div className="bg-white rounded-xl p-6 border border-gray-200">
+              <div className="bg-white rounded-[5px] p-6 border border-gray-200">
                 <div className="flex flex-col items-center">
                   <div className="relative">
                     {agentProfile.photoBase64 ? (
                       <img
                         src={`data:image/jpeg;base64,${agentProfile.photoBase64}`}
                         alt="Profile"
-                        className="w-24 h-24 rounded-full object-cover border-4 border-[#3DD6C3] shadow-lg"
+                        className="w-24 h-24 rounded-full object-cover border-4 border-[#45bcaa] shadow-lg"
                       />
                     ) : (
-                      <div className="w-24 h-24 rounded-full bg-[#0D4D4D] flex items-center justify-center border-4 border-[#3DD6C3] shadow-lg">
-                        <span className="text-4xl font-bold text-[#3DD6C3]">
+                      <div className="w-24 h-24 rounded-full bg-[#005851] flex items-center justify-center border-4 border-[#45bcaa] shadow-lg">
+                        <span className="text-4xl font-bold text-[#45bcaa]">
                           {agentProfile.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'A'}
                         </span>
                       </div>
                     )}
-                    <label className="absolute bottom-0 right-0 w-9 h-9 bg-[#3DD6C3] rounded-full flex items-center justify-center cursor-pointer hover:bg-[#2BB5A5] transition-colors shadow-lg border-2 border-white">
+                    <label className="absolute bottom-0 right-0 w-9 h-9 bg-[#44bbaa] rounded-full flex items-center justify-center cursor-pointer hover:bg-[#005751] transition-colors shadow-lg border-2 border-white">
                       {uploadingPhoto ? (
                         <svg className="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -2277,21 +2438,21 @@ export default function DashboardPage() {
                       />
                     </label>
                   </div>
-                  <p className="text-[#0D4D4D] font-medium mt-3">{agentProfile.name || 'Your Name'}</p>
+                  <p className="text-[#005851] font-medium mt-3">{agentProfile.name || 'Your Name'}</p>
                   <p className="text-gray-500 text-sm">{agentProfile.email || user?.email}</p>
                 </div>
               </div>
 
               {/* Contact Information Card */}
-              <div className="bg-white rounded-xl p-5 border border-gray-200">
-                <h3 className="text-sm font-semibold text-[#0D4D4D] uppercase tracking-wide mb-4 flex items-center gap-2">
-                  <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-white rounded-[5px] p-5 border border-gray-200">
+                <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                   </svg>
                   Contact Info
                 </h3>
                 <div>
-                  <label htmlFor="profilePhoneNumber" className="block text-sm font-medium text-[#2D3748] mb-2">
+                  <label htmlFor="profilePhoneNumber" className="block text-sm font-medium text-[#000000] mb-2">
                     Phone Number
                   </label>
                   <input
@@ -2299,23 +2460,23 @@ export default function DashboardPage() {
                     type="tel"
                     value={profilePhoneNumber}
                     onChange={(e) => setProfilePhoneNumber(e.target.value)}
-                    className="w-full px-4 py-3 bg-[#F8F9FA] border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
+                    className="w-full px-4 py-3 bg-[#e4e4e4] border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa] transition-all duration-200"
                     placeholder="(555) 123-4567"
                   />
                 </div>
               </div>
 
               {/* Agency Branding Card */}
-              <div className="bg-white rounded-xl p-5 border border-gray-200">
-                <h3 className="text-sm font-semibold text-[#0D4D4D] uppercase tracking-wide mb-4 flex items-center gap-2">
-                  <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-white rounded-[5px] p-5 border border-gray-200">
+                <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
                   Agency Branding
                 </h3>
                 <div className="space-y-4">
                   <div>
-                    <label htmlFor="profileAgencyName" className="block text-sm font-medium text-[#2D3748] mb-2">
+                    <label htmlFor="profileAgencyName" className="block text-sm font-medium text-[#000000] mb-2">
                       Agency Name
                     </label>
                     <input
@@ -2323,14 +2484,14 @@ export default function DashboardPage() {
                       type="text"
                       value={profileAgencyName}
                       onChange={(e) => setProfileAgencyName(e.target.value)}
-                      className="w-full px-4 py-3 bg-[#F8F9FA] border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
+                      className="w-full px-4 py-3 bg-[#e4e4e4] border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa] transition-all duration-200"
                       placeholder="Your Agency Name"
                     />
                   </div>
 
                   {/* Agency Logo */}
                   <div>
-                    <label className="block text-sm font-medium text-[#2D3748] mb-2">
+                    <label className="block text-sm font-medium text-[#000000] mb-2">
                       Agency Logo
                     </label>
                     <div className="flex items-center gap-4">
@@ -2339,42 +2500,56 @@ export default function DashboardPage() {
                           <img
                             src={`data:image/jpeg;base64,${agentProfile.agencyLogoBase64}`}
                             alt="Agency Logo"
-                            className="w-16 h-16 rounded-xl object-contain bg-white border-2 border-[#3DD6C3] p-1"
+                            className="w-16 h-16 rounded-[5px] object-contain bg-white border-2 border-[#45bcaa] p-1"
                           />
                         ) : (
-                          <div className="w-16 h-16 rounded-xl bg-[#F8F9FA] flex items-center justify-center border-2 border-dashed border-[#3DD6C3]/50">
-                            <svg className="w-6 h-6 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div className="w-16 h-16 rounded-[5px] bg-[#e4e4e4] flex items-center justify-center border-2 border-dashed border-[#45bcaa]/50">
+                            <svg className="w-6 h-6 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
                           </div>
                         )}
                       </div>
                       <div className="flex-1">
-                        <label className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#0D4D4D] hover:bg-[#0A3D3D] text-white text-sm font-medium rounded-xl cursor-pointer transition-colors">
-                          {uploadingAgencyLogo ? (
-                            <>
-                              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                              </svg>
-                              Uploading...
-                            </>
-                          ) : (
-                            <>
+                        <div className="flex items-center gap-2">
+                          <label className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#005851] hover:bg-[#0A3D3D] text-white text-sm font-medium rounded-[5px] cursor-pointer transition-colors">
+                            {uploadingAgencyLogo ? (
+                              <>
+                                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                </svg>
+                                Uploading...
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                Upload Logo
+                              </>
+                            )}
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              onChange={handleAgencyLogoUpload}
+                              disabled={uploadingAgencyLogo}
+                              className="hidden"
+                            />
+                          </label>
+                          {agentProfile.agencyLogoBase64 && (
+                            <button
+                              onClick={handleDeleteAgencyLogo}
+                              className="inline-flex items-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-[5px] transition-colors"
+                              title="Delete agency logo"
+                            >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                               </svg>
-                              Upload Logo
-                            </>
+                              Delete
+                            </button>
                           )}
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            onChange={handleAgencyLogoUpload}
-                            disabled={uploadingAgencyLogo}
-                            className="hidden"
-                          />
-                        </label>
+                        </div>
                         <p className="text-xs text-gray-500 mt-1">PNG or JPG (max 200KB)</p>
                       </div>
                     </div>
@@ -2382,31 +2557,117 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {/* Referral Settings Section */}
+              <div className="bg-white rounded-[5px] p-5 border border-gray-200">
+                <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  Referral Settings
+                </h3>
+
+                {/* Business Card Upload */}
+                <div className="mb-5">
+                  <label className="block text-sm font-medium text-[#000000] mb-2">
+                    Business Card
+                  </label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Upload your business card to share with referrals
+                  </p>
+                  <div className="flex items-start gap-4">
+                    <div className="relative">
+                      {agentProfile.businessCardBase64 ? (
+                        <img
+                          src={`data:image/jpeg;base64,${agentProfile.businessCardBase64}`}
+                          alt="Business Card"
+                          className="w-32 h-20 rounded-lg object-cover border-2 border-[#45bcaa]"
+                        />
+                      ) : (
+                        <div className="w-32 h-20 rounded-lg bg-[#e4e4e4] flex flex-col items-center justify-center border-2 border-dashed border-[#45bcaa]/50">
+                          <svg className="w-6 h-6 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                          </svg>
+                          <span className="text-xs text-gray-400 mt-1">No card</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <label className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#005851] hover:bg-[#0A3D3D] text-white text-sm font-medium rounded-[5px] cursor-pointer transition-colors">
+                        {uploadingBusinessCard ? (
+                          <>
+                            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            Upload Card
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={handleBusinessCardUpload}
+                          disabled={uploadingBusinessCard}
+                          className="hidden"
+                        />
+                      </label>
+                      <p className="text-xs text-gray-500 mt-1">PNG or JPG recommended</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Referral Message Template */}
+                <div>
+                  <label className="block text-sm font-medium text-[#000000] mb-2">
+                    Referral Message Template
+                  </label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Customize the message your clients send when referring you. Use placeholders: [referral], [agent], [client]
+                  </p>
+                  <textarea
+                    value={referralMessage}
+                    onChange={(e) => setReferralMessage(e.target.value)}
+                    rows={4}
+                    className="w-full px-4 py-3 bg-[#e4e4e4] border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa] transition-all duration-200 text-sm resize-none"
+                    placeholder="Hey [referral], I just got helped by [agent] getting protection to pay off our mortgage if something happens to me. I really liked the way [agent] was able to help me and thought they might be able to help you too."
+                  />
+                  <p className="text-xs text-gray-400 mt-2">
+                    Leave blank to use the default message
+                  </p>
+                </div>
+              </div>
+
               {/* Subscription Management */}
               {agentProfile.stripeCustomerId && (
-                <div className="bg-white rounded-xl p-5 border border-gray-200">
-                  <h3 className="text-sm font-semibold text-[#0D4D4D] uppercase tracking-wide mb-4 flex items-center gap-2">
-                    <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="bg-white rounded-[5px] p-5 border border-gray-200">
+                  <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4 flex items-center gap-2">
+                    <svg className="w-4 h-4 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                     </svg>
                     Subscription
                   </h3>
-                  <div className="flex items-center justify-between p-4 bg-[#D1FAE5] rounded-xl">
+                  <div className="flex items-center justify-between p-4 bg-[#D1FAE5] rounded-[5px]">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-[#0D4D4D] rounded-full flex items-center justify-center">
-                        <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="w-10 h-10 bg-[#005851] rounded-full flex items-center justify-center">
+                        <svg className="w-5 h-5 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
                       </div>
                       <div>
-                        <span className="text-[#0D4D4D] font-semibold block">Active</span>
-                        <span className="text-[#0D4D4D]/70 text-sm">$9.99/month</span>
+                        <span className="text-[#005851] font-semibold block">Active</span>
+                        <span className="text-[#005851]/70 text-sm">$9.99/month</span>
                       </div>
                     </div>
                     <button
                       onClick={handleManageSubscription}
                       disabled={portalLoading}
-                      className="px-4 py-2 bg-[#0D4D4D] hover:bg-[#0A3D3D] text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      className="px-4 py-2 bg-[#005851] hover:bg-[#0A3D3D] text-white text-sm font-medium rounded-[5px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
                       {portalLoading ? (
                         <>
@@ -2425,7 +2686,7 @@ export default function DashboardPage() {
               )}
 
               {/* Security Section */}
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="bg-white rounded-[5px] border border-gray-200 overflow-hidden">
                 <button
                   onClick={() => {
                     setShowPasswordSection(!showPasswordSection);
@@ -2438,17 +2699,17 @@ export default function DashboardPage() {
                   className="flex items-center justify-between w-full p-5 text-left hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-[#0D4D4D] rounded-xl flex items-center justify-center">
-                      <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-10 h-10 bg-[#005851] rounded-[5px] flex items-center justify-center">
+                      <svg className="w-5 h-5 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                       </svg>
                     </div>
                     <div>
-                      <span className="text-sm font-semibold text-[#0D4D4D] block">Change Password</span>
+                      <span className="text-sm font-semibold text-[#005851] block">Change Password</span>
                       <span className="text-xs text-gray-500">Update your account password</span>
                     </div>
                   </div>
-                  <svg className={`w-5 h-5 text-[#3DD6C3] transition-transform ${showPasswordSection ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className={`w-5 h-5 text-[#45bcaa] transition-transform ${showPasswordSection ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
@@ -2457,7 +2718,7 @@ export default function DashboardPage() {
                   <div className="px-5 pb-5 space-y-4 border-t border-gray-100">
                     <div className="pt-4">
                       {passwordError && (
-                        <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2 mb-4">
+                        <div className="bg-red-50 border border-red-200 rounded-[5px] p-3 flex items-start gap-2 mb-4">
                           <svg className="w-4 h-4 text-red-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
@@ -2466,17 +2727,17 @@ export default function DashboardPage() {
                       )}
 
                       {passwordSuccess && (
-                        <div className="bg-[#D1FAE5] border border-[#3DD6C3]/30 rounded-xl p-3 flex items-start gap-2 mb-4">
-                          <svg className="w-4 h-4 text-[#0D4D4D] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="bg-[#D1FAE5] border border-[#45bcaa]/30 rounded-[5px] p-3 flex items-start gap-2 mb-4">
+                          <svg className="w-4 h-4 text-[#005851] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                           </svg>
-                          <p className="text-[#0D4D4D] text-sm font-medium">{passwordSuccess}</p>
+                          <p className="text-[#005851] text-sm font-medium">{passwordSuccess}</p>
                         </div>
                       )}
 
                       <div className="space-y-3">
                         <div>
-                          <label htmlFor="currentPassword" className="block text-sm font-medium text-[#2D3748] mb-1.5">
+                          <label htmlFor="currentPassword" className="block text-sm font-medium text-[#000000] mb-1.5">
                             Current Password
                           </label>
                           <input
@@ -2484,13 +2745,13 @@ export default function DashboardPage() {
                             type="password"
                             value={currentPassword}
                             onChange={(e) => setCurrentPassword(e.target.value)}
-                            className="w-full px-4 py-3 bg-[#F8F9FA] border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
+                            className="w-full px-4 py-3 bg-[#e4e4e4] border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa] transition-all duration-200"
                             placeholder="Enter current password"
                           />
                         </div>
 
                         <div>
-                          <label htmlFor="newPassword" className="block text-sm font-medium text-[#2D3748] mb-1.5">
+                          <label htmlFor="newPassword" className="block text-sm font-medium text-[#000000] mb-1.5">
                             New Password
                           </label>
                           <input
@@ -2498,13 +2759,13 @@ export default function DashboardPage() {
                             type="password"
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
-                            className="w-full px-4 py-3 bg-[#F8F9FA] border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
+                            className="w-full px-4 py-3 bg-[#e4e4e4] border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa] transition-all duration-200"
                             placeholder="Min 6 characters"
                           />
                         </div>
 
                         <div>
-                          <label htmlFor="confirmPassword" className="block text-sm font-medium text-[#2D3748] mb-1.5">
+                          <label htmlFor="confirmPassword" className="block text-sm font-medium text-[#000000] mb-1.5">
                             Confirm New Password
                           </label>
                           <input
@@ -2512,7 +2773,7 @@ export default function DashboardPage() {
                             type="password"
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
-                            className="w-full px-4 py-3 bg-[#F8F9FA] border border-gray-200 rounded-xl text-[#2D3748] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/50 focus:border-[#3DD6C3] transition-all duration-200"
+                            className="w-full px-4 py-3 bg-[#e4e4e4] border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa] transition-all duration-200"
                             placeholder="Confirm new password"
                           />
                         </div>
@@ -2521,7 +2782,7 @@ export default function DashboardPage() {
                       <button
                         onClick={handleChangePassword}
                         disabled={changingPassword}
-                        className="w-full mt-4 py-3 px-4 bg-[#3DD6C3] hover:bg-[#2BB5A5] disabled:bg-[#3DD6C3]/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-[#3DD6C3]/20"
+                        className="w-full mt-4 py-3 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-[#44bbaa]/50 disabled:cursor-not-allowed text-white font-semibold rounded-[5px] transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-[#45bcaa]/20"
                       >
                         {changingPassword ? (
                           <>
@@ -2544,14 +2805,14 @@ export default function DashboardPage() {
             <div className="p-5 border-t border-gray-200 flex gap-3 shrink-0 bg-white">
               <button
                 onClick={() => setIsProfileModalOpen(false)}
-                className="flex-1 py-3 px-4 bg-white hover:bg-gray-50 text-[#2D3748] font-semibold rounded-xl border-2 border-gray-200 hover:border-gray-300 transition-all duration-200"
+                className="flex-1 py-3 px-4 bg-white hover:bg-gray-50 text-[#000000] font-semibold rounded-[5px] border-2 border-gray-200 hover:border-gray-300 transition-all duration-200"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveProfile}
                 disabled={savingProfile}
-                className="flex-1 py-3 px-4 bg-[#0D4D4D] hover:bg-[#0A3D3D] disabled:bg-[#0D4D4D]/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg shadow-[#0D4D4D]/20 hover:shadow-[#0D4D4D]/30 transition-all duration-200 flex items-center justify-center gap-2"
+                className="flex-1 py-3 px-4 bg-[#005851] hover:bg-[#0A3D3D] disabled:bg-[#005851]/50 disabled:cursor-not-allowed text-white font-semibold rounded-[5px] shadow-lg shadow-[#005851]/20 hover:shadow-[#005851]/30 transition-all duration-200 flex items-center justify-center gap-2"
               >
                 {savingProfile ? (
                   <>
