@@ -106,63 +106,63 @@ export default function LoginScreen() {
       <SafeAreaView style={styles.topSafeArea} />
       
       <View style={styles.container}>
-        {/* Dark Teal Header Section */}
-        <View style={styles.headerSection}>
-          <View style={styles.logoIcon}>
-            <Text style={styles.logoIconText}>✓</Text>
-          </View>
-          <Text style={styles.title}>My Insurance</Text>
-          <Text style={styles.subtitle}>Access your policy information</Text>
+      {/* Dark Teal Header Section */}
+      <View style={styles.headerSection}>
+        <View style={styles.logoIcon}>
+          <Text style={styles.logoIconText}>✓</Text>
         </View>
+        <Text style={styles.title}>My Insurance</Text>
+        <Text style={styles.subtitle}>Access your policy information</Text>
+      </View>
 
         {/* White Content Section - extends to bottom */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.contentSection}
-        >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.contentSection}
+      >
           <SafeAreaView style={styles.formSafeArea}>
-            <View style={styles.formContainer}>
-              <Text style={styles.label}>Client Code</Text>
-              <TextInput
-                style={styles.input}
-                value={clientCode}
-                onChangeText={(text) => {
-                  setClientCode(text.toUpperCase());
-                  setError('');
-                }}
-                placeholder="Enter your code"
-                placeholderTextColor="#9CA3AF"
-                autoCapitalize="characters"
-                autoCorrect={false}
-                editable={!loading}
-              />
+        <View style={styles.formContainer}>
+          <Text style={styles.label}>Client Code</Text>
+          <TextInput
+            style={styles.input}
+            value={clientCode}
+            onChangeText={(text) => {
+              setClientCode(text.toUpperCase());
+              setError('');
+            }}
+            placeholder="Enter your code"
+            placeholderTextColor="#9CA3AF"
+            autoCapitalize="characters"
+            autoCorrect={false}
+            editable={!loading}
+          />
 
-              {error ? (
-                <View style={styles.errorContainer}>
-                  <Text style={styles.errorText}>{error}</Text>
-                </View>
-              ) : null}
-
-              <TouchableOpacity
-                style={[styles.button, loading && styles.buttonDisabled]}
-                onPress={handleLogin}
-                disabled={loading}
-                activeOpacity={0.8}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <Text style={styles.buttonText}>Sign In</Text>
-                )}
-              </TouchableOpacity>
-
-              <Text style={styles.helpText}>
-                Your client code was provided by your insurance agent.
-                Contact your agent if you need assistance.
-              </Text>
+          {error ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
             </View>
+          ) : null}
+
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={styles.buttonText}>Sign In</Text>
+            )}
+          </TouchableOpacity>
+
+          <Text style={styles.helpText}>
+            Your client code was provided by your insurance agent.
+            Contact your agent if you need assistance.
+          </Text>
+        </View>
           </SafeAreaView>
-        </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
       </View>
     </View>
   );
