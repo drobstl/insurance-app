@@ -56,7 +56,7 @@ export default function ForgotPasswordPage() {
           <img 
             src="/logo.png" 
             alt="AgentForLife Logo" 
-            className="w-14 h-14 object-contain bg-[#005851] rounded-xl p-2 shadow-lg group-hover:scale-105 transition-transform" 
+            className="w-20 h-12 object-contain group-hover:scale-105 transition-transform" 
           />
           <span className="text-2xl font-bold text-white">AgentForLife</span>
         </Link>

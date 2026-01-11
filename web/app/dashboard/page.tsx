@@ -1074,7 +1074,7 @@ export default function DashboardPage() {
       >
             {/* Logo */}
         <div className="h-14 flex items-center px-4 border-b border-white/10">
-          <img src="/logo.png" alt="Logo" className="w-12 h-12 object-contain bg-[#005851] rounded-lg" />
+          <img src="/logo.png" alt="Logo" className="w-11 h-7 object-contain" />
           <span className={`ml-3 text-white font-extrabold text-lg tracking-wide whitespace-nowrap overflow-hidden transition-all duration-300 ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
             AgentForLife
           </span>
