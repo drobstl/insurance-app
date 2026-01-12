@@ -7,10 +7,29 @@ export default function TestLandingPage() {
   const [bookSize, setBookSize] = useState(250000);
   const [bookSizeInput, setBookSizeInput] = useState('250,000');
   const [retentionRate, setRetentionRate] = useState(70);
+  const [referralRate, setReferralRate] = useState(5);
+  const [rewriteRate, setRewriteRate] = useState(10);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   // Calculator logic
   const lostRevenue = bookSize * (1 - retentionRate / 100);
+  
+  // Average policy value assumption ($1,200/year)
+  const avgPolicyValue = 1200;
+  const totalClients = Math.round(bookSize / avgPolicyValue);
+  
+  // Missed referrals: industry average is 20-30% with good systems, most agents get 5%
+  const potentialReferralRate = 25;
+  const missedReferrals = Math.round(totalClients * ((potentialReferralRate - referralRate) / 100));
+  const missedReferralRevenue = missedReferrals * avgPolicyValue;
+  
+  // Missed rewrites: industry average with good follow-up is 30-40%, most agents get 10%
+  const potentialRewriteRate = 35;
+  const missedRewrites = Math.round(totalClients * ((potentialRewriteRate - rewriteRate) / 100));
+  const missedRewriteRevenue = missedRewrites * avgPolicyValue;
+  
+  // Total missed opportunity
+  const totalBleed = lostRevenue + missedReferralRevenue + missedRewriteRevenue;
 
   // Format number with commas
   const formatNumber = (num: number) => {
@@ -139,7 +158,7 @@ export default function TestLandingPage() {
                   <p className="text-2xl md:text-3xl font-extrabold text-[#0D4D4D]">
                     There are <span className="text-[#3DD6C3]">three sales</span> in every lead you buy.
                   </p>
-                  <p className="text-xl text-[#6B7280] mt-2 font-medium">That changes today.</p>
+                  <p className="text-xl text-[#6B7280] mt-2 font-medium">How many are you getting now?</p>
                 </div>
               </div>
             </div>
@@ -192,12 +211,12 @@ export default function TestLandingPage() {
               </div>
 
               {/* Retention Rate Slider */}
-              <div className="mb-8">
+              <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
-                  <label htmlFor="retentionRate" className="text-lg font-bold text-[#0D4D4D]">
+                  <label htmlFor="retentionRate" className="text-base font-bold text-[#0D4D4D]">
                     Current Retention Rate
                   </label>
-                  <span className="text-2xl font-extrabold text-[#0D4D4D]">{retentionRate}%</span>
+                  <span className="text-xl font-extrabold text-[#3DD6C3]">{retentionRate}%</span>
                 </div>
                 <input
                   type="range"
@@ -211,9 +230,61 @@ export default function TestLandingPage() {
                     background: `linear-gradient(to right, #3DD6C3 0%, #3DD6C3 ${((retentionRate - 40) / 55) * 100}%, #E5E7EB ${((retentionRate - 40) / 55) * 100}%, #E5E7EB 100%)`
                   }}
                 />
-                <div className="flex justify-between text-sm text-[#6B7280] mt-2">
-                  <span>40% (Danger Zone)</span>
-                  <span>95% (Elite)</span>
+                <div className="flex justify-between text-xs text-[#6B7280] mt-1">
+                  <span>40%</span>
+                  <span>95%</span>
+                </div>
+              </div>
+
+              {/* Referral Rate Slider */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <label htmlFor="referralRate" className="text-base font-bold text-[#0D4D4D]">
+                    Current Referral Rate
+                  </label>
+                  <span className="text-xl font-extrabold text-[#fdcc02]">{referralRate}%</span>
+                </div>
+                <input
+                  type="range"
+                  id="referralRate"
+                  min="0"
+                  max="25"
+                  value={referralRate}
+                  onChange={(e) => setReferralRate(parseInt(e.target.value))}
+                  className="w-full h-3 bg-gray-200 rounded-full appearance-none cursor-pointer slider-thumb"
+                  style={{
+                    background: `linear-gradient(to right, #fdcc02 0%, #fdcc02 ${(referralRate / 25) * 100}%, #E5E7EB ${(referralRate / 25) * 100}%, #E5E7EB 100%)`
+                  }}
+                />
+                <div className="flex justify-between text-xs text-[#6B7280] mt-1">
+                  <span>0%</span>
+                  <span>25% (possible)</span>
+                </div>
+              </div>
+
+              {/* Rewrite Rate Slider */}
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-3">
+                  <label htmlFor="rewriteRate" className="text-base font-bold text-[#0D4D4D]">
+                    Current Rewrite Rate
+                  </label>
+                  <span className="text-xl font-extrabold text-[#0D4D4D]">{rewriteRate}%</span>
+                </div>
+                <input
+                  type="range"
+                  id="rewriteRate"
+                  min="0"
+                  max="35"
+                  value={rewriteRate}
+                  onChange={(e) => setRewriteRate(parseInt(e.target.value))}
+                  className="w-full h-3 bg-gray-200 rounded-full appearance-none cursor-pointer slider-thumb"
+                  style={{
+                    background: `linear-gradient(to right, #0D4D4D 0%, #0D4D4D ${(rewriteRate / 35) * 100}%, #E5E7EB ${(rewriteRate / 35) * 100}%, #E5E7EB 100%)`
+                  }}
+                />
+                <div className="flex justify-between text-xs text-[#6B7280] mt-1">
+                  <span>0%</span>
+                  <span>35% (possible)</span>
                 </div>
               </div>
 
@@ -221,17 +292,33 @@ export default function TestLandingPage() {
               <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-2xl p-6 md:p-8 border-2 border-red-200 mb-8">
                 {bookSize > 0 ? (
                   <>
-                    <p className="text-center text-[#6B7280] mb-2 font-medium">You are losing</p>
+                    <p className="text-center text-[#6B7280] mb-2 font-medium">You're leaving on the table</p>
                     <p className="text-center">
                       <span className="text-5xl md:text-6xl font-black text-red-500">
-                        ${formatNumber(lostRevenue)}
+                        ${formatNumber(totalBleed)}
                       </span>
                     </p>
-                    <p className="text-center text-red-400 font-semibold mt-2">every single year to weak retention</p>
+                    <p className="text-center text-red-400 font-semibold mt-2">/year in missed opportunity</p>
                     
-                    <div className="mt-6 pt-6 border-t border-red-200">
-                      <p className="text-center text-[#0D4D4D] font-medium">
-                        <span className="font-bold text-[#3DD6C3]">Agent For Life</span> pays for itself with <span className="font-bold">one saved policy</span> or <span className="font-bold">one referral</span>.
+                    {/* Breakdown */}
+                    <div className="mt-6 pt-6 border-t border-red-200 space-y-3 text-sm">
+                      <div className="flex justify-between items-center py-2 border-b border-red-100">
+                        <span className="text-[#6B7280]">Lost to churn ({100 - retentionRate}%)</span>
+                        <span className="font-semibold text-red-500">-${formatNumber(lostRevenue)}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 border-b border-red-100">
+                        <span className="text-[#6B7280]">Missed referrals ({missedReferrals} clients)</span>
+                        <span className="font-semibold text-[#fdcc02]">-${formatNumber(missedReferralRevenue)}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-[#6B7280]">Missed rewrites ({missedRewrites} opportunities)</span>
+                        <span className="font-semibold text-[#0D4D4D]">-${formatNumber(missedRewriteRevenue)}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-6 pt-4 bg-[#D1FAE5] rounded-lg p-4 border border-[#3DD6C3]">
+                      <p className="text-center text-[#0D4D4D] text-sm">
+                        <span className="font-bold text-[#3DD6C3]">Agent For Life</span> helps you capture this revenue with <span className="font-bold">one-tap referrals</span>, automated follow-ups, and staying top-of-mind.
                       </p>
                     </div>
                   </>
@@ -482,28 +569,6 @@ export default function TestLandingPage() {
                   Be there a year later with <span className="text-[#0D4D4D] font-semibold">push notifications</span> the moment you've found a better program for them. Life changes become opportunities, not lapses.
                 </p>
               </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ============================================ */}
-        {/* 7. TRUST BAR - Carrier Compatibility */}
-        {/* ============================================ */}
-        <section className="py-16 bg-[#0D4D4D]">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-10">
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
-                Built for Top-Producing Independent Agents
-              </h2>
-              <p className="text-white/60">Works with all major carriers</p>
-            </div>
-            
-            <div className="flex flex-wrap justify-center items-center gap-8 md:gap-16 opacity-70">
-              {['Mutual of Omaha', 'Americo', 'American-Amicable', 'F&G', 'Foresters'].map((carrier, i) => (
-                <div key={i} className="text-white/80 font-semibold text-lg md:text-xl">
-                  {carrier}
-                </div>
-              ))}
             </div>
           </div>
         </section>
