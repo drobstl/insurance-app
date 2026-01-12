@@ -150,8 +150,8 @@ export default function TestLandingPage() {
           </div>
 
           {/* Wave Divider */}
-          <div className="absolute bottom-0 left-0 right-0">
-            <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <div className="absolute -bottom-1 left-0 right-0">
+            <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" className="w-full h-[60px] md:h-[120px]">
               <path d="M0 120L60 105C120 90 240 60 360 45C480 30 600 30 720 40C840 50 960 70 1080 75C1200 80 1320 70 1380 65L1440 60V120H0Z" fill="white"/>
             </svg>
           </div>
@@ -160,7 +160,7 @@ export default function TestLandingPage() {
         {/* ============================================ */}
         {/* 2. THE "EFFICIENCY GAP" - Truth Bomb Section */}
         {/* ============================================ */}
-        <section className="py-20 md:py-28 bg-white">
+        <section className="py-20 md:py-28 bg-white -mt-1">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center">
               <h2 className="text-4xl md:text-5xl font-extrabold text-[#0D4D4D] mb-8">
@@ -408,9 +408,9 @@ export default function TestLandingPage() {
               <div className="relative">
                 <div className="grid grid-cols-2 gap-6">
                   {/* Boring Contact */}
-                  <div className="relative">
-                    <div className="absolute -top-3 left-4 px-3 py-1 bg-red-100 text-red-600 text-xs font-bold rounded-full">FORGETTABLE</div>
-                    <div className="bg-gray-100 rounded-2xl p-6 border-2 border-gray-200 opacity-60">
+                  <div className="relative pt-2">
+                    <div className="absolute -top-1 left-4 px-3 py-1 bg-red-100 text-red-600 text-xs font-bold rounded-full z-10">FORGETTABLE</div>
+                    <div className="bg-gray-100 rounded-2xl p-6 border-2 border-gray-200 opacity-60 mt-2">
                       <div className="w-16 h-16 bg-gray-300 rounded-full mx-auto mb-4 flex items-center justify-center">
                         <svg className="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
