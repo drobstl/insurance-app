@@ -845,77 +845,106 @@ export default function TestLandingPage() {
         {/* PRICING CTA */}
         {/* ============================================ */}
         <section className="py-20 md:py-28 bg-[#F8F9FA]">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#0D4D4D] mb-6">
+              Stop Renting Leads.<br />
+              <span className="text-[#3DD6C3]">Start Owning Relationships.</span>
+            </h2>
+            <p className="text-xl text-[#6B7280] mb-10 max-w-2xl mx-auto">
+              For less than the cost of <span className="font-semibold">two cups of coffee</span>, turn every client into a retention win, a referral source, and a rewrite opportunity.
+            </p>
+            
+            {/* Price Display */}
+            <div className="inline-flex items-baseline gap-2 mb-4">
+              <span className="text-6xl md:text-7xl font-black text-[#0D4D4D]">$10</span>
+              <span className="text-2xl text-[#6B7280] font-medium">/month</span>
+            </div>
+            
+            {/* Annual Option */}
+            <p className="text-[#6B7280] mb-8">
+              or <span className="text-[#0D4D4D] font-semibold">$100/year</span> <span className="text-[#3DD6C3] font-medium">(save 17%)</span>
+            </p>
+            
+            <div className="mb-10">
+              <Link href="/signup" className="inline-flex items-center gap-3 px-12 py-6 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-2xl font-bold rounded-full transition-all shadow-2xl shadow-[#3DD6C3]/40 hover:shadow-[#3DD6C3]/60 hover:scale-105">
+                Get the System Now
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
+              </Link>
+            </div>
+            
+            <p className="text-[#6B7280]">
+              No contracts • No setup fees • Cancel anytime
+            </p>
+          </div>
+        </section>
+
+        {/* ============================================ */}
+        {/* ROADMAP - What's Coming */}
+        {/* ============================================ */}
+        <section className="py-20 bg-[#0D4D4D] relative overflow-hidden">
+          <div className="absolute right-0 top-0 w-[300px] h-[200px] opacity-20">
+            <div className="absolute inset-0" style={{ backgroundImage: `linear-gradient(to right, #3DD6C3 1px, transparent 1px), linear-gradient(to bottom, #3DD6C3 1px, transparent 1px)`, backgroundSize: '24px 24px' }}></div>
+          </div>
+
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#0D4D4D] mb-6">
-                Stop Renting Leads.<br />
-                <span className="text-[#3DD6C3]">Start Owning Relationships.</span>
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#fdcc02] rounded-full mb-6">
+                <svg className="w-5 h-5 text-[#0D4D4D]" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <span className="text-[#0D4D4D] font-bold text-sm uppercase tracking-wide">On The Roadmap</span>
+              </div>
+              <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4">
+                More <span className="text-[#3DD6C3]">Firepower</span> Coming
               </h2>
-              <p className="text-xl text-[#6B7280] max-w-2xl mx-auto">
-                For less than the cost of <span className="font-semibold">two cups of coffee</span>, turn every client into a retention win, a referral source, and a rewrite opportunity.
-              </p>
             </div>
 
-            {/* Pricing Cards */}
-            <div className="max-w-3xl mx-auto">
-              <div className="bg-[#0D4D4D] rounded-3xl overflow-hidden shadow-2xl">
-                <div className="grid md:grid-cols-2">
-                  {/* Monthly */}
-                  <div className="p-8 border-b md:border-b-0 md:border-r border-white/10">
-                    <div className="text-center mb-6">
-                      <h3 className="text-lg font-semibold text-white/70 mb-4">Monthly</h3>
-                      <div className="flex items-baseline justify-center gap-1">
-                        <span className="text-5xl font-bold text-white">$9.99</span>
-                        <span className="text-white/50 text-lg">/mo</span>
-                      </div>
-                    </div>
-                    <ul className="space-y-3 mb-8">
-                      {['Unlimited clients', 'Unlimited policies', 'Your branded app', 'Priority support'].map((item, i) => (
-                        <li key={i} className="flex items-center gap-3">
-                          <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          <span className="text-white/80">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <Link href="/signup" className="block w-full py-3.5 bg-white/10 hover:bg-white/20 text-white text-lg font-semibold rounded-xl transition-colors text-center border border-white/20">
-                      Get Started
-                    </Link>
-                  </div>
-
-                  {/* Annual */}
-                  <div className="p-8 bg-[#3DD6C3]/10 relative">
-                    <div className="absolute top-4 right-4">
-                      <span className="px-3 py-1 bg-[#fdcc02] text-[#0D4D4D] text-xs font-bold rounded-full">SAVE 17%</span>
-                    </div>
-                    <div className="text-center mb-6">
-                      <h3 className="text-lg font-semibold text-[#3DD6C3] mb-4">Annual</h3>
-                      <div className="flex items-baseline justify-center gap-1">
-                        <span className="text-5xl font-bold text-white">$100</span>
-                        <span className="text-white/50 text-lg">/yr</span>
-                      </div>
-                      <p className="text-[#3DD6C3] mt-2 text-sm font-medium">That's $8.33/mo</p>
-                    </div>
-                    <ul className="space-y-3 mb-8">
-                      {['Everything in Monthly', '2 months FREE', 'Lock in your rate', 'Best value'].map((item, i) => (
-                        <li key={i} className="flex items-center gap-3">
-                          <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          <span className="text-white/80">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <Link href="/signup" className="block w-full py-3.5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-lg font-semibold rounded-xl transition-colors text-center shadow-lg">
-                      Get Started
-                    </Link>
-                  </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* AI Doc Parsing */}
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10 hover:border-[#3DD6C3]/50 transition-all text-center group">
+                <div className="w-14 h-14 rounded-xl bg-[#3DD6C3]/20 flex items-center justify-center mb-3 mx-auto group-hover:bg-[#3DD6C3]/30 transition-colors">
+                  <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
                 </div>
+                <h3 className="text-white font-bold mb-1">AI Doc Parsing</h3>
+                <p className="text-white/60 text-sm">Upload policies, we extract</p>
               </div>
-              <p className="text-center text-[#6B7280] text-sm mt-6">
-                No contracts • Cancel anytime • Promo code? Enter it at checkout.
-              </p>
+
+              {/* Smart Renewal Alerts */}
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10 hover:border-[#3DD6C3]/50 transition-all text-center group">
+                <div className="w-14 h-14 rounded-xl bg-[#3DD6C3]/20 flex items-center justify-center mb-3 mx-auto group-hover:bg-[#3DD6C3]/30 transition-colors">
+                  <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                </div>
+                <h3 className="text-white font-bold mb-1">Smart Renewal Alerts</h3>
+                <p className="text-white/60 text-sm">Never miss a renewal</p>
+              </div>
+
+              {/* Auto Birthday Messages */}
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10 hover:border-[#3DD6C3]/50 transition-all text-center group">
+                <div className="w-14 h-14 rounded-xl bg-[#3DD6C3]/20 flex items-center justify-center mb-3 mx-auto group-hover:bg-[#3DD6C3]/30 transition-colors">
+                  <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <h3 className="text-white font-bold mb-1">Auto Birthday Messages</h3>
+                <p className="text-white/60 text-sm">Stay top of mind</p>
+              </div>
+
+              {/* Face ID Login */}
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10 hover:border-[#3DD6C3]/50 transition-all text-center group">
+                <div className="w-14 h-14 rounded-xl bg-[#3DD6C3]/20 flex items-center justify-center mb-3 mx-auto group-hover:bg-[#3DD6C3]/30 transition-colors">
+                  <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
+                  </svg>
+                </div>
+                <h3 className="text-white font-bold mb-1">Face ID Login</h3>
+                <p className="text-white/60 text-sm">Bank-level security</p>
+              </div>
             </div>
           </div>
         </section>
