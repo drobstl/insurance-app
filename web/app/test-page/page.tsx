@@ -82,7 +82,7 @@ export default function TestLandingPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#005851] shadow-lg">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0D4D4D] shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 md:h-20">
             <div className="flex items-center gap-2">
@@ -105,11 +105,11 @@ export default function TestLandingPage() {
         {/* ============================================ */}
         {/* 1. HERO SECTION - The Power Punch */}
         {/* ============================================ */}
-        <section className="relative bg-gradient-to-br from-[#005851] via-[#0D4D4D] to-[#005851] pt-32 pb-24 md:pt-40 md:pb-32 overflow-hidden">
+        <section className="relative bg-[#0D4D4D] pt-32 pb-24 md:pt-40 md:pb-32 overflow-hidden">
           {/* Background Effects */}
           <div className="absolute inset-0">
             <div className="absolute top-20 left-10 w-96 h-96 bg-[#3DD6C3] rounded-full blur-[150px] opacity-20"></div>
-            <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-[#005851] rounded-full blur-[200px] opacity-30"></div>
+            <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-[#3DD6C3] rounded-full blur-[200px] opacity-15"></div>
           </div>
           
           {/* Grid Pattern Overlay */}
@@ -150,8 +150,8 @@ export default function TestLandingPage() {
           </div>
 
           {/* Wave Divider */}
-          <div className="absolute -bottom-1 left-0 right-0">
-            <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" className="w-full h-[60px] md:h-[120px]">
+          <div className="absolute bottom-0 left-0 right-0">
+            <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M0 120L60 105C120 90 240 60 360 45C480 30 600 30 720 40C840 50 960 70 1080 75C1200 80 1320 70 1380 65L1440 60V120H0Z" fill="white"/>
             </svg>
           </div>
@@ -160,10 +160,10 @@ export default function TestLandingPage() {
         {/* ============================================ */}
         {/* 2. THE "EFFICIENCY GAP" - Truth Bomb Section */}
         {/* ============================================ */}
-        <section className="py-20 md:py-28 bg-white -mt-1">
+        <section className="py-20 md:py-28 bg-white">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center">
-              <h2 className="text-4xl md:text-5xl font-extrabold text-[#005851] mb-8">
+              <h2 className="text-4xl md:text-5xl font-extrabold text-[#0D4D4D] mb-8">
                 Stop Running in Place.
               </h2>
               <div className="bg-[#F8F9FA] rounded-3xl p-8 md:p-12 border-l-4 border-[#fdcc02] shadow-xl">
@@ -364,7 +364,7 @@ export default function TestLandingPage() {
             <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
               {/* Text Content */}
               <div>
-                <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#005851] leading-tight mb-8">
+                <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#0D4D4D] leading-tight mb-8">
                   Don't Be a Number in Their Contacts.<br />
                   <span className="text-[#3DD6C3]">Be Their Agent For Life.</span>
                 </h2>
@@ -449,7 +449,7 @@ export default function TestLandingPage() {
         <section className="py-20 md:py-28 bg-[#F8F9FA]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-extrabold text-[#005851] mb-4">
+              <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
                 The Hamster Wheel vs. <span className="text-[#3DD6C3]">The Asset</span>
               </h2>
               <p className="text-xl text-[#6B7280]">
@@ -532,7 +532,7 @@ export default function TestLandingPage() {
         <section className="py-20 md:py-28 bg-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-extrabold text-[#005851] mb-4">
+              <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
                 The <span className="text-[#3DD6C3]">Triple Threat</span> System
               </h2>
               <p className="text-xl text-[#6B7280] max-w-2xl mx-auto">
@@ -542,8 +542,8 @@ export default function TestLandingPage() {
 
             <div className="grid md:grid-cols-3 gap-8">
               {/* Retention */}
-              <div className="group bg-[#F8F9FA] rounded-3xl p-8 border-2 border-transparent hover:border-[#005851] transition-all hover:shadow-xl">
-                <div className="w-16 h-16 bg-[#005851] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+              <div className="group bg-[#F8F9FA] rounded-3xl p-8 border-2 border-transparent hover:border-[#3DD6C3] transition-all hover:shadow-xl">
+                <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                   <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                   </svg>
@@ -571,11 +571,11 @@ export default function TestLandingPage() {
               </div>
 
               {/* Rewrites */}
-              <div className="group bg-[#F8F9FA] rounded-3xl p-8 border-2 border-transparent hover:border-[#005851] transition-all hover:shadow-xl relative">
+              <div className="group bg-[#F8F9FA] rounded-3xl p-8 border-2 border-transparent hover:border-[#3DD6C3] transition-all hover:shadow-xl relative">
                 <div className="absolute top-4 right-4">
-                  <span className="px-2 py-1 bg-[#005851] text-white text-xs font-bold rounded-full">COMING SOON</span>
+                  <span className="px-2 py-1 bg-[#0D4D4D] text-white text-xs font-bold rounded-full">COMING SOON</span>
                 </div>
-                <div className="w-16 h-16 bg-[#005851] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                   <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
@@ -592,7 +592,7 @@ export default function TestLandingPage() {
         {/* ============================================ */}
         {/* YOUR APP + HOW IT WORKS - Combined Section */}
         {/* ============================================ */}
-        <section className="py-20 md:py-28 bg-gradient-to-br from-[#005851] to-[#0D4D4D] overflow-hidden">
+        <section className="py-20 md:py-28 bg-[#0D4D4D] overflow-hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             {/* Section Header */}
             <div className="text-center mb-16">
@@ -613,7 +613,7 @@ export default function TestLandingPage() {
                   <div className="w-72 h-[580px] bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl border-4 border-[#2a2a2a]">
                     <div className="w-full h-full bg-[#F8F9FA] rounded-[2.5rem] overflow-hidden relative">
                       {/* Phone Screen Content */}
-                      <div className="bg-[#005851] pt-12 pb-6 px-6">
+                      <div className="bg-[#0D4D4D] pt-12 pb-6 px-6">
                         <div className="flex items-center justify-between mb-4">
                           <span className="text-white/60 text-sm">← Back</span>
                           <span className="text-white/60 text-sm">Sign Out</span>
@@ -753,7 +753,7 @@ export default function TestLandingPage() {
         <section className="py-20 md:py-28 bg-white">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-extrabold text-[#005851] mb-4">
+              <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
                 The Math is <span className="text-[#3DD6C3]">Undeniable</span>
               </h2>
               <p className="text-xl text-[#6B7280]">
@@ -846,7 +846,7 @@ export default function TestLandingPage() {
         {/* ============================================ */}
         <section className="py-20 md:py-28 bg-[#F8F9FA]">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#005851] mb-6">
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#0D4D4D] mb-6">
               Stop Renting Leads.<br />
               <span className="text-[#3DD6C3]">Start Owning Relationships.</span>
             </h2>
@@ -955,7 +955,7 @@ export default function TestLandingPage() {
         <section className="py-20 md:py-28 bg-[#F8F9FA]">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-extrabold text-[#005851] mb-4">
+              <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
                 Frequently Asked <span className="text-[#3DD6C3]">Questions</span>
               </h2>
             </div>
@@ -1013,7 +1013,7 @@ export default function TestLandingPage() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-[#005851] py-12">
+      <footer className="bg-[#0D4D4D] py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-2">
