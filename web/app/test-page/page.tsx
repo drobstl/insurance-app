@@ -51,15 +51,31 @@ export default function TestLandingPage() {
   const faqItems = [
     {
       question: "How can insurance agents improve client retention?",
-      answer: "The key to retention is staying accessible and top-of-mind. Agent For Life puts you directly in your client's pocket with a branded app. When they can see their policies and reach you instantly, they don't shop around. You become irreplaceable instead of forgettable. Agents using this system see retention improvements within 90 days."
+      answer: "Focus on three things: consistent touchpoints, easy access to information, and personalized service. Agent For Life handles all three by putting you directly in your client's phone with a branded app. They can view policies, contact you instantly, and receive timely updates—making you irreplaceable instead of forgettable."
     },
     {
       question: "How do I get more referrals from existing clients?",
-      answer: "Make referring effortless. Agent For Life includes One-Tap Referrals—clients tap a button, pick a contact, and send your business card with a pre-written message. You're automatically added to the text thread for instant follow-up. No asking, no awkward conversations. Just warm leads from people who already trust you."
+      answer: "Make referring you effortless. Agent For Life includes One-Tap Referrals—clients can refer you to friends and family with a single tap, complete with your business card attached. They pick a contact, and a pre-written message with your info is ready to send. You're automatically included in the text thread so you can follow up immediately."
+    },
+    {
+      question: "How do insurance agents generate rewrites and keep clients updating coverage?",
+      answer: "Stay accessible when life changes happen. Marriages, new homes, job changes—these are rewrite opportunities, not lapses. Agent For Life keeps you top-of-mind so clients call YOU when they need to update coverage, not a competitor or the carrier. Rewrites become natural conversations instead of cold outreach."
     },
     {
       question: "How do I stop insurance chargebacks and policy cancellations?",
-      answer: "Chargebacks happen when the relationship is weak. When clients feel disconnected, they let policies lapse or get poached by competitors. Agent For Life strengthens the bond by keeping you visible and accessible 24/7. When clients feel taken care of, they stay. Most agents see chargeback reductions in the first 90 days."
+      answer: "Chargebacks happen when relationships are weak. Agent For Life strengthens the agent-client bond by keeping you accessible and visible. When clients feel taken care of and can reach you easily, they don't shop around or let policies lapse. Many agents see chargeback reductions within the first 90 days."
+    },
+    {
+      question: "Does Agent For Life replace my current lead generation?",
+      answer: "No—it multiplies the value of every lead you already buy or generate. Instead of getting one sale and moving on, you turn each client into a retention win, a referral source, AND a rewrite opportunity. Think of it as turning every lead into 3x the revenue: initial sale + referrals + future rewrites."
+    },
+    {
+      question: "What exactly is Agent For Life?",
+      answer: "It's a white-label mobile app system. You get a web dashboard where you manage clients and policies. Each client gets a unique code to download YOUR branded app (with your photo, name, and contact info). The app shows their policies and gives them one-tap access to you. You own the relationship."
+    },
+    {
+      question: "What carriers does it work with?",
+      answer: "All of them. Agent For Life doesn't integrate with carriers—it's carrier-agnostic. You manually add policy details for your clients in the dashboard. This works for independent agents regardless of which carriers you're appointed with."
     }
   ];
 
@@ -574,9 +590,167 @@ export default function TestLandingPage() {
         </section>
 
         {/* ============================================ */}
+        {/* YOUR APP + HOW IT WORKS - Combined Section */}
+        {/* ============================================ */}
+        <section className="py-20 md:py-28 bg-[#0D4D4D] overflow-hidden">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            {/* Section Header */}
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4">
+                Your App. Your Brand.{' '}
+                <span className="text-[#3DD6C3]">Their Phone.</span>
+              </h2>
+              <p className="text-xl text-white/70 max-w-2xl mx-auto">
+                Up and running in <span className="text-[#fdcc02] font-semibold">10 minutes</span>. Every client gets YOUR app—with your photo, your contact info, and their policies at their fingertips.
+              </p>
+            </div>
+
+            <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+              {/* Phone Mockup */}
+              <div className="relative flex justify-center order-2 lg:order-1">
+                <div className="relative">
+                  {/* Phone Frame */}
+                  <div className="w-72 h-[580px] bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl border-4 border-[#2a2a2a]">
+                    <div className="w-full h-full bg-[#F8F9FA] rounded-[2.5rem] overflow-hidden relative">
+                      {/* Phone Screen Content */}
+                      <div className="bg-[#0D4D4D] pt-12 pb-6 px-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-white/60 text-sm">← Back</span>
+                          <span className="text-white/60 text-sm">Sign Out</span>
+                        </div>
+                        <div className="text-center">
+                          <div className="w-20 h-20 bg-[#3DD6C3] rounded-full mx-auto mb-3 flex items-center justify-center">
+                            <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                            </svg>
+                          </div>
+                          <h3 className="text-white font-bold text-lg">Your Name Here</h3>
+                          <p className="text-white/70 text-sm">Your Insurance Agent</p>
+                        </div>
+                      </div>
+                      <div className="p-4 space-y-2">
+                        <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-100">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-[#0D4D4D] rounded-full flex items-center justify-center">
+                              <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                              </svg>
+                            </div>
+                            <span className="text-[#2D3748] font-medium text-sm">Call Agent</span>
+                          </div>
+                        </div>
+                        <div className="bg-[#D1FAE5] rounded-xl p-3 shadow-sm border-2 border-[#3DD6C3]">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-[#3DD6C3] rounded-full flex items-center justify-center">
+                              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                            </div>
+                            <span className="text-[#0D4D4D] font-bold text-sm">Refer Agent ✨</span>
+                          </div>
+                        </div>
+                        <div className="bg-[#0099FF] rounded-xl p-3 shadow-sm">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center">
+                              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </div>
+                            <span className="text-white font-bold text-sm">View Policies</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Floating Elements */}
+                  <div className="absolute -top-4 -right-8 bg-white rounded-xl p-3 shadow-xl hidden sm:block">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                        <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <span className="text-sm font-medium text-gray-700">Policy Active</span>
+                    </div>
+                  </div>
+                  <div className="absolute -bottom-4 -left-8 bg-white rounded-xl p-3 shadow-xl hidden sm:block">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-[#0D4D4D] rounded-full flex items-center justify-center">
+                        <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                      </div>
+                      <span className="text-sm font-medium text-gray-700">Bank-Level Security</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* How It Works Steps */}
+              <div className="order-1 lg:order-2">
+                <div className="space-y-8">
+                  {/* Step 1 */}
+                  <div className="flex gap-5">
+                    <div className="flex-shrink-0">
+                      <div className="w-14 h-14 bg-[#3DD6C3] rounded-2xl flex items-center justify-center text-2xl font-bold text-white shadow-lg shadow-[#3DD6C3]/30">1</div>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white mb-2">Sign Up & Brand Your App</h3>
+                      <p className="text-white/70">Add your photo, contact info, and agency branding. Takes 5 minutes.</p>
+                    </div>
+                  </div>
+
+                  {/* Step 2 */}
+                  <div className="flex gap-5">
+                    <div className="flex-shrink-0">
+                      <div className="w-14 h-14 bg-[#3DD6C3] rounded-2xl flex items-center justify-center text-2xl font-bold text-white shadow-lg shadow-[#3DD6C3]/30">2</div>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white mb-2">Add Your Clients</h3>
+                      <p className="text-white/70">Import your book. Each client gets a unique code to access their policies.</p>
+                    </div>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className="flex gap-5">
+                    <div className="flex-shrink-0">
+                      <div className="w-14 h-14 bg-[#3DD6C3] rounded-2xl flex items-center justify-center text-2xl font-bold text-white shadow-lg shadow-[#3DD6C3]/30">3</div>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white mb-2">Share the App</h3>
+                      <p className="text-white/70">Hand off the code. They download YOUR branded app from the App Store.</p>
+                    </div>
+                  </div>
+
+                  {/* Step 4 */}
+                  <div className="flex gap-5">
+                    <div className="flex-shrink-0">
+                      <div className="w-14 h-14 bg-[#fdcc02] rounded-2xl flex items-center justify-center text-2xl font-bold text-[#0D4D4D] shadow-lg shadow-[#fdcc02]/30">4</div>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white mb-2">Watch the Multiplier Effect</h3>
+                      <p className="text-white/70">They call YOU first. Referrals roll in. Life changes trigger rewrites, not lapses. <span className="text-[#fdcc02] font-semibold">Chargebacks stop.</span></p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-10">
+                  <Link href="/signup" className="inline-flex items-center gap-2 px-8 py-4 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-lg font-bold rounded-full transition-all shadow-lg shadow-[#3DD6C3]/30">
+                    Get the System
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                    </svg>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ============================================ */}
         {/* PRICING CTA */}
         {/* ============================================ */}
-        <section className="py-20 md:py-28 bg-white">
+        <section className="py-20 md:py-28 bg-[#F8F9FA]">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#0D4D4D] mb-6">
               Stop Renting Leads.<br />
