@@ -61,7 +61,7 @@ export default function LoginPage() {
             alt="AgentForLife Logo" 
             className="w-20 h-12 object-contain group-hover:scale-105 transition-transform" 
           />
-          <span className="text-2xl font-bold text-white">AgentForLife</span>
+          <span className="text-2xl text-white brand-title">AgentForLife</span>
         </Link>
 
         {/* Login Form Card */}
