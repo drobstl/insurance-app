@@ -108,7 +108,7 @@ export default function TestLandingPage() {
         <section className="relative bg-[#0D4D4D] pt-32 pb-24 md:pt-40 md:pb-32 overflow-hidden">
           {/* Background Effects */}
           <div className="absolute inset-0">
-            <div className="absolute top-20 left-10 w-96 h-96 bg-[#3DD6C3] rounded-full blur-[150px] opacity-20"></div>
+            <div className="absolute top-20 left-10 w-96 h-96 bg-[#0083EB] rounded-full blur-[150px] opacity-20"></div>
             <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-[#3DD6C3] rounded-full blur-[200px] opacity-15"></div>
           </div>
           
@@ -150,8 +150,8 @@ export default function TestLandingPage() {
           </div>
 
           {/* Wave Divider */}
-          <div className="absolute bottom-0 left-0 right-0">
-            <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <div className="absolute -bottom-1 left-0 right-0">
+            <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" className="w-full h-[60px] md:h-[120px]">
               <path d="M0 120L60 105C120 90 240 60 360 45C480 30 600 30 720 40C840 50 960 70 1080 75C1200 80 1320 70 1380 65L1440 60V120H0Z" fill="white"/>
             </svg>
           </div>
@@ -160,7 +160,7 @@ export default function TestLandingPage() {
         {/* ============================================ */}
         {/* 2. THE "EFFICIENCY GAP" - Truth Bomb Section */}
         {/* ============================================ */}
-        <section className="py-20 md:py-28 bg-white">
+        <section className="py-20 md:py-28 bg-white -mt-1">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center">
               <h2 className="text-4xl md:text-5xl font-extrabold text-[#0D4D4D] mb-8">
@@ -372,12 +372,12 @@ export default function TestLandingPage() {
                   <p>
                     You make a great connection and protect a client. Then what? A week later, you're just another name they can't remember. A phone number buried under 500 other contacts.
                   </p>
-                  <p className="text-2xl font-bold text-[#0D4D4D] py-4 border-l-4 border-[#3DD6C3] pl-6 bg-[#F8F9FA] rounded-r-xl">
+                  <p className="text-2xl font-bold text-[#0D4D4D] py-4 border-l-4 border-[#0083EB] pl-6 bg-[#F8F9FA] rounded-r-xl">
                     BE MORE.
                   </p>
                   <ul className="space-y-4">
                     <li className="flex items-start gap-3">
-                      <div className="w-6 h-6 bg-[#3DD6C3] rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                      <div className="w-6 h-6 bg-[#0083EB] rounded-full flex items-center justify-center flex-shrink-0 mt-1">
                         <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                         </svg>
@@ -385,7 +385,7 @@ export default function TestLandingPage() {
                       <span>Be an <strong>easy information hub</strong> on their phone.</span>
                     </li>
                     <li className="flex items-start gap-3">
-                      <div className="w-6 h-6 bg-[#3DD6C3] rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                      <div className="w-6 h-6 bg-[#0083EB] rounded-full flex items-center justify-center flex-shrink-0 mt-1">
                         <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                         </svg>
@@ -393,7 +393,7 @@ export default function TestLandingPage() {
                       <span>Be the <strong>first call</strong> when they get cold feet.</span>
                     </li>
                     <li className="flex items-start gap-3">
-                      <div className="w-6 h-6 bg-[#3DD6C3] rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                      <div className="w-6 h-6 bg-[#0083EB] rounded-full flex items-center justify-center flex-shrink-0 mt-1">
                         <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                         </svg>
@@ -542,9 +542,9 @@ export default function TestLandingPage() {
 
             <div className="grid md:grid-cols-3 gap-8">
               {/* Retention */}
-              <div className="group bg-[#F8F9FA] rounded-3xl p-8 border-2 border-transparent hover:border-[#3DD6C3] transition-all hover:shadow-xl">
-                <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="group bg-[#F8F9FA] rounded-3xl p-8 border-2 border-transparent hover:border-[#0083EB] transition-all hover:shadow-xl">
+                <div className="w-16 h-16 bg-[#0083EB] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                   </svg>
                 </div>
@@ -571,12 +571,12 @@ export default function TestLandingPage() {
               </div>
 
               {/* Rewrites */}
-              <div className="group bg-[#F8F9FA] rounded-3xl p-8 border-2 border-transparent hover:border-[#3DD6C3] transition-all hover:shadow-xl relative">
+              <div className="group bg-[#F8F9FA] rounded-3xl p-8 border-2 border-transparent hover:border-[#0083EB] transition-all hover:shadow-xl relative">
                 <div className="absolute top-4 right-4">
-                  <span className="px-2 py-1 bg-[#0D4D4D] text-white text-xs font-bold rounded-full">COMING SOON</span>
+                  <span className="px-2 py-1 bg-[#0083EB] text-white text-xs font-bold rounded-full">COMING SOON</span>
                 </div>
                 <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-8 h-8 text-[#0083EB]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                 </div>
@@ -649,7 +649,7 @@ export default function TestLandingPage() {
                             <span className="text-[#0D4D4D] font-bold text-sm">Refer Agent ✨</span>
                           </div>
                         </div>
-                        <div className="bg-[#0099FF] rounded-xl p-3 shadow-sm">
+                        <div className="bg-[#0083EB] rounded-xl p-3 shadow-sm">
                           <div className="flex items-center gap-3">
                             <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center">
                               <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -780,15 +780,15 @@ export default function TestLandingPage() {
               </div>
 
               {/* Cost of Agent For Life */}
-              <div className="bg-[#D1FAE5] rounded-3xl p-8 border-2 border-[#3DD6C3] text-center">
-                <div className="w-16 h-16 bg-[#3DD6C3] rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <div className="bg-blue-50 rounded-3xl p-8 border-2 border-[#0083EB] text-center">
+                <div className="w-16 h-16 bg-[#0083EB] rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                   </svg>
                 </div>
                 <p className="text-[#0D4D4D] font-semibold text-sm uppercase tracking-wide mb-2">Agent For Life</p>
-                <p className="text-4xl md:text-5xl font-black text-[#0D4D4D] mb-2">$120</p>
-                <p className="text-[#3DD6C3] text-sm font-medium">$10/month × 12 months</p>
+                <p className="text-4xl md:text-5xl font-black text-[#0083EB] mb-2">$120</p>
+                <p className="text-[#0083EB] text-sm font-medium">$10/month × 12 months</p>
               </div>
             </div>
 
@@ -796,7 +796,7 @@ export default function TestLandingPage() {
             <div className="mt-12 bg-[#0D4D4D] rounded-3xl p-8 md:p-12 text-center relative overflow-hidden">
               {/* Background glow */}
               <div className="absolute inset-0 opacity-20">
-                <div className="absolute top-0 left-1/4 w-64 h-64 bg-[#3DD6C3] rounded-full blur-[100px]"></div>
+                <div className="absolute top-0 left-1/4 w-64 h-64 bg-[#0083EB] rounded-full blur-[100px]"></div>
                 <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-[#fdcc02] rounded-full blur-[100px]"></div>
               </div>
               
@@ -809,7 +809,7 @@ export default function TestLandingPage() {
                 </div>
                 
                 <h3 className="text-3xl md:text-4xl lg:text-5xl font-black text-white mb-4">
-                  Save <span className="text-[#3DD6C3]">ONE</span> Policy = <span className="text-[#fdcc02]">10x Return</span>
+                  Save <span className="text-[#0083EB]">ONE</span> Policy = <span className="text-[#fdcc02]">10x Return</span>
                 </h3>
                 
                 <p className="text-xl text-white/80 max-w-2xl mx-auto mb-6">
@@ -818,19 +818,19 @@ export default function TestLandingPage() {
 
                 <div className="flex flex-wrap justify-center gap-6 text-white/70">
                   <div className="flex items-center gap-2">
-                    <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-[#0083EB]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     <span>1 saved policy = 10x ROI</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-[#0083EB]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     <span>1 referral = 10x ROI</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-[#0083EB]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     <span>1 rewrite = 10x ROI</span>
