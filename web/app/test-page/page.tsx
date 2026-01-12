@@ -472,9 +472,9 @@ export default function TestLandingPage() {
                   </div>
                   <ul className="space-y-5">
                     {[
-                      '$1,000s/week on cold, shared leads',
+                      '1 sale per lead = 25% of potential income',
+                      'Weak relationships = constant price shopping',
                       'Fighting chargebacks every month',
-                      'Price-shopping clients with no loyalty',
                       '"One-and-done" sales that don\'t compound',
                       'Running just to stay in place'
                     ].map((item, i) => (
@@ -506,17 +506,17 @@ export default function TestLandingPage() {
                   </div>
                   <ul className="space-y-5">
                     {[
-                      '$10/month to leverage your existing book',
-                      '3 sales per lead (client + referrals + rewrites)',
-                      'Fortified "un-shopable" relationships',
-                      'Automated rewrites when life changes happen',
-                      'Growing your book instead of chasing it'
+                      { text: '$10/month to leverage your existing book', highlight: false },
+                      { text: '3 sales per lead (client + referrals + rewrites)', highlight: false },
+                      { text: 'Fortified "un-shopable" relationships', highlight: false },
+                      { text: 'One-tap referrals with your business card', highlight: true },
+                      { text: 'Growing your book instead of chasing it', highlight: false }
                     ].map((item, i) => (
                       <li key={i} className="flex items-start gap-3">
-                        <svg className="w-6 h-6 text-[#3DD6C3] flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className={`w-6 h-6 flex-shrink-0 mt-0.5 ${item.highlight ? 'text-[#fdcc02]' : 'text-[#3DD6C3]'}`} fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                         </svg>
-                        <span className="text-[#2D3748] text-lg font-medium">{item}</span>
+                        <span className={`text-[#2D3748] text-lg font-medium ${item.highlight ? 'text-[#0D4D4D] font-bold' : ''}`}>{item.text}</span>
                       </li>
                     ))}
                   </ul>
