@@ -748,6 +748,100 @@ export default function TestLandingPage() {
         </section>
 
         {/* ============================================ */}
+        {/* ROI COMPARISON - 10x Return */}
+        {/* ============================================ */}
+        <section className="py-20 md:py-28 bg-white">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
+                The Math is <span className="text-[#3DD6C3]">Undeniable</span>
+              </h2>
+              <p className="text-xl text-[#6B7280]">
+                One saved policy. One referral. That's all it takes.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-6 items-center">
+              {/* Cost of Lost Policy */}
+              <div className="bg-red-50 rounded-3xl p-8 border-2 border-red-200 text-center">
+                <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <p className="text-red-600 font-semibold text-sm uppercase tracking-wide mb-2">1 Canceled Policy</p>
+                <p className="text-4xl md:text-5xl font-black text-red-500 mb-2">$1,200</p>
+                <p className="text-red-400 text-sm">Average annual policy value lost</p>
+              </div>
+
+              {/* VS */}
+              <div className="flex flex-col items-center justify-center py-8">
+                <div className="text-4xl font-black text-[#6B7280]">vs</div>
+              </div>
+
+              {/* Cost of Agent For Life */}
+              <div className="bg-[#D1FAE5] rounded-3xl p-8 border-2 border-[#3DD6C3] text-center">
+                <div className="w-16 h-16 bg-[#3DD6C3] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                </div>
+                <p className="text-[#0D4D4D] font-semibold text-sm uppercase tracking-wide mb-2">Agent For Life</p>
+                <p className="text-4xl md:text-5xl font-black text-[#0D4D4D] mb-2">$120</p>
+                <p className="text-[#3DD6C3] text-sm font-medium">$10/month × 12 months</p>
+              </div>
+            </div>
+
+            {/* 10x ROI Callout */}
+            <div className="mt-12 bg-[#0D4D4D] rounded-3xl p-8 md:p-12 text-center relative overflow-hidden">
+              {/* Background glow */}
+              <div className="absolute inset-0 opacity-20">
+                <div className="absolute top-0 left-1/4 w-64 h-64 bg-[#3DD6C3] rounded-full blur-[100px]"></div>
+                <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-[#fdcc02] rounded-full blur-[100px]"></div>
+              </div>
+              
+              <div className="relative">
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#fdcc02] rounded-full mb-6">
+                  <svg className="w-5 h-5 text-[#0D4D4D]" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <span className="text-[#0D4D4D] font-bold text-sm uppercase tracking-wide">Instant ROI</span>
+                </div>
+                
+                <h3 className="text-3xl md:text-4xl lg:text-5xl font-black text-white mb-4">
+                  Save <span className="text-[#3DD6C3]">ONE</span> Policy = <span className="text-[#fdcc02]">10x Return</span>
+                </h3>
+                
+                <p className="text-xl text-white/80 max-w-2xl mx-auto mb-6">
+                  One saved client or one referral pays for an <span className="text-white font-semibold">entire year</span> of Agent For Life—<span className="text-[#fdcc02] font-semibold">and then some</span>. Everything after that is pure profit.
+                </p>
+
+                <div className="flex flex-wrap justify-center gap-6 text-white/70">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>1 saved policy = 10x ROI</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>1 referral = 10x ROI</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>1 rewrite = 10x ROI</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ============================================ */}
         {/* PRICING CTA */}
         {/* ============================================ */}
         <section className="py-20 md:py-28 bg-[#F8F9FA]">
