@@ -1,8 +1,26 @@
 @import "tailwindcss";
 
+/* Museo Sans Cond 500 for brand title */
+@font-face {
+  font-family: 'Museo Sans Cond';
+  src: url('/fonts/MuseoSansCond-500.woff2') format('woff2'),
+       url('/fonts/MuseoSansCond-500.woff') format('woff'),
+       url('/fonts/MuseoSansCond-500.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #2D3748;
+}
+
+/* Brand title style */
+.brand-title {
+  font-family: 'Museo Sans Cond', system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.13em;
 }
 
 @theme inline {
