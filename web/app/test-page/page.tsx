@@ -845,33 +845,78 @@ export default function TestLandingPage() {
         {/* PRICING CTA */}
         {/* ============================================ */}
         <section className="py-20 md:py-28 bg-[#F8F9FA]">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#0D4D4D] mb-6">
-              Stop Renting Leads.<br />
-              <span className="text-[#3DD6C3]">Start Owning Relationships.</span>
-            </h2>
-            <p className="text-xl text-[#6B7280] mb-10 max-w-2xl mx-auto">
-              For less than the cost of <span className="font-semibold">two cups of coffee</span>, turn every client into a retention win, a referral source, and a rewrite opportunity.
-            </p>
-            
-            {/* Price Display */}
-            <div className="inline-flex items-baseline gap-2 mb-8">
-              <span className="text-6xl md:text-7xl font-black text-[#0D4D4D]">$10</span>
-              <span className="text-2xl text-[#6B7280] font-medium">/month</span>
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#0D4D4D] mb-6">
+                Stop Renting Leads.<br />
+                <span className="text-[#3DD6C3]">Start Owning Relationships.</span>
+              </h2>
+              <p className="text-xl text-[#6B7280] max-w-2xl mx-auto">
+                For less than the cost of <span className="font-semibold">two cups of coffee</span>, turn every client into a retention win, a referral source, and a rewrite opportunity.
+              </p>
             </div>
-            
-            <div className="mb-10">
-              <Link href="/signup" className="inline-flex items-center gap-3 px-12 py-6 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-2xl font-bold rounded-full transition-all shadow-2xl shadow-[#3DD6C3]/40 hover:shadow-[#3DD6C3]/60 hover:scale-105">
-                Get the System Now
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                </svg>
-              </Link>
+
+            {/* Pricing Cards */}
+            <div className="max-w-3xl mx-auto">
+              <div className="bg-[#0D4D4D] rounded-3xl overflow-hidden shadow-2xl">
+                <div className="grid md:grid-cols-2">
+                  {/* Monthly */}
+                  <div className="p-8 border-b md:border-b-0 md:border-r border-white/10">
+                    <div className="text-center mb-6">
+                      <h3 className="text-lg font-semibold text-white/70 mb-4">Monthly</h3>
+                      <div className="flex items-baseline justify-center gap-1">
+                        <span className="text-5xl font-bold text-white">$9.99</span>
+                        <span className="text-white/50 text-lg">/mo</span>
+                      </div>
+                    </div>
+                    <ul className="space-y-3 mb-8">
+                      {['Unlimited clients', 'Unlimited policies', 'Your branded app', 'Priority support'].map((item, i) => (
+                        <li key={i} className="flex items-center gap-3">
+                          <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span className="text-white/80">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <Link href="/signup" className="block w-full py-3.5 bg-white/10 hover:bg-white/20 text-white text-lg font-semibold rounded-xl transition-colors text-center border border-white/20">
+                      Get Started
+                    </Link>
+                  </div>
+
+                  {/* Annual */}
+                  <div className="p-8 bg-[#3DD6C3]/10 relative">
+                    <div className="absolute top-4 right-4">
+                      <span className="px-3 py-1 bg-[#fdcc02] text-[#0D4D4D] text-xs font-bold rounded-full">SAVE 17%</span>
+                    </div>
+                    <div className="text-center mb-6">
+                      <h3 className="text-lg font-semibold text-[#3DD6C3] mb-4">Annual</h3>
+                      <div className="flex items-baseline justify-center gap-1">
+                        <span className="text-5xl font-bold text-white">$100</span>
+                        <span className="text-white/50 text-lg">/yr</span>
+                      </div>
+                      <p className="text-[#3DD6C3] mt-2 text-sm font-medium">That's $8.33/mo</p>
+                    </div>
+                    <ul className="space-y-3 mb-8">
+                      {['Everything in Monthly', '2 months FREE', 'Lock in your rate', 'Best value'].map((item, i) => (
+                        <li key={i} className="flex items-center gap-3">
+                          <svg className="w-5 h-5 text-[#3DD6C3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span className="text-white/80">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <Link href="/signup" className="block w-full py-3.5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-lg font-semibold rounded-xl transition-colors text-center shadow-lg">
+                      Get Started
+                    </Link>
+                  </div>
+                </div>
+              </div>
+              <p className="text-center text-[#6B7280] text-sm mt-6">
+                No contracts • Cancel anytime • Promo code? Enter it at checkout.
+              </p>
             </div>
-            
-            <p className="text-[#6B7280]">
-              No contracts • No setup fees • Cancel anytime
-            </p>
           </div>
         </section>
 
