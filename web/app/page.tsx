@@ -129,7 +129,7 @@ export default function TestLandingPage() {
             </div>
 
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] mb-8">
-              One App to <span className="text-[#fdcc02]">Kill the Churn</span>.<br />
+              <span className="text-[#fdcc02]">Kill Chargebacks</span>.<br />
               <span className="text-[#3DD6C3]">Explode Your Referrals</span>.<br />
               Triple Your Income from the Leads You Already Won.
             </h1>
