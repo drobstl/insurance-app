@@ -78,8 +78,11 @@ export default function SignupPage() {
         <div className="w-full max-w-md">
           <div className="bg-white rounded-[5px] shadow-xl border border-[#d0d0d0] p-8">
             <div className="text-center mb-8">
-              <h1 className="text-2xl font-bold text-[#005851]">Create Your Account</h1>
-              <p className="text-[#707070] mt-2">Start building stronger client relationships</p>
+              <h1 className="text-xl font-bold text-[#005851] leading-tight">
+                Kill Chargebacks.<br />
+                Explode Your Referrals.<br />
+                Triple Your Income from the Leads You Already Won.
+              </h1>
             </div>
 
             <form onSubmit={handleSignup} className="space-y-5">
