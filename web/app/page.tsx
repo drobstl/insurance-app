@@ -83,18 +83,18 @@ export default function TestLandingPage() {
     <div className="min-h-screen bg-white">
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0D4D4D] shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 md:h-20">
-            <div className="flex items-center gap-2">
-              <img src="/logo.png" alt="AgentForLife Logo" className="w-[80px] h-[45px] object-contain" />
-              <span className="text-xl text-white brand-title">AgentForLife</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <Link href="/login" className="text-white/80 hover:text-white transition-colors hidden sm:block">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14 sm:h-16 md:h-20">
+            <Link href="/" className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-shrink">
+              <img src="/logo.png" alt="AgentForLife Logo" className="w-[50px] h-[28px] sm:w-[70px] sm:h-[40px] md:w-[80px] md:h-[45px] object-contain flex-shrink-0" />
+              <span className="text-base sm:text-lg md:text-xl text-white brand-title truncate">AgentForLife</span>
+            </Link>
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              <Link href="/login" className="text-white/80 hover:text-white transition-colors text-sm sm:text-base">
                 Login
               </Link>
-              <Link href="/signup" className="px-5 py-2.5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white font-semibold rounded-full transition-colors">
-                Get the System
+              <Link href="/signup" className="px-3 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-sm sm:text-base font-semibold rounded-full transition-colors whitespace-nowrap">
+                Get Started
               </Link>
             </div>
           </div>
