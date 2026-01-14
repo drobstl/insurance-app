@@ -17,7 +17,10 @@ export const metadata: Metadata = {
   creator: "AgentForLife",
   publisher: "AgentForLife",
   icons: {
-    icon: "/favicon.svg",
+    icon: [
+      { url: "/logo.png", type: "image/png" },
+    ],
+    shortcut: "/logo.png",
     apple: "/logo.png",
   },
   openGraph: {
