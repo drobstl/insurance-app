@@ -7,6 +7,8 @@ import {
   SafeAreaView,
   ScrollView,
   ActivityIndicator,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { collection, getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
@@ -370,6 +372,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 10 : 16,
     backgroundColor: '#0D4D4D',
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,

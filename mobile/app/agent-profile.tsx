@@ -11,6 +11,7 @@ import {
   Alert,
   Platform,
   StatusBar,
+  Share,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Contacts from 'expo-contacts';
@@ -266,11 +267,28 @@ export default function AgentProfileScreen() {
         }
       } catch (smsError) {
         console.error('SMS error:', smsError);
-        Alert.alert(
-          'SMS Error',
-          'Could not open SMS. Please try again.',
-          [{ text: 'OK' }]
-        );
+        // Fall back to Share API (works on WiFi-only devices)
+        try {
+          let shareMessage = message;
+          if (params.agentPhone) {
+            shareMessage += `\n\nContact ${agentFirstName}: ${params.agentPhone}`;
+          }
+          if (params.agentEmail) {
+            shareMessage += `\nEmail: ${params.agentEmail}`;
+          }
+          
+          await Share.share({
+            message: shareMessage,
+            title: `Referral for ${agentFirstName}`,
+          });
+        } catch (shareError) {
+          console.error('Share error:', shareError);
+          Alert.alert(
+            'SMS Not Available',
+            'SMS requires cellular service. Please connect to a mobile network to send referrals via text.',
+            [{ text: 'OK' }]
+          );
+        }
       }
     } catch (error) {
       console.error('Referral error:', error);
