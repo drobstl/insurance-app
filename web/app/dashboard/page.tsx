@@ -543,9 +543,9 @@ export default function DashboardPage() {
     if (policy) {
       // Pre-fill form for editing
       // Check if carrier is in the known list
-      const knownCarriers = ['Americo', 'Mutual of Omaha', 'American Amicable', 'F&G', 'Foresters', 
-        'National Life Group', 'Transamerica', 'AIG', 'Corebridge', 'Lincoln Financial', 
-        'Nationwide', 'Prudential', 'Protective', 'North American', 'Athene'];
+      const knownCarriers = ['Americo', 'Mutual of Omaha', 'American Amicable', 'Banner', 'United Home Life',
+        'SBLI', 'Corebridge', 'AIG', 'Transamerica', 'F&G', 'Foresters', 'National Life Group', 
+        'Lincoln Financial', 'Nationwide', 'Prudential', 'Protective', 'North American', 'Athene'];
       const isKnownCarrier = knownCarriers.includes(policy.insuranceCompany || '');
       
       setPolicyFormData({
@@ -2112,12 +2112,15 @@ export default function DashboardPage() {
                     <option value="Americo">Americo</option>
                     <option value="Mutual of Omaha">Mutual of Omaha</option>
                     <option value="American Amicable">American Amicable</option>
+                    <option value="Banner">Banner</option>
+                    <option value="United Home Life">United Home Life</option>
+                    <option value="SBLI">SBLI</option>
+                    <option value="Corebridge">Corebridge</option>
+                    <option value="AIG">AIG</option>
+                    <option value="Transamerica">Transamerica</option>
                     <option value="F&G">F&G</option>
                     <option value="Foresters">Foresters</option>
                     <option value="National Life Group">National Life Group</option>
-                    <option value="Transamerica">Transamerica</option>
-                    <option value="AIG">AIG</option>
-                    <option value="Corebridge">Corebridge</option>
                     <option value="Lincoln Financial">Lincoln Financial</option>
                     <option value="Nationwide">Nationwide</option>
                     <option value="Prudential">Prudential</option>
