@@ -17,6 +17,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as Contacts from 'expo-contacts';
 import * as SMS from 'expo-sms';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import * as Clipboard from 'expo-clipboard';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import Confetti from '../components/confetti';
@@ -267,8 +269,9 @@ export default function AgentProfileScreen() {
         }
       } catch (smsError) {
         console.error('SMS error:', smsError);
-        // Fall back to Share API (works on WiFi-only devices)
+        // Fall back to sharing with clipboard + image (works on WiFi-only devices)
         try {
+          // Build the full message with contact info
           let shareMessage = message;
           if (params.agentPhone) {
             shareMessage += `\n\nContact ${agentFirstName}: ${params.agentPhone}`;
@@ -277,10 +280,47 @@ export default function AgentProfileScreen() {
             shareMessage += `\nEmail: ${params.agentEmail}`;
           }
           
-          await Share.share({
-            message: shareMessage,
-            title: `Referral for ${agentFirstName}`,
-          });
+          // Check if we have a business card and sharing is available
+          const canShare = await Sharing.isAvailableAsync();
+          
+          if (canShare && businessCardBase64 && businessCardBase64.length > 0) {
+            // Save business card to temp file if not already done
+            const fileUri = `${FileSystem.cacheDirectory}business_card_share_${Date.now()}.jpg`;
+            await FileSystem.writeAsStringAsync(fileUri, businessCardBase64, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            
+            // Copy message to clipboard first
+            await Clipboard.setStringAsync(shareMessage);
+            
+            // Show alert with instructions, then share the image
+            Alert.alert(
+              'Message Copied!',
+              'The referral message has been copied to your clipboard. Tap "Share Image" to send the business card, then paste the message.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { 
+                  text: 'Share Image', 
+                  onPress: async () => {
+                    try {
+                      await Sharing.shareAsync(fileUri, {
+                        mimeType: 'image/jpeg',
+                        dialogTitle: `Share ${agentFirstName}'s Business Card`,
+                      });
+                    } catch (e) {
+                      console.error('Sharing error:', e);
+                    }
+                  }
+                }
+              ]
+            );
+          } else {
+            // No business card or sharing not available, just use basic share
+            await Share.share({
+              message: shareMessage,
+              title: `Referral for ${agentFirstName}`,
+            });
+          }
         } catch (shareError) {
           console.error('Share error:', shareError);
           Alert.alert(
