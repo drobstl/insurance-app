@@ -10,6 +10,8 @@ import {
   Image,
   Alert,
   Platform,
+  StatusBar,
+  Share,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Contacts from 'expo-contacts';
@@ -121,6 +123,47 @@ export default function AgentProfileScreen() {
     setIsReferring(true);
     
     try {
+      // Get client's first name
+      const clientFirstName = getFirstName(params.clientName);
+
+      // Build the referral message
+      // Use custom message if provided, otherwise use default
+      let message = params.referralMessage;
+      if (!message || message === 'undefined' || message === 'null') {
+        message = `Hey, I just got helped by [agent] getting protection to pay off our mortgage if something happens to me. I really liked the way [agent] was able to help me and thought they might be able to help you too.`;
+      }
+
+      // Replace placeholders (use generic "friend" for Android since we don't pick a contact)
+      message = message
+        .replace(/\[referral\]/gi, '')
+        .replace(/\[agent\]/gi, agentFirstName)
+        .replace(/\[Agent-First-Name\]/gi, agentFirstName)
+        .replace(/\[client\]/gi, clientFirstName);
+      
+      // Clean up any double spaces from replaced placeholders
+      message = message.replace(/\s+/g, ' ').trim();
+
+      // On Android, use Share API which is more reliable
+      if (Platform.OS === 'android') {
+        // Add agent contact info to the message
+        let fullMessage = message;
+        if (params.agentPhone) {
+          fullMessage += `\n\nContact ${agentFirstName}: ${params.agentPhone}`;
+        }
+        if (params.agentEmail) {
+          fullMessage += `\nEmail: ${params.agentEmail}`;
+        }
+
+        await Share.share({
+          message: fullMessage,
+          title: `Referral for ${agentFirstName}`,
+        });
+        
+        setIsReferring(false);
+        return;
+      }
+
+      // iOS: Use contact picker and SMS
       // Request permission to access contacts
       const { status } = await Contacts.requestPermissionsAsync();
       
@@ -134,7 +177,7 @@ export default function AgentProfileScreen() {
         return;
       }
 
-      // Open contact picker
+      // Open contact picker (iOS only)
       const contact = await Contacts.presentContactPickerAsync();
       
       if (!contact) {
@@ -156,8 +199,6 @@ export default function AgentProfileScreen() {
         // If only last name is available, use it
         referralFirstName = contact.lastName.trim();
       }
-      
-      const referralName = contact.name || `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || referralFirstName;
       
       // Get phone number from contact
       let referralPhone = '';
@@ -187,18 +228,12 @@ export default function AgentProfileScreen() {
         return;
       }
 
-      // Get client's first name
-      const clientFirstName = getFirstName(params.clientName);
-
-      // Build the referral message
-      // Use custom message if provided, otherwise use default
-      let message = params.referralMessage;
-      if (!message || message === 'undefined' || message === 'null') {
-        message = `Hey [referral], I just got helped by [agent] getting protection to pay off our mortgage if something happens to me. I really liked the way [agent] was able to help me and thought they might be able to help you too.`;
+      // Update message with referral name for iOS
+      let iosMessage = params.referralMessage;
+      if (!iosMessage || iosMessage === 'undefined' || iosMessage === 'null') {
+        iosMessage = `Hey [referral], I just got helped by [agent] getting protection to pay off our mortgage if something happens to me. I really liked the way [agent] was able to help me and thought they might be able to help you too.`;
       }
-
-      // Replace placeholders
-      message = message
+      iosMessage = iosMessage
         .replace(/\[referral\]/gi, referralFirstName)
         .replace(/\[agent\]/gi, agentFirstName)
         .replace(/\[Agent-First-Name\]/gi, agentFirstName)
@@ -246,7 +281,7 @@ export default function AgentProfileScreen() {
       // Send the SMS (with attachment if available)
       const { result } = await SMS.sendSMSAsync(
         recipients,
-        message,
+        iosMessage,
         attachments ? { attachments } : undefined
       );
 
@@ -460,6 +495,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 20,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 10 : 20,
     backgroundColor: '#0D4D4D',
   },
   headerContent: {
