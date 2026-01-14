@@ -51,6 +51,7 @@ interface PolicyFormData {
   policyType: string;
   policyNumber: string;
   insuranceCompany: string;
+  otherCarrier: string;
   policyOwner: string;
   beneficiary: string;
   coverageAmount: string;
@@ -83,6 +84,7 @@ const getDefaultPolicyFormData = (): PolicyFormData => ({
   policyType: 'IUL',
   policyNumber: '',
   insuranceCompany: '',
+  otherCarrier: '',
   policyOwner: '',
   beneficiary: '',
   coverageAmount: '',
@@ -540,10 +542,17 @@ export default function DashboardPage() {
     
     if (policy) {
       // Pre-fill form for editing
+      // Check if carrier is in the known list
+      const knownCarriers = ['Americo', 'Mutual of Omaha', 'American Amicable', 'F&G', 'Foresters', 
+        'National Life Group', 'Transamerica', 'AIG', 'Corebridge', 'Lincoln Financial', 
+        'Nationwide', 'Prudential', 'Protective', 'North American', 'Athene'];
+      const isKnownCarrier = knownCarriers.includes(policy.insuranceCompany || '');
+      
       setPolicyFormData({
         policyType: policy.policyType,
         policyNumber: policy.policyNumber,
-        insuranceCompany: policy.insuranceCompany || '',
+        insuranceCompany: isKnownCarrier ? (policy.insuranceCompany || '') : 'Other',
+        otherCarrier: isKnownCarrier ? '' : (policy.insuranceCompany || ''),
         policyOwner: policy.policyOwner || '',
         beneficiary: policy.beneficiary || '',
         coverageAmount: policy.coverageAmount.toString(),
@@ -578,10 +587,15 @@ export default function DashboardPage() {
     setPolicySubmitting(true);
 
     try {
+      // Use otherCarrier if "Other" is selected
+      const finalCarrier = policyFormData.insuranceCompany === 'Other' 
+        ? policyFormData.otherCarrier 
+        : policyFormData.insuranceCompany;
+
       const policyData: Record<string, unknown> = {
         policyType: policyFormData.policyType,
         policyNumber: policyFormData.policyNumber,
-        insuranceCompany: policyFormData.insuranceCompany,
+        insuranceCompany: finalCarrier,
         policyOwner: policyFormData.policyOwner,
         beneficiary: policyFormData.beneficiary,
         coverageAmount: parseFloat(policyFormData.coverageAmount),
@@ -2082,37 +2096,46 @@ export default function DashboardPage() {
                     placeholder="POL-2026-001234"
                   />
                 </div>
-                <div>
+                <div className="relative">
                   <label htmlFor="insuranceCompany" className="block text-sm font-medium text-gray-600 mb-2">
                     Insurance Company
                   </label>
-                  <input
+                  <select
                     id="insuranceCompany"
-                    type="text"
-                    list="carrierSuggestions"
                     value={policyFormData.insuranceCompany}
-                    onChange={(e) => setPolicyFormData({ ...policyFormData, insuranceCompany: e.target.value })}
+                    onChange={(e) => setPolicyFormData({ ...policyFormData, insuranceCompany: e.target.value, otherCarrier: '' })}
                     required
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
-                    placeholder="Americo, Mutual of Omaha, etc."
-                  />
-                  <datalist id="carrierSuggestions">
-                    <option value="Americo" />
-                    <option value="Mutual of Omaha" />
-                    <option value="American Amicable" />
-                    <option value="F&G" />
-                    <option value="Foresters" />
-                    <option value="National Life Group" />
-                    <option value="Transamerica" />
-                    <option value="AIG" />
-                    <option value="Corebridge" />
-                    <option value="Lincoln Financial" />
-                    <option value="Nationwide" />
-                    <option value="Prudential" />
-                    <option value="Protective" />
-                    <option value="North American" />
-                    <option value="Athene" />
-                  </datalist>
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200 appearance-none cursor-pointer"
+                    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236B7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '20px' }}
+                  >
+                    <option value="">Select a carrier...</option>
+                    <option value="Americo">Americo</option>
+                    <option value="Mutual of Omaha">Mutual of Omaha</option>
+                    <option value="American Amicable">American Amicable</option>
+                    <option value="F&G">F&G</option>
+                    <option value="Foresters">Foresters</option>
+                    <option value="National Life Group">National Life Group</option>
+                    <option value="Transamerica">Transamerica</option>
+                    <option value="AIG">AIG</option>
+                    <option value="Corebridge">Corebridge</option>
+                    <option value="Lincoln Financial">Lincoln Financial</option>
+                    <option value="Nationwide">Nationwide</option>
+                    <option value="Prudential">Prudential</option>
+                    <option value="Protective">Protective</option>
+                    <option value="North American">North American</option>
+                    <option value="Athene">Athene</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  {policyFormData.insuranceCompany === 'Other' && (
+                    <input
+                      type="text"
+                      value={policyFormData.otherCarrier}
+                      onChange={(e) => setPolicyFormData({ ...policyFormData, otherCarrier: e.target.value })}
+                      required
+                      className="w-full mt-2 px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                      placeholder="Enter carrier name"
+                    />
+                  )}
                 </div>
               </div>
 
