@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1024, height=500">
+  <title>AgentForLife Feature Graphic</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      width: 1024px;
+      height: 500px;
+      overflow: hidden;
+    }
+    
+    .container {
+      width: 1024px;
+      height: 500px;
+      background: linear-gradient(135deg, #0D4D4D 0%, #0a3a3a 50%, #0D4D4D 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    /* Subtle pattern overlay */
+    .container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: 
+        radial-gradient(circle at 20% 80%, rgba(61, 214, 195, 0.1) 0%, transparent 40%),
+        radial-gradient(circle at 80% 20%, rgba(61, 214, 195, 0.08) 0%, transparent 35%);
+      pointer-events: none;
+    }
+    
+    .content {
+      display: flex;
+      align-items: center;
+      gap: 40px;
+      z-index: 1;
+    }
+    
+    .logo {
+      width: 180px;
+      height: 180px;
+      object-fit: contain;
+      filter: drop-shadow(0 8px 32px rgba(61, 214, 195, 0.4));
+    }
+    
+    .text-content {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .app-name {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 72px;
+      font-weight: 700;
+      color: white;
+      letter-spacing: 0.02em;
+      text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+    
+    .tagline {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 26px;
+      font-weight: 400;
+      color: #3DD6C3;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    
+    /* Decorative elements */
+    .glow-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(60px);
+      opacity: 0.15;
+    }
+    
+    .glow-1 {
+      width: 300px;
+      height: 300px;
+      background: #3DD6C3;
+      top: -100px;
+      right: -50px;
+    }
+    
+    .glow-2 {
+      width: 250px;
+      height: 250px;
+      background: #3DD6C3;
+      bottom: -80px;
+      left: -50px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="glow-orb glow-1"></div>
+    <div class="glow-orb glow-2"></div>
+    
+    <div class="content">
+      <img src="icon.png" alt="AgentForLife Logo" class="logo">
+      <div class="text-content">
+        <div class="app-name">AgentForLife</div>
+        <div class="tagline">Your Insurance. Your Agent. One Tap Away.</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

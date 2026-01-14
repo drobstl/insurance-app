@@ -80,7 +80,10 @@ export default function PoliciesScreen() {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    // Parse date parts directly to avoid timezone issues
+    const [year, month, day] = dateString.split('-').map(Number);
+    const date = new Date(year, month - 1, day); // month is 0-indexed
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -283,8 +286,8 @@ export default function PoliciesScreen() {
                       </View>
                     )}
 
-                    {/* Accidental - Death Benefit Prominent */}
-                    {policy.policyType === 'Accidental' ? (
+                    {/* Accidental & Term Life - Death Benefit Prominent */}
+                    {(policy.policyType === 'Accidental' || policy.policyType === 'Term Life') ? (
                       <View>
                         <View style={styles.accidentalDeathBenefit}>
                           <Text style={styles.accidentalDeathLabel}>Death Benefit</Text>

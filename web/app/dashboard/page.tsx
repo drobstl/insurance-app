@@ -55,8 +55,7 @@ interface PolicyFormData {
   beneficiary: string;
   coverageAmount: string;
   premiumAmount: string;
-  renewalMonth: string;
-  renewalYear: string;
+  renewalDate: string;
   amountOfProtection: string;
   protectionUnit: 'months' | 'years';
   status: 'Active' | 'Pending' | 'Lapsed';
@@ -88,8 +87,7 @@ const getDefaultPolicyFormData = (): PolicyFormData => ({
   beneficiary: '',
   coverageAmount: '',
   premiumAmount: '',
-  renewalMonth: '',
-  renewalYear: '',
+  renewalDate: '',
   amountOfProtection: '',
   protectionUnit: 'years',
   status: 'Active',
@@ -542,7 +540,6 @@ export default function DashboardPage() {
     
     if (policy) {
       // Pre-fill form for editing
-      const [year, month] = policy.renewalDate ? policy.renewalDate.split('-') : ['', ''];
       setPolicyFormData({
         policyType: policy.policyType,
         policyNumber: policy.policyNumber,
@@ -551,8 +548,7 @@ export default function DashboardPage() {
         beneficiary: policy.beneficiary || '',
         coverageAmount: policy.coverageAmount.toString(),
         premiumAmount: policy.premiumAmount.toString(),
-        renewalMonth: month || '',
-        renewalYear: year || '',
+        renewalDate: policy.renewalDate || '',
         amountOfProtection: policy.amountOfProtection?.toString() || '',
         protectionUnit: policy.protectionUnit || 'years',
         status: policy.status,
@@ -582,12 +578,6 @@ export default function DashboardPage() {
     setPolicySubmitting(true);
 
     try {
-      // Build renewal date from month/year if Term Life
-      let renewalDate: string | undefined;
-      if (policyFormData.policyType === 'Term Life' && policyFormData.renewalMonth && policyFormData.renewalYear) {
-        renewalDate = `${policyFormData.renewalYear}-${policyFormData.renewalMonth}-01`;
-      }
-
       const policyData: Record<string, unknown> = {
         policyType: policyFormData.policyType,
         policyNumber: policyFormData.policyNumber,
@@ -600,8 +590,8 @@ export default function DashboardPage() {
       };
 
       // Add conditional fields
-      if (policyFormData.policyType === 'Term Life' && renewalDate) {
-        policyData.renewalDate = renewalDate;
+      if (policyFormData.policyType === 'Term Life' && policyFormData.renewalDate) {
+        policyData.renewalDate = policyFormData.renewalDate;
       }
       if (policyFormData.policyType === 'Mortgage Protection' && policyFormData.amountOfProtection) {
         policyData.amountOfProtection = parseInt(policyFormData.amountOfProtection);
@@ -915,7 +905,10 @@ export default function DashboardPage() {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    // Parse date parts directly to avoid timezone issues
+    const [year, month, day] = dateString.split('-').map(Number);
+    const date = new Date(year, month - 1, day); // month is 0-indexed
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -1521,7 +1514,7 @@ export default function DashboardPage() {
                             <p className="text-[#000000]">{formatDate(policy.renewalDate)}</p>
                           </div>
                         )}
-                        {policy.policyType === 'Accidental' ? (
+                        {(policy.policyType === 'Accidental' || policy.policyType === 'Term Life') ? (
                           <>
                             <div className="col-span-2 bg-[#44bbaa]/10 rounded-lg p-3 border border-[#45bcaa]/30">
                               <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Death Benefit</p>
@@ -2176,38 +2169,18 @@ export default function DashboardPage() {
               {/* Conditional: Renewal Date for Term Life only */}
               {policyFormData.policyType === 'Term Life' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-2">
+                  <label htmlFor="renewalDate" className="block text-sm font-medium text-gray-600 mb-2">
                     Renewal Date
                   </label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <select
-                        value={policyFormData.renewalMonth}
-                        onChange={(e) => setPolicyFormData({ ...policyFormData, renewalMonth: e.target.value })}
-                        required
-                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
-                      >
-                        <option value="">Month</option>
-                        {MONTHS.map((month) => (
-                          <option key={month.value} value={month.value}>{month.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <select
-                        value={policyFormData.renewalYear}
-                        onChange={(e) => setPolicyFormData({ ...policyFormData, renewalYear: e.target.value })}
-                        required
-                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
-                      >
-                        <option value="">Year</option>
-                        {yearOptions.map((year) => (
-                          <option key={year} value={year}>{year}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <p className="text-gray-500 text-xs mt-2">Select the month and year of policy renewal</p>
+                  <input
+                    id="renewalDate"
+                    type="date"
+                    value={policyFormData.renewalDate}
+                    onChange={(e) => setPolicyFormData({ ...policyFormData, renewalDate: e.target.value })}
+                    required
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                  />
+                  <p className="text-gray-500 text-xs mt-2">Select the exact date of policy renewal</p>
                 </div>
               )}
 
@@ -2241,12 +2214,12 @@ export default function DashboardPage() {
                       id="premiumAmount"
                       type="number"
                       min="0"
-                      step="1"
+                      step="0.01"
                       value={policyFormData.premiumAmount}
                       onChange={(e) => setPolicyFormData({ ...policyFormData, premiumAmount: e.target.value })}
                       required
                       className="w-full pl-8 pr-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
-                      placeholder="250"
+                      placeholder="60.16"
                     />
                   </div>
                 </div>
