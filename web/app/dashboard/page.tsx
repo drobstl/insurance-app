@@ -2089,12 +2089,30 @@ export default function DashboardPage() {
                   <input
                     id="insuranceCompany"
                     type="text"
+                    list="carrierSuggestions"
                     value={policyFormData.insuranceCompany}
                     onChange={(e) => setPolicyFormData({ ...policyFormData, insuranceCompany: e.target.value })}
                     required
                     className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
-                    placeholder="State Farm, MetLife, etc."
+                    placeholder="Americo, Mutual of Omaha, etc."
                   />
+                  <datalist id="carrierSuggestions">
+                    <option value="Americo" />
+                    <option value="Mutual of Omaha" />
+                    <option value="American Amicable" />
+                    <option value="F&G" />
+                    <option value="Foresters" />
+                    <option value="National Life Group" />
+                    <option value="Transamerica" />
+                    <option value="AIG" />
+                    <option value="Corebridge" />
+                    <option value="Lincoln Financial" />
+                    <option value="Nationwide" />
+                    <option value="Prudential" />
+                    <option value="Protective" />
+                    <option value="North American" />
+                    <option value="Athene" />
+                  </datalist>
                 </div>
               </div>
 
