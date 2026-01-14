@@ -11,7 +11,6 @@ import {
   Alert,
   Platform,
   StatusBar,
-  Share,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Contacts from 'expo-contacts';
@@ -126,44 +125,18 @@ export default function AgentProfileScreen() {
       // Get client's first name
       const clientFirstName = getFirstName(params.clientName);
 
-      // Build the referral message
-      // Use custom message if provided, otherwise use default
-      let message = params.referralMessage;
-      if (!message || message === 'undefined' || message === 'null') {
-        message = `Hey, I just got helped by [agent] getting protection to pay off our mortgage if something happens to me. I really liked the way [agent] was able to help me and thought they might be able to help you too.`;
-      }
-
-      // Replace placeholders (use generic "friend" for Android since we don't pick a contact)
-      message = message
-        .replace(/\[referral\]/gi, '')
-        .replace(/\[agent\]/gi, agentFirstName)
-        .replace(/\[Agent-First-Name\]/gi, agentFirstName)
-        .replace(/\[client\]/gi, clientFirstName);
-      
-      // Clean up any double spaces from replaced placeholders
-      message = message.replace(/\s+/g, ' ').trim();
-
-      // On Android, use Share API which is more reliable
-      if (Platform.OS === 'android') {
-        // Add agent contact info to the message
-        let fullMessage = message;
-        if (params.agentPhone) {
-          fullMessage += `\n\nContact ${agentFirstName}: ${params.agentPhone}`;
-        }
-        if (params.agentEmail) {
-          fullMessage += `\nEmail: ${params.agentEmail}`;
-        }
-
-        await Share.share({
-          message: fullMessage,
-          title: `Referral for ${agentFirstName}`,
-        });
-        
+      // Check if SMS is available first
+      const isAvailable = await SMS.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert(
+          'SMS Not Available',
+          'Your device does not support sending SMS messages.',
+          [{ text: 'OK' }]
+        );
         setIsReferring(false);
         return;
       }
 
-      // iOS: Use contact picker and SMS
       // Request permission to access contacts
       const { status } = await Contacts.requestPermissionsAsync();
       
@@ -177,72 +150,70 @@ export default function AgentProfileScreen() {
         return;
       }
 
-      // Open contact picker (iOS only)
-      const contact = await Contacts.presentContactPickerAsync();
-      
-      if (!contact) {
-        // User cancelled
-        setIsReferring(false);
-        return;
-      }
-
-      // Get the referral's name - check multiple fields since iOS may store it differently
       let referralFirstName = 'Friend';
-      
-      // Try to get the first name from contact object
-      if (contact.firstName && contact.firstName.trim()) {
-        referralFirstName = contact.firstName.trim();
-      } else if (contact.name && contact.name.trim()) {
-        // Fall back to full name and extract first name
-        referralFirstName = contact.name.trim().split(' ')[0];
-      } else if (contact.lastName && contact.lastName.trim()) {
-        // If only last name is available, use it
-        referralFirstName = contact.lastName.trim();
-      }
-      
-      // Get phone number from contact
       let referralPhone = '';
-      if (contact.phoneNumbers && contact.phoneNumbers.length > 0) {
-        referralPhone = contact.phoneNumbers[0].number || '';
-      }
 
-      if (!referralPhone) {
+      // Open native contact picker (works on both iOS and Android)
+      try {
+        const contact = await Contacts.presentContactPickerAsync();
+        
+        if (!contact) {
+          // User cancelled
+          setIsReferring(false);
+          return;
+        }
+
+        // Get the referral's name - check multiple fields
+        if (contact.firstName && contact.firstName.trim()) {
+          referralFirstName = contact.firstName.trim();
+        } else if (contact.name && contact.name.trim()) {
+          referralFirstName = contact.name.trim().split(' ')[0];
+        } else if (contact.lastName && contact.lastName.trim()) {
+          referralFirstName = contact.lastName.trim();
+        }
+        
+        // Get phone number from contact
+        if (contact.phoneNumbers && contact.phoneNumbers.length > 0) {
+          referralPhone = contact.phoneNumbers[0].number || '';
+        }
+
+        if (!referralPhone) {
+          Alert.alert(
+            'No Phone Number',
+            'The selected contact does not have a phone number.',
+            [{ text: 'OK' }]
+          );
+          setIsReferring(false);
+          return;
+        }
+      } catch (pickerError) {
+        console.error('Contact picker error:', pickerError);
         Alert.alert(
-          'No Phone Number',
-          'The selected contact does not have a phone number.',
+          'Contact Picker Error',
+          'Could not open contact picker. Please try again.',
           [{ text: 'OK' }]
         );
         setIsReferring(false);
         return;
       }
 
-      // Check if SMS is available
-      const isAvailable = await SMS.isAvailableAsync();
-      if (!isAvailable) {
-        Alert.alert(
-          'SMS Not Available',
-          'Your device does not support sending SMS messages.',
-          [{ text: 'OK' }]
-        );
-        setIsReferring(false);
-        return;
+      // Build the referral message
+      let message = params.referralMessage;
+      if (!message || message === 'undefined' || message === 'null') {
+        message = `Hey [referral], I just got helped by [agent] getting protection to pay off our mortgage if something happens to me. I really liked the way [agent] was able to help me and thought they might be able to help you too.`;
       }
 
-      // Update message with referral name for iOS
-      let iosMessage = params.referralMessage;
-      if (!iosMessage || iosMessage === 'undefined' || iosMessage === 'null') {
-        iosMessage = `Hey [referral], I just got helped by [agent] getting protection to pay off our mortgage if something happens to me. I really liked the way [agent] was able to help me and thought they might be able to help you too.`;
-      }
-      iosMessage = iosMessage
+      // Replace placeholders
+      message = message
         .replace(/\[referral\]/gi, referralFirstName)
         .replace(/\[agent\]/gi, agentFirstName)
         .replace(/\[Agent-First-Name\]/gi, agentFirstName)
         .replace(/\[client\]/gi, clientFirstName);
 
-      // Build recipients array - include agent phone if available
-      const recipients = [referralPhone];
+      // Build recipients array
+      const recipients: string[] = [referralPhone];
+      // Include agent phone if available
       if (params.agentPhone) {
-        // Clean the agent phone number
         const cleanAgentPhone = params.agentPhone.replace(/[^0-9+]/g, '');
         if (cleanAgentPhone && !recipients.includes(cleanAgentPhone)) {
           recipients.push(cleanAgentPhone);
@@ -254,7 +225,7 @@ export default function AgentProfileScreen() {
       
       if (businessCardBase64 && businessCardBase64.length > 0) {
         try {
-          // Save the business card to a temp file using legacy FileSystem API
+          // Save the business card to a temp file
           const fileUri = `${FileSystem.cacheDirectory}business_card_${Date.now()}.jpg`;
           
           // Write base64 data to file
@@ -279,16 +250,25 @@ export default function AgentProfileScreen() {
       }
 
       // Send the SMS (with attachment if available)
-      const { result } = await SMS.sendSMSAsync(
-        recipients,
-        iosMessage,
-        attachments ? { attachments } : undefined
-      );
+      try {
+        const { result } = await SMS.sendSMSAsync(
+          recipients,
+          message,
+          attachments ? { attachments } : undefined
+        );
 
-      if (result === 'sent') {
+        if (result === 'sent') {
+          Alert.alert(
+            'Referral Sent!',
+            `Thank you for referring ${agentFirstName} to ${referralFirstName}!`,
+            [{ text: 'OK' }]
+          );
+        }
+      } catch (smsError) {
+        console.error('SMS error:', smsError);
         Alert.alert(
-          'Referral Sent!',
-          `Thank you for referring ${agentFirstName} to ${referralFirstName}!`,
+          'SMS Error',
+          'Could not open SMS. Please try again.',
           [{ text: 'OK' }]
         );
       }

@@ -13,7 +13,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.danielroberts.agentforlife",
-      "buildNumber": "13",
+      "buildNumber": "14",
       "infoPlist": {
         "NSCameraUsageDescription": "This app does not use the camera.",
         "NSContactsUsageDescription": "This app needs access to your contacts to send referrals to friends and family.",
@@ -34,7 +34,7 @@
     },
     "android": {
       "package": "com.danielroberts.agentforlife",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0D4D4D"
