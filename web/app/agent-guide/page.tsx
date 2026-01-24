@@ -429,7 +429,20 @@ export default function AgentGuidePage() {
             const title = currentEditingElement.querySelector('.resource-title').textContent;
             const description = currentEditingElement.querySelector('.resource-description').textContent;
             const links = currentEditingElement.querySelectorAll('.resource-links a');
-            let fieldsHTML = '<div class="edit-field"><label>Title</label><input type="text" id="editTitle" value="' + title + '"></div><div class="edit-field"><label>Description</label><textarea id="editDescription">' + description + '</textarea></div>';
+            const currentSection = currentEditingElement.closest('.resource-section').dataset.sectionId;
+
+            const sections = [
+                { id: 'getting-started', name: '🚀 Getting Started' },
+                { id: 'training', name: '📚 Training & Meetings' },
+                { id: 'video', name: '🎬 Video Training' },
+                { id: 'audio', name: '🎧 Audio Training' },
+                { id: 'tools', name: '🛠️ Tools & Resources' }
+            ];
+
+            let sectionOptions = sections.map(s => '<option value="' + s.id + '"' + (s.id === currentSection ? ' selected' : '') + '>' + s.name + '</option>').join('');
+
+            let fieldsHTML = '<div class="edit-field"><label>Section</label><select id="editSection" style="width:100%;padding:10px;border:2px solid #e9ecef;border-radius:8px;font-size:0.95em;">' + sectionOptions + '</select></div>';
+            fieldsHTML += '<div class="edit-field"><label>Title</label><input type="text" id="editTitle" value="' + title + '"></div><div class="edit-field"><label>Description</label><textarea id="editDescription">' + description + '</textarea></div>';
             links.forEach((link, index) => {
                 fieldsHTML += '<div class="edit-field"><label>Link ' + (index + 1) + ' Text</label><input type="text" id="editLinkText' + index + '" value="' + link.textContent + '"></div><div class="edit-field"><label>Link ' + (index + 1) + ' URL</label><input type="url" id="editLinkUrl' + index + '" value="' + link.href + '"></div>';
             });
@@ -471,6 +484,16 @@ export default function AgentGuidePage() {
                     const urlInput = document.getElementById('editLinkUrl' + index);
                     if (textInput && urlInput) { link.textContent = textInput.value; link.href = urlInput.value; }
                 });
+
+                // Handle section change
+                const newSectionId = document.getElementById('editSection').value;
+                const currentSection = currentEditingElement.closest('.resource-section').dataset.sectionId;
+                if (newSectionId !== currentSection) {
+                    const newSectionList = document.querySelector('[data-section-id="' + newSectionId + '"] .resource-list');
+                    if (newSectionList) {
+                        newSectionList.appendChild(currentEditingElement);
+                    }
+                }
             } else if (editType === 'primaryContact') {
                 const details = document.getElementById('primaryContactDetails');
                 details.innerHTML = '<div class="contact-name">' + document.getElementById('editContactName').value + '</div><div class="contact-info">📞 <a href="tel:' + document.getElementById('editContactPhone').value + '">' + document.getElementById('editContactPhone').value + '</a><br>✉️ <a href="mailto:' + document.getElementById('editContactEmail').value + '">' + document.getElementById('editContactEmail').value + '</a></div><div class="contact-cta">' + document.getElementById('editContactCTA').value + '</div>';
