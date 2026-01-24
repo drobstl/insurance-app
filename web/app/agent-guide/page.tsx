@@ -477,6 +477,8 @@ export default function AgentGuidePage() {
         }
 
 
+        const FIREBASE_URL = 'https://agent-guide-cef3a-default-rtdb.firebaseio.com/settings.json';
+
         async function saveSettings() {
             const logoEl = document.getElementById('agencyLogo');
             const photoEl = document.getElementById('contactPhoto');
@@ -501,12 +503,12 @@ export default function AgentGuidePage() {
                 }));
             });
             try {
-                await fetch('/api/resource-guide', {
-                    method: 'POST',
+                await fetch(FIREBASE_URL, {
+                    method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(settings)
                 });
-                console.log('Settings saved!');
+                console.log('Settings saved to Firebase!');
             } catch (err) {
                 console.error('Failed to save settings:', err);
             }
@@ -514,7 +516,7 @@ export default function AgentGuidePage() {
 
         async function loadSettings() {
             try {
-                const response = await fetch('/api/resource-guide');
+                const response = await fetch(FIREBASE_URL);
                 const settings = await response.json();
                 if (!settings || Object.keys(settings).length === 0) return;
 
