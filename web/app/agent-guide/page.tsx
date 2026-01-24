@@ -179,11 +179,9 @@ export default function AgentGuidePage() {
         <header class="guide-header">
             <div class="header-branding">
                 <div class="logo-placeholder" id="agencyLogo" onclick="uploadLogo()">🏢</div>
-                <h1>Resource Guide</h1>
             </div>
             <div class="header-admin-controls">
                 <button onclick="uploadLogo()">📷 Change Logo</button>
-                <button onclick="editHeader()">✏️ Edit Title</button>
             </div>
         </header>
 
