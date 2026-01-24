@@ -45,12 +45,12 @@ export default function AgentGuidePage() {
         .agent-bar .agent-name { font-weight: 600; }
         .agent-bar .switch-agent { background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 15px; border-radius: 20px; cursor: pointer; font-size: 0.85em; transition: background 0.2s; }
         .agent-bar .switch-agent:hover { background: rgba(255,255,255,0.3); }
-        .guide-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px; text-align: center; position: relative; }
-        .header-branding { display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap; }
-        .agency-logo { width: 80px; height: 80px; border-radius: 15px; object-fit: cover; border: 3px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); cursor: pointer; }
-        .logo-placeholder { width: 80px; height: 80px; border-radius: 15px; border: 3px dashed rgba(255,255,255,0.5); display: flex; align-items: center; justify-content: center; font-size: 2em; background: rgba(255,255,255,0.1); cursor: pointer; transition: all 0.3s; }
+        .guide-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 50px 40px; text-align: center; position: relative; }
+        .header-branding { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; }
+        .agency-logo { width: 180px; height: 180px; border-radius: 20px; object-fit: cover; border: 4px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); cursor: pointer; box-shadow: 0 8px 25px rgba(0,0,0,0.2); }
+        .logo-placeholder { width: 180px; height: 180px; border-radius: 20px; border: 4px dashed rgba(255,255,255,0.5); display: flex; align-items: center; justify-content: center; font-size: 4em; background: rgba(255,255,255,0.1); cursor: pointer; transition: all 0.3s; }
         .logo-placeholder:hover { background: rgba(255,255,255,0.2); border-color: white; }
-        .guide-header h1 { font-size: 2.2em; font-weight: 700; }
+        .guide-header h1 { font-size: 2.5em; font-weight: 700; margin-top: 10px; }
         .header-admin-controls { display: none; margin-top: 15px; gap: 10px; justify-content: center; }
         body.admin-mode .header-admin-controls { display: flex; flex-wrap: wrap; }
         .header-admin-controls button { padding: 8px 15px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85em; font-weight: 500; background: rgba(255,255,255,0.2); color: white; transition: all 0.2s; }
