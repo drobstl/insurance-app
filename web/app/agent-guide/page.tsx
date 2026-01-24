@@ -160,21 +160,8 @@ export default function AgentGuidePage() {
         </div>
     </div>
 
-    <div class="agent-modal" id="agentModal">
-        <div class="modal-content">
-            <div class="modal-emoji">📚</div>
-            <h2>Welcome!</h2>
-            <p>Enter your name to access the Resource Guide</p>
-            <input type="text" id="agentNameInput" placeholder="Your Full Name" autocomplete="name">
-            <button onclick="saveAgentName()">Continue 🚀</button>
-        </div>
-    </div>
 
     <div class="container">
-        <div class="agent-bar" id="agentBar" style="display: none;">
-            <span>📚 Viewing as: <span class="agent-name" id="currentAgentName"></span></span>
-            <button class="switch-agent" onclick="switchAgent()">Switch User</button>
-        </div>
 
         <header class="guide-header">
             <div class="header-branding">
@@ -291,49 +278,10 @@ export default function AgentGuidePage() {
     </div>
 
     <script>
-        let currentAgent = null;
         let adminMode = false;
         let currentEditingElement = null;
         let editType = null;
         let draggedItem = null;
-
-        function checkAgent() {
-            const savedAgent = localStorage.getItem('currentAgentResourceGuide');
-            if (savedAgent) {
-                currentAgent = savedAgent;
-                document.getElementById('agentModal').classList.add('hidden');
-                document.getElementById('agentBar').style.display = 'flex';
-                document.getElementById('currentAgentName').textContent = currentAgent;
-                loadSettings();
-            } else {
-                document.getElementById('agentModal').classList.remove('hidden');
-            }
-        }
-
-        function saveAgentName() {
-            const name = document.getElementById('agentNameInput').value.trim();
-            if (name) {
-                currentAgent = name;
-                localStorage.setItem('currentAgentResourceGuide', name);
-                document.getElementById('agentModal').classList.add('hidden');
-                document.getElementById('agentBar').style.display = 'flex';
-                document.getElementById('currentAgentName').textContent = currentAgent;
-                loadSettings();
-            }
-        }
-
-        function switchAgent() {
-            if (confirm('Switch to a different user?')) {
-                localStorage.removeItem('currentAgentResourceGuide');
-                document.getElementById('agentModal').classList.remove('hidden');
-                document.getElementById('agentBar').style.display = 'none';
-                document.getElementById('agentNameInput').value = '';
-            }
-        }
-
-        document.getElementById('agentNameInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') saveAgentName();
-        });
 
         function toggleAdminMode() {
             adminMode = !adminMode;
@@ -389,7 +337,7 @@ export default function AgentGuidePage() {
                 const targetIndex = allItems.indexOf(this);
                 if (draggedIndex < targetIndex) { this.parentNode.insertBefore(draggedItem, this.nextSibling); }
                 else { this.parentNode.insertBefore(draggedItem, this); }
-                saveSettings();
+                // Changes made in Owner Mode are temporary - contact admin to make permanent
             }
             this.classList.remove('drag-over');
         }
@@ -404,7 +352,7 @@ export default function AgentGuidePage() {
                 reader.onload = function(e) {
                     const logoEl = document.getElementById('agencyLogo');
                     logoEl.outerHTML = '<img src="' + e.target.result + '" class="agency-logo" id="agencyLogo" onclick="uploadLogo()">';
-                    saveSettings();
+                    // Changes made in Owner Mode are temporary - contact admin to make permanent
                 };
                 reader.readAsDataURL(file);
             }
@@ -417,7 +365,7 @@ export default function AgentGuidePage() {
                 reader.onload = function(e) {
                     const photoEl = document.getElementById('contactPhoto');
                     photoEl.outerHTML = '<img src="' + e.target.result + '" class="contact-photo" id="contactPhoto" onclick="uploadPhoto()">';
-                    saveSettings();
+                    // Changes made in Owner Mode are temporary - contact admin to make permanent
                 };
                 reader.readAsDataURL(file);
             }
@@ -501,13 +449,13 @@ export default function AgentGuidePage() {
                 document.querySelector('.guide-header h1').textContent = document.getElementById('editHeaderTitle').value;
             }
             closeEditModal();
-            saveSettings();
+            // Changes made in Owner Mode are temporary - contact admin to make permanent
         }
 
         function deleteResource(btn) {
             if (confirm('Are you sure you want to delete this resource?')) {
                 btn.closest('.resource-item').remove();
-                saveSettings();
+                // Changes made in Owner Mode are temporary - contact admin to make permanent
             }
         }
 
@@ -525,81 +473,13 @@ export default function AgentGuidePage() {
             newResource.addEventListener('drop', handleDrop);
             newResource.addEventListener('dragleave', handleDragLeave);
             section.appendChild(newResource);
-            saveSettings();
+            // Changes made in Owner Mode are temporary - contact admin to make permanent
         }
 
-        function saveSettings() {
-            const logoEl = document.getElementById('agencyLogo');
-            const photoEl = document.getElementById('contactPhoto');
-            const settings = {
-                logo: logoEl && logoEl.src ? logoEl.src : null,
-                photo: photoEl && photoEl.src ? photoEl.src : null,
-                headerTitle: document.querySelector('.guide-header h1').textContent,
-                primaryContact: document.getElementById('primaryContactDetails').innerHTML,
-                resourceOrder: {},
-                resources: {}
-            };
-            document.querySelectorAll('.resource-section').forEach(section => {
-                const sectionId = section.dataset.sectionId;
-                const items = section.querySelectorAll('.resource-item');
-                settings.resourceOrder[sectionId] = Array.from(items).map(item => item.dataset.resourceId);
-            });
-            document.querySelectorAll('.resource-item').forEach(item => {
-                const id = item.dataset.resourceId;
-                settings.resources[id] = {
-                    title: item.querySelector('.resource-title').textContent,
-                    description: item.querySelector('.resource-description').textContent,
-                    links: Array.from(item.querySelectorAll('.resource-links a')).map(link => ({ text: link.textContent, url: link.href, isSecondary: link.classList.contains('secondary') }))
-                };
-            });
-            localStorage.setItem('resourceGuideSettings', JSON.stringify(settings));
-        }
 
-        function loadSettings() {
-            const saved = localStorage.getItem('resourceGuideSettings');
-            if (saved) {
-                const settings = JSON.parse(saved);
-                if (settings.logo && settings.logo.startsWith('data:')) {
-                    const logoEl = document.getElementById('agencyLogo');
-                    logoEl.outerHTML = '<img src="' + settings.logo + '" class="agency-logo" id="agencyLogo" onclick="uploadLogo()">';
-                }
-                if (settings.photo && settings.photo.startsWith('data:')) {
-                    const photoEl = document.getElementById('contactPhoto');
-                    photoEl.outerHTML = '<img src="' + settings.photo + '" class="contact-photo" id="contactPhoto" onclick="uploadPhoto()">';
-                }
-                if (settings.headerTitle) { document.querySelector('.guide-header h1').textContent = settings.headerTitle; }
-                if (settings.primaryContact) { document.getElementById('primaryContactDetails').innerHTML = settings.primaryContact; }
-                if (settings.resourceOrder) {
-                    Object.keys(settings.resourceOrder).forEach(sectionId => {
-                        const section = document.querySelector('[data-section-id="' + sectionId + '"] .resource-list');
-                        if (section) {
-                            const order = settings.resourceOrder[sectionId];
-                            order.forEach(resourceId => {
-                                const item = section.querySelector('[data-resource-id="' + resourceId + '"]');
-                                if (item) { section.appendChild(item); }
-                            });
-                        }
-                    });
-                }
-                if (settings.resources) {
-                    Object.keys(settings.resources).forEach(id => {
-                        const item = document.querySelector('[data-resource-id="' + id + '"]');
-                        if (item) {
-                            const res = settings.resources[id];
-                            item.querySelector('.resource-title').textContent = res.title;
-                            item.querySelector('.resource-description').textContent = res.description;
-                            if (res.links && res.links.length > 0) {
-                                const linksContainer = item.querySelector('.resource-links');
-                                linksContainer.innerHTML = res.links.map(link => '<a href="' + link.url + '" target="_blank" class="' + (link.isSecondary ? 'secondary' : '') + '">' + link.text + '</a>').join('');
-                            }
-                        }
-                    });
-                }
-            }
+        document.addEventListener('DOMContentLoaded', function() {
             initDragAndDrop();
-        }
-
-        document.addEventListener('DOMContentLoaded', checkAgent);
+        });
     </script>
         `,
       }}
