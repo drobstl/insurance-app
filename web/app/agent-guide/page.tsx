@@ -307,39 +307,53 @@ export default function AgentGuidePage() {
             draggedItem = this;
             this.classList.add('dragging');
             e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', '');
+            setTimeout(() => { this.style.opacity = '0.5'; }, 0);
         }
 
         function handleDragEnd(e) {
+            this.style.opacity = '1';
             this.classList.remove('dragging');
             document.querySelectorAll('.resource-item').forEach(item => { item.classList.remove('drag-over'); });
             draggedItem = null;
         }
 
         function handleDragOver(e) {
-            if (!adminMode || !draggedItem) return;
             e.preventDefault();
+            if (!adminMode || !draggedItem) return;
             e.dataTransfer.dropEffect = 'move';
-            const targetList = this.closest('.resource-list');
-            const draggedList = draggedItem.closest('.resource-list');
-            if (targetList === draggedList && this !== draggedItem) { this.classList.add('drag-over'); }
+            if (this !== draggedItem && this.classList.contains('resource-item')) {
+                this.classList.add('drag-over');
+            }
         }
 
         function handleDragLeave(e) { this.classList.remove('drag-over'); }
 
         function handleDrop(e) {
             e.preventDefault();
+            e.stopPropagation();
+            this.classList.remove('drag-over');
             if (!adminMode || !draggedItem || this === draggedItem) return;
+
             const targetList = this.closest('.resource-list');
             const draggedList = draggedItem.closest('.resource-list');
-            if (targetList === draggedList) {
+
+            if (targetList && draggedList) {
                 const allItems = Array.from(targetList.querySelectorAll('.resource-item'));
                 const draggedIndex = allItems.indexOf(draggedItem);
                 const targetIndex = allItems.indexOf(this);
-                if (draggedIndex < targetIndex) { this.parentNode.insertBefore(draggedItem, this.nextSibling); }
-                else { this.parentNode.insertBefore(draggedItem, this); }
+
+                if (targetList === draggedList) {
+                    if (draggedIndex < targetIndex) {
+                        this.parentNode.insertBefore(draggedItem, this.nextSibling);
+                    } else {
+                        this.parentNode.insertBefore(draggedItem, this);
+                    }
+                } else {
+                    this.parentNode.insertBefore(draggedItem, this);
+                }
                 saveSettings();
             }
-            this.classList.remove('drag-over');
         }
 
         function uploadLogo() { if (adminMode) { document.getElementById('logoUpload').click(); } }
