@@ -90,7 +90,8 @@ export default function AgentGuidePage() {
         body.admin-mode .drag-handle { display: block; }
         .resource-item.dragging { opacity: 0.5; background: #e3f2fd; }
         .resource-item.drag-over { border-top: 3px solid #667eea; }
-        .resource-title { font-size: 1.05em; font-weight: 600; color: #333; margin-bottom: 8px; }
+        .resource-title { font-size: 1.05em; font-weight: 600; color: #333; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .license-tag { display: inline-block; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%); color: white; font-size: 0.7em; padding: 3px 8px; border-radius: 12px; font-weight: 600; white-space: nowrap; }
         .resource-description { font-size: 0.9em; color: #666; margin-bottom: 10px; line-height: 1.5; }
         .resource-links { display: flex; flex-wrap: wrap; gap: 8px; }
         .resource-links a { display: inline-flex; align-items: center; gap: 5px; padding: 6px 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 20px; font-size: 0.85em; font-weight: 500; transition: all 0.2s ease; }
@@ -388,7 +389,10 @@ export default function AgentGuidePage() {
         function editResource(btn) {
             currentEditingElement = btn.closest('.resource-item');
             editType = 'resource';
-            const title = currentEditingElement.querySelector('.resource-title').textContent;
+            const titleEl = currentEditingElement.querySelector('.resource-title');
+            const titleTextNode = titleEl.childNodes[0];
+            const title = titleTextNode ? titleTextNode.textContent.trim() : titleEl.textContent.trim();
+            const hasLicenseTag = currentEditingElement.querySelector('.license-tag') !== null;
             const description = currentEditingElement.querySelector('.resource-description').textContent;
             const links = currentEditingElement.querySelectorAll('.resource-links a');
             const currentSection = currentEditingElement.closest('.resource-section').dataset.sectionId;
@@ -404,7 +408,9 @@ export default function AgentGuidePage() {
             let sectionOptions = sections.map(s => '<option value="' + s.id + '"' + (s.id === currentSection ? ' selected' : '') + '>' + s.name + '</option>').join('');
 
             let fieldsHTML = '<div class="edit-field"><label>Section</label><select id="editSection" style="width:100%;padding:10px;border:2px solid #e9ecef;border-radius:8px;font-size:0.95em;">' + sectionOptions + '</select></div>';
-            fieldsHTML += '<div class="edit-field"><label>Title</label><input type="text" id="editTitle" value="' + title + '"></div><div class="edit-field"><label>Description</label><textarea id="editDescription">' + description + '</textarea></div>';
+            fieldsHTML += '<div class="edit-field"><label>Title</label><input type="text" id="editTitle" value="' + title + '"></div>';
+            fieldsHTML += '<div class="edit-field" style="display:flex;align-items:center;gap:10px;"><input type="checkbox" id="editLicenseRequired" ' + (hasLicenseTag ? 'checked' : '') + ' style="width:20px;height:20px;"><label for="editLicenseRequired" style="margin:0;cursor:pointer;">Requires License #</label></div>';
+            fieldsHTML += '<div class="edit-field"><label>Description</label><textarea id="editDescription">' + description + '</textarea></div>';
             links.forEach((link, index) => {
                 fieldsHTML += '<div class="edit-field"><label>Link ' + (index + 1) + ' Text</label><input type="text" id="editLinkText' + index + '" value="' + link.textContent + '"></div><div class="edit-field"><label>Link ' + (index + 1) + ' URL</label><input type="url" id="editLinkUrl' + index + '" value="' + link.href + '"></div>';
             });
@@ -438,7 +444,17 @@ export default function AgentGuidePage() {
 
         function saveEdits() {
             if (editType === 'resource' && currentEditingElement) {
-                currentEditingElement.querySelector('.resource-title').textContent = document.getElementById('editTitle').value;
+                const titleEl = currentEditingElement.querySelector('.resource-title');
+                const newTitle = document.getElementById('editTitle').value;
+                const licenseRequired = document.getElementById('editLicenseRequired').checked;
+
+                // Update title with or without license tag
+                if (licenseRequired) {
+                    titleEl.innerHTML = newTitle + ' <span class="license-tag">Requires License #</span>';
+                } else {
+                    titleEl.innerHTML = newTitle;
+                }
+
                 currentEditingElement.querySelector('.resource-description').textContent = document.getElementById('editDescription').value;
                 const links = currentEditingElement.querySelectorAll('.resource-links a');
                 links.forEach((link, index) => {
@@ -505,16 +521,23 @@ export default function AgentGuidePage() {
             document.querySelectorAll('.resource-section').forEach(section => {
                 const sectionId = section.dataset.sectionId;
                 const items = section.querySelectorAll('.resource-item');
-                settings.sections[sectionId] = Array.from(items).map(item => ({
-                    id: item.dataset.resourceId,
-                    title: item.querySelector('.resource-title').textContent,
-                    description: item.querySelector('.resource-description').textContent,
-                    links: Array.from(item.querySelectorAll('.resource-links a')).map(link => ({
-                        text: link.textContent,
-                        url: link.href,
-                        isSecondary: link.classList.contains('secondary')
-                    }))
-                }));
+                settings.sections[sectionId] = Array.from(items).map(item => {
+                    const titleEl = item.querySelector('.resource-title');
+                    const titleTextNode = titleEl.childNodes[0];
+                    const title = titleTextNode ? titleTextNode.textContent.trim() : titleEl.textContent.trim();
+                    const hasLicenseTag = item.querySelector('.license-tag') !== null;
+                    return {
+                        id: item.dataset.resourceId,
+                        title: title,
+                        licenseRequired: hasLicenseTag,
+                        description: item.querySelector('.resource-description').textContent,
+                        links: Array.from(item.querySelectorAll('.resource-links a')).map(link => ({
+                            text: link.textContent,
+                            url: link.href,
+                            isSecondary: link.classList.contains('secondary')
+                        }))
+                    };
+                });
             });
             try {
                 await fetch(FIREBASE_URL, {
@@ -558,7 +581,8 @@ export default function AgentGuidePage() {
                                 const linksHtml = item.links.map(link =>
                                     '<a href="' + link.url + '" target="_blank" class="' + (link.isSecondary ? 'secondary' : '') + '">' + link.text + '</a>'
                                 ).join('');
-                                li.innerHTML = '<span class="drag-handle">⋮⋮</span><div class="resource-title">' + item.title + '</div><div class="resource-description">' + item.description + '</div><div class="resource-links">' + linksHtml + '</div><div class="resource-admin-controls"><button class="edit-btn" onclick="editResource(this)">✏️ Edit</button><button class="delete-btn" onclick="deleteResource(this)">🗑️ Delete</button></div>';
+                                const licenseTagHtml = item.licenseRequired ? ' <span class="license-tag">Requires License #</span>' : '';
+                                li.innerHTML = '<span class="drag-handle">⋮⋮</span><div class="resource-title">' + item.title + licenseTagHtml + '</div><div class="resource-description">' + item.description + '</div><div class="resource-links">' + linksHtml + '</div><div class="resource-admin-controls"><button class="edit-btn" onclick="editResource(this)">✏️ Edit</button><button class="delete-btn" onclick="deleteResource(this)">🗑️ Delete</button></div>';
                                 li.addEventListener('dragstart', handleDragStart);
                                 li.addEventListener('dragend', handleDragEnd);
                                 li.addEventListener('dragover', handleDragOver);
