@@ -1,18 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  async rewrites() {
-    return [
-      {
-        source: '/booking',
-        destination: 'https://roberts-booking.vercel.app/',
-      },
-      {
-        source: '/booking/:path*',
-        destination: 'https://roberts-booking.vercel.app/:path*',
-      },
-    ];
-  },
+  /* No rewrites needed - booking is served from public/booking/index.html */
 };
 
 export default nextConfig;
