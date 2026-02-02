@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe';
 
-// Price IDs for different plans
+// Price IDs from environment variables
 const PRICE_IDS = {
-  monthly: 'price_1SlMFGE6F9fvCEUdh5pGoMj9',
-  annual: 'price_1SldZkE6F9fvCEUdX2TDYuMp',
+  monthly: process.env.STRIPE_PRICE_ID_MONTHLY || '',
+  annual: process.env.STRIPE_PRICE_ID_ANNUAL || '',
 };
 
 export async function POST(request: NextRequest) {
@@ -28,6 +28,14 @@ export async function POST(request: NextRequest) {
 
     // Get the appropriate price ID
     const priceId = PRICE_IDS[plan as keyof typeof PRICE_IDS];
+
+    if (!priceId) {
+      console.error(`Price ID not configured for plan: ${plan}`);
+      return NextResponse.json(
+        { error: `Price ID not configured for ${plan} plan. Check STRIPE_PRICE_ID_${plan.toUpperCase()} env variable.` },
+        { status: 500 }
+      );
+    }
 
     if (!stripe) {
       return NextResponse.json(
