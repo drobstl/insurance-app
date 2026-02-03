@@ -77,6 +77,26 @@ Set these as recurring calendar reminders:
 | Annually | Rotate Stripe webhook secret |
 | Annually | Review and update environment variables |
 
+## Planned Upgrades
+
+### Phone OTP Authentication (Priority: HIGH)
+**Target Date**: Mid-February 2026 (set calendar reminder for Feb 17, 2026)
+
+**Current State**: Client login uses secure random codes (e.g., X7K9-M2P4-Q8R1)
+
+**Upgrade To**: Phone number + SMS verification + biometric (Face ID / Touch ID)
+
+**Why**: Better security, familiar UX for clients, impossible to brute force
+
+**What's Required**:
+1. Add native Firebase packages to mobile app (react-native-firebase)
+2. Download GoogleService-Info.plist (iOS) and google-services.json (Android) from Firebase Console
+3. Rebuild app with `eas build`
+4. Resubmit to App Store and Play Store
+5. Phone auth is already enabled in Firebase Console
+
+**Estimated Time**: Half day of coding + 1-2 days for Apple review
+
 ## Troubleshooting
 
 ### "Client code not working" (Mobile App)

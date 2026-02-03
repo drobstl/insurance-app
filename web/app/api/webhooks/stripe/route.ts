@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../../../../firebase';
+import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import Stripe from 'stripe';
 
 // Disable body parsing, need raw body for webhook signature verification
@@ -32,10 +31,9 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const subscription = subscriptionResponse as any;
 
-  // Update Firestore
-  const agentRef = doc(db, 'agents', userId);
-  await setDoc(
-    agentRef,
+  // Update Firestore using Admin SDK (bypasses security rules)
+  const db = getAdminFirestore();
+  await db.collection('agents').doc(userId).set(
     {
       subscriptionStatus: 'active',
       stripeCustomerId: customerId,
@@ -63,14 +61,12 @@ async function handleSubscriptionUpdated(subscriptionData: any) {
     return;
   }
 
-  const agentRef = doc(db, 'agents', userId);
-
   const status = subscriptionData.status === 'active' || subscriptionData.status === 'trialing' 
     ? 'active' 
     : subscriptionData.status;
 
-  await setDoc(
-    agentRef,
+  const db = getAdminFirestore();
+  await db.collection('agents').doc(userId).set(
     {
       subscriptionStatus: status,
       subscriptionCurrentPeriodEnd: subscriptionData.current_period_end
@@ -95,9 +91,8 @@ async function handleSubscriptionDeleted(subscriptionData: any) {
     return;
   }
 
-  const agentRef = doc(db, 'agents', userId);
-  await setDoc(
-    agentRef,
+  const db = getAdminFirestore();
+  await db.collection('agents').doc(userId).set(
     {
       subscriptionStatus: 'canceled',
       subscriptionCanceledAt: new Date(),
@@ -119,9 +114,8 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
     return;
   }
 
-  const agentRef = doc(db, 'agents', userId);
-  await setDoc(
-    agentRef,
+  const db = getAdminFirestore();
+  await db.collection('agents').doc(userId).set(
     {
       subscriptionStatus: 'past_due',
       lastPaymentFailedAt: new Date(),

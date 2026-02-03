@@ -364,14 +364,22 @@ export default function DashboardPage() {
     setFormSuccess(false);
   };
 
-  // Generate a unique client code
+  // Generate a secure unique client code (12 chars in XXXX-XXXX-XXXX format)
+  // Using crypto.getRandomValues for cryptographically secure randomness
   const generateClientCode = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 chars (excluding confusable: 0,O,1,I)
+    const getSecureRandom = (max: number) => {
+      const array = new Uint32Array(1);
+      crypto.getRandomValues(array);
+      return array[0] % max;
+    };
+    
     let code = '';
-    for (let i = 0; i < 6; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    for (let i = 0; i < 12; i++) {
+      if (i > 0 && i % 4 === 0) code += '-';
+      code += chars.charAt(getSecureRandom(chars.length));
     }
-    return code;
+    return code; // Format: XXXX-XXXX-XXXX
   };
 
   const handleSubmitClient = async (e: React.FormEvent) => {
