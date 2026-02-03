@@ -47,6 +47,10 @@ export default function SubscribePage() {
     setError('');
 
     try {
+      // Add timeout to prevent infinite loading
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
       const response = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',
         headers: {
@@ -57,14 +61,26 @@ export default function SubscribePage() {
           email: user.email,
           plan: selectedPlan,
         }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       const data = await response.json();
 
       if (!response.ok) {
-        // Show detailed error for debugging
-        const errorMsg = data.details || data.error || 'Failed to create checkout session';
+        // Show user-friendly error messages
         console.error('Checkout error:', data);
+        let errorMsg = 'Unable to start checkout. ';
+        
+        if (data.error?.includes('Price ID not configured')) {
+          errorMsg += 'Payment system is being configured. Please try again in a few minutes or contact support.';
+        } else if (data.error?.includes('Stripe')) {
+          errorMsg += 'Payment service temporarily unavailable. Please try again.';
+        } else {
+          errorMsg += data.details || data.error || 'Please try again or contact support.';
+        }
+        
         throw new Error(errorMsg);
       }
 
@@ -72,10 +88,14 @@ export default function SubscribePage() {
       if (data.url) {
         window.location.href = data.url;
       } else {
-        throw new Error('No checkout URL returned');
+        throw new Error('No checkout URL returned. Please try again.');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('Request timed out. Please check your internet connection and try again.');
+      } else {
+        setError(err instanceof Error ? err.message : 'An unexpected error occurred. Please try again.');
+      }
       setCheckoutLoading(false);
     }
   };
