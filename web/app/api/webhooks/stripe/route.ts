@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe';
-import { doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../../../firebase';
 import Stripe from 'stripe';
 
@@ -34,13 +34,21 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
   // Update Firestore
   const agentRef = doc(db, 'agents', userId);
-  await updateDoc(agentRef, {
-    subscriptionStatus: 'active',
-    stripeCustomerId: customerId,
-    subscriptionId: subscriptionId,
-    subscriptionStartDate: subscription.current_period_start ? new Date(subscription.current_period_start * 1000) : new Date(),
-    subscriptionCurrentPeriodEnd: subscription.current_period_end ? new Date(subscription.current_period_end * 1000) : new Date(),
-  });
+  await setDoc(
+    agentRef,
+    {
+      subscriptionStatus: 'active',
+      stripeCustomerId: customerId,
+      subscriptionId: subscriptionId,
+      subscriptionStartDate: subscription.current_period_start
+        ? new Date(subscription.current_period_start * 1000)
+        : new Date(),
+      subscriptionCurrentPeriodEnd: subscription.current_period_end
+        ? new Date(subscription.current_period_end * 1000)
+        : new Date(),
+    },
+    { merge: true }
+  );
 
   console.log(`Subscription activated for user ${userId}`);
 }
@@ -56,21 +64,23 @@ async function handleSubscriptionUpdated(subscriptionData: any) {
   }
 
   const agentRef = doc(db, 'agents', userId);
-  const agentDoc = await getDoc(agentRef);
-
-  if (!agentDoc.exists()) {
-    console.error(`Agent document not found for user ${userId}`);
-    return;
-  }
 
   const status = subscriptionData.status === 'active' || subscriptionData.status === 'trialing' 
     ? 'active' 
     : subscriptionData.status;
 
-  await updateDoc(agentRef, {
-    subscriptionStatus: status,
-    subscriptionCurrentPeriodEnd: subscriptionData.current_period_end ? new Date(subscriptionData.current_period_end * 1000) : new Date(),
-  });
+  await setDoc(
+    agentRef,
+    {
+      subscriptionStatus: status,
+      subscriptionCurrentPeriodEnd: subscriptionData.current_period_end
+        ? new Date(subscriptionData.current_period_end * 1000)
+        : new Date(),
+      stripeCustomerId: subscriptionData.customer,
+      subscriptionId: subscriptionData.id,
+    },
+    { merge: true }
+  );
 
   console.log(`Subscription updated for user ${userId}: ${status}`);
 }
@@ -86,10 +96,16 @@ async function handleSubscriptionDeleted(subscriptionData: any) {
   }
 
   const agentRef = doc(db, 'agents', userId);
-  await updateDoc(agentRef, {
-    subscriptionStatus: 'canceled',
-    subscriptionCanceledAt: new Date(),
-  });
+  await setDoc(
+    agentRef,
+    {
+      subscriptionStatus: 'canceled',
+      subscriptionCanceledAt: new Date(),
+      stripeCustomerId: subscriptionData.customer,
+      subscriptionId: subscriptionData.id,
+    },
+    { merge: true }
+  );
 
   console.log(`Subscription canceled for user ${userId}`);
 }
@@ -104,10 +120,16 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
   }
 
   const agentRef = doc(db, 'agents', userId);
-  await updateDoc(agentRef, {
-    subscriptionStatus: 'past_due',
-    lastPaymentFailedAt: new Date(),
-  });
+  await setDoc(
+    agentRef,
+    {
+      subscriptionStatus: 'past_due',
+      lastPaymentFailedAt: new Date(),
+      stripeCustomerId: invoice.customer,
+      subscriptionId: invoice.subscription,
+    },
+    { merge: true }
+  );
 
   console.log(`Payment failed for user ${userId}`);
 }
@@ -176,4 +198,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

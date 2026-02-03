@@ -45,6 +45,7 @@
 - `STRIPE_PRICE_ID_ANNUAL` - Annual subscription price ID  
 - `STRIPE_WEBHOOK_SECRET` - Stripe webhook signing secret
 - `NEXT_PUBLIC_APP_URL` - https://agentforlife.app
+- `FIREBASE_ADMIN_SERVICE_ACCOUNT_BASE64` - Firebase Admin service account (base64 JSON)
 
 ### Stripe
 - **Webhook Endpoint**: https://agentforlife.app/api/webhooks/stripe

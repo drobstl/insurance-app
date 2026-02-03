@@ -51,14 +51,14 @@ export default function SubscribePage() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
+      const token = await user.getIdToken();
       const response = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          userId: user.uid,
-          email: user.email,
           plan: selectedPlan,
         }),
         signal: controller.signal,

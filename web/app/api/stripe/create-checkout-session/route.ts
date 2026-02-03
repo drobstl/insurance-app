@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe';
+import { getAdminAuth } from '../../../../lib/firebase-admin';
 
 // Price IDs from environment variables
 const PRICE_IDS = {
@@ -7,13 +8,33 @@ const PRICE_IDS = {
   annual: process.env.STRIPE_PRICE_ID_ANNUAL || '',
 };
 
+const getAuthUser = async (request: NextRequest) => {
+  const authHeader = request.headers.get('authorization') || '';
+  const match = authHeader.match(/^Bearer (.+)$/i);
+  if (!match) return null;
+
+  const token = match[1];
+  return getAdminAuth().verifyIdToken(token);
+};
+
 export async function POST(request: NextRequest) {
   try {
-    const { userId, email, plan = 'monthly' } = await request.json();
+    const { plan = 'monthly' } = await request.json();
 
-    if (!userId || !email) {
+    const authUser = await getAuthUser(request);
+    if (!authUser) {
       return NextResponse.json(
-        { error: 'User ID and email are required' },
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const userId = authUser.uid;
+    const email = authUser.email;
+
+    if (!email) {
+      return NextResponse.json(
+        { error: 'Authenticated email is required' },
         { status: 400 }
       );
     }
@@ -46,30 +67,29 @@ export async function POST(request: NextRequest) {
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
-    // Create or retrieve customer
+    // Create or retrieve customer for this Firebase user
     const customers = await stripe.customers.list({
-      email: email,
-      limit: 1,
+      email,
+      limit: 10,
     });
 
-    let customerId: string;
+    const matchingCustomer = customers.data.find(
+      (customer) => customer.metadata?.firebaseUserId === userId
+    );
 
-    if (customers.data.length > 0) {
-      customerId = customers.data[0].id;
-    } else {
-      const customer = await stripe.customers.create({
-        email: email,
-        metadata: {
-          firebaseUserId: userId,
-        },
-      });
-      customerId = customer.id;
-    }
+    const customer = matchingCustomer
+      ? matchingCustomer
+      : await stripe.customers.create({
+          email,
+          metadata: {
+            firebaseUserId: userId,
+          },
+        });
 
     // Create checkout session with all options
     // allow_promotion_codes lets users enter promo codes at checkout
     const session = await stripe.checkout.sessions.create({
-      customer: customerId,
+      customer: customer.id,
       payment_method_types: ['card'],
       line_items: [
         {

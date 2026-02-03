@@ -51,6 +51,16 @@ export async function GET() {
 
   const missingEnvVars = requiredEnvVars.filter((envVar) => !process.env[envVar]);
 
+  const hasFirebaseAdminCreds = Boolean(
+    process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT ||
+    process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_BASE64 ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS
+  );
+
+  if (!hasFirebaseAdminCreds) {
+    missingEnvVars.push('FIREBASE_ADMIN_SERVICE_ACCOUNT_BASE64');
+  }
+
   if (missingEnvVars.length > 0) {
     health.services.environment = {
       status: 'error',

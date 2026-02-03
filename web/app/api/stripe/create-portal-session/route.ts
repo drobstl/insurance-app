@@ -2,20 +2,30 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../../firebase';
+import { getAdminAuth } from '../../../../lib/firebase-admin';
+
+const getAuthUser = async (request: NextRequest) => {
+  const authHeader = request.headers.get('authorization') || '';
+  const match = authHeader.match(/^Bearer (.+)$/i);
+  if (!match) return null;
+
+  const token = match[1];
+  return getAdminAuth().verifyIdToken(token);
+};
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await request.json();
+    const authUser = await getAuthUser(request);
 
-    if (!userId) {
+    if (!authUser) {
       return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 }
+        { error: 'Unauthorized' },
+        { status: 401 }
       );
     }
 
     // Get the agent's Stripe customer ID from Firestore
-    const agentDoc = await getDoc(doc(db, 'agents', userId));
+    const agentDoc = await getDoc(doc(db, 'agents', authUser.uid));
 
     if (!agentDoc.exists()) {
       return NextResponse.json(
@@ -51,4 +61,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

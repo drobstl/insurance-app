@@ -326,14 +326,14 @@ export default function DashboardPage() {
 
     setPortalLoading(true);
     try {
+      const token = await user.getIdToken();
       const response = await fetch('/api/stripe/create-portal-session', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          userId: user.uid,
-        }),
+        body: JSON.stringify({}),
       });
 
       const data = await response.json();
