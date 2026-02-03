@@ -105,7 +105,8 @@ async function handleSubscriptionDeleted(subscriptionData: any) {
   console.log(`Subscription canceled for user ${userId}`);
 }
 
-async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleInvoicePaymentFailed(invoice: any) {
   const customerId = invoice.customer as string;
   const userId = await getFirebaseUserIdFromCustomer(customerId);
 
@@ -114,13 +115,18 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
     return;
   }
 
+  // Get subscription ID from the invoice
+  const subscriptionId = typeof invoice.subscription === 'string' 
+    ? invoice.subscription 
+    : invoice.subscription?.id ?? null;
+
   const db = getAdminFirestore();
   await db.collection('agents').doc(userId).set(
     {
       subscriptionStatus: 'past_due',
       lastPaymentFailedAt: new Date(),
       stripeCustomerId: invoice.customer,
-      subscriptionId: invoice.subscription,
+      subscriptionId: subscriptionId,
     },
     { merge: true }
   );
