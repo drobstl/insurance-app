@@ -93,7 +93,7 @@ export default function TestLandingPage() {
               <Link href="/login" className="text-white/80 hover:text-white transition-colors text-sm sm:text-base">
                 Login
               </Link>
-              <Link href="/signup" className="px-3 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-sm sm:text-base font-semibold rounded-full transition-colors whitespace-nowrap">
+              <Link href="/signup" className="px-3 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-sm sm:text-base font-semibold rounded-full transition-colors whitespace-nowrap">
                 Get Started
               </Link>
             </div>
@@ -139,7 +139,7 @@ export default function TestLandingPage() {
             </p>
             
             {/* Primary CTA */}
-            <Link href="/signup" className="inline-flex items-center gap-3 px-12 py-5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-xl font-bold rounded-full transition-all shadow-2xl shadow-[#3DD6C3]/40 hover:shadow-[#3DD6C3]/60 hover:scale-105 border-2 border-[#3DD6C3] hover:border-white/20">
+            <Link href="/signup" className="inline-flex items-center gap-3 px-12 py-5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-xl font-bold rounded-full transition-all shadow-2xl shadow-[#fdcc02]/40 hover:shadow-[#fdcc02]/60 hover:scale-105 border-2 border-[#fdcc02] hover:border-white/20">
               Get the System — $10/mo
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
@@ -735,7 +735,7 @@ export default function TestLandingPage() {
                 </div>
 
                 <div className="mt-10">
-                  <Link href="/signup" className="inline-flex items-center gap-2 px-8 py-4 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-lg font-bold rounded-full transition-all shadow-lg shadow-[#3DD6C3]/30">
+                  <Link href="/signup" className="inline-flex items-center gap-2 px-8 py-4 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-lg font-bold rounded-full transition-all shadow-lg shadow-[#fdcc02]/30">
                     Get the System
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
@@ -866,7 +866,7 @@ export default function TestLandingPage() {
             </p>
             
             <div className="mb-10">
-              <Link href="/signup" className="inline-flex items-center gap-3 px-12 py-6 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-2xl font-bold rounded-full transition-all shadow-2xl shadow-[#3DD6C3]/40 hover:shadow-[#3DD6C3]/60 hover:scale-105">
+              <Link href="/signup" className="inline-flex items-center gap-3 px-12 py-6 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-2xl font-bold rounded-full transition-all shadow-2xl shadow-[#fdcc02]/40 hover:shadow-[#fdcc02]/60 hover:scale-105">
                 Get the System Now
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
