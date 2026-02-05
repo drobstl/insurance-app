@@ -12,14 +12,27 @@ export default function TestLandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Auto-play video on mount
+  // Auto-play video when it's ready
   useEffect(() => {
     const video = videoRef.current;
-    if (video) {
-      video.play().catch(() => {
-        // Autoplay was prevented, that's okay
-      });
-    }
+    if (!video) return;
+
+    const playVideo = () => {
+      video.muted = true; // Ensure muted for autoplay
+      video.play().catch(() => {});
+    };
+
+    // Try to play immediately
+    playVideo();
+
+    // Also try when video data is loaded
+    video.addEventListener('loadeddata', playVideo);
+    video.addEventListener('canplay', playVideo);
+
+    return () => {
+      video.removeEventListener('loadeddata', playVideo);
+      video.removeEventListener('canplay', playVideo);
+    };
   }, []);
 
   // Calculator logic
@@ -646,7 +659,7 @@ export default function TestLandingPage() {
                           preload="auto"
                           poster="/app-preview-poster.jpeg"
                         >
-                          <source src="/app-preview.mp4" type="video/mp4" />
+                          <source src="/app-preview.mp4?v=2" type="video/mp4" />
                           <source src="/app-preview.webm" type="video/webm" />
                         </video>
                         
