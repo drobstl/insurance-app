@@ -788,7 +788,7 @@ export default function TestLandingPage() {
                         playsInline
                         poster="/app-preview-poster.jpeg"
                       >
-                        <source src="/app-preview.MP4" type="video/mp4" />
+                        <source src="/app-preview.mp4" type="video/mp4" />
                         <source src="/app-preview.webm" type="video/webm" />
                       </video>
                       
