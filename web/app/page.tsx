@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 
 export default function TestLandingPage() {
   const [bookSize, setBookSize] = useState(250000);
@@ -11,29 +11,6 @@ export default function TestLandingPage() {
   const [rewriteRate, setRewriteRate] = useState(10);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-
-  // Auto-play video when it's ready
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const playVideo = () => {
-      video.muted = true; // Ensure muted for autoplay
-      video.play().catch(() => {});
-    };
-
-    // Try to play immediately
-    playVideo();
-
-    // Also try when video data is loaded
-    video.addEventListener('loadeddata', playVideo);
-    video.addEventListener('canplay', playVideo);
-
-    return () => {
-      video.removeEventListener('loadeddata', playVideo);
-      video.removeEventListener('canplay', playVideo);
-    };
-  }, []);
 
   // Calculator logic
   const lostRevenue = bookSize * (1 - retentionRate / 100);
@@ -632,50 +609,24 @@ export default function TestLandingPage() {
             <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
               {/* Phone Mockup with Video */}
               <div className="relative flex justify-center order-2 lg:order-1">
-                <div className="relative" style={{ transform: 'perspective(1000px) rotateY(-5deg) rotateX(2deg)' }}>
-                  {/* Phone Shadow */}
-                  <div className="absolute inset-0 bg-black/30 rounded-[3.5rem] blur-2xl translate-x-4 translate-y-4"></div>
-                  
-                  {/* Phone Frame - iPhone 17 Air (ultra thin) */}
-                  <div className="relative w-[280px] md:w-[320px] bg-gradient-to-br from-[#1a1a1a] via-[#2d2d2d] to-[#1a1a1a] rounded-[3.5rem] p-[6px] shadow-2xl">
-                    {/* Titanium Edge Highlight */}
-                    <div className="absolute inset-0 rounded-[3.5rem] bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none"></div>
-                    
-                    {/* Inner bezel */}
-                    <div className="relative bg-black rounded-[3rem] p-[3px]">
-                      {/* Screen */}
-                      <div className="relative bg-black rounded-[2.8rem] overflow-hidden" style={{ aspectRatio: '9/19.5' }}>
-                        {/* Dynamic Island */}
-                        <div className="absolute top-3 left-1/2 -translate-x-1/2 w-[90px] h-[28px] bg-black rounded-full z-20"></div>
-                        
-                        {/* Video Container */}
-                        <video
-                          ref={videoRef}
-                          className="w-full h-full object-cover"
-                          autoPlay
-                          muted
-                          loop
-                          playsInline
-                          preload="auto"
-                          poster="/app-preview-poster.jpeg"
-                        >
-                          <source src="/app-preview.mp4?v=2" type="video/mp4" />
-                          <source src="/app-preview.webm" type="video/webm" />
-                        </video>
-                        
-                        {/* Screen Glare Effect */}
-                        <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent pointer-events-none"></div>
-                      </div>
+                <div className="relative">
+                  {/* Phone Frame */}
+                  <div className="w-72 h-[580px] bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl border-4 border-[#2a2a2a]">
+                    <div className="w-full h-full bg-black rounded-[2.5rem] overflow-hidden relative">
+                      {/* Video */}
+                      <video
+                        ref={videoRef}
+                        className="w-full h-full object-cover"
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        poster="/app-preview-poster.jpeg"
+                      >
+                        <source src="/app-preview.mp4?v=3" type="video/mp4" />
+                      </video>
                     </div>
-                    
-                    {/* Side Button (right) */}
-                    <div className="absolute right-[-2px] top-32 w-[3px] h-16 bg-[#2a2a2a] rounded-l-sm"></div>
-                    
-                    {/* Volume Buttons (left) */}
-                    <div className="absolute left-[-2px] top-24 w-[3px] h-8 bg-[#2a2a2a] rounded-r-sm"></div>
-                    <div className="absolute left-[-2px] top-36 w-[3px] h-12 bg-[#2a2a2a] rounded-r-sm"></div>
                   </div>
-                  
                   {/* Floating Elements */}
                   <div className="absolute -top-4 -right-8 bg-white rounded-xl p-3 shadow-xl hidden sm:block">
                     <div className="flex items-center gap-2">
