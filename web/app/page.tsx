@@ -617,13 +617,14 @@ export default function TestLandingPage() {
                       <video
                         ref={videoRef}
                         className="w-full h-full object-cover"
-                        autoPlay
-                        muted
-                        loop
-                        playsInline
+                        autoPlay={true}
+                        muted={true}
+                        loop={true}
+                        playsInline={true}
                         poster="/app-preview-poster.jpeg"
                       >
-                        <source src="/app-preview.mp4?v=3" type="video/mp4" />
+                        <source src="/app-preview.webm" type="video/webm" />
+                        <source src="/app-preview.mp4" type="video/mp4" />
                       </video>
                     </div>
                   </div>
