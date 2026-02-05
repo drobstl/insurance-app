@@ -628,27 +628,10 @@ export default function TestLandingPage() {
                       </video>
                     </div>
                   </div>
-                  {/* Floating Elements */}
-                  <div className="absolute -top-4 -right-8 bg-white rounded-xl p-3 shadow-xl hidden sm:block">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                        <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
-                      <span className="text-sm font-medium text-gray-700">Policy Active</span>
-                    </div>
-                  </div>
-                  <div className="absolute -bottom-4 -left-8 bg-white rounded-xl p-3 shadow-xl hidden sm:block">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-[#0D4D4D] rounded-full flex items-center justify-center">
-                        <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                      </div>
-                      <span className="text-sm font-medium text-gray-700">Bank-Level Security</span>
-                    </div>
-                  </div>
+                  {/* Caption */}
+                  <p className="absolute -bottom-10 left-1/2 -translate-x-1/2 text-white/60 text-sm whitespace-nowrap">
+                    What your clients see
+                  </p>
                 </div>
               </div>
 
