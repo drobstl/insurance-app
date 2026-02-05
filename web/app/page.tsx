@@ -608,7 +608,7 @@ export default function TestLandingPage() {
             <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
               {/* Phone Mockup with Video */}
               <div className="relative flex justify-center order-2 lg:order-1">
-                <div className="relative">
+                <div className="relative" style={{ transform: 'perspective(1000px) rotateY(-5deg) rotateX(2deg)' }}>
                   {/* Phone Shadow */}
                   <div className="absolute inset-0 bg-black/30 rounded-[3.5rem] blur-2xl translate-x-4 translate-y-4"></div>
                   
@@ -631,7 +631,10 @@ export default function TestLandingPage() {
                           muted
                           loop
                           playsInline
+                          preload="auto"
                           poster="/app-preview-poster.jpeg"
+                          // @ts-ignore - webkit attribute for iOS
+                          webkit-playsinline="true"
                         >
                           <source src="/app-preview.mp4" type="video/mp4" />
                           <source src="/app-preview.webm" type="video/webm" />
