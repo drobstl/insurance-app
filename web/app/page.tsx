@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 export default function TestLandingPage() {
   const [bookSize, setBookSize] = useState(250000);
@@ -10,6 +10,17 @@ export default function TestLandingPage() {
   const [referralRate, setReferralRate] = useState(5);
   const [rewriteRate, setRewriteRate] = useState(10);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Auto-play video on mount
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) {
+      video.play().catch(() => {
+        // Autoplay was prevented, that's okay
+      });
+    }
+  }, []);
 
   // Calculator logic
   const lostRevenue = bookSize * (1 - retentionRate / 100);
@@ -626,6 +637,7 @@ export default function TestLandingPage() {
                         
                         {/* Video Container */}
                         <video
+                          ref={videoRef}
                           className="w-full h-full object-cover"
                           autoPlay
                           muted
@@ -633,8 +645,6 @@ export default function TestLandingPage() {
                           playsInline
                           preload="auto"
                           poster="/app-preview-poster.jpeg"
-                          // @ts-ignore - webkit attribute for iOS
-                          webkit-playsinline="true"
                         >
                           <source src="/app-preview.mp4" type="video/mp4" />
                           <source src="/app-preview.webm" type="video/webm" />
