@@ -748,6 +748,73 @@ export default function TestLandingPage() {
         </section>
 
         {/* ============================================ */}
+        {/* WHAT YOUR CLIENTS SEE - iPhone Mockup Video */}
+        {/* ============================================ */}
+        <section className="py-20 md:py-28 bg-white overflow-hidden">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
+                What Your Clients <span className="text-[#3DD6C3]">See</span>
+              </h2>
+              <p className="text-xl text-[#6B7280] max-w-2xl mx-auto">
+                A premium app experience with your branding—right in their pocket.
+              </p>
+            </div>
+
+            {/* iPhone 17 Air Mockup */}
+            <div className="flex justify-center">
+              <div className="relative" style={{ transform: 'perspective(1000px) rotateY(-5deg) rotateX(2deg)' }}>
+                {/* Phone Shadow */}
+                <div className="absolute inset-0 bg-black/20 rounded-[3.5rem] blur-2xl translate-x-4 translate-y-4"></div>
+                
+                {/* Phone Frame - iPhone 17 Air (ultra thin) */}
+                <div className="relative w-[280px] md:w-[320px] bg-gradient-to-br from-[#1a1a1a] via-[#2d2d2d] to-[#1a1a1a] rounded-[3.5rem] p-[6px] shadow-2xl">
+                  {/* Titanium Edge Highlight */}
+                  <div className="absolute inset-0 rounded-[3.5rem] bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none"></div>
+                  
+                  {/* Inner bezel */}
+                  <div className="relative bg-black rounded-[3rem] p-[3px]">
+                    {/* Screen */}
+                    <div className="relative bg-black rounded-[2.8rem] overflow-hidden" style={{ aspectRatio: '9/19.5' }}>
+                      {/* Dynamic Island */}
+                      <div className="absolute top-3 left-1/2 -translate-x-1/2 w-[90px] h-[28px] bg-black rounded-full z-20"></div>
+                      
+                      {/* Video Container */}
+                      <video
+                        className="w-full h-full object-cover"
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        poster="/app-preview-poster.jpeg"
+                      >
+                        <source src="/app-preview.MP4" type="video/mp4" />
+                        <source src="/app-preview.webm" type="video/webm" />
+                      </video>
+                      
+                      {/* Screen Glare Effect */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent pointer-events-none"></div>
+                    </div>
+                  </div>
+                  
+                  {/* Side Button (right) */}
+                  <div className="absolute right-[-2px] top-32 w-[3px] h-16 bg-[#2a2a2a] rounded-l-sm"></div>
+                  
+                  {/* Volume Buttons (left) */}
+                  <div className="absolute left-[-2px] top-24 w-[3px] h-8 bg-[#2a2a2a] rounded-r-sm"></div>
+                  <div className="absolute left-[-2px] top-36 w-[3px] h-12 bg-[#2a2a2a] rounded-r-sm"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Subtle caption */}
+            <p className="text-center text-[#9CA3AF] text-sm mt-8">
+              Available on iOS and Android
+            </p>
+          </div>
+        </section>
+
+        {/* ============================================ */}
         {/* ROI COMPARISON - 10x Return */}
         {/* ============================================ */}
         <section className="py-20 md:py-28 bg-white">
