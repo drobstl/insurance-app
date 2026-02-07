@@ -14,6 +14,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.danielroberts.agentforlife",
       "buildNumber": "15",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSCameraUsageDescription": "This app does not use the camera.",
         "NSContactsUsageDescription": "This app needs access to your contacts to send referrals to friends and family.",
@@ -34,7 +35,8 @@
     },
     "android": {
       "package": "com.danielroberts.agentforlife",
-      "versionCode": 14,
+      "versionCode": 15,
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0D4D4D"
@@ -50,6 +52,7 @@
       "backgroundColor": "#0D4D4D"
     },
     "plugins": [
+      "@react-native-firebase/app",
       "expo-router",
       [
         "expo-splash-screen",

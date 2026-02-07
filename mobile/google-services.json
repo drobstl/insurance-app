@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "527695351928",
+    "project_id": "insurance-agent-app-6f613",
+    "storage_bucket": "insurance-agent-app-6f613.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:527695351928:android:3dc47e11896d21480b5d8d",
+        "android_client_info": {
+          "package_name": "com.danielroberts.agentforlife"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDg7NsvtMdviyTa9NtZEYPF0sI61MEsS4g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

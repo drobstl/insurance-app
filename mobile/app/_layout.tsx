@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
+import analytics from '@react-native-firebase/analytics';
 
 // Custom theme with Quility colors
 const CustomTheme = {
@@ -18,6 +20,16 @@ const CustomTheme = {
 };
 
 export default function RootLayout() {
+  const pathname = usePathname();
+
+  // Log screen views to Firebase Analytics on navigation
+  useEffect(() => {
+    analytics().logScreenView({
+      screen_name: pathname,
+      screen_class: pathname,
+    });
+  }, [pathname]);
+
   return (
     <ThemeProvider value={CustomTheme}>
       <Stack

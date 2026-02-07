@@ -1,0 +1,2 @@
+# Ignore web project - not needed for mobile builds
+../web/
