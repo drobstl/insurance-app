@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 export default function TestLandingPage() {
   const [bookSize, setBookSize] = useState(250000);
@@ -11,6 +11,19 @@ export default function TestLandingPage() {
   const [rewriteRate, setRewriteRate] = useState(10);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [showFoundingBanner, setShowFoundingBanner] = useState(false);
+
+  useEffect(() => {
+    const dismissed = localStorage.getItem('founding-banner-dismissed');
+    if (!dismissed) {
+      setShowFoundingBanner(true);
+    }
+  }, []);
+
+  const dismissFoundingBanner = () => {
+    setShowFoundingBanner(false);
+    localStorage.setItem('founding-banner-dismissed', 'true');
+  };
 
   // Calculator logic
   const lostRevenue = bookSize * (1 - retentionRate / 100);
@@ -82,6 +95,32 @@ export default function TestLandingPage() {
 
   return (
     <div className="min-h-screen bg-white">
+      {/* Founding Member Banner */}
+      {showFoundingBanner && (
+        <div className="relative z-[60] bg-[#3DD6C3] w-full">
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 flex items-center justify-center text-center pr-10 sm:pr-12">
+            <p className="text-[#0D4D4D] text-sm sm:text-base font-medium">
+              🚀 Founding Member Program — Now Open. 50 spots. Lifetime free access.{' '}
+              <Link
+                href="/founding-member"
+                className="font-bold underline underline-offset-2 hover:text-[#0D4D4D]/80 transition-colors"
+              >
+                Apply Now →
+              </Link>
+            </p>
+            <button
+              onClick={dismissFoundingBanner}
+              className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 p-1.5 text-[#0D4D4D]/60 hover:text-[#0D4D4D] transition-colors rounded-full hover:bg-[#0D4D4D]/10"
+              aria-label="Dismiss banner"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0D4D4D] shadow-lg">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
