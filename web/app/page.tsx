@@ -152,11 +152,34 @@ export default function TestLandingPage() {
         </div>
       </nav>
 
+      {/* Founding Member Banner — pinned below header */}
+      {showFoundingBanner && (
+        <div className="fixed top-14 sm:top-16 md:top-20 left-0 right-0 z-50 bg-[#3DD6C3]">
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 flex items-center justify-center gap-2 py-2 text-[#0D4D4D] text-sm sm:text-base font-medium">
+            <span className="text-center">
+              🚀 Founding Member Program — Now Open. 50 spots. Lifetime free access.{' '}
+              <Link href="/founding-member" className="font-bold underline underline-offset-2 hover:text-[#0D4D4D]/80 transition-colors">
+                Apply Now →
+              </Link>
+            </span>
+            <button
+              onClick={dismissFoundingBanner}
+              className="ml-2 flex-shrink-0 p-1 rounded hover:bg-[#0D4D4D]/10 transition-colors"
+              aria-label="Dismiss banner"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       <main>
         {/* ============================================ */}
         {/* 1. HERO SECTION - The Power Punch */}
         {/* ============================================ */}
-        <section className="relative bg-[#0D4D4D] pt-32 pb-24 md:pt-40 md:pb-32 overflow-hidden">
+        <section className={`relative bg-[#0D4D4D] pb-24 md:pb-32 overflow-hidden ${showFoundingBanner ? 'pt-[10.5rem] md:pt-[13rem]' : 'pt-32 md:pt-40'}`}>
           {/* Background Effects */}
           <div className="absolute inset-0">
             <div className="absolute top-20 left-10 w-96 h-96 bg-[#3DD6C3] rounded-full blur-[150px] opacity-20"></div>
