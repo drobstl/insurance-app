@@ -154,17 +154,17 @@ export default function TestLandingPage() {
 
       {/* Founding Member Banner — pinned below header */}
       {showFoundingBanner && (
-        <div className="fixed top-14 sm:top-16 md:top-20 left-0 right-0 z-50 bg-[#3DD6C3]">
-          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 flex items-center justify-center gap-2 py-2 text-[#0D4D4D] text-sm sm:text-base font-medium">
+        <div className="fixed top-14 sm:top-16 md:top-20 left-0 right-0 z-50 bg-[#a158ff]">
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 flex items-center justify-center gap-2 py-2 text-white text-sm sm:text-base font-medium">
             <span className="text-center">
               🚀 Founding Member Program — Now Open. 50 spots. Lifetime free access.{' '}
-              <Link href="/founding-member" className="font-bold underline underline-offset-2 hover:text-[#0D4D4D]/80 transition-colors">
+              <Link href="/founding-member" className="font-bold underline underline-offset-2 hover:text-white/80 transition-colors">
                 Apply Now →
               </Link>
             </span>
             <button
               onClick={dismissFoundingBanner}
-              className="ml-2 flex-shrink-0 p-1 rounded hover:bg-[#0D4D4D]/10 transition-colors"
+              className="ml-2 flex-shrink-0 p-1 rounded hover:bg-white/10 transition-colors"
               aria-label="Dismiss banner"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
