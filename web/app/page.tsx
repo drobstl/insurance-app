@@ -102,16 +102,16 @@ export default function TestLandingPage() {
           <div className="absolute -inset-2 rounded-full animate-[borderGlow_2.5s_ease-in-out_infinite] bg-[#3DD6C3]/0 border-2 border-[#3DD6C3]/0" />
           <Link
             href="/founding-member"
-            className="block relative w-32 h-32 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full bg-[#fdcc02] border-[3px] border-[#fdcc02] shadow-2xl hover:scale-105 transition-all duration-300"
+            className="block relative w-32 h-32 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full bg-[#2596be] border-[3px] border-[#011585] shadow-2xl hover:scale-105 transition-all duration-300"
           >
             {/* Content */}
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-              <span className="text-[#0D4D4D] text-[10px] sm:text-[11px] font-bold uppercase tracking-wide">🚀 50 Spots</span>
-              <span className="text-[#0D4D4D] font-extrabold text-sm sm:text-base leading-tight mt-0.5">
+              <span className="text-[#fefff3] text-[10px] sm:text-[11px] font-bold uppercase tracking-wide">🚀 50 Spots</span>
+              <span className="text-[#fefff3] font-extrabold text-sm sm:text-base leading-tight mt-0.5">
                 Founding<br />Member
               </span>
-              <span className="text-[#0D4D4D]/70 text-[10px] sm:text-[11px] mt-0.5 font-medium">Lifetime Free</span>
-              <span className="text-[#0D4D4D] font-bold text-[11px] sm:text-xs mt-1 underline underline-offset-2">
+              <span className="text-[#fefff3]/70 text-[10px] sm:text-[11px] mt-0.5 font-medium">Lifetime Free</span>
+              <span className="text-[#001e54] font-bold text-[11px] sm:text-xs mt-1 underline underline-offset-2">
                 Apply Now →
               </span>
             </div>
