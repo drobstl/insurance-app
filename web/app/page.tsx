@@ -842,7 +842,7 @@ export default function TestLandingPage() {
               <span className="text-[#3DD6C3]">Start Owning Relationships.</span>
             </h2>
             <p className="text-xl text-[#6B7280] mb-10 max-w-2xl mx-auto">
-              For less than the cost of <span className="font-semibold">two cups of coffee</span>, turn every client into a retention win, a referral source, and a rewrite opportunity.
+              For less than the cost of <span className="font-semibold">a single lead</span>, turn every client into a retention win, a referral source, and a rewrite opportunity.
             </p>
             
             {/* Price Display */}
