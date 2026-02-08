@@ -102,7 +102,7 @@ export default function TestLandingPage() {
           <div className="absolute -inset-2 rounded-full animate-[borderGlow_2.5s_ease-in-out_infinite] bg-[#3DD6C3]/0 border-2 border-[#3DD6C3]/0" />
           <Link
             href="/founding-member"
-            className="block relative w-32 h-32 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full bg-[#2596be] border-[3px] border-[#011585] shadow-2xl hover:scale-105 transition-all duration-300"
+            className="block relative w-32 h-32 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full bg-[#a158ff] border-[3px] border-[#011585] shadow-2xl hover:scale-105 transition-all duration-300"
           >
             {/* Content */}
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
