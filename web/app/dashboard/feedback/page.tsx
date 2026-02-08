@@ -20,7 +20,15 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../../../firebase';
-import { WEEKLY_QUESTION, ISSUE_TYPES } from '../../../lib/feedback-config';
+import {
+  ACTIVE_SURVEYS,
+  ISSUE_TYPES,
+  PRODUCT_AREAS,
+  getCurrentPeriodId,
+  surveyResponseDocId,
+} from '../../../lib/feedback-config';
+import type { Survey, SurveyQuestion } from '../../../lib/feedback-config';
+import { isAdminEmail } from '../../../lib/admin';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -40,7 +48,7 @@ interface FeatureIdea {
   createdAt: Timestamp | null;
 }
 
-type FeedbackTab = 'pulse' | 'features' | 'problems';
+type FeedbackTab = 'surveys' | 'features' | 'problems';
 
 /* ------------------------------------------------------------------ */
 /*  Star Rating Component                                              */
@@ -49,15 +57,18 @@ type FeedbackTab = 'pulse' | 'features' | 'problems';
 function StarRating({
   value,
   onChange,
+  scale = 5,
 }: {
   value: number;
   onChange: (v: number) => void;
+  scale?: number;
 }) {
   const [hovered, setHovered] = useState(0);
+  const stars = Array.from({ length: scale }, (_, i) => i + 1);
 
   return (
     <div className="flex gap-1">
-      {[1, 2, 3, 4, 5].map((star) => (
+      {stars.map((star) => (
         <button
           key={star}
           type="button"
@@ -84,6 +95,213 @@ function StarRating({
 }
 
 /* ------------------------------------------------------------------ */
+/*  NPS Rating Component (0-10)                                        */
+/* ------------------------------------------------------------------ */
+
+function NpsRating({
+  value,
+  onChange,
+}: {
+  value: number | null;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div>
+      <div className="flex gap-1 sm:gap-1.5">
+        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => {
+          let selectedClass = '';
+          if (value === n) {
+            if (n <= 6) selectedClass = 'bg-red-500 text-white ring-2 ring-red-300';
+            else if (n <= 8) selectedClass = 'bg-yellow-500 text-white ring-2 ring-yellow-300';
+            else selectedClass = 'bg-emerald-500 text-white ring-2 ring-emerald-300';
+          }
+          return (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onChange(n)}
+              className={`w-8 h-10 sm:w-10 sm:h-10 rounded-lg text-sm font-bold transition-all ${
+                selectedClass || 'bg-[#F8F9FA] text-[#707070] hover:bg-gray-200'
+              }`}
+            >
+              {n}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex justify-between mt-1.5 text-xs text-[#a0a0a0]">
+        <span>Not at all likely</span>
+        <span>Extremely likely</span>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Survey Question Renderer                                           */
+/* ------------------------------------------------------------------ */
+
+function QuestionRenderer({
+  question,
+  value,
+  onChange,
+  index,
+}: {
+  question: SurveyQuestion;
+  value: unknown;
+  onChange: (v: unknown) => void;
+  index: number;
+}) {
+  return (
+    <div className="py-5 first:pt-0">
+      <label className="block text-sm font-semibold text-[#0D4D4D] mb-3">
+        <span className="text-[#a0a0a0] mr-2">{index + 1}.</span>
+        {question.text}
+        {question.required && <span className="text-red-400 ml-1">*</span>}
+      </label>
+
+      {question.type === 'rating' && (
+        <StarRating
+          value={(value as number) || 0}
+          onChange={(v) => onChange(v)}
+          scale={question.scale || 5}
+        />
+      )}
+
+      {question.type === 'nps' && (
+        <NpsRating
+          value={value as number | null}
+          onChange={(v) => onChange(v)}
+        />
+      )}
+
+      {question.type === 'multiple_choice' && question.options && (
+        <div className="space-y-2">
+          {question.options.map((option) => (
+            <label
+              key={option}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-all ${
+                value === option
+                  ? 'border-[#3DD6C3] bg-[#3DD6C3]/5'
+                  : 'border-[#d0d0d0] hover:border-[#3DD6C3]/50'
+              }`}
+            >
+              <div
+                className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                  value === option
+                    ? 'border-[#3DD6C3]'
+                    : 'border-[#d0d0d0]'
+                }`}
+              >
+                {value === option && (
+                  <div className="w-2 h-2 rounded-full bg-[#3DD6C3]" />
+                )}
+              </div>
+              <span className="text-sm text-[#2D3748]">{option}</span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {question.type === 'text' && (
+        <textarea
+          value={(value as string) || ''}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Share your thoughts..."
+          rows={3}
+          className="w-full border border-[#d0d0d0] rounded-lg px-4 py-3 text-base text-[#2D3748] placeholder:text-[#a0a0a0] focus:outline-none focus:ring-2 focus:ring-[#3DD6C3] focus:border-transparent resize-none"
+        />
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Survey Card                                                        */
+/* ------------------------------------------------------------------ */
+
+function SurveyCard({
+  survey,
+  completed,
+  answers,
+  onAnswerChange,
+  onSubmit,
+  submitting,
+}: {
+  survey: Survey;
+  completed: boolean;
+  answers: Record<string, unknown>;
+  onAnswerChange: (questionId: string, value: unknown) => void;
+  onSubmit: () => void;
+  submitting: boolean;
+}) {
+  if (completed) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-[#d0d0d0] p-6 sm:p-8">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 bg-[#3DD6C3]/20 rounded-full flex items-center justify-center">
+            <svg
+              className="w-5 h-5 text-[#3DD6C3]"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-[#0D4D4D]">{survey.title}</h3>
+            <p className="text-sm text-[#3DD6C3] font-medium">
+              Completed this week — thank you!
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const requiredQuestions = survey.questions.filter((q) => q.required);
+  const allRequiredAnswered = requiredQuestions.every((q) => {
+    const a = answers[q.id];
+    if (a === undefined || a === null || a === '') return false;
+    if (q.type === 'rating' && a === 0) return false;
+    return true;
+  });
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-[#d0d0d0] p-6 sm:p-8">
+      <h3 className="text-xl font-bold text-[#0D4D4D] mb-1">{survey.title}</h3>
+      <p className="text-sm text-[#707070] mb-6">{survey.description}</p>
+
+      <div className="divide-y divide-[#f0f0f0]">
+        {survey.questions.map((question, i) => (
+          <QuestionRenderer
+            key={question.id}
+            question={question}
+            value={answers[question.id]}
+            onChange={(v) => onAnswerChange(question.id, v)}
+            index={i}
+          />
+        ))}
+      </div>
+
+      <button
+        onClick={onSubmit}
+        disabled={submitting || !allRequiredAnswered}
+        className="mt-6 w-full sm:w-auto min-h-[44px] px-8 bg-[#3DD6C3] hover:bg-[#32c4b2] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors text-base"
+      >
+        {submitting ? 'Submitting...' : 'Submit Survey'}
+      </button>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main Feedback Page                                                 */
 /* ------------------------------------------------------------------ */
 
@@ -97,13 +315,16 @@ export default function FeedbackPage() {
 
   /* ---- Layout ---- */
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<FeedbackTab>('pulse');
+  const [activeTab, setActiveTab] = useState<FeedbackTab>('surveys');
 
-  /* ---- Quick Pulse ---- */
-  const [pulseResponse, setPulseResponse] = useState('');
-  const [pulseRating, setPulseRating] = useState(0);
-  const [pulseSubmitting, setPulseSubmitting] = useState(false);
-  const [pulseSubmitted, setPulseSubmitted] = useState(false);
+  /* ---- Surveys ---- */
+  const [surveyAnswers, setSurveyAnswers] = useState<
+    Record<string, Record<string, unknown>>
+  >({});
+  const [completedSurveys, setCompletedSurveys] = useState<Set<string>>(
+    new Set(),
+  );
+  const [surveySubmitting, setSurveySubmitting] = useState(false);
 
   /* ---- Feature Ideas ---- */
   const [featureIdea, setFeatureIdea] = useState('');
@@ -112,6 +333,7 @@ export default function FeedbackPage() {
   const [userVotes, setUserVotes] = useState<Set<string>>(new Set());
 
   /* ---- Bug Report ---- */
+  const [bugProductArea, setBugProductArea] = useState('');
   const [bugType, setBugType] = useState('');
   const [bugDescription, setBugDescription] = useState('');
   const [bugFile, setBugFile] = useState<File | null>(null);
@@ -144,6 +366,38 @@ export default function FeedbackPage() {
     });
     return () => unsubscribe();
   }, [router]);
+
+  /* ================================================================ */
+  /*  Survey completion check                                          */
+  /* ================================================================ */
+
+  useEffect(() => {
+    if (!user) return;
+    const activeSurveys = ACTIVE_SURVEYS.filter((s) => s.active);
+    let cancelled = false;
+
+    async function checkCompletions() {
+      const completed = new Set<string>();
+      for (const survey of activeSurveys) {
+        const periodId = getCurrentPeriodId(survey.frequency);
+        const docId = surveyResponseDocId(survey.id, periodId, user!.uid);
+        try {
+          const snap = await getDoc(doc(db, 'surveyResponses', docId));
+          if (snap.exists()) {
+            completed.add(survey.id);
+          }
+        } catch (err) {
+          console.error('Failed to check survey completion', err);
+        }
+      }
+      if (!cancelled) setCompletedSurveys(completed);
+    }
+
+    checkCompletions();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   /* ================================================================ */
   /*  Firestore: Feature Ideas                                         */
@@ -181,54 +435,46 @@ export default function FeedbackPage() {
   }, [user]);
 
   /* ================================================================ */
-  /*  Helpers                                                          */
-  /* ================================================================ */
-
-  const submitToSheet = useCallback(
-    async (data: Record<string, string>) => {
-      const res = await fetch('/api/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agentName: agentProfile.name || user?.displayName || 'Unknown',
-          agentEmail: agentProfile.email || user?.email || 'Unknown',
-          ...data,
-        }),
-      });
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}));
-        throw new Error(errBody.error || 'Failed to submit feedback');
-      }
-    },
-    [agentProfile, user],
-  );
-
-  /* ================================================================ */
   /*  Submit handlers                                                  */
   /* ================================================================ */
 
-  const handlePulseSubmit = async () => {
-    if (!pulseResponse.trim() || pulseRating === 0) return;
-    setPulseSubmitting(true);
-    setSubmitError('');
-    try {
-      await submitToSheet({
-        feedbackType: 'pulse',
-        question: WEEKLY_QUESTION,
-        response: pulseResponse,
-        rating: String(pulseRating),
-        issueType: '',
-        screenshotUrl: '',
-      });
-      setPulseSubmitted(true);
-      setPulseResponse('');
-      setPulseRating(0);
-    } catch (e: unknown) {
-      setSubmitError(e instanceof Error ? e.message : 'Something went wrong');
-    } finally {
-      setPulseSubmitting(false);
-    }
-  };
+  const handleSurveySubmit = useCallback(
+    async (survey: Survey) => {
+      if (!user) return;
+      setSurveySubmitting(true);
+      setSubmitError('');
+      try {
+        const periodId = getCurrentPeriodId(survey.frequency);
+        const docId = surveyResponseDocId(survey.id, periodId, user.uid);
+        const answers = surveyAnswers[survey.id] || {};
+
+        await setDoc(doc(db, 'surveyResponses', docId), {
+          surveyId: survey.id,
+          periodId,
+          agentUid: user.uid,
+          agentName:
+            agentProfile.name || user.displayName || 'Unknown',
+          agentEmail: agentProfile.email || user.email || 'Unknown',
+          answers,
+          completedAt: serverTimestamp(),
+        });
+
+        setCompletedSurveys((prev) => new Set([...prev, survey.id]));
+        setSurveyAnswers((prev) => {
+          const next = { ...prev };
+          delete next[survey.id];
+          return next;
+        });
+      } catch (e: unknown) {
+        setSubmitError(
+          e instanceof Error ? e.message : 'Something went wrong',
+        );
+      } finally {
+        setSurveySubmitting(false);
+      }
+    },
+    [user, agentProfile, surveyAnswers],
+  );
 
   const handleFeatureSubmit = async () => {
     if (!featureIdea.trim() || !user) return;
@@ -242,17 +488,11 @@ export default function FeedbackPage() {
         upvotes: 0,
         createdAt: serverTimestamp(),
       });
-      await submitToSheet({
-        feedbackType: 'feature_request',
-        question: 'N/A',
-        response: featureIdea,
-        rating: '',
-        issueType: '',
-        screenshotUrl: '',
-      });
       setFeatureIdea('');
     } catch (e: unknown) {
-      setSubmitError(e instanceof Error ? e.message : 'Something went wrong');
+      setSubmitError(
+        e instanceof Error ? e.message : 'Something went wrong',
+      );
     } finally {
       setFeatureSubmitting(false);
     }
@@ -275,12 +515,12 @@ export default function FeedbackPage() {
   };
 
   const handleBugSubmit = async () => {
-    if (!bugType || !bugDescription.trim()) return;
+    if (!bugType || !bugDescription.trim() || !user) return;
     setBugSubmitting(true);
     setSubmitError('');
     try {
       let screenshotUrl = '';
-      if (bugFile && user) {
+      if (bugFile) {
         const fileRef = ref(
           storage,
           `feedback-screenshots/${user.uid}/${Date.now()}_${bugFile.name}`,
@@ -288,24 +528,41 @@ export default function FeedbackPage() {
         const snapshot = await uploadBytes(fileRef, bugFile);
         screenshotUrl = await getDownloadURL(snapshot.ref);
       }
-      await submitToSheet({
-        feedbackType: 'bug_report',
-        question: 'N/A',
-        response: bugDescription,
-        rating: '',
+
+      await addDoc(collection(db, 'bugReports'), {
+        agentUid: user.uid,
+        agentName:
+          agentProfile.name || user.displayName || 'Unknown',
+        agentEmail: agentProfile.email || user.email || 'Unknown',
+        productArea: bugProductArea || 'general',
         issueType: bugType,
+        description: bugDescription,
         screenshotUrl,
+        createdAt: serverTimestamp(),
       });
+
       setBugSubmitted(true);
+      setBugProductArea('');
       setBugType('');
       setBugDescription('');
       setBugFile(null);
     } catch (e: unknown) {
-      setSubmitError(e instanceof Error ? e.message : 'Something went wrong');
+      setSubmitError(
+        e instanceof Error ? e.message : 'Something went wrong',
+      );
     } finally {
       setBugSubmitting(false);
     }
   };
+
+  /* ================================================================ */
+  /*  Derived                                                          */
+  /* ================================================================ */
+
+  const activeSurveys = ACTIVE_SURVEYS.filter((s) => s.active);
+  const pendingSurveyCount = activeSurveys.filter(
+    (s) => !completedSurveys.has(s.id),
+  ).length;
 
   /* ================================================================ */
   /*  Loading state                                                    */
@@ -323,8 +580,12 @@ export default function FeedbackPage() {
   /*  Tabs config                                                      */
   /* ================================================================ */
 
-  const tabs: { key: FeedbackTab; label: string }[] = [
-    { key: 'pulse', label: 'Quick Pulse' },
+  const tabs: { key: FeedbackTab; label: string; badge?: number }[] = [
+    {
+      key: 'surveys',
+      label: 'Surveys',
+      badge: pendingSurveyCount > 0 ? pendingSurveyCount : undefined,
+    },
     { key: 'features', label: 'Feature Ideas' },
     { key: 'problems', label: 'Report a Problem' },
   ];
@@ -445,9 +706,7 @@ export default function FeedbackPage() {
           </button>
 
           {/* Feedback (active) */}
-          <button
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 bg-[#daf3f0] text-[#005851]"
-          >
+          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 bg-[#daf3f0] text-[#005851]">
             <svg
               className="w-5 h-5 shrink-0"
               fill="none"
@@ -470,32 +729,63 @@ export default function FeedbackPage() {
             </span>
           </button>
 
-          {/* Applications */}
-          <button
-            onClick={() => router.push('/dashboard/admin/applications')}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white"
-          >
-            <svg
-              className="w-5 h-5 shrink-0"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          {/* Applications (admin only) */}
+          {isAdminEmail(user?.email) && (
+            <button
+              onClick={() => router.push('/dashboard/admin/applications')}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
-              />
-            </svg>
-            <span
-              className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${
-                sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'
-              }`}
+              <svg
+                className="w-5 h-5 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                />
+              </svg>
+              <span
+                className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${
+                  sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'
+                }`}
+              >
+                Applications
+              </span>
+            </button>
+          )}
+
+          {/* Feedback Analytics (admin only) */}
+          {isAdminEmail(user?.email) && (
+            <button
+              onClick={() => router.push('/dashboard/admin/feedback')}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white"
             >
-              Applications
-            </span>
-          </button>
+              <svg
+                className="w-5 h-5 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                />
+              </svg>
+              <span
+                className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${
+                  sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'
+                }`}
+              >
+                Analytics
+              </span>
+            </button>
+          )}
 
           {/* Settings */}
           <button
@@ -564,7 +854,7 @@ export default function FeedbackPage() {
           {/* ======================================================== */}
           <div className="bg-[#0D4D4D] rounded-xl px-6 py-4 mb-6">
             <p className="text-white text-base font-semibold">
-              🚀 Founding Member Program — Your feedback directly shapes
+              Founding Member Program — Your feedback directly shapes
               AgentForLife. Thank you for building this with us.
             </p>
             <p className="text-white/70 text-sm mt-1">
@@ -572,6 +862,23 @@ export default function FeedbackPage() {
               access.
             </p>
           </div>
+
+          {/* ======================================================== */}
+          {/*  Pending Survey Nudge                                     */}
+          {/* ======================================================== */}
+          {activeTab !== 'surveys' && pendingSurveyCount > 0 && (
+            <button
+              onClick={() => setActiveTab('surveys')}
+              className="w-full bg-[#3DD6C3]/10 border border-[#3DD6C3]/30 rounded-lg px-4 py-3 mb-6 flex items-center gap-3 hover:bg-[#3DD6C3]/15 transition-colors text-left"
+            >
+              <span className="w-2.5 h-2.5 bg-[#3DD6C3] rounded-full animate-pulse shrink-0" />
+              <span className="text-sm font-medium text-[#0D4D4D]">
+                You have {pendingSurveyCount} pending survey
+                {pendingSurveyCount > 1 ? 's' : ''} — tap here to complete{' '}
+                {pendingSurveyCount > 1 ? 'them' : 'it'}
+              </span>
+            </button>
+          )}
 
           {/* ======================================================== */}
           {/*  Tabs                                                     */}
@@ -584,13 +891,18 @@ export default function FeedbackPage() {
                   setActiveTab(tab.key);
                   setSubmitError('');
                 }}
-                className={`px-4 sm:px-5 py-3 text-sm sm:text-base font-semibold transition-colors relative ${
+                className={`px-4 sm:px-5 py-3 text-sm sm:text-base font-semibold transition-colors relative flex items-center gap-2 ${
                   activeTab === tab.key
                     ? 'text-[#0D4D4D]'
                     : 'text-[#707070] hover:text-[#005851]'
                 }`}
               >
                 {tab.label}
+                {tab.badge && (
+                  <span className="w-5 h-5 bg-[#3DD6C3] text-white text-xs font-bold rounded-full flex items-center justify-center">
+                    {tab.badge}
+                  </span>
+                )}
                 {activeTab === tab.key && (
                   <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#3DD6C3] rounded-t" />
                 )}
@@ -606,82 +918,49 @@ export default function FeedbackPage() {
           )}
 
           {/* ======================================================== */}
-          {/*  Tab 1: Quick Pulse                                       */}
+          {/*  Tab 1: Surveys                                           */}
           {/* ======================================================== */}
-          {activeTab === 'pulse' && (
-            <div className="max-w-2xl">
-              {pulseSubmitted ? (
+          {activeTab === 'surveys' && (
+            <div className="max-w-2xl space-y-6">
+              {activeSurveys.length === 0 ? (
                 <div className="bg-white rounded-xl shadow-sm border border-[#d0d0d0] p-8 text-center">
-                  <div className="w-16 h-16 bg-[#3DD6C3]/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg
-                      className="w-8 h-8 text-[#3DD6C3]"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className="text-xl font-bold text-[#0D4D4D] mb-2">
-                    Thanks!
-                  </h3>
                   <p className="text-[#707070] text-base">
-                    Your feedback shapes what we build next.
+                    No active surveys right now. Check back soon!
                   </p>
-                  <button
-                    onClick={() => setPulseSubmitted(false)}
-                    className="mt-6 text-[#3DD6C3] font-semibold text-sm hover:underline"
-                  >
-                    Submit another response
-                  </button>
                 </div>
               ) : (
-                <div className="bg-white rounded-xl shadow-sm border border-[#d0d0d0] p-6 sm:p-8">
-                  {/* Weekly question */}
-                  <h2 className="text-xl sm:text-2xl font-bold text-[#0D4D4D] leading-snug mb-6">
-                    {WEEKLY_QUESTION}
-                  </h2>
-
-                  {/* Response textarea */}
-                  <textarea
-                    value={pulseResponse}
-                    onChange={(e) => setPulseResponse(e.target.value)}
-                    placeholder="Be honest — we need your real thoughts, not polite ones..."
-                    rows={5}
-                    className="w-full border border-[#d0d0d0] rounded-lg px-4 py-3 text-base text-[#2D3748] placeholder:text-[#a0a0a0] focus:outline-none focus:ring-2 focus:ring-[#3DD6C3] focus:border-transparent resize-none"
+                activeSurveys.map((survey) => (
+                  <SurveyCard
+                    key={survey.id}
+                    survey={survey}
+                    completed={completedSurveys.has(survey.id)}
+                    answers={surveyAnswers[survey.id] || {}}
+                    onAnswerChange={(questionId, value) => {
+                      setSurveyAnswers((prev) => ({
+                        ...prev,
+                        [survey.id]: {
+                          ...(prev[survey.id] || {}),
+                          [questionId]: value,
+                        },
+                      }));
+                    }}
+                    onSubmit={() => handleSurveySubmit(survey)}
+                    submitting={surveySubmitting}
                   />
-
-                  {/* Star rating */}
-                  <div className="mt-6">
-                    <label className="block text-sm font-semibold text-[#0D4D4D] mb-2">
-                      How essential does AgentForLife feel to your daily workflow
-                      right now?
-                    </label>
-                    <StarRating
-                      value={pulseRating}
-                      onChange={setPulseRating}
-                    />
-                  </div>
-
-                  {/* Submit */}
-                  <button
-                    onClick={handlePulseSubmit}
-                    disabled={
-                      pulseSubmitting ||
-                      !pulseResponse.trim() ||
-                      pulseRating === 0
-                    }
-                    className="mt-6 w-full sm:w-auto min-h-[44px] px-8 bg-[#3DD6C3] hover:bg-[#32c4b2] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors text-base"
-                  >
-                    {pulseSubmitting ? 'Submitting...' : 'Submit Feedback'}
-                  </button>
-                </div>
+                ))
               )}
+
+              {activeSurveys.length > 0 &&
+                activeSurveys.every((s) => completedSurveys.has(s.id)) && (
+                  <div className="bg-[#3DD6C3]/5 border border-[#3DD6C3]/20 rounded-xl px-6 py-5 text-center">
+                    <p className="text-[#0D4D4D] font-semibold">
+                      You&apos;re all caught up!
+                    </p>
+                    <p className="text-sm text-[#707070] mt-1">
+                      New surveys appear weekly. Thanks for staying engaged.
+                    </p>
+                  </div>
+                )}
             </div>
           )}
 
@@ -742,7 +1021,9 @@ export default function FeedbackPage() {
                       >
                         <svg
                           className="w-5 h-5"
-                          fill={userVotes.has(idea.id) ? 'currentColor' : 'none'}
+                          fill={
+                            userVotes.has(idea.id) ? 'currentColor' : 'none'
+                          }
                           stroke="currentColor"
                           viewBox="0 0 24 24"
                         >
@@ -811,6 +1092,29 @@ export default function FeedbackPage() {
                 </div>
               ) : (
                 <div className="bg-white rounded-xl shadow-sm border border-[#d0d0d0] p-6 sm:p-8">
+                  {/* Product area */}
+                  <div className="mb-5">
+                    <label className="block text-sm font-semibold text-[#0D4D4D] mb-2">
+                      Which part of the product?
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {PRODUCT_AREAS.map((area) => (
+                        <button
+                          key={area.value}
+                          type="button"
+                          onClick={() => setBugProductArea(area.value)}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+                            bugProductArea === area.value
+                              ? 'border-[#3DD6C3] bg-[#3DD6C3]/10 text-[#0D4D4D]'
+                              : 'border-[#d0d0d0] bg-white text-[#707070] hover:border-[#3DD6C3]/50'
+                          }`}
+                        >
+                          {area.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Issue type dropdown */}
                   <div className="mb-5">
                     <label className="block text-sm font-semibold text-[#0D4D4D] mb-2">
