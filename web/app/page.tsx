@@ -97,28 +97,24 @@ export default function TestLandingPage() {
     <div className="min-h-screen bg-white">
       {/* Floating Founding Member Badge */}
       {showFoundingBanner && (
-        <div className="fixed right-4 sm:right-6 top-1/3 z-[55] group">
+        <div className="fixed right-3 sm:right-5 top-1/3 z-[55] group">
+          {/* Pulsing glow ring behind the badge */}
+          <div className="absolute -inset-2 rounded-full animate-[borderGlow_2.5s_ease-in-out_infinite] bg-[#3DD6C3]/0 border-2 border-[#3DD6C3]/0" />
           <Link
             href="/founding-member"
-            className="block relative w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-full bg-[#0D4D4D] border-2 border-[#3DD6C3]/60 shadow-2xl shadow-[#3DD6C3]/20 hover:shadow-[#3DD6C3]/40 hover:scale-105 transition-all duration-300 overflow-hidden"
+            className="block relative w-32 h-32 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full bg-[#fdcc02] border-[3px] border-[#fdcc02] shadow-2xl hover:scale-105 transition-all duration-300"
           >
-            {/* Gleam / shine sweep */}
-            <div className="absolute inset-0 rounded-full overflow-hidden">
-              <div className="absolute -top-full -left-full w-[200%] h-[200%] animate-[gleam_3s_ease-in-out_infinite] bg-gradient-to-br from-transparent via-white/15 to-transparent rotate-45" />
-            </div>
             {/* Content */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-3">
-              <span className="text-[#3DD6C3] text-[10px] sm:text-xs font-semibold uppercase tracking-wider mb-1">🚀 50 Spots</span>
-              <span className="text-white font-extrabold text-xs sm:text-sm leading-tight">
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
+              <span className="text-[#0D4D4D] text-[10px] sm:text-[11px] font-bold uppercase tracking-wide">🚀 50 Spots</span>
+              <span className="text-[#0D4D4D] font-extrabold text-sm sm:text-base leading-tight mt-0.5">
                 Founding<br />Member
               </span>
-              <span className="text-white/70 text-[9px] sm:text-[10px] mt-1">Lifetime Free Access</span>
-              <span className="text-[#3DD6C3] font-bold text-[10px] sm:text-xs mt-1.5 underline underline-offset-2">
+              <span className="text-[#0D4D4D]/70 text-[10px] sm:text-[11px] mt-0.5 font-medium">Lifetime Free</span>
+              <span className="text-[#0D4D4D] font-bold text-[11px] sm:text-xs mt-1 underline underline-offset-2">
                 Apply Now →
               </span>
             </div>
-            {/* Outer glow pulse */}
-            <div className="absolute -inset-1 rounded-full animate-[subtlePulse_2s_ease-in-out_infinite]" />
           </Link>
           {/* Dismiss button */}
           <button
