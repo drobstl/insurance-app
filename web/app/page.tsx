@@ -95,32 +95,30 @@ export default function TestLandingPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Floating Founding Member Starburst Badge */}
+      {/* Floating Founding Member Badge */}
       {showFoundingBanner && (
         <div className="fixed right-4 sm:right-6 top-1/3 z-[55] group">
-          <Link href="/founding-member" className="block relative">
-            {/* Starburst SVG */}
-            <svg
-              viewBox="0 0 200 200"
-              className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 drop-shadow-xl animate-[starSpin_20s_linear_infinite]"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M100 0 L118 65 L185 50 L140 100 L185 150 L118 135 L100 200 L82 135 L15 150 L60 100 L15 50 L82 65 Z"
-                fill="#3DD6C3"
-              />
-            </svg>
-            {/* Badge text */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-              <span className="text-[#0D4D4D] font-extrabold text-[9px] sm:text-[10px] md:text-xs uppercase tracking-wider leading-tight">
+          <Link
+            href="/founding-member"
+            className="block relative w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-full bg-[#0D4D4D] border-2 border-[#3DD6C3]/60 shadow-2xl shadow-[#3DD6C3]/20 hover:shadow-[#3DD6C3]/40 hover:scale-105 transition-all duration-300 overflow-hidden"
+          >
+            {/* Gleam / shine sweep */}
+            <div className="absolute inset-0 rounded-full overflow-hidden">
+              <div className="absolute -top-full -left-full w-[200%] h-[200%] animate-[gleam_3s_ease-in-out_infinite] bg-gradient-to-br from-transparent via-white/15 to-transparent rotate-45" />
+            </div>
+            {/* Content */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-3">
+              <span className="text-[#3DD6C3] text-[10px] sm:text-xs font-semibold uppercase tracking-wider mb-1">🚀 50 Spots</span>
+              <span className="text-white font-extrabold text-xs sm:text-sm leading-tight">
                 Founding<br />Member
               </span>
-              <span className="text-[#0D4D4D] font-bold text-[7px] sm:text-[8px] md:text-[9px] mt-0.5 opacity-80">
-                Apply Now
+              <span className="text-white/70 text-[9px] sm:text-[10px] mt-1">Lifetime Free Access</span>
+              <span className="text-[#3DD6C3] font-bold text-[10px] sm:text-xs mt-1.5 underline underline-offset-2">
+                Apply Now →
               </span>
             </div>
-            {/* Pulsing ring */}
-            <div className="absolute inset-0 animate-[subtlePulse_2s_ease-in-out_infinite] rounded-full" />
+            {/* Outer glow pulse */}
+            <div className="absolute -inset-1 rounded-full animate-[subtlePulse_2s_ease-in-out_infinite]" />
           </Link>
           {/* Dismiss button */}
           <button
@@ -128,7 +126,7 @@ export default function TestLandingPage() {
               e.preventDefault();
               dismissFoundingBanner();
             }}
-            className="absolute -top-1 -left-1 w-5 h-5 bg-[#0D4D4D] hover:bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+            className="absolute -top-1 -left-1 w-5 h-5 bg-[#0D4D4D] hover:bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md border border-white/20"
             aria-label="Dismiss badge"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
