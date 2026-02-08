@@ -18,14 +18,35 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     try {
-      await sendPasswordResetEmail(auth, email);
+      // Check if the email is registered before sending a reset link
+      const checkRes = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!checkRes.ok) {
+        setError('Something went wrong. Please try again.');
+        return;
+      }
+
+      const { exists } = await checkRes.json();
+
+      if (!exists) {
+        setError('No account found with this email address.');
+        return;
+      }
+
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      await sendPasswordResetEmail(auth, email, {
+        url: `${appUrl}/login`,
+        handleCodeInApp: false,
+      });
       setSuccess(true);
     } catch (err: unknown) {
       if (err instanceof Error) {
         const errorMessage = err.message;
-        if (errorMessage.includes('user-not-found')) {
-          setError('No account found with this email address.');
-        } else if (errorMessage.includes('invalid-email')) {
+        if (errorMessage.includes('invalid-email')) {
           setError('Please enter a valid email address.');
         } else if (errorMessage.includes('too-many-requests')) {
           setError('Too many attempts. Please try again later.');

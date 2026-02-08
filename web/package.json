@@ -13,6 +13,7 @@
     "@vercel/kv": "^3.0.0",
     "firebase": "^12.7.0",
     "firebase-admin": "^12.5.0",
+    "googleapis": "^171.4.0",
     "next": "16.1.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
