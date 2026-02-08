@@ -8,6 +8,8 @@ import { auth, db } from '../../firebase';
 import OnboardingOverlay from '../../components/OnboardingOverlay';
 import LoomVideoModal from '../../components/LoomVideoModal';
 import { isAdminEmail } from '../../lib/admin';
+import ApplicationUpload from '../../components/ApplicationUpload';
+import type { ExtractedApplicationData } from '../../lib/types';
 
 interface Client {
   id: string;
@@ -123,6 +125,9 @@ export default function DashboardPage() {
   const [policyFormSuccess, setPolicyFormSuccess] = useState(false);
   const [policySubmitting, setPolicySubmitting] = useState(false);
 
+  // Application upload state
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+
   // Edit/Delete state
   const [editingPolicy, setEditingPolicy] = useState<Policy | null>(null);
   const [deleteConfirmPolicy, setDeleteConfirmPolicy] = useState<Policy | null>(null);
@@ -169,7 +174,7 @@ export default function DashboardPage() {
 
   // Sidebar state for Quility-style layout
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'clients' | 'activity'>('clients');
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'clients' | 'activity' | 'resources'>('clients');
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
   // Onboarding & tutorial state
@@ -599,6 +604,37 @@ export default function DashboardPage() {
     setPolicyFormData(getDefaultPolicyFormData());
     setPolicyFormError('');
     setPolicyFormSuccess(false);
+  };
+
+  const handleApplicationExtracted = (data: ExtractedApplicationData) => {
+    setIsUploadModalOpen(false);
+
+    // Map the extracted carrier to known list or "Other"
+    const knownCarriers = ['Americo', 'Mutual of Omaha', 'American Amicable', 'Banner', 'United Home Life',
+      'SBLI', 'Corebridge', 'AIG', 'Transamerica', 'F&G', 'Foresters', 'National Life Group',
+      'Lincoln Financial', 'Nationwide', 'Prudential', 'Protective', 'North American', 'Athene'];
+    const extractedCarrier = data.insuranceCompany || '';
+    const isKnownCarrier = knownCarriers.includes(extractedCarrier);
+
+    setPolicyFormData({
+      policyType: data.policyType || 'IUL',
+      policyNumber: data.policyNumber || '',
+      insuranceCompany: isKnownCarrier ? extractedCarrier : (extractedCarrier ? 'Other' : ''),
+      otherCarrier: isKnownCarrier ? '' : extractedCarrier,
+      policyOwner: data.policyOwner || '',
+      beneficiary: data.beneficiary || '',
+      coverageAmount: data.coverageAmount?.toString() || '',
+      premiumAmount: data.premiumAmount?.toString() || '',
+      renewalDate: data.renewalDate || '',
+      amountOfProtection: '',
+      protectionUnit: 'years',
+      status: 'Pending',
+    });
+
+    setEditingPolicy(null);
+    setPolicyFormError('');
+    setPolicyFormSuccess(false);
+    setIsPolicyModalOpen(true);
   };
 
   const handleSubmitPolicy = async (e: React.FormEvent) => {
@@ -1157,6 +1193,21 @@ export default function DashboardPage() {
             </span>
           </button>
 
+          {/* Resources */}
+          <button
+            onClick={() => setActiveSection('resources')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group ${
+              activeSection === 'resources' ? 'bg-[#daf3f0] text-[#005851]' : 'text-white/80 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
+              Resources
+            </span>
+          </button>
+
           {/* Feedback */}
           <button
             onClick={() => router.push('/dashboard/feedback')}
@@ -1323,6 +1374,44 @@ export default function DashboardPage() {
         <div className="flex flex-1">
           {/* Center Content */}
           <main className="flex-1 p-6 overflow-auto">
+            {activeSection === 'resources' ? (
+              /* Resources Section */
+              <div>
+                <div className="mb-6">
+                  <h1 className="text-2xl font-bold text-[#000000]">Resources</h1>
+                  <p className="text-[#707070] text-sm mt-1">Downloadable tools and scripts to help you succeed.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* Product Introduction Script */}
+                  <div className="bg-white rounded-[5px] border border-[#d0d0d0] overflow-hidden hover:shadow-lg transition-shadow">
+                    <div className="bg-gradient-to-br from-[#005851] to-[#0A3D3D] p-6 flex items-center justify-center">
+                      <svg className="w-16 h-16 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <div className="p-5">
+                      <h3 className="text-lg font-semibold text-[#000000] mb-1">Product Introduction Script</h3>
+                      <p className="text-[#707070] text-sm mb-4">A ready-to-use script to help you introduce our products to your clients with confidence.</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-[#707070] bg-[#f1f1f1] px-2 py-1 rounded-[5px]">PDF</span>
+                        <a
+                          href="/product-introduction-script.pdf"
+                          download
+                          className="flex items-center gap-2 px-4 py-2 bg-[#44bbaa] hover:bg-[#005751] text-white font-medium rounded-[5px] transition-colors text-sm"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          Download
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+            <>
             {/* Action Bar - Quility Style */}
             <div className="bg-white rounded-[5px] border border-[#d0d0d0] p-4 mb-6">
               <div className="flex flex-wrap items-center justify-between gap-4">
@@ -1494,6 +1583,15 @@ export default function DashboardPage() {
               </div>
               <div className="flex items-center gap-3">
                 <button
+                  onClick={() => setIsUploadModalOpen(true)}
+                  className="px-4 py-2.5 bg-[#005851] hover:bg-[#004540] text-white font-semibold rounded-[5px] shadow-lg shadow-[#005851]/30 hover:shadow-[#005851]/40 transition-all duration-200 flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  Upload Application
+                </button>
+                <button
                   onClick={() => handleOpenPolicyModal()}
                   className="px-4 py-2.5 bg-[#0099FF] hover:bg-[#0088DD] text-white font-semibold rounded-[5px] shadow-lg shadow-[#0099FF]/30 hover:shadow-[#0099FF]/40 transition-all duration-200 flex items-center gap-2"
                 >
@@ -1662,6 +1760,8 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+            </>
+            )}
       </main>
 
           {/* Right Sidebar - Business At a Glance */}
@@ -2379,6 +2479,15 @@ export default function DashboardPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Application Upload Modal */}
+      {isUploadModalOpen && selectedClient && (
+        <ApplicationUpload
+          clientName={selectedClient.name}
+          onExtracted={handleApplicationExtracted}
+          onClose={() => setIsUploadModalOpen(false)}
+        />
       )}
 
       {/* Delete Confirmation Modal */}
