@@ -67,6 +67,13 @@ export default function FoundingMemberPage() {
         status: 'pending',
       });
       setSubmitted(true);
+
+      // Send notification email to admin (fire-and-forget)
+      fetch('/api/admin/applications/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ applicantName: name, applicantEmail: email }),
+      }).catch(() => {});
     } catch (err) {
       console.error('Error submitting application:', err);
       setError('Something went wrong. Please try again or email support@agentforlife.app directly.');
