@@ -95,60 +95,74 @@ export default function TestLandingPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Fixed Header: Banner + Navigation */}
-      <div className="fixed top-0 left-0 right-0 z-50 transition-all duration-300">
-        {/* Founding Member Banner */}
-        {showFoundingBanner && (
-          <div className="bg-[#3DD6C3] w-full">
-            <div className="relative max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-2.5 flex items-center justify-center text-center pr-10 sm:pr-12">
-              <p className="text-[#0D4D4D] text-sm sm:text-base font-medium">
-                🚀 Founding Member Program — 50 spots. Lifetime free access.{' '}
-                <Link
-                  href="/founding-member"
-                  className="font-bold underline underline-offset-2 hover:text-[#0D4D4D]/80 transition-colors"
-                >
-                  Apply Now →
-                </Link>
-              </p>
-              <button
-                onClick={dismissFoundingBanner}
-                className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 p-1.5 text-[#0D4D4D]/60 hover:text-[#0D4D4D] transition-colors rounded-full hover:bg-[#0D4D4D]/10"
-                aria-label="Dismiss banner"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+      {/* Floating Founding Member Starburst Badge */}
+      {showFoundingBanner && (
+        <div className="fixed right-4 sm:right-6 top-1/3 z-[55] group">
+          <Link href="/founding-member" className="block relative">
+            {/* Starburst SVG */}
+            <svg
+              viewBox="0 0 200 200"
+              className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 drop-shadow-xl animate-[starSpin_20s_linear_infinite]"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M100 0 L118 65 L185 50 L140 100 L185 150 L118 135 L100 200 L82 135 L15 150 L60 100 L15 50 L82 65 Z"
+                fill="#3DD6C3"
+              />
+            </svg>
+            {/* Badge text */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+              <span className="text-[#0D4D4D] font-extrabold text-[9px] sm:text-[10px] md:text-xs uppercase tracking-wider leading-tight">
+                Founding<br />Member
+              </span>
+              <span className="text-[#0D4D4D] font-bold text-[7px] sm:text-[8px] md:text-[9px] mt-0.5 opacity-80">
+                Apply Now
+              </span>
             </div>
-          </div>
-        )}
+            {/* Pulsing ring */}
+            <div className="absolute inset-0 animate-[subtlePulse_2s_ease-in-out_infinite] rounded-full" />
+          </Link>
+          {/* Dismiss button */}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              dismissFoundingBanner();
+            }}
+            className="absolute -top-1 -left-1 w-5 h-5 bg-[#0D4D4D] hover:bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+            aria-label="Dismiss badge"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
 
-        {/* Navigation */}
-        <nav className="bg-[#0D4D4D] shadow-lg">
-          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between h-14 sm:h-16 md:h-20">
-              <Link href="/" className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-shrink">
-                <img src="/logo.png" alt="AgentForLife Logo" className="w-[50px] h-[28px] sm:w-[70px] sm:h-[40px] md:w-[80px] md:h-[45px] object-contain flex-shrink-0" />
-                <span className="text-base sm:text-lg md:text-xl text-white brand-title truncate">AgentForLife</span>
+      {/* Navigation */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0D4D4D] shadow-lg">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14 sm:h-16 md:h-20">
+            <Link href="/" className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-shrink">
+              <img src="/logo.png" alt="AgentForLife Logo" className="w-[50px] h-[28px] sm:w-[70px] sm:h-[40px] md:w-[80px] md:h-[45px] object-contain flex-shrink-0" />
+              <span className="text-base sm:text-lg md:text-xl text-white brand-title truncate">AgentForLife</span>
+            </Link>
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              <Link href="/login" className="text-white/80 hover:text-white transition-colors text-sm sm:text-base">
+                Login
               </Link>
-              <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-                <Link href="/login" className="text-white/80 hover:text-white transition-colors text-sm sm:text-base">
-                  Login
-                </Link>
-                <Link href="/signup" className="px-3 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-sm sm:text-base font-semibold rounded-full transition-colors whitespace-nowrap">
-                  Get Started
-                </Link>
-              </div>
+              <Link href="/signup" className="px-3 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-sm sm:text-base font-semibold rounded-full transition-colors whitespace-nowrap">
+                Get Started
+              </Link>
             </div>
           </div>
-        </nav>
-      </div>
+        </div>
+      </nav>
 
       <main>
         {/* ============================================ */}
         {/* 1. HERO SECTION - The Power Punch */}
         {/* ============================================ */}
-        <section className={`relative bg-[#0D4D4D] pb-24 md:pb-32 overflow-hidden transition-all duration-300 ${showFoundingBanner ? 'pt-[7.5rem] sm:pt-[8.5rem] md:pt-[11rem]' : 'pt-32 md:pt-40'}`}>
+        <section className="relative bg-[#0D4D4D] pt-32 pb-24 md:pt-40 md:pb-32 overflow-hidden">
           {/* Background Effects */}
           <div className="absolute inset-0">
             <div className="absolute top-20 left-10 w-96 h-96 bg-[#3DD6C3] rounded-full blur-[150px] opacity-20"></div>
