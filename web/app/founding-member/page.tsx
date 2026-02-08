@@ -130,20 +130,17 @@ export default function FoundingMemberPage() {
                 AgentForLife
               </span>
             </Link>
-            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-              <Link
-                href="/login"
-                className="text-white/80 hover:text-white transition-colors text-sm sm:text-base"
-              >
-                Login
-              </Link>
-              <Link
-                href="/signup"
-                className="px-3 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-sm sm:text-base font-semibold rounded-full transition-colors whitespace-nowrap"
-              >
-                Get Started
-              </Link>
-            </div>
+            <button
+              onClick={() => {
+                document.getElementById('apply-section')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="flex items-center gap-2 px-4 py-1.5 sm:px-5 sm:py-2 bg-[#3DD6C3] hover:bg-[#2fc4b1] text-[#0D4D4D] text-sm sm:text-base font-semibold rounded-full transition-all animate-[subtlePulse_2s_ease-in-out_infinite] whitespace-nowrap"
+            >
+              Apply Now
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            </button>
           </div>
         </div>
       </nav>
@@ -365,6 +362,7 @@ export default function FoundingMemberPage() {
         {/* APPLICATION FORM SECTION */}
         {/* ============================================ */}
         <section
+          id="apply-section"
           ref={setSectionRef(2)}
           data-section="2"
           className={`py-20 md:py-28 bg-[#0D4D4D] relative overflow-hidden ${sectionClass(2)}`}
