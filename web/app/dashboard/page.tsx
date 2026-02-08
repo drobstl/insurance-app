@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut, User, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp, Timestamp, getDoc, getDocs, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
+import OnboardingOverlay from '../../components/OnboardingOverlay';
+import LoomVideoModal from '../../components/LoomVideoModal';
 
 interface Client {
   id: string;
@@ -169,6 +171,10 @@ export default function DashboardPage() {
   const [activeSection, setActiveSection] = useState<'dashboard' | 'clients' | 'activity'>('clients');
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
+  // Onboarding & tutorial state
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showTutorialVideo, setShowTutorialVideo] = useState(false);
+
   // Filtered clients based on search
   const filteredClients = useMemo(() => {
     if (!searchQuery.trim()) return clients;
@@ -219,6 +225,14 @@ export default function DashboardPage() {
           setProfilePhoneNumber(data.phoneNumber || '');
           setProfileAgencyName(data.agencyName || '');
           setReferralMessage(data.referralMessage || '');
+
+          // Show onboarding if not completed yet
+          if (!data.onboardingComplete) {
+            setShowOnboarding(true);
+          }
+        } else {
+          // No agent doc at all — definitely first time
+          setShowOnboarding(true);
         }
       } catch (error) {
         console.error('Error fetching agent profile:', error);
@@ -1197,6 +1211,18 @@ export default function DashboardPage() {
 
           {/* Right: Actions & Profile */}
           <div className="flex items-center gap-4">
+            {/* Watch Tutorial */}
+            <button
+              onClick={() => setShowTutorialVideo(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] hover:bg-[#f1f1f1] text-[#707070] hover:text-[#005851] transition-colors text-sm font-medium"
+              title="Watch tutorial"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              <span className="hidden sm:inline">Tutorial</span>
+            </button>
+
             {/* Search Icon */}
             <button className="w-9 h-9 rounded-[5px] hover:bg-[#f1f1f1] flex items-center justify-center text-[#707070] hover:text-[#005851] transition-colors">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2881,6 +2907,23 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Onboarding Overlay — shows on first login */}
+      {showOnboarding && user && (
+        <OnboardingOverlay
+          agentUid={user.uid}
+          agentName={agentProfile.name || user.displayName || ''}
+          onComplete={() => setShowOnboarding(false)}
+          onOpenTutorial={() => setShowTutorialVideo(true)}
+          onOpenProfile={() => setIsProfileModalOpen(true)}
+        />
+      )}
+
+      {/* Loom Tutorial Video Modal */}
+      <LoomVideoModal
+        isOpen={showTutorialVideo}
+        onClose={() => setShowTutorialVideo(false)}
+      />
     </div>
   );
 }
