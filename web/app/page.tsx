@@ -95,57 +95,60 @@ export default function TestLandingPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Founding Member Banner */}
-      {showFoundingBanner && (
-        <div className="relative z-[60] bg-[#3DD6C3] w-full">
-          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 flex items-center justify-center text-center pr-10 sm:pr-12">
-            <p className="text-[#0D4D4D] text-sm sm:text-base font-medium">
-              🚀 Founding Member Program — Now Open. 50 spots. Lifetime free access.{' '}
-              <Link
-                href="/founding-member"
-                className="font-bold underline underline-offset-2 hover:text-[#0D4D4D]/80 transition-colors"
+      {/* Fixed Header: Banner + Navigation */}
+      <div className="fixed top-0 left-0 right-0 z-50 transition-all duration-300">
+        {/* Founding Member Banner */}
+        {showFoundingBanner && (
+          <div className="bg-[#3DD6C3] w-full">
+            <div className="relative max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-2.5 flex items-center justify-center text-center pr-10 sm:pr-12">
+              <p className="text-[#0D4D4D] text-sm sm:text-base font-medium">
+                🚀 Founding Member Program — 50 spots. Lifetime free access.{' '}
+                <Link
+                  href="/founding-member"
+                  className="font-bold underline underline-offset-2 hover:text-[#0D4D4D]/80 transition-colors"
+                >
+                  Apply Now →
+                </Link>
+              </p>
+              <button
+                onClick={dismissFoundingBanner}
+                className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 p-1.5 text-[#0D4D4D]/60 hover:text-[#0D4D4D] transition-colors rounded-full hover:bg-[#0D4D4D]/10"
+                aria-label="Dismiss banner"
               >
-                Apply Now →
-              </Link>
-            </p>
-            <button
-              onClick={dismissFoundingBanner}
-              className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 p-1.5 text-[#0D4D4D]/60 hover:text-[#0D4D4D] transition-colors rounded-full hover:bg-[#0D4D4D]/10"
-              aria-label="Dismiss banner"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0D4D4D] shadow-lg">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-14 sm:h-16 md:h-20">
-            <Link href="/" className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-shrink">
-              <img src="/logo.png" alt="AgentForLife Logo" className="w-[50px] h-[28px] sm:w-[70px] sm:h-[40px] md:w-[80px] md:h-[45px] object-contain flex-shrink-0" />
-              <span className="text-base sm:text-lg md:text-xl text-white brand-title truncate">AgentForLife</span>
-            </Link>
-            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-              <Link href="/login" className="text-white/80 hover:text-white transition-colors text-sm sm:text-base">
-                Login
-              </Link>
-              <Link href="/signup" className="px-3 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-sm sm:text-base font-semibold rounded-full transition-colors whitespace-nowrap">
-                Get Started
-              </Link>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
           </div>
-        </div>
-      </nav>
+        )}
+
+        {/* Navigation */}
+        <nav className="bg-[#0D4D4D] shadow-lg">
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-14 sm:h-16 md:h-20">
+              <Link href="/" className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-shrink">
+                <img src="/logo.png" alt="AgentForLife Logo" className="w-[50px] h-[28px] sm:w-[70px] sm:h-[40px] md:w-[80px] md:h-[45px] object-contain flex-shrink-0" />
+                <span className="text-base sm:text-lg md:text-xl text-white brand-title truncate">AgentForLife</span>
+              </Link>
+              <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                <Link href="/login" className="text-white/80 hover:text-white transition-colors text-sm sm:text-base">
+                  Login
+                </Link>
+                <Link href="/signup" className="px-3 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-sm sm:text-base font-semibold rounded-full transition-colors whitespace-nowrap">
+                  Get Started
+                </Link>
+              </div>
+            </div>
+          </div>
+        </nav>
+      </div>
 
       <main>
         {/* ============================================ */}
         {/* 1. HERO SECTION - The Power Punch */}
         {/* ============================================ */}
-        <section className="relative bg-[#0D4D4D] pt-32 pb-24 md:pt-40 md:pb-32 overflow-hidden">
+        <section className={`relative bg-[#0D4D4D] pb-24 md:pb-32 overflow-hidden transition-all duration-300 ${showFoundingBanner ? 'pt-[7.5rem] sm:pt-[8.5rem] md:pt-[11rem]' : 'pt-32 md:pt-40'}`}>
           {/* Background Effects */}
           <div className="absolute inset-0">
             <div className="absolute top-20 left-10 w-96 h-96 bg-[#3DD6C3] rounded-full blur-[150px] opacity-20"></div>

@@ -14,9 +14,8 @@ export default function FoundingMemberPage() {
   // Form state
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [clientCount, setClientCount] = useState('');
-  const [biggestFrustration, setBiggestFrustration] = useState('');
+  const [biggestDifference, setBiggestDifference] = useState('');
 
   // Scroll animation refs
   const sectionRefs = useRef<(HTMLElement | null)[]>([]);
@@ -62,16 +61,15 @@ export default function FoundingMemberPage() {
       await addDoc(collection(db, 'foundingMemberApplications'), {
         name,
         email,
-        phone: phone || null,
         clientCount,
-        biggestFrustration,
+        biggestDifference,
         timestamp: serverTimestamp(),
         status: 'pending',
       });
       setSubmitted(true);
     } catch (err) {
       console.error('Error submitting application:', err);
-      setError('Something went wrong. Please try again or email daniel@crosswindsfg.com directly.');
+      setError('Something went wrong. Please try again or email support@agentforlife.app directly.');
     } finally {
       setSubmitting(false);
     }
@@ -411,21 +409,6 @@ export default function FoundingMemberPage() {
                     />
                   </div>
 
-                  {/* Phone */}
-                  <div>
-                    <label htmlFor="phone" className="block text-white font-semibold mb-2 text-base">
-                      Phone Number <span className="text-white/40 font-normal">(optional)</span>
-                    </label>
-                    <input
-                      type="tel"
-                      id="phone"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:border-[#3DD6C3] focus:outline-none focus:ring-4 focus:ring-[#3DD6C3]/20 transition-all text-base"
-                      placeholder="(555) 123-4567"
-                    />
-                  </div>
-
                   {/* Client Count Dropdown */}
                   <div>
                     <label
@@ -468,23 +451,57 @@ export default function FoundingMemberPage() {
                     </select>
                   </div>
 
-                  {/* Biggest Frustration */}
+                  {/* Biggest Difference - Radio Card Pills */}
                   <div>
-                    <label
-                      htmlFor="frustration"
-                      className="block text-white font-semibold mb-2 text-base"
-                    >
-                      What&rsquo;s your biggest frustration as an insurance agent right now?{' '}
+                    <p className="block text-white font-semibold mb-3 text-base">
+                      What would make the biggest difference in your business right now?{' '}
                       <span className="text-[#3DD6C3]">*</span>
-                    </label>
-                    <textarea
-                      id="frustration"
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {[
+                        'Stop losing clients I already closed',
+                        'Get more referrals from my existing clients',
+                        'Stay top-of-mind so clients call me first',
+                        'All of the above',
+                      ].map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => setBiggestDifference(option)}
+                          className={`px-4 py-3.5 rounded-xl text-left text-sm sm:text-base font-medium transition-all border cursor-pointer ${
+                            biggestDifference === option
+                              ? 'bg-[#3DD6C3]/20 border-[#3DD6C3] text-white ring-2 ring-[#3DD6C3]/40'
+                              : 'bg-white/5 border-white/20 text-white/70 hover:bg-white/10 hover:border-white/30'
+                          }`}
+                        >
+                          <span className="flex items-center gap-3">
+                            <span
+                              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                                biggestDifference === option
+                                  ? 'border-[#3DD6C3] bg-[#3DD6C3]'
+                                  : 'border-white/40'
+                              }`}
+                            >
+                              {biggestDifference === option && (
+                                <svg className="w-3 h-3 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </span>
+                            {option}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    {/* Hidden required input for form validation */}
+                    <input
+                      type="text"
                       required
-                      rows={4}
-                      value={biggestFrustration}
-                      onChange={(e) => setBiggestFrustration(e.target.value)}
-                      className="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:border-[#3DD6C3] focus:outline-none focus:ring-4 focus:ring-[#3DD6C3]/20 transition-all text-base resize-none"
-                      placeholder="Be specific — this helps me understand if AgentForLife is right for you"
+                      value={biggestDifference}
+                      onChange={() => {}}
+                      className="sr-only"
+                      tabIndex={-1}
+                      aria-hidden="true"
                     />
                   </div>
 
@@ -601,10 +618,10 @@ export default function FoundingMemberPage() {
             <p className="text-[#6B7280] text-lg mb-4">
               Questions? Email me directly:{' '}
               <a
-                href="mailto:daniel@crosswindsfg.com"
+                href="mailto:support@agentforlife.app"
                 className="text-[#0D4D4D] font-semibold hover:text-[#3DD6C3] transition-colors underline"
               >
-                daniel@crosswindsfg.com
+                support@agentforlife.app
               </a>
             </p>
             <Link
