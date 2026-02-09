@@ -134,7 +134,7 @@ export default function FoundingMemberPage() {
               onClick={() => {
                 document.getElementById('apply-section')?.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="flex items-center gap-2 px-4 py-1.5 sm:px-5 sm:py-2 bg-[#3DD6C3] hover:bg-[#2fc4b1] text-[#0D4D4D] text-sm sm:text-base font-semibold rounded-full transition-all animate-[buttonGlow_2s_ease-in-out_infinite] whitespace-nowrap shadow-[0_0_15px_4px_rgba(61,214,195,0.5)] hover:shadow-[0_0_25px_8px_rgba(61,214,195,0.6)]"
+              className="flex items-center gap-2 px-4 py-1.5 sm:px-5 sm:py-2 bg-[#0f04dc] hover:bg-[#0d03c4] text-white text-sm sm:text-base font-semibold rounded-full transition-all animate-[buttonGlowBlue_2s_ease-in-out_infinite] whitespace-nowrap shadow-[0_0_15px_4px_rgba(15,4,220,0.5)] hover:shadow-[0_0_25px_8px_rgba(15,4,220,0.6)]"
             >
               Apply Now
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -521,7 +521,7 @@ export default function FoundingMemberPage() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="w-full py-4 bg-[#3DD6C3] hover:bg-[#2fc4b1] text-[#0D4D4D] text-lg font-bold rounded-xl transition-all hover:shadow-lg hover:shadow-[#3DD6C3]/30 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed min-h-[44px]"
+                    className="w-full py-4 bg-[#0f04dc] hover:bg-[#0d03c4] text-white text-lg font-bold rounded-xl transition-all animate-[buttonGlowBlue_2s_ease-in-out_infinite] hover:shadow-[0_0_25px_8px_rgba(15,4,220,0.5)] hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed disabled:animate-none min-h-[44px]"
                   >
                     {submitting ? 'Submitting...' : 'Apply Now'}
                   </button>
