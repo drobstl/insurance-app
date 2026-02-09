@@ -1383,6 +1383,38 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* App Preview Video */}
+                  <div className="bg-white rounded-[5px] border border-[#d0d0d0] overflow-hidden hover:shadow-lg transition-shadow">
+                    <div className="bg-gradient-to-br from-[#005851] to-[#0A3D3D] p-4 flex items-center justify-center">
+                      <video
+                        className="w-full rounded-[4px]"
+                        controls
+                        preload="metadata"
+                        poster=""
+                      >
+                        <source src="/app-preview.mp4" type="video/mp4" />
+                        Your browser does not support the video tag.
+                      </video>
+                    </div>
+                    <div className="p-5">
+                      <h3 className="text-lg font-semibold text-[#000000] mb-1">App Preview</h3>
+                      <p className="text-[#707070] text-sm mb-4">Watch a walkthrough of the AgentForLife mobile app to see key features and how to get the most out of it.</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-[#707070] bg-[#f1f1f1] px-2 py-1 rounded-[5px]">Video</span>
+                        <a
+                          href="/app-preview.mp4"
+                          download
+                          className="flex items-center gap-2 px-4 py-2 bg-[#44bbaa] hover:bg-[#005751] text-white font-medium rounded-[5px] transition-colors text-sm"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          Download
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Product Introduction Script */}
                   <div className="bg-white rounded-[5px] border border-[#d0d0d0] overflow-hidden hover:shadow-lg transition-shadow">
                     <div className="bg-gradient-to-br from-[#005851] to-[#0A3D3D] p-6 flex items-center justify-center">
