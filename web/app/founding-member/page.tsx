@@ -134,7 +134,7 @@ export default function FoundingMemberPage() {
               onClick={() => {
                 document.getElementById('apply-section')?.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="flex items-center gap-2 px-4 py-1.5 sm:px-5 sm:py-2 bg-[#3DD6C3] hover:bg-[#2fc4b1] text-[#0D4D4D] text-sm sm:text-base font-semibold rounded-full transition-all animate-[subtlePulse_2s_ease-in-out_infinite] whitespace-nowrap"
+              className="flex items-center gap-2 px-4 py-1.5 sm:px-5 sm:py-2 bg-[#3DD6C3] hover:bg-[#2fc4b1] text-[#0D4D4D] text-sm sm:text-base font-semibold rounded-full transition-all animate-[buttonGlow_2s_ease-in-out_infinite] whitespace-nowrap shadow-[0_0_15px_4px_rgba(61,214,195,0.5)] hover:shadow-[0_0_25px_8px_rgba(61,214,195,0.6)]"
             >
               Apply Now
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

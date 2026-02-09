@@ -122,6 +122,16 @@ input[type="range"].slider-thumb:focus::-webkit-slider-thumb {
   }
 }
 
+/* Prominent pulsing glow for Apply Now button */
+@keyframes buttonGlow {
+  0%, 100% {
+    box-shadow: 0 0 12px 3px rgba(61, 214, 195, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 28px 10px rgba(61, 214, 195, 0.65);
+  }
+}
+
 /* Toast slide-up animation */
 @keyframes slideUp {
   from {
