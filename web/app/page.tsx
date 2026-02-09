@@ -11,19 +11,7 @@ export default function TestLandingPage() {
   const [rewriteRate, setRewriteRate] = useState(10);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [showFoundingBanner, setShowFoundingBanner] = useState(false);
-
-  useEffect(() => {
-    const dismissed = localStorage.getItem('founding-banner-dismissed');
-    if (!dismissed) {
-      setShowFoundingBanner(true);
-    }
-  }, []);
-
-  const dismissFoundingBanner = () => {
-    setShowFoundingBanner(false);
-    localStorage.setItem('founding-banner-dismissed', 'true');
-  };
+  const showFoundingBanner = true;
 
   // Calculator logic
   const lostRevenue = bookSize * (1 - retentionRate / 100);
@@ -97,7 +85,7 @@ export default function TestLandingPage() {
     <div className="min-h-screen bg-white">
       {/* Floating Founding Member Badge */}
       {showFoundingBanner && (
-        <div className="fixed right-3 sm:right-5 top-1/3 z-[55] group">
+        <div className="fixed right-3 sm:right-5 top-1/3 z-[55]">
           {/* Pulsing glow ring behind the badge */}
           <div className="absolute -inset-2 rounded-full animate-[borderGlow_2.5s_ease-in-out_infinite] bg-[#3DD6C3]/0 border-2 border-[#3DD6C3]/0" />
           <Link
@@ -116,19 +104,6 @@ export default function TestLandingPage() {
               </span>
             </div>
           </Link>
-          {/* Dismiss button */}
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              dismissFoundingBanner();
-            }}
-            className="absolute -top-1 -left-1 w-5 h-5 bg-[#0D4D4D] hover:bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md border border-white/20"
-            aria-label="Dismiss badge"
-          >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
         </div>
       )}
 
@@ -155,22 +130,13 @@ export default function TestLandingPage() {
       {/* Founding Member Banner — pinned below header */}
       {showFoundingBanner && (
         <div className="fixed top-14 sm:top-16 md:top-20 left-0 right-0 z-50 bg-black">
-          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 flex items-center justify-center gap-2 py-2 text-sm sm:text-base font-medium">
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 flex items-center justify-center py-2 text-sm sm:text-base font-medium">
             <span className="text-center text-white">
               🚀 Founding Member Program — Now Open. 50 spots. Lifetime free access.{' '}
               <Link href="/founding-member" className="text-[#3DD6C3] font-bold underline underline-offset-2 hover:text-[#3DD6C3]/80 transition-colors">
                 Apply Now →
               </Link>
             </span>
-            <button
-              onClick={dismissFoundingBanner}
-              className="ml-2 flex-shrink-0 p-1 rounded hover:bg-white/10 transition-colors"
-              aria-label="Dismiss banner"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
           </div>
         </div>
       )}
