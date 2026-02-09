@@ -90,16 +90,16 @@ export default function TestLandingPage() {
           <div className="absolute -inset-2 rounded-full animate-[borderGlow_2.5s_ease-in-out_infinite] bg-[#3DD6C3]/0 border-2 border-[#3DD6C3]/0" />
           <Link
             href="/founding-member"
-            className="block relative w-32 h-32 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full bg-black border-[3px] border-white/20 shadow-2xl shadow-black/40 hover:scale-105 transition-all duration-300"
+            className="block relative w-32 h-32 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full bg-[#a158ff] border-[3px] border-[#001961] shadow-2xl shadow-[#a158ff]/40 hover:scale-105 transition-all duration-300"
           >
             {/* Content */}
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-              <span className="text-[#3DD6C3] text-[10px] sm:text-[11px] font-bold uppercase tracking-wide">🚀 50 Spots</span>
+              <span className="text-white text-[10px] sm:text-[11px] font-bold uppercase tracking-wide">🚀 50 Spots</span>
               <span className="text-white font-extrabold text-sm sm:text-base leading-tight mt-0.5">
                 Founding<br />Member
               </span>
-              <span className="text-white/60 text-[10px] sm:text-[11px] mt-0.5 font-medium">Lifetime Free</span>
-              <span className="text-[#3DD6C3] font-bold text-[11px] sm:text-xs mt-1 underline underline-offset-2">
+              <span className="text-white/70 text-[10px] sm:text-[11px] mt-0.5 font-medium">Lifetime Free</span>
+              <span className="text-[#001961] font-bold text-[11px] sm:text-xs mt-1 underline underline-offset-2">
                 Apply Now →
               </span>
             </div>
@@ -129,11 +129,11 @@ export default function TestLandingPage() {
 
       {/* Founding Member Banner — pinned below header */}
       {showFoundingBanner && (
-        <div className="fixed top-14 sm:top-16 md:top-20 left-0 right-0 z-50 bg-black">
+        <div className="fixed top-14 sm:top-16 md:top-20 left-0 right-0 z-50 bg-[#a158ff]">
           <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 flex items-center justify-center py-2 text-sm sm:text-base font-medium">
             <span className="text-center text-white">
               🚀 Founding Member Program — Now Open. 50 spots. Lifetime free access.{' '}
-              <Link href="/founding-member" className="text-[#3DD6C3] font-bold underline underline-offset-2 hover:text-[#3DD6C3]/80 transition-colors">
+              <Link href="/founding-member" className="text-[#001961] font-bold underline underline-offset-2 hover:text-[#001961]/80 transition-colors">
                 Apply Now →
               </Link>
             </span>
