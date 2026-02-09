@@ -102,7 +102,7 @@ export default function TestLandingPage() {
           <div className="absolute -inset-2 rounded-full animate-[borderGlow_2.5s_ease-in-out_infinite] bg-[#3DD6C3]/0 border-2 border-[#3DD6C3]/0" />
           <Link
             href="/founding-member"
-            className="block relative w-32 h-32 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full bg-[#035cfc] border-[3px] border-white/30 shadow-2xl shadow-[#035cfc]/40 hover:scale-105 transition-all duration-300"
+            className="block relative w-32 h-32 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full bg-black border-[3px] border-white/20 shadow-2xl shadow-black/40 hover:scale-105 transition-all duration-300"
           >
             {/* Content */}
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
@@ -154,7 +154,7 @@ export default function TestLandingPage() {
 
       {/* Founding Member Banner — pinned below header */}
       {showFoundingBanner && (
-        <div className="fixed top-14 sm:top-16 md:top-20 left-0 right-0 z-50 bg-[#035cfc]">
+        <div className="fixed top-14 sm:top-16 md:top-20 left-0 right-0 z-50 bg-black">
           <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 flex items-center justify-center gap-2 py-2 text-sm sm:text-base font-medium">
             <span className="text-center text-white">
               🚀 Founding Member Program — Now Open. 50 spots. Lifetime free access.{' '}
