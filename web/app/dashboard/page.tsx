@@ -571,7 +571,7 @@ export default function DashboardPage() {
     if (policy) {
       // Pre-fill form for editing
       // Check if carrier is in the known list
-      const knownCarriers = ['Americo', 'Mutual of Omaha', 'American Amicable', 'Banner', 'United Home Life',
+      const knownCarriers = ['Americo', 'Mutual of Omaha', 'American-Amicable', 'Banner', 'United Home Life',
         'SBLI', 'Corebridge', 'AIG', 'Transamerica', 'F&G', 'Foresters', 'National Life Group', 
         'Lincoln Financial', 'Nationwide', 'Prudential', 'Protective', 'North American', 'Athene'];
       const isKnownCarrier = knownCarriers.includes(policy.insuranceCompany || '');
@@ -610,7 +610,7 @@ export default function DashboardPage() {
     setIsUploadModalOpen(false);
 
     // Map the extracted carrier to known list or "Other"
-    const knownCarriers = ['Americo', 'Mutual of Omaha', 'American Amicable', 'Banner', 'United Home Life',
+    const knownCarriers = ['Americo', 'Mutual of Omaha', 'American-Amicable', 'Banner', 'United Home Life',
       'SBLI', 'Corebridge', 'AIG', 'Transamerica', 'F&G', 'Foresters', 'National Life Group',
       'Lincoln Financial', 'Nationwide', 'Prudential', 'Protective', 'North American', 'Athene'];
     const extractedCarrier = data.insuranceCompany || '';
@@ -2292,7 +2292,7 @@ export default function DashboardPage() {
                     <option value="">Select a carrier...</option>
                     <option value="Americo">Americo</option>
                     <option value="Mutual of Omaha">Mutual of Omaha</option>
-                    <option value="American Amicable">American Amicable</option>
+                    <option value="American-Amicable">American-Amicable</option>
                     <option value="Banner">Banner</option>
                     <option value="United Home Life">United Home Life</option>
                     <option value="SBLI">SBLI</option>
