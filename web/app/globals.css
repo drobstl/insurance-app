@@ -135,10 +135,10 @@ input[type="range"].slider-thumb:focus::-webkit-slider-thumb {
 /* Prominent pulsing glow for blue Apply Now buttons */
 @keyframes buttonGlowBlue {
   0%, 100% {
-    box-shadow: 0 0 12px 3px rgba(15, 4, 220, 0.4);
+    box-shadow: 0 0 12px 3px rgba(3, 92, 252, 0.4);
   }
   50% {
-    box-shadow: 0 0 28px 10px rgba(15, 4, 220, 0.6);
+    box-shadow: 0 0 28px 10px rgba(3, 92, 252, 0.6);
   }
 }
 
