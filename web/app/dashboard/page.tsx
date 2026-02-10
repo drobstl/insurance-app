@@ -174,7 +174,7 @@ export default function DashboardPage() {
 
   // Sidebar state for Quility-style layout
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'clients' | 'resources'>('clients');
+  const [activeSection, setActiveSection] = useState<'clients' | 'resources'>('clients');
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
   // Onboarding & tutorial state
@@ -1149,21 +1149,6 @@ export default function DashboardPage() {
 
         {/* Navigation Items */}
         <nav className="mt-4 px-2 space-y-1">
-          {/* Dashboard */}
-          <button
-            onClick={() => setActiveSection('dashboard')}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group ${
-              activeSection === 'dashboard' ? 'bg-[#daf3f0] text-[#005851]' : 'text-white/80 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-            </svg>
-            <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
-              Dashboard
-            </span>
-          </button>
-
           {/* Clients */}
           <button
             onClick={() => setActiveSection('clients')}
