@@ -3,14 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import {
-  collection,
-  onSnapshot,
-  query,
-  orderBy,
-  Timestamp,
-} from 'firebase/firestore';
-import { auth, db } from '../../../../firebase';
+import { auth } from '../../../../firebase';
 import { isAdminEmail } from '../../../../lib/admin';
 
 /* ------------------------------------------------------------------ */
@@ -23,7 +16,7 @@ interface Application {
   email: string;
   clientCount: string;
   biggestDifference: string;
-  timestamp: Timestamp | null;
+  timestamp: string | null;
   status: 'pending' | 'approved' | 'rejected';
   rejectionReason?: string;
 }
@@ -40,10 +33,10 @@ interface Toast {
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-function timeAgo(timestamp: Timestamp | null): string {
+function timeAgo(timestamp: string | null): string {
   if (!timestamp) return '—';
   const now = Date.now();
-  const then = timestamp.toMillis();
+  const then = new Date(timestamp).getTime();
   const diff = now - then;
 
   const minutes = Math.floor(diff / 60000);
@@ -104,21 +97,26 @@ export default function AdminApplicationsPage() {
     return () => unsubscribe();
   }, [router]);
 
-  /* ---- Real-time Firestore listener ---- */
-  useEffect(() => {
-    const q = query(
-      collection(db, 'foundingMemberApplications'),
-      orderBy('timestamp', 'desc')
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const apps: Application[] = [];
-      snapshot.forEach((doc) => {
-        apps.push({ id: doc.id, ...doc.data() } as Application);
+  /* ---- Fetch applications from API ---- */
+  const fetchApplications = useCallback(async () => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/admin/applications', {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      setApplications(apps);
-    });
-    return () => unsubscribe();
-  }, []);
+      if (res.ok) {
+        const data = await res.json();
+        setApplications(data.applications);
+      }
+    } catch (err) {
+      console.error('Error fetching applications:', err);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchApplications();
+  }, [fetchApplications]);
 
   /* ---- Filtering ---- */
   const filtered =
@@ -148,6 +146,7 @@ export default function AdminApplicationsPage() {
       });
       if (!res.ok) throw new Error('Failed to approve');
       addToast(`Approved — welcome email sent to ${app.name}`, 'success');
+      fetchApplications();
     } catch {
       addToast('Failed to approve application. Try again.', 'error');
     } finally {
@@ -175,6 +174,7 @@ export default function AdminApplicationsPage() {
       addToast('Application rejected', 'success');
       setRejectingId(null);
       setRejectReason('');
+      fetchApplications();
     } catch {
       addToast('Failed to reject application. Try again.', 'error');
     } finally {
