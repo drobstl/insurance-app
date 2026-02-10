@@ -1286,7 +1286,7 @@ export default function DashboardPage() {
             {/* Watch Tutorial */}
             <button
               onClick={() => setShowTutorialVideo(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] hover:bg-[#f1f1f1] text-[#707070] hover:text-[#005851] transition-colors text-sm font-medium"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] border border-[#3DD6C3] text-[#0D4D4D] hover:bg-[#3DD6C3]/10 transition-colors text-sm font-medium"
               title="Watch tutorial"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">

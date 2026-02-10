@@ -12,7 +12,7 @@ interface LoomVideoModalProps {
 export default function LoomVideoModal({
   isOpen,
   onClose,
-  videoUrl = 'https://www.loom.com/embed/REPLACE_WITH_YOUR_VIDEO_ID',
+  videoUrl = 'https://www.loom.com/embed/470ebfdd940c40b496fc16ec9e27428d',
 }: LoomVideoModalProps) {
   // Close on Escape key
   useEffect(() => {
@@ -74,7 +74,7 @@ export default function LoomVideoModal({
         </div>
 
         {/* Video */}
-        <div className="relative bg-black" style={{ paddingBottom: '56.25%' }}>
+        <div className="relative bg-black" style={{ paddingBottom: '50.9375%' }}>
           {isPlaceholder ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0D4D4D] text-white">
               <svg className="w-16 h-16 text-[#3DD6C3] mb-4" fill="currentColor" viewBox="0 0 24 24">
