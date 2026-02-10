@@ -50,6 +50,7 @@ interface AgentProfile {
   agencyLogoBase64?: string;
   businessCardBase64?: string;
   referralMessage?: string;
+  isFoundingMember?: boolean;
 }
 
 interface PolicyFormData {
@@ -228,6 +229,7 @@ export default function DashboardPage() {
             agencyLogoBase64: data.agencyLogoBase64,
             businessCardBase64: data.businessCardBase64,
             referralMessage: data.referralMessage,
+            isFoundingMember: data.isFoundingMember,
           });
           setProfilePhoneNumber(data.phoneNumber || '');
           setProfileAgencyName(data.agencyName || '');
@@ -1291,7 +1293,17 @@ export default function DashboardPage() {
                   </div>
                 )}
                 <div className="hidden md:block text-left">
-                  <p className="text-sm font-medium text-[#000000]">{agentProfile.name || 'Agent'}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium text-[#000000]">{agentProfile.name || 'Agent'}</p>
+                    {agentProfile.isFoundingMember && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#0D4D4D] text-[#3DD6C3] text-[10px] font-bold uppercase tracking-wide leading-none">
+                        <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                        </svg>
+                        Founder
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-[#707070]">{agentProfile.agencyName || 'Agency'}</p>
                 </div>
                 <svg className={`w-4 h-4 text-[#707070] transition-transform ${showProfileDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1304,6 +1316,19 @@ export default function DashboardPage() {
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowProfileDropdown(false)} />
                   <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-[5px] shadow-xl border border-[#d0d0d0] py-2 z-50">
+                    {agentProfile.isFoundingMember && (
+                      <>
+                        <div className="px-4 py-2.5">
+                          <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-gradient-to-r from-[#0D4D4D] to-[#005851]">
+                            <svg className="w-4 h-4 text-[#3DD6C3] flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                            </svg>
+                            <span className="text-xs font-bold text-[#3DD6C3] uppercase tracking-wide">Founding Member</span>
+                          </div>
+                        </div>
+                        <div className="border-t border-[#d0d0d0] my-1" />
+                      </>
+                    )}
               <button
                       onClick={() => { setIsProfileModalOpen(true); setShowProfileDropdown(false); }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#000000] hover:bg-[#f1f1f1] transition-colors"

@@ -48,6 +48,28 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     { merge: true }
   );
 
+  // Check if this user is an approved founding member (handles the case where
+  // they signed up after being approved, so the approval route couldn't find them)
+  const agentDoc = await db.collection('agents').doc(userId).get();
+  const agentEmail = agentDoc.data()?.email;
+
+  if (agentEmail) {
+    const fmSnapshot = await db
+      .collection('foundingMemberApplications')
+      .where('email', '==', agentEmail)
+      .where('status', '==', 'approved')
+      .limit(1)
+      .get();
+
+    if (!fmSnapshot.empty) {
+      await db.collection('agents').doc(userId).set(
+        { isFoundingMember: true, foundingMemberApprovedAt: new Date() },
+        { merge: true }
+      );
+      console.log(`Founding member badge set for user ${userId}`);
+    }
+  }
+
   console.log(`Subscription activated for user ${userId}`);
 }
 

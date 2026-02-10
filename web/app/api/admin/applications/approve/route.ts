@@ -31,6 +31,20 @@ export async function POST(req: NextRequest) {
         approvedAt: new Date(),
       });
 
+    // If the applicant already has an account, mark them as a founding member
+    const agentsSnapshot = await firestore
+      .collection('agents')
+      .where('email', '==', applicantEmail)
+      .limit(1)
+      .get();
+
+    if (!agentsSnapshot.empty) {
+      await agentsSnapshot.docs[0].ref.update({
+        isFoundingMember: true,
+        foundingMemberApprovedAt: new Date(),
+      });
+    }
+
     // Send welcome email via Resend
     const resend = getResend();
     const firstName = applicantName.split(' ')[0];
