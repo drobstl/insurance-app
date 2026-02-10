@@ -2,8 +2,6 @@
 
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
-import { db } from '../../firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 export default function FoundingMemberPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -58,22 +56,18 @@ export default function FoundingMemberPage() {
     setSubmitting(true);
 
     try {
-      await addDoc(collection(db, 'foundingMemberApplications'), {
-        name,
-        email,
-        clientCount,
-        biggestDifference,
-        timestamp: serverTimestamp(),
-        status: 'pending',
-      });
-      setSubmitted(true);
-
-      // Send notification email to admin (fire-and-forget)
-      fetch('/api/admin/applications/notify', {
+      const res = await fetch('/api/founding-member/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ applicantName: name, applicantEmail: email }),
-      }).catch(() => {});
+        body: JSON.stringify({ name, email, clientCount, biggestDifference }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to submit application');
+      }
+
+      setSubmitted(true);
     } catch (err) {
       console.error('Error submitting application:', err);
       setError('Something went wrong. Please try again or email support@agentforlife.app directly.');
