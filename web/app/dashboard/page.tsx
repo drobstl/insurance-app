@@ -180,6 +180,7 @@ export default function DashboardPage() {
   // Onboarding & tutorial state
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showTutorialVideo, setShowTutorialVideo] = useState(false);
+  const [showWorkflowVideo, setShowWorkflowVideo] = useState(false);
 
   // Filtered clients based on search
   const filteredClients = useMemo(() => {
@@ -1383,6 +1384,66 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* Getting Started Tutorial */}
+                  <div className="bg-white rounded-[5px] border border-[#d0d0d0] overflow-hidden hover:shadow-lg transition-shadow">
+                    <div className="relative bg-gradient-to-br from-[#005851] to-[#0A3D3D] p-6 flex items-center justify-center cursor-pointer group" onClick={() => setShowTutorialVideo(true)}>
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors">
+                          <svg className="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
+                        </div>
+                        <span className="text-white/70 text-sm font-medium group-hover:text-white/90 transition-colors">Click to play</span>
+                      </div>
+                    </div>
+                    <div className="p-5">
+                      <h3 className="text-lg font-semibold text-[#000000] mb-1">Getting Started Tutorial</h3>
+                      <p className="text-[#707070] text-sm mb-4">A quick walkthrough of everything you need to know to set up your dashboard and start using AgentForLife.</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-[#707070] bg-[#f1f1f1] px-2 py-1 rounded-[5px]">Video</span>
+                        <button
+                          onClick={() => setShowTutorialVideo(true)}
+                          className="flex items-center gap-2 px-4 py-2 bg-[#44bbaa] hover:bg-[#005751] text-white font-medium rounded-[5px] transition-colors text-sm"
+                        >
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
+                          Watch
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* How Does This Fit My Workflow? */}
+                  <div className="bg-white rounded-[5px] border border-[#d0d0d0] overflow-hidden hover:shadow-lg transition-shadow">
+                    <div className="relative bg-gradient-to-br from-[#005851] to-[#0A3D3D] p-6 flex items-center justify-center cursor-pointer group" onClick={() => setShowWorkflowVideo(true)}>
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors">
+                          <svg className="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
+                        </div>
+                        <span className="text-white/70 text-sm font-medium group-hover:text-white/90 transition-colors">Click to play</span>
+                      </div>
+                    </div>
+                    <div className="p-5">
+                      <h3 className="text-lg font-semibold text-[#000000] mb-1">How Does This Fit My Workflow?</h3>
+                      <p className="text-[#707070] text-sm mb-4">See how AgentForLife fits into your day-to-day routine and helps you retain more clients and grow your book.</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-[#707070] bg-[#f1f1f1] px-2 py-1 rounded-[5px]">Video</span>
+                        <button
+                          onClick={() => setShowWorkflowVideo(true)}
+                          className="flex items-center gap-2 px-4 py-2 bg-[#44bbaa] hover:bg-[#005751] text-white font-medium rounded-[5px] transition-colors text-sm"
+                        >
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
+                          Watch
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* App Preview Video */}
                   <div className="bg-white rounded-[5px] border border-[#d0d0d0] overflow-hidden hover:shadow-lg transition-shadow">
                     <div className="bg-gradient-to-br from-[#005851] to-[#0A3D3D] p-4 flex items-center justify-center">
@@ -3085,6 +3146,13 @@ export default function DashboardPage() {
       <LoomVideoModal
         isOpen={showTutorialVideo}
         onClose={() => setShowTutorialVideo(false)}
+      />
+
+      {/* Workflow Video Modal */}
+      <LoomVideoModal
+        isOpen={showWorkflowVideo}
+        onClose={() => setShowWorkflowVideo(false)}
+        videoUrl="https://www.loom.com/embed/88422effb7ca4cdc8ae88646490fed00"
       />
     </div>
   );
