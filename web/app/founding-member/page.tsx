@@ -544,7 +544,7 @@ export default function FoundingMemberPage() {
                 </p>
 
                 <p className="text-[#3DD6C3] font-semibold text-lg">
-                  — Daniel Roberts, Founder
+                  — Daniel Roberts
                 </p>
               </div>
             )}
