@@ -1383,51 +1383,57 @@ export default function DashboardPage() {
                   <p className="text-[#707070] text-sm mt-1">Downloadable tools and scripts to help you succeed.</p>
                 </div>
 
+                {/* Video Tutorials */}
+                <div className="bg-white rounded-[5px] border border-[#d0d0d0] mb-6">
+                  <div className="px-4 py-3 border-b border-[#d0d0d0]">
+                    <h2 className="text-sm font-semibold text-[#000000]">Video Tutorials</h2>
+                  </div>
+                  <div className="divide-y divide-[#d0d0d0]">
+                    <button
+                      onClick={() => setShowTutorialVideo(true)}
+                      className="flex items-center gap-4 px-4 py-3 hover:bg-[#f8f8f8] transition-colors w-full text-left"
+                    >
+                      <div className="w-10 h-10 rounded-[5px] bg-gradient-to-br from-[#005851] to-[#0A3D3D] flex items-center justify-center flex-shrink-0">
+                        <svg className="w-5 h-5 text-[#45bcaa]" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-semibold text-[#000000]">Getting Started Tutorial</h3>
+                        <p className="text-[#707070] text-xs">Quick walkthrough to set up your dashboard</p>
+                      </div>
+                      <span className="flex items-center gap-1.5 px-3 py-1.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-medium rounded-[5px] transition-colors text-xs flex-shrink-0">
+                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                        Watch
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => setShowWorkflowVideo(true)}
+                      className="flex items-center gap-4 px-4 py-3 hover:bg-[#f8f8f8] transition-colors w-full text-left"
+                    >
+                      <div className="w-10 h-10 rounded-[5px] bg-gradient-to-br from-[#005851] to-[#0A3D3D] flex items-center justify-center flex-shrink-0">
+                        <svg className="w-5 h-5 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-semibold text-[#000000]">How Does This Fit My Workflow?</h3>
+                        <p className="text-[#707070] text-xs">See how AgentForLife fits into your daily routine</p>
+                      </div>
+                      <span className="flex items-center gap-1.5 px-3 py-1.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-medium rounded-[5px] transition-colors text-xs flex-shrink-0">
+                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                        Watch
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Downloads */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {/* Getting Started Tutorial */}
-                  <button
-                    onClick={() => setShowTutorialVideo(true)}
-                    className="bg-white rounded-[5px] border border-[#d0d0d0] overflow-hidden hover:shadow-lg transition-shadow flex items-center gap-4 p-4 text-left w-full"
-                  >
-                    <div className="w-12 h-12 rounded-[5px] bg-gradient-to-br from-[#005851] to-[#0A3D3D] flex items-center justify-center flex-shrink-0">
-                      <svg className="w-6 h-6 text-[#45bcaa]" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 5v14l11-7z" />
-                      </svg>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold text-[#000000]">Getting Started Tutorial</h3>
-                      <p className="text-[#707070] text-xs">Quick walkthrough to set up your dashboard</p>
-                    </div>
-                    <span className="flex items-center gap-1.5 px-3 py-1.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-medium rounded-[5px] transition-colors text-xs flex-shrink-0">
-                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 5v14l11-7z" />
-                      </svg>
-                      Watch
-                    </span>
-                  </button>
-
-                  {/* How Does This Fit My Workflow? */}
-                  <button
-                    onClick={() => setShowWorkflowVideo(true)}
-                    className="bg-white rounded-[5px] border border-[#d0d0d0] overflow-hidden hover:shadow-lg transition-shadow flex items-center gap-4 p-4 text-left w-full"
-                  >
-                    <div className="w-12 h-12 rounded-[5px] bg-gradient-to-br from-[#005851] to-[#0A3D3D] flex items-center justify-center flex-shrink-0">
-                      <svg className="w-6 h-6 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold text-[#000000]">How Does This Fit My Workflow?</h3>
-                      <p className="text-[#707070] text-xs">See how AgentForLife fits into your daily routine</p>
-                    </div>
-                    <span className="flex items-center gap-1.5 px-3 py-1.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-medium rounded-[5px] transition-colors text-xs flex-shrink-0">
-                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 5v14l11-7z" />
-                      </svg>
-                      Watch
-                    </span>
-                  </button>
-
                   {/* App Preview Video */}
                   <div className="bg-white rounded-[5px] border border-[#d0d0d0] overflow-hidden hover:shadow-lg transition-shadow">
                     <div className="bg-gradient-to-br from-[#005851] to-[#0A3D3D] p-4 flex items-center justify-center">
