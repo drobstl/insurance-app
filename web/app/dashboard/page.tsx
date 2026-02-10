@@ -1386,15 +1386,10 @@ export default function DashboardPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {/* Getting Started Tutorial */}
                   <div className="bg-white rounded-[5px] border border-[#d0d0d0] overflow-hidden hover:shadow-lg transition-shadow">
-                    <div className="relative bg-gradient-to-br from-[#005851] to-[#0A3D3D] p-6 flex items-center justify-center cursor-pointer group" onClick={() => setShowTutorialVideo(true)}>
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors">
-                          <svg className="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M8 5v14l11-7z" />
-                          </svg>
-                        </div>
-                        <span className="text-white/70 text-sm font-medium group-hover:text-white/90 transition-colors">Click to play</span>
-                      </div>
+                    <div className="bg-gradient-to-br from-[#005851] to-[#0A3D3D] p-6 flex items-center justify-center">
+                      <svg className="w-16 h-16 text-[#45bcaa]" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
                     </div>
                     <div className="p-5">
                       <h3 className="text-lg font-semibold text-[#000000] mb-1">Getting Started Tutorial</h3>
@@ -1416,15 +1411,10 @@ export default function DashboardPage() {
 
                   {/* How Does This Fit My Workflow? */}
                   <div className="bg-white rounded-[5px] border border-[#d0d0d0] overflow-hidden hover:shadow-lg transition-shadow">
-                    <div className="relative bg-gradient-to-br from-[#005851] to-[#0A3D3D] p-6 flex items-center justify-center cursor-pointer group" onClick={() => setShowWorkflowVideo(true)}>
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors">
-                          <svg className="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M8 5v14l11-7z" />
-                          </svg>
-                        </div>
-                        <span className="text-white/70 text-sm font-medium group-hover:text-white/90 transition-colors">Click to play</span>
-                      </div>
+                    <div className="bg-gradient-to-br from-[#005851] to-[#0A3D3D] p-6 flex items-center justify-center">
+                      <svg className="w-16 h-16 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
                     </div>
                     <div className="p-5">
                       <h3 className="text-lg font-semibold text-[#000000] mb-1">How Does This Fit My Workflow?</h3>
