@@ -397,93 +397,6 @@ export default function TestLandingPage() {
         </section>
 
         {/* ============================================ */}
-        {/* 4. THE "BE MORE" BRANDING SECTION */}
-        {/* ============================================ */}
-        <section className="py-20 md:py-28 bg-white overflow-hidden">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
-              {/* Text Content */}
-              <div>
-                <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#0D4D4D] leading-tight mb-8">
-                  Don't Be a Number in Their Contacts.<br />
-                  <span className="text-[#3DD6C3]">Be Their Agent For Life.</span>
-                </h2>
-                <div className="space-y-6 text-lg text-[#2D3748]">
-                  <p>
-                    You make a great connection and protect a client. Then what? A week later, you're just another name they can't remember. A phone number buried under 500 other contacts.
-                  </p>
-                  <p className="text-2xl font-bold text-[#0D4D4D] py-4 border-l-4 border-[#3DD6C3] pl-6 bg-[#F8F9FA] rounded-r-xl">
-                    BE MORE.
-                  </p>
-                  <ul className="space-y-4">
-                    <li className="flex items-start gap-3">
-                      <div className="w-6 h-6 bg-[#3DD6C3] rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
-                      <span>Be an <strong>easy information hub</strong> on their phone.</span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <div className="w-6 h-6 bg-[#3DD6C3] rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
-                      <span>Be the <strong>first call</strong> when they get cold feet.</span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <div className="w-6 h-6 bg-[#3DD6C3] rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
-                      <span>Be the person they <strong>refer with a push of a button</strong>.</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-
-              {/* Visual Comparison */}
-              <div className="relative">
-                <div className="grid grid-cols-2 gap-6">
-                  {/* Boring Contact */}
-                  <div className="relative pt-2">
-                    <div className="absolute -top-1 left-4 px-3 py-1 bg-red-100 text-red-600 text-xs font-bold rounded-full z-10">FORGETTABLE</div>
-                    <div className="bg-gray-100 rounded-2xl p-6 border-2 border-gray-200 opacity-60 mt-2">
-                      <div className="w-16 h-16 bg-gray-300 rounded-full mx-auto mb-4 flex items-center justify-center">
-                        <svg className="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                        </svg>
-                      </div>
-                      <p className="text-center text-gray-400 font-medium">John Smith</p>
-                      <p className="text-center text-gray-300 text-sm">Insurance Agent</p>
-                      <p className="text-center text-gray-300 text-xs mt-2">555-0123</p>
-                    </div>
-                  </div>
-
-                  {/* Your Branded App */}
-                  <div className="relative">
-                    <div className="absolute -top-3 left-4 px-3 py-1 bg-[#3DD6C3] text-white text-xs font-bold rounded-full z-10">UNFORGETTABLE</div>
-                    <div className="bg-[#0D4D4D] rounded-2xl p-6 border-2 border-[#3DD6C3] shadow-xl shadow-[#3DD6C3]/20 transform hover:scale-105 transition-transform">
-                      <div className="w-16 h-16 bg-[#3DD6C3] rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-lg">
-                        <img src="/logo.png" alt="Your App" className="w-12 h-8 object-contain" />
-                      </div>
-                      <p className="text-center text-white font-bold">Your Name</p>
-                      <p className="text-center text-[#3DD6C3] text-sm font-medium">Agent For Life</p>
-                      <div className="mt-4 space-y-2">
-                        <div className="bg-white/10 rounded-lg py-2 px-3 text-white/80 text-xs text-center">📞 Call</div>
-                        <div className="bg-[#3DD6C3]/20 rounded-lg py-2 px-3 text-[#3DD6C3] text-xs text-center font-semibold">🔗 Refer</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ============================================ */}
         {/* 5. THE COMPARISON - Hamster Wheel vs Asset */}
         {/* ============================================ */}
         <section className="py-20 md:py-28 bg-[#F8F9FA]">
@@ -641,7 +554,7 @@ export default function TestLandingPage() {
                 <span className="text-[#3DD6C3]">Their Phone.</span>
               </h2>
               <p className="text-xl text-white/70 max-w-2xl mx-auto">
-                Up and running in <span className="text-[#fdcc02] font-semibold">10 minutes</span>. Every client gets YOUR app—with your photo, your contact info, and their policies at their fingertips.
+                Stop being a forgotten name buried under 500 contacts. Give every client YOUR branded app—with your photo, your contact info, and their policies at their fingertips. Up and running in <span className="text-[#fdcc02] font-semibold">10 minutes</span>.
               </p>
             </div>
 
