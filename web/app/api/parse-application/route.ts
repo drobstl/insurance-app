@@ -55,7 +55,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
     // Step 2: Extract fields using AI
     let extraction;
     try {
-      extraction = await extractApplicationFields(pdfResult.text);
+      extraction = await extractApplicationFields(pdfResult.pages);
     } catch (aiError) {
       const message = aiError instanceof Error ? aiError.message : 'AI extraction failed.';
       return NextResponse.json(

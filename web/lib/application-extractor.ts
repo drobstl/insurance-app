@@ -3,6 +3,8 @@ import { ExtractedApplicationData } from './types';
 
 const SYSTEM_PROMPT = `You are an insurance application document parser. Your job is to extract structured data from raw text extracted from insurance application PDFs.
 
+The text you receive contains selected pages from the application, annotated with page numbers (e.g. "--- Page 3 ---"). Pages are selected based on relevance — not every page of the original document is included. Use information from ALL provided pages to fill in as many fields as possible.
+
 Return ONLY a valid JSON object with these fields (no markdown, no explanation, just the JSON):
 
 {
@@ -33,11 +35,101 @@ Rules:
 - "note": brief note if you want to flag anything (e.g. "multiple beneficiaries listed, only primary shown")
 - Return ONLY the JSON object`;
 
+// ─── Page relevance scoring ────────────────────────────────
+
+/**
+ * Keywords grouped by the field(s) they help identify.
+ * Each keyword is lowercased for matching.
+ */
+const RELEVANCE_KEYWORDS: string[] = [
+  // Identity / parties
+  'insured', 'applicant', 'proposed insured', 'owner', 'policy owner',
+  'beneficiary', 'primary beneficiary', 'contingent beneficiary',
+  // Coverage / premium
+  'face amount', 'death benefit', 'coverage amount', 'specified amount',
+  'initial death benefit', 'base face amount',
+  'premium', 'planned premium', 'scheduled premium', 'modal premium',
+  'premium mode', 'premium frequency', 'payment mode', 'billing frequency',
+  // Policy identification
+  'policy number', 'application number', 'certificate number',
+  'effective date', 'issue date', 'renewal date',
+  // Product type
+  'indexed universal life', 'term life', 'whole life', 'universal life',
+  'mortgage protection', 'accidental death',
+  // Carrier identification (page 1 / header)
+  'life insurance company', 'insurance company', 'underwritten by',
+  // Contact info
+  'email', 'e-mail', 'phone', 'telephone', 'cell',
+];
+
+/** Score a single page's text for relevance to the fields we extract. */
+function scorePage(pageText: string): number {
+  const lower = pageText.toLowerCase();
+  let score = 0;
+  for (const kw of RELEVANCE_KEYWORDS) {
+    if (lower.includes(kw)) score += 1;
+  }
+  return score;
+}
+
+/**
+ * Select the most relevant pages from the document.
+ *
+ * Strategy:
+ * - Always include page 1 (carrier name, product type, often insured name).
+ * - Score every remaining page by keyword hits.
+ * - Take the top pages until we hit the character budget.
+ * - Maintain original page order in the output.
+ */
+function selectRelevantPages(
+  pages: string[],
+  maxChars: number = 30_000,
+): { text: string; selectedPages: number[]; totalPages: number } {
+  if (pages.length === 0) return { text: '', selectedPages: [], totalPages: 0 };
+
+  // Score each page (1-indexed for display)
+  const scored = pages.map((text, idx) => ({
+    pageNum: idx + 1,
+    text,
+    score: scorePage(text),
+    chars: text.length,
+  }));
+
+  // Always include page 1; sort the rest by score descending
+  const first = scored[0];
+  const rest = scored.slice(1).sort((a, b) => b.score - a.score);
+
+  const selected: typeof scored = [first];
+  let charCount = first.chars;
+
+  for (const page of rest) {
+    // Skip pages with zero relevance (HIPAA notices, signature pages, etc.)
+    if (page.score === 0) continue;
+    if (charCount + page.chars > maxChars) continue;
+    selected.push(page);
+    charCount += page.chars;
+  }
+
+  // Restore original page order so the LLM reads them sequentially
+  selected.sort((a, b) => a.pageNum - b.pageNum);
+
+  const selectedPages = selected.map((p) => p.pageNum);
+  const text = selected
+    .map((p) => `--- Page ${p.pageNum} ---\n${p.text}`)
+    .join('\n\n');
+
+  return { text, selectedPages, totalPages: pages.length };
+}
+
+// ─── Main extraction ───────────────────────────────────────
+
 /**
  * Send extracted PDF text to OpenAI and get structured application data back.
+ * Accepts per-page text so we can intelligently select only the relevant pages,
+ * regardless of carrier or application format.
  */
 export async function extractApplicationFields(
-  pdfText: string
+  pages: string[]
 ): Promise<{ data: ExtractedApplicationData; note?: string }> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -46,14 +138,12 @@ export async function extractApplicationFields(
 
   const openai = new OpenAI({ apiKey });
 
-  // Only the first ~10 pages of an application carry the fields we extract
-  // (insured info, coverage, beneficiary, etc.). Later pages are medical
-  // history, HIPAA forms, rider disclosures, and privacy notices.
-  // Keeping this small dramatically speeds up the OpenAI call.
-  const maxChars = 30_000;
-  const truncatedText = pdfText.length > maxChars
-    ? pdfText.slice(0, maxChars) + '\n\n[Document truncated — remaining pages omitted]'
-    : pdfText;
+  const { text, selectedPages, totalPages } = selectRelevantPages(pages, 30_000);
+
+  const pageNote =
+    selectedPages.length < totalPages
+      ? `\n\n[Showing ${selectedPages.length} of ${totalPages} pages — pages ${selectedPages.join(', ')}]`
+      : '';
 
   const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
@@ -64,7 +154,7 @@ export async function extractApplicationFields(
       { role: 'system', content: SYSTEM_PROMPT },
       {
         role: 'user',
-        content: `Extract all available fields from this insurance application:\n\n${truncatedText}`,
+        content: `Extract all available fields from this insurance application:\n\n${text}${pageNote}`,
       },
     ],
   }, { timeout: 30_000 });
