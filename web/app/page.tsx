@@ -480,69 +480,6 @@ export default function TestLandingPage() {
         </section>
 
         {/* ============================================ */}
-        {/* 6. THE "BIG THREE" FEATURES */}
-        {/* ============================================ */}
-        <section className="py-20 md:py-28 bg-white">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
-                The <span className="text-[#3DD6C3]">Triple Threat</span> System
-              </h2>
-              <p className="text-xl text-[#6B7280] max-w-2xl mx-auto">
-                Three ways to multiply every lead you've ever closed.
-              </p>
-            </div>
-
-            <div className="grid md:grid-cols-3 gap-8">
-              {/* Retention */}
-              <div className="group bg-[#F8F9FA] rounded-3xl p-8 border-2 border-transparent hover:border-[#3DD6C3] transition-all hover:shadow-xl">
-                <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                </div>
-                <h3 className="text-2xl font-extrabold text-[#0D4D4D] mb-4">Explode Retention</h3>
-                <p className="text-[#6B7280] text-lg leading-relaxed">
-                  Build a <span className="text-[#0D4D4D] font-semibold">wall around your book</span>. Identify at-risk clients and kill chargebacks before they hit your bank account. When you're in their pocket, competitors can't touch you.
-                </p>
-              </div>
-
-              {/* Referrals */}
-              <div className="group bg-[#F8F9FA] rounded-3xl p-8 border-2 border-[#fdcc02] hover:shadow-xl transition-all relative overflow-hidden">
-                <div className="absolute top-4 right-4">
-                  <span className="px-2 py-1 bg-[#fdcc02] text-[#0D4D4D] text-xs font-bold rounded-full">NOW LIVE</span>
-                </div>
-                <div className="w-16 h-16 bg-[#fdcc02] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <svg className="w-8 h-8 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                </div>
-                <h3 className="text-2xl font-extrabold text-[#0D4D4D] mb-4">Multiply Referrals</h3>
-                <p className="text-[#6B7280] text-lg leading-relaxed">
-                  Turn every policy into a <span className="text-[#0D4D4D] font-semibold">referral machine</span>. One-tap referrals replace weak, shared leads with warm prospects from your own network. Stop cold calling strangers.
-                </p>
-              </div>
-
-              {/* Rewrites */}
-              <div className="group bg-[#F8F9FA] rounded-3xl p-8 border-2 border-transparent hover:border-[#3DD6C3] transition-all hover:shadow-xl relative">
-                <div className="absolute top-4 right-4">
-                  <span className="px-2 py-1 bg-[#0D4D4D] text-white text-xs font-bold rounded-full">COMING SOON</span>
-                </div>
-                <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                </div>
-                <h3 className="text-2xl font-extrabold text-[#0D4D4D] mb-4">Automate Rewrites</h3>
-                <p className="text-[#6B7280] text-lg leading-relaxed">
-                  Be there a year later with <span className="text-[#0D4D4D] font-semibold">push notifications</span> the moment you've found a better program for them. Life changes become opportunities, not lapses.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ============================================ */}
         {/* YOUR APP + HOW IT WORKS - Combined Section */}
         {/* ============================================ */}
         <section className="py-20 md:py-28 bg-[#0D4D4D] overflow-hidden">
@@ -643,6 +580,69 @@ export default function TestLandingPage() {
                     </svg>
                   </Link>
                 </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ============================================ */}
+        {/* THE "BIG THREE" FEATURES */}
+        {/* ============================================ */}
+        <section className="py-20 md:py-28 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
+                The <span className="text-[#3DD6C3]">Triple Threat</span> System
+              </h2>
+              <p className="text-xl text-[#6B7280] max-w-2xl mx-auto">
+                Three ways to multiply every lead you've ever closed.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-8">
+              {/* Retention */}
+              <div className="group bg-[#F8F9FA] rounded-3xl p-8 border-2 border-transparent hover:border-[#3DD6C3] transition-all hover:shadow-xl">
+                <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-extrabold text-[#0D4D4D] mb-4">Explode Retention</h3>
+                <p className="text-[#6B7280] text-lg leading-relaxed">
+                  Build a <span className="text-[#0D4D4D] font-semibold">wall around your book</span>. Identify at-risk clients and kill chargebacks before they hit your bank account. When you're in their pocket, competitors can't touch you.
+                </p>
+              </div>
+
+              {/* Referrals */}
+              <div className="group bg-[#F8F9FA] rounded-3xl p-8 border-2 border-[#fdcc02] hover:shadow-xl transition-all relative overflow-hidden">
+                <div className="absolute top-4 right-4">
+                  <span className="px-2 py-1 bg-[#fdcc02] text-[#0D4D4D] text-xs font-bold rounded-full">NOW LIVE</span>
+                </div>
+                <div className="w-16 h-16 bg-[#fdcc02] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <svg className="w-8 h-8 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-extrabold text-[#0D4D4D] mb-4">Multiply Referrals</h3>
+                <p className="text-[#6B7280] text-lg leading-relaxed">
+                  Turn every policy into a <span className="text-[#0D4D4D] font-semibold">referral machine</span>. One-tap referrals replace weak, shared leads with warm prospects from your own network. Stop cold calling strangers.
+                </p>
+              </div>
+
+              {/* Rewrites */}
+              <div className="group bg-[#F8F9FA] rounded-3xl p-8 border-2 border-transparent hover:border-[#3DD6C3] transition-all hover:shadow-xl relative">
+                <div className="absolute top-4 right-4">
+                  <span className="px-2 py-1 bg-[#0D4D4D] text-white text-xs font-bold rounded-full">COMING SOON</span>
+                </div>
+                <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-extrabold text-[#0D4D4D] mb-4">Automate Rewrites</h3>
+                <p className="text-[#6B7280] text-lg leading-relaxed">
+                  Be there a year later with <span className="text-[#0D4D4D] font-semibold">push notifications</span> the moment you've found a better program for them. Life changes become opportunities, not lapses.
+                </p>
               </div>
             </div>
           </div>
