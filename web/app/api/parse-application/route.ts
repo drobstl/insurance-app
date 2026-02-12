@@ -3,6 +3,9 @@ import { extractTextFromPdf } from '../../../lib/pdf-parser';
 import { extractApplicationFields } from '../../../lib/application-extractor';
 import type { ParseApplicationResponse } from '../../../lib/types';
 
+/** Allow up to 60 seconds for PDF parsing + AI extraction (Vercel Pro). */
+export const maxDuration = 60;
+
 /** Maximum file size: 10MB */
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 

@@ -41,10 +41,33 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
       const formData = new FormData();
       formData.append('file', file);
 
+      // Abort if the server hasn't responded within 45 seconds
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 45_000);
+
       const res = await fetch('/api/parse-application', {
         method: 'POST',
         body: formData,
+        signal: controller.signal,
       });
+
+      clearTimeout(timeout);
+
+      if (!res.ok) {
+        // Try to extract a JSON error message; fall back to status text
+        let message = `Server error (${res.status})`;
+        try {
+          const body = await res.json();
+          if (body?.error) message = body.error;
+        } catch {
+          if (res.status === 504) {
+            message = 'Request timed out. Try a smaller PDF or try again shortly.';
+          }
+        }
+        setErrorMessage(message);
+        setStage('error');
+        return;
+      }
 
       const result: ParseApplicationResponse = await res.json();
 
@@ -58,8 +81,17 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
       setPageCount(result.pageCount || 0);
       setNote(result.note || null);
       setStage('review');
-    } catch {
-      setErrorMessage('Network error. Please check your connection and try again.');
+    } catch (err) {
+      console.error('Upload application error:', err);
+      let message = 'Something went wrong. Please try again.';
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        message = 'Request timed out. The PDF may be too large — try again shortly.';
+      } else if (err instanceof TypeError) {
+        message = 'Network error. Please check your connection and try again.';
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
+      setErrorMessage(message);
       setStage('error');
     }
   }, []);

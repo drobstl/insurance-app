@@ -46,9 +46,11 @@ export async function extractApplicationFields(
 
   const openai = new OpenAI({ apiKey });
 
-  // Truncate extremely long documents to stay within token limits.
-  // ~4 chars per token, 128k context window, but we only need ~30k tokens max.
-  const maxChars = 100_000;
+  // Only the first ~10 pages of an application carry the fields we extract
+  // (insured info, coverage, beneficiary, etc.). Later pages are medical
+  // history, HIPAA forms, rider disclosures, and privacy notices.
+  // Keeping this small dramatically speeds up the OpenAI call.
+  const maxChars = 30_000;
   const truncatedText = pdfText.length > maxChars
     ? pdfText.slice(0, maxChars) + '\n\n[Document truncated — remaining pages omitted]'
     : pdfText;
@@ -56,6 +58,7 @@ export async function extractApplicationFields(
   const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     temperature: 0,
+    max_tokens: 1024,
     response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
@@ -64,7 +67,7 @@ export async function extractApplicationFields(
         content: `Extract all available fields from this insurance application:\n\n${truncatedText}`,
       },
     ],
-  });
+  }, { timeout: 30_000 });
 
   const content = response.choices[0]?.message?.content;
   if (!content) {
