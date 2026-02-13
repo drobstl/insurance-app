@@ -20,6 +20,7 @@ Return ONLY a valid JSON object with these fields (no markdown, no explanation, 
   "renewalDate": "YYYY-MM-DD" or null,
   "insuredEmail": string or null,
   "insuredPhone": string or null,
+  "insuredDateOfBirth": "YYYY-MM-DD" or null,
   "note": string or null
 }
 
@@ -31,6 +32,7 @@ Rules:
 - "policyOwner": the owner of the policy (often the insured, but not always)
 - "insuredName": the person whose life is insured
 - "beneficiary": primary beneficiary name(s)
+- "insuredDateOfBirth": the insured person's date of birth in YYYY-MM-DD format
 - If a field cannot be determined from the text, set it to null — do NOT guess
 - "note": brief note if you want to flag anything (e.g. "multiple beneficiaries listed, only primary shown")
 - Return ONLY the JSON object`;
@@ -60,6 +62,8 @@ const RELEVANCE_KEYWORDS: string[] = [
   'life insurance company', 'insurance company', 'underwritten by',
   // Contact info
   'email', 'e-mail', 'phone', 'telephone', 'cell',
+  // Personal details
+  'date of birth', 'dob', 'birth date', 'born', 'birthdate',
 ];
 
 /** Score a single page's text for relevance to the fields we extract. */
@@ -187,6 +191,7 @@ export async function extractApplicationFields(
     renewalDate: toStringOrNull(parsed.renewalDate),
     insuredEmail: toStringOrNull(parsed.insuredEmail),
     insuredPhone: toStringOrNull(parsed.insuredPhone),
+    insuredDateOfBirth: toStringOrNull(parsed.insuredDateOfBirth),
   };
 
   return { data, note };
