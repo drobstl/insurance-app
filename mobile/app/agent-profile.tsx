@@ -22,6 +22,7 @@ import * as Clipboard from 'expo-clipboard';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import Confetti from '../components/confetti';
+import MessageCard from '../components/MessageCard';
 
 // Get first name from full name
 const getFirstName = (fullName: string | undefined) => {
@@ -47,11 +48,12 @@ export default function AgentProfileScreen() {
   const [imageError, setImageError] = useState(false);
   const [isReferring, setIsReferring] = useState(false);
   const [businessCardBase64, setBusinessCardBase64] = useState<string | null>(null);
+  const [schedulingUrl, setSchedulingUrl] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(true);
 
-  // Fetch the business card directly from Firestore (too large for URL params)
+  // Fetch agent-specific data from Firestore (fields too large for URL params)
   useEffect(() => {
-    const fetchBusinessCard = async () => {
+    const fetchAgentExtras = async () => {
       if (!params.agentId) return;
       
       try {
@@ -61,13 +63,16 @@ export default function AgentProfileScreen() {
           if (data.businessCardBase64) {
             setBusinessCardBase64(data.businessCardBase64);
           }
+          if (data.schedulingUrl) {
+            setSchedulingUrl(data.schedulingUrl);
+          }
         }
       } catch (error) {
-        console.error('Error fetching business card:', error);
+        console.error('Error fetching agent data:', error);
       }
     };
     
-    fetchBusinessCard();
+    fetchAgentExtras();
   }, [params.agentId]);
 
   // Check if we have a valid base64 photo
@@ -103,6 +108,12 @@ export default function AgentProfileScreen() {
   const handleEmail = () => {
     if (params.agentEmail) {
       Linking.openURL(`mailto:${params.agentEmail}`);
+    }
+  };
+
+  const handleBookAppointment = () => {
+    if (schedulingUrl) {
+      Linking.openURL(schedulingUrl);
     }
   };
 
@@ -449,8 +460,41 @@ export default function AgentProfileScreen() {
                 </TouchableOpacity>
               ) : null}
 
+              {schedulingUrl ? (
+                <TouchableOpacity style={styles.contactItem} onPress={handleBookAppointment}>
+                  <View style={styles.contactIcon}>
+                    {/* Calendar Icon */}
+                    <View style={styles.calendarIconOuter}>
+                      <View style={styles.calendarIconTop} />
+                      <View style={styles.calendarIconGrid}>
+                        <View style={styles.calendarDot} />
+                        <View style={styles.calendarDot} />
+                        <View style={styles.calendarDot} />
+                        <View style={styles.calendarDot} />
+                      </View>
+                    </View>
+                  </View>
+                  <Text style={styles.contactText}>Book Appointment w/ {agentFirstName}</Text>
+                  <View style={styles.contactArrow}>
+                    <Text style={styles.contactArrowText}>›</Text>
+                  </View>
+                </TouchableOpacity>
+              ) : null}
+
             </View>
           </View>
+
+          {/* Inline Message Card (animates in after 1.5s if unread notifications exist) */}
+          <MessageCard
+            agentId={params.agentId || ''}
+            clientId={params.clientId || ''}
+            agentName={params.agentName}
+            agentPhotoBase64={params.agentPhotoBase64}
+            schedulingUrl={schedulingUrl || undefined}
+            agencyName={params.agencyName}
+            agencyLogoBase64={params.agencyLogoBase64}
+            clientName={getFirstName(params.clientName)}
+          />
 
           {/* Referral Button - Red Primary Style */}
           <TouchableOpacity 
@@ -883,6 +927,34 @@ const styles = StyleSheet.create({
   dot: {
     width: 2,
     height: 2,
+    borderRadius: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  // Calendar icon for Book Appointment
+  calendarIconOuter: {
+    width: 20,
+    height: 18,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    borderRadius: 3,
+    justifyContent: 'space-between',
+  },
+  calendarIconTop: {
+    height: 3,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 1,
+    borderTopRightRadius: 1,
+  },
+  calendarIconGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 2,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  calendarDot: {
+    width: 3,
+    height: 3,
     borderRadius: 1,
     backgroundColor: '#FFFFFF',
   },

@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Timestamp } from 'firebase/firestore';
-import { formatCurrency, formatDate, formatDateLong, getStatusColor, getPolicyTypeIcon } from '../lib/policyUtils';
+import { getAuth } from 'firebase/auth';
+import { formatCurrency, formatDate, formatDateLong, getStatusColor, getPolicyTypeIcon, getAnniversaryDate, daysUntilAnniversary } from '../lib/policyUtils';
 
 interface Client {
   id: string;
@@ -29,6 +30,8 @@ interface Policy {
   protectionUnit?: 'months' | 'years';
   status: 'Active' | 'Pending' | 'Lapsed';
   createdAt: Timestamp;
+  anniversaryAgentNotifiedAt?: string;
+  anniversaryClientNotifiedAt?: string;
 }
 
 interface ClientDetailModalProps {
@@ -40,6 +43,9 @@ interface ClientDetailModalProps {
   onEditPolicy: (policy: Policy) => void;
   onDeletePolicy: (policy: Policy) => void;
   onUploadApplication: () => void;
+  agentName?: string;
+  hasSchedulingUrl?: boolean;
+  clientPushToken?: string | null;
 }
 
 export default function ClientDetailModal({
@@ -51,10 +57,22 @@ export default function ClientDetailModal({
   onEditPolicy,
   onDeletePolicy,
   onUploadApplication,
+  agentName,
+  hasSchedulingUrl,
+  clientPushToken,
 }: ClientDetailModalProps) {
   const [copied, setCopied] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+
+  // ── Notification compose state ──
+  const [notifTitle, setNotifTitle] = useState('');
+  const [notifBody, setNotifBody] = useState('');
+  const [includeBookingLink, setIncludeBookingLink] = useState(false);
+  const [notifSending, setNotifSending] = useState(false);
+  const [notifStatus, setNotifStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [notifError, setNotifError] = useState('');
+  const [showNotifForm, setShowNotifForm] = useState(false);
 
   // Animate in on mount
   useEffect(() => {
@@ -118,6 +136,70 @@ export default function ClientDetailModal({
       setTimeout(() => setCopied(false), 2000);
     }
   }, [client?.clientCode]);
+
+  // Reset notification form when client changes
+  useEffect(() => {
+    if (client) {
+      setNotifTitle('');
+      setNotifBody('');
+      setIncludeBookingLink(false);
+      setNotifSending(false);
+      setNotifStatus('idle');
+      setNotifError('');
+      setShowNotifForm(false);
+    }
+  }, [client?.id]);
+
+  const handleSendNotification = useCallback(async () => {
+    if (!client || !notifBody.trim()) return;
+
+    setNotifSending(true);
+    setNotifStatus('idle');
+    setNotifError('');
+
+    try {
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Not authenticated');
+
+      const token = await currentUser.getIdToken();
+      const response = await fetch('/api/notifications/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          clientId: client.id,
+          title: notifTitle.trim() || undefined,
+          body: notifBody.trim(),
+          includeBookingLink: includeBookingLink || undefined,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to send notification');
+      }
+
+      setNotifStatus('success');
+      setNotifBody('');
+      setNotifTitle('');
+      setIncludeBookingLink(false);
+
+      // Reset success message after 4 seconds
+      setTimeout(() => {
+        setNotifStatus('idle');
+        setShowNotifForm(false);
+      }, 4000);
+    } catch (err) {
+      setNotifStatus('error');
+      setNotifError(err instanceof Error ? err.message : 'Failed to send notification');
+    } finally {
+      setNotifSending(false);
+    }
+  }, [client, notifTitle, notifBody, includeBookingLink]);
 
   if (!client && !isClosing) return null;
 
@@ -235,6 +317,148 @@ export default function ClientDetailModal({
           {/* Divider */}
           <div className="border-t border-gray-200" />
 
+          {/* ── Send Notification Section ── */}
+          <div className="px-6 pt-5 pb-4">
+            {!showNotifForm ? (
+              <button
+                onClick={() => setShowNotifForm(true)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#005851]/5 hover:bg-[#005851]/10 border border-[#005851]/20 hover:border-[#005851]/30 rounded-[5px] text-[#005851] font-semibold text-sm transition-all duration-200"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                Send Push Notification
+              </button>
+            ) : (
+              <div className="bg-[#005851]/5 border border-[#005851]/20 rounded-[5px] p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-[#005851] flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    Send Push Notification
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setShowNotifForm(false);
+                      setNotifStatus('idle');
+                    }}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* No push token warning */}
+                {clientPushToken === null && (
+                  <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-gray-100 border border-gray-200 rounded-[5px] text-xs text-gray-500">
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    This client has not enabled push notifications yet.
+                  </div>
+                )}
+
+                {notifStatus === 'success' ? (
+                  <div className="flex items-center gap-2 px-3 py-3 bg-green-50 border border-green-200 rounded-[5px] text-sm text-green-700">
+                    <svg className="w-5 h-5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="font-medium">Notification sent successfully!</span>
+                  </div>
+                ) : (
+                  <>
+                    {/* Title field */}
+                    <div className="mb-2">
+                      <input
+                        type="text"
+                        value={notifTitle}
+                        onChange={(e) => setNotifTitle(e.target.value)}
+                        placeholder={`Message from ${agentName || 'your agent'}`}
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-[5px] text-sm text-[#000000] placeholder-gray-400 focus:outline-none focus:border-[#005851]/50 focus:ring-1 focus:ring-[#005851]/20 transition-colors"
+                      />
+                    </div>
+
+                    {/* Message body */}
+                    <div className="mb-2 relative">
+                      <textarea
+                        value={notifBody}
+                        onChange={(e) => setNotifBody(e.target.value)}
+                        placeholder="Type your message to the client..."
+                        rows={3}
+                        maxLength={500}
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-[5px] text-sm text-[#000000] placeholder-gray-400 focus:outline-none focus:border-[#005851]/50 focus:ring-1 focus:ring-[#005851]/20 transition-colors resize-none"
+                      />
+                      <span className="absolute bottom-2 right-3 text-xs text-gray-300">
+                        {notifBody.length}/500
+                      </span>
+                    </div>
+
+                    {/* Include booking link toggle */}
+                    {hasSchedulingUrl && (
+                      <label className="flex items-center gap-2 mb-3 cursor-pointer select-none">
+                        <div
+                          className={`w-8 h-[18px] rounded-full transition-colors duration-200 relative ${
+                            includeBookingLink ? 'bg-[#005851]' : 'bg-gray-300'
+                          }`}
+                          onClick={() => setIncludeBookingLink(!includeBookingLink)}
+                        >
+                          <div
+                            className={`absolute top-[2px] w-[14px] h-[14px] bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                              includeBookingLink ? 'translate-x-[16px]' : 'translate-x-[2px]'
+                            }`}
+                          />
+                        </div>
+                        <span className="text-xs text-gray-600 font-medium">
+                          Include &ldquo;Book your appointment&rdquo; link
+                        </span>
+                      </label>
+                    )}
+
+                    {/* Error message */}
+                    {notifStatus === 'error' && (
+                      <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-[5px] text-xs text-red-600">
+                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {notifError}
+                      </div>
+                    )}
+
+                    {/* Send button */}
+                    <button
+                      onClick={handleSendNotification}
+                      disabled={!notifBody.trim() || notifSending || clientPushToken === null}
+                      className="w-full px-4 py-2.5 bg-[#005851] hover:bg-[#004540] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-[5px] shadow-lg shadow-[#005851]/20 hover:shadow-[#005851]/30 transition-all duration-200 flex items-center justify-center gap-2 text-sm"
+                    >
+                      {notifSending ? (
+                        <>
+                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                          </svg>
+                          Send Notification
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-gray-200" />
+
           {/* Policies Section */}
           <div className="px-6 pt-5 pb-6">
             <div className="flex items-center justify-between mb-4">
@@ -279,11 +503,30 @@ export default function ClientDetailModal({
               </div>
             ) : (
               <div className="space-y-3">
-                {policies.map((policy) => (
+                {policies.map((policy) => {
+                  const anniversaryDate = getAnniversaryDate(policy.createdAt);
+                  const days = anniversaryDate ? daysUntilAnniversary(anniversaryDate) : null;
+                  return (
                   <div
                     key={policy.id}
-                    className="bg-white rounded-[5px] border border-gray-200 p-5 hover:border-gray-300 transition-all duration-200"
+                    className={`bg-white rounded-[5px] border p-5 transition-all duration-200 ${
+                      anniversaryDate
+                        ? 'border-amber-300 ring-1 ring-amber-200'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
                   >
+                    {/* Anniversary badge */}
+                    {anniversaryDate && days !== null && (
+                      <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs">
+                        <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-amber-800 font-medium">
+                          1-year anniversary {days === 0 ? 'is today' : days === 1 ? 'is tomorrow' : `in ${days} days`} — consider rewriting this policy
+                        </span>
+                      </div>
+                    )}
+
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-[#0099FF]/20 rounded-lg flex items-center justify-center text-[#0099FF]">
@@ -385,7 +628,8 @@ export default function ClientDetailModal({
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

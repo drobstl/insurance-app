@@ -1,4 +1,42 @@
 import React from 'react';
+import { Timestamp } from 'firebase/firestore';
+
+/**
+ * Check whether a policy's createdAt date falls within the anniversary alert
+ * window, i.e. it was created between 335 and 365 days ago (≈ 30-day heads-up
+ * before the 1-year mark).
+ *
+ * Returns `null` if not approaching, or the anniversary Date if it is.
+ */
+export const getAnniversaryDate = (
+  createdAt: Timestamp | { seconds: number; nanoseconds: number } | undefined
+): Date | null => {
+  if (!createdAt) return null;
+
+  const created =
+    createdAt instanceof Timestamp
+      ? createdAt.toDate()
+      : new Date(createdAt.seconds * 1000);
+
+  const anniversary = new Date(created);
+  anniversary.setFullYear(anniversary.getFullYear() + 1);
+
+  const now = new Date();
+  const msUntil = anniversary.getTime() - now.getTime();
+  const daysUntil = msUntil / (1000 * 60 * 60 * 24);
+
+  // Alert window: 0 – 30 days before the 1-year anniversary
+  if (daysUntil >= 0 && daysUntil <= 30) {
+    return anniversary;
+  }
+  return null;
+};
+
+/** Human-readable "X days" until the anniversary. */
+export const daysUntilAnniversary = (anniversary: Date): number => {
+  const now = new Date();
+  return Math.ceil((anniversary.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+};
 
 export const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', {
