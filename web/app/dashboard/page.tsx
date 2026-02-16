@@ -144,6 +144,9 @@ export default function DashboardPage() {
   const [deleteConfirmPolicy, setDeleteConfirmPolicy] = useState<Policy | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Edit client state
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
+
   // Delete client state
   const [deleteConfirmClient, setDeleteConfirmClient] = useState<Client | null>(null);
   const [deletingClient, setDeletingClient] = useState(false);
@@ -431,10 +434,24 @@ export default function DashboardPage() {
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setEditingClient(null);
     setFormData({ name: '', email: '', phone: '', dateOfBirth: '' });
     setFormError('');
     setFormSuccess(false);
   };
+
+  const handleEditClient = useCallback((client: Client) => {
+    setEditingClient(client);
+    setFormData({
+      name: client.name,
+      email: client.email,
+      phone: client.phone,
+      dateOfBirth: client.dateOfBirth || '',
+    });
+    setFormError('');
+    setFormSuccess(false);
+    setIsModalOpen(true);
+  }, []);
 
   // Generate a secure unique client code (12 chars in XXXX-XXXX-XXXX format)
   // Using crypto.getRandomValues for cryptographically secure randomness
@@ -463,30 +480,63 @@ export default function DashboardPage() {
     setSubmitting(true);
 
     try {
-      const clientCode = generateClientCode();
-      const clientsRef = collection(db, 'agents', user.uid, 'clients');
-      const clientData: Record<string, unknown> = {
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        clientCode: clientCode,
-        createdAt: serverTimestamp(),
-        agentId: user.uid,
-      };
-      if (formData.dateOfBirth) {
-        clientData.dateOfBirth = formData.dateOfBirth;
+      if (editingClient) {
+        // Update existing client
+        const clientRef = doc(db, 'agents', user.uid, 'clients', editingClient.id);
+        const updatedData: Record<string, unknown> = {
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+        };
+        if (formData.dateOfBirth) {
+          updatedData.dateOfBirth = formData.dateOfBirth;
+        } else {
+          updatedData.dateOfBirth = '';
+        }
+        await updateDoc(clientRef, updatedData);
+
+        // Update selectedClient in-place so the detail modal reflects changes immediately
+        if (selectedClient?.id === editingClient.id) {
+          setSelectedClient({
+            ...selectedClient,
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            dateOfBirth: formData.dateOfBirth || undefined,
+          });
+        }
+
+        setFormSuccess(true);
+        setTimeout(() => {
+          handleCloseModal();
+        }, 1500);
+      } else {
+        // Add new client
+        const clientCode = generateClientCode();
+        const clientsRef = collection(db, 'agents', user.uid, 'clients');
+        const clientData: Record<string, unknown> = {
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          clientCode: clientCode,
+          createdAt: serverTimestamp(),
+          agentId: user.uid,
+        };
+        if (formData.dateOfBirth) {
+          clientData.dateOfBirth = formData.dateOfBirth;
+        }
+        await addDoc(clientsRef, clientData);
+
+        setFormSuccess(true);
+        setFormData({ name: '', email: '', phone: '', dateOfBirth: '' });
+
+        setTimeout(() => {
+          handleCloseModal();
+        }, 1500);
       }
-      await addDoc(clientsRef, clientData);
-
-      setFormSuccess(true);
-      setFormData({ name: '', email: '', phone: '', dateOfBirth: '' });
-
-      setTimeout(() => {
-        handleCloseModal();
-      }, 1500);
     } catch (error) {
-      console.error('Error adding client:', error);
-      setFormError('Failed to add client. Please try again.');
+      console.error('Error saving client:', error);
+      setFormError(editingClient ? 'Failed to update client. Please try again.' : 'Failed to add client. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -1798,7 +1848,7 @@ export default function DashboardPage() {
           />
           <div className="relative w-full max-w-md bg-white rounded-[5px] border border-gray-200 shadow-2xl transform transition-all">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-[#000000]">Add New Client</h3>
+              <h3 className="text-xl font-bold text-[#000000]">{editingClient ? 'Edit Client' : 'Add New Client'}</h3>
               <button
                 onClick={handleCloseModal}
                 className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#000000] transition-colors"
@@ -1822,7 +1872,7 @@ export default function DashboardPage() {
                   <svg className="w-5 h-5 text-[#45bcaa] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <p className="text-[#45bcaa] text-sm">Client added successfully!</p>
+                  <p className="text-[#45bcaa] text-sm">{editingClient ? 'Client updated successfully!' : 'Client added successfully!'}</p>
                 </div>
               )}
               <div>
@@ -1898,10 +1948,10 @@ export default function DashboardPage() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                       </svg>
-                      Adding...
+                      {editingClient ? 'Saving...' : 'Adding...'}
                     </>
                   ) : (
-                    'Add Client'
+                    editingClient ? 'Save Changes' : 'Add Client'
                   )}
                 </button>
               </div>
@@ -2415,6 +2465,7 @@ export default function DashboardPage() {
         onEditPolicy={(policy) => handleOpenPolicyModal(policy)}
         onDeletePolicy={(policy) => setDeleteConfirmPolicy(policy)}
         onUploadApplication={() => setIsUploadModalOpen(true)}
+        onEditClient={handleEditClient}
         agentName={agentProfile.name}
         hasSchedulingUrl={!!agentProfile.schedulingUrl}
         clientPushToken={selectedClient?.pushToken ?? null}

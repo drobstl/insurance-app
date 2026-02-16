@@ -43,6 +43,7 @@ interface ClientDetailModalProps {
   onEditPolicy: (policy: Policy) => void;
   onDeletePolicy: (policy: Policy) => void;
   onUploadApplication: () => void;
+  onEditClient?: (client: Client) => void;
   agentName?: string;
   hasSchedulingUrl?: boolean;
   clientPushToken?: string | null;
@@ -57,6 +58,7 @@ export default function ClientDetailModal({
   onEditPolicy,
   onDeletePolicy,
   onUploadApplication,
+  onEditClient,
   agentName,
   hasSchedulingUrl,
   clientPushToken,
@@ -243,14 +245,27 @@ export default function ClientDetailModal({
               )}
             </div>
           </div>
-          <button
-            onClick={handleClose}
-            className="w-10 h-10 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#000000] transition-colors shrink-0"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {onEditClient && client && (
+              <button
+                onClick={() => onEditClient(client)}
+                className="w-10 h-10 rounded-[5px] bg-gray-100 hover:bg-[#daf3f0] flex items-center justify-center text-gray-500 hover:text-[#005851] transition-colors"
+                title="Edit client info"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+            )}
+            <button
+              onClick={handleClose}
+              className="w-10 h-10 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#000000] transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* ── Scrollable Body ── */}
