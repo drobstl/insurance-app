@@ -23,6 +23,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import Confetti from '../components/confetti';
 import MessageCard from '../components/MessageCard';
+import { clearSession } from './index';
 
 // Get first name from full name
 const getFirstName = (fullName: string | undefined) => {
@@ -145,7 +146,8 @@ export default function AgentProfileScreen() {
     });
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await clearSession();
     router.replace('/');
   };
 

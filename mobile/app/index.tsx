@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,11 +14,146 @@ import { router } from 'expo-router';
 import { collection, query, where, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { registerForPushNotificationsAsync } from './_layout';
+import * as SecureStore from 'expo-secure-store';
+
+const SESSION_KEY = 'client_session';
+
+interface SavedSession {
+  clientCode: string;
+  agentId: string;
+  clientId: string;
+}
+
+async function saveSession(session: SavedSession) {
+  await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session));
+}
+
+async function getSession(): Promise<SavedSession | null> {
+  const raw = await SecureStore.getItemAsync(SESSION_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as SavedSession;
+  } catch {
+    return null;
+  }
+}
+
+export async function clearSession() {
+  await SecureStore.deleteItemAsync(SESSION_KEY);
+}
+
+async function lookupClientCode(clientCode: string) {
+  const agentsRef = collection(db, 'agents');
+  const agentsSnapshot = await getDocs(agentsRef);
+
+  for (const agentDoc of agentsSnapshot.docs) {
+    const clientsRef = collection(db, 'agents', agentDoc.id, 'clients');
+    const clientQuery = query(clientsRef, where('clientCode', '==', clientCode.trim().toUpperCase()));
+    const clientSnapshot = await getDocs(clientQuery);
+
+    if (!clientSnapshot.empty) {
+      return {
+        clientId: clientSnapshot.docs[0].id,
+        clientData: clientSnapshot.docs[0].data(),
+        agentId: agentDoc.id,
+      };
+    }
+  }
+  return null;
+}
+
+async function navigateToProfile(agentId: string, clientId: string, clientData: Record<string, unknown>) {
+  const agentDocRef = doc(db, 'agents', agentId);
+  const agentDocSnap = await getDoc(agentDocRef);
+
+  if (!agentDocSnap.exists()) {
+    throw new Error('Agent data not found.');
+  }
+
+  const agentData = agentDocSnap.data();
+
+  const photoBase64 = (agentData.photoBase64 as string) || '';
+  const agentName = (agentData.name as string) || 'Your Agent';
+  const agentEmail = (agentData.email as string) || '';
+  const agentPhone = (agentData.phoneNumber as string) || '';
+  const agencyName = (agentData.agencyName as string) || '';
+  const agencyLogoBase64 = (agentData.agencyLogoBase64 as string) || '';
+  const referralMessage = (agentData.referralMessage as string) || '';
+  const clientName = (clientData.name as string) || 'Client';
+
+  registerForPushNotificationsAsync().then(async (pushToken) => {
+    if (pushToken) {
+      try {
+        const clientDocRef = doc(db, 'agents', agentId, 'clients', clientId);
+        await updateDoc(clientDocRef, { pushToken });
+      } catch (tokenError) {
+        console.error('Error saving push token:', tokenError);
+      }
+    }
+  });
+
+  router.replace({
+    pathname: '/agent-profile',
+    params: {
+      agentId,
+      agentName,
+      agentEmail,
+      agentPhone,
+      agentPhotoBase64: photoBase64,
+      agencyName,
+      agencyLogoBase64,
+      clientId,
+      clientName,
+      referralMessage,
+      businessCardBase64: (agentData.businessCardBase64 as string) || '',
+    },
+  });
+}
 
 export default function LoginScreen() {
   const [clientCode, setClientCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  // On mount, check for a saved session and auto-login
+  useEffect(() => {
+    (async () => {
+      try {
+        const session = await getSession();
+        if (!session) {
+          setCheckingSession(false);
+          return;
+        }
+
+        // Validate the saved session is still valid in Firestore
+        const clientDocRef = doc(db, 'agents', session.agentId, 'clients', session.clientId);
+        const clientDocSnap = await getDoc(clientDocRef);
+
+        if (!clientDocSnap.exists()) {
+          // Client was deleted -- clear stale session and show login
+          await clearSession();
+          setCheckingSession(false);
+          return;
+        }
+
+        const clientData = clientDocSnap.data();
+
+        // Verify the code still matches (agent may have regenerated it)
+        if (clientData.clientCode !== session.clientCode) {
+          await clearSession();
+          setCheckingSession(false);
+          return;
+        }
+
+        await navigateToProfile(session.agentId, session.clientId, clientData);
+      } catch (err) {
+        console.error('Auto-login error:', err);
+        await clearSession();
+        setCheckingSession(false);
+      }
+    })();
+  }, []);
 
   const handleLogin = async () => {
     if (!clientCode.trim()) {
@@ -30,79 +165,17 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
-      // Search for client with matching code across all agents
-      const agentsRef = collection(db, 'agents');
-      const agentsSnapshot = await getDocs(agentsRef);
+      const result = await lookupClientCode(clientCode);
 
-      let foundClientId: string | null = null;
-      let foundClientData: Record<string, unknown> | null = null;
-      let foundAgentId: string | null = null;
-
-      // First, find which agent has this client
-      for (const agentDoc of agentsSnapshot.docs) {
-        const clientsRef = collection(db, 'agents', agentDoc.id, 'clients');
-        const clientQuery = query(clientsRef, where('clientCode', '==', clientCode.trim().toUpperCase()));
-        const clientSnapshot = await getDocs(clientQuery);
-
-        if (!clientSnapshot.empty) {
-          foundClientId = clientSnapshot.docs[0].id;
-          foundClientData = clientSnapshot.docs[0].data();
-          foundAgentId = agentDoc.id;
-          break;
-        }
-      }
-
-      if (foundAgentId && foundClientId && foundClientData) {
-        // Fetch the agent document to get all fields
-        const agentDocRef = doc(db, 'agents', foundAgentId);
-        const agentDocSnap = await getDoc(agentDocRef);
-        
-        if (!agentDocSnap.exists()) {
-          setError('Agent data not found.');
-          return;
-        }
-        
-        const agentData = agentDocSnap.data();
-        
-        const photoBase64 = (agentData.photoBase64 as string) || '';
-        const agentName = (agentData.name as string) || 'Your Agent';
-        const agentEmail = (agentData.email as string) || '';
-        const agentPhone = (agentData.phoneNumber as string) || '';
-        const agencyName = (agentData.agencyName as string) || '';
-        const agencyLogoBase64 = (agentData.agencyLogoBase64 as string) || '';
-        const referralMessage = (agentData.referralMessage as string) || '';
-        const businessCardBase64 = (agentData.businessCardBase64 as string) || '';
-        const clientName = (foundClientData.name as string) || 'Client';
-        
-        // Register for push notifications and save token to Firestore
-        registerForPushNotificationsAsync().then(async (pushToken) => {
-          if (pushToken && foundAgentId && foundClientId) {
-            try {
-              const clientDocRef = doc(db, 'agents', foundAgentId, 'clients', foundClientId);
-              await updateDoc(clientDocRef, { pushToken });
-              console.log('Push token saved:', pushToken);
-            } catch (tokenError) {
-              console.error('Error saving push token:', tokenError);
-            }
-          }
+      if (result) {
+        // Save session for future auto-login
+        await saveSession({
+          clientCode: clientCode.trim().toUpperCase(),
+          agentId: result.agentId,
+          clientId: result.clientId,
         });
 
-        router.push({
-          pathname: '/agent-profile',
-          params: {
-            agentId: foundAgentId,
-            agentName: agentName,
-            agentEmail: agentEmail,
-            agentPhone: agentPhone,
-            agentPhotoBase64: photoBase64,
-            agencyName: agencyName,
-            agencyLogoBase64: agencyLogoBase64,
-            clientId: foundClientId,
-            clientName: clientName,
-            referralMessage: referralMessage,
-            businessCardBase64: businessCardBase64,
-          },
-        });
+        await navigateToProfile(result.agentId, result.clientId, result.clientData);
       } else {
         setError('Invalid client code. Please check and try again.');
       }
@@ -113,6 +186,22 @@ export default function LoginScreen() {
       setLoading(false);
     }
   };
+
+  // Show a loading screen while checking for saved session
+  if (checkingSession) {
+    return (
+      <View style={styles.outerContainer}>
+        <SafeAreaView style={styles.topSafeArea} />
+        <View style={styles.loadingContainer}>
+          <View style={styles.logoIcon}>
+            <Text style={styles.logoIconText}>✓</Text>
+          </View>
+          <Text style={styles.loadingTitle}>My Insurance</Text>
+          <ActivityIndicator color="#3DD6C3" size="large" style={{ marginTop: 24 }} />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.outerContainer}>
@@ -185,10 +274,22 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   outerContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF', // White at the bottom
+    backgroundColor: '#FFFFFF',
   },
   topSafeArea: {
     backgroundColor: '#0D4D4D',
+  },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#0D4D4D',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingTitle: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginTop: 20,
   },
   container: {
     flex: 1,
