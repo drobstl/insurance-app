@@ -30,9 +30,10 @@
 **Firestore Collections**:
 - `agents` - Agent profiles and settings
 - `agents/{agentId}/clients` - Client data with unique codes
+- `agents/{agentId}/clients/{clientId}/notifications` - Client notification cards (holiday, birthday, messages)
 - `agents/{agentId}/policies` - Policy information
 
-**Security Rules**: Updated 2026-02-01 (no expiration)
+**Security Rules**: Updated 2026-02-15 (no expiration)
 
 ### Vercel (agent-for-life)
 - **Production URL**: https://agentforlife.app

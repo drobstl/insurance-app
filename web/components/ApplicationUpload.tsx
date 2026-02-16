@@ -131,7 +131,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
   const filledFields = extractedData
     ? Object.entries(extractedData).filter(([, v]) => v !== null && v !== undefined).length
     : 0;
-  const totalFields = 12;
+  const totalFields = 13;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -297,6 +297,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
                 <FieldRow label="Renewal Date" value={extractedData.renewalDate} />
                 <FieldRow label="Email" value={extractedData.insuredEmail} />
                 <FieldRow label="Phone" value={extractedData.insuredPhone} />
+                <FieldRow label="Birthday" value={extractedData.insuredDateOfBirth} />
               </div>
 
               {/* Actions */}
@@ -319,7 +320,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
               </div>
 
               <p className="text-gray-400 text-xs text-center">
-                You&apos;ll be able to review and edit all fields in the policy form before saving.
+                You&apos;ll be able to review and edit all fields before saving.
               </p>
             </div>
           )}

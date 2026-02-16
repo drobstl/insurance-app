@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/anniversary-check",
+      "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/birthday-check",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/holiday-check",
+      "schedule": "0 14 * * *"
+    }
+  ]
+}

@@ -180,6 +180,18 @@ export default function PoliciesScreen() {
     }
   };
 
+  /** Check if a policy is within 30 days of its 1-year anniversary. */
+  const getAnniversaryDays = (createdAt: Timestamp | { seconds: number; nanoseconds: number } | undefined): number | null => {
+    if (!createdAt) return null;
+    const created = createdAt instanceof Timestamp
+      ? createdAt.toDate()
+      : new Date((createdAt as { seconds: number }).seconds * 1000);
+    const anniversary = new Date(created);
+    anniversary.setFullYear(anniversary.getFullYear() + 1);
+    const daysUntil = Math.ceil((anniversary.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    return daysUntil >= 0 && daysUntil <= 30 ? daysUntil : null;
+  };
+
   const handleBack = () => {
     router.back();
   };
@@ -240,8 +252,21 @@ export default function PoliciesScreen() {
           <View style={styles.policyList}>
             {policies.map((policy) => {
               const statusStyle = getStatusStyle(policy.status);
+              const anniversaryDays = getAnniversaryDays(policy.createdAt);
               return (
-                <View key={policy.id} style={styles.policyCard}>
+                <View key={policy.id} style={[
+                  styles.policyCard,
+                  anniversaryDays !== null && styles.anniversaryCard,
+                ]}>
+                  {/* Anniversary Badge */}
+                  {anniversaryDays !== null && (
+                    <View style={styles.anniversaryBanner}>
+                      <Text style={styles.anniversaryIcon}>&#9200;</Text>
+                      <Text style={styles.anniversaryText}>
+                        1-year anniversary {anniversaryDays === 0 ? 'is today' : anniversaryDays === 1 ? 'is tomorrow' : `in ${anniversaryDays} days`}
+                      </Text>
+                    </View>
+                  )}
                   {/* Card Header */}
                   <View style={styles.cardHeader}>
                     <View style={styles.policyTypeContainer}>
@@ -825,5 +850,29 @@ const styles = StyleSheet.create({
   accidentalPremium: {
     alignItems: 'center',
     paddingVertical: 8,
+  },
+  // Anniversary styles
+  anniversaryCard: {
+    borderColor: '#F59E0B',
+    borderWidth: 2,
+  },
+  anniversaryBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFFBEB',
+    borderBottomWidth: 1,
+    borderBottomColor: '#FDE68A',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  anniversaryIcon: {
+    fontSize: 14,
+  },
+  anniversaryText: {
+    fontSize: 12,
+    color: '#92400E',
+    fontWeight: '600',
+    flex: 1,
   },
 });

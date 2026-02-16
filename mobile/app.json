@@ -15,10 +15,14 @@
       "bundleIdentifier": "com.danielroberts.agentforlife",
       "buildNumber": "16",
       "googleServicesFile": "./GoogleService-Info.plist",
+      "entitlements": {
+        "aps-environment": "production"
+      },
       "infoPlist": {
         "NSCameraUsageDescription": "This app does not use the camera.",
         "NSContactsUsageDescription": "This app needs access to your contacts to send referrals to friends and family.",
         "NSPhotoLibraryUsageDescription": "This app does not access your photos.",
+        "NSUserNotificationsUsageDescription": "Your insurance agent may send you important updates about your policies, birthday greetings, and holiday messages.",
         "ITSAppUsesNonExemptEncryption": false,
         "UIDeviceFamily": [
           1,
@@ -67,6 +71,13 @@
         "expo-contacts",
         {
           "contactsPermission": "This app needs access to your contacts to send referrals to friends and family."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#3DD6C3"
         }
       ]
     ],

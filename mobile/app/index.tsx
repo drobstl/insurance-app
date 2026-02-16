@@ -11,8 +11,9 @@ import {
   Platform,
 } from 'react-native';
 import { router } from 'expo-router';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { registerForPushNotificationsAsync } from './_layout';
 
 export default function LoginScreen() {
   const [clientCode, setClientCode] = useState('');
@@ -73,6 +74,19 @@ export default function LoginScreen() {
         const businessCardBase64 = (agentData.businessCardBase64 as string) || '';
         const clientName = (foundClientData.name as string) || 'Client';
         
+        // Register for push notifications and save token to Firestore
+        registerForPushNotificationsAsync().then(async (pushToken) => {
+          if (pushToken && foundAgentId && foundClientId) {
+            try {
+              const clientDocRef = doc(db, 'agents', foundAgentId, 'clients', foundClientId);
+              await updateDoc(clientDocRef, { pushToken });
+              console.log('Push token saved:', pushToken);
+            } catch (tokenError) {
+              console.error('Error saving push token:', tokenError);
+            }
+          }
+        });
+
         router.push({
           pathname: '/agent-profile',
           params: {

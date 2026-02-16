@@ -10,7 +10,7 @@ import LoomVideoModal from '../../components/LoomVideoModal';
 import { isAdminEmail } from '../../lib/admin';
 import ApplicationUpload from '../../components/ApplicationUpload';
 import type { ExtractedApplicationData } from '../../lib/types';
-import { formatCurrency, formatDate, getStatusColor, getPolicyTypeIcon } from '../../lib/policyUtils';
+import { formatCurrency, formatDate, getStatusColor, getPolicyTypeIcon, getAnniversaryDate, daysUntilAnniversary } from '../../lib/policyUtils';
 import ClientDetailModal from '../../components/ClientDetailModal';
 
 interface Client {
@@ -22,6 +22,7 @@ interface Client {
   dateOfBirth?: string;
   createdAt: Timestamp;
   agentId: string;
+  pushToken?: string;
 }
 
 interface Policy {
@@ -38,6 +39,10 @@ interface Policy {
   protectionUnit?: 'months' | 'years';
   status: 'Active' | 'Pending' | 'Lapsed';
   createdAt: Timestamp;
+  /** Timestamp when the agent was emailed about the 1-year anniversary */
+  anniversaryAgentNotifiedAt?: string;
+  /** Timestamp when the client was push-notified (future use) */
+  anniversaryClientNotifiedAt?: string;
 }
 
 interface AgentProfile {
@@ -54,6 +59,8 @@ interface AgentProfile {
   businessCardBase64?: string;
   referralMessage?: string;
   isFoundingMember?: boolean;
+  schedulingUrl?: string;
+  autoHolidayCards?: boolean;
 }
 
 interface PolicyFormData {
@@ -131,11 +138,16 @@ export default function DashboardPage() {
 
   // Application upload state
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isClientUploadModalOpen, setIsClientUploadModalOpen] = useState(false);
+  const [pendingClientApplicationData, setPendingClientApplicationData] = useState<ExtractedApplicationData | null>(null);
 
   // Edit/Delete state
   const [editingPolicy, setEditingPolicy] = useState<Policy | null>(null);
   const [deleteConfirmPolicy, setDeleteConfirmPolicy] = useState<Policy | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Edit client state
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
 
   // Delete client state
   const [deleteConfirmClient, setDeleteConfirmClient] = useState<Client | null>(null);
@@ -153,7 +165,10 @@ export default function DashboardPage() {
   const [agentProfile, setAgentProfile] = useState<AgentProfile>({});
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [profilePhoneNumber, setProfilePhoneNumber] = useState('');
+  const [profileSchedulingUrl, setProfileSchedulingUrl] = useState('');
+  const [schedulingUrlError, setSchedulingUrlError] = useState('');
   const [profileAgencyName, setProfileAgencyName] = useState('');
+  const [autoHolidayCards, setAutoHolidayCards] = useState(true);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadingAgencyLogo, setUploadingAgencyLogo] = useState(false);
   const [uploadingBusinessCard, setUploadingBusinessCard] = useState(false);
@@ -176,10 +191,18 @@ export default function DashboardPage() {
   const [totalActivePolicies, setTotalActivePolicies] = useState(0);
   const [totalPendingPolicies, setTotalPendingPolicies] = useState(0);
 
+  // Track policies approaching their 1-year anniversary (across all clients)
+  const [anniversaryAlerts, setAnniversaryAlerts] = useState<
+    { clientName: string; clientId: string; policy: Policy; anniversaryDate: Date }[]
+  >([]);
+
   // Sidebar state for Quility-style layout
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [activeSection, setActiveSection] = useState<'clients' | 'resources'>('clients');
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+
+  // Anniversary banner dismissed state (per session)
+  const [anniversaryBannerDismissed, setAnniversaryBannerDismissed] = useState(false);
 
   // Onboarding & tutorial state
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -233,10 +256,14 @@ export default function DashboardPage() {
             businessCardBase64: data.businessCardBase64,
             referralMessage: data.referralMessage,
             isFoundingMember: data.isFoundingMember,
+            schedulingUrl: data.schedulingUrl,
+            autoHolidayCards: data.autoHolidayCards,
           });
           setProfilePhoneNumber(data.phoneNumber || '');
           setProfileAgencyName(data.agencyName || '');
           setReferralMessage(data.referralMessage || '');
+          setProfileSchedulingUrl(data.schedulingUrl || '');
+          setAutoHolidayCards(data.autoHolidayCards !== false);
 
           // Show onboarding if not completed yet
           if (!data.onboardingComplete) {
@@ -276,19 +303,22 @@ export default function DashboardPage() {
     return () => unsubscribe();
   }, [user]);
 
-  // Count total active and pending policies across all clients
+  // Count total active and pending policies + detect anniversary alerts across all clients
   useEffect(() => {
     if (!user || clients.length === 0) {
       setTotalActivePolicies(0);
       setTotalPendingPolicies(0);
+      setAnniversaryAlerts([]);
       return;
     }
 
     const unsubscribes: (() => void)[] = [];
     const policyCounts: { [clientId: string]: { active: number; pending: number } } = {};
+    const anniversaryMap: { [clientId: string]: { clientName: string; clientId: string; policy: Policy; anniversaryDate: Date }[] } = {};
 
     clients.forEach((client) => {
       policyCounts[client.id] = { active: 0, pending: 0 };
+      anniversaryMap[client.id] = [];
       
       const policiesRef = collection(db, 'agents', user.uid, 'clients', client.id, 'policies');
       const unsubscribe = onSnapshot(policiesRef, (snapshot) => {
@@ -296,6 +326,22 @@ export default function DashboardPage() {
         const pendingCount = snapshot.docs.filter(doc => doc.data().status === 'Pending').length;
         
         policyCounts[client.id] = { active: activeCount, pending: pendingCount };
+
+        // Check each policy for approaching 1-year anniversary
+        const clientAnniversaries: typeof anniversaryMap[string] = [];
+        snapshot.docs.forEach((d) => {
+          const policyData = { id: d.id, ...d.data() } as Policy;
+          const annivDate = getAnniversaryDate(policyData.createdAt);
+          if (annivDate) {
+            clientAnniversaries.push({
+              clientName: client.name,
+              clientId: client.id,
+              policy: policyData,
+              anniversaryDate: annivDate,
+            });
+          }
+        });
+        anniversaryMap[client.id] = clientAnniversaries;
         
         // Calculate totals from all clients
         const totalActive = Object.values(policyCounts).reduce((sum, counts) => sum + counts.active, 0);
@@ -303,6 +349,11 @@ export default function DashboardPage() {
         
         setTotalActivePolicies(totalActive);
         setTotalPendingPolicies(totalPending);
+
+        // Flatten anniversary alerts across all clients
+        const allAlerts = Object.values(anniversaryMap).flat();
+        allAlerts.sort((a, b) => a.anniversaryDate.getTime() - b.anniversaryDate.getTime());
+        setAnniversaryAlerts(allAlerts);
       });
       unsubscribes.push(unsubscribe);
     });
@@ -381,14 +432,32 @@ export default function DashboardPage() {
     setFormData({ name: '', email: '', phone: '', dateOfBirth: '' });
     setFormError('');
     setFormSuccess(false);
+    setIsClientUploadModalOpen(false);
+    setPendingClientApplicationData(null);
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setEditingClient(null);
     setFormData({ name: '', email: '', phone: '', dateOfBirth: '' });
     setFormError('');
     setFormSuccess(false);
+    setIsClientUploadModalOpen(false);
+    setPendingClientApplicationData(null);
   };
+
+  const handleEditClient = useCallback((client: Client) => {
+    setEditingClient(client);
+    setFormData({
+      name: client.name,
+      email: client.email,
+      phone: client.phone,
+      dateOfBirth: client.dateOfBirth || '',
+    });
+    setFormError('');
+    setFormSuccess(false);
+    setIsModalOpen(true);
+  }, []);
 
   // Generate a secure unique client code (12 chars in XXXX-XXXX-XXXX format)
   // Using crypto.getRandomValues for cryptographically secure randomness
@@ -417,30 +486,83 @@ export default function DashboardPage() {
     setSubmitting(true);
 
     try {
-      const clientCode = generateClientCode();
-      const clientsRef = collection(db, 'agents', user.uid, 'clients');
-      const clientData: Record<string, unknown> = {
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        clientCode: clientCode,
-        createdAt: serverTimestamp(),
-        agentId: user.uid,
-      };
-      if (formData.dateOfBirth) {
-        clientData.dateOfBirth = formData.dateOfBirth;
+      if (editingClient) {
+        // Update existing client
+        const clientRef = doc(db, 'agents', user.uid, 'clients', editingClient.id);
+        const updatedData: Record<string, unknown> = {
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+        };
+        if (formData.dateOfBirth) {
+          updatedData.dateOfBirth = formData.dateOfBirth;
+        } else {
+          updatedData.dateOfBirth = '';
+        }
+        await updateDoc(clientRef, updatedData);
+
+        // Update selectedClient in-place so the detail modal reflects changes immediately
+        if (selectedClient?.id === editingClient.id) {
+          setSelectedClient({
+            ...selectedClient,
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            dateOfBirth: formData.dateOfBirth || undefined,
+          });
+        }
+
+        setFormSuccess(true);
+        setTimeout(() => {
+          handleCloseModal();
+        }, 1500);
+      } else {
+        // Add new client
+        const extractedApplication = pendingClientApplicationData;
+        const submittedFormData = { ...formData };
+        const clientCode = generateClientCode();
+        const clientsRef = collection(db, 'agents', user.uid, 'clients');
+        const clientData: Record<string, unknown> = {
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          clientCode: clientCode,
+          createdAt: serverTimestamp(),
+          agentId: user.uid,
+        };
+        if (formData.dateOfBirth) {
+          clientData.dateOfBirth = formData.dateOfBirth;
+        }
+        const newClientRef = await addDoc(clientsRef, clientData);
+
+        setFormSuccess(true);
+        setFormData({ name: '', email: '', phone: '', dateOfBirth: '' });
+
+        setTimeout(() => {
+          handleCloseModal();
+
+          if (extractedApplication) {
+            setSelectedClient({
+              id: newClientRef.id,
+              name: submittedFormData.name,
+              email: submittedFormData.email,
+              phone: submittedFormData.phone,
+              dateOfBirth: submittedFormData.dateOfBirth || undefined,
+              createdAt: Timestamp.now(),
+              agentId: user.uid,
+            });
+            setPolicyFormData(mapExtractedApplicationToPolicyFormData(extractedApplication));
+            setEditingPolicy(null);
+            setPolicyFormError('');
+            setPolicyFormSuccess(false);
+            setIsPolicyModalOpen(true);
+            setPendingClientApplicationData(null);
+          }
+        }, 1500);
       }
-      await addDoc(clientsRef, clientData);
-
-      setFormSuccess(true);
-      setFormData({ name: '', email: '', phone: '', dateOfBirth: '' });
-
-      setTimeout(() => {
-        handleCloseModal();
-      }, 1500);
     } catch (error) {
-      console.error('Error adding client:', error);
-      setFormError('Failed to add client. Please try again.');
+      console.error('Error saving client:', error);
+      setFormError(editingClient ? 'Failed to update client. Please try again.' : 'Failed to add client. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -616,6 +738,40 @@ export default function DashboardPage() {
     setPolicyFormSuccess(false);
   };
 
+  const mapExtractedApplicationToPolicyFormData = (data: ExtractedApplicationData): PolicyFormData => {
+    const knownCarriers = ['Americo', 'Mutual of Omaha', 'American-Amicable', 'Banner', 'United Home Life',
+      'SBLI', 'Corebridge', 'AIG', 'Transamerica', 'F&G', 'Foresters', 'National Life Group',
+      'Lincoln Financial', 'Nationwide', 'Prudential', 'Protective', 'North American', 'Athene'];
+    const extractedCarrier = data.insuranceCompany || '';
+    const isKnownCarrier = knownCarriers.includes(extractedCarrier);
+
+    return {
+      policyType: data.policyType || 'IUL',
+      policyNumber: data.policyNumber || '',
+      insuranceCompany: isKnownCarrier ? extractedCarrier : (extractedCarrier ? 'Other' : ''),
+      otherCarrier: isKnownCarrier ? '' : extractedCarrier,
+      policyOwner: data.policyOwner || '',
+      beneficiary: data.beneficiary || '',
+      coverageAmount: data.coverageAmount?.toString() || '',
+      premiumAmount: data.premiumAmount?.toString() || '',
+      renewalDate: data.renewalDate || '',
+      amountOfProtection: '',
+      protectionUnit: 'years',
+      status: 'Pending',
+    };
+  };
+
+  const handleClientApplicationExtracted = (data: ExtractedApplicationData) => {
+    setIsClientUploadModalOpen(false);
+    setPendingClientApplicationData(data);
+    setFormData((prev) => ({
+      name: data.insuredName || prev.name,
+      email: data.insuredEmail || prev.email,
+      phone: data.insuredPhone || prev.phone,
+      dateOfBirth: data.insuredDateOfBirth || prev.dateOfBirth,
+    }));
+  };
+
   const handleApplicationExtracted = async (data: ExtractedApplicationData) => {
     setIsUploadModalOpen(false);
 
@@ -629,27 +785,7 @@ export default function DashboardPage() {
       }
     }
 
-    // Map the extracted carrier to known list or "Other"
-    const knownCarriers = ['Americo', 'Mutual of Omaha', 'American-Amicable', 'Banner', 'United Home Life',
-      'SBLI', 'Corebridge', 'AIG', 'Transamerica', 'F&G', 'Foresters', 'National Life Group',
-      'Lincoln Financial', 'Nationwide', 'Prudential', 'Protective', 'North American', 'Athene'];
-    const extractedCarrier = data.insuranceCompany || '';
-    const isKnownCarrier = knownCarriers.includes(extractedCarrier);
-
-    setPolicyFormData({
-      policyType: data.policyType || 'IUL',
-      policyNumber: data.policyNumber || '',
-      insuranceCompany: isKnownCarrier ? extractedCarrier : (extractedCarrier ? 'Other' : ''),
-      otherCarrier: isKnownCarrier ? '' : extractedCarrier,
-      policyOwner: data.policyOwner || '',
-      beneficiary: data.beneficiary || '',
-      coverageAmount: data.coverageAmount?.toString() || '',
-      premiumAmount: data.premiumAmount?.toString() || '',
-      renewalDate: data.renewalDate || '',
-      amountOfProtection: '',
-      protectionUnit: 'years',
-      status: 'Pending',
-    });
+    setPolicyFormData(mapExtractedApplicationToPolicyFormData(data));
 
     setEditingPolicy(null);
     setPolicyFormError('');
@@ -900,18 +1036,30 @@ export default function DashboardPage() {
   const handleSaveProfile = async () => {
     if (!user) return;
 
+    // Validate scheduling URL if provided
+    const trimmedUrl = profileSchedulingUrl.trim();
+    if (trimmedUrl && !trimmedUrl.startsWith('https://')) {
+      setSchedulingUrlError('URL must start with https://');
+      return;
+    }
+    setSchedulingUrlError('');
+
     setSavingProfile(true);
     try {
       await setDoc(doc(db, 'agents', user.uid), { 
         phoneNumber: profilePhoneNumber,
         agencyName: profileAgencyName,
         referralMessage: referralMessage,
+        schedulingUrl: trimmedUrl || '',
+        autoHolidayCards,
       }, { merge: true });
       setAgentProfile(prev => ({ 
         ...prev, 
         phoneNumber: profilePhoneNumber,
         agencyName: profileAgencyName,
         referralMessage: referralMessage,
+        schedulingUrl: trimmedUrl || '',
+        autoHolidayCards,
       }));
       setIsProfileModalOpen(false);
     } catch (error) {
@@ -1475,6 +1623,60 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {/* Anniversary Alert Banner */}
+            {anniversaryAlerts.length > 0 && !anniversaryBannerDismissed && (
+              <div className="bg-amber-50 border border-amber-300 rounded-[5px] p-4 mb-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
+                      <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-amber-800 mb-1">
+                        Policy Anniversary Alert{anniversaryAlerts.length > 1 ? 's' : ''}
+                      </h3>
+                      <p className="text-xs text-amber-700 mb-2">
+                        {anniversaryAlerts.length === 1
+                          ? '1 policy is approaching its 1-year anniversary — a good time to review and potentially rewrite.'
+                          : `${anniversaryAlerts.length} policies are approaching their 1-year anniversary — a good time to review and potentially rewrite.`}
+                      </p>
+                      <div className="space-y-1.5">
+                        {anniversaryAlerts.slice(0, 5).map((alert) => {
+                          const days = daysUntilAnniversary(alert.anniversaryDate);
+                          return (
+                            <div key={alert.policy.id} className="flex items-center gap-2 text-xs">
+                              <span className="font-semibold text-amber-900">{alert.clientName}</span>
+                              <span className="text-amber-600">—</span>
+                              <span className="text-amber-700">{alert.policy.policyType} #{alert.policy.policyNumber}</span>
+                              <span className={`px-1.5 py-0.5 rounded font-medium ${days <= 7 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                                {days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days} days`}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        {anniversaryAlerts.length > 5 && (
+                          <p className="text-xs text-amber-600 italic">
+                            +{anniversaryAlerts.length - 5} more
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setAnniversaryBannerDismissed(true)}
+                    className="text-amber-400 hover:text-amber-600 transition-colors shrink-0 ml-2"
+                    title="Dismiss"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Clients Section */}
             <div className="bg-white rounded-[5px] border border-[#d0d0d0]">
               <div className="p-4 border-b border-[#d0d0d0]">
@@ -1686,7 +1888,7 @@ export default function DashboardPage() {
           />
           <div className="relative w-full max-w-md bg-white rounded-[5px] border border-gray-200 shadow-2xl transform transition-all">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-[#000000]">Add New Client</h3>
+              <h3 className="text-xl font-bold text-[#000000]">{editingClient ? 'Edit Client' : 'Add New Client'}</h3>
               <button
                 onClick={handleCloseModal}
                 className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#000000] transition-colors"
@@ -1710,7 +1912,25 @@ export default function DashboardPage() {
                   <svg className="w-5 h-5 text-[#45bcaa] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <p className="text-[#45bcaa] text-sm">Client added successfully!</p>
+                  <p className="text-[#45bcaa] text-sm">{editingClient ? 'Client updated successfully!' : 'Client added successfully!'}</p>
+                </div>
+              )}
+              {!editingClient && (
+                <div className="bg-[#0099FF]/10 border border-[#0099FF]/30 rounded-[5px] p-4 flex items-start gap-3">
+                  <svg className="w-5 h-5 text-[#0099FF] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-[#005c99] text-sm font-medium">Optional: upload application PDF to auto-fill client + policy details.</p>
+                    <p className="text-[#005c99]/80 text-xs mt-1">Extracts name, email, phone, and birthday before you save.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsClientUploadModalOpen(true)}
+                    className="px-3 py-1.5 bg-[#0099FF] hover:bg-[#0088DD] text-white text-xs font-semibold rounded-[5px] transition-colors"
+                  >
+                    Upload PDF
+                  </button>
                 </div>
               )}
               <div>
@@ -1786,16 +2006,24 @@ export default function DashboardPage() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                       </svg>
-                      Adding...
+                      {editingClient ? 'Saving...' : 'Adding...'}
                     </>
                   ) : (
-                    'Add Client'
+                    editingClient ? 'Save Changes' : 'Add Client'
                   )}
                 </button>
               </div>
             </form>
           </div>
         </div>
+      )}
+
+      {isClientUploadModalOpen && !editingClient && (
+        <ApplicationUpload
+          clientName={formData.name || 'New Client'}
+          onExtracted={handleClientApplicationExtracted}
+          onClose={() => setIsClientUploadModalOpen(false)}
+        />
       )}
 
       {/* Import Clients Modal */}
@@ -2303,6 +2531,10 @@ export default function DashboardPage() {
         onEditPolicy={(policy) => handleOpenPolicyModal(policy)}
         onDeletePolicy={(policy) => setDeleteConfirmPolicy(policy)}
         onUploadApplication={() => setIsUploadModalOpen(true)}
+        onEditClient={handleEditClient}
+        agentName={agentProfile.name}
+        hasSchedulingUrl={!!agentProfile.schedulingUrl}
+        clientPushToken={selectedClient?.pushToken ?? null}
       />
 
       {/* Application Upload Modal */}
@@ -2494,6 +2726,89 @@ export default function DashboardPage() {
                     className="w-full px-4 py-3 bg-[#e4e4e4] border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa] transition-all duration-200"
                     placeholder="(555) 123-4567"
                   />
+                </div>
+              </div>
+
+              {/* Scheduling Link Card */}
+              <div className="bg-white rounded-[5px] p-5 border border-gray-200">
+                <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Scheduling
+                </h3>
+                <div>
+                  <label htmlFor="profileSchedulingUrl" className="block text-sm font-medium text-[#000000] mb-2">
+                    Booking Page Link
+                  </label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Paste your Calendly, Cal.com, Acuity, or any booking page URL. Clients will see a &ldquo;Book Appointment&rdquo; button in their app.
+                  </p>
+                  <input
+                    id="profileSchedulingUrl"
+                    type="url"
+                    value={profileSchedulingUrl}
+                    onChange={(e) => {
+                      setProfileSchedulingUrl(e.target.value);
+                      setSchedulingUrlError('');
+                    }}
+                    className={`w-full px-4 py-3 bg-[#e4e4e4] border rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa] transition-all duration-200 text-sm ${
+                      schedulingUrlError ? 'border-red-300' : 'border-gray-200'
+                    }`}
+                    placeholder="https://calendly.com/your-name"
+                  />
+                  {schedulingUrlError && (
+                    <p className="text-xs text-red-500 mt-1.5">{schedulingUrlError}</p>
+                  )}
+                  {profileSchedulingUrl.trim() && !schedulingUrlError && profileSchedulingUrl.startsWith('https://') && (
+                    <p className="text-xs text-[#005851] mt-1.5 flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      {profileSchedulingUrl.includes('calendly.com') ? 'Calendly' :
+                       profileSchedulingUrl.includes('cal.com') ? 'Cal.com' :
+                       profileSchedulingUrl.includes('acuity') || profileSchedulingUrl.includes('squareup.com') ? 'Acuity' :
+                       profileSchedulingUrl.includes('calendar.google.com') ? 'Google Calendar' :
+                       'Booking page'} detected
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Automated Holiday Cards Toggle */}
+              <div className="bg-white rounded-[5px] p-5 border border-gray-200">
+                <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+                  </svg>
+                  Holiday Cards
+                </h3>
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 mr-4">
+                    <p className="text-sm font-medium text-[#000000]">
+                      Automated holiday cards
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {autoHolidayCards
+                        ? 'Your clients will automatically receive personalized cards on major holidays (Christmas, New Year\'s, Thanksgiving, July 4th, Valentine\'s Day).'
+                        : 'Automated holiday cards are off. You can still send individual messages to clients anytime from their profile.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={autoHolidayCards}
+                    onClick={() => setAutoHolidayCards(!autoHolidayCards)}
+                    className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:ring-offset-2 ${
+                      autoHolidayCards ? 'bg-[#005851]' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        autoHolidayCards ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
                 </div>
               </div>
 
