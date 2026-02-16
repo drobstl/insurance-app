@@ -138,6 +138,8 @@ export default function DashboardPage() {
 
   // Application upload state
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isClientUploadModalOpen, setIsClientUploadModalOpen] = useState(false);
+  const [pendingClientApplicationData, setPendingClientApplicationData] = useState<ExtractedApplicationData | null>(null);
 
   // Edit/Delete state
   const [editingPolicy, setEditingPolicy] = useState<Policy | null>(null);
@@ -430,6 +432,8 @@ export default function DashboardPage() {
     setFormData({ name: '', email: '', phone: '', dateOfBirth: '' });
     setFormError('');
     setFormSuccess(false);
+    setIsClientUploadModalOpen(false);
+    setPendingClientApplicationData(null);
   };
 
   const handleCloseModal = () => {
@@ -438,6 +442,8 @@ export default function DashboardPage() {
     setFormData({ name: '', email: '', phone: '', dateOfBirth: '' });
     setFormError('');
     setFormSuccess(false);
+    setIsClientUploadModalOpen(false);
+    setPendingClientApplicationData(null);
   };
 
   const handleEditClient = useCallback((client: Client) => {
@@ -512,6 +518,8 @@ export default function DashboardPage() {
         }, 1500);
       } else {
         // Add new client
+        const extractedApplication = pendingClientApplicationData;
+        const submittedFormData = { ...formData };
         const clientCode = generateClientCode();
         const clientsRef = collection(db, 'agents', user.uid, 'clients');
         const clientData: Record<string, unknown> = {
@@ -525,13 +533,31 @@ export default function DashboardPage() {
         if (formData.dateOfBirth) {
           clientData.dateOfBirth = formData.dateOfBirth;
         }
-        await addDoc(clientsRef, clientData);
+        const newClientRef = await addDoc(clientsRef, clientData);
 
         setFormSuccess(true);
         setFormData({ name: '', email: '', phone: '', dateOfBirth: '' });
 
         setTimeout(() => {
           handleCloseModal();
+
+          if (extractedApplication) {
+            setSelectedClient({
+              id: newClientRef.id,
+              name: submittedFormData.name,
+              email: submittedFormData.email,
+              phone: submittedFormData.phone,
+              dateOfBirth: submittedFormData.dateOfBirth || undefined,
+              createdAt: Timestamp.now(),
+              agentId: user.uid,
+            });
+            setPolicyFormData(mapExtractedApplicationToPolicyFormData(extractedApplication));
+            setEditingPolicy(null);
+            setPolicyFormError('');
+            setPolicyFormSuccess(false);
+            setIsPolicyModalOpen(true);
+            setPendingClientApplicationData(null);
+          }
         }, 1500);
       }
     } catch (error) {
@@ -712,6 +738,40 @@ export default function DashboardPage() {
     setPolicyFormSuccess(false);
   };
 
+  const mapExtractedApplicationToPolicyFormData = (data: ExtractedApplicationData): PolicyFormData => {
+    const knownCarriers = ['Americo', 'Mutual of Omaha', 'American-Amicable', 'Banner', 'United Home Life',
+      'SBLI', 'Corebridge', 'AIG', 'Transamerica', 'F&G', 'Foresters', 'National Life Group',
+      'Lincoln Financial', 'Nationwide', 'Prudential', 'Protective', 'North American', 'Athene'];
+    const extractedCarrier = data.insuranceCompany || '';
+    const isKnownCarrier = knownCarriers.includes(extractedCarrier);
+
+    return {
+      policyType: data.policyType || 'IUL',
+      policyNumber: data.policyNumber || '',
+      insuranceCompany: isKnownCarrier ? extractedCarrier : (extractedCarrier ? 'Other' : ''),
+      otherCarrier: isKnownCarrier ? '' : extractedCarrier,
+      policyOwner: data.policyOwner || '',
+      beneficiary: data.beneficiary || '',
+      coverageAmount: data.coverageAmount?.toString() || '',
+      premiumAmount: data.premiumAmount?.toString() || '',
+      renewalDate: data.renewalDate || '',
+      amountOfProtection: '',
+      protectionUnit: 'years',
+      status: 'Pending',
+    };
+  };
+
+  const handleClientApplicationExtracted = (data: ExtractedApplicationData) => {
+    setIsClientUploadModalOpen(false);
+    setPendingClientApplicationData(data);
+    setFormData((prev) => ({
+      name: data.insuredName || prev.name,
+      email: data.insuredEmail || prev.email,
+      phone: data.insuredPhone || prev.phone,
+      dateOfBirth: data.insuredDateOfBirth || prev.dateOfBirth,
+    }));
+  };
+
   const handleApplicationExtracted = async (data: ExtractedApplicationData) => {
     setIsUploadModalOpen(false);
 
@@ -725,27 +785,7 @@ export default function DashboardPage() {
       }
     }
 
-    // Map the extracted carrier to known list or "Other"
-    const knownCarriers = ['Americo', 'Mutual of Omaha', 'American-Amicable', 'Banner', 'United Home Life',
-      'SBLI', 'Corebridge', 'AIG', 'Transamerica', 'F&G', 'Foresters', 'National Life Group',
-      'Lincoln Financial', 'Nationwide', 'Prudential', 'Protective', 'North American', 'Athene'];
-    const extractedCarrier = data.insuranceCompany || '';
-    const isKnownCarrier = knownCarriers.includes(extractedCarrier);
-
-    setPolicyFormData({
-      policyType: data.policyType || 'IUL',
-      policyNumber: data.policyNumber || '',
-      insuranceCompany: isKnownCarrier ? extractedCarrier : (extractedCarrier ? 'Other' : ''),
-      otherCarrier: isKnownCarrier ? '' : extractedCarrier,
-      policyOwner: data.policyOwner || '',
-      beneficiary: data.beneficiary || '',
-      coverageAmount: data.coverageAmount?.toString() || '',
-      premiumAmount: data.premiumAmount?.toString() || '',
-      renewalDate: data.renewalDate || '',
-      amountOfProtection: '',
-      protectionUnit: 'years',
-      status: 'Pending',
-    });
+    setPolicyFormData(mapExtractedApplicationToPolicyFormData(data));
 
     setEditingPolicy(null);
     setPolicyFormError('');
@@ -1875,6 +1915,24 @@ export default function DashboardPage() {
                   <p className="text-[#45bcaa] text-sm">{editingClient ? 'Client updated successfully!' : 'Client added successfully!'}</p>
                 </div>
               )}
+              {!editingClient && (
+                <div className="bg-[#0099FF]/10 border border-[#0099FF]/30 rounded-[5px] p-4 flex items-start gap-3">
+                  <svg className="w-5 h-5 text-[#0099FF] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-[#005c99] text-sm font-medium">Optional: upload application PDF to auto-fill client + policy details.</p>
+                    <p className="text-[#005c99]/80 text-xs mt-1">Extracts name, email, phone, and birthday before you save.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsClientUploadModalOpen(true)}
+                    className="px-3 py-1.5 bg-[#0099FF] hover:bg-[#0088DD] text-white text-xs font-semibold rounded-[5px] transition-colors"
+                  >
+                    Upload PDF
+                  </button>
+                </div>
+              )}
               <div>
                 <label htmlFor="clientName" className="block text-sm font-medium text-gray-600 mb-2">
                   Client Name
@@ -1958,6 +2016,14 @@ export default function DashboardPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {isClientUploadModalOpen && !editingClient && (
+        <ApplicationUpload
+          clientName={formData.name || 'New Client'}
+          onExtracted={handleClientApplicationExtracted}
+          onClose={() => setIsClientUploadModalOpen(false)}
+        />
       )}
 
       {/* Import Clients Modal */}
