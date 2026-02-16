@@ -30,19 +30,25 @@ const getFirstName = (fullName: string | undefined) => {
   return fullName.split(' ')[0];
 };
 
+// Expo Router params may arrive as string[]; normalize to a single string.
+const getParamValue = (value: string | string[] | undefined): string => {
+  if (Array.isArray(value)) return value[0] ?? '';
+  return value ?? '';
+};
+
 export default function AgentProfileScreen() {
   const params = useLocalSearchParams<{
-    agentId: string;
-    agentName: string;
-    agentEmail: string;
-    agentPhone: string;
-    agentPhotoBase64: string;
-    agencyName: string;
-    agencyLogoBase64: string;
-    clientId: string;
-    clientName: string;
-    referralMessage: string;
-    businessCardBase64: string;
+    agentId?: string | string[];
+    agentName?: string | string[];
+    agentEmail?: string | string[];
+    agentPhone?: string | string[];
+    agentPhotoBase64?: string | string[];
+    agencyName?: string | string[];
+    agencyLogoBase64?: string | string[];
+    clientId?: string | string[];
+    clientName?: string | string[];
+    referralMessage?: string | string[];
+    businessCardBase64?: string | string[];
   }>();
 
   const [imageError, setImageError] = useState(false);
@@ -51,13 +57,24 @@ export default function AgentProfileScreen() {
   const [schedulingUrl, setSchedulingUrl] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(true);
 
+  const agentId = getParamValue(params.agentId).trim();
+  const clientId = getParamValue(params.clientId).trim();
+  const agentName = getParamValue(params.agentName);
+  const agentEmail = getParamValue(params.agentEmail);
+  const agentPhone = getParamValue(params.agentPhone);
+  const agentPhotoBase64 = getParamValue(params.agentPhotoBase64);
+  const agencyName = getParamValue(params.agencyName);
+  const agencyLogoBase64 = getParamValue(params.agencyLogoBase64);
+  const clientName = getParamValue(params.clientName);
+  const referralMessage = getParamValue(params.referralMessage);
+
   // Fetch agent-specific data from Firestore (fields too large for URL params)
   useEffect(() => {
     const fetchAgentExtras = async () => {
-      if (!params.agentId) return;
+      if (!agentId) return;
       
       try {
-        const agentDoc = await getDoc(doc(db, 'agents', params.agentId));
+        const agentDoc = await getDoc(doc(db, 'agents', agentId));
         if (agentDoc.exists()) {
           const data = agentDoc.data();
           if (data.businessCardBase64) {
@@ -73,41 +90,41 @@ export default function AgentProfileScreen() {
     };
     
     fetchAgentExtras();
-  }, [params.agentId]);
+  }, [agentId]);
 
   // Check if we have a valid base64 photo
-  const hasValidPhoto = params.agentPhotoBase64 && 
-    params.agentPhotoBase64.length > 0 && 
-    params.agentPhotoBase64 !== 'undefined' &&
-    params.agentPhotoBase64 !== 'null';
+  const hasValidPhoto = agentPhotoBase64 && 
+    agentPhotoBase64.length > 0 && 
+    agentPhotoBase64 !== 'undefined' &&
+    agentPhotoBase64 !== 'null';
 
   // Check if we have a valid agency logo
-  const hasAgencyLogo = params.agencyLogoBase64 && 
-    params.agencyLogoBase64.length > 0 && 
-    params.agencyLogoBase64 !== 'undefined' &&
-    params.agencyLogoBase64 !== 'null';
+  const hasAgencyLogo = agencyLogoBase64 && 
+    agencyLogoBase64.length > 0 && 
+    agencyLogoBase64 !== 'undefined' &&
+    agencyLogoBase64 !== 'null';
 
   // Create the data URI for the image
   const photoUri = hasValidPhoto 
-    ? `data:image/jpeg;base64,${params.agentPhotoBase64}` 
+    ? `data:image/jpeg;base64,${agentPhotoBase64}` 
     : null;
 
   // Create the data URI for agency logo
   const agencyLogoUri = hasAgencyLogo 
-    ? `data:image/jpeg;base64,${params.agencyLogoBase64}` 
+    ? `data:image/jpeg;base64,${agencyLogoBase64}` 
     : null;
 
-  const agentFirstName = getFirstName(params.agentName);
+  const agentFirstName = getFirstName(agentName);
 
   const handleCall = () => {
-    if (params.agentPhone) {
-      Linking.openURL(`tel:${params.agentPhone}`);
+    if (agentPhone) {
+      Linking.openURL(`tel:${agentPhone}`);
     }
   };
 
   const handleEmail = () => {
-    if (params.agentEmail) {
-      Linking.openURL(`mailto:${params.agentEmail}`);
+    if (agentEmail) {
+      Linking.openURL(`mailto:${agentEmail}`);
     }
   };
 
@@ -121,9 +138,9 @@ export default function AgentProfileScreen() {
     router.push({
       pathname: '/policies',
       params: {
-        agentId: params.agentId,
-        clientId: params.clientId,
-        clientName: params.clientName,
+        agentId,
+        clientId,
+        clientName,
       },
     });
   };
@@ -137,7 +154,7 @@ export default function AgentProfileScreen() {
     
     try {
       // Get client's first name
-      const clientFirstName = getFirstName(params.clientName);
+      const clientFirstName = getFirstName(clientName);
 
       // Check if SMS is available first
       const isAvailable = await SMS.isAvailableAsync();
@@ -212,7 +229,7 @@ export default function AgentProfileScreen() {
       }
 
       // Build the referral message
-      let message = params.referralMessage;
+      let message = referralMessage;
       if (!message || message === 'undefined' || message === 'null') {
         message = `Hey [referral], I just got helped by [agent] getting protection to pay off our mortgage if something happens to me. I really liked the way [agent] was able to help me and thought they might be able to help you too.`;
       }
@@ -227,8 +244,8 @@ export default function AgentProfileScreen() {
       // Build recipients array
       const recipients: string[] = [referralPhone];
       // Include agent phone if available
-      if (params.agentPhone) {
-        const cleanAgentPhone = params.agentPhone.replace(/[^0-9+]/g, '');
+      if (agentPhone) {
+        const cleanAgentPhone = agentPhone.replace(/[^0-9+]/g, '');
         if (cleanAgentPhone && !recipients.includes(cleanAgentPhone)) {
           recipients.push(cleanAgentPhone);
         }
@@ -284,11 +301,11 @@ export default function AgentProfileScreen() {
         try {
           // Build the full message with contact info
           let shareMessage = message;
-          if (params.agentPhone) {
-            shareMessage += `\n\nContact ${agentFirstName}: ${params.agentPhone}`;
+          if (agentPhone) {
+            shareMessage += `\n\nContact ${agentFirstName}: ${agentPhone}`;
           }
-          if (params.agentEmail) {
-            shareMessage += `\nEmail: ${params.agentEmail}`;
+          if (agentEmail) {
+            shareMessage += `\nEmail: ${agentEmail}`;
           }
           
           // Check if we have a business card and sharing is available
@@ -370,7 +387,7 @@ export default function AgentProfileScreen() {
         <View style={styles.header}>
           <View style={styles.headerContent}>
           <Text style={styles.welcomeText}>Welcome back,</Text>
-          <Text style={styles.clientName}>{getFirstName(params.clientName)}</Text>
+          <Text style={styles.clientName}>{getFirstName(clientName)}</Text>
           </View>
           <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
             <Text style={styles.logoutText}>Sign Out</Text>
@@ -402,18 +419,18 @@ export default function AgentProfileScreen() {
               ) : (
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>
-                    {params.agentName?.charAt(0)?.toUpperCase() || 'A'}
+                    {agentName?.charAt(0)?.toUpperCase() || 'A'}
                   </Text>
                 </View>
               )}
             </View>
 
             {/* Agent Name */}
-            <Text style={styles.agentName}>{params.agentName}</Text>
+            <Text style={styles.agentName}>{agentName}</Text>
             
             {/* Agency Name */}
-            {params.agencyName ? (
-              <Text style={styles.agencyName}>{params.agencyName}</Text>
+            {agencyName ? (
+              <Text style={styles.agencyName}>{agencyName}</Text>
             ) : null}
 
             {/* Agency Logo */}
@@ -429,7 +446,7 @@ export default function AgentProfileScreen() {
 
             {/* Contact Buttons */}
             <View style={styles.contactContainer}>
-              {params.agentEmail ? (
+              {agentEmail ? (
                 <TouchableOpacity style={styles.contactItem} onPress={handleEmail}>
                   <View style={styles.contactIcon}>
                     {/* Professional Email Icon */}
@@ -444,7 +461,7 @@ export default function AgentProfileScreen() {
                 </TouchableOpacity>
               ) : null}
 
-              {params.agentPhone ? (
+              {agentPhone ? (
                 <TouchableOpacity style={styles.contactItem} onPress={handleCall}>
                   <View style={[styles.contactIcon, styles.phoneIcon]}>
                     {/* Professional Cell Phone Icon */}
@@ -486,14 +503,14 @@ export default function AgentProfileScreen() {
 
           {/* Inline Message Card (animates in after 1.5s if unread notifications exist) */}
           <MessageCard
-            agentId={params.agentId || ''}
-            clientId={params.clientId || ''}
-            agentName={params.agentName}
-            agentPhotoBase64={params.agentPhotoBase64}
+            agentId={agentId}
+            clientId={clientId}
+            agentName={agentName}
+            agentPhotoBase64={agentPhotoBase64}
             schedulingUrl={schedulingUrl || undefined}
-            agencyName={params.agencyName}
-            agencyLogoBase64={params.agencyLogoBase64}
-            clientName={getFirstName(params.clientName)}
+            agencyName={agencyName}
+            agencyLogoBase64={agencyLogoBase64}
+            clientName={getFirstName(clientName)}
           />
 
           {/* Referral Button - Red Primary Style */}

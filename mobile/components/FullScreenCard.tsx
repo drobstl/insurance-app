@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -16,10 +16,13 @@ import Animated, {
   withDelay,
   withSpring,
   Easing,
-  runOnJS,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import Confetti from './confetti';
+import Snowfall from './Snowfall';
+import Fireworks from './Fireworks';
+import Balloons from './Balloons';
+import FloatingEmoji from './FloatingEmoji';
 import { type CardTheme } from '../lib/holidayThemes';
 
 // ── Props ────────────────────────────────────────────────────────────────────
@@ -67,6 +70,7 @@ export default function FullScreenCard({
   schedulingUrl,
 }: FullScreenCardProps) {
   const [showConfetti, setShowConfetti] = useState(false);
+  const effectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Animation values
   const contentOpacity = useSharedValue(0);
@@ -98,11 +102,21 @@ export default function FullScreenCard({
         withSpring(0, { damping: 16, stiffness: 120 }),
       );
 
-      // Fire confetti after a short delay
-      setTimeout(() => setShowConfetti(true), 400);
+      // Fire effects after a short delay
+      if (effectTimerRef.current) {
+        clearTimeout(effectTimerRef.current);
+      }
+      effectTimerRef.current = setTimeout(() => setShowConfetti(true), 400);
     } else {
       setShowConfetti(false);
     }
+
+    return () => {
+      if (effectTimerRef.current) {
+        clearTimeout(effectTimerRef.current);
+        effectTimerRef.current = null;
+      }
+    };
   }, [visible]);
 
   // ── Animated Styles ─────────────────────────────────────────────────────
@@ -159,11 +173,40 @@ export default function FullScreenCard({
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        {/* Confetti overlay */}
-        <Confetti
-          isVisible={showConfetti}
-          onComplete={() => setShowConfetti(false)}
-        />
+        {/* Floating emoji background (renders behind content) */}
+        {theme.floatingEmoji && theme.floatingEmoji.length > 0 && (
+          <FloatingEmoji
+            isVisible={visible}
+            emoji={theme.floatingEmoji}
+            direction={theme.floatingDirection || 'down'}
+          />
+        )}
+
+        {/* Main effect overlay — chosen per holiday */}
+        {theme.effect === 'snowfall' && (
+          <Snowfall
+            isVisible={showConfetti}
+            onComplete={() => setShowConfetti(false)}
+          />
+        )}
+        {theme.effect === 'fireworks' && (
+          <Fireworks
+            isVisible={showConfetti}
+            onComplete={() => setShowConfetti(false)}
+          />
+        )}
+        {theme.effect === 'balloons' && (
+          <Balloons
+            isVisible={showConfetti}
+            onComplete={() => setShowConfetti(false)}
+          />
+        )}
+        {theme.effect === 'confetti' && (
+          <Confetti
+            isVisible={showConfetti}
+            onComplete={() => setShowConfetti(false)}
+          />
+        )}
 
         {/* Close button */}
         <TouchableOpacity

@@ -2,6 +2,8 @@
 // Centralises all color palettes, gradients, and default greetings for each
 // notification type so that card components stay clean and declarative.
 
+export type CardEffect = 'confetti' | 'snowfall' | 'fireworks' | 'balloons';
+
 export interface CardTheme {
   /** Gradient stops for the full-screen background (top → bottom) */
   gradientColors: [string, string, ...string[]];
@@ -15,6 +17,12 @@ export interface CardTheme {
   greetingPrefix: string;
   /** Emoji used as a small visual cue on the inline card */
   emoji: string;
+  /** Which main animation effect to show on the full-screen card */
+  effect: CardEffect;
+  /** Decorative floating emoji for the card background */
+  floatingEmoji?: string[];
+  /** Direction for floating emoji — 'up' for rising, 'down' for drifting */
+  floatingDirection?: 'up' | 'down';
 }
 
 // ── Holiday Themes ────────────────────────────────────────────────────────────
@@ -27,6 +35,7 @@ const HOLIDAY_THEMES: Record<string, CardTheme> = {
     accent: '#D4A843',
     greetingPrefix: 'Merry Christmas',
     emoji: '🎄',
+    effect: 'snowfall',
   },
   newyear: {
     gradientColors: ['#0B1A3E', '#162D6E', '#1A3A8A'],
@@ -35,6 +44,7 @@ const HOLIDAY_THEMES: Record<string, CardTheme> = {
     accent: '#C0C0C0',
     greetingPrefix: 'Happy New Year',
     emoji: '🎆',
+    effect: 'confetti',
   },
   thanksgiving: {
     gradientColors: ['#8B4513', '#BF6A20', '#D4892A'],
@@ -43,6 +53,9 @@ const HOLIDAY_THEMES: Record<string, CardTheme> = {
     accent: '#DAA520',
     greetingPrefix: 'Happy Thanksgiving',
     emoji: '🍂',
+    effect: 'confetti',
+    floatingEmoji: ['🍂', '🍁', '🍃'],
+    floatingDirection: 'down',
   },
   valentines: {
     gradientColors: ['#9B1B30', '#D63B5C', '#E8839B'],
@@ -51,6 +64,9 @@ const HOLIDAY_THEMES: Record<string, CardTheme> = {
     accent: '#FFB6C1',
     greetingPrefix: 'Happy Valentine\'s Day',
     emoji: '💝',
+    effect: 'confetti',
+    floatingEmoji: ['❤️', '💕', '💖', '💗'],
+    floatingDirection: 'up',
   },
   july4th: {
     gradientColors: ['#002868', '#BF0A30', '#002868'],
@@ -59,6 +75,7 @@ const HOLIDAY_THEMES: Record<string, CardTheme> = {
     accent: '#FFFFFF',
     greetingPrefix: 'Happy 4th of July',
     emoji: '🇺🇸',
+    effect: 'fireworks',
   },
 };
 
@@ -71,6 +88,9 @@ const BIRTHDAY_THEME: CardTheme = {
   accent: '#FFD700',
   greetingPrefix: 'Happy Birthday',
   emoji: '🎂',
+  effect: 'balloons',
+  floatingEmoji: ['✨', '🎉', '⭐'],
+  floatingDirection: 'up',
 };
 
 const DEFAULT_THEME: CardTheme = {
@@ -80,6 +100,7 @@ const DEFAULT_THEME: CardTheme = {
   accent: '#3DD6C3',
   greetingPrefix: '',
   emoji: '',
+  effect: 'confetti',
 };
 
 // ── Public Helpers ────────────────────────────────────────────────────────────
