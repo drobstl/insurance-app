@@ -43,4 +43,5 @@ next-env.d.ts
 # Firebase Admin credentials (NEVER commit these)
 firebase-admin-key.json
 *-firebase-adminsdk-*.json
+keys/
 COPY_THIS_TO_VERCEL.txt

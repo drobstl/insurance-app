@@ -14,7 +14,6 @@ import Animated, {
   withTiming,
   withDelay,
   withSequence,
-  runOnJS,
   Easing,
 } from 'react-native-reanimated';
 import {
@@ -127,16 +126,14 @@ export default function MessageCard({
     const current = notifications[currentIndex];
     if (!current) return;
 
-    // Mark as read in Firestore
+    // Mark as read in Firestore — onSnapshot will remove it from the list
     try {
       await markNotificationAsRead(agentId, clientId, current.id);
     } catch (err) {
       console.error('Error marking notification as read:', err);
     }
 
-    const remaining = notifications.length - 1;
-
-    if (remaining <= 0) {
+    if (notifications.length <= 1) {
       // Last notification — collapse the card
       cardOpacity.value = withTiming(0, { duration: 200 });
       cardScale.value = withTiming(0.95, { duration: 200 });
@@ -150,9 +147,10 @@ export default function MessageCard({
         withTiming(0, { duration: 150 }),
         withTiming(1, { duration: 150 }),
       );
-      runOnJS(setCurrentIndex)((prev: number) =>
-        prev >= remaining ? 0 : prev,
-      );
+      // Clamp index if we're at the end of the list
+      if (currentIndex >= notifications.length - 1) {
+        setCurrentIndex(0);
+      }
     }
   }, [notifications, currentIndex, agentId, clientId]);
 

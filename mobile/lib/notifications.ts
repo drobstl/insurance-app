@@ -1,7 +1,6 @@
 import {
   collection,
   query,
-  where,
   orderBy,
   limit,
   onSnapshot,
@@ -48,20 +47,21 @@ export function subscribeToUnreadNotifications(
     'notifications',
   );
 
+  // Fetch recent notifications and filter for unread client-side.
+  // This avoids needing a Firestore composite index on readAt + sentAt.
   const q = query(
     notificationsRef,
-    where('readAt', '==', null),
     orderBy('sentAt', 'desc'),
-    limit(10),
+    limit(20),
   );
 
   return onSnapshot(
     q,
     (snapshot) => {
-      const notifications: AgentNotification[] = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      })) as AgentNotification[];
+      const notifications = snapshot.docs
+        .map((d) => ({ id: d.id, ...d.data() }) as AgentNotification)
+        .filter((n) => !n.readAt)
+        .slice(0, 10);
       onNotifications(notifications);
     },
     (error) => {
