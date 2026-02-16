@@ -25,6 +25,7 @@ interface Policy {
   beneficiary: string;
   coverageAmount: number;
   premiumAmount: number;
+  premiumFrequency?: 'monthly' | 'quarterly' | 'semi-annual' | 'annual';
   renewalDate?: string;
   amountOfProtection?: number;
   protectionUnit?: 'months' | 'years';
@@ -63,6 +64,15 @@ export default function ClientDetailModal({
   hasSchedulingUrl,
   clientPushToken,
 }: ClientDetailModalProps) {
+  const frequencyLabel = (freq?: string) => {
+    switch (freq) {
+      case 'quarterly': return '/qtr';
+      case 'semi-annual': return '/semi';
+      case 'annual': return '/yr';
+      default: return '/mo';
+    }
+  };
+
   const [copied, setCopied] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
@@ -604,7 +614,7 @@ export default function ClientDetailModal({
                           </div>
                           <div className="col-span-2">
                             <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Premium</p>
-                            <p className="text-[#000000] font-semibold">{formatCurrency(policy.premiumAmount)}/mo</p>
+                            <p className="text-[#000000] font-semibold">{formatCurrency(policy.premiumAmount)}{frequencyLabel(policy.premiumFrequency)}</p>
                           </div>
                         </>
                       ) : (
@@ -615,7 +625,7 @@ export default function ClientDetailModal({
                           </div>
                           <div>
                             <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Premium</p>
-                            <p className="text-[#000000] font-semibold">{formatCurrency(policy.premiumAmount)}/mo</p>
+                            <p className="text-[#000000] font-semibold">{formatCurrency(policy.premiumAmount)}{frequencyLabel(policy.premiumFrequency)}</p>
                           </div>
                         </>
                       )}

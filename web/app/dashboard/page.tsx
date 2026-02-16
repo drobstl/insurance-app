@@ -34,6 +34,7 @@ interface Policy {
   beneficiary: string;
   coverageAmount: number;
   premiumAmount: number;
+  premiumFrequency?: 'monthly' | 'quarterly' | 'semi-annual' | 'annual';
   renewalDate?: string;
   amountOfProtection?: number;
   protectionUnit?: 'months' | 'years';
@@ -72,6 +73,7 @@ interface PolicyFormData {
   beneficiary: string;
   coverageAmount: string;
   premiumAmount: string;
+  premiumFrequency: 'monthly' | 'quarterly' | 'semi-annual' | 'annual';
   renewalDate: string;
   amountOfProtection: string;
   protectionUnit: 'months' | 'years';
@@ -105,6 +107,7 @@ const getDefaultPolicyFormData = (): PolicyFormData => ({
   beneficiary: '',
   coverageAmount: '',
   premiumAmount: '',
+  premiumFrequency: 'monthly',
   renewalDate: '',
   amountOfProtection: '',
   protectionUnit: 'years',
@@ -535,29 +538,58 @@ export default function DashboardPage() {
         }
         const newClientRef = await addDoc(clientsRef, clientData);
 
+        // Auto-create policy if PDF application data was extracted
+        if (extractedApplication) {
+          try {
+            const policyFormFromPdf = mapExtractedApplicationToPolicyFormData(extractedApplication);
+            const finalCarrier = policyFormFromPdf.insuranceCompany === 'Other'
+              ? policyFormFromPdf.otherCarrier
+              : policyFormFromPdf.insuranceCompany;
+
+            const policyData: Record<string, unknown> = {
+              policyType: policyFormFromPdf.policyType,
+              policyNumber: policyFormFromPdf.policyNumber,
+              insuranceCompany: finalCarrier,
+              policyOwner: policyFormFromPdf.policyOwner,
+              beneficiary: policyFormFromPdf.beneficiary,
+              coverageAmount: parseFloat(policyFormFromPdf.coverageAmount) || 0,
+              premiumAmount: parseFloat(policyFormFromPdf.premiumAmount) || 0,
+              premiumFrequency: policyFormFromPdf.premiumFrequency,
+              status: policyFormFromPdf.status,
+              createdAt: serverTimestamp(),
+            };
+            if (policyFormFromPdf.policyType === 'Term Life' && policyFormFromPdf.renewalDate) {
+              policyData.renewalDate = policyFormFromPdf.renewalDate;
+            }
+            if (policyFormFromPdf.policyType === 'Mortgage Protection' && policyFormFromPdf.amountOfProtection) {
+              policyData.amountOfProtection = parseInt(policyFormFromPdf.amountOfProtection);
+              policyData.protectionUnit = policyFormFromPdf.protectionUnit;
+            }
+
+            const policiesRef = collection(db, 'agents', user.uid, 'clients', newClientRef.id, 'policies');
+            await addDoc(policiesRef, policyData);
+          } catch (policyError) {
+            console.error('Error auto-creating policy from PDF:', policyError);
+          }
+        }
+
         setFormSuccess(true);
         setFormData({ name: '', email: '', phone: '', dateOfBirth: '' });
+        setPendingClientApplicationData(null);
 
         setTimeout(() => {
           handleCloseModal();
 
-          if (extractedApplication) {
-            setSelectedClient({
-              id: newClientRef.id,
-              name: submittedFormData.name,
-              email: submittedFormData.email,
-              phone: submittedFormData.phone,
-              dateOfBirth: submittedFormData.dateOfBirth || undefined,
-              createdAt: Timestamp.now(),
-              agentId: user.uid,
-            });
-            setPolicyFormData(mapExtractedApplicationToPolicyFormData(extractedApplication));
-            setEditingPolicy(null);
-            setPolicyFormError('');
-            setPolicyFormSuccess(false);
-            setIsPolicyModalOpen(true);
-            setPendingClientApplicationData(null);
-          }
+          // Open client detail view so agent can review the auto-created profile and policy
+          setSelectedClient({
+            id: newClientRef.id,
+            name: submittedFormData.name,
+            email: submittedFormData.email,
+            phone: submittedFormData.phone,
+            dateOfBirth: submittedFormData.dateOfBirth || undefined,
+            createdAt: Timestamp.now(),
+            agentId: user.uid,
+          });
         }, 1500);
       }
     } catch (error) {
@@ -717,6 +749,7 @@ export default function DashboardPage() {
         beneficiary: policy.beneficiary || '',
         coverageAmount: policy.coverageAmount.toString(),
         premiumAmount: policy.premiumAmount.toString(),
+        premiumFrequency: policy.premiumFrequency || 'monthly',
         renewalDate: policy.renewalDate || '',
         amountOfProtection: policy.amountOfProtection?.toString() || '',
         protectionUnit: policy.protectionUnit || 'years',
@@ -754,6 +787,7 @@ export default function DashboardPage() {
       beneficiary: data.beneficiary || '',
       coverageAmount: data.coverageAmount?.toString() || '',
       premiumAmount: data.premiumAmount?.toString() || '',
+      premiumFrequency: data.premiumFrequency || 'monthly',
       renewalDate: data.renewalDate || '',
       amountOfProtection: '',
       protectionUnit: 'years',
@@ -813,8 +847,9 @@ export default function DashboardPage() {
         insuranceCompany: finalCarrier,
         policyOwner: policyFormData.policyOwner,
         beneficiary: policyFormData.beneficiary,
-        coverageAmount: parseFloat(policyFormData.coverageAmount),
-        premiumAmount: parseFloat(policyFormData.premiumAmount),
+        coverageAmount: parseFloat(policyFormData.coverageAmount) || 0,
+        premiumAmount: parseFloat(policyFormData.premiumAmount) || 0,
+        premiumFrequency: policyFormData.premiumFrequency,
         status: policyFormData.status,
       };
 
@@ -1949,16 +1984,15 @@ export default function DashboardPage() {
               </div>
               <div>
                 <label htmlFor="clientEmail" className="block text-sm font-medium text-gray-600 mb-2">
-                  Email Address
+                  Email Address <span className="text-gray-400 font-normal">(optional)</span>
                 </label>
                 <input
                   id="clientEmail"
-                  type="email"
+                  type="text"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
                   className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa] transition-all duration-200"
-                  placeholder="john@example.com"
+                  placeholder="john@example.com or leave blank"
                 />
               </div>
               <div>
@@ -2305,14 +2339,13 @@ export default function DashboardPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="policyNumber" className="block text-sm font-medium text-gray-600 mb-2">
-                    Policy Number
+                    Policy Number <span className="text-gray-400 font-normal">(optional)</span>
                   </label>
                   <input
                     id="policyNumber"
                     type="text"
                     value={policyFormData.policyNumber}
                     onChange={(e) => setPolicyFormData({ ...policyFormData, policyNumber: e.target.value })}
-                    required
                     className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
                     placeholder="POL-2026-001234"
                   />
@@ -2449,29 +2482,30 @@ export default function DashboardPage() {
                 </div>
               )}
 
+              <div>
+                <label htmlFor="coverageAmount" className="block text-sm font-medium text-gray-600 mb-2">
+                  Death Benefit
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    id="coverageAmount"
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={policyFormData.coverageAmount}
+                    onChange={(e) => setPolicyFormData({ ...policyFormData, coverageAmount: e.target.value })}
+                    required
+                    className="w-full pl-8 pr-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                    placeholder="500000"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="coverageAmount" className="block text-sm font-medium text-gray-600 mb-2">
-                    Death Benefit
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                    <input
-                      id="coverageAmount"
-                      type="number"
-                      min="0"
-                      step="1000"
-                      value={policyFormData.coverageAmount}
-                      onChange={(e) => setPolicyFormData({ ...policyFormData, coverageAmount: e.target.value })}
-                      required
-                      className="w-full pl-8 pr-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
-                      placeholder="500000"
-                    />
-                  </div>
-                </div>
-                <div>
                   <label htmlFor="premiumAmount" className="block text-sm font-medium text-gray-600 mb-2">
-                    Monthly Premium
+                    Premium Amount
                   </label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
@@ -2487,6 +2521,22 @@ export default function DashboardPage() {
                       placeholder="60.16"
                     />
                   </div>
+                </div>
+                <div>
+                  <label htmlFor="premiumFrequency" className="block text-sm font-medium text-gray-600 mb-2">
+                    Premium Frequency
+                  </label>
+                  <select
+                    id="premiumFrequency"
+                    value={policyFormData.premiumFrequency}
+                    onChange={(e) => setPolicyFormData({ ...policyFormData, premiumFrequency: e.target.value as 'monthly' | 'quarterly' | 'semi-annual' | 'annual' })}
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                  >
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="semi-annual">Semi-Annual</option>
+                    <option value="annual">Annual</option>
+                  </select>
                 </div>
               </div>
 
