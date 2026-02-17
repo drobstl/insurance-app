@@ -620,11 +620,47 @@ export default function DashboardPage() {
           return;
         }
 
+        // Parse a single CSV row, handling quoted fields correctly
+        const parseCSVRow = (line: string): string[] => {
+          const fields: string[] = [];
+          let current = '';
+          let inQuotes = false;
+          for (let c = 0; c < line.length; c++) {
+            const ch = line[c];
+            if (inQuotes) {
+              if (ch === '"' && line[c + 1] === '"') {
+                current += '"';
+                c++;
+              } else if (ch === '"') {
+                inQuotes = false;
+              } else {
+                current += ch;
+              }
+            } else {
+              if (ch === '"') {
+                inQuotes = true;
+              } else if (ch === ',') {
+                fields.push(current.trim());
+                current = '';
+              } else {
+                current += ch;
+              }
+            }
+          }
+          fields.push(current.trim());
+          return fields;
+        };
+
         // Parse header to find column indices
-        const header = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/"/g, ''));
+        const header = parseCSVRow(lines[0]).map(h => h.toLowerCase());
         
+        // Detect separate first/last name columns
+        const firstNameIdx = header.findIndex(h => h === 'first name' || h === 'firstname' || h === 'first');
+        const lastNameIdx = header.findIndex(h => h === 'last name' || h === 'lastname' || h === 'last');
+        const hasSplitName = firstNameIdx !== -1 && lastNameIdx !== -1;
+
         // Find column indices (flexible matching)
-        const nameIdx = header.findIndex(h => h.includes('name') || h === 'full name' || h === 'contact');
+        const nameIdx = hasSplitName ? firstNameIdx : header.findIndex(h => h.includes('name') || h === 'full name' || h === 'contact');
         const emailIdx = header.findIndex(h => h.includes('email') || h.includes('e-mail'));
         const phoneIdx = header.findIndex(h => h.includes('phone') || h.includes('tel') || h.includes('mobile') || h.includes('cell'));
 
@@ -637,15 +673,19 @@ export default function DashboardPage() {
         const parsedData: { name: string; email: string; phone: string }[] = [];
         
         for (let i = 1; i < lines.length; i++) {
-          // Handle CSV with quoted fields
-          const row = lines[i].match(/("([^"]|"")*"|[^,]*)/g)?.map(field => 
-            field.trim().replace(/^"|"$/g, '').replace(/""/g, '"')
-          ) || [];
+          const row = parseCSVRow(lines[i]);
           
           if (row.length === 0 || !row[nameIdx]?.trim()) continue;
+
+          // Combine first + last name if columns are separate
+          const name = hasSplitName
+            ? `${row[firstNameIdx]?.trim() || ''} ${row[lastNameIdx]?.trim() || ''}`.trim()
+            : row[nameIdx]?.trim() || '';
+
+          if (!name) continue;
           
           parsedData.push({
-            name: row[nameIdx]?.trim() || '',
+            name,
             email: emailIdx !== -1 ? (row[emailIdx]?.trim() || '') : '',
             phone: phoneIdx !== -1 ? (row[phoneIdx]?.trim() || '') : '',
           });
