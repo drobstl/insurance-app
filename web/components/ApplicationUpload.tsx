@@ -281,7 +281,40 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
                 <FieldRow label="Policy Number" value={extractedData.policyNumber} />
                 <FieldRow label="Policy Owner" value={extractedData.policyOwner} />
                 <FieldRow label="Insured" value={extractedData.insuredName} />
-                <FieldRow label="Beneficiary" value={extractedData.beneficiary} />
+                {extractedData.beneficiaries && extractedData.beneficiaries.length > 0 ? (
+                  <>
+                    {extractedData.beneficiaries.filter(b => b.type === 'primary').length > 0 && (
+                      <div className="py-2.5 px-3 rounded-[5px] hover:bg-gray-50 transition-colors">
+                        <span className="text-gray-500 text-sm">Primary Beneficiaries</span>
+                        <div className="mt-1 space-y-0.5">
+                          {extractedData.beneficiaries.filter(b => b.type === 'primary').map((b, i) => (
+                            <p key={i} className="text-[#000000] text-sm font-medium text-right">
+                              {b.name}
+                              {b.relationship && <span className="text-gray-400 text-xs ml-1">({b.relationship})</span>}
+                              {b.percentage != null && <span className="text-gray-400 text-xs ml-1">{b.percentage}%</span>}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {extractedData.beneficiaries.filter(b => b.type === 'contingent').length > 0 && (
+                      <div className="py-2.5 px-3 rounded-[5px] hover:bg-gray-50 transition-colors">
+                        <span className="text-gray-500 text-sm">Contingent Beneficiaries</span>
+                        <div className="mt-1 space-y-0.5">
+                          {extractedData.beneficiaries.filter(b => b.type === 'contingent').map((b, i) => (
+                            <p key={i} className="text-[#000000] text-sm font-medium text-right">
+                              {b.name}
+                              {b.relationship && <span className="text-gray-400 text-xs ml-1">({b.relationship})</span>}
+                              {b.percentage != null && <span className="text-gray-400 text-xs ml-1">{b.percentage}%</span>}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <FieldRow label="Beneficiaries" value={null} />
+                )}
                 <FieldRow
                   label="Death Benefit"
                   value={extractedData.coverageAmount != null ? `$${extractedData.coverageAmount.toLocaleString()}` : null}

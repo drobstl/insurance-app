@@ -14,6 +14,13 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { collection, getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
+interface Beneficiary {
+  name: string;
+  relationship?: string;
+  percentage?: number;
+  type: 'primary' | 'contingent';
+}
+
 interface Policy {
   id: string;
   policyType: string;
@@ -21,6 +28,7 @@ interface Policy {
   insuranceCompany?: string;
   policyOwner?: string;
   beneficiary?: string;
+  beneficiaries?: Beneficiary[];
   coverageAmount: number;
   premiumAmount: number;
   renewalDate?: string;
@@ -339,8 +347,8 @@ export default function PoliciesScreen() {
                       </View>
                     )}
 
-                    {/* Owner & Beneficiary */}
-                    {(policy.policyOwner || policy.beneficiary) && (
+                    {/* Owner & Beneficiaries */}
+                    {(policy.policyOwner || policy.beneficiaries?.length || policy.beneficiary) && (
                       <View style={styles.ownerSection}>
                         {policy.policyOwner && (
                           <View style={styles.ownerItem}>
@@ -348,12 +356,39 @@ export default function PoliciesScreen() {
                             <Text style={styles.ownerValue}>{policy.policyOwner}</Text>
                           </View>
                         )}
-                        {policy.beneficiary && (
+                        {policy.beneficiaries && policy.beneficiaries.length > 0 ? (
+                          <>
+                            {policy.beneficiaries.filter(b => b.type === 'primary').length > 0 && (
+                              <View style={styles.ownerItem}>
+                                <Text style={styles.ownerLabel}>Primary Beneficiaries</Text>
+                                {policy.beneficiaries.filter(b => b.type === 'primary').map((b, i) => (
+                                  <Text key={i} style={styles.ownerValue}>
+                                    {b.name}
+                                    {b.relationship ? ` (${b.relationship})` : ''}
+                                    {b.percentage != null ? ` ${b.percentage}%` : ''}
+                                  </Text>
+                                ))}
+                              </View>
+                            )}
+                            {policy.beneficiaries.filter(b => b.type === 'contingent').length > 0 && (
+                              <View style={styles.ownerItem}>
+                                <Text style={styles.ownerLabel}>Contingent Beneficiaries</Text>
+                                {policy.beneficiaries.filter(b => b.type === 'contingent').map((b, i) => (
+                                  <Text key={i} style={styles.ownerValue}>
+                                    {b.name}
+                                    {b.relationship ? ` (${b.relationship})` : ''}
+                                    {b.percentage != null ? ` ${b.percentage}%` : ''}
+                                  </Text>
+                                ))}
+                              </View>
+                            )}
+                          </>
+                        ) : policy.beneficiary ? (
                           <View style={styles.ownerItem}>
                             <Text style={styles.ownerLabel}>Beneficiary</Text>
                             <Text style={styles.ownerValue}>{policy.beneficiary}</Text>
                           </View>
-                        )}
+                        ) : null}
                       </View>
                     )}
                   </View>

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { formatCurrency, formatDate, formatDateLong, getStatusColor, getPolicyTypeIcon, getAnniversaryDate, daysUntilAnniversary } from '../lib/policyUtils';
+import type { Beneficiary } from '../lib/types';
 
 interface Client {
   id: string;
@@ -23,6 +24,7 @@ interface Policy {
   insuranceCompany: string;
   policyOwner: string;
   beneficiary: string;
+  beneficiaries?: Beneficiary[];
   coverageAmount: number;
   premiumAmount: number;
   premiumFrequency?: 'monthly' | 'quarterly' | 'semi-annual' | 'annual';
@@ -575,21 +577,48 @@ export default function ClientDetailModal({
                       </div>
                     )}
 
-                    {/* Policy Owner & Beneficiary */}
-                    {(policy.policyOwner || policy.beneficiary) && (
-                      <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-gray-200">
+                    {/* Policy Owner & Beneficiaries */}
+                    {(policy.policyOwner || policy.beneficiaries?.length || policy.beneficiary) && (
+                      <div className="mb-4 pb-4 border-b border-gray-200">
                         {policy.policyOwner && (
-                          <div>
+                          <div className="mb-3">
                             <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Owner</p>
                             <p className="text-[#000000] text-sm">{policy.policyOwner}</p>
                           </div>
                         )}
-                        {policy.beneficiary && (
+                        {policy.beneficiaries && policy.beneficiaries.length > 0 ? (
+                          <div className="space-y-2">
+                            {policy.beneficiaries.filter(b => b.type === 'primary').length > 0 && (
+                              <div>
+                                <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Primary Beneficiaries</p>
+                                {policy.beneficiaries.filter(b => b.type === 'primary').map((b, i) => (
+                                  <p key={i} className="text-[#000000] text-sm">
+                                    {b.name}
+                                    {b.relationship && <span className="text-gray-400 text-xs ml-1">({b.relationship})</span>}
+                                    {b.percentage != null && <span className="text-gray-400 text-xs ml-1">{b.percentage}%</span>}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                            {policy.beneficiaries.filter(b => b.type === 'contingent').length > 0 && (
+                              <div>
+                                <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Contingent Beneficiaries</p>
+                                {policy.beneficiaries.filter(b => b.type === 'contingent').map((b, i) => (
+                                  <p key={i} className="text-[#000000] text-sm">
+                                    {b.name}
+                                    {b.relationship && <span className="text-gray-400 text-xs ml-1">({b.relationship})</span>}
+                                    {b.percentage != null && <span className="text-gray-400 text-xs ml-1">{b.percentage}%</span>}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : policy.beneficiary ? (
                           <div>
                             <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Beneficiary</p>
                             <p className="text-[#000000] text-sm">{policy.beneficiary}</p>
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     )}
 

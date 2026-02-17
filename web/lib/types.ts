@@ -1,4 +1,14 @@
 /**
+ * A single beneficiary on an insurance policy.
+ */
+export interface Beneficiary {
+  name: string;
+  relationship?: string;  // e.g. "Spouse", "Child" -- optional
+  percentage?: number;     // e.g. 25 -- optional
+  type: 'primary' | 'contingent';
+}
+
+/**
  * Extracted data from an insurance application PDF.
  * Fields are nullable because any given application may not contain all fields.
  */
@@ -8,7 +18,7 @@ export interface ExtractedApplicationData {
   insuranceCompany: string | null;
   policyOwner: string | null;
   insuredName: string | null;
-  beneficiary: string | null;
+  beneficiaries: Beneficiary[] | null;
   coverageAmount: number | null;
   premiumAmount: number | null;
   premiumFrequency: 'monthly' | 'quarterly' | 'semi-annual' | 'annual' | null;

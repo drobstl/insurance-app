@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { ExtractedApplicationData } from './types';
+import { ExtractedApplicationData, Beneficiary } from './types';
 
 const SYSTEM_PROMPT = `You are an insurance application document parser. Your job is to extract structured data from raw text extracted from insurance application PDFs.
 
@@ -13,7 +13,7 @@ Return ONLY a valid JSON object with these fields (no markdown, no explanation, 
   "insuranceCompany": string or null,
   "policyOwner": string or null,
   "insuredName": string or null,
-  "beneficiary": string or null,
+  "beneficiaries": [{ "name": string, "relationship": string or null, "percentage": number or null, "type": "primary" or "contingent" }] or null,
   "coverageAmount": number or null,
   "premiumAmount": number or null,
   "premiumFrequency": one of "monthly", "quarterly", "semi-annual", "annual", or null,
@@ -31,10 +31,10 @@ Rules:
 - "insuranceCompany": use the carrier's common name (e.g. "Mutual of Omaha", not "United of Omaha Life Insurance Company")
 - "policyOwner": the owner of the policy (often the insured, but not always)
 - "insuredName": the person whose life is insured
-- "beneficiary": primary beneficiary name(s)
+- "beneficiaries": extract ALL primary and contingent beneficiaries. For each, include the name, relationship (e.g. "Spouse", "Child") if available, percentage split if available, and type ("primary" or "contingent"). If only one beneficiary is listed with no type specified, assume "primary".
 - "insuredDateOfBirth": the insured person's date of birth in YYYY-MM-DD format
 - If a field cannot be determined from the text, set it to null — do NOT guess
-- "note": brief note if you want to flag anything (e.g. "multiple beneficiaries listed, only primary shown")
+- "note": brief note if you want to flag anything (e.g. "some fields could not be found")
 - Return ONLY the JSON object`;
 
 // ─── Page relevance scoring ────────────────────────────────
@@ -184,7 +184,7 @@ export async function extractApplicationFields(
     insuranceCompany: toStringOrNull(parsed.insuranceCompany),
     policyOwner: toStringOrNull(parsed.policyOwner),
     insuredName: toStringOrNull(parsed.insuredName),
-    beneficiary: toStringOrNull(parsed.beneficiary),
+    beneficiaries: parseBeneficiaries(parsed.beneficiaries),
     coverageAmount: toNumberOrNull(parsed.coverageAmount),
     premiumAmount: toNumberOrNull(parsed.premiumAmount),
     premiumFrequency: validateFrequency(parsed.premiumFrequency),
@@ -229,4 +229,24 @@ function validateFrequency(val: unknown): ExtractedApplicationData['premiumFrequ
     return val as ExtractedApplicationData['premiumFrequency'];
   }
   return null;
+}
+
+function parseBeneficiaries(val: unknown): Beneficiary[] | null {
+  if (!Array.isArray(val) || val.length === 0) return null;
+
+  const result: Beneficiary[] = [];
+  for (const item of val) {
+    if (typeof item !== 'object' || item === null) continue;
+    const obj = item as Record<string, unknown>;
+    const name = toStringOrNull(obj.name);
+    if (!name) continue;
+
+    const benefType = obj.type === 'contingent' ? 'contingent' : 'primary';
+    const relationship = toStringOrNull(obj.relationship) || undefined;
+    const percentage = toNumberOrNull(obj.percentage) ?? undefined;
+
+    result.push({ name, type: benefType, relationship, percentage });
+  }
+
+  return result.length > 0 ? result : null;
 }

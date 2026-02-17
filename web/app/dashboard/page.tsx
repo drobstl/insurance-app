@@ -9,7 +9,7 @@ import OnboardingOverlay from '../../components/OnboardingOverlay';
 import LoomVideoModal from '../../components/LoomVideoModal';
 import { isAdminEmail } from '../../lib/admin';
 import ApplicationUpload from '../../components/ApplicationUpload';
-import type { ExtractedApplicationData } from '../../lib/types';
+import type { ExtractedApplicationData, Beneficiary } from '../../lib/types';
 import { formatCurrency, formatDate, getStatusColor, getPolicyTypeIcon, getAnniversaryDate, daysUntilAnniversary } from '../../lib/policyUtils';
 import ClientDetailModal from '../../components/ClientDetailModal';
 
@@ -32,6 +32,7 @@ interface Policy {
   insuranceCompany: string;
   policyOwner: string;
   beneficiary: string;
+  beneficiaries?: Beneficiary[];
   coverageAmount: number;
   premiumAmount: number;
   premiumFrequency?: 'monthly' | 'quarterly' | 'semi-annual' | 'annual';
@@ -70,7 +71,7 @@ interface PolicyFormData {
   insuranceCompany: string;
   otherCarrier: string;
   policyOwner: string;
-  beneficiary: string;
+  beneficiaries: Beneficiary[];
   coverageAmount: string;
   premiumAmount: string;
   premiumFrequency: 'monthly' | 'quarterly' | 'semi-annual' | 'annual';
@@ -104,7 +105,7 @@ const getDefaultPolicyFormData = (): PolicyFormData => ({
   insuranceCompany: '',
   otherCarrier: '',
   policyOwner: '',
-  beneficiary: '',
+  beneficiaries: [{ name: '', type: 'primary' }],
   coverageAmount: '',
   premiumAmount: '',
   premiumFrequency: 'monthly',
@@ -546,12 +547,17 @@ export default function DashboardPage() {
               ? policyFormFromPdf.otherCarrier
               : policyFormFromPdf.insuranceCompany;
 
+            // Filter out beneficiaries with empty names and build legacy string
+            const pdfValidBeneficiaries = policyFormFromPdf.beneficiaries.filter(b => b.name.trim() !== '');
+            const pdfBeneficiaryString = pdfValidBeneficiaries.map(b => b.name).join(', ');
+
             const policyData: Record<string, unknown> = {
               policyType: policyFormFromPdf.policyType,
               policyNumber: policyFormFromPdf.policyNumber,
               insuranceCompany: finalCarrier,
               policyOwner: policyFormFromPdf.policyOwner,
-              beneficiary: policyFormFromPdf.beneficiary,
+              beneficiaries: pdfValidBeneficiaries,
+              beneficiary: pdfBeneficiaryString,
               coverageAmount: parseFloat(policyFormFromPdf.coverageAmount) || 0,
               premiumAmount: parseFloat(policyFormFromPdf.premiumAmount) || 0,
               premiumFrequency: policyFormFromPdf.premiumFrequency,
@@ -780,13 +786,24 @@ export default function DashboardPage() {
         'Lincoln Financial', 'Nationwide', 'Prudential', 'Protective', 'North American', 'Athene'];
       const isKnownCarrier = knownCarriers.includes(policy.insuranceCompany || '');
       
+      // Load beneficiaries from policy with legacy fallback
+      let loadedBeneficiaries: Beneficiary[] = [{ name: '', type: 'primary' }];
+      if (policy.beneficiaries && policy.beneficiaries.length > 0) {
+        loadedBeneficiaries = policy.beneficiaries;
+      } else if (policy.beneficiary) {
+        loadedBeneficiaries = policy.beneficiary.split(',').map(n => ({
+          name: n.trim(),
+          type: 'primary' as const,
+        }));
+      }
+
       setPolicyFormData({
         policyType: policy.policyType,
         policyNumber: policy.policyNumber,
         insuranceCompany: isKnownCarrier ? (policy.insuranceCompany || '') : 'Other',
         otherCarrier: isKnownCarrier ? '' : (policy.insuranceCompany || ''),
         policyOwner: policy.policyOwner || '',
-        beneficiary: policy.beneficiary || '',
+        beneficiaries: loadedBeneficiaries,
         coverageAmount: policy.coverageAmount.toString(),
         premiumAmount: policy.premiumAmount.toString(),
         premiumFrequency: policy.premiumFrequency || 'monthly',
@@ -818,13 +835,19 @@ export default function DashboardPage() {
     const extractedCarrier = data.insuranceCompany || '';
     const isKnownCarrier = knownCarriers.includes(extractedCarrier);
 
+    // Map extracted beneficiaries array to form data
+    let beneficiaries: Beneficiary[] = [{ name: '', type: 'primary' }];
+    if (data.beneficiaries && data.beneficiaries.length > 0) {
+      beneficiaries = data.beneficiaries;
+    }
+
     return {
       policyType: data.policyType || 'IUL',
       policyNumber: data.policyNumber || '',
       insuranceCompany: isKnownCarrier ? extractedCarrier : (extractedCarrier ? 'Other' : ''),
       otherCarrier: isKnownCarrier ? '' : extractedCarrier,
       policyOwner: data.policyOwner || '',
-      beneficiary: data.beneficiary || '',
+      beneficiaries,
       coverageAmount: data.coverageAmount?.toString() || '',
       premiumAmount: data.premiumAmount?.toString() || '',
       premiumFrequency: data.premiumFrequency || 'monthly',
@@ -881,12 +904,18 @@ export default function DashboardPage() {
         ? policyFormData.otherCarrier 
         : policyFormData.insuranceCompany;
 
+      // Filter out beneficiaries with empty names
+      const validBeneficiaries = policyFormData.beneficiaries.filter(b => b.name.trim() !== '');
+      // Flatten names into legacy comma-separated string for backward compatibility
+      const beneficiaryString = validBeneficiaries.map(b => b.name).join(', ');
+
       const policyData: Record<string, unknown> = {
         policyType: policyFormData.policyType,
         policyNumber: policyFormData.policyNumber,
         insuranceCompany: finalCarrier,
         policyOwner: policyFormData.policyOwner,
-        beneficiary: policyFormData.beneficiary,
+        beneficiaries: validBeneficiaries,
+        beneficiary: beneficiaryString,
         coverageAmount: parseFloat(policyFormData.coverageAmount) || 0,
         premiumAmount: parseFloat(policyFormData.premiumAmount) || 0,
         premiumFrequency: policyFormData.premiumFrequency,
@@ -2436,35 +2465,178 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Policy Owner & Beneficiary */}
-              <div className="grid grid-cols-2 gap-4">
+              {/* Policy Owner */}
+              <div>
+                <label htmlFor="policyOwner" className="block text-sm font-medium text-gray-600 mb-2">
+                  Policy Owner Name
+                </label>
+                <input
+                  id="policyOwner"
+                  type="text"
+                  value={policyFormData.policyOwner}
+                  onChange={(e) => setPolicyFormData({ ...policyFormData, policyOwner: e.target.value })}
+                  required
+                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                  placeholder="John Doe"
+                />
+              </div>
+
+              {/* Beneficiaries */}
+              <div className="space-y-4">
+                {/* Primary Beneficiaries */}
                 <div>
-                  <label htmlFor="policyOwner" className="block text-sm font-medium text-gray-600 mb-2">
-                    Policy Owner Name
-                  </label>
-                  <input
-                    id="policyOwner"
-                    type="text"
-                    value={policyFormData.policyOwner}
-                    onChange={(e) => setPolicyFormData({ ...policyFormData, policyOwner: e.target.value })}
-                    required
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
-                    placeholder="John Doe"
-                  />
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-600">Primary Beneficiaries</label>
+                    <button
+                      type="button"
+                      onClick={() => setPolicyFormData({
+                        ...policyFormData,
+                        beneficiaries: [...policyFormData.beneficiaries, { name: '', type: 'primary' }],
+                      })}
+                      className="text-xs text-[#0099FF] hover:text-[#0088DD] font-medium transition-colors"
+                    >
+                      + Add Primary
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {policyFormData.beneficiaries
+                      .map((b, idx) => ({ ...b, _idx: idx }))
+                      .filter(b => b.type === 'primary')
+                      .map(b => (
+                        <div key={b._idx} className="flex gap-2 items-start">
+                          <input
+                            type="text"
+                            value={b.name}
+                            onChange={(e) => {
+                              const updated = [...policyFormData.beneficiaries];
+                              updated[b._idx] = { ...updated[b._idx], name: e.target.value };
+                              setPolicyFormData({ ...policyFormData, beneficiaries: updated });
+                            }}
+                            className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                            placeholder="Name"
+                          />
+                          <input
+                            type="text"
+                            value={b.relationship || ''}
+                            onChange={(e) => {
+                              const updated = [...policyFormData.beneficiaries];
+                              updated[b._idx] = { ...updated[b._idx], relationship: e.target.value || undefined };
+                              setPolicyFormData({ ...policyFormData, beneficiaries: updated });
+                            }}
+                            className="w-28 px-3 py-2 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                            placeholder="Relationship"
+                          />
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={b.percentage ?? ''}
+                            onChange={(e) => {
+                              const updated = [...policyFormData.beneficiaries];
+                              const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                              updated[b._idx] = { ...updated[b._idx], percentage: val };
+                              setPolicyFormData({ ...policyFormData, beneficiaries: updated });
+                            }}
+                            className="w-16 px-2 py-2 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                            placeholder="%"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = policyFormData.beneficiaries.filter((_, i) => i !== b._idx);
+                              setPolicyFormData({ ...policyFormData, beneficiaries: updated });
+                            }}
+                            className="p-2 text-gray-400 hover:text-red-500 transition-colors shrink-0"
+                            title="Remove"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    {policyFormData.beneficiaries.filter(b => b.type === 'primary').length === 0 && (
+                      <p className="text-gray-400 text-xs italic py-1">No primary beneficiaries</p>
+                    )}
+                  </div>
                 </div>
+
+                {/* Contingent Beneficiaries */}
                 <div>
-                  <label htmlFor="beneficiary" className="block text-sm font-medium text-gray-600 mb-2">
-                    Beneficiary Name
-                  </label>
-                  <input
-                    id="beneficiary"
-                    type="text"
-                    value={policyFormData.beneficiary}
-                    onChange={(e) => setPolicyFormData({ ...policyFormData, beneficiary: e.target.value })}
-                    required
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
-                    placeholder="Jane Doe"
-                  />
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-600">Contingent Beneficiaries</label>
+                    <button
+                      type="button"
+                      onClick={() => setPolicyFormData({
+                        ...policyFormData,
+                        beneficiaries: [...policyFormData.beneficiaries, { name: '', type: 'contingent' }],
+                      })}
+                      className="text-xs text-[#0099FF] hover:text-[#0088DD] font-medium transition-colors"
+                    >
+                      + Add Contingent
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {policyFormData.beneficiaries
+                      .map((b, idx) => ({ ...b, _idx: idx }))
+                      .filter(b => b.type === 'contingent')
+                      .map(b => (
+                        <div key={b._idx} className="flex gap-2 items-start">
+                          <input
+                            type="text"
+                            value={b.name}
+                            onChange={(e) => {
+                              const updated = [...policyFormData.beneficiaries];
+                              updated[b._idx] = { ...updated[b._idx], name: e.target.value };
+                              setPolicyFormData({ ...policyFormData, beneficiaries: updated });
+                            }}
+                            className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                            placeholder="Name"
+                          />
+                          <input
+                            type="text"
+                            value={b.relationship || ''}
+                            onChange={(e) => {
+                              const updated = [...policyFormData.beneficiaries];
+                              updated[b._idx] = { ...updated[b._idx], relationship: e.target.value || undefined };
+                              setPolicyFormData({ ...policyFormData, beneficiaries: updated });
+                            }}
+                            className="w-28 px-3 py-2 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                            placeholder="Relationship"
+                          />
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={b.percentage ?? ''}
+                            onChange={(e) => {
+                              const updated = [...policyFormData.beneficiaries];
+                              const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                              updated[b._idx] = { ...updated[b._idx], percentage: val };
+                              setPolicyFormData({ ...policyFormData, beneficiaries: updated });
+                            }}
+                            className="w-16 px-2 py-2 bg-white border border-gray-200 rounded-[5px] text-[#000000] placeholder-gray-400 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#0099FF]/50 focus:border-[#0099FF] transition-all duration-200"
+                            placeholder="%"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = policyFormData.beneficiaries.filter((_, i) => i !== b._idx);
+                              setPolicyFormData({ ...policyFormData, beneficiaries: updated });
+                            }}
+                            className="p-2 text-gray-400 hover:text-red-500 transition-colors shrink-0"
+                            title="Remove"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    {policyFormData.beneficiaries.filter(b => b.type === 'contingent').length === 0 && (
+                      <p className="text-gray-400 text-xs italic py-1">No contingent beneficiaries</p>
+                    )}
+                  </div>
                 </div>
               </div>
 
