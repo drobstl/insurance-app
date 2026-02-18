@@ -2,7 +2,12 @@ import 'server-only';
 
 import OpenAI from 'openai';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (_openai) return _openai;
+  _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return _openai;
+}
 
 export interface ConversationMessage {
   role: 'referral' | 'agent-ai';
@@ -71,7 +76,7 @@ export async function generateReferralResponse(ctx: ReferralContext, newMessage:
 
   messages.push({ role: 'user', content: newMessage });
 
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAI().chat.completions.create({
     model: 'gpt-4o',
     messages,
     max_tokens: 200,
