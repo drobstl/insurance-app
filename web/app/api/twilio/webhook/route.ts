@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     const { agentId, referralId, referralData, agentData } = referralResult;
 
     // Build conversation history
-    const conversation: ConversationMessage[] = referralData.conversation || [];
+    const conversation: ConversationMessage[] = (referralData.conversation as ConversationMessage[]) || [];
 
     // Build context for the AI
     const agentName = (agentData.name as string) || 'Your agent';
@@ -63,8 +63,8 @@ export async function POST(req: NextRequest) {
     const ctx: ReferralContext = {
       agentName,
       agentFirstName,
-      clientName: referralData.clientName || 'A friend',
-      referralName: referralData.referralName || 'Friend',
+      clientName: (referralData.clientName as string) || 'A friend',
+      referralName: (referralData.referralName as string) || 'Friend',
       schedulingUrl,
       agentPhone,
       conversation,
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
 
       // Send the reply via Twilio
       const twilioClient = getTwilioClient();
-      const twilioNumber = agentData.twilioPhoneNumber || getTwilioPhoneNumber();
+      const twilioNumber = (agentData.twilioPhoneNumber as string) || getTwilioPhoneNumber();
 
       await twilioClient.messages.create({
         body: aiResponse,
