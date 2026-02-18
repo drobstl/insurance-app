@@ -202,8 +202,26 @@ export default function DashboardPage() {
 
   // Sidebar state for Quility-style layout
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
-  const [activeSection, setActiveSection] = useState<'clients' | 'resources'>('clients');
+  const [activeSection, setActiveSection] = useState<'clients' | 'resources' | 'referrals'>('clients');
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+
+  // Referrals state
+  interface Referral {
+    id: string;
+    referralName: string;
+    referralPhone: string;
+    clientName: string;
+    status: string;
+    conversation: { role: string; body: string; timestamp: string }[];
+    gatheredInfo: Record<string, string>;
+    appointmentBooked: boolean;
+    createdAt: unknown;
+  }
+  const [referrals, setReferrals] = useState<Referral[]>([]);
+  const [referralsLoading, setReferralsLoading] = useState(false);
+  const [expandedReferral, setExpandedReferral] = useState<string | null>(null);
+  const [agentTwilioNumber, setAgentTwilioNumber] = useState<string | null>(null);
+  const [provisioningNumber, setProvisioningNumber] = useState(false);
 
   // Anniversary banner dismissed state (per session)
   const [anniversaryBannerDismissed, setAnniversaryBannerDismissed] = useState(false);
@@ -306,6 +324,70 @@ export default function DashboardPage() {
 
     return () => unsubscribe();
   }, [user]);
+
+  // Fetch referrals and Twilio number
+  useEffect(() => {
+    if (!user) return;
+
+    // Get agent's Twilio number
+    const fetchTwilioNumber = async () => {
+      try {
+        const agentDoc = await getDoc(doc(db, 'agents', user.uid));
+        if (agentDoc.exists()) {
+          const data = agentDoc.data();
+          if (data.twilioPhoneNumber) {
+            setAgentTwilioNumber(data.twilioPhoneNumber);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching Twilio number:', err);
+      }
+    };
+    fetchTwilioNumber();
+
+    // Listen to referrals
+    const referralsRef = collection(db, 'agents', user.uid, 'referrals');
+    const refQuery = query(referralsRef, orderBy('createdAt', 'desc'));
+
+    const unsubscribe = onSnapshot(refQuery, (snapshot) => {
+      const refList: Referral[] = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      } as Referral));
+      setReferrals(refList);
+      setReferralsLoading(false);
+    }, (error) => {
+      console.error('Error fetching referrals:', error);
+      setReferralsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Provision Twilio number for agent
+  const handleProvisionNumber = async () => {
+    if (!user) return;
+    setProvisioningNumber(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/twilio/provision', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.success && data.phoneNumber) {
+        setAgentTwilioNumber(data.phoneNumber);
+      }
+    } catch (err) {
+      console.error('Error provisioning number:', err);
+    } finally {
+      setProvisioningNumber(false);
+    }
+  };
 
   // Count total active and pending policies + detect anniversary alerts across all clients
   useEffect(() => {
@@ -1376,6 +1458,26 @@ export default function DashboardPage() {
             </span>
           </button>
 
+          {/* Referrals */}
+          <button
+            onClick={() => setActiveSection('referrals')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group ${
+              activeSection === 'referrals' ? 'bg-[#daf3f0] text-[#005851]' : 'text-white/80 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <div className="relative shrink-0">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+              {referrals.filter(r => r.status === 'active').length > 0 && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#3DD6C3] rounded-full animate-pulse" />
+              )}
+            </div>
+            <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
+              Referrals
+            </span>
+          </button>
+
           {/* Feedback */}
           <button
             onClick={() => router.push('/dashboard/feedback')}
@@ -1565,7 +1667,151 @@ export default function DashboardPage() {
         <div className="flex flex-1">
           {/* Center Content */}
           <main className="flex-1 p-6 overflow-auto">
-            {activeSection === 'resources' ? (
+            {activeSection === 'referrals' ? (
+              /* Referrals Section */
+              <div>
+                <div className="mb-6">
+                  <h1 className="text-2xl font-bold text-[#000000]">Referrals</h1>
+                  <p className="text-[#707070] text-sm mt-1">Track referral conversations and booked appointments.</p>
+                </div>
+
+                {/* AI Business Line Card */}
+                <div className="bg-white rounded-[5px] border border-[#d0d0d0] mb-6 p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-[#000000] mb-1">Your AI Business Line</h3>
+                      {agentTwilioNumber ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-bold text-[#005851]">{agentTwilioNumber.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3')}</span>
+                          <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium">Active</span>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-[#707070]">Get your dedicated AI business line — calls forward to your phone, texts are handled by AI.</p>
+                      )}
+                    </div>
+                    {!agentTwilioNumber && (
+                      <button
+                        onClick={handleProvisionNumber}
+                        disabled={provisioningNumber}
+                        className="px-4 py-2 bg-[#005851] text-white rounded-[5px] text-sm font-semibold hover:bg-[#004440] transition-colors disabled:opacity-50"
+                      >
+                        {provisioningNumber ? 'Setting up...' : 'Get My Number'}
+                      </button>
+                    )}
+                  </div>
+                  {agentTwilioNumber && (
+                    <p className="text-xs text-[#707070] mt-2">Calls to this number ring your personal phone. Referral texts are handled by AI — responding as you.</p>
+                  )}
+                </div>
+
+                {/* Referrals List */}
+                <div className="bg-white rounded-[5px] border border-[#d0d0d0]">
+                  <div className="px-4 py-3 border-b border-[#d0d0d0] flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-[#000000]">Referral Conversations</h2>
+                    <div className="flex gap-2 text-xs">
+                      <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full">{referrals.filter(r => r.status === 'pending').length} Pending</span>
+                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">{referrals.filter(r => r.status === 'active').length} Active</span>
+                      <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full">{referrals.filter(r => r.status === 'booked' || r.appointmentBooked).length} Booked</span>
+                    </div>
+                  </div>
+
+                  {referralsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <svg className="animate-spin w-8 h-8 text-[#45bcaa]" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                    </div>
+                  ) : referrals.length === 0 ? (
+                    <div className="flex flex-col items-center text-center py-10 px-4">
+                      <svg className="w-12 h-12 text-[#d0d0d0] mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                      </svg>
+                      <h3 className="text-sm font-semibold text-[#000000] mb-1">No referrals yet</h3>
+                      <p className="text-xs text-[#707070] max-w-xs">When your clients refer someone through the app, their conversations will appear here.</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-[#d0d0d0]">
+                      {referrals.map((referral) => {
+                        const statusColors: Record<string, string> = {
+                          pending: 'bg-yellow-100 text-yellow-700',
+                          active: 'bg-blue-100 text-blue-700',
+                          'booking-sent': 'bg-purple-100 text-purple-700',
+                          booked: 'bg-green-100 text-green-700',
+                          closed: 'bg-gray-100 text-gray-600',
+                        };
+                        const statusLabels: Record<string, string> = {
+                          pending: 'Waiting for reply',
+                          active: 'In conversation',
+                          'booking-sent': 'Booking link sent',
+                          booked: 'Appointment booked',
+                          closed: 'Closed',
+                        };
+                        return (
+                          <div key={referral.id} className="px-4 py-3">
+                            <div
+                              className="flex items-center justify-between cursor-pointer"
+                              onClick={() => setExpandedReferral(expandedReferral === referral.id ? null : referral.id)}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-full bg-[#005851] flex items-center justify-center text-white text-sm font-bold">
+                                  {(referral.referralName || '?')[0].toUpperCase()}
+                                </div>
+                                <div>
+                                  <p className="text-sm font-semibold text-[#000000]">{referral.referralName}</p>
+                                  <p className="text-xs text-[#707070]">Referred by {referral.clientName}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[referral.status] || 'bg-gray-100 text-gray-600'}`}>
+                                  {statusLabels[referral.status] || referral.status}
+                                </span>
+                                <span className="text-xs text-[#707070]">{referral.conversation?.length || 0} msgs</span>
+                                <svg className={`w-4 h-4 text-[#707070] transition-transform ${expandedReferral === referral.id ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </div>
+                            </div>
+
+                            {/* Expanded conversation */}
+                            {expandedReferral === referral.id && referral.conversation && referral.conversation.length > 0 && (
+                              <div className="mt-3 pl-12 space-y-2">
+                                {referral.conversation.map((msg, i) => (
+                                  <div key={i} className={`flex ${msg.role === 'agent-ai' ? 'justify-end' : 'justify-start'}`}>
+                                    <div className={`max-w-[80%] px-3 py-2 rounded-lg text-sm ${
+                                      msg.role === 'agent-ai'
+                                        ? 'bg-[#005851] text-white'
+                                        : 'bg-[#f0f0f0] text-[#000000]'
+                                    }`}>
+                                      <p>{msg.body}</p>
+                                      <p className={`text-[10px] mt-1 ${msg.role === 'agent-ai' ? 'text-white/60' : 'text-[#a0a0a0]'}`}>
+                                        {msg.role === 'agent-ai' ? 'AI (as you)' : referral.referralName}
+                                        {msg.timestamp && ` · ${new Date(msg.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                                {/* Gathered info */}
+                                {referral.gatheredInfo && Object.keys(referral.gatheredInfo).length > 0 && (
+                                  <div className="bg-[#f8fffe] border border-[#d0e8e5] rounded-[5px] p-3 mt-2">
+                                    <p className="text-xs font-semibold text-[#005851] mb-1">Gathered Info</p>
+                                    {Object.entries(referral.gatheredInfo).map(([key, value]) => (
+                                      <p key={key} className="text-xs text-[#707070]">
+                                        <span className="font-medium text-[#000000]">{key}:</span> {value}
+                                      </p>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : activeSection === 'resources' ? (
               /* Resources Section */
               <div>
                 <div className="mb-6">

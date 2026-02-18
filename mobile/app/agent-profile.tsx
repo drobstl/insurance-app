@@ -56,6 +56,7 @@ export default function AgentProfileScreen() {
   const [isReferring, setIsReferring] = useState(false);
   const [businessCardBase64, setBusinessCardBase64] = useState<string | null>(null);
   const [schedulingUrl, setSchedulingUrl] = useState<string | null>(null);
+  const [twilioPhoneNumber, setTwilioPhoneNumber] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(true);
 
   const agentId = getParamValue(params.agentId).trim();
@@ -83,6 +84,9 @@ export default function AgentProfileScreen() {
           }
           if (data.schedulingUrl) {
             setSchedulingUrl(data.schedulingUrl);
+          }
+          if (data.twilioPhoneNumber) {
+            setTwilioPhoneNumber(data.twilioPhoneNumber);
           }
         }
       } catch (error) {
@@ -243,13 +247,15 @@ export default function AgentProfileScreen() {
         .replace(/\[Agent-First-Name\]/gi, agentFirstName)
         .replace(/\[client\]/gi, clientFirstName);
 
-      // Build recipients array
+      // Build recipients array — use agent's AI business line (Twilio number)
+      // so the AI can handle the referral conversation in the group text.
+      // Falls back to agent's personal phone if no Twilio number is set.
       const recipients: string[] = [referralPhone];
-      // Include agent phone if available
-      if (agentPhone) {
-        const cleanAgentPhone = agentPhone.replace(/[^0-9+]/g, '');
-        if (cleanAgentPhone && !recipients.includes(cleanAgentPhone)) {
-          recipients.push(cleanAgentPhone);
+      const agentLineNumber = twilioPhoneNumber || agentPhone;
+      if (agentLineNumber) {
+        const cleanNumber = agentLineNumber.replace(/[^0-9+]/g, '');
+        if (cleanNumber && !recipients.includes(cleanNumber)) {
+          recipients.push(cleanNumber);
         }
       }
 
@@ -296,6 +302,23 @@ export default function AgentProfileScreen() {
             `Thank you for referring ${agentFirstName} to ${referralFirstName}!`,
             [{ text: 'OK' }]
           );
+
+          // Notify the backend so the AI knows to expect this referral's replies
+          try {
+            await fetch('https://agentforlife.app/api/referral/notify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                agentId,
+                clientId,
+                clientName,
+                referralName: referralFirstName,
+                referralPhone,
+              }),
+            });
+          } catch (notifyError) {
+            console.log('Could not notify referral API:', notifyError);
+          }
         }
       } catch (smsError) {
         console.error('SMS error:', smsError);

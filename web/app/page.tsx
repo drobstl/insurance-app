@@ -53,31 +53,35 @@ export default function TestLandingPage() {
   const faqItems = [
     {
       question: "How can insurance agents improve client retention?",
-      answer: "Focus on three things: consistent touchpoints, easy access to information, and personalized service. Agent For Life handles all three by putting you directly in your client's phone with a branded app. They can view policies, contact you instantly, and receive timely updates—making you irreplaceable instead of forgettable."
+      answer: "Agent For Life sends 7+ automated touchpoints per year per client — holiday cards for 5 major holidays, personalized birthday messages, and policy anniversary alerts — all as push notifications directly to their phone. Combine that with a branded app where they can view policies and contact you instantly, and you become irreplaceable instead of forgettable."
     },
     {
       question: "How do I get more referrals from existing clients?",
-      answer: "Make referring you effortless. Agent For Life includes One-Tap Referrals—clients can refer you to friends and family with a single tap, complete with your business card attached. They pick a contact, and a pre-written message with your info is ready to send. You're automatically included in the text thread so you can follow up immediately."
+      answer: "Make it effortless. Your clients tap one button, pick a contact, and a warm personal introduction goes out via text — with your business card attached. Your AI-powered business line then picks up the conversation in that same text thread, gathers the referral's info, and books an appointment on your calendar. You just show up and close."
     },
     {
-      question: "How do insurance agents generate rewrites and keep clients updating coverage?",
-      answer: "Stay accessible when life changes happen. Marriages, new homes, job changes—these are rewrite opportunities, not lapses. Agent For Life keeps you top-of-mind so clients call YOU when they need to update coverage, not a competitor or the carrier. Rewrites become natural conversations instead of cold outreach."
+      question: "What is the AI business line?",
+      answer: "Every agent gets a dedicated phone number powered by AI. When a referral replies to the group text, the AI responds as you — warm, conversational, and natural. It learns what coverage they need, answers basic questions, and shares your scheduling link to book a call. Calls to your business line forward straight to your personal phone. The referral thinks they're texting you directly."
+    },
+    {
+      question: "How do insurance agents generate rewrites?",
+      answer: "Agent For Life alerts you 30 days before every policy anniversary — the perfect time to review coverage and offer a rewrite. Combined with automated touchpoints that keep you top-of-mind, clients call YOU when life changes happen (new home, marriage, baby) instead of shopping around."
     },
     {
       question: "How do I stop insurance chargebacks and policy cancellations?",
-      answer: "Chargebacks happen when relationships are weak. Agent For Life strengthens the agent-client bond by keeping you accessible and visible. When clients feel taken care of and can reach you easily, they don't shop around or let policies lapse. Many agents see chargeback reductions within the first 90 days."
+      answer: "Chargebacks happen when relationships go cold. With 7+ automated touchpoints per year, push notifications, and instant access through their app, your clients feel taken care of. When they feel connected to you, they don't shop around or let policies lapse."
     },
     {
-      question: "Does Agent For Life replace my current lead generation?",
-      answer: "No—it multiplies the value of every lead you already buy or generate. Instead of getting one sale and moving on, you turn each client into a retention win, a referral source, AND a rewrite opportunity. Think of it as turning every lead into 3x the revenue: initial sale + referrals + future rewrites."
+      question: "How hard is it to get started?",
+      answer: "You can be up and running in 10 minutes. Import your existing clients via CSV spreadsheet or upload PDF insurance applications — our AI extracts client info, policy details, and beneficiaries automatically. Your AI business line is provisioned instantly when you sign up. Share your branded app code with clients and you're live."
     },
     {
       question: "What exactly is Agent For Life?",
-      answer: "It's a white-label mobile app system. You get a web dashboard where you manage clients and policies. Each client gets a unique code to download YOUR branded app (with your photo, name, and contact info). The app shows their policies and gives them one-tap access to you. You own the relationship."
+      answer: "It's a complete client relationship system: a branded mobile app for your clients, a web dashboard for you to manage clients and policies, automated holiday/birthday/anniversary touchpoints, one-tap referrals with an AI-powered business line that books appointments for you, CSV import, PDF application parsing, and push notifications — starting at just $25/month (and free for our first 50 founding members)."
     },
     {
       question: "What carriers does it work with?",
-      answer: "All of them. Agent For Life doesn't integrate with carriers—it's carrier-agnostic. You manually add policy details for your clients in the dashboard. This works for independent agents regardless of which carriers you're appointed with."
+      answer: "All of them. Agent For Life is carrier-agnostic. You add policy details in the dashboard (or upload a PDF and AI does it). This works for independent agents regardless of which carriers you're appointed with."
     }
   ];
 
@@ -175,12 +179,12 @@ export default function TestLandingPage() {
             </h1>
             
             <p className="text-xl md:text-2xl text-white/80 mb-10 max-w-3xl mx-auto leading-relaxed">
-              Stop the "one-and-done" cycle. Agent For Life <span className="text-white font-semibold">fortifies your client relationships</span> to automate retention, eliminate chargebacks, and superpower your book of business for just <span className="text-[#fdcc02] font-bold">$10 a month</span>.
+              Stop the "one-and-done" cycle. Agent For Life <span className="text-white font-semibold">fortifies your client relationships</span> with automated touchpoints, one-tap referrals, and your own AI-powered business line — <span className="text-[#fdcc02] font-bold">starting at just $25/month</span>.
             </p>
             
             {/* Primary CTA */}
-            <Link href="/signup" className="inline-flex items-center gap-3 px-12 py-5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-xl font-bold rounded-full transition-all shadow-2xl shadow-[#fdcc02]/40 hover:shadow-[#fdcc02]/60 hover:scale-105 border-2 border-[#fdcc02] hover:border-white/20">
-              Get the System — $10/mo
+            <Link href="/founding-member" className="inline-flex items-center gap-3 px-12 py-5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-xl font-bold rounded-full transition-all shadow-2xl shadow-[#fdcc02]/40 hover:shadow-[#fdcc02]/60 hover:scale-105 border-2 border-[#fdcc02] hover:border-white/20">
+              Apply for Free Access
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
               </svg>
@@ -385,6 +389,10 @@ export default function TestLandingPage() {
                 )}
               </div>
 
+              <p className="text-sm text-[#6B7280] mb-4 text-center">
+                Agent For Life sends automated holiday cards, birthday messages, and anniversary alerts — keeping you top-of-mind without lifting a finger.
+              </p>
+
               {/* CTA Button */}
               <Link 
                 href="/signup" 
@@ -446,7 +454,7 @@ export default function TestLandingPage() {
               <div className="relative bg-white rounded-3xl p-8 md:p-10 border-2 border-[#3DD6C3] shadow-xl overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-[#D1FAE5]/50 to-transparent pointer-events-none"></div>
                 <div className="absolute top-4 right-4">
-                  <span className="px-3 py-1 bg-[#3DD6C3] text-white text-xs font-bold rounded-full">$10/MONTH</span>
+                  <span className="px-3 py-1 bg-[#3DD6C3] text-white text-xs font-bold rounded-full">FROM $25/MO</span>
                 </div>
                 <div className="relative">
                   <div className="flex items-center gap-3 mb-8">
@@ -459,7 +467,7 @@ export default function TestLandingPage() {
                   </div>
                   <ul className="space-y-5">
                     {[
-                      { text: '$10/month to leverage your existing book', highlight: false },
+                      { text: 'From $25/month to leverage your existing book', highlight: false },
                       { text: '3 sales per lead (client + referrals + rewrites)', highlight: false },
                       { text: 'Fortified "un-shopable" relationships', highlight: false },
                       { text: 'One-tap referrals with your business card', highlight: true },
@@ -545,7 +553,7 @@ export default function TestLandingPage() {
                     </div>
                     <div>
                       <h3 className="text-xl font-bold text-white mb-2">Add Your Clients</h3>
-                      <p className="text-white/70">Import your book. Each client gets a unique code to access their policies.</p>
+                      <p className="text-white/70">Import your entire book via CSV or upload a PDF application — AI extracts the data for you. Each client gets a unique code for your app.</p>
                     </div>
                   </div>
 
@@ -556,7 +564,7 @@ export default function TestLandingPage() {
                     </div>
                     <div>
                       <h3 className="text-xl font-bold text-white mb-2">Share the App</h3>
-                      <p className="text-white/70">Hand off the code. They download YOUR branded app from the App Store.</p>
+                      <p className="text-white/70">Hand off the code. They download YOUR branded app. When they refer someone, a warm intro and your business card go out in one tap.</p>
                     </div>
                   </div>
 
@@ -567,7 +575,7 @@ export default function TestLandingPage() {
                     </div>
                     <div>
                       <h3 className="text-xl font-bold text-white mb-2">Watch the Multiplier Effect</h3>
-                      <p className="text-white/70">They call YOU first. Referrals roll in. Life changes trigger rewrites, not lapses. <span className="text-[#fdcc02] font-semibold">Chargebacks stop.</span></p>
+                      <p className="text-white/70">Automated holiday cards, birthday messages, and anniversary alerts keep you top-of-mind. Your AI business line handles referral conversations and books appointments. <span className="text-[#fdcc02] font-semibold">You just show up and close.</span></p>
                     </div>
                   </div>
                 </div>
@@ -609,7 +617,7 @@ export default function TestLandingPage() {
                 </div>
                 <h3 className="text-2xl font-extrabold text-[#0D4D4D] mb-4">Explode Retention</h3>
                 <p className="text-[#6B7280] text-lg leading-relaxed">
-                  Build a <span className="text-[#0D4D4D] font-semibold">wall around your book</span>. Identify at-risk clients and kill chargebacks before they hit your bank account. When you're in their pocket, competitors can't touch you.
+                  <span className="text-[#0D4D4D] font-semibold">7+ automated touchpoints per year</span> per client — holiday cards, birthday messages, policy anniversary alerts, and push notifications. All automatic. You stay top-of-mind without lifting a finger.
                 </p>
               </div>
 
@@ -625,14 +633,14 @@ export default function TestLandingPage() {
                 </div>
                 <h3 className="text-2xl font-extrabold text-[#0D4D4D] mb-4">Multiply Referrals</h3>
                 <p className="text-[#6B7280] text-lg leading-relaxed">
-                  Turn every policy into a <span className="text-[#0D4D4D] font-semibold">referral machine</span>. One-tap referrals replace weak, shared leads with warm prospects from your own network. Stop cold calling strangers.
+                  Your clients tap one button, pick a contact, and a <span className="text-[#0D4D4D] font-semibold">warm intro with your business card</span> goes out instantly. Your AI business line picks up the conversation, gathers their info, and books the appointment. You just show up.
                 </p>
               </div>
 
               {/* Rewrites */}
               <div className="group bg-[#F8F9FA] rounded-3xl p-8 border-2 border-transparent hover:border-[#3DD6C3] transition-all hover:shadow-xl relative">
                 <div className="absolute top-4 right-4">
-                  <span className="px-2 py-1 bg-[#0D4D4D] text-white text-xs font-bold rounded-full">COMING SOON</span>
+                  <span className="px-2 py-1 bg-[#3DD6C3] text-[#0D4D4D] text-xs font-bold rounded-full">NOW LIVE</span>
                 </div>
                 <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                   <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -641,8 +649,184 @@ export default function TestLandingPage() {
                 </div>
                 <h3 className="text-2xl font-extrabold text-[#0D4D4D] mb-4">Automate Rewrites</h3>
                 <p className="text-[#6B7280] text-lg leading-relaxed">
-                  Be there a year later with <span className="text-[#0D4D4D] font-semibold">push notifications</span> the moment you've found a better program for them. Life changes become opportunities, not lapses.
+                  Get alerted <span className="text-[#0D4D4D] font-semibold">30 days before every policy anniversary</span> — the perfect moment to review coverage and offer a rewrite. Life changes become opportunities, not lapses.
                 </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ============================================ */}
+        {/* THE REFERRAL PIPELINE */}
+        {/* ============================================ */}
+        <section className="py-20 md:py-28 bg-[#0D4D4D] relative overflow-hidden">
+          <div className="absolute inset-0">
+            <div className="absolute top-20 right-10 w-96 h-96 bg-[#3DD6C3] rounded-full blur-[150px] opacity-15"></div>
+          </div>
+          <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#fdcc02] rounded-full mb-6">
+                <span className="text-[#0D4D4D] font-bold text-sm uppercase tracking-wide">The Referral Pipeline</span>
+              </div>
+              <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4">
+                From <span className="text-[#3DD6C3]">One Tap</span> to <span className="text-[#fdcc02]">Booked Appointment</span>
+              </h2>
+              <p className="text-xl text-white/70 max-w-2xl mx-auto">
+                Your clients already trust you. Now they can share that trust — and your AI handles the rest.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-6 md:gap-4">
+              {/* Step 1 */}
+              <div className="bg-white/10 backdrop-blur rounded-3xl p-8 border border-white/10 relative">
+                <div className="w-12 h-12 bg-[#fdcc02] rounded-full flex items-center justify-center text-xl font-bold text-[#0D4D4D] mb-5">1</div>
+                <h3 className="text-xl font-bold text-white mb-3">One Tap, One Contact</h3>
+                <p className="text-white/70 leading-relaxed">
+                  Your client taps the referral button in their app and picks a friend or family member from their contacts. That's all they do.
+                </p>
+              </div>
+
+              {/* Step 2 */}
+              <div className="bg-white/10 backdrop-blur rounded-3xl p-8 border border-white/10 relative">
+                <div className="w-12 h-12 bg-[#3DD6C3] rounded-full flex items-center justify-center text-xl font-bold text-[#0D4D4D] mb-5">2</div>
+                <h3 className="text-xl font-bold text-white mb-3">Warm Intro + Your Card</h3>
+                <p className="text-white/70 leading-relaxed">
+                  A personal text goes out from your client — a warm introduction about you, with <span className="text-white font-semibold">your business card attached</span>. Not a cold link. A trusted recommendation.
+                </p>
+              </div>
+
+              {/* Step 3 */}
+              <div className="bg-white/10 backdrop-blur rounded-3xl p-8 border border-[#fdcc02]/30 relative">
+                <div className="absolute top-4 right-4">
+                  <span className="px-2 py-1 bg-[#fdcc02] text-[#0D4D4D] text-[10px] font-bold rounded-full uppercase">AI Powered</span>
+                </div>
+                <div className="w-12 h-12 bg-[#fdcc02] rounded-full flex items-center justify-center text-xl font-bold text-[#0D4D4D] mb-5">3</div>
+                <h3 className="text-xl font-bold text-white mb-3">AI Books the Appointment</h3>
+                <p className="text-white/70 leading-relaxed">
+                  When the referral replies, your <span className="text-white font-semibold">AI business line</span> picks up the conversation — texting as you. It gathers their info and books them on your calendar. <span className="text-[#fdcc02] font-semibold">You just show up and close.</span>
+                </p>
+              </div>
+            </div>
+
+            {/* SMS Preview */}
+            <div className="mt-16 max-w-lg mx-auto">
+              <div className="bg-[#1a1a2e] rounded-3xl p-6 shadow-2xl border border-white/10">
+                <p className="text-white/40 text-xs text-center mb-4 uppercase tracking-wider">What the referral sees</p>
+                <div className="space-y-3">
+                  <div className="flex justify-start">
+                    <div className="bg-[#333] rounded-2xl rounded-tl-sm px-4 py-2.5 max-w-[85%]">
+                      <p className="text-white/50 text-[10px] mb-0.5">Sarah (your client)</p>
+                      <p className="text-white text-sm">Hey Mike, I just got helped by Daniel getting protection for my family. He was great and I thought he might be able to help you too!</p>
+                    </div>
+                  </div>
+                  <div className="flex justify-start">
+                    <div className="bg-[#333] rounded-2xl rounded-tl-sm px-4 py-2.5 max-w-[85%]">
+                      <p className="text-white/50 text-[10px] mb-0.5">Mike</p>
+                      <p className="text-white text-sm">Hey yeah Sarah told me about you. We just bought a house actually</p>
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%]">
+                      <p className="text-[#3DD6C3] text-[10px] mb-0.5">Daniel (AI)</p>
+                      <p className="text-white text-sm">Congrats on the new house Mike! That's actually exactly what I helped Sarah with — making sure the mortgage is covered if anything happens. Want to set up a quick call this week?</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ============================================ */}
+        {/* SET IT AND FORGET IT - AUTOMATED TOUCHPOINTS */}
+        {/* ============================================ */}
+        <section className="py-20 md:py-28 bg-white">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
+                Set It and <span className="text-[#3DD6C3]">Forget It</span>
+              </h2>
+              <p className="text-xl text-[#6B7280] max-w-2xl mx-auto">
+                <span className="text-[#0D4D4D] font-bold">7+ personalized touchpoints per year</span>, per client — completely automatic.
+              </p>
+            </div>
+
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-[#F8F9FA] rounded-2xl p-6 text-center border border-gray-100 hover:shadow-lg transition-shadow">
+                <div className="text-3xl mb-3">🎄🎆❤️🎇🦃</div>
+                <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">Holiday Cards</h3>
+                <p className="text-[#6B7280] text-sm">Automated greetings for 5 major holidays — New Year's, Valentine's Day, 4th of July, Thanksgiving, Christmas.</p>
+              </div>
+              <div className="bg-[#F8F9FA] rounded-2xl p-6 text-center border border-gray-100 hover:shadow-lg transition-shadow">
+                <div className="text-3xl mb-3">🎂</div>
+                <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">Birthday Messages</h3>
+                <p className="text-[#6B7280] text-sm">Personalized birthday greetings sent automatically to every client. Never forget again.</p>
+              </div>
+              <div className="bg-[#F8F9FA] rounded-2xl p-6 text-center border border-gray-100 hover:shadow-lg transition-shadow">
+                <div className="text-3xl mb-3">📋</div>
+                <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">Anniversary Alerts</h3>
+                <p className="text-[#6B7280] text-sm">Get alerted 30 days before every policy anniversary — the perfect time to review and offer a rewrite.</p>
+              </div>
+              <div className="bg-[#F8F9FA] rounded-2xl p-6 text-center border border-gray-100 hover:shadow-lg transition-shadow">
+                <div className="text-3xl mb-3">📱</div>
+                <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">Push Notifications</h3>
+                <p className="text-[#6B7280] text-sm">Send messages directly to your clients' phones. Custom notifications, reminders, and announcements.</p>
+              </div>
+            </div>
+
+            <div className="text-center mt-10">
+              <p className="text-[#6B7280] text-lg">
+                Other agents send one email a year. <span className="text-[#0D4D4D] font-bold">You'll have 7+ touchpoints — on autopilot.</span>
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* ============================================ */}
+        {/* ONBOARD YOUR BOOK */}
+        {/* ============================================ */}
+        <section className="py-16 md:py-20 bg-[#F8F9FA]">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col md:flex-row items-center gap-10">
+              <div className="flex-1">
+                <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
+                  Already Have Clients?<br />
+                  <span className="text-[#3DD6C3]">Import in Minutes.</span>
+                </h2>
+                <p className="text-lg text-[#6B7280] mb-6">
+                  Don't worry about entering 200 clients one by one. We've got you.
+                </p>
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-[#3DD6C3] rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-[#0D4D4D] font-semibold">CSV Import</p>
+                      <p className="text-[#6B7280] text-sm">Upload a spreadsheet, preview the data, click import. Your entire book is loaded in minutes.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-[#3DD6C3] rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-[#0D4D4D] font-semibold">AI Application Parsing</p>
+                      <p className="text-[#6B7280] text-sm">Upload an insurance application PDF and AI extracts the client info, policy details, and beneficiaries automatically.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex-shrink-0">
+                <div className="w-48 h-48 md:w-56 md:h-56 bg-[#0D4D4D] rounded-3xl flex items-center justify-center">
+                  <svg className="w-20 h-20 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                </div>
               </div>
             </div>
           </div>
@@ -688,8 +872,8 @@ export default function TestLandingPage() {
                   </svg>
                 </div>
                 <p className="text-[#0D4D4D] font-semibold text-sm uppercase tracking-wide mb-2">Agent For Life</p>
-                <p className="text-4xl md:text-5xl font-black text-[#0D4D4D] mb-2">$120</p>
-                <p className="text-[#3DD6C3] text-sm font-medium">$10/month × 12 months</p>
+                <p className="text-4xl md:text-5xl font-black text-[#0D4D4D] mb-2">$300</p>
+                <p className="text-[#3DD6C3] text-sm font-medium">$25/month × 12 months</p>
               </div>
             </div>
 
@@ -710,7 +894,7 @@ export default function TestLandingPage() {
                 </div>
                 
                 <h3 className="text-3xl md:text-4xl lg:text-5xl font-black text-white mb-4">
-                  Save <span className="text-[#3DD6C3]">ONE</span> Policy = <span className="text-[#fdcc02]">10x Return</span>
+                  Save <span className="text-[#3DD6C3]">ONE</span> Policy = <span className="text-[#fdcc02]">4x Return</span>
                 </h3>
                 
                 <p className="text-xl text-white/80 max-w-2xl mx-auto mb-6">
@@ -722,19 +906,19 @@ export default function TestLandingPage() {
                     <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                    <span>1 saved policy = 10x ROI</span>
+                    <span>1 saved policy = 4x ROI</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                    <span>1 referral = 10x ROI</span>
+                    <span>1 referral = 4x ROI</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                    <span>1 rewrite = 10x ROI</span>
+                    <span>1 rewrite = 4x ROI</span>
                   </div>
                 </div>
               </div>
@@ -743,41 +927,97 @@ export default function TestLandingPage() {
         </section>
 
         {/* ============================================ */}
-        {/* PRICING CTA */}
+        {/* PRICING CTA - TIERED LAUNCH */}
         {/* ============================================ */}
         <section className="py-20 md:py-28 bg-[#F8F9FA]">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#0D4D4D] mb-6">
-              Stop Renting Leads.<br />
-              <span className="text-[#3DD6C3]">Start Owning Relationships.</span>
-            </h2>
-            <p className="text-xl text-[#6B7280] mb-10 max-w-2xl mx-auto">
-              For less than the cost of <span className="font-semibold">a single lead</span>, turn every client into a retention win, a referral source, and a rewrite opportunity.
-            </p>
-            
-            {/* Price Display */}
-            <div className="inline-flex items-baseline gap-2 mb-4">
-              <span className="text-6xl md:text-7xl font-black text-[#0D4D4D]">$10</span>
-              <span className="text-2xl text-[#6B7280] font-medium">/month</span>
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#0D4D4D] mb-6">
+                Stop Renting Leads.<br />
+                <span className="text-[#3DD6C3]">Start Owning Relationships.</span>
+              </h2>
+              <p className="text-xl text-[#6B7280] max-w-2xl mx-auto">
+                Early adopters get the best price — <span className="font-semibold">locked in for life</span>. The earlier you join, the less you'll ever pay.
+              </p>
             </div>
-            
-            {/* Annual Option */}
-            <p className="text-[#6B7280] mb-8">
-              or <span className="text-[#0D4D4D] font-semibold">$100/year</span> <span className="text-[#3DD6C3] font-medium">(save 17%)</span>
-            </p>
-            
-            <div className="mb-10">
-              <Link href="/signup" className="inline-flex items-center gap-3 px-12 py-6 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-2xl font-bold rounded-full transition-all shadow-2xl shadow-[#fdcc02]/40 hover:shadow-[#fdcc02]/60 hover:scale-105">
-                Get the System Now
+
+            {/* Tier Progression */}
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+              {/* Founding Members - Active */}
+              <div className="relative bg-white rounded-2xl border-2 border-[#a158ff] p-6 text-center shadow-lg shadow-[#a158ff]/10">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <span className="px-3 py-1 bg-[#a158ff] text-white text-xs font-bold rounded-full whitespace-nowrap">NOW OPEN</span>
+                </div>
+                <p className="text-sm text-[#6B7280] font-medium mt-2 mb-1">Founding Members</p>
+                <p className="text-4xl font-black text-[#0D4D4D] mb-1">FREE</p>
+                <p className="text-sm text-[#a158ff] font-semibold mb-3">For Life</p>
+                <p className="text-xs text-[#6B7280] mb-4">50 spots total</p>
+                <Link href="/founding-member" className="block w-full py-3 bg-[#a158ff] hover:bg-[#8a3ee8] text-white text-sm font-bold rounded-xl transition-colors">
+                  Apply Now
+                </Link>
+              </div>
+
+              {/* Tier 1 - $25/mo - Next */}
+              <div className="relative bg-white rounded-2xl border-2 border-[#3DD6C3] p-6 text-center shadow-lg shadow-[#3DD6C3]/10">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <span className="px-3 py-1 bg-[#3DD6C3] text-[#0D4D4D] text-xs font-bold rounded-full whitespace-nowrap">UP NEXT</span>
+                </div>
+                <p className="text-sm text-[#6B7280] font-medium mt-2 mb-1">Charter Members</p>
+                <div className="flex items-baseline justify-center gap-1 mb-1">
+                  <span className="text-4xl font-black text-[#0D4D4D]">$25</span>
+                  <span className="text-sm text-[#6B7280]">/mo</span>
+                </div>
+                <p className="text-sm text-[#3DD6C3] font-semibold mb-3">Locked in for life</p>
+                <p className="text-xs text-[#6B7280] mb-4">50 spots • or $250/year</p>
+                <div className="w-full py-3 bg-[#0D4D4D]/10 text-[#0D4D4D] text-sm font-bold rounded-xl">
+                  Opens Soon
+                </div>
+              </div>
+
+              {/* Tier 2 - $35/mo */}
+              <div className="relative bg-white rounded-2xl border border-gray-200 p-6 text-center">
+                <p className="text-sm text-[#6B7280] font-medium mt-2 mb-1">Inner Circle</p>
+                <div className="flex items-baseline justify-center gap-1 mb-1">
+                  <span className="text-4xl font-black text-[#0D4D4D]">$35</span>
+                  <span className="text-sm text-[#6B7280]">/mo</span>
+                </div>
+                <p className="text-sm text-[#6B7280] font-semibold mb-3">Locked in for life</p>
+                <p className="text-xs text-[#6B7280] mb-4">50 spots • or $350/year</p>
+                <div className="w-full py-3 bg-gray-100 text-[#6B7280] text-sm font-medium rounded-xl">
+                  After $25 tier fills
+                </div>
+              </div>
+
+              {/* Final Price - $49/mo */}
+              <div className="relative bg-white rounded-2xl border border-gray-200 p-6 text-center">
+                <p className="text-sm text-[#6B7280] font-medium mt-2 mb-1">Standard Price</p>
+                <div className="flex items-baseline justify-center gap-1 mb-1">
+                  <span className="text-4xl font-black text-[#0D4D4D]">$49</span>
+                  <span className="text-sm text-[#6B7280]">/mo</span>
+                </div>
+                <p className="text-sm text-[#6B7280] font-semibold mb-3">Regular pricing</p>
+                <p className="text-xs text-[#6B7280] mb-4">Unlimited • or $490/year</p>
+                <div className="w-full py-3 bg-gray-100 text-[#6B7280] text-sm font-medium rounded-xl">
+                  After $35 tier fills
+                </div>
+              </div>
+            </div>
+
+            {/* Current CTA */}
+            <div className="text-center">
+              <p className="text-[#6B7280] mb-6">
+                <span className="text-[#0D4D4D] font-bold">Right now:</span> We're filling the first 50 Founding Member spots — <span className="text-[#a158ff] font-bold">free for life</span>.
+              </p>
+              <Link href="/founding-member" className="inline-flex items-center gap-3 px-12 py-6 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-2xl font-bold rounded-full transition-all shadow-2xl shadow-[#fdcc02]/40 hover:shadow-[#fdcc02]/60 hover:scale-105">
+                Apply for Founding Member
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
               </Link>
+              <p className="text-[#6B7280] text-sm mt-4">
+                No contracts • Lock in your price for life • Cancel anytime
+              </p>
             </div>
-            
-            <p className="text-[#6B7280]">
-              No contracts • No setup fees • Cancel anytime
-            </p>
           </div>
         </section>
 
