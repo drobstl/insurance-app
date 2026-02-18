@@ -10,8 +10,20 @@ export default function TestLandingPage() {
   const [referralRate, setReferralRate] = useState(5);
   const [rewriteRate, setRewriteRate] = useState(10);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [spotsRemaining, setSpotsRemaining] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const showFoundingBanner = true;
+
+  useEffect(() => {
+    fetch('/api/spots-remaining')
+      .then((res) => res.json())
+      .then((data) => {
+        if (typeof data.spotsRemaining === 'number') {
+          setSpotsRemaining(data.spotsRemaining);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Calculator logic
   const lostRevenue = bookSize * (1 - retentionRate / 100);
@@ -951,10 +963,21 @@ export default function TestLandingPage() {
                 <p className="text-sm text-[#6B7280] font-medium mt-2 mb-1">Founding Members</p>
                 <p className="text-4xl font-black text-[#0D4D4D] mb-1">FREE</p>
                 <p className="text-sm text-[#a158ff] font-semibold mb-3">For Life</p>
-                <p className="text-xs text-[#6B7280] mb-4">50 spots total</p>
-                <Link href="/founding-member" className="block w-full py-3 bg-[#a158ff] hover:bg-[#8a3ee8] text-white text-sm font-bold rounded-xl transition-colors">
-                  Apply Now
-                </Link>
+                <p className="text-xs text-[#6B7280] mb-2">50 spots total</p>
+                {spotsRemaining !== null && (
+                  <p className="text-xs text-[#a158ff] font-bold mb-3">
+                    {spotsRemaining > 0 ? `${spotsRemaining} spots left` : 'FULL'}
+                  </p>
+                )}
+                {spotsRemaining === null || spotsRemaining > 0 ? (
+                  <Link href="/founding-member" className="block w-full py-3 bg-[#a158ff] hover:bg-[#8a3ee8] text-white text-sm font-bold rounded-xl transition-colors">
+                    Apply Now
+                  </Link>
+                ) : (
+                  <div className="w-full py-3 bg-gray-200 text-[#6B7280] text-sm font-bold rounded-xl">
+                    Filled
+                  </div>
+                )}
               </div>
 
               {/* Tier 1 - $25/mo - Next */}

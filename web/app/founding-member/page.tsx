@@ -8,6 +8,7 @@ export default function FoundingMemberPage() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [spotsRemaining, setSpotsRemaining] = useState<number | null>(null);
 
   // Form state
   const [name, setName] = useState('');
@@ -37,6 +38,17 @@ export default function FoundingMemberPage() {
     });
 
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/spots-remaining')
+      .then((res) => res.json())
+      .then((data) => {
+        if (typeof data.spotsRemaining === 'number') {
+          setSpotsRemaining(data.spotsRemaining);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const setSectionRef = (index: number) => (el: HTMLElement | null) => {
@@ -181,7 +193,7 @@ export default function FoundingMemberPage() {
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-[#3DD6C3]"></span>
               </span>
               <span className="text-white font-bold text-lg">
-                <span className="text-[#3DD6C3]">47</span> of 50 spots remaining
+                <span className="text-[#3DD6C3]">{spotsRemaining ?? '—'}</span> of 50 spots remaining
               </span>
             </div>
           </div>
@@ -221,7 +233,7 @@ export default function FoundingMemberPage() {
               <div className="inline-block bg-[#F8F9FA] rounded-2xl px-8 py-6 border border-gray-200 mb-4">
                 <p className="text-2xl md:text-3xl font-bold text-[#2D3748]">
                   <span className="line-through text-gray-400 decoration-red-400 decoration-2">
-                    $100/year
+                    $49/month
                   </span>
                   <span className="mx-3 text-gray-300">→</span>
                   <span className="text-[#3DD6C3] font-extrabold text-3xl md:text-4xl">
@@ -244,7 +256,7 @@ export default function FoundingMemberPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   ),
-                  text: 'Lifetime free access to AgentForLife ($100/year value)',
+                  text: 'Lifetime free access to AgentForLife ($49/month value)',
                 },
                 {
                   icon: (
