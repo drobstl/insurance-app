@@ -574,45 +574,161 @@ export default function TestLandingPage() {
               </div>
             </div>
 
-            {/* SMS Preview */}
-            <div className="mt-16 max-w-lg mx-auto">
-              <div className="bg-[#1a1a2e] rounded-3xl p-6 shadow-2xl border border-white/10">
-                <p className="text-white/40 text-xs text-center mb-4 uppercase tracking-wider">What the referral sees</p>
-                <div className="space-y-3">
-                  {/* Client warm intro (group text) */}
-                  <div className="flex justify-start">
-                    <div className="bg-[#333] rounded-2xl rounded-tl-sm px-4 py-2.5 max-w-[85%]">
-                      <p className="text-white/50 text-[10px] mb-0.5">Sarah (your client)</p>
-                      <p className="text-white text-sm">Hey Mike, I just got helped by Daniel getting protection for my family. He was great and I thought he might be able to help you too!</p>
+            {/* SMS Preview — Two phones */}
+            <div className="mt-16">
+              <p className="text-white/40 text-xs text-center mb-8 uppercase tracking-[0.2em] font-medium">What the referral sees</p>
+
+              <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto items-start">
+                {/* ── PHONE 1: Group Chat ── */}
+                <div>
+                  <div className="bg-[#1a1a2e] rounded-[2rem] p-1.5 shadow-2xl border border-white/10">
+                    {/* Phone status bar */}
+                    <div className="bg-[#111] rounded-t-[1.6rem] px-5 pt-3 pb-2 flex items-center justify-between">
+                      <span className="text-white/40 text-[10px] font-medium">9:41 AM</span>
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex gap-0.5">
+                          <div className="w-1 h-2 bg-white/40 rounded-sm"></div>
+                          <div className="w-1 h-2.5 bg-white/40 rounded-sm"></div>
+                          <div className="w-1 h-3 bg-white/40 rounded-sm"></div>
+                          <div className="w-1 h-3.5 bg-white/30 rounded-sm"></div>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Chat header */}
+                    <div className="bg-[#111] px-5 pb-3 border-b border-white/5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-[#333] flex items-center justify-center">
+                          <svg className="w-4 h-4 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-white text-sm font-semibold">Sarah, Daniel, Mike</p>
+                          <p className="text-white/30 text-[10px]">Group Message</p>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Messages */}
+                    <div className="bg-[#111] px-4 py-4 space-y-3 rounded-b-[1.6rem] min-h-[220px]">
+                      <div className="flex justify-start">
+                        <div className="bg-[#333] rounded-2xl rounded-tl-sm px-3.5 py-2.5 max-w-[88%]">
+                          <p className="text-white/40 text-[10px] mb-0.5 font-medium">Sarah</p>
+                          <p className="text-white text-[13px] leading-relaxed">Hey Mike, I just got helped by Daniel getting protection for my family. He was great and I thought he might be able to help you too!</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-end">
+                        <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[88%]">
+                          <p className="text-[#3DD6C3] text-[10px] mb-0.5 font-medium">Daniel</p>
+                          <p className="text-white text-[13px] leading-relaxed">Hey Mike! Sarah, thank you for connecting us. Mike, great to meet you — I&apos;ll shoot you a text.</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  {/* AI group acknowledgment */}
-                  <div className="flex justify-end">
-                    <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%]">
-                      <p className="text-[#3DD6C3] text-[10px] mb-0.5">Daniel (AI, group)</p>
-                      <p className="text-white text-sm">Hey Mike! Sarah, thank you for connecting us. Mike, great to meet you — I'll shoot you a text.</p>
+                  <p className="text-center text-white/30 text-xs mt-3 font-medium">Group text — warm intro from your client</p>
+                </div>
+
+                {/* ── AI HANDOFF CONNECTOR (visible on md+, between the phones) ── */}
+                {/* On mobile this shows as a vertical connector between stacked phones */}
+                <div className="md:hidden flex flex-col items-center py-2">
+                  <div className="w-px h-6 bg-gradient-to-b from-white/10 to-[#3DD6C3]/40"></div>
+                  <div className="flex items-center gap-2 px-4 py-2 bg-[#3DD6C3]/10 border border-[#3DD6C3]/20 rounded-full">
+                    <svg className="w-3.5 h-3.5 text-[#3DD6C3]" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    <span className="text-[#3DD6C3] text-xs font-bold uppercase tracking-wide">AI takes over in minutes</span>
+                  </div>
+                  <div className="w-px h-6 bg-gradient-to-b from-[#3DD6C3]/40 to-white/10"></div>
+                </div>
+
+                {/* ── PHONE 2: 1-on-1 Conversation ── */}
+                <div>
+                  {/* AI handoff badge (md+ only, above the phone) */}
+                  <div className="hidden md:flex items-center justify-center gap-2 mb-3">
+                    <div className="h-px flex-1 bg-gradient-to-r from-transparent to-[#3DD6C3]/30"></div>
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#3DD6C3]/10 border border-[#3DD6C3]/20 rounded-full">
+                      <svg className="w-3 h-3 text-[#3DD6C3]" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      <span className="text-[#3DD6C3] text-[10px] font-bold uppercase tracking-wider">AI takes over</span>
+                    </div>
+                    <div className="h-px flex-1 bg-gradient-to-l from-transparent to-[#3DD6C3]/30"></div>
+                  </div>
+
+                  <div className="bg-[#1a1a2e] rounded-[2rem] p-1.5 shadow-2xl border border-[#3DD6C3]/20">
+                    {/* Phone status bar */}
+                    <div className="bg-[#111] rounded-t-[1.6rem] px-5 pt-3 pb-2 flex items-center justify-between">
+                      <span className="text-white/40 text-[10px] font-medium">9:44 AM</span>
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex gap-0.5">
+                          <div className="w-1 h-2 bg-white/40 rounded-sm"></div>
+                          <div className="w-1 h-2.5 bg-white/40 rounded-sm"></div>
+                          <div className="w-1 h-3 bg-white/40 rounded-sm"></div>
+                          <div className="w-1 h-3.5 bg-white/30 rounded-sm"></div>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Chat header */}
+                    <div className="bg-[#111] px-5 pb-3 border-b border-white/5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-[#005851] flex items-center justify-center">
+                          <span className="text-[#3DD6C3] text-xs font-bold">D</span>
+                        </div>
+                        <div>
+                          <p className="text-white text-sm font-semibold">Daniel</p>
+                          <p className="text-white/30 text-[10px]">Your AI Business Line</p>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Messages */}
+                    <div className="bg-[#111] px-4 py-4 space-y-3 rounded-b-[1.6rem]">
+                      <div className="flex justify-end">
+                        <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[88%]">
+                          <p className="text-white text-[13px] leading-relaxed">Hey Mike, this is Daniel. Sarah mentioned she connected us — I helped her family get some protection in place and she thought I might be able to help you too. Would you be open to a couple quick questions to see if it makes sense for us to chat?</p>
+                          <p className="text-white/30 text-[10px] mt-1">9:44 AM</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-start">
+                        <div className="bg-[#333] rounded-2xl rounded-tl-sm px-3.5 py-2.5 max-w-[88%]">
+                          <p className="text-white text-[13px]">yeah sure</p>
+                          <p className="text-white/20 text-[10px] mt-1">9:46 AM</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-end">
+                        <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[88%]">
+                          <p className="text-white text-[13px] leading-relaxed">Appreciate that, Mike. Just curious — what would be most important to you when it comes to protecting your family financially?</p>
+                          <p className="text-white/30 text-[10px] mt-1">9:46 AM</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-start">
+                        <div className="bg-[#333] rounded-2xl rounded-tl-sm px-3.5 py-2.5 max-w-[88%]">
+                          <p className="text-white text-[13px] leading-relaxed">mostly making sure my wife and kids are taken care of if something happens to me</p>
+                          <p className="text-white/20 text-[10px] mt-1">9:48 AM</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-end">
+                        <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[88%]">
+                          <p className="text-white text-[13px] leading-relaxed">That makes total sense. Would a quick 15-min call work so I can show you some options? Here&apos;s my calendar — pick whatever time works best for you:</p>
+                          <p className="text-[#3DD6C3] text-[13px] mt-1 underline">calendly.com/daniel</p>
+                          <p className="text-white/30 text-[10px] mt-1">9:48 AM</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  {/* AI 1-on-1 NEPQ opener */}
-                  <div className="flex justify-end">
-                    <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%]">
-                      <p className="text-[#3DD6C3] text-[10px] mb-0.5">Daniel (AI, 1-on-1)</p>
-                      <p className="text-white text-sm">Hey Mike, this is Daniel. Sarah just connected us — I helped her get some protection in place and she thought I might be able to help you too. Would you be open to a couple quick questions just to see if it makes sense for us to chat?</p>
-                    </div>
+                  <p className="text-center text-white/30 text-xs mt-3 font-medium">1-on-1 — AI qualifies &amp; books the appointment</p>
+                </div>
+              </div>
+
+              {/* Bottom callout */}
+              <div className="max-w-2xl mx-auto mt-10">
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-start gap-4">
+                  <div className="w-10 h-10 bg-[#3DD6C3]/20 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg className="w-5 h-5 text-[#3DD6C3]" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
                   </div>
-                  {/* Referral reply */}
-                  <div className="flex justify-start">
-                    <div className="bg-[#333] rounded-2xl rounded-tl-sm px-4 py-2.5 max-w-[85%]">
-                      <p className="text-white/50 text-[10px] mb-0.5">Mike</p>
-                      <p className="text-white text-sm">yeah sure</p>
-                    </div>
-                  </div>
-                  {/* AI NEPQ qualification */}
-                  <div className="flex justify-end">
-                    <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%]">
-                      <p className="text-[#3DD6C3] text-[10px] mb-0.5">Daniel (AI)</p>
-                      <p className="text-white text-sm">Appreciate that. What would be most important to you when it comes to protecting your family?</p>
-                    </div>
+                  <div>
+                    <p className="text-white font-semibold text-sm mb-1">The referral thinks they&apos;re texting you</p>
+                    <p className="text-white/50 text-sm leading-relaxed">Your AI business line responds in your voice — warm, personal, and natural. It qualifies the lead, gathers their info, and books the appointment on your calendar. You just show up and close.</p>
                   </div>
                 </div>
               </div>
