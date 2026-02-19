@@ -12,6 +12,10 @@ export default function TestLandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [spotsRemaining, setSpotsRemaining] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const smsRef = useRef<HTMLDivElement>(null);
+  const smsTriggered = useRef(false);
+  const directMsgRef = useRef<HTMLDivElement>(null);
+  const [smsStep, setSmsStep] = useState(-1);
   const showFoundingBanner = true;
 
   useEffect(() => {
@@ -24,6 +28,44 @@ export default function TestLandingPage() {
       })
       .catch(() => {});
   }, []);
+
+  // SMS preview animation — step sequence with delays (ms)
+  // Group: 0=Sarah, 1=typing, 2=Daniel | 1-on-1: 3=opener, 4=typing, 5=Mike,
+  // 6=typing, 7=Q1, 8=typing, 9=A1 | FF: 10=indicator+pair1, 11=pair2, 12=pair3
+  // | 13=typing, 14=booking
+  const SMS_DELAYS = [600, 1400, 1200, 1800, 2000, 1000, 800, 1600, 1400, 1200, 1200, 600, 600, 800, 1400];
+
+  useEffect(() => {
+    const el = smsRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !smsTriggered.current) {
+          smsTriggered.current = true;
+          setSmsStep(0);
+        }
+      },
+      { threshold: 0.15 },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (smsStep < 0 || smsStep >= SMS_DELAYS.length) return;
+    const timer = setTimeout(() => setSmsStep(s => s + 1), SMS_DELAYS[smsStep]);
+    return () => clearTimeout(timer);
+  }, [smsStep]);
+
+  useEffect(() => {
+    directMsgRef.current?.scrollTo({ top: directMsgRef.current.scrollHeight, behavior: 'smooth' });
+  }, [smsStep]);
+
+  const fade = (step: number, fast?: boolean) => ({
+    opacity: smsStep >= step ? 1 : 0,
+    transform: smsStep >= step ? 'translateY(0)' : 'translateY(8px)',
+    transition: `all ${fast ? '200ms' : '500ms'} ease-out`,
+  } as React.CSSProperties);
 
   // Calculator logic
   const lostRevenue = bookSize * (1 - retentionRate / 100);
@@ -574,27 +616,24 @@ export default function TestLandingPage() {
               </div>
             </div>
 
-            {/* SMS Preview — Two phones */}
-            <div className="mt-16">
+            {/* SMS Preview — Two animated phones */}
+            <div className="mt-16" ref={smsRef}>
               <p className="text-white/40 text-xs text-center mb-8 uppercase tracking-[0.2em] font-medium">What the referral sees</p>
 
               <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto items-start">
+
                 {/* ── PHONE 1: Group Chat ── */}
                 <div>
                   <div className="bg-[#1a1a2e] rounded-[2rem] p-1.5 shadow-2xl border border-white/10">
-                    {/* Phone status bar */}
                     <div className="bg-[#111] rounded-t-[1.6rem] px-5 pt-3 pb-2 flex items-center justify-between">
                       <span className="text-white/40 text-[10px] font-medium">9:41 AM</span>
-                      <div className="flex items-center gap-1.5">
-                        <div className="flex gap-0.5">
-                          <div className="w-1 h-2 bg-white/40 rounded-sm"></div>
-                          <div className="w-1 h-2.5 bg-white/40 rounded-sm"></div>
-                          <div className="w-1 h-3 bg-white/40 rounded-sm"></div>
-                          <div className="w-1 h-3.5 bg-white/30 rounded-sm"></div>
-                        </div>
+                      <div className="flex gap-0.5">
+                        <div className="w-1 h-2 bg-white/40 rounded-sm"></div>
+                        <div className="w-1 h-2.5 bg-white/40 rounded-sm"></div>
+                        <div className="w-1 h-3 bg-white/40 rounded-sm"></div>
+                        <div className="w-1 h-3.5 bg-white/30 rounded-sm"></div>
                       </div>
                     </div>
-                    {/* Chat header */}
                     <div className="bg-[#111] px-5 pb-3 border-b border-white/5">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-full bg-[#333] flex items-center justify-center">
@@ -608,15 +647,26 @@ export default function TestLandingPage() {
                         </div>
                       </div>
                     </div>
-                    {/* Messages */}
                     <div className="bg-[#111] px-4 py-4 space-y-3 rounded-b-[1.6rem] min-h-[220px]">
-                      <div className="flex justify-start">
+                      {/* Sarah's warm intro — step 0 */}
+                      <div className="flex justify-start" style={fade(0)}>
                         <div className="bg-[#333] rounded-2xl rounded-tl-sm px-3.5 py-2.5 max-w-[88%]">
                           <p className="text-white/40 text-[10px] mb-0.5 font-medium">Sarah</p>
                           <p className="text-white text-[13px] leading-relaxed">Hey Mike, I just got helped by Daniel getting protection for my family. He was great and I thought he might be able to help you too!</p>
                         </div>
                       </div>
-                      <div className="flex justify-end">
+                      {/* Typing indicator — step 1 */}
+                      {smsStep === 1 && (
+                        <div className="flex justify-end">
+                          <div className="bg-[#005851] rounded-2xl px-4 py-3 flex gap-1.5 items-center">
+                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce"></span>
+                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:150ms]"></span>
+                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:300ms]"></span>
+                          </div>
+                        </div>
+                      )}
+                      {/* Daniel group ack — step 2 */}
+                      <div className="flex justify-end" style={fade(2)}>
                         <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[88%]">
                           <p className="text-[#3DD6C3] text-[10px] mb-0.5 font-medium">Daniel</p>
                           <p className="text-white text-[13px] leading-relaxed">Hey Mike! Sarah, thank you for connecting us. Mike, great to meet you — I&apos;ll shoot you a text.</p>
@@ -627,9 +677,8 @@ export default function TestLandingPage() {
                   <p className="text-center text-white/30 text-xs mt-3 font-medium">Group text — warm intro from your client</p>
                 </div>
 
-                {/* ── AI HANDOFF CONNECTOR (visible on md+, between the phones) ── */}
-                {/* On mobile this shows as a vertical connector between stacked phones */}
-                <div className="md:hidden flex flex-col items-center py-2">
+                {/* ── AI HANDOFF CONNECTOR (mobile) ── */}
+                <div className="md:hidden flex flex-col items-center py-2" style={fade(3)}>
                   <div className="w-px h-6 bg-gradient-to-b from-white/10 to-[#3DD6C3]/40"></div>
                   <div className="flex items-center gap-2 px-4 py-2 bg-[#3DD6C3]/10 border border-[#3DD6C3]/20 rounded-full">
                     <svg className="w-3.5 h-3.5 text-[#3DD6C3]" fill="currentColor" viewBox="0 0 24 24">
@@ -642,32 +691,28 @@ export default function TestLandingPage() {
 
                 {/* ── PHONE 2: 1-on-1 Conversation ── */}
                 <div>
-                  {/* AI handoff badge (md+ only, above the phone) */}
-                  <div className="hidden md:flex items-center justify-center gap-2 mb-3">
+                  {/* AI handoff badge (desktop) */}
+                  <div className="hidden md:flex items-center justify-center gap-2 mb-3" style={fade(3)}>
                     <div className="h-px flex-1 bg-gradient-to-r from-transparent to-[#3DD6C3]/30"></div>
                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#3DD6C3]/10 border border-[#3DD6C3]/20 rounded-full">
                       <svg className="w-3 h-3 text-[#3DD6C3]" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
-                      <span className="text-[#3DD6C3] text-[10px] font-bold uppercase tracking-wider">AI takes over</span>
+                      <span className="text-[#3DD6C3] text-[10px] font-bold uppercase tracking-wider">AI takes over in minutes</span>
                     </div>
                     <div className="h-px flex-1 bg-gradient-to-l from-transparent to-[#3DD6C3]/30"></div>
                   </div>
 
                   <div className="bg-[#1a1a2e] rounded-[2rem] p-1.5 shadow-2xl border border-[#3DD6C3]/20">
-                    {/* Phone status bar */}
                     <div className="bg-[#111] rounded-t-[1.6rem] px-5 pt-3 pb-2 flex items-center justify-between">
                       <span className="text-white/40 text-[10px] font-medium">9:44 AM</span>
-                      <div className="flex items-center gap-1.5">
-                        <div className="flex gap-0.5">
-                          <div className="w-1 h-2 bg-white/40 rounded-sm"></div>
-                          <div className="w-1 h-2.5 bg-white/40 rounded-sm"></div>
-                          <div className="w-1 h-3 bg-white/40 rounded-sm"></div>
-                          <div className="w-1 h-3.5 bg-white/30 rounded-sm"></div>
-                        </div>
+                      <div className="flex gap-0.5">
+                        <div className="w-1 h-2 bg-white/40 rounded-sm"></div>
+                        <div className="w-1 h-2.5 bg-white/40 rounded-sm"></div>
+                        <div className="w-1 h-3 bg-white/40 rounded-sm"></div>
+                        <div className="w-1 h-3.5 bg-white/30 rounded-sm"></div>
                       </div>
                     </div>
-                    {/* Chat header */}
                     <div className="bg-[#111] px-5 pb-3 border-b border-white/5">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-full bg-[#005851] flex items-center justify-center">
@@ -679,37 +724,143 @@ export default function TestLandingPage() {
                         </div>
                       </div>
                     </div>
-                    {/* Messages */}
-                    <div className="bg-[#111] px-4 py-4 space-y-3 rounded-b-[1.6rem]">
-                      <div className="flex justify-end">
+                    {/* Scrollable message area */}
+                    <div ref={directMsgRef} className="bg-[#111] px-4 py-4 space-y-3 rounded-b-[1.6rem] max-h-[420px] overflow-y-auto scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
+                      {/* Daniel opener — step 3 */}
+                      <div className="flex justify-end" style={fade(3)}>
                         <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[88%]">
                           <p className="text-white text-[13px] leading-relaxed">Hey Mike, this is Daniel. Sarah mentioned she connected us — I helped her family get some protection in place and she thought I might be able to help you too. Would you be open to a couple quick questions to see if it makes sense for us to chat?</p>
                           <p className="text-white/30 text-[10px] mt-1">9:44 AM</p>
                         </div>
                       </div>
-                      <div className="flex justify-start">
+                      {/* Mike typing — step 4 */}
+                      {smsStep === 4 && (
+                        <div className="flex justify-start">
+                          <div className="bg-[#333] rounded-2xl px-4 py-3 flex gap-1.5 items-center">
+                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce"></span>
+                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:150ms]"></span>
+                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:300ms]"></span>
+                          </div>
+                        </div>
+                      )}
+                      {/* Mike "yeah sure" — step 5 */}
+                      <div className="flex justify-start" style={fade(5)}>
                         <div className="bg-[#333] rounded-2xl rounded-tl-sm px-3.5 py-2.5 max-w-[88%]">
                           <p className="text-white text-[13px]">yeah sure</p>
                           <p className="text-white/20 text-[10px] mt-1">9:46 AM</p>
                         </div>
                       </div>
-                      <div className="flex justify-end">
+                      {/* Daniel typing — step 6 */}
+                      {smsStep === 6 && (
+                        <div className="flex justify-end">
+                          <div className="bg-[#005851] rounded-2xl px-4 py-3 flex gap-1.5 items-center">
+                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce"></span>
+                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:150ms]"></span>
+                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:300ms]"></span>
+                          </div>
+                        </div>
+                      )}
+                      {/* Daniel Q1 — step 7 */}
+                      <div className="flex justify-end" style={fade(7)}>
                         <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[88%]">
                           <p className="text-white text-[13px] leading-relaxed">Appreciate that, Mike. Just curious — what would be most important to you when it comes to protecting your family financially?</p>
                           <p className="text-white/30 text-[10px] mt-1">9:46 AM</p>
                         </div>
                       </div>
-                      <div className="flex justify-start">
+                      {/* Mike typing — step 8 */}
+                      {smsStep === 8 && (
+                        <div className="flex justify-start">
+                          <div className="bg-[#333] rounded-2xl px-4 py-3 flex gap-1.5 items-center">
+                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce"></span>
+                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:150ms]"></span>
+                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:300ms]"></span>
+                          </div>
+                        </div>
+                      )}
+                      {/* Mike answer — step 9 */}
+                      <div className="flex justify-start" style={fade(9)}>
                         <div className="bg-[#333] rounded-2xl rounded-tl-sm px-3.5 py-2.5 max-w-[88%]">
                           <p className="text-white text-[13px] leading-relaxed">mostly making sure my wife and kids are taken care of if something happens to me</p>
                           <p className="text-white/20 text-[10px] mt-1">9:48 AM</p>
                         </div>
                       </div>
-                      <div className="flex justify-end">
+
+                      {/* ── FAST FORWARD ZONE ── */}
+                      <div style={fade(10, true)}>
+                        <div className="flex items-center gap-3 py-2">
+                          <div className="h-px flex-1 bg-white/10"></div>
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white/5 border border-white/10 rounded-full">
+                            <span className="text-white/30 text-[10px]">▶▶</span>
+                            <span className="text-white/40 text-[10px] font-medium">AI keeps qualifying...</span>
+                          </div>
+                          <div className="h-px flex-1 bg-white/10"></div>
+                        </div>
+                      </div>
+                      {/* FF pair 1 — step 10 */}
+                      <div className="space-y-1.5" style={fade(10, true)}>
+                        <div className="flex justify-end">
+                          <div className="bg-[#005851]/80 rounded-2xl rounded-tr-sm px-3 py-2 max-w-[88%]">
+                            <p className="text-white/80 text-[12px]">Do you have any coverage in place currently?</p>
+                          </div>
+                        </div>
+                        <div className="flex justify-start">
+                          <div className="bg-[#333]/80 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[88%]">
+                            <p className="text-white/80 text-[12px]">just what I get through work</p>
+                          </div>
+                        </div>
+                      </div>
+                      {/* FF pair 2 — step 11 */}
+                      <div className="space-y-1.5" style={fade(11, true)}>
+                        <div className="flex justify-end">
+                          <div className="bg-[#005851]/80 rounded-2xl rounded-tr-sm px-3 py-2 max-w-[88%]">
+                            <p className="text-white/80 text-[12px]">Got it. Do you own or rent your home?</p>
+                          </div>
+                        </div>
+                        <div className="flex justify-start">
+                          <div className="bg-[#333]/80 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[88%]">
+                            <p className="text-white/80 text-[12px]">own — mortgage is around $280k</p>
+                          </div>
+                        </div>
+                      </div>
+                      {/* FF pair 3 — step 12 */}
+                      <div className="space-y-1.5" style={fade(12, true)}>
+                        <div className="flex justify-end">
+                          <div className="bg-[#005851]/80 rounded-2xl rounded-tr-sm px-3 py-2 max-w-[88%]">
+                            <p className="text-white/80 text-[12px]">And how old are your kids?</p>
+                          </div>
+                        </div>
+                        <div className="flex justify-start">
+                          <div className="bg-[#333]/80 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[88%]">
+                            <p className="text-white/80 text-[12px]">4 and 7</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* End fast forward divider */}
+                      <div style={fade(13, true)}>
+                        <div className="flex items-center gap-3 py-1">
+                          <div className="h-px flex-1 bg-white/10"></div>
+                          <span className="text-white/20 text-[10px]">9:54 AM</span>
+                          <div className="h-px flex-1 bg-white/10"></div>
+                        </div>
+                      </div>
+
+                      {/* Daniel typing — step 13 */}
+                      {smsStep === 13 && (
+                        <div className="flex justify-end">
+                          <div className="bg-[#005851] rounded-2xl px-4 py-3 flex gap-1.5 items-center">
+                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce"></span>
+                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:150ms]"></span>
+                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:300ms]"></span>
+                          </div>
+                        </div>
+                      )}
+                      {/* Booking message — step 14 */}
+                      <div className="flex justify-end" style={fade(14)}>
                         <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[88%]">
-                          <p className="text-white text-[13px] leading-relaxed">That makes total sense. Would a quick 15-min call work so I can show you some options? Here&apos;s my calendar — pick whatever time works best for you:</p>
+                          <p className="text-white text-[13px] leading-relaxed">Really appreciate you sharing all that, Mike. Based on what you&apos;ve told me, I think it&apos;d be worth a quick 15-min call so I can show you some options. Here&apos;s my calendar — pick whatever time works best:</p>
                           <p className="text-[#3DD6C3] text-[13px] mt-1 underline">calendly.com/daniel</p>
-                          <p className="text-white/30 text-[10px] mt-1">9:48 AM</p>
+                          <p className="text-white/30 text-[10px] mt-1">9:54 AM</p>
                         </div>
                       </div>
                     </div>
@@ -719,7 +870,7 @@ export default function TestLandingPage() {
               </div>
 
               {/* Bottom callout */}
-              <div className="max-w-2xl mx-auto mt-10">
+              <div className="max-w-2xl mx-auto mt-10" style={fade(14)}>
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-start gap-4">
                   <div className="w-10 h-10 bg-[#3DD6C3]/20 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
                     <svg className="w-5 h-5 text-[#3DD6C3]" fill="currentColor" viewBox="0 0 24 24">
