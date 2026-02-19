@@ -14,7 +14,6 @@ export default function TestLandingPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const smsRef = useRef<HTMLDivElement>(null);
   const smsTriggered = useRef(false);
-  const directMsgRef = useRef<HTMLDivElement>(null);
   const [smsStep, setSmsStep] = useState(-1);
   const showFoundingBanner = true;
 
@@ -31,16 +30,15 @@ export default function TestLandingPage() {
 
   // SMS animation — snappy rhythm, no typing pauses
   // Group: 0=Sarah, 1=Daniel ack
-  // 1-on-1 (750ms pace): 2=opener, 3=Mike "yeah sure", 4=Q importance, 5=A family
-  // Rapid-fire burst (280ms): 6=Q coverage, 7=A through work, 8=Q own/rent,
-  //   9=A mortgage, 10=Q kids, 11=A ages, 12=Q health, 13=A healthy
-  // Slow down for payoff: 14=booking
+  // 1-on-1: 2=opener, 3="yeah sure", 4=Q importance, 5=A family
+  // Rapid burst: 6-13 (qualifying back-and-forth including health)
+  // Payoff: 14=booking
   const SMS_DELAYS = [
     600,  750,            // group chat (0-1)
-    500,                  // 1-on-1 starts immediately (2)
-    750,  750,  750,      // normal pace opener exchange (3-5)
-    280,  280,  280,  280,  280,  280,  280,  280,  // rapid burst (6-13)
-    900,                  // pause before booking (14)
+    300,                  // 1-on-1 starts right away (2)
+    750,  750,  750,      // normal pace (3-5)
+    350,  350,  350,  350,  300,  300,  300,  300,  // rapid burst (6-13)
+    1000,                 // pause before booking (14)
   ];
 
   useEffect(() => {
@@ -63,10 +61,6 @@ export default function TestLandingPage() {
     if (smsStep < 0 || smsStep >= SMS_DELAYS.length) return;
     const timer = setTimeout(() => setSmsStep(s => s + 1), SMS_DELAYS[smsStep]);
     return () => clearTimeout(timer);
-  }, [smsStep]);
-
-  useEffect(() => {
-    directMsgRef.current?.scrollTo({ top: directMsgRef.current.scrollHeight, behavior: 'smooth' });
   }, [smsStep]);
 
   const fade = (step: number, fast?: boolean) => ({
@@ -723,7 +717,7 @@ export default function TestLandingPage() {
                       </div>
                     </div>
                     {/* Scrollable message area */}
-                    <div ref={directMsgRef} className="bg-[#111] px-4 py-4 space-y-2.5 rounded-b-[1.6rem] max-h-[420px] overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+                    <div className="bg-[#111] px-4 py-4 space-y-2.5 rounded-b-[1.6rem]">
                       {/* Daniel opener — step 2 */}
                       <div className="flex justify-end" style={fade(2)}>
                         <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[88%]">
