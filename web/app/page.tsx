@@ -29,11 +29,19 @@ export default function TestLandingPage() {
       .catch(() => {});
   }, []);
 
-  // SMS preview animation — step sequence with delays (ms)
-  // Group: 0=Sarah, 1=typing, 2=Daniel | 1-on-1: 3=opener, 4=typing, 5=Mike,
-  // 6=typing, 7=Q1, 8=typing, 9=A1 | FF: 10=indicator+pair1, 11=pair2, 12=pair3
-  // | 13=typing, 14=booking
-  const SMS_DELAYS = [600, 1400, 1200, 1800, 2000, 1000, 800, 1600, 1400, 1200, 1200, 600, 600, 800, 1400];
+  // SMS animation — snappy rhythm, no typing pauses
+  // Group: 0=Sarah, 1=Daniel ack
+  // 1-on-1 (750ms pace): 2=opener, 3=Mike "yeah sure", 4=Q importance, 5=A family
+  // Rapid-fire burst (280ms): 6=Q coverage, 7=A through work, 8=Q own/rent,
+  //   9=A mortgage, 10=Q kids, 11=A ages, 12=Q health, 13=A healthy
+  // Slow down for payoff: 14=booking
+  const SMS_DELAYS = [
+    600,  750,            // group chat (0-1)
+    500,                  // 1-on-1 starts immediately (2)
+    750,  750,  750,      // normal pace opener exchange (3-5)
+    280,  280,  280,  280,  280,  280,  280,  280,  // rapid burst (6-13)
+    900,                  // pause before booking (14)
+  ];
 
   useEffect(() => {
     const el = smsRef.current;
@@ -63,8 +71,8 @@ export default function TestLandingPage() {
 
   const fade = (step: number, fast?: boolean) => ({
     opacity: smsStep >= step ? 1 : 0,
-    transform: smsStep >= step ? 'translateY(0)' : 'translateY(8px)',
-    transition: `all ${fast ? '200ms' : '500ms'} ease-out`,
+    transform: smsStep >= step ? 'translateY(0)' : 'translateY(6px)',
+    transition: `all ${fast ? '150ms' : '400ms'} ease-out`,
   } as React.CSSProperties);
 
   // Calculator logic
@@ -647,7 +655,7 @@ export default function TestLandingPage() {
                         </div>
                       </div>
                     </div>
-                    <div className="bg-[#111] px-4 py-4 space-y-3 rounded-b-[1.6rem] min-h-[220px]">
+                    <div className="bg-[#111] px-4 py-4 space-y-3 rounded-b-[1.6rem] min-h-[180px]">
                       {/* Sarah's warm intro — step 0 */}
                       <div className="flex justify-start" style={fade(0)}>
                         <div className="bg-[#333] rounded-2xl rounded-tl-sm px-3.5 py-2.5 max-w-[88%]">
@@ -655,18 +663,8 @@ export default function TestLandingPage() {
                           <p className="text-white text-[13px] leading-relaxed">Hey Mike, I just got helped by Daniel getting protection for my family. He was great and I thought he might be able to help you too!</p>
                         </div>
                       </div>
-                      {/* Typing indicator — step 1 */}
-                      {smsStep === 1 && (
-                        <div className="flex justify-end">
-                          <div className="bg-[#005851] rounded-2xl px-4 py-3 flex gap-1.5 items-center">
-                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce"></span>
-                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:150ms]"></span>
-                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:300ms]"></span>
-                          </div>
-                        </div>
-                      )}
-                      {/* Daniel group ack — step 2 */}
-                      <div className="flex justify-end" style={fade(2)}>
+                      {/* Daniel group ack — step 1 */}
+                      <div className="flex justify-end" style={fade(1)}>
                         <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[88%]">
                           <p className="text-[#3DD6C3] text-[10px] mb-0.5 font-medium">Daniel</p>
                           <p className="text-white text-[13px] leading-relaxed">Hey Mike! Sarah, thank you for connecting us. Mike, great to meet you — I&apos;ll shoot you a text.</p>
@@ -678,21 +676,21 @@ export default function TestLandingPage() {
                 </div>
 
                 {/* ── AI HANDOFF CONNECTOR (mobile) ── */}
-                <div className="md:hidden flex flex-col items-center py-2" style={fade(3)}>
-                  <div className="w-px h-6 bg-gradient-to-b from-white/10 to-[#3DD6C3]/40"></div>
-                  <div className="flex items-center gap-2 px-4 py-2 bg-[#3DD6C3]/10 border border-[#3DD6C3]/20 rounded-full">
+                <div className="md:hidden flex flex-col items-center py-2" style={fade(2)}>
+                  <div className="w-px h-4 bg-gradient-to-b from-white/10 to-[#3DD6C3]/40"></div>
+                  <div className="flex items-center gap-2 px-4 py-1.5 bg-[#3DD6C3]/10 border border-[#3DD6C3]/20 rounded-full">
                     <svg className="w-3.5 h-3.5 text-[#3DD6C3]" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                     <span className="text-[#3DD6C3] text-xs font-bold uppercase tracking-wide">AI takes over in minutes</span>
                   </div>
-                  <div className="w-px h-6 bg-gradient-to-b from-[#3DD6C3]/40 to-white/10"></div>
+                  <div className="w-px h-4 bg-gradient-to-b from-[#3DD6C3]/40 to-white/10"></div>
                 </div>
 
                 {/* ── PHONE 2: 1-on-1 Conversation ── */}
                 <div>
                   {/* AI handoff badge (desktop) */}
-                  <div className="hidden md:flex items-center justify-center gap-2 mb-3" style={fade(3)}>
+                  <div className="hidden md:flex items-center justify-center gap-2 mb-3" style={fade(2)}>
                     <div className="h-px flex-1 bg-gradient-to-r from-transparent to-[#3DD6C3]/30"></div>
                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#3DD6C3]/10 border border-[#3DD6C3]/20 rounded-full">
                       <svg className="w-3 h-3 text-[#3DD6C3]" fill="currentColor" viewBox="0 0 24 24">
@@ -725,142 +723,88 @@ export default function TestLandingPage() {
                       </div>
                     </div>
                     {/* Scrollable message area */}
-                    <div ref={directMsgRef} className="bg-[#111] px-4 py-4 space-y-3 rounded-b-[1.6rem] max-h-[420px] overflow-y-auto scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
-                      {/* Daniel opener — step 3 */}
-                      <div className="flex justify-end" style={fade(3)}>
+                    <div ref={directMsgRef} className="bg-[#111] px-4 py-4 space-y-2.5 rounded-b-[1.6rem] max-h-[420px] overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+                      {/* Daniel opener — step 2 */}
+                      <div className="flex justify-end" style={fade(2)}>
                         <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[88%]">
                           <p className="text-white text-[13px] leading-relaxed">Hey Mike, this is Daniel. Sarah mentioned she connected us — I helped her family get some protection in place and she thought I might be able to help you too. Would you be open to a couple quick questions to see if it makes sense for us to chat?</p>
-                          <p className="text-white/30 text-[10px] mt-1">9:44 AM</p>
                         </div>
                       </div>
-                      {/* Mike typing — step 4 */}
-                      {smsStep === 4 && (
-                        <div className="flex justify-start">
-                          <div className="bg-[#333] rounded-2xl px-4 py-3 flex gap-1.5 items-center">
-                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce"></span>
-                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:150ms]"></span>
-                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:300ms]"></span>
-                          </div>
-                        </div>
-                      )}
-                      {/* Mike "yeah sure" — step 5 */}
-                      <div className="flex justify-start" style={fade(5)}>
+                      {/* Mike "yeah sure" — step 3 */}
+                      <div className="flex justify-start" style={fade(3)}>
                         <div className="bg-[#333] rounded-2xl rounded-tl-sm px-3.5 py-2.5 max-w-[88%]">
                           <p className="text-white text-[13px]">yeah sure</p>
-                          <p className="text-white/20 text-[10px] mt-1">9:46 AM</p>
                         </div>
                       </div>
-                      {/* Daniel typing — step 6 */}
-                      {smsStep === 6 && (
-                        <div className="flex justify-end">
-                          <div className="bg-[#005851] rounded-2xl px-4 py-3 flex gap-1.5 items-center">
-                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce"></span>
-                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:150ms]"></span>
-                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:300ms]"></span>
-                          </div>
-                        </div>
-                      )}
-                      {/* Daniel Q1 — step 7 */}
-                      <div className="flex justify-end" style={fade(7)}>
+                      {/* Daniel Q: importance — step 4 */}
+                      <div className="flex justify-end" style={fade(4)}>
                         <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[88%]">
-                          <p className="text-white text-[13px] leading-relaxed">Appreciate that, Mike. Just curious — what would be most important to you when it comes to protecting your family financially?</p>
-                          <p className="text-white/30 text-[10px] mt-1">9:46 AM</p>
+                          <p className="text-white text-[13px] leading-relaxed">Appreciate that. What would be most important to you when it comes to protecting your family financially?</p>
                         </div>
                       </div>
-                      {/* Mike typing — step 8 */}
-                      {smsStep === 8 && (
-                        <div className="flex justify-start">
-                          <div className="bg-[#333] rounded-2xl px-4 py-3 flex gap-1.5 items-center">
-                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce"></span>
-                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:150ms]"></span>
-                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:300ms]"></span>
-                          </div>
-                        </div>
-                      )}
-                      {/* Mike answer — step 9 */}
-                      <div className="flex justify-start" style={fade(9)}>
+                      {/* Mike A: family — step 5 */}
+                      <div className="flex justify-start" style={fade(5)}>
                         <div className="bg-[#333] rounded-2xl rounded-tl-sm px-3.5 py-2.5 max-w-[88%]">
                           <p className="text-white text-[13px] leading-relaxed">mostly making sure my wife and kids are taken care of if something happens to me</p>
-                          <p className="text-white/20 text-[10px] mt-1">9:48 AM</p>
                         </div>
                       </div>
 
-                      {/* ── FAST FORWARD ZONE ── */}
-                      <div style={fade(10, true)}>
-                        <div className="flex items-center gap-3 py-2">
-                          <div className="h-px flex-1 bg-white/10"></div>
-                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white/5 border border-white/10 rounded-full">
-                            <span className="text-white/30 text-[10px]">▶▶</span>
-                            <span className="text-white/40 text-[10px] font-medium">AI keeps qualifying...</span>
-                          </div>
-                          <div className="h-px flex-1 bg-white/10"></div>
+                      {/* ── RAPID-FIRE QUALIFYING ── */}
+                      {/* Q: coverage — step 6 */}
+                      <div className="flex justify-end" style={fade(6, true)}>
+                        <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3 py-2 max-w-[88%]">
+                          <p className="text-white text-[12px] leading-relaxed">Do you have any coverage in place right now?</p>
                         </div>
                       </div>
-                      {/* FF pair 1 — step 10 */}
-                      <div className="space-y-1.5" style={fade(10, true)}>
-                        <div className="flex justify-end">
-                          <div className="bg-[#005851]/80 rounded-2xl rounded-tr-sm px-3 py-2 max-w-[88%]">
-                            <p className="text-white/80 text-[12px]">Do you have any coverage in place currently?</p>
-                          </div>
-                        </div>
-                        <div className="flex justify-start">
-                          <div className="bg-[#333]/80 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[88%]">
-                            <p className="text-white/80 text-[12px]">just what I get through work</p>
-                          </div>
+                      {/* A: through work — step 7 */}
+                      <div className="flex justify-start" style={fade(7, true)}>
+                        <div className="bg-[#333] rounded-2xl rounded-tl-sm px-3 py-2 max-w-[88%]">
+                          <p className="text-white text-[12px]">just what I get through work</p>
                         </div>
                       </div>
-                      {/* FF pair 2 — step 11 */}
-                      <div className="space-y-1.5" style={fade(11, true)}>
-                        <div className="flex justify-end">
-                          <div className="bg-[#005851]/80 rounded-2xl rounded-tr-sm px-3 py-2 max-w-[88%]">
-                            <p className="text-white/80 text-[12px]">Got it. Do you own or rent your home?</p>
-                          </div>
-                        </div>
-                        <div className="flex justify-start">
-                          <div className="bg-[#333]/80 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[88%]">
-                            <p className="text-white/80 text-[12px]">own — mortgage is around $280k</p>
-                          </div>
+                      {/* Q: own/rent — step 8 */}
+                      <div className="flex justify-end" style={fade(8, true)}>
+                        <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3 py-2 max-w-[88%]">
+                          <p className="text-white text-[12px] leading-relaxed">Got it. Do you own or rent your home?</p>
                         </div>
                       </div>
-                      {/* FF pair 3 — step 12 */}
-                      <div className="space-y-1.5" style={fade(12, true)}>
-                        <div className="flex justify-end">
-                          <div className="bg-[#005851]/80 rounded-2xl rounded-tr-sm px-3 py-2 max-w-[88%]">
-                            <p className="text-white/80 text-[12px]">And how old are your kids?</p>
-                          </div>
-                        </div>
-                        <div className="flex justify-start">
-                          <div className="bg-[#333]/80 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[88%]">
-                            <p className="text-white/80 text-[12px]">4 and 7</p>
-                          </div>
+                      {/* A: mortgage — step 9 */}
+                      <div className="flex justify-start" style={fade(9, true)}>
+                        <div className="bg-[#333] rounded-2xl rounded-tl-sm px-3 py-2 max-w-[88%]">
+                          <p className="text-white text-[12px]">own — mortgage is around $280k</p>
                         </div>
                       </div>
-
-                      {/* End fast forward divider */}
-                      <div style={fade(13, true)}>
-                        <div className="flex items-center gap-3 py-1">
-                          <div className="h-px flex-1 bg-white/10"></div>
-                          <span className="text-white/20 text-[10px]">9:54 AM</span>
-                          <div className="h-px flex-1 bg-white/10"></div>
+                      {/* Q: kids — step 10 */}
+                      <div className="flex justify-end" style={fade(10, true)}>
+                        <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3 py-2 max-w-[88%]">
+                          <p className="text-white text-[12px] leading-relaxed">How old are your kids?</p>
+                        </div>
+                      </div>
+                      {/* A: ages — step 11 */}
+                      <div className="flex justify-start" style={fade(11, true)}>
+                        <div className="bg-[#333] rounded-2xl rounded-tl-sm px-3 py-2 max-w-[88%]">
+                          <p className="text-white text-[12px]">4 and 7</p>
+                        </div>
+                      </div>
+                      {/* Q: health — step 12 */}
+                      <div className="flex justify-end" style={fade(12, true)}>
+                        <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3 py-2 max-w-[88%]">
+                          <p className="text-white text-[12px] leading-relaxed">And would you say you&apos;re in pretty good health overall?</p>
+                        </div>
+                      </div>
+                      {/* A: healthy — step 13 */}
+                      <div className="flex justify-start" style={fade(13, true)}>
+                        <div className="bg-[#333] rounded-2xl rounded-tl-sm px-3 py-2 max-w-[88%]">
+                          <p className="text-white text-[12px]">yeah no major issues</p>
                         </div>
                       </div>
 
-                      {/* Daniel typing — step 13 */}
-                      {smsStep === 13 && (
-                        <div className="flex justify-end">
-                          <div className="bg-[#005851] rounded-2xl px-4 py-3 flex gap-1.5 items-center">
-                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce"></span>
-                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:150ms]"></span>
-                            <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce [animation-delay:300ms]"></span>
-                          </div>
-                        </div>
-                      )}
-                      {/* Booking message — step 14 */}
+                      {/* ── BOOKING (slow down) ── */}
+                      {/* step 14 */}
                       <div className="flex justify-end" style={fade(14)}>
                         <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[88%]">
-                          <p className="text-white text-[13px] leading-relaxed">Really appreciate you sharing all that, Mike. Based on what you&apos;ve told me, I think it&apos;d be worth a quick 15-min call so I can show you some options. Here&apos;s my calendar — pick whatever time works best:</p>
-                          <p className="text-[#3DD6C3] text-[13px] mt-1 underline">calendly.com/daniel</p>
-                          <p className="text-white/30 text-[10px] mt-1">9:54 AM</p>
+                          <p className="text-white text-[13px] leading-relaxed">Really appreciate you sharing all that, Mike. Based on what you&apos;ve told me, I think a quick 15-min call would be worth it so I can show you a couple options. Here&apos;s my calendar — pick whatever time works best:</p>
+                          <p className="text-[#3DD6C3] text-[13px] mt-1.5 underline">calendly.com/daniel</p>
                         </div>
                       </div>
                     </div>
