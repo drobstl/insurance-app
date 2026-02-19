@@ -4,12 +4,44 @@ import Anthropic from '@anthropic-ai/sdk';
 
 let _anthropic: Anthropic | null = null;
 function getAnthropic(): Anthropic {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error('ANTHROPIC_API_KEY is not set — AI referral responses are disabled');
+  }
   if (_anthropic) return _anthropic;
   _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   return _anthropic;
 }
 
 const MODEL = 'claude-sonnet-4-20250514';
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 1500;
+
+function isTransientError(error: unknown): boolean {
+  if (error instanceof Anthropic.APIError) {
+    return error.status === 429 || error.status === 500 || error.status === 529;
+  }
+  if (error instanceof Error && error.message.includes('fetch')) {
+    return true; // network errors
+  }
+  return false;
+}
+
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (!isTransientError(error) || attempt === MAX_RETRIES - 1) {
+        throw error;
+      }
+      console.warn(`Anthropic API attempt ${attempt + 1} failed, retrying...`, error);
+      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
+    }
+  }
+  throw lastError;
+}
 
 export interface ConversationMessage {
   role: 'referral' | 'agent-ai';
@@ -85,14 +117,16 @@ Keep it to 1-2 sentences. Natural, warm, casual. No emojis unless one feels natu
 
 Example: "Hey ${ctx.referralName}! ${ctx.clientName}, thank you for connecting us. ${ctx.referralName}, great to meet you — I'll shoot you a text."`;
 
-  const message = await anthropic.messages.create({
-    model: MODEL,
-    max_tokens: 200,
-    system: systemPrompt,
-    messages: [
-      { role: 'user', content: 'Generate the group text acknowledgment message.' },
-    ],
-  });
+  const message = await withRetry(() =>
+    anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 200,
+      system: systemPrompt,
+      messages: [
+        { role: 'user', content: 'Generate the group text acknowledgment message.' },
+      ],
+    }),
+  );
 
   const block = message.content[0];
   return block.type === 'text' ? block.text.trim() : '';
@@ -106,17 +140,19 @@ export async function generateFirstMessage(ctx: ReferralContext): Promise<string
   const anthropic = getAnthropic();
   const systemPrompt = buildNEPQSystemPrompt(ctx);
 
-  const message = await anthropic.messages.create({
-    model: MODEL,
-    max_tokens: 250,
-    system: systemPrompt,
-    messages: [
-      {
-        role: 'user',
-        content: `You are reaching out to ${ctx.referralName} for the first time in a 1-on-1 text. ${ctx.clientName} just connected you via a group text. Write your opening message — introduce yourself, mention how you helped ${ctx.clientName}, and ask permission to ask a couple quick questions to see if it makes sense to chat. Keep it natural and conversational.`,
-      },
-    ],
-  });
+  const message = await withRetry(() =>
+    anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 250,
+      system: systemPrompt,
+      messages: [
+        {
+          role: 'user',
+          content: `You are reaching out to ${ctx.referralName} for the first time in a 1-on-1 text. ${ctx.clientName} just connected you via a group text. Write your opening message — introduce yourself, mention how you helped ${ctx.clientName}, and ask permission to ask a couple quick questions to see if it makes sense to chat. Keep it natural and conversational.`,
+        },
+      ],
+    }),
+  );
 
   const block = message.content[0];
   return block.type === 'text' ? block.text.trim() : '';
@@ -144,12 +180,14 @@ export async function generateReferralResponse(
 
   messages.push({ role: 'user', content: newMessage });
 
-  const completion = await anthropic.messages.create({
-    model: MODEL,
-    max_tokens: 200,
-    system: systemPrompt,
-    messages,
-  });
+  const completion = await withRetry(() =>
+    anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 200,
+      system: systemPrompt,
+      messages,
+    }),
+  );
 
   const block = completion.content[0];
   const response = block.type === 'text' ? block.text.trim() : null;

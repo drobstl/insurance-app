@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { getTwilioClient, getTwilioPhoneNumber } from '../../../../lib/twilio';
 import { generateGroupAck, ReferralContext } from '../../../../lib/referral-ai';
+import { normalizePhone } from '../../../../lib/phone';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /**
@@ -29,15 +30,7 @@ export async function POST(req: NextRequest) {
 
     const db = getAdminFirestore();
 
-    // Normalize phone number — strip non-digits, ensure +1 prefix
-    let normalizedPhone = referralPhone.replace(/[^0-9+]/g, '');
-    if (!normalizedPhone.startsWith('+')) {
-      if (normalizedPhone.startsWith('1') && normalizedPhone.length === 11) {
-        normalizedPhone = '+' + normalizedPhone;
-      } else if (normalizedPhone.length === 10) {
-        normalizedPhone = '+1' + normalizedPhone;
-      }
-    }
+    const normalizedPhone = normalizePhone(referralPhone);
 
     // Fetch agent profile for name, Twilio number, scheduling URL
     const agentDoc = await db.collection('agents').doc(agentId).get();
@@ -91,28 +84,32 @@ export async function POST(req: NextRequest) {
       conversation: [],
     };
 
-    // Generate and send group text acknowledgment (Mode A)
-    const groupAck = await generateGroupAck(ctx);
+    // Generate and send group text acknowledgment (Mode A).
+    // Wrapped so an AI/Twilio failure doesn't prevent the first-message trigger.
+    try {
+      const groupAck = await generateGroupAck(ctx);
 
-    if (groupAck) {
-      const twilioClient = getTwilioClient();
-      await twilioClient.messages.create({
-        body: groupAck,
-        from: twilioNumber,
-        to: normalizedPhone,
-      });
+      if (groupAck) {
+        const twilioClient = getTwilioClient();
+        await twilioClient.messages.create({
+          body: groupAck,
+          from: twilioNumber,
+          to: normalizedPhone,
+        });
 
-      // Record the group ack in the conversation
-      const ackMessage = {
-        role: 'agent-ai',
-        body: groupAck,
-        timestamp: new Date().toISOString(),
-      };
+        const ackMessage = {
+          role: 'agent-ai',
+          body: groupAck,
+          timestamp: new Date().toISOString(),
+        };
 
-      await referralRef.update({
-        conversation: FieldValue.arrayUnion(ackMessage),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+        await referralRef.update({
+          conversation: FieldValue.arrayUnion(ackMessage),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (ackError) {
+      console.error('Group ack failed (referral still created):', ackError);
     }
 
     // Fire non-blocking request to send the delayed 1-on-1 NEPQ opener

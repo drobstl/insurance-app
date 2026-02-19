@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { getTwilioClient, getTwilioPhoneNumber } from '../../../../lib/twilio';
 import { generateReferralResponse, ConversationMessage, ReferralContext } from '../../../../lib/referral-ai';
+import { normalizePhone } from '../../../../lib/phone';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /**
@@ -27,63 +28,49 @@ export async function POST(req: NextRequest) {
       return twimlResponse('');
     }
 
-    // Normalize the sender's phone
-    let normalizedFrom = from.replace(/[^0-9+]/g, '');
-    if (!normalizedFrom.startsWith('+')) {
-      if (normalizedFrom.startsWith('1') && normalizedFrom.length === 11) {
-        normalizedFrom = '+' + normalizedFrom;
-      } else if (normalizedFrom.length === 10) {
-        normalizedFrom = '+1' + normalizedFrom;
-      }
-    }
+    const normalizedFrom = normalizePhone(from);
 
     const db = getAdminFirestore();
 
-    // Find the referral record by phone number.
-    // We search across all agents' referrals subcollections.
-    // For the Twilio number receiving the message, we check which agent it belongs to.
     const referralResult = await findReferralByPhone(db, normalizedFrom, to);
 
     if (!referralResult) {
-      // Unknown sender — could be a client in the group text, or spam. Ignore.
       return twimlResponse('');
     }
 
     const { agentId, referralId, referralData, agentData } = referralResult;
 
-    // Record the incoming message first (always, regardless of AI mode)
+    const referralRef = db
+      .collection('agents')
+      .doc(agentId)
+      .collection('referrals')
+      .doc(referralId);
+
     const newIncoming: ConversationMessage = {
       role: 'referral',
       body,
       timestamp: new Date().toISOString(),
     };
 
-    const updates: Record<string, unknown> = {
+    // Persist the incoming message IMMEDIATELY so it's never lost,
+    // even if the AI call or Twilio send fails downstream.
+    const incomingUpdate: Record<string, unknown> = {
       conversation: FieldValue.arrayUnion(newIncoming),
       updatedAt: FieldValue.serverTimestamp(),
     };
 
-    // Update status to active on first reply (from any pre-conversation state)
     if (['pending', 'outreach-sent', 'drip-1', 'drip-2'].includes(referralData.status as string)) {
-      updates.status = 'active';
+      incomingUpdate.status = 'active';
     }
 
-    // If AI is disabled on this referral, record and exit — no auto-response
-    if (referralData.aiEnabled === false) {
-      await db
-        .collection('agents')
-        .doc(agentId)
-        .collection('referrals')
-        .doc(referralId)
-        .update(updates);
+    await referralRef.update(incomingUpdate);
 
+    if (referralData.aiEnabled === false) {
       return twimlResponse('');
     }
 
-    // Build conversation history
+    // Build conversation history and AI context
     const conversation: ConversationMessage[] = (referralData.conversation as ConversationMessage[]) || [];
-
-    // Build context for the AI
     const agentName = (agentData.name as string) || 'Your agent';
     const agentFirstName = agentName.split(' ')[0];
     const schedulingUrl = (agentData.schedulingUrl as string) || null;
@@ -99,24 +86,31 @@ export async function POST(req: NextRequest) {
       conversation,
     };
 
-    // Generate AI response
-    const aiResponse = await generateReferralResponse(ctx, body);
+    let aiResponse: string | null = null;
+    try {
+      aiResponse = await generateReferralResponse(ctx, body);
+    } catch (aiError) {
+      console.error('AI generation failed for referral', referralId, aiError);
+      // Incoming message is already saved — agent can respond manually from dashboard
+      return twimlResponse('');
+    }
 
     if (aiResponse) {
-      // Record the AI response
       const newOutgoing: ConversationMessage = {
         role: 'agent-ai',
         body: aiResponse,
         timestamp: new Date().toISOString(),
       };
-      updates.conversation = FieldValue.arrayUnion(newIncoming, newOutgoing);
 
-      // Check if the AI included the scheduling link (suggests appointment stage)
+      const aiUpdate: Record<string, unknown> = {
+        conversation: FieldValue.arrayUnion(newOutgoing),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
       if (schedulingUrl && aiResponse.includes(schedulingUrl)) {
-        updates.status = 'booking-sent';
+        aiUpdate.status = 'booking-sent';
       }
 
-      // Send the reply via Twilio
       const twilioClient = getTwilioClient();
       const twilioNumber = (agentData.twilioPhoneNumber as string) || getTwilioPhoneNumber();
 
@@ -125,18 +119,10 @@ export async function POST(req: NextRequest) {
         from: twilioNumber,
         to: normalizedFrom,
       });
+
+      await referralRef.update(aiUpdate);
     }
 
-    // Update Firestore
-    await db
-      .collection('agents')
-      .doc(agentId)
-      .collection('referrals')
-      .doc(referralId)
-      .update(updates);
-
-    // Return empty TwiML (we already sent the message via the REST API
-    // so Twilio doesn't try to send a duplicate)
     return twimlResponse('');
   } catch (error) {
     console.error('Error in Twilio webhook:', error);

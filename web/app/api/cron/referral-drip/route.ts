@@ -3,6 +3,7 @@ import 'server-only';
 import { NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { getTwilioClient, getTwilioPhoneNumber } from '../../../../lib/twilio';
+import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 const DRIP_STATUSES = ['outreach-sent', 'drip-1', 'drip-2'] as const;
@@ -89,10 +90,10 @@ export async function GET() {
 
           const referralName = (data.referralName as string) || 'Friend';
           const clientName = (data.clientName as string) || 'A friend';
-          const referralPhone = data.referralPhone as string;
+          const referralPhone = normalizePhone((data.referralPhone as string) || '');
 
           const message = buildDripMessage(status, referralName, clientName, agentFirstName);
-          if (!message || !referralPhone) continue;
+          if (!message || !isValidE164(referralPhone)) continue;
 
           try {
             await twilioClient.messages.create({

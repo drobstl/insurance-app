@@ -4,7 +4,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { getTwilioClient, getTwilioPhoneNumber } from '../../../../lib/twilio';
 import { generateFirstMessage, ReferralContext } from '../../../../lib/referral-ai';
+import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { FieldValue } from 'firebase-admin/firestore';
+
+export const maxDuration = 90;
 
 const DELAY_MS = 75_000; // ~75 seconds before the 1-on-1 opener
 
@@ -77,12 +80,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to generate opener' }, { status: 500 });
     }
 
-    // Send via Twilio
+    const referralPhone = normalizePhone((referralData.referralPhone as string) || '');
+    if (!isValidE164(referralPhone)) {
+      return NextResponse.json({ error: 'Invalid referral phone number' }, { status: 422 });
+    }
+
     const twilioClient = getTwilioClient();
     await twilioClient.messages.create({
       body: opener,
       from: twilioNumber,
-      to: referralData.referralPhone as string,
+      to: referralPhone,
     });
 
     // Record in Firestore

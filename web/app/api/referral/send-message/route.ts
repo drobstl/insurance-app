@@ -3,6 +3,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { getTwilioClient, getTwilioPhoneNumber } from '../../../../lib/twilio';
+import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /**
@@ -45,9 +46,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Referral not found' }, { status: 404 });
     }
     const referralData = referralDoc.data() as Record<string, unknown>;
-    const referralPhone = referralData.referralPhone as string;
+    const referralPhone = normalizePhone((referralData.referralPhone as string) || '');
 
-    // Send via Twilio
+    if (!isValidE164(referralPhone)) {
+      return NextResponse.json(
+        { error: 'Invalid referral phone number' },
+        { status: 422 },
+      );
+    }
+
     const twilioClient = getTwilioClient();
     await twilioClient.messages.create({
       body: body.trim(),
@@ -55,18 +62,27 @@ export async function POST(req: NextRequest) {
       to: referralPhone,
     });
 
-    // Record in conversation with role agent-manual
+    // Record in Firestore. If this fails the SMS was already sent, so we
+    // log aggressively but still return success to avoid confusing the agent.
     const message = {
       role: 'agent-manual',
       body: body.trim(),
       timestamp: new Date().toISOString(),
     };
 
-    await referralRef.update({
-      conversation: FieldValue.arrayUnion(message),
-      aiEnabled: false,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    try {
+      await referralRef.update({
+        conversation: FieldValue.arrayUnion(message),
+        aiEnabled: false,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } catch (dbError) {
+      console.error(
+        'Twilio send succeeded but Firestore update failed for referral',
+        referralId,
+        dbError,
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
