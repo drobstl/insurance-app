@@ -63,6 +63,7 @@ interface AgentProfile {
   isFoundingMember?: boolean;
   schedulingUrl?: string;
   autoHolidayCards?: boolean;
+  aiAssistantEnabled?: boolean;
 }
 
 interface PolicyFormData {
@@ -215,6 +216,7 @@ export default function DashboardPage() {
     conversation: { role: string; body: string; timestamp: string }[];
     gatheredInfo: Record<string, string>;
     appointmentBooked: boolean;
+    aiEnabled?: boolean;
     createdAt: unknown;
   }
   const [referrals, setReferrals] = useState<Referral[]>([]);
@@ -222,6 +224,16 @@ export default function DashboardPage() {
   const [expandedReferral, setExpandedReferral] = useState<string | null>(null);
   const [agentTwilioNumber, setAgentTwilioNumber] = useState<string | null>(null);
   const [provisioningNumber, setProvisioningNumber] = useState(false);
+
+  // Settings modal tab state
+  const [settingsTab, setSettingsTab] = useState<'profile' | 'branding' | 'referral' | 'account'>('profile');
+
+  // AI Assistant global toggle
+  const [aiAssistantEnabled, setAiAssistantEnabled] = useState(true);
+
+  // Dashboard texting state
+  const [manualMessageText, setManualMessageText] = useState('');
+  const [sendingManualMessage, setSendingManualMessage] = useState(false);
 
   // Anniversary banner dismissed state (per session)
   const [anniversaryBannerDismissed, setAnniversaryBannerDismissed] = useState(false);
@@ -280,12 +292,14 @@ export default function DashboardPage() {
             isFoundingMember: data.isFoundingMember,
             schedulingUrl: data.schedulingUrl,
             autoHolidayCards: data.autoHolidayCards,
+            aiAssistantEnabled: data.aiAssistantEnabled,
           });
           setProfilePhoneNumber(data.phoneNumber || '');
           setProfileAgencyName(data.agencyName || '');
           setReferralMessage(data.referralMessage || '');
           setProfileSchedulingUrl(data.schedulingUrl || '');
           setAutoHolidayCards(data.autoHolidayCards !== false);
+          setAiAssistantEnabled(data.aiAssistantEnabled !== false);
 
           // Show onboarding if not completed yet
           if (!data.onboardingComplete) {
@@ -1238,6 +1252,7 @@ export default function DashboardPage() {
         referralMessage: referralMessage,
         schedulingUrl: trimmedUrl || '',
         autoHolidayCards,
+        aiAssistantEnabled,
       }, { merge: true });
       setAgentProfile(prev => ({ 
         ...prev, 
@@ -1246,12 +1261,38 @@ export default function DashboardPage() {
         referralMessage: referralMessage,
         schedulingUrl: trimmedUrl || '',
         autoHolidayCards,
+        aiAssistantEnabled,
       }));
       setIsProfileModalOpen(false);
     } catch (error) {
       console.error('Error saving profile:', error);
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handleSendManualMessage = async (referralId: string) => {
+    if (!user || !manualMessageText.trim() || sendingManualMessage) return;
+    setSendingManualMessage(true);
+    try {
+      const res = await fetch('/api/referral/send-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: user.uid,
+          referralId,
+          body: manualMessageText.trim(),
+        }),
+      });
+      if (res.ok) {
+        setManualMessageText('');
+      } else {
+        console.error('Send message failed:', await res.text());
+      }
+    } catch (err) {
+      console.error('Error sending manual message:', err);
+    } finally {
+      setSendingManualMessage(false);
     }
   };
 
@@ -1526,8 +1567,8 @@ export default function DashboardPage() {
 
           {/* Settings */}
               <button
-                onClick={() => setIsProfileModalOpen(true)}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white"
+                onClick={() => { setSettingsTab('profile'); setIsProfileModalOpen(true); }}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white"
           >
             <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -1627,7 +1668,7 @@ export default function DashboardPage() {
                       </>
                     )}
               <button
-                      onClick={() => { setIsProfileModalOpen(true); setShowProfileDropdown(false); }}
+                      onClick={() => { setSettingsTab('profile'); setIsProfileModalOpen(true); setShowProfileDropdown(false); }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#000000] hover:bg-[#f1f1f1] transition-colors"
               >
                       <svg className="w-5 h-5 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1700,7 +1741,11 @@ export default function DashboardPage() {
                     )}
                   </div>
                   {agentTwilioNumber && (
-                    <p className="text-xs text-[#707070] mt-2">Calls to this number ring your personal phone. Referral texts are handled by AI — responding as you.</p>
+                    <p className="text-xs text-[#707070] mt-2">
+                      {aiAssistantEnabled
+                        ? 'Calls to this number ring your personal phone. Referral texts are handled by AI — responding as you.'
+                        : 'Manual mode — text referrals through your dashboard. AI tracks everything.'}
+                    </p>
                   )}
                 </div>
 
@@ -1710,6 +1755,7 @@ export default function DashboardPage() {
                     <h2 className="text-sm font-semibold text-[#000000]">Referral Conversations</h2>
                     <div className="flex gap-2 text-xs">
                       <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full">{referrals.filter(r => r.status === 'pending').length} Pending</span>
+                      <span className="px-2 py-0.5 bg-teal-100 text-teal-700 rounded-full">{referrals.filter(r => ['outreach-sent', 'drip-1', 'drip-2'].includes(r.status)).length} Outreach</span>
                       <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">{referrals.filter(r => r.status === 'active').length} Active</span>
                       <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full">{referrals.filter(r => r.status === 'booked' || r.appointmentBooked).length} Booked</span>
                     </div>
@@ -1736,6 +1782,10 @@ export default function DashboardPage() {
                         const statusColors: Record<string, string> = {
                           pending: 'bg-yellow-100 text-yellow-700',
                           active: 'bg-blue-100 text-blue-700',
+                          'outreach-sent': 'bg-teal-100 text-teal-700',
+                          'drip-1': 'bg-orange-100 text-orange-700',
+                          'drip-2': 'bg-orange-100 text-orange-700',
+                          'drip-complete': 'bg-gray-100 text-gray-600',
                           'booking-sent': 'bg-purple-100 text-purple-700',
                           booked: 'bg-green-100 text-green-700',
                           closed: 'bg-gray-100 text-gray-600',
@@ -1743,6 +1793,10 @@ export default function DashboardPage() {
                         const statusLabels: Record<string, string> = {
                           pending: 'Waiting for reply',
                           active: 'In conversation',
+                          'outreach-sent': 'AI reached out',
+                          'drip-1': 'Follow-up 1',
+                          'drip-2': 'Follow-up 2',
+                          'drip-complete': 'No response',
                           'booking-sent': 'Booking link sent',
                           booked: 'Appointment booked',
                           closed: 'Closed',
@@ -1751,7 +1805,7 @@ export default function DashboardPage() {
                           <div key={referral.id} className="px-4 py-3">
                             <div
                               className="flex items-center justify-between cursor-pointer"
-                              onClick={() => setExpandedReferral(expandedReferral === referral.id ? null : referral.id)}
+                              onClick={() => { setExpandedReferral(expandedReferral === referral.id ? null : referral.id); setManualMessageText(''); }}
                             >
                               <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 rounded-full bg-[#005851] flex items-center justify-center text-white text-sm font-bold">
@@ -1774,23 +1828,58 @@ export default function DashboardPage() {
                             </div>
 
                             {/* Expanded conversation */}
-                            {expandedReferral === referral.id && referral.conversation && referral.conversation.length > 0 && (
+                            {expandedReferral === referral.id && (
                               <div className="mt-3 pl-12 space-y-2">
-                                {referral.conversation.map((msg, i) => (
-                                  <div key={i} className={`flex ${msg.role === 'agent-ai' ? 'justify-end' : 'justify-start'}`}>
-                                    <div className={`max-w-[80%] px-3 py-2 rounded-lg text-sm ${
-                                      msg.role === 'agent-ai'
-                                        ? 'bg-[#005851] text-white'
-                                        : 'bg-[#f0f0f0] text-[#000000]'
-                                    }`}>
-                                      <p>{msg.body}</p>
-                                      <p className={`text-[10px] mt-1 ${msg.role === 'agent-ai' ? 'text-white/60' : 'text-[#a0a0a0]'}`}>
-                                        {msg.role === 'agent-ai' ? 'AI (as you)' : referral.referralName}
-                                        {msg.timestamp && ` · ${new Date(msg.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}
-                                      </p>
-                                    </div>
-                                  </div>
-                                ))}
+                                {/* Manual status dropdown */}
+                                <div className="flex items-center gap-2 mb-2">
+                                  <label className="text-xs text-[#707070]">Status:</label>
+                                  <select
+                                    value={referral.status}
+                                    onChange={async (e) => {
+                                      if (!user) return;
+                                      const newStatus = e.target.value;
+                                      try {
+                                        await updateDoc(doc(db, 'agents', user.uid, 'referrals', referral.id), { status: newStatus, updatedAt: serverTimestamp() });
+                                      } catch (err) {
+                                        console.error('Error updating status:', err);
+                                      }
+                                    }}
+                                    className="text-xs border border-[#d0d0d0] rounded px-2 py-1 bg-white text-[#000000] focus:outline-none focus:ring-1 focus:ring-[#45bcaa]"
+                                  >
+                                    <option value="pending">Waiting for reply</option>
+                                    <option value="active">In conversation</option>
+                                    <option value="outreach-sent">AI reached out</option>
+                                    <option value="drip-1">Follow-up 1</option>
+                                    <option value="drip-2">Follow-up 2</option>
+                                    <option value="drip-complete">No response</option>
+                                    <option value="booking-sent">Booking link sent</option>
+                                    <option value="booked">Appointment booked</option>
+                                    <option value="closed">Closed</option>
+                                  </select>
+                                </div>
+
+                                {referral.conversation && referral.conversation.length > 0 && (
+                                  <>
+                                    {referral.conversation.map((msg, i) => (
+                                      <div key={i} className={`flex ${msg.role === 'referral' ? 'justify-start' : 'justify-end'}`}>
+                                        <div className={`max-w-[80%] px-3 py-2 rounded-lg text-sm ${
+                                          msg.role === 'agent-ai'
+                                            ? 'bg-[#005851] text-white'
+                                            : msg.role === 'agent-manual'
+                                            ? 'bg-[#1a6b5c] text-white'
+                                            : 'bg-[#f0f0f0] text-[#000000]'
+                                        }`}>
+                                          <p>{msg.body}</p>
+                                          <p className={`text-[10px] mt-1 ${msg.role === 'referral' ? 'text-[#a0a0a0]' : 'text-white/60'}`}>
+                                            {msg.role === 'agent-ai' ? 'AI (as you)' : msg.role === 'agent-manual' ? 'You (manual)' : referral.referralName}
+                                            {msg.timestamp && ` · ${new Date(msg.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </>
+                                )}
+
                                 {/* Gathered info */}
                                 {referral.gatheredInfo && Object.keys(referral.gatheredInfo).length > 0 && (
                                   <div className="bg-[#f8fffe] border border-[#d0e8e5] rounded-[5px] p-3 mt-2">
@@ -1802,6 +1891,60 @@ export default function DashboardPage() {
                                     ))}
                                   </div>
                                 )}
+
+                                {/* Let AI Continue button — shown when agent has taken over manually */}
+                                {referral.aiEnabled === false && (
+                                  <button
+                                    onClick={async () => {
+                                      if (!user) return;
+                                      try {
+                                        await updateDoc(doc(db, 'agents', user.uid, 'referrals', referral.id), { aiEnabled: true, updatedAt: serverTimestamp() });
+                                      } catch (err) {
+                                        console.error('Error re-enabling AI:', err);
+                                      }
+                                    }}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#005851] hover:bg-[#004440] text-white text-xs font-medium rounded-[5px] transition-colors"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                    </svg>
+                                    Let AI Continue
+                                  </button>
+                                )}
+
+                                {/* Manual text input */}
+                                <div className="flex gap-2 mt-2">
+                                  <input
+                                    type="text"
+                                    value={expandedReferral === referral.id ? manualMessageText : ''}
+                                    onChange={(e) => setManualMessageText(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' && !e.shiftKey && manualMessageText.trim() && !sendingManualMessage) {
+                                        e.preventDefault();
+                                        handleSendManualMessage(referral.id);
+                                      }
+                                    }}
+                                    placeholder="Type a message..."
+                                    className="flex-1 px-3 py-2 text-sm border border-[#d0d0d0] rounded-[5px] bg-white text-[#000000] placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#45bcaa] focus:border-[#45bcaa]"
+                                  />
+                                  <button
+                                    onClick={() => handleSendManualMessage(referral.id)}
+                                    disabled={!manualMessageText.trim() || sendingManualMessage}
+                                    className="px-3 py-2 bg-[#005851] hover:bg-[#004440] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-[5px] transition-colors flex items-center gap-1.5"
+                                  >
+                                    {sendingManualMessage ? (
+                                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                      </svg>
+                                    ) : (
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                      </svg>
+                                    )}
+                                    Send
+                                  </button>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -3164,13 +3307,38 @@ export default function DashboardPage() {
             onClick={() => setIsProfileModalOpen(false)}
           />
           <div className="relative w-full max-w-md bg-white rounded-[5px] border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            {/* Header with dark teal background */}
-            <div className="bg-[#005851] p-6 shrink-0">
-              <h2 className="text-xl font-bold text-white">Profile Settings</h2>
-              <p className="text-white/70 text-sm mt-1">Manage your account and preferences</p>
+            {/* Header with dark teal background + tab bar */}
+            <div className="bg-[#005851] shrink-0">
+              <div className="p-6 pb-0">
+                <h2 className="text-xl font-bold text-white">Profile Settings</h2>
+                <p className="text-white/70 text-sm mt-1">Manage your account and preferences</p>
+              </div>
+              <div className="flex gap-1 px-6 mt-4">
+                {([
+                  { key: 'profile' as const, label: 'Profile' },
+                  { key: 'branding' as const, label: 'Branding' },
+                  { key: 'referral' as const, label: 'Referral & AI' },
+                  { key: 'account' as const, label: 'Account' },
+                ] as const).map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setSettingsTab(tab.key)}
+                    className={`px-3 py-2 text-xs font-semibold rounded-t-md transition-colors ${
+                      settingsTab === tab.key
+                        ? 'bg-[#e4e4e4] text-[#005851]'
+                        : 'text-white/70 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="p-6 space-y-6 overflow-y-auto flex-1 bg-[#e4e4e4]">
+
+              {/* ── PROFILE TAB ── */}
+              {settingsTab === 'profile' && (<>
               {/* Profile Photo Section */}
               <div className="bg-white rounded-[5px] p-6 border border-gray-200">
                 <div className="flex flex-col items-center">
@@ -3283,43 +3451,10 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Automated Holiday Cards Toggle */}
-              <div className="bg-white rounded-[5px] p-5 border border-gray-200">
-                <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4 flex items-center gap-2">
-                  <svg className="w-4 h-4 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
-                  </svg>
-                  Holiday Cards
-                </h3>
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 mr-4">
-                    <p className="text-sm font-medium text-[#000000]">
-                      Automated holiday cards
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {autoHolidayCards
-                        ? 'Your clients will automatically receive personalized cards on major holidays (Christmas, New Year\'s, Thanksgiving, July 4th, Valentine\'s Day).'
-                        : 'Automated holiday cards are off. You can still send individual messages to clients anytime from their profile.'}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={autoHolidayCards}
-                    onClick={() => setAutoHolidayCards(!autoHolidayCards)}
-                    className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:ring-offset-2 ${
-                      autoHolidayCards ? 'bg-[#005851]' : 'bg-gray-300'
-                    }`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        autoHolidayCards ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
+              </>)}
 
+              {/* ── BRANDING TAB ── */}
+              {settingsTab === 'branding' && (<>
               {/* Agency Branding Card */}
               <div className="bg-white rounded-[5px] p-5 border border-gray-200">
                 <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4 flex items-center gap-2">
@@ -3411,20 +3546,15 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Referral Settings Section */}
+              {/* Business Card Upload */}
               <div className="bg-white rounded-[5px] p-5 border border-gray-200">
                 <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4 flex items-center gap-2">
                   <svg className="w-4 h-4 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                   </svg>
-                  Referral Settings
+                  Business Card
                 </h3>
-
-                {/* Business Card Upload */}
-                <div className="mb-5">
-                  <label className="block text-sm font-medium text-[#000000] mb-2">
-                    Business Card
-                  </label>
+                <div>
                   <p className="text-xs text-gray-500 mb-3">
                     Upload your business card to share with referrals
                   </p>
@@ -3475,12 +3605,60 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+              </>)}
 
-                {/* Referral Message Template */}
+              {/* ── REFERRAL & AI TAB ── */}
+              {settingsTab === 'referral' && (<>
+              {/* AI Assistant Toggle */}
+              <div className="bg-white rounded-[5px] p-5 border border-gray-200">
+                <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  AI Assistant
+                </h3>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-[#000000]">
+                      {aiAssistantEnabled ? 'AI is handling your referrals' : 'Manual mode'}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {aiAssistantEnabled
+                        ? 'Your AI business line handles referral outreach automatically — responding as you, qualifying leads, and booking appointments.'
+                        : 'New referrals are sent to your dashboard. You text through your business line and AI tracks everything. You can let AI take over any referral anytime.'}
+                    </p>
+                    {aiAssistantEnabled && (
+                      <span className="inline-block mt-2 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium">Recommended</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={aiAssistantEnabled}
+                    onClick={() => setAiAssistantEnabled(!aiAssistantEnabled)}
+                    className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:ring-offset-2 ${
+                      aiAssistantEnabled ? 'bg-[#005851]' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        aiAssistantEnabled ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Referral Message Template */}
+              <div className="bg-white rounded-[5px] p-5 border border-gray-200">
+                <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  Referral Message
+                </h3>
                 <div>
-                  <label className="block text-sm font-medium text-[#000000] mb-2">
-                    Referral Message Template
-                  </label>
                   <p className="text-xs text-gray-500 mb-3">
                     Customize the message your clients send when referring you. Use placeholders: [referral], [agent], [client]
                   </p>
@@ -3497,6 +3675,46 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {/* Holiday Cards Toggle */}
+              <div className="bg-white rounded-[5px] p-5 border border-gray-200">
+                <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+                  </svg>
+                  Holiday Cards
+                </h3>
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 mr-4">
+                    <p className="text-sm font-medium text-[#000000]">
+                      Automated holiday cards
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {autoHolidayCards
+                        ? 'Your clients will automatically receive personalized cards on major holidays (Christmas, New Year\'s, Thanksgiving, July 4th, Valentine\'s Day).'
+                        : 'Automated holiday cards are off. You can still send individual messages to clients anytime from their profile.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={autoHolidayCards}
+                    onClick={() => setAutoHolidayCards(!autoHolidayCards)}
+                    className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:ring-offset-2 ${
+                      autoHolidayCards ? 'bg-[#005851]' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        autoHolidayCards ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+              </>)}
+
+              {/* ── ACCOUNT TAB ── */}
+              {settingsTab === 'account' && (<>
               {/* Subscription Management */}
               {agentProfile.stripeCustomerId && (
                 <div className="bg-white rounded-[5px] p-5 border border-gray-200">
@@ -3654,6 +3872,7 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
+              </>)}
             </div>
 
             <div className="p-5 border-t border-gray-200 flex gap-3 shrink-0 bg-white">

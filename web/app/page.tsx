@@ -579,22 +579,39 @@ export default function TestLandingPage() {
               <div className="bg-[#1a1a2e] rounded-3xl p-6 shadow-2xl border border-white/10">
                 <p className="text-white/40 text-xs text-center mb-4 uppercase tracking-wider">What the referral sees</p>
                 <div className="space-y-3">
+                  {/* Client warm intro (group text) */}
                   <div className="flex justify-start">
                     <div className="bg-[#333] rounded-2xl rounded-tl-sm px-4 py-2.5 max-w-[85%]">
                       <p className="text-white/50 text-[10px] mb-0.5">Sarah (your client)</p>
                       <p className="text-white text-sm">Hey Mike, I just got helped by Daniel getting protection for my family. He was great and I thought he might be able to help you too!</p>
                     </div>
                   </div>
+                  {/* AI group acknowledgment */}
+                  <div className="flex justify-end">
+                    <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%]">
+                      <p className="text-[#3DD6C3] text-[10px] mb-0.5">Daniel (AI, group)</p>
+                      <p className="text-white text-sm">Hey Mike! Sarah, thank you for connecting us. Mike, great to meet you — I'll shoot you a text.</p>
+                    </div>
+                  </div>
+                  {/* AI 1-on-1 NEPQ opener */}
+                  <div className="flex justify-end">
+                    <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%]">
+                      <p className="text-[#3DD6C3] text-[10px] mb-0.5">Daniel (AI, 1-on-1)</p>
+                      <p className="text-white text-sm">Hey Mike, this is Daniel. Sarah just connected us — I helped her get some protection in place and she thought I might be able to help you too. Would you be open to a couple quick questions just to see if it makes sense for us to chat?</p>
+                    </div>
+                  </div>
+                  {/* Referral reply */}
                   <div className="flex justify-start">
                     <div className="bg-[#333] rounded-2xl rounded-tl-sm px-4 py-2.5 max-w-[85%]">
                       <p className="text-white/50 text-[10px] mb-0.5">Mike</p>
-                      <p className="text-white text-sm">Hey yeah Sarah told me about you. We just bought a house actually</p>
+                      <p className="text-white text-sm">yeah sure</p>
                     </div>
                   </div>
+                  {/* AI NEPQ qualification */}
                   <div className="flex justify-end">
                     <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%]">
                       <p className="text-[#3DD6C3] text-[10px] mb-0.5">Daniel (AI)</p>
-                      <p className="text-white text-sm">Congrats on the new house Mike! That's actually exactly what I helped Sarah with — making sure the mortgage is covered if anything happens. Want to set up a quick call this week?</p>
+                      <p className="text-white text-sm">Appreciate that. What would be most important to you when it comes to protecting your family?</p>
                     </div>
                   </div>
                 </div>

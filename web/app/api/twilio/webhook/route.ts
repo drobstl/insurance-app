@@ -11,8 +11,8 @@ import { FieldValue } from 'firebase-admin/firestore';
  *
  * Twilio calls this endpoint when an SMS is received on an agent's
  * Twilio number (or the platform test number). We look up the sender's
- * phone in our referrals collection, feed the conversation to OpenAI,
- * and reply in the same thread.
+ * phone in our referrals collection, feed the conversation to Claude
+ * (NEPQ framework), and reply in the same thread.
  *
  * Twilio sends form-encoded data, not JSON.
  */
@@ -51,6 +51,35 @@ export async function POST(req: NextRequest) {
 
     const { agentId, referralId, referralData, agentData } = referralResult;
 
+    // Record the incoming message first (always, regardless of AI mode)
+    const newIncoming: ConversationMessage = {
+      role: 'referral',
+      body,
+      timestamp: new Date().toISOString(),
+    };
+
+    const updates: Record<string, unknown> = {
+      conversation: FieldValue.arrayUnion(newIncoming),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+
+    // Update status to active on first reply (from any pre-conversation state)
+    if (['pending', 'outreach-sent', 'drip-1', 'drip-2'].includes(referralData.status as string)) {
+      updates.status = 'active';
+    }
+
+    // If AI is disabled on this referral, record and exit — no auto-response
+    if (referralData.aiEnabled === false) {
+      await db
+        .collection('agents')
+        .doc(agentId)
+        .collection('referrals')
+        .doc(referralId)
+        .update(updates);
+
+      return twimlResponse('');
+    }
+
     // Build conversation history
     const conversation: ConversationMessage[] = (referralData.conversation as ConversationMessage[]) || [];
 
@@ -72,23 +101,6 @@ export async function POST(req: NextRequest) {
 
     // Generate AI response
     const aiResponse = await generateReferralResponse(ctx, body);
-
-    // Record the incoming message
-    const newIncoming: ConversationMessage = {
-      role: 'referral',
-      body,
-      timestamp: new Date().toISOString(),
-    };
-
-    const updates: Record<string, unknown> = {
-      conversation: FieldValue.arrayUnion(newIncoming),
-      updatedAt: FieldValue.serverTimestamp(),
-    };
-
-    // Update status to active on first reply
-    if (referralData.status === 'pending') {
-      updates.status = 'active';
-    }
 
     if (aiResponse) {
       // Record the AI response
