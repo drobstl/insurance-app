@@ -211,20 +211,22 @@ export default function CTAOptionsPage() {
               <div className="absolute inset-0 flex flex-col">
                 <MockNav />
 
-                {/* Bookmark — right:0, overflow:hidden, width grows left */}
+                {/* Bookmark — clip-path reveals content, GPU-composited */}
                 <div
-                  className="absolute right-0 top-[56px] z-20 cursor-pointer overflow-hidden flex justify-end"
+                  className="absolute right-0 top-[56px] z-20 cursor-pointer"
                   style={{
-                    width: `${comboCWidth}px`,
-                    transition: 'width 600ms cubic-bezier(0.22, 1, 0.36, 1)',
+                    width: `${COMBO_C_EXPANDED_W}px`,
                     height: '180px',
+                    clipPath: `inset(0 0 0 ${COMBO_C_EXPANDED_W - comboCWidth}px round ${comboCWidth <= COMBO_C_TAB_W ? 8 : 12}px 0 0 ${comboCWidth <= COMBO_C_TAB_W ? 8 : 12}px)`,
+                    transition: 'clip-path 500ms cubic-bezier(0.4, 0, 0.2, 1)',
+                    willChange: 'clip-path',
                   }}
                   onMouseEnter={() => setComboCHovered(true)}
                   onMouseLeave={() => setComboCHovered(false)}
                 >
-                  <div className="flex flex-shrink-0" style={{ width: `${COMBO_C_EXPANDED_W}px`, height: '100%' }}>
+                  <div className="flex" style={{ width: `${COMBO_C_EXPANDED_W}px`, height: '100%' }}>
 
-                    {/* Panel — always rendered, revealed by parent width */}
+                    {/* Panel — always rendered, revealed by clip-path */}
                     <div
                       className="flex-1 relative overflow-hidden"
                       style={{
@@ -240,8 +242,8 @@ export default function CTAOptionsPage() {
                           opacity: comboCHovered ? 1 : 0,
                           transform: comboCHovered ? 'none' : 'translateX(10px)',
                           transition: comboCHovered
-                            ? 'opacity 350ms ease 120ms, transform 350ms ease 120ms'
-                            : 'opacity 200ms ease, transform 200ms ease',
+                            ? 'opacity 350ms ease 180ms, transform 350ms ease 180ms'
+                            : 'opacity 150ms ease, transform 150ms ease',
                           pointerEvents: comboCHovered ? 'auto' : 'none',
                         }}
                       >
@@ -262,7 +264,9 @@ export default function CTAOptionsPage() {
                         style={{
                           opacity: comboCPeeked && !comboCHovered ? 1 : 0,
                           transform: comboCPeeked && !comboCHovered ? 'none' : 'translateX(6px)',
-                          transition: 'opacity 400ms ease, transform 400ms ease',
+                          transition: comboCPeeked && !comboCHovered
+                            ? 'opacity 400ms ease 80ms, transform 400ms ease 80ms'
+                            : 'opacity 150ms ease, transform 150ms ease',
                           pointerEvents: 'none',
                         }}
                       >
@@ -276,8 +280,6 @@ export default function CTAOptionsPage() {
                       style={{
                         width: `${COMBO_C_TAB_W}px`,
                         background: 'linear-gradient(180deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
-                        borderTopLeftRadius: comboCWidth <= COMBO_C_TAB_W ? '8px' : '0',
-                        borderBottomLeftRadius: comboCWidth <= COMBO_C_TAB_W ? '8px' : '0',
                       }}
                     >
                       {/* Gold shimmer */}
