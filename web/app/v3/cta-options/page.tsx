@@ -303,7 +303,7 @@ export default function CTAOptionsPage() {
                       }}
                     >
                       <div className="flex items-start justify-between mb-1">
-                        <p className="text-white/70 text-[10px] font-semibold uppercase tracking-wider">Founding Member</p>
+                        <p className="text-white/70 text-[10px] font-semibold uppercase tracking-wider">🚀 Founding Member</p>
                         <button onClick={(e) => { e.stopPropagation(); setComboCExpanded(false); }} className="text-white/40 hover:text-white transition-colors -mt-0.5 -mr-1">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
@@ -360,7 +360,7 @@ export default function CTAOptionsPage() {
                     <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
                       <div className="animate-[tickerScroll_8s_linear_infinite]" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>
                         <span className="text-white/90 font-bold text-[9px] tracking-[0.15em] uppercase whitespace-nowrap">
-                          50 FREE SPOTS &bull; LIFETIME FREE &bull; APPLY NOW &bull; 50 FREE SPOTS &bull; LIFETIME FREE &bull; APPLY NOW &bull;&nbsp;
+                          🚀 50 FREE SPOTS &bull; LIFETIME FREE &bull; APPLY NOW &bull; 🚀 50 FREE SPOTS &bull; LIFETIME FREE &bull; APPLY NOW &bull;&nbsp;
                         </span>
                       </div>
                     </div>
