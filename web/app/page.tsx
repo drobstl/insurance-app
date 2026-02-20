@@ -16,6 +16,20 @@ export default function LandingPage() {
   const smsTriggered = useRef(false);
   const [smsStep, setSmsStep] = useState(-1);
 
+  const [ctaPeeked, setCtaPeeked] = useState(false);
+  const [ctaHovered, setCtaHovered] = useState(false);
+  const [ctaScrollTriggered, setCtaScrollTriggered] = useState(false);
+
+  const CTA_EXPANDED_W = 276;
+  const CTA_PEEK_W = 220;
+  const CTA_TAB_W = 36;
+
+  const ctaWidth = ctaHovered
+    ? CTA_EXPANDED_W
+    : ctaPeeked
+      ? CTA_PEEK_W
+      : CTA_TAB_W;
+
   useEffect(() => {
     fetch('/api/spots-remaining')
       .then((res) => res.json())
@@ -26,6 +40,28 @@ export default function LandingPage() {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setCtaPeeked(true);
+      setTimeout(() => setCtaPeeked(false), 2500);
+    }, 3500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (ctaScrollTriggered) return;
+      const scrollPercent = window.scrollY / (document.documentElement.scrollHeight - window.innerHeight);
+      if (scrollPercent > 0.20) {
+        setCtaScrollTriggered(true);
+        setCtaPeeked(true);
+        setTimeout(() => setCtaPeeked(false), 2500);
+      }
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [ctaScrollTriggered]);
 
   const SMS_DELAYS = [
     600, 750, 300, 750, 750, 750,
@@ -135,6 +171,105 @@ export default function LandingPage() {
           </div>
         </div>
       </nav>
+
+      {/* Sidebar Bookmark CTA */}
+      <div
+        className="fixed right-0 z-40 cursor-pointer"
+        style={{
+          top: '80px',
+          width: `${CTA_EXPANDED_W}px`,
+          height: '180px',
+          clipPath: `inset(0 0 0 ${CTA_EXPANDED_W - ctaWidth}px round ${ctaWidth <= CTA_TAB_W ? 8 : 12}px 0 0 ${ctaWidth <= CTA_TAB_W ? 8 : 12}px)`,
+          transition: 'clip-path 500ms cubic-bezier(0.4, 0, 0.2, 1)',
+          willChange: 'clip-path',
+        }}
+        onMouseEnter={() => setCtaHovered(true)}
+        onMouseLeave={() => setCtaHovered(false)}
+      >
+        <div className="flex" style={{ width: `${CTA_EXPANDED_W}px`, height: '100%' }}>
+          <div
+            className="flex-1 relative overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
+              borderTopLeftRadius: '12px',
+              borderBottomLeftRadius: '12px',
+            }}
+          >
+            <div
+              className="absolute inset-0 p-4 flex flex-col justify-center"
+              style={{
+                opacity: ctaHovered ? 1 : 0,
+                transform: ctaHovered ? 'none' : 'translateX(10px)',
+                transition: ctaHovered
+                  ? 'opacity 350ms ease 180ms, transform 350ms ease 180ms'
+                  : 'opacity 150ms ease, transform 150ms ease',
+                pointerEvents: ctaHovered ? 'auto' : 'none',
+              }}
+            >
+              <p className="text-white/70 text-[10px] font-semibold uppercase tracking-wider mb-1">🚀 Founding Member</p>
+              <p className="text-white font-extrabold text-2xl mb-0.5">FREE</p>
+              <p className="text-white/70 text-xs mb-3 leading-relaxed">
+                50 spots &middot; Lifetime access.<br />
+                Usually <span className="line-through opacity-70">$49/mo</span> — free for the first 50.
+              </p>
+              <Link href="/founding-member" className="inline-block w-full text-center py-2.5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-xs font-bold rounded-lg transition-colors">
+                Claim Free Spot →
+              </Link>
+            </div>
+            <div
+              className="absolute inset-0 flex items-center px-4"
+              style={{
+                opacity: ctaPeeked && !ctaHovered ? 1 : 0,
+                transform: ctaPeeked && !ctaHovered ? 'none' : 'translateX(6px)',
+                transition: ctaPeeked && !ctaHovered
+                  ? 'opacity 400ms ease 80ms, transform 400ms ease 80ms'
+                  : 'opacity 150ms ease, transform 150ms ease',
+                pointerEvents: 'none',
+              }}
+            >
+              <p className="text-white font-bold text-sm whitespace-nowrap">Lifetime free — 50 spots</p>
+            </div>
+          </div>
+          <div
+            className="flex-shrink-0 relative overflow-hidden animate-[purpleGlow_2.5s_ease-in-out_infinite]"
+            style={{
+              width: `${CTA_TAB_W}px`,
+              background: 'linear-gradient(180deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
+            }}
+          >
+            <div
+              className="absolute inset-0 pointer-events-none animate-[goldShimmer_5s_ease-in-out_infinite]"
+              style={{
+                background: 'linear-gradient(180deg, transparent 0%, rgba(253,204,2,0.4) 50%, transparent 100%)',
+              }}
+            />
+            <div className="absolute inset-0 flex justify-center overflow-hidden">
+              <div
+                className="animate-[tickerUp_10s_linear_infinite] flex-shrink-0"
+                style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+              >
+                <span className="text-white/90 font-bold text-[9px] tracking-[0.15em] uppercase whitespace-nowrap">
+                  {"🚀 50 FREE SPOTS \u2022 LIFETIME FREE \u2022 APPLY NOW \u2022 🚀 50 FREE SPOTS \u2022 LIFETIME FREE \u2022 APPLY NOW \u2022 "}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <style jsx>{`
+        @keyframes tickerUp {
+          from { transform: translateY(0); }
+          to { transform: translateY(-50%); }
+        }
+        @keyframes goldShimmer {
+          0%, 100% { transform: translateY(150%); opacity: 0; }
+          5% { transform: translateY(80%); opacity: 1; }
+          15% { transform: translateY(-80%); opacity: 1; }
+          20% { transform: translateY(-150%); opacity: 0; }
+          21% { transform: translateY(150%); opacity: 0; }
+        }
+      `}</style>
 
       <main>
         {/* ============================================ */}
