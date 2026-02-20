@@ -10,9 +10,9 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-  title: "AgentForLife - Insurance Agent Retention & Referral System",
-  description: "Build a book that pays for life. White-label mobile app system for insurance agents to improve client retention, generate referrals, and eliminate chargebacks. $9.99/month.",
-  keywords: ["insurance agent retention", "insurance referrals", "stop chargebacks", "client retention app", "insurance CRM", "white label insurance app"],
+  title: "AgentForLife | Kill Chargebacks & Explode Your Referrals",
+  description: "Stop losing commissions to chargebacks. AgentForLife gives insurance agents a white-label app with automated touchpoints, one-tap referrals, and an AI business line.",
+  keywords: ["insurance agent chargebacks", "insurance agent retention", "insurance referrals", "stop chargebacks", "client retention app", "insurance CRM", "white label insurance app"],
   authors: [{ name: "AgentForLife" }],
   creator: "AgentForLife",
   publisher: "AgentForLife",
@@ -27,14 +27,14 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: "https://agentforlife.app",
-    title: "AgentForLife - Insurance Agent Retention & Referral System",
-    description: "Build a book that pays for life. White-label mobile app system for insurance agents to improve client retention, generate referrals, and eliminate chargebacks.",
+    title: "AgentForLife | Kill Chargebacks & Explode Your Referrals",
+    description: "Stop losing commissions to chargebacks. AgentForLife gives insurance agents a white-label app with automated touchpoints, one-tap referrals, and an AI business line.",
     siteName: "AgentForLife",
   },
   twitter: {
     card: "summary_large_image",
-    title: "AgentForLife - Insurance Agent Retention & Referral System",
-    description: "Build a book that pays for life. White-label mobile app for insurance agents.",
+    title: "AgentForLife | Kill Chargebacks & Explode Your Referrals",
+    description: "Stop losing commissions to chargebacks. AgentForLife gives insurance agents a white-label app with automated touchpoints, one-tap referrals, and an AI business line.",
   },
   robots: {
     index: true,
