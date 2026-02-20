@@ -23,14 +23,11 @@ export default function LandingPage() {
   const ctaIsPeekingRef = useRef(false);
 
   const CTA_EXPANDED_W = 276;
-  const CTA_PEEK_W = 220;
   const CTA_TAB_W = 36;
 
-  const ctaWidth = ctaHovered
+  const ctaWidth = (ctaHovered || ctaPeeked)
     ? CTA_EXPANDED_W
-    : ctaPeeked
-      ? CTA_PEEK_W
-      : CTA_TAB_W;
+    : CTA_TAB_W;
 
   useEffect(() => {
     fetch('/api/spots-remaining')
@@ -210,12 +207,12 @@ export default function LandingPage() {
             <div
               className="absolute inset-0 p-4 flex flex-col justify-center"
               style={{
-                opacity: ctaHovered ? 1 : 0,
-                transform: ctaHovered ? 'none' : 'translateX(10px)',
-                transition: ctaHovered
+                opacity: (ctaHovered || ctaPeeked) ? 1 : 0,
+                transform: (ctaHovered || ctaPeeked) ? 'none' : 'translateX(10px)',
+                transition: (ctaHovered || ctaPeeked)
                   ? 'opacity 350ms ease 180ms, transform 350ms ease 180ms'
                   : 'opacity 150ms ease, transform 150ms ease',
-                pointerEvents: ctaHovered ? 'auto' : 'none',
+                pointerEvents: (ctaHovered || ctaPeeked) ? 'auto' : 'none',
               }}
             >
               <p className="text-white/70 text-[10px] font-semibold uppercase tracking-wider mb-1">🚀 Founding Member</p>
@@ -227,19 +224,6 @@ export default function LandingPage() {
               <Link href="/founding-member" className="inline-block w-full text-center py-2.5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-xs font-bold rounded-lg transition-colors">
                 Claim Free Spot →
               </Link>
-            </div>
-            <div
-              className="absolute inset-0 flex items-center justify-end pr-3"
-              style={{
-                opacity: ctaPeeked && !ctaHovered ? 1 : 0,
-                transform: ctaPeeked && !ctaHovered ? 'none' : 'translateX(6px)',
-                transition: ctaPeeked && !ctaHovered
-                  ? 'opacity 400ms ease 80ms, transform 400ms ease 80ms'
-                  : 'opacity 150ms ease, transform 150ms ease',
-                pointerEvents: 'none',
-              }}
-            >
-              <p className="text-white font-bold text-sm whitespace-nowrap">Lifetime free — 50 spots</p>
             </div>
           </div>
           <div
