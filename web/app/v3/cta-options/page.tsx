@@ -1,10 +1,26 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export default function CTAOptionsPage() {
   const [orbExpanded, setOrbExpanded] = useState(false);
+  const [orbPeeking, setOrbPeeking] = useState(false);
+  const [orbBounced, setOrbBounced] = useState(false);
+  const orbHovering = useRef(false);
   const [bookmarkExpanded, setBookmarkExpanded] = useState(false);
   const [toastDismissed, setToastDismissed] = useState(false);
+
+  useEffect(() => {
+    const bounceTimer = setTimeout(() => setOrbBounced(true), 300);
+    const peekTimer = setTimeout(() => {
+      if (!orbHovering.current) {
+        setOrbPeeking(true);
+        setTimeout(() => {
+          if (!orbHovering.current) setOrbPeeking(false);
+        }, 2500);
+      }
+    }, 4500);
+    return () => { clearTimeout(bounceTimer); clearTimeout(peekTimer); };
+  }, []);
 
   const MockNav = ({ children, splitTone }: { children?: React.ReactNode; splitTone?: boolean }) => (
     <div className="relative w-full h-14 sm:h-16 bg-[#0D4D4D] flex items-center justify-between px-4 sm:px-6" style={splitTone ? { paddingRight: '22%' } : undefined}>
@@ -152,34 +168,50 @@ export default function CTAOptionsPage() {
             </div>
           </div>
 
-          {/* ========== 4. EXPANDING ORB ========== */}
+          {/* ========== 4. EXPANDING ORB (Enhanced) ========== */}
           <div>
             <div className="flex items-baseline gap-3 mb-3">
               <span className="text-xs font-bold text-white bg-[#a158ff] rounded-full px-3 py-1">4</span>
               <h2 className="text-lg font-bold text-[#0D4D4D]">Expanding Orb</h2>
-              <span className="text-sm text-[#6B7280]">Pulsing dot that expands on hover to reveal CTA</span>
+              <span className="text-sm text-[#6B7280]">Bounce-in + ring ripples + auto-peek after 4s + hover to expand</span>
             </div>
             <div className="relative w-full h-[350px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-[#0D4D4D] flex flex-col">
               <MockNav />
               <div
-                className="absolute top-[76px] right-5 z-10"
-                onMouseEnter={() => setOrbExpanded(true)}
-                onMouseLeave={() => setOrbExpanded(false)}
+                className={`absolute top-[76px] right-5 z-10 ${orbBounced ? 'animate-[orbBounceIn_0.6s_cubic-bezier(0.34,1.56,0.64,1)_forwards]' : 'translate-x-[200px]'}`}
+                onMouseEnter={() => { orbHovering.current = true; setOrbPeeking(false); setOrbExpanded(true); }}
+                onMouseLeave={() => { orbHovering.current = false; setOrbExpanded(false); }}
               >
+                {/* Ring ripples - only visible when orb is collapsed */}
+                {!orbExpanded && !orbPeeking && (
+                  <>
+                    <div className="absolute inset-0 rounded-full animate-[ripple_3s_ease-out_infinite]" style={{ border: '2px solid rgba(161, 88, 255, 0.6)' }} />
+                    <div className="absolute inset-0 rounded-full animate-[ripple_3s_ease-out_1s_infinite]" style={{ border: '2px solid rgba(161, 88, 255, 0.6)' }} />
+                    <div className="absolute inset-0 rounded-full animate-[ripple_3s_ease-out_2s_infinite]" style={{ border: '2px solid rgba(161, 88, 255, 0.6)' }} />
+                  </>
+                )}
                 <div
-                  className={`transition-all duration-500 ease-in-out overflow-hidden cursor-pointer ${
+                  className={`relative transition-all duration-500 ease-in-out overflow-hidden cursor-pointer ${
                     orbExpanded
                       ? 'w-[220px] h-auto rounded-xl'
-                      : 'w-10 h-10 rounded-full'
+                      : orbPeeking
+                        ? 'w-[180px] h-auto rounded-xl'
+                        : 'w-12 h-12 rounded-full'
                   }`}
                   style={{
                     background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
                     boxShadow: '0 0 20px 8px rgba(161, 88, 255, 0.4)',
                   }}
                 >
-                  {!orbExpanded && (
+                  {!orbExpanded && !orbPeeking && (
                     <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-white font-bold text-lg">★</span>
+                      <span className="text-white font-bold text-lg animate-pulse">★</span>
+                    </div>
+                  )}
+                  {orbPeeking && !orbExpanded && (
+                    <div className="p-3 text-center animate-[peekFade_2.5s_ease-in-out]">
+                      <p className="text-white font-bold text-sm leading-tight">50 Free Spots</p>
+                      <p className="text-white/70 text-[10px]">Hover to learn more</p>
                     </div>
                   )}
                   {orbExpanded && (
@@ -195,7 +227,7 @@ export default function CTAOptionsPage() {
                 </div>
               </div>
               <HeroArea />
-              <p className="absolute bottom-3 left-0 right-0 text-center text-white/40 text-xs">Hover the orb in the top-right to see it expand</p>
+              <p className="absolute bottom-3 left-0 right-0 text-center text-white/40 text-xs">Watch: bounces in → ripples → peeks at 4s → hover to fully expand</p>
             </div>
           </div>
 
@@ -278,6 +310,22 @@ export default function CTAOptionsPage() {
         @keyframes slideIn {
           from { transform: translateX(100%); opacity: 0; }
           to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes orbBounceIn {
+          0% { transform: translateX(200px); opacity: 0; }
+          60% { transform: translateX(-8px); opacity: 1; }
+          80% { transform: translateX(4px); }
+          100% { transform: translateX(0); }
+        }
+        @keyframes ripple {
+          0% { transform: scale(1); opacity: 0.6; }
+          100% { transform: scale(3.5); opacity: 0; }
+        }
+        @keyframes peekFade {
+          0% { opacity: 0; }
+          15% { opacity: 1; }
+          80% { opacity: 1; }
+          100% { opacity: 0; }
         }
       `}</style>
     </div>
