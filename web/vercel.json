@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/referral-drip",
       "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/cron/conservation-outreach",
+      "schedule": "*/30 * * * *"
     }
   ]
 }

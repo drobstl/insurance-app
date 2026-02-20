@@ -38,6 +38,33 @@ export const daysUntilAnniversary = (anniversary: Date): number => {
   return Math.ceil((anniversary.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 };
 
+/**
+ * Returns the number of days since the policy was created.
+ * Returns null if createdAt is missing.
+ */
+export const getPolicyAgeDays = (
+  createdAt: Timestamp | { seconds: number; nanoseconds: number } | undefined,
+): number | null => {
+  if (!createdAt) return null;
+
+  const created =
+    createdAt instanceof Timestamp
+      ? createdAt.toDate()
+      : new Date(createdAt.seconds * 1000);
+
+  const now = new Date();
+  return Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+};
+
+/**
+ * A policy written less than 365 days ago is a chargeback risk
+ * if it lapses or is canceled.
+ */
+export const isChargebackRisk = (policyAgeDays: number | null): boolean => {
+  if (policyAgeDays === null) return false;
+  return policyAgeDays < 365;
+};
+
 export const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
