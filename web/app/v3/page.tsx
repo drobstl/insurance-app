@@ -15,7 +15,6 @@ export default function V3LandingPage() {
   const smsRef = useRef<HTMLDivElement>(null);
   const smsTriggered = useRef(false);
   const [smsStep, setSmsStep] = useState(-1);
-  const showFoundingBanner = true;
 
   useEffect(() => {
     fetch('/api/spots-remaining')
@@ -121,24 +120,6 @@ export default function V3LandingPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Floating Founding Member Badge */}
-      {showFoundingBanner && (
-        <div className="fixed right-3 sm:right-5 top-1/3 z-[55]">
-          <div className="absolute -inset-2 rounded-full animate-[borderGlow_2.5s_ease-in-out_infinite] bg-[#3DD6C3]/0 border-2 border-[#3DD6C3]/0" />
-          <Link
-            href="/founding-member"
-            className="block relative w-32 h-32 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full bg-[#a158ff] border-[3px] border-[#001961] shadow-2xl shadow-[#a158ff]/40 hover:scale-105 transition-all duration-300"
-          >
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-              <span className="text-white text-[10px] sm:text-[11px] font-bold uppercase tracking-wide">🚀 50 Spots</span>
-              <span className="text-white font-extrabold text-sm sm:text-base leading-tight mt-0.5">Founding<br />Member</span>
-              <span className="text-white/70 text-[10px] sm:text-[11px] mt-0.5 font-medium">Lifetime Free</span>
-              <span className="text-[#001961] font-bold text-[11px] sm:text-xs mt-1 underline underline-offset-2">Apply Now →</span>
-            </div>
-          </Link>
-        </div>
-      )}
-
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0D4D4D] shadow-lg">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
@@ -146,6 +127,15 @@ export default function V3LandingPage() {
             <Link href="/" className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-shrink">
               <img src="/logo.png" alt="AgentForLife Logo" className="w-[50px] h-[28px] sm:w-[70px] sm:h-[40px] md:w-[80px] md:h-[45px] object-contain flex-shrink-0" />
               <span className="text-base sm:text-lg md:text-xl text-white brand-title truncate">AgentForLife</span>
+            </Link>
+            <Link href="/founding-member" className="hidden sm:inline-flex items-center gap-2 px-4 py-1.5 bg-[#fdcc02] rounded-full hover:bg-[#e5b802] transition-colors">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0D4D4D] opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#0D4D4D]"></span>
+              </span>
+              <span className="text-[#0D4D4D] font-bold text-xs sm:text-sm">
+                {spotsRemaining !== null && spotsRemaining > 0 ? `${spotsRemaining} Free Spots Left` : '50 Free Spots'} — Apply Now
+              </span>
             </Link>
             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
               <Link href="/login" className="text-white/80 hover:text-white transition-colors text-sm sm:text-base">Login</Link>
@@ -155,23 +145,11 @@ export default function V3LandingPage() {
         </div>
       </nav>
 
-      {/* Founding Member Banner */}
-      {showFoundingBanner && (
-        <div className="fixed top-14 sm:top-16 md:top-20 left-0 right-0 z-50 bg-[#a158ff]">
-          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 flex items-center justify-center py-2 text-sm sm:text-base font-medium">
-            <span className="text-center text-white">
-              🚀 Founding Member Program — Now Open. 50 spots. Lifetime free access.{' '}
-              <Link href="/founding-member" className="text-[#001961] font-bold underline underline-offset-2 hover:text-[#001961]/80 transition-colors">Apply Now →</Link>
-            </span>
-          </div>
-        </div>
-      )}
-
       <main>
         {/* ============================================ */}
         {/* HERO                                         */}
         {/* ============================================ */}
-        <section className={`relative bg-[#0D4D4D] pb-24 md:pb-32 overflow-hidden ${showFoundingBanner ? 'pt-[10.5rem] md:pt-[13rem]' : 'pt-32 md:pt-40'}`}>
+        <section className="relative bg-[#0D4D4D] pb-24 md:pb-32 overflow-hidden pt-32 md:pt-40">
           <div className="absolute inset-0">
             <div className="absolute top-20 left-10 w-96 h-96 bg-[#3DD6C3] rounded-full blur-[150px] opacity-20"></div>
             <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-[#3DD6C3] rounded-full blur-[200px] opacity-15"></div>
@@ -836,16 +814,17 @@ export default function V3LandingPage() {
         <section className="py-20 md:py-28 bg-white">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#0D4D4D] mb-6">Stop Renting Leads.<br /><span className="text-[#3DD6C3]">Start Owning Relationships.</span></h2>
-              <p className="text-xl text-[#6B7280] max-w-2xl mx-auto">Early adopters get the best price — <span className="font-semibold">locked in for life</span>. The earlier you join, the less you&apos;ll ever pay.</p>
+              <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#0D4D4D] mb-6">This Will Cost <span className="line-through text-[#6B7280]/60">$49/mo</span>.<br /><span className="text-[#3DD6C3]">But Not for You.</span></h2>
+              <p className="text-xl text-[#6B7280] max-w-2xl mx-auto">Standard price is <span className="font-semibold">$49/mo</span> (or $490/yr). We&apos;re launching in tiers — <span className="font-semibold">150 early spots</span>, then they&apos;re gone forever. The earlier you join, the less you&apos;ll ever pay.</p>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
               <div className="relative bg-white rounded-2xl border-2 border-[#a158ff] p-6 text-center shadow-lg shadow-[#a158ff]/10">
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2"><span className="px-3 py-1 bg-[#a158ff] text-white text-xs font-bold rounded-full whitespace-nowrap">NOW OPEN</span></div>
                 <p className="text-sm text-[#6B7280] font-medium mt-2 mb-1">Founding Members</p>
                 <p className="text-4xl font-black text-[#0D4D4D] mb-1">FREE</p>
-                <p className="text-sm text-[#a158ff] font-semibold mb-3">For Life</p>
-                <p className="text-xs text-[#6B7280] mb-2">50 spots total</p>
+                <p className="text-sm text-[#a158ff] font-semibold mb-1">For Life</p>
+                <p className="text-xs text-[#6B7280] line-through mb-1">$49/mo</p>
+                <p className="text-xs text-[#6B7280] mb-2">50 spots — then gone forever</p>
                 {spotsRemaining !== null && <p className="text-xs text-[#a158ff] font-bold mb-3">{spotsRemaining > 0 ? `${spotsRemaining} spots left` : 'FULL'}</p>}
                 {spotsRemaining === null || spotsRemaining > 0 ? (
                   <Link href="/founding-member" className="block w-full py-3 bg-[#a158ff] hover:bg-[#8a3ee8] text-white text-sm font-bold rounded-xl transition-colors">Apply Now</Link>
@@ -857,27 +836,30 @@ export default function V3LandingPage() {
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2"><span className="px-3 py-1 bg-[#3DD6C3] text-[#0D4D4D] text-xs font-bold rounded-full whitespace-nowrap">UP NEXT</span></div>
                 <p className="text-sm text-[#6B7280] font-medium mt-2 mb-1">Charter Members</p>
                 <div className="flex items-baseline justify-center gap-1 mb-1"><span className="text-4xl font-black text-[#0D4D4D]">$25</span><span className="text-sm text-[#6B7280]">/mo</span></div>
-                <p className="text-sm text-[#3DD6C3] font-semibold mb-3">Locked in for life</p>
-                <p className="text-xs text-[#6B7280] mb-4">50 spots • or $250/year</p>
-                <div className="w-full py-3 bg-[#0D4D4D]/10 text-[#0D4D4D] text-sm font-bold rounded-xl">Opens Soon</div>
+                <p className="text-sm text-[#3DD6C3] font-semibold mb-1">Locked in for life</p>
+                <p className="text-xs text-[#6B7280] line-through mb-1">$49/mo</p>
+                <p className="text-xs text-[#6B7280] mb-4">50 spots • or $250/yr — then gone forever</p>
+                <div className="w-full py-3 bg-[#0D4D4D]/10 text-[#0D4D4D] text-sm font-bold rounded-xl">Opens After Free Tier Fills</div>
               </div>
               <div className="relative bg-white rounded-2xl border border-gray-200 p-6 text-center">
                 <p className="text-sm text-[#6B7280] font-medium mt-2 mb-1">Inner Circle</p>
                 <div className="flex items-baseline justify-center gap-1 mb-1"><span className="text-4xl font-black text-[#0D4D4D]">$35</span><span className="text-sm text-[#6B7280]">/mo</span></div>
-                <p className="text-sm text-[#6B7280] font-semibold mb-3">Locked in for life</p>
-                <p className="text-xs text-[#6B7280] mb-4">50 spots • or $350/year</p>
-                <div className="w-full py-3 bg-gray-100 text-[#6B7280] text-sm font-medium rounded-xl">After $25 tier fills</div>
+                <p className="text-sm text-[#6B7280] font-semibold mb-1">Locked in for life</p>
+                <p className="text-xs text-[#6B7280] line-through mb-1">$49/mo</p>
+                <p className="text-xs text-[#6B7280] mb-4">50 spots • or $350/yr — then gone forever</p>
+                <div className="w-full py-3 bg-gray-100 text-[#6B7280] text-sm font-medium rounded-xl">Opens After $25 Tier Fills</div>
               </div>
-              <div className="relative bg-white rounded-2xl border border-gray-200 p-6 text-center">
+              <div className="relative bg-white rounded-2xl border border-gray-200 p-6 text-center bg-[#F8F9FA]">
                 <p className="text-sm text-[#6B7280] font-medium mt-2 mb-1">Standard Price</p>
                 <div className="flex items-baseline justify-center gap-1 mb-1"><span className="text-4xl font-black text-[#0D4D4D]">$49</span><span className="text-sm text-[#6B7280]">/mo</span></div>
-                <p className="text-sm text-[#6B7280] font-semibold mb-3">Regular pricing</p>
-                <p className="text-xs text-[#6B7280] mb-4">Unlimited • or $490/year</p>
-                <div className="w-full py-3 bg-gray-100 text-[#6B7280] text-sm font-medium rounded-xl">After $35 tier fills</div>
+                <p className="text-sm text-[#6B7280] font-semibold mb-1">Regular pricing</p>
+                <p className="text-xs text-[#6B7280] mb-1">&nbsp;</p>
+                <p className="text-xs text-[#6B7280] mb-4">Unlimited seats • or $490/yr</p>
+                <div className="w-full py-3 bg-gray-100 text-[#6B7280] text-sm font-medium rounded-xl">After All Tiers Fill</div>
               </div>
             </div>
             <div className="text-center">
-              <p className="text-[#6B7280] mb-6"><span className="text-[#0D4D4D] font-bold">Right now:</span> We&apos;re filling the first 50 Founding Member spots — <span className="text-[#a158ff] font-bold">free for life</span>.</p>
+              <p className="text-[#6B7280] mb-6"><span className="text-[#0D4D4D] font-bold">Right now:</span> We&apos;re filling the first 50 Founding Member spots — <span className="text-[#a158ff] font-bold">free for life</span>. Once they&apos;re gone, the price goes to $25, then $35, then $49. <span className="font-semibold text-[#0D4D4D]">Your tier is locked in forever.</span></p>
               <Link href="/founding-member" className="inline-flex items-center gap-3 px-12 py-6 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-2xl font-bold rounded-full transition-all shadow-2xl shadow-[#fdcc02]/40 hover:shadow-[#fdcc02]/60 hover:scale-105">
                 Apply for Founding Member
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
