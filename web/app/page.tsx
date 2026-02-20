@@ -229,7 +229,7 @@ export default function LandingPage() {
               </Link>
             </div>
             <div
-              className="absolute inset-0 flex items-center px-4"
+              className="absolute inset-0 flex items-center justify-end pr-3"
               style={{
                 opacity: ctaPeeked && !ctaHovered ? 1 : 0,
                 transform: ctaPeeked && !ctaHovered ? 'none' : 'translateX(6px)',
