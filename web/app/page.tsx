@@ -125,7 +125,7 @@ export default function TestLandingPage() {
     },
     {
       question: "How do I stop insurance chargebacks and policy cancellations?",
-      answer: "Chargebacks happen when relationships go cold. With 7+ automated touchpoints per year, push notifications, and instant access through their app, your clients feel taken care of. When they feel connected to you, they don't shop around or let policies lapse."
+      answer: "Chargebacks happen when relationships go cold. With 7+ automated touchpoints per year, push notifications, and instant access through their app, your clients feel taken care of. When they feel connected to you, they don't shop around or let policies lapse. And if a policy does lapse or get canceled, Conservation Alerts kick in — forward the carrier notice, and AI reaches out to your client within hours with personalized messages to save the policy before a chargeback hits."
     },
     {
       question: "How hard is it to get started?",
@@ -133,7 +133,7 @@ export default function TestLandingPage() {
     },
     {
       question: "What exactly is Agent For Life?",
-      answer: "It's a complete client relationship system: a branded mobile app for your clients, a web dashboard for you to manage clients and policies, automated holiday/birthday/anniversary touchpoints, one-tap referrals with an AI-powered business line that books appointments for you, CSV import, PDF application parsing, and push notifications — starting at just $25/month (and free for our first 50 founding members)."
+      answer: "It's a complete client relationship system: a branded mobile app for your clients, a web dashboard for you to manage clients and policies, automated holiday/birthday/anniversary touchpoints, one-tap referrals with an AI-powered business line that books appointments for you, conservation alerts that rescue at-risk policies with AI-powered outreach, CSV import, PDF application parsing, and push notifications — starting at just $25/month (and free for our first 50 founding members)."
     },
     {
       question: "What carriers does it work with?",
@@ -822,6 +822,22 @@ export default function TestLandingPage() {
                 </div>
               </div>
             </div>
+
+            {/* Referral Drip Callout */}
+            <div className="mt-12 bg-white/5 rounded-2xl p-8 md:p-10 border border-white/10 text-center max-w-3xl mx-auto">
+              <p className="text-white/40 text-sm uppercase tracking-[0.15em] font-medium mb-3">And if they don't reply?</p>
+              <h3 className="text-2xl md:text-3xl font-extrabold text-white mb-3">
+                Your AI <span className="text-[#3DD6C3]">doesn't give up.</span>
+              </h3>
+              <p className="text-white/70 max-w-xl mx-auto mb-6">
+                If the referral goes quiet, your AI automatically follows up — each message more direct than the last. You don't lift a finger.
+              </p>
+              <div className="flex flex-wrap justify-center gap-3">
+                <span className="px-4 py-2 bg-white/10 rounded-full text-white/80 text-sm font-medium">Day 2 · Gentle nudge</span>
+                <span className="px-4 py-2 bg-white/10 rounded-full text-white/80 text-sm font-medium">Day 5 · New angle</span>
+                <span className="px-4 py-2 bg-[#fdcc02]/20 border border-[#fdcc02]/30 rounded-full text-[#fdcc02] text-sm font-medium">Day 8 · Direct ask</span>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -865,6 +881,106 @@ export default function TestLandingPage() {
             <div className="text-center mt-10">
               <p className="text-[#6B7280] text-lg">
                 Other agents send one email a year. <span className="text-[#0D4D4D] font-bold">You'll have 7+ touchpoints — on autopilot.</span>
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* ============================================ */}
+        {/* CONSERVATION ALERTS - Protect Commissions    */}
+        {/* ============================================ */}
+        <section className="py-20 md:py-28 bg-[#0D4D4D] relative overflow-hidden">
+          <div className="absolute inset-0">
+            <div className="absolute bottom-20 left-10 w-96 h-96 bg-[#fdcc02] rounded-full blur-[150px] opacity-10"></div>
+            <div className="absolute top-10 right-20 w-72 h-72 bg-[#3DD6C3] rounded-full blur-[120px] opacity-10"></div>
+          </div>
+          <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#fdcc02] rounded-full mb-6">
+                <span className="text-[#0D4D4D] font-bold text-sm uppercase tracking-wide">Conservation Alerts</span>
+              </div>
+              <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4">
+                Forward an Email. <span className="text-[#fdcc02]">Save a Commission.</span>
+              </h2>
+              <p className="text-xl text-white/70 max-w-2xl mx-auto">
+                When a carrier notifies you that a policy has lapsed or been canceled, just forward the email. <span className="text-white font-semibold">AI handles everything else.</span>
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-6 md:gap-4">
+              <div className="bg-white/10 backdrop-blur rounded-3xl p-8 border border-white/10 relative">
+                <div className="w-12 h-12 bg-[#fdcc02] rounded-full flex items-center justify-center text-xl font-bold text-[#0D4D4D] mb-5">1</div>
+                <h3 className="text-xl font-bold text-white mb-3">Forward the Alert</h3>
+                <p className="text-white/70 leading-relaxed">
+                  Get a conservation opportunity from your carrier? Forward the email to <span className="text-[#fdcc02] font-semibold">AI@conserve.agentforlife.app</span> or paste the text into your dashboard. That's all you do.
+                </p>
+              </div>
+
+              <div className="bg-white/10 backdrop-blur rounded-3xl p-8 border border-white/10 relative">
+                <div className="w-12 h-12 bg-[#3DD6C3] rounded-full flex items-center justify-center text-xl font-bold text-[#0D4D4D] mb-5">2</div>
+                <h3 className="text-xl font-bold text-white mb-3">AI Extracts & Matches</h3>
+                <p className="text-white/70 leading-relaxed">
+                  AI pulls the client name, policy number, carrier, and reason — then <span className="text-white font-semibold">auto-matches it to your existing records</span> and flags whether the policy is under 1 year old (chargeback risk).
+                </p>
+              </div>
+
+              <div className="bg-white/10 backdrop-blur rounded-3xl p-8 border border-[#fdcc02]/30 relative">
+                <div className="absolute top-4 right-4">
+                  <span className="px-2 py-1 bg-[#fdcc02] text-[#0D4D4D] text-[10px] font-bold rounded-full uppercase">AI Powered</span>
+                </div>
+                <div className="w-12 h-12 bg-[#fdcc02] rounded-full flex items-center justify-center text-xl font-bold text-[#0D4D4D] mb-5">3</div>
+                <h3 className="text-xl font-bold text-white mb-3">Client Gets Reached</h3>
+                <p className="text-white/70 leading-relaxed">
+                  Within 2 hours, at-risk clients get a <span className="text-white font-semibold">personalized push notification and text</span> from you — not a form letter. AI follows up on Day 2, 5, and 7 with different angles. <span className="text-[#fdcc02] font-semibold">You just watch the dashboard.</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12">
+              <div className="bg-white/5 backdrop-blur rounded-2xl p-5 border border-white/10">
+                <div className="w-10 h-10 bg-[#fdcc02]/20 rounded-xl flex items-center justify-center mb-3">
+                  <svg className="w-5 h-5 text-[#fdcc02]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                </div>
+                <h4 className="text-white font-bold mb-1">Protect Your Commissions</h4>
+                <p className="text-white/50 text-sm leading-relaxed">Chargebacks on policies under 1 year cost you real money. Catch them before it's too late.</p>
+              </div>
+
+              <div className="bg-white/5 backdrop-blur rounded-2xl p-5 border border-white/10">
+                <div className="w-10 h-10 bg-[#3DD6C3]/20 rounded-xl flex items-center justify-center mb-3">
+                  <svg className="w-5 h-5 text-[#3DD6C3]" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <h4 className="text-white font-bold mb-1">Smart Prioritization</h4>
+                <p className="text-white/50 text-sm leading-relaxed">AI knows which alerts are chargeback risks and acts on those first. Older policies get tracked; newer ones get rescued.</p>
+              </div>
+
+              <div className="bg-white/5 backdrop-blur rounded-2xl p-5 border border-white/10">
+                <div className="w-10 h-10 bg-[#fdcc02]/20 rounded-xl flex items-center justify-center mb-3">
+                  <svg className="w-5 h-5 text-[#fdcc02]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                </div>
+                <h4 className="text-white font-bold mb-1">AI-Powered Outreach</h4>
+                <p className="text-white/50 text-sm leading-relaxed">Personalized messages that sound like you, not a form letter. Each follow-up takes a different angle.</p>
+              </div>
+
+              <div className="bg-white/5 backdrop-blur rounded-2xl p-5 border border-white/10">
+                <div className="w-10 h-10 bg-[#3DD6C3]/20 rounded-xl flex items-center justify-center mb-3">
+                  <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </div>
+                <h4 className="text-white font-bold mb-1">Automatic Follow-Ups</h4>
+                <p className="text-white/50 text-sm leading-relaxed">Day 2, 5, and 7 drip sequence keeps working while you sell. Mark policies as "Saved" or "Lost" from your dashboard.</p>
+              </div>
+            </div>
+
+            <div className="text-center mt-12">
+              <p className="text-white/60 text-lg">
+                Other agents lose clients they never knew were leaving. <span className="text-white font-bold">You'll know within hours — and AI will already be working to save them.</span>
               </p>
             </div>
           </div>
