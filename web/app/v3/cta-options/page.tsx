@@ -15,7 +15,7 @@ export default function CTAOptionsPage() {
   const comboCContainerRef = useRef<HTMLDivElement>(null);
   const comboCTabRef = useRef<HTMLDivElement>(null);
   const justLeftHoverRef = useRef(false);
-  const justLeftTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const justLeftTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     const peekTimer = setTimeout(() => {
