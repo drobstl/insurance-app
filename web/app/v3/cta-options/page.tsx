@@ -260,13 +260,13 @@ export default function CTAOptionsPage() {
             </div>
           </div>
 
-          {/* ========== COMBO C: Cursor magnet + Shimmer + Content tease ========== */}
+          {/* ========== COMBO C: Cursor magnet + Shimmer + Ticker + Content tease ========== */}
           <div>
             <div className="flex items-baseline gap-3 mb-1">
               <span className="text-xs font-bold text-white bg-[#a158ff] rounded-full px-3 py-1">C</span>
-              <h2 className="text-lg font-bold text-[#0D4D4D]">Cursor Magnet + Gold Shimmer + Content Tease</h2>
+              <h2 className="text-lg font-bold text-[#0D4D4D]">Cursor Magnet + Gold Shimmer + Ticker + Content Tease</h2>
             </div>
-            <p className="text-sm text-[#6B7280] mb-3 ml-9">Tab pulls toward your cursor when nearby. Gold shimmer sweeps every 5s. Peeks with content tease after 3s. Click to expand.</p>
+            <p className="text-sm text-[#6B7280] mb-3 ml-9">Tab pulls toward your cursor. Gold shimmer every 5s. Continuous vertical ticker. Peeks after 3s. Click to expand. Always flush to edge.</p>
             <div
               ref={comboCRef}
               className="relative w-full h-[400px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-[#0D4D4D] flex flex-col"
@@ -274,16 +274,41 @@ export default function CTAOptionsPage() {
               onMouseLeave={() => setComboCOffset(0)}
             >
               <MockNav />
+              {/* Bookmark wrapper: starts 40px past right edge so magnet pull reveals tab, never green */}
               <div
                 ref={comboCBookmarkRef}
-                className="absolute right-0 top-[56px] z-20 cursor-pointer transition-transform duration-200 ease-out"
-                style={{ transform: `translateX(-${comboCOffset}px)` }}
+                className="absolute top-[56px] z-20 cursor-pointer transition-transform duration-200 ease-out"
+                style={{
+                  right: '-40px',
+                  transform: `translateX(-${comboCOffset + 40}px)`,
+                }}
                 onClick={() => setComboCExpanded(!comboCExpanded)}
               >
-                <div className={`flex transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] overflow-hidden ${
-                  comboCExpanded ? 'w-[260px]' : comboCPeeked ? 'w-[200px]' : 'w-10'
-                }`}>
-                  {comboCExpanded && <ExpandedPanel onClose={() => setComboCExpanded(false)} />}
+                <div className={`flex transition-all duration-700 ease-[cubic-bezier(0.25,1,0.5,1)]`}>
+                  {comboCExpanded && (
+                    <div
+                      className="p-4 animate-[expandIn_0.4s_ease-out]"
+                      style={{
+                        background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
+                        boxShadow: '-4px 0 24px rgba(161, 88, 255, 0.5)',
+                        borderTopLeftRadius: '12px',
+                        borderBottomLeftRadius: '12px',
+                        width: '220px',
+                      }}
+                    >
+                      <div className="flex items-start justify-between mb-1">
+                        <p className="text-white/70 text-[10px] font-semibold uppercase tracking-wider">Founding Member</p>
+                        <button onClick={(e) => { e.stopPropagation(); setComboCExpanded(false); }} className="text-white/40 hover:text-white transition-colors -mt-0.5 -mr-1">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      </div>
+                      <p className="text-white font-extrabold text-xl mb-0.5">FREE</p>
+                      <p className="text-white/70 text-xs mb-3">50 spots &middot; Lifetime access.<br />Once gone, price is $25/mo.</p>
+                      <span className="inline-block w-full text-center py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-lg border border-white/20 transition-colors cursor-pointer">
+                        Apply Now →
+                      </span>
+                    </div>
+                  )}
                   {comboCPeeked && !comboCExpanded && (
                     <div
                       className="flex items-center px-3 py-3"
@@ -297,13 +322,16 @@ export default function CTAOptionsPage() {
                       <p className="text-white font-bold text-sm whitespace-nowrap">Lifetime free — 50 spots</p>
                     </div>
                   )}
+                  {/* The purple tab itself - extra wide (80px: 40px visible + 40px overflow right) */}
                   <div
-                    className="w-10 flex-shrink-0 flex items-center justify-center animate-[purpleGlow_2.5s_ease-in-out_infinite] relative overflow-hidden"
+                    className="flex-shrink-0 flex items-center justify-start animate-[purpleGlow_2.5s_ease-in-out_infinite] relative overflow-hidden"
                     style={{
                       background: 'linear-gradient(180deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
                       borderTopLeftRadius: comboCExpanded || comboCPeeked ? '0' : '8px',
                       borderBottomLeftRadius: comboCExpanded || comboCPeeked ? '0' : '8px',
                       minHeight: '160px',
+                      width: '80px',
+                      paddingLeft: '12px',
                     }}
                   >
                     <div
@@ -313,12 +341,17 @@ export default function CTAOptionsPage() {
                         backgroundSize: '100% 300%',
                       }}
                     />
-                    <span
-                      className="relative text-white font-bold text-[10px] tracking-widest uppercase whitespace-nowrap"
-                      style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
-                    >
-                      50 FREE SPOTS
-                    </span>
+                    {/* Continuous vertical ticker */}
+                    <div className="relative h-[140px] overflow-hidden" style={{ width: '14px' }}>
+                      <div className="animate-[tickerScroll_10s_linear_infinite]" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>
+                        <span className="text-white font-bold text-[10px] tracking-[0.15em] uppercase whitespace-nowrap inline-block py-2">
+                          50 FREE SPOTS &nbsp;&middot;&nbsp; LIFETIME FREE &nbsp;&middot;&nbsp; APPLY NOW &nbsp;&middot;&nbsp;&nbsp;
+                        </span>
+                        <span className="text-white font-bold text-[10px] tracking-[0.15em] uppercase whitespace-nowrap inline-block py-2">
+                          50 FREE SPOTS &nbsp;&middot;&nbsp; LIFETIME FREE &nbsp;&middot;&nbsp; APPLY NOW &nbsp;&middot;&nbsp;&nbsp;
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
