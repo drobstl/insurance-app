@@ -7,18 +7,25 @@ export default function CTAOptionsPage() {
   const [toastDismissed, setToastDismissed] = useState(false);
 
   const MockNav = ({ children, splitTone }: { children?: React.ReactNode; splitTone?: boolean }) => (
-    <div className={`relative w-full h-14 sm:h-16 ${splitTone ? '' : 'bg-[#0D4D4D]'} flex items-center justify-between px-4 sm:px-6`}
-      style={splitTone ? { background: 'linear-gradient(to right, #0D4D4D 80%, #a158ff 80%)' } : undefined}
-    >
+    <div className="relative w-full h-14 sm:h-16 bg-[#0D4D4D] flex items-center justify-between px-4 sm:px-6">
       <div className="flex items-center gap-2">
         <div className="w-10 h-6 bg-white/20 rounded" />
         <span className="text-white font-semibold text-sm">AgentForLife</span>
       </div>
       {children}
-      <div className="flex items-center gap-2">
-        <span className="text-white/60 text-xs">Login</span>
-        <span className="px-3 py-1 bg-[#fdcc02] text-[#0D4D4D] text-xs font-semibold rounded-full">Get Started</span>
-      </div>
+      {splitTone ? (
+        <div className="absolute right-0 top-0 bottom-0 bg-[#a158ff] flex items-center justify-center px-6 cursor-pointer hover:bg-[#8a3ee8] transition-colors" style={{ width: '22%', minWidth: '160px' }}>
+          <div className="text-center">
+            <p className="text-white font-bold text-xs sm:text-sm leading-tight">50 Free Spots</p>
+            <p className="text-white/80 text-[10px] sm:text-xs">Apply Now →</p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <span className="text-white/60 text-xs">Login</span>
+          <span className="px-3 py-1 bg-[#fdcc02] text-[#0D4D4D] text-xs font-semibold rounded-full">Get Started</span>
+        </div>
+      )}
     </div>
   );
 
@@ -201,14 +208,7 @@ export default function CTAOptionsPage() {
               <span className="text-sm text-[#6B7280]">Right portion of nav becomes the CTA</span>
             </div>
             <div className="relative w-full h-[350px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-[#0D4D4D] flex flex-col">
-              <MockNav splitTone>
-                <div className="absolute right-0 top-0 bottom-0 flex items-center justify-center px-4 sm:px-6" style={{ width: '20%' }}>
-                  <div className="text-center">
-                    <p className="text-white font-bold text-xs sm:text-sm leading-tight">50 Free Spots</p>
-                    <p className="text-white/80 text-[10px] sm:text-xs">Apply Now →</p>
-                  </div>
-                </div>
-              </MockNav>
+              <MockNav splitTone />
               <HeroArea />
             </div>
           </div>
