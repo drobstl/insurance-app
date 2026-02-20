@@ -2,63 +2,57 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 export default function CTAOptionsPage() {
-  // Combo A: peek-and-bounce + rotating text + content tease
+  // Combo A state
   const [comboAPeeked, setComboAPeeked] = useState(false);
-  const [comboATextIndex, setComboATextIndex] = useState(0);
-  const comboATexts = ["50 FREE SPOTS", "APPLY NOW →", "LIFETIME FREE"];
   const [comboAExpanded, setComboAExpanded] = useState(false);
 
-  // Combo B: wiggle + progress bar + scroll-milestone expand
+  // Combo B state
   const [comboBExpanded, setComboBExpanded] = useState(false);
   const [comboBMilestone, setComboBMilestone] = useState(false);
-  const comboBRef = useRef<HTMLDivElement>(null);
+  const comboBScrollRef = useRef<HTMLDivElement>(null);
 
-  // Combo C: cursor magnet + shimmer + content tease peek
+  // Combo C state
   const [comboCOffset, setComboCOffset] = useState(0);
   const [comboCPeeked, setComboCPeeked] = useState(false);
   const [comboCExpanded, setComboCExpanded] = useState(false);
   const comboCRef = useRef<HTMLDivElement>(null);
   const comboCBookmarkRef = useRef<HTMLDivElement>(null);
 
-  // Combo A: peek-and-bounce on load, rotating text
+  // Combo A: peek on load + repeat
   useEffect(() => {
     const peekTimer = setTimeout(() => {
       setComboAPeeked(true);
-      setTimeout(() => setComboAPeeked(false), 2000);
-    }, 2000);
+      setTimeout(() => setComboAPeeked(false), 2500);
+    }, 2500);
 
     const peekInterval = setInterval(() => {
       setComboAPeeked(true);
-      setTimeout(() => setComboAPeeked(false), 2000);
-    }, 18000);
+      setTimeout(() => setComboAPeeked(false), 2500);
+    }, 20000);
 
-    const textInterval = setInterval(() => {
-      setComboATextIndex(prev => (prev + 1) % 3);
-    }, 4000);
-
-    return () => { clearTimeout(peekTimer); clearInterval(peekInterval); clearInterval(textInterval); };
+    return () => { clearTimeout(peekTimer); clearInterval(peekInterval); };
   }, []);
 
   // Combo B: scroll-milestone trigger
   useEffect(() => {
-    const container = comboBRef.current;
+    const container = comboBScrollRef.current;
     if (!container) return;
     const handleScroll = () => {
+      if (comboBMilestone) return;
       const scrollPercent = container.scrollTop / (container.scrollHeight - container.clientHeight);
-      if (scrollPercent > 0.3 && !comboBMilestone) {
+      if (scrollPercent > 0.25) {
         setComboBMilestone(true);
         setComboBExpanded(true);
         setTimeout(() => {
           setComboBExpanded(false);
-          setComboBMilestone(false);
-        }, 3000);
+        }, 3500);
       }
     };
-    container.addEventListener('scroll', handleScroll);
+    container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
   }, [comboBMilestone]);
 
-  // Combo C: cursor magnet effect
+  // Combo C: cursor magnet
   const handleCMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const bookmark = comboCBookmarkRef.current;
     const container = comboCRef.current;
@@ -71,25 +65,21 @@ export default function CTAOptionsPage() {
     const distFromRight = containerRect.width - mouseX;
     const distY = Math.abs(mouseY - bookmarkCenterY);
     const dist = Math.sqrt(distFromRight * distFromRight + distY * distY);
-    if (dist < 150) {
-      const pull = Math.round(Math.max(0, (1 - dist / 150) * 30));
-      setComboCOffset(pull);
-    } else {
-      setComboCOffset(0);
-    }
+    const pull = dist < 140 ? Math.round((1 - dist / 140) * 28) : 0;
+    setComboCOffset(pull);
   }, []);
 
   // Combo C: content tease peek
   useEffect(() => {
     const peekTimer = setTimeout(() => {
       setComboCPeeked(true);
-      setTimeout(() => setComboCPeeked(false), 2000);
-    }, 3000);
+      setTimeout(() => setComboCPeeked(false), 2500);
+    }, 3500);
     return () => clearTimeout(peekTimer);
   }, []);
 
   const MockNav = () => (
-    <div className="relative w-full h-14 sm:h-16 bg-[#0D4D4D] flex items-center justify-between px-4 sm:px-6 flex-shrink-0">
+    <div className="relative w-full h-14 bg-[#0D4D4D] flex items-center justify-between px-4 sm:px-6 flex-shrink-0 z-10">
       <div className="flex items-center gap-2">
         <div className="w-10 h-6 bg-white/20 rounded" />
         <span className="text-white font-semibold text-sm">AgentForLife</span>
@@ -101,32 +91,41 @@ export default function CTAOptionsPage() {
     </div>
   );
 
-  const HeroArea = () => (
-    <div className="w-full flex-1 bg-[#0D4D4D] flex items-center justify-center">
-      <div className="text-center px-4">
-        <p className="text-white/40 text-xs uppercase tracking-widest mb-2">Hero Section Preview</p>
-        <p className="text-white font-bold text-lg sm:text-xl">Your Insurance Business,<br /><span className="text-[#3DD6C3]">On Autopilot.</span></p>
-      </div>
-    </div>
-  );
-
-  const ExpandedPanel = () => (
+  const ExpandedPanel = ({ onClose }: { onClose: () => void }) => (
     <div
-      className="flex-1 p-4"
+      className="p-4 animate-[expandIn_0.4s_ease-out]"
       style={{
         background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
-        boxShadow: '-4px 0 20px rgba(161, 88, 255, 0.4)',
+        boxShadow: '-4px 0 24px rgba(161, 88, 255, 0.5)',
         borderTopLeftRadius: '12px',
         borderBottomLeftRadius: '12px',
+        width: '220px',
       }}
     >
-      <p className="text-white/70 text-[10px] font-semibold uppercase tracking-wider mb-1">Founding Member</p>
-      <p className="text-white font-extrabold text-xl mb-0.5">FREE &middot; 50 Spots</p>
-      <p className="text-white/70 text-xs mb-3">Lifetime access. Once gone, price is $25/mo.</p>
-      <span className="inline-block px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-lg border border-white/20 transition-colors cursor-pointer">
+      <div className="flex items-start justify-between mb-1">
+        <p className="text-white/70 text-[10px] font-semibold uppercase tracking-wider">Founding Member</p>
+        <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="text-white/40 hover:text-white transition-colors -mt-0.5 -mr-1">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
+      <p className="text-white font-extrabold text-xl mb-0.5">FREE</p>
+      <p className="text-white/70 text-xs mb-3">50 spots &middot; Lifetime access.<br />Once gone, price is $25/mo.</p>
+      <span className="inline-block w-full text-center py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-lg border border-white/20 transition-colors cursor-pointer">
         Apply Now →
       </span>
     </div>
+  );
+
+  const BookmarkTab = ({ expanded, peeked, className }: { expanded: boolean; peeked?: boolean; className?: string }) => (
+    <div
+      className={`w-10 flex-shrink-0 flex items-center justify-center ${className || ''}`}
+      style={{
+        background: 'linear-gradient(180deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
+        borderTopLeftRadius: expanded || peeked ? '0' : '8px',
+        borderBottomLeftRadius: expanded || peeked ? '0' : '8px',
+        minHeight: '160px',
+      }}
+    />
   );
 
   return (
@@ -134,42 +133,45 @@ export default function CTAOptionsPage() {
       <div className="max-w-5xl mx-auto">
         <div className="text-center mb-10">
           <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0D4D4D] mb-2">Sidebar Bookmark — Pick a Combo</h1>
-          <p className="text-[#6B7280] max-w-xl mx-auto">Three combinations of attention-drawing behaviors for the sidebar bookmark. Watch each one, hover and click to interact.</p>
+          <p className="text-[#6B7280] max-w-xl mx-auto">Three combinations of attention-drawing behaviors. Watch each one, then click to interact.</p>
         </div>
 
         <div className="space-y-12">
 
-          {/* ========== COMBO A: Peek-and-bounce + Rotating text + Content tease ========== */}
+          {/* ========== COMBO A: Peek-and-bounce + Ticker text + Content tease ========== */}
           <div>
             <div className="flex items-baseline gap-3 mb-1">
               <span className="text-xs font-bold text-white bg-[#a158ff] rounded-full px-3 py-1">A</span>
-              <h2 className="text-lg font-bold text-[#0D4D4D]">Peek &amp; Bounce + Rotating Text + Content Tease</h2>
+              <h2 className="text-lg font-bold text-[#0D4D4D]">Peek &amp; Bounce + Ticker Text + Content Tease</h2>
             </div>
-            <p className="text-sm text-[#6B7280] mb-3 ml-9">Tab slides out with content preview on load (and every ~18s). Vertical text rotates between three messages every 4s. Click to fully expand.</p>
+            <p className="text-sm text-[#6B7280] mb-3 ml-9">Tab slides out with a content preview on load (repeats every ~20s). Vertical text scrolls like a stock ticker. Click to fully expand.</p>
             <div className="relative w-full h-[400px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-[#0D4D4D] flex flex-col">
               <MockNav />
               <div
-                className="absolute right-0 top-[56px] z-10 cursor-pointer"
+                className={`absolute right-0 top-[56px] z-20 cursor-pointer transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] flex ${
+                  comboAExpanded ? 'translate-x-0' : comboAPeeked ? 'translate-x-0' : 'translate-x-0'
+                }`}
                 onClick={() => setComboAExpanded(!comboAExpanded)}
               >
-                <div className={`transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] overflow-hidden flex ${
-                  comboAExpanded ? 'w-[240px]' : comboAPeeked ? 'w-[180px]' : 'w-10'
+                <div className={`flex transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] overflow-hidden ${
+                  comboAExpanded ? 'w-[260px]' : comboAPeeked ? 'w-[200px]' : 'w-10'
                 }`}>
-                  {comboAExpanded && <ExpandedPanel />}
+                  {comboAExpanded && <ExpandedPanel onClose={() => setComboAExpanded(false)} />}
                   {comboAPeeked && !comboAExpanded && (
                     <div
-                      className="flex-1 py-3 px-3 flex items-center animate-[peekFadeContent_2s_ease-in-out]"
+                      className="flex items-center px-3 py-3"
                       style={{
                         background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
                         borderTopLeftRadius: '12px',
                         borderBottomLeftRadius: '12px',
+                        width: '160px',
                       }}
                     >
                       <p className="text-white font-bold text-sm whitespace-nowrap">Lifetime free — 50 spots</p>
                     </div>
                   )}
                   <div
-                    className="w-10 flex-shrink-0 flex items-center justify-center animate-[purpleGlow_2.5s_ease-in-out_infinite]"
+                    className="w-10 flex-shrink-0 flex items-center justify-center animate-[purpleGlow_2.5s_ease-in-out_infinite] overflow-hidden relative"
                     style={{
                       background: 'linear-gradient(180deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
                       borderTopLeftRadius: comboAExpanded || comboAPeeked ? '0' : '8px',
@@ -177,18 +179,24 @@ export default function CTAOptionsPage() {
                       minHeight: '160px',
                     }}
                   >
-                    <span
-                      className="text-white font-bold text-[11px] tracking-widest uppercase whitespace-nowrap transition-opacity duration-500"
-                      style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
-                      key={comboATextIndex}
-                    >
-                      {comboATexts[comboATextIndex]}
-                    </span>
+                    {/* Ticker text - continuous vertical scroll */}
+                    <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+                      <div className="animate-[tickerScroll_12s_linear_infinite]" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>
+                        <span className="text-white font-bold text-[10px] tracking-[0.2em] uppercase whitespace-nowrap inline-block py-4">
+                          50 FREE SPOTS &nbsp;&middot;&nbsp; APPLY NOW &nbsp;&middot;&nbsp; LIFETIME FREE &nbsp;&middot;&nbsp; 50 FREE SPOTS &nbsp;&middot;&nbsp; APPLY NOW &nbsp;&middot;&nbsp; LIFETIME FREE &nbsp;&middot;&nbsp;
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-              <HeroArea />
-              <p className="absolute bottom-3 left-0 right-0 text-center text-white/40 text-xs">Watch: peeks with content tease on load → text rotates → click to expand</p>
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center px-4">
+                  <p className="text-white/40 text-xs uppercase tracking-widest mb-2">Hero Section Preview</p>
+                  <p className="text-white font-bold text-lg sm:text-xl">Your Insurance Business,<br /><span className="text-[#3DD6C3]">On Autopilot.</span></p>
+                </div>
+              </div>
+              <p className="absolute bottom-3 left-0 right-0 text-center text-white/40 text-xs">Peeks on load → ticker scrolls → click to expand</p>
             </div>
           </div>
 
@@ -198,21 +206,20 @@ export default function CTAOptionsPage() {
               <span className="text-xs font-bold text-white bg-[#a158ff] rounded-full px-3 py-1">B</span>
               <h2 className="text-lg font-bold text-[#0D4D4D]">Wiggle + Progress Bar + Scroll Milestone</h2>
             </div>
-            <p className="text-sm text-[#6B7280] mb-3 ml-9">Tab jiggles every 10s. Shows spots-claimed progress bar. Scroll down ~30% inside the preview to trigger auto-expand. Click to toggle.</p>
-            <div
-              ref={comboBRef}
-              className="relative w-full h-[400px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-[#0D4D4D] flex flex-col overflow-y-auto"
-            >
-              <div className="flex-shrink-0"><MockNav /></div>
-              <div
-                className="absolute right-0 top-[56px] z-10 cursor-pointer"
-                style={{ position: 'sticky', top: '56px', alignSelf: 'flex-end' }}
-                onClick={() => setComboBExpanded(!comboBExpanded)}
-              >
-                <div className={`transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] overflow-hidden flex ${comboBExpanded ? 'w-[240px]' : 'w-10'}`}>
-                  {comboBExpanded && <ExpandedPanel />}
+            <p className="text-sm text-[#6B7280] mb-3 ml-9">Tab gently jiggles every ~10s. Shows spots-claimed progress bar. Scroll the preview ~25% to trigger auto-expand. Click to toggle anytime.</p>
+            <div className="relative w-full h-[400px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-[#0D4D4D]">
+              <div className="absolute inset-0 flex flex-col">
+                <MockNav />
+                {/* Bookmark - absolutely positioned, not inside scroll flow */}
+                <div
+                  className={`absolute right-0 top-[56px] z-20 cursor-pointer flex transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] overflow-hidden ${
+                    comboBExpanded ? 'w-[260px]' : 'w-10'
+                  }`}
+                  onClick={() => setComboBExpanded(!comboBExpanded)}
+                >
+                  {comboBExpanded && <ExpandedPanel onClose={() => setComboBExpanded(false)} />}
                   <div
-                    className={`w-10 flex-shrink-0 flex flex-col items-center justify-center animate-[purpleGlow_2.5s_ease-in-out_infinite] ${!comboBExpanded ? 'animate-[wiggle_0.4s_ease-in-out_10s_infinite]' : ''}`}
+                    className="w-10 flex-shrink-0 flex flex-col items-center justify-center animate-[wiggleSlow_12s_ease-in-out_infinite] animate-[purpleGlow_2.5s_ease-in-out_infinite]"
                     style={{
                       background: 'linear-gradient(180deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
                       borderTopLeftRadius: comboBExpanded ? '0' : '8px',
@@ -221,36 +228,35 @@ export default function CTAOptionsPage() {
                     }}
                   >
                     <span
-                      className="text-white font-bold text-[11px] tracking-widest uppercase whitespace-nowrap mb-3"
+                      className="text-white font-bold text-[10px] tracking-widest uppercase whitespace-nowrap mb-2"
                       style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
                     >
                       50 FREE SPOTS
                     </span>
-                    {/* Progress bar showing spots claimed */}
-                    <div className="w-5 h-[50px] bg-white/10 rounded-full overflow-hidden relative">
+                    <div className="w-[18px] h-[40px] bg-white/10 rounded-full overflow-hidden relative">
                       <div
-                        className="absolute bottom-0 left-0 right-0 bg-[#fdcc02] rounded-full transition-all duration-1000"
+                        className="absolute bottom-0 left-0 right-0 bg-[#fdcc02] rounded-full"
                         style={{ height: '30%' }}
                       />
                     </div>
-                    <span className="text-white/60 text-[8px] mt-1 font-medium">15/50</span>
+                    <span className="text-white/50 text-[7px] mt-1 font-medium">15/50</span>
                   </div>
                 </div>
-              </div>
-              {/* Scrollable content area to trigger milestone */}
-              <div className="relative flex-1 min-h-[800px]">
-                <div className="absolute inset-0 flex items-start justify-center pt-16">
-                  <div className="text-center px-4">
+                {/* Scrollable content */}
+                <div ref={comboBScrollRef} className="flex-1 overflow-y-auto">
+                  <div className="min-h-[700px] flex flex-col items-center pt-16 px-4">
                     <p className="text-white/40 text-xs uppercase tracking-widest mb-2">Hero Section Preview</p>
-                    <p className="text-white font-bold text-lg sm:text-xl mb-8">Your Insurance Business,<br /><span className="text-[#3DD6C3]">On Autopilot.</span></p>
-                    <p className="text-white/30 text-sm mt-8">↓ Scroll down to trigger milestone expand ↓</p>
-                    <div className="mt-[200px] text-white/20 text-xs">
+                    <p className="text-white font-bold text-lg sm:text-xl text-center mb-6">Your Insurance Business,<br /><span className="text-[#3DD6C3]">On Autopilot.</span></p>
+                    <p className="text-white/25 text-sm mt-12">↓ Scroll to trigger milestone expand ↓</p>
+                    <div className="mt-[120px] text-white/15 text-xs text-center space-y-24">
                       <p>Feature section content...</p>
-                      <div className="mt-[200px]"><p>More content below...</p></div>
+                      <p>Retention details...</p>
+                      <p>Referral pipeline...</p>
                     </div>
                   </div>
                 </div>
               </div>
+              <p className="absolute bottom-3 left-0 right-0 text-center text-white/40 text-xs z-10">Wiggles every ~10s → progress bar → scroll to trigger expand</p>
             </div>
           </div>
 
@@ -260,7 +266,7 @@ export default function CTAOptionsPage() {
               <span className="text-xs font-bold text-white bg-[#a158ff] rounded-full px-3 py-1">C</span>
               <h2 className="text-lg font-bold text-[#0D4D4D]">Cursor Magnet + Gold Shimmer + Content Tease</h2>
             </div>
-            <p className="text-sm text-[#6B7280] mb-3 ml-9">Tab pulls toward your cursor when nearby. Gold shimmer sweeps across every 5s. Peeks with content tease after 3s. Click to expand.</p>
+            <p className="text-sm text-[#6B7280] mb-3 ml-9">Tab pulls toward your cursor when nearby. Gold shimmer sweeps every 5s. Peeks with content tease after 3s. Click to expand.</p>
             <div
               ref={comboCRef}
               className="relative w-full h-[400px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-[#0D4D4D] flex flex-col"
@@ -270,21 +276,22 @@ export default function CTAOptionsPage() {
               <MockNav />
               <div
                 ref={comboCBookmarkRef}
-                className="absolute right-0 top-[56px] z-10 cursor-pointer transition-transform duration-150 ease-out"
+                className="absolute right-0 top-[56px] z-20 cursor-pointer transition-transform duration-200 ease-out"
                 style={{ transform: `translateX(-${comboCOffset}px)` }}
                 onClick={() => setComboCExpanded(!comboCExpanded)}
               >
-                <div className={`transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] overflow-hidden flex ${
-                  comboCExpanded ? 'w-[240px]' : comboCPeeked ? 'w-[180px]' : 'w-10'
+                <div className={`flex transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] overflow-hidden ${
+                  comboCExpanded ? 'w-[260px]' : comboCPeeked ? 'w-[200px]' : 'w-10'
                 }`}>
-                  {comboCExpanded && <ExpandedPanel />}
+                  {comboCExpanded && <ExpandedPanel onClose={() => setComboCExpanded(false)} />}
                   {comboCPeeked && !comboCExpanded && (
                     <div
-                      className="flex-1 py-3 px-3 flex items-center animate-[peekFadeContent_2s_ease-in-out]"
+                      className="flex items-center px-3 py-3"
                       style={{
                         background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
                         borderTopLeftRadius: '12px',
                         borderBottomLeftRadius: '12px',
+                        width: '160px',
                       }}
                     >
                       <p className="text-white font-bold text-sm whitespace-nowrap">Lifetime free — 50 spots</p>
@@ -299,16 +306,15 @@ export default function CTAOptionsPage() {
                       minHeight: '160px',
                     }}
                   >
-                    {/* Gold shimmer sweep */}
                     <div
-                      className="absolute inset-0 animate-[shimmerSweep_5s_ease-in-out_infinite]"
+                      className="absolute inset-0 animate-[shimmerSweep_5s_ease-in-out_2s_infinite]"
                       style={{
-                        background: 'linear-gradient(180deg, transparent 0%, rgba(253,204,2,0) 30%, rgba(253,204,2,0.4) 50%, rgba(253,204,2,0) 70%, transparent 100%)',
+                        background: 'linear-gradient(180deg, transparent 0%, rgba(253,204,2,0) 20%, rgba(253,204,2,0.35) 50%, rgba(253,204,2,0) 80%, transparent 100%)',
                         backgroundSize: '100% 300%',
                       }}
                     />
                     <span
-                      className="relative text-white font-bold text-[11px] tracking-widest uppercase whitespace-nowrap"
+                      className="relative text-white font-bold text-[10px] tracking-widest uppercase whitespace-nowrap"
                       style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
                     >
                       50 FREE SPOTS
@@ -316,8 +322,13 @@ export default function CTAOptionsPage() {
                   </div>
                 </div>
               </div>
-              <HeroArea />
-              <p className="absolute bottom-3 left-0 right-0 text-center text-white/40 text-xs">Move cursor near the tab to see the magnet effect → shimmer every 5s → click to expand</p>
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center px-4">
+                  <p className="text-white/40 text-xs uppercase tracking-widest mb-2">Hero Section Preview</p>
+                  <p className="text-white font-bold text-lg sm:text-xl">Your Insurance Business,<br /><span className="text-[#3DD6C3]">On Autopilot.</span></p>
+                </div>
+              </div>
+              <p className="absolute bottom-3 left-0 right-0 text-center text-white/40 text-xs">Move cursor near tab → shimmer every 5s → click to expand</p>
             </div>
           </div>
 
@@ -329,22 +340,24 @@ export default function CTAOptionsPage() {
       </div>
 
       <style jsx>{`
-        @keyframes peekFadeContent {
-          0% { opacity: 0; transform: translateX(20px); }
-          20% { opacity: 1; transform: translateX(0); }
-          80% { opacity: 1; transform: translateX(0); }
-          100% { opacity: 0; transform: translateX(20px); }
+        @keyframes expandIn {
+          from { opacity: 0; transform: translateX(20px); }
+          to { opacity: 1; transform: translateX(0); }
         }
-        @keyframes wiggle {
-          0%, 100% { transform: translateX(0); }
-          20% { transform: translateX(-3px); }
-          40% { transform: translateX(3px); }
-          60% { transform: translateX(-2px); }
-          80% { transform: translateX(2px); }
+        @keyframes tickerScroll {
+          from { transform: translateY(0); }
+          to { transform: translateY(-50%); }
+        }
+        @keyframes wiggleSlow {
+          0%, 90%, 100% { transform: translateX(0); }
+          92% { transform: translateX(-3px); }
+          94% { transform: translateX(3px); }
+          96% { transform: translateX(-2px); }
+          98% { transform: translateX(1px); }
         }
         @keyframes shimmerSweep {
-          0%, 100% { background-position: 100% 200%; }
-          40%, 60% { background-position: 100% -100%; }
+          0%, 80%, 100% { background-position: 100% 200%; }
+          40% { background-position: 100% -100%; }
         }
       `}</style>
     </div>
