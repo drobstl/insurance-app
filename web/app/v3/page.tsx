@@ -128,15 +128,6 @@ export default function V3LandingPage() {
               <img src="/logo.png" alt="AgentForLife Logo" className="w-[50px] h-[28px] sm:w-[70px] sm:h-[40px] md:w-[80px] md:h-[45px] object-contain flex-shrink-0" />
               <span className="text-base sm:text-lg md:text-xl text-white brand-title truncate">AgentForLife</span>
             </Link>
-            <Link href="/founding-member" className="hidden sm:inline-flex items-center gap-2 px-4 py-1.5 bg-[#fdcc02] rounded-full hover:bg-[#e5b802] transition-colors">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0D4D4D] opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#0D4D4D]"></span>
-              </span>
-              <span className="text-[#0D4D4D] font-bold text-xs sm:text-sm">
-                {spotsRemaining !== null && spotsRemaining > 0 ? `${spotsRemaining} Free Spots Left` : '50 Free Spots'} — Apply Now
-              </span>
-            </Link>
             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
               <Link href="/login" className="text-white/80 hover:text-white transition-colors text-sm sm:text-base">Login</Link>
               <Link href="/signup" className="px-3 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-sm sm:text-base font-semibold rounded-full transition-colors whitespace-nowrap">Get Started</Link>
@@ -144,6 +135,34 @@ export default function V3LandingPage() {
           </div>
         </div>
       </nav>
+
+      {/* Founding Member Tab - angled folder tab pinned below header, right edge */}
+      <Link
+        href="/founding-member"
+        className="fixed right-0 top-14 sm:top-16 md:top-20 z-50 group"
+        style={{ width: '16.667%', minWidth: '180px', maxWidth: '280px' }}
+      >
+        <div
+          className="relative animate-[purpleGlow_2.5s_ease-in-out_infinite]"
+          style={{
+            background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
+            clipPath: 'polygon(30% 0%, 100% 0%, 100% 100%, 15% 100%)',
+          }}
+        >
+          <div className="pl-12 pr-4 py-2.5 sm:py-3 text-center">
+            <p className="text-white font-bold text-xs sm:text-sm leading-tight">
+              {spotsRemaining !== null && spotsRemaining > 0 ? `${spotsRemaining} Free Spots` : '50 Free Spots'}
+            </p>
+            <p className="text-white/80 text-[10px] sm:text-xs leading-tight">Apply Now →</p>
+          </div>
+          <div
+            className="absolute inset-x-0 bottom-0 h-[3px]"
+            style={{
+              background: 'linear-gradient(90deg, transparent 15%, rgba(255,255,255,0.4) 50%, transparent 100%)',
+            }}
+          />
+        </div>
+      </Link>
 
       <main>
         {/* ============================================ */}

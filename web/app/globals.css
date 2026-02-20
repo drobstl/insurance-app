@@ -112,6 +112,16 @@ input[type="range"].slider-thumb:focus::-webkit-slider-thumb {
   }
 }
 
+/* Purple pulsing glow for founding member tab */
+@keyframes purpleGlow {
+  0%, 100% {
+    box-shadow: 0 8px 24px rgba(161, 88, 255, 0.3), 0 4px 12px rgba(161, 88, 255, 0.2);
+  }
+  50% {
+    box-shadow: 0 8px 40px rgba(161, 88, 255, 0.6), 0 4px 20px rgba(161, 88, 255, 0.4);
+  }
+}
+
 /* Subtle pulse for CTA buttons */
 @keyframes subtlePulse {
   0%, 100% {
