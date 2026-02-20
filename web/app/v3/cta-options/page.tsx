@@ -266,7 +266,7 @@ export default function CTAOptionsPage() {
               <span className="text-xs font-bold text-white bg-[#a158ff] rounded-full px-3 py-1">C</span>
               <h2 className="text-lg font-bold text-[#0D4D4D]">Cursor Magnet + Gold Shimmer + Ticker + Content Tease</h2>
             </div>
-            <p className="text-sm text-[#6B7280] mb-3 ml-9">Tab pulls toward your cursor. Gold shimmer every 5s. Continuous vertical ticker. Peeks after 3s. Click to expand. Always flush to edge.</p>
+            <p className="text-sm text-[#6B7280] mb-3 ml-9">Tab stays pinned to right edge — magnet and expand grow leftward. Gold shimmer. Continuous ticker. Peeks after 3s. Click to expand.</p>
             <div
               ref={comboCRef}
               className="relative w-full h-[400px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-[#0D4D4D] flex flex-col"
@@ -274,26 +274,30 @@ export default function CTAOptionsPage() {
               onMouseLeave={() => setComboCOffset(0)}
             >
               <MockNav />
-              {/* Bookmark wrapper: starts 40px past right edge so magnet pull reveals tab, never green */}
+              {/* Right-pinned bookmark: right edge never moves. Width grows leftward. */}
               <div
                 ref={comboCBookmarkRef}
-                className="absolute top-[56px] z-20 cursor-pointer transition-transform duration-200 ease-out"
+                className="absolute right-0 top-[56px] z-20 cursor-pointer transition-[width] duration-300 ease-out flex justify-end"
                 style={{
-                  right: '-40px',
-                  transform: `translateX(-${comboCOffset + 40}px)`,
+                  width: comboCExpanded
+                    ? '260px'
+                    : comboCPeeked
+                      ? `${200 + comboCOffset}px`
+                      : `${36 + comboCOffset}px`,
+                  transition: comboCExpanded ? 'width 0.5s cubic-bezier(0.25,1,0.5,1)' : comboCPeeked ? 'width 0.5s cubic-bezier(0.25,1,0.5,1)' : 'width 0.15s ease-out',
                 }}
                 onClick={() => setComboCExpanded(!comboCExpanded)}
               >
-                <div className={`flex transition-all duration-700 ease-[cubic-bezier(0.25,1,0.5,1)]`}>
+                <div className="flex w-full" style={{ minHeight: '160px' }}>
+                  {/* Expanded panel */}
                   {comboCExpanded && (
                     <div
-                      className="p-4 animate-[expandIn_0.4s_ease-out]"
+                      className="flex-1 p-4 animate-[expandIn_0.35s_ease-out]"
                       style={{
                         background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
                         boxShadow: '-4px 0 24px rgba(161, 88, 255, 0.5)',
                         borderTopLeftRadius: '12px',
                         borderBottomLeftRadius: '12px',
-                        width: '220px',
                       }}
                     >
                       <div className="flex items-start justify-between mb-1">
@@ -304,51 +308,57 @@ export default function CTAOptionsPage() {
                       </div>
                       <p className="text-white font-extrabold text-xl mb-0.5">FREE</p>
                       <p className="text-white/70 text-xs mb-3">50 spots &middot; Lifetime access.<br />Once gone, price is $25/mo.</p>
-                      <span className="inline-block w-full text-center py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-lg border border-white/20 transition-colors cursor-pointer">
+                      <span className="inline-block w-full text-center py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-lg border border-white/20 transition-colors">
                         Apply Now →
                       </span>
                     </div>
                   )}
+                  {/* Peek tease */}
                   {comboCPeeked && !comboCExpanded && (
                     <div
-                      className="flex items-center px-3 py-3"
+                      className="flex-1 flex items-center px-3 overflow-hidden"
                       style={{
                         background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
                         borderTopLeftRadius: '12px',
                         borderBottomLeftRadius: '12px',
-                        width: '160px',
                       }}
                     >
                       <p className="text-white font-bold text-sm whitespace-nowrap">Lifetime free — 50 spots</p>
                     </div>
                   )}
-                  {/* The purple tab itself - extra wide (80px: 40px visible + 40px overflow right) */}
+                  {/* Magnet tease area (only when magnet is pulling and not peeking/expanded) */}
+                  {!comboCExpanded && !comboCPeeked && comboCOffset > 0 && (
+                    <div
+                      className="flex-1 flex items-center justify-center overflow-hidden"
+                      style={{
+                        background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
+                        borderTopLeftRadius: '8px',
+                        borderBottomLeftRadius: '8px',
+                      }}
+                    />
+                  )}
+                  {/* The tab strip - always 36px, always rightmost */}
                   <div
-                    className="flex-shrink-0 flex items-center justify-start animate-[purpleGlow_2.5s_ease-in-out_infinite] relative overflow-hidden"
+                    className="w-9 flex-shrink-0 relative overflow-hidden animate-[purpleGlow_2.5s_ease-in-out_infinite]"
                     style={{
                       background: 'linear-gradient(180deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
-                      borderTopLeftRadius: comboCExpanded || comboCPeeked ? '0' : '8px',
-                      borderBottomLeftRadius: comboCExpanded || comboCPeeked ? '0' : '8px',
-                      minHeight: '160px',
-                      width: '80px',
-                      paddingLeft: '12px',
+                      borderTopLeftRadius: comboCExpanded || comboCPeeked || comboCOffset > 0 ? '0' : '8px',
+                      borderBottomLeftRadius: comboCExpanded || comboCPeeked || comboCOffset > 0 ? '0' : '8px',
                     }}
                   >
+                    {/* Gold shimmer */}
                     <div
                       className="absolute inset-0 animate-[shimmerSweep_5s_ease-in-out_2s_infinite]"
                       style={{
-                        background: 'linear-gradient(180deg, transparent 0%, rgba(253,204,2,0) 20%, rgba(253,204,2,0.35) 50%, rgba(253,204,2,0) 80%, transparent 100%)',
+                        background: 'linear-gradient(180deg, transparent 0%, rgba(253,204,2,0) 20%, rgba(253,204,2,0.4) 50%, rgba(253,204,2,0) 80%, transparent 100%)',
                         backgroundSize: '100% 300%',
                       }}
                     />
                     {/* Continuous vertical ticker */}
-                    <div className="relative h-[140px] overflow-hidden" style={{ width: '14px' }}>
-                      <div className="animate-[tickerScroll_10s_linear_infinite]" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>
-                        <span className="text-white font-bold text-[10px] tracking-[0.15em] uppercase whitespace-nowrap inline-block py-2">
-                          50 FREE SPOTS &nbsp;&middot;&nbsp; LIFETIME FREE &nbsp;&middot;&nbsp; APPLY NOW &nbsp;&middot;&nbsp;&nbsp;
-                        </span>
-                        <span className="text-white font-bold text-[10px] tracking-[0.15em] uppercase whitespace-nowrap inline-block py-2">
-                          50 FREE SPOTS &nbsp;&middot;&nbsp; LIFETIME FREE &nbsp;&middot;&nbsp; APPLY NOW &nbsp;&middot;&nbsp;&nbsp;
+                    <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+                      <div className="animate-[tickerScroll_8s_linear_infinite]" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>
+                        <span className="text-white/90 font-bold text-[9px] tracking-[0.15em] uppercase whitespace-nowrap">
+                          50 FREE SPOTS &bull; LIFETIME FREE &bull; APPLY NOW &bull; 50 FREE SPOTS &bull; LIFETIME FREE &bull; APPLY NOW &bull;&nbsp;
                         </span>
                       </div>
                     </div>
