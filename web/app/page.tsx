@@ -19,6 +19,8 @@ export default function LandingPage() {
   const [ctaPeeked, setCtaPeeked] = useState(false);
   const [ctaHovered, setCtaHovered] = useState(false);
   const [ctaScrollTriggered, setCtaScrollTriggered] = useState(false);
+  const ctaLoadTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const ctaIsPeekingRef = useRef(false);
 
   const CTA_EXPANDED_W = 276;
   const CTA_PEEK_W = 220;
@@ -42,11 +44,15 @@ export default function LandingPage() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    ctaLoadTimerRef.current = setTimeout(() => {
+      ctaIsPeekingRef.current = true;
       setCtaPeeked(true);
-      setTimeout(() => setCtaPeeked(false), 2500);
+      setTimeout(() => {
+        setCtaPeeked(false);
+        ctaIsPeekingRef.current = false;
+      }, 2500);
     }, 3500);
-    return () => clearTimeout(timer);
+    return () => clearTimeout(ctaLoadTimerRef.current);
   }, []);
 
   useEffect(() => {
@@ -55,8 +61,14 @@ export default function LandingPage() {
       const scrollPercent = window.scrollY / (document.documentElement.scrollHeight - window.innerHeight);
       if (scrollPercent > 0.20) {
         setCtaScrollTriggered(true);
+        clearTimeout(ctaLoadTimerRef.current);
+        if (ctaIsPeekingRef.current) return;
+        ctaIsPeekingRef.current = true;
         setCtaPeeked(true);
-        setTimeout(() => setCtaPeeked(false), 2500);
+        setTimeout(() => {
+          setCtaPeeked(false);
+          ctaIsPeekingRef.current = false;
+        }, 2500);
       }
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
