@@ -15,6 +15,7 @@ export default function CTAOptionsPage() {
   const [comboCOffset, setComboCOffset] = useState(0);
   const [comboCPeeked, setComboCPeeked] = useState(false);
   const [comboCExpanded, setComboCExpanded] = useState(false);
+  const [comboCHovered, setComboCHovered] = useState(false);
   const comboCRef = useRef<HTMLDivElement>(null);
   const comboCBookmarkRef = useRef<HTMLDivElement>(null);
 
@@ -277,20 +278,21 @@ export default function CTAOptionsPage() {
               {/* Right-pinned bookmark: right edge never moves. Width grows leftward. */}
               <div
                 ref={comboCBookmarkRef}
-                className="absolute right-0 top-[56px] z-20 cursor-pointer transition-[width] duration-300 ease-out flex justify-end"
+                className="absolute right-0 top-[56px] z-20 cursor-pointer flex justify-end"
                 style={{
-                  width: comboCExpanded
+                  width: (comboCExpanded || comboCHovered)
                     ? '260px'
                     : comboCPeeked
                       ? `${200 + comboCOffset}px`
                       : `${36 + comboCOffset}px`,
-                  transition: comboCExpanded ? 'width 0.5s cubic-bezier(0.25,1,0.5,1)' : comboCPeeked ? 'width 0.5s cubic-bezier(0.25,1,0.5,1)' : 'width 0.15s ease-out',
+                  transition: (comboCExpanded || comboCHovered) ? 'width 0.5s cubic-bezier(0.25,1,0.5,1)' : comboCPeeked ? 'width 0.5s cubic-bezier(0.25,1,0.5,1)' : 'width 0.15s ease-out',
                 }}
-                onClick={() => setComboCExpanded(!comboCExpanded)}
+                onMouseEnter={() => setComboCHovered(true)}
+                onMouseLeave={() => setComboCHovered(false)}
               >
                 <div className="flex w-full" style={{ minHeight: '160px' }}>
                   {/* Expanded panel */}
-                  {comboCExpanded && (
+                  {(comboCExpanded || comboCHovered) && (
                     <div
                       className="flex-1 p-4 animate-[expandIn_0.35s_ease-out]"
                       style={{
@@ -342,8 +344,8 @@ export default function CTAOptionsPage() {
                     className="w-9 flex-shrink-0 relative overflow-hidden animate-[purpleGlow_2.5s_ease-in-out_infinite]"
                     style={{
                       background: 'linear-gradient(180deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
-                      borderTopLeftRadius: comboCExpanded || comboCPeeked || comboCOffset > 0 ? '0' : '8px',
-                      borderBottomLeftRadius: comboCExpanded || comboCPeeked || comboCOffset > 0 ? '0' : '8px',
+                      borderTopLeftRadius: comboCExpanded || comboCHovered || comboCPeeked || comboCOffset > 0 ? '0' : '8px',
+                      borderBottomLeftRadius: comboCExpanded || comboCHovered || comboCPeeked || comboCOffset > 0 ? '0' : '8px',
                     }}
                   >
                     {/* Gold shimmer */}
