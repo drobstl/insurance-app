@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 
 export default function V3LandingPage() {
   const [bookSize, setBookSize] = useState(250000);
@@ -118,8 +118,138 @@ export default function V3LandingPage() {
     }
   ];
 
+  // Sidebar bookmark CTA state
+  const [bookmarkMagnet, setBookmarkMagnet] = useState(0);
+  const [bookmarkPeeked, setBookmarkPeeked] = useState(false);
+  const [bookmarkHovered, setBookmarkHovered] = useState(false);
+  const bookmarkTabRef = useRef<HTMLDivElement>(null);
+
+  const handleBookmarkMouseMove = useCallback((e: MouseEvent) => {
+    const tab = bookmarkTabRef.current;
+    if (!tab || bookmarkHovered) return;
+    const tabRect = tab.getBoundingClientRect();
+    const tabCenterY = tabRect.top + tabRect.height / 2;
+    const distFromRight = window.innerWidth - e.clientX;
+    const distY = Math.abs(e.clientY - tabCenterY);
+    const dist = Math.sqrt(distFromRight * distFromRight + distY * distY);
+    const pull = dist < 140 ? Math.round((1 - dist / 140) * 28) : 0;
+    setBookmarkMagnet(pull);
+  }, [bookmarkHovered]);
+
+  useEffect(() => {
+    window.addEventListener('mousemove', handleBookmarkMouseMove, { passive: true });
+    return () => window.removeEventListener('mousemove', handleBookmarkMouseMove);
+  }, [handleBookmarkMouseMove]);
+
+  useEffect(() => {
+    const peekTimer = setTimeout(() => {
+      setBookmarkPeeked(true);
+      setTimeout(() => setBookmarkPeeked(false), 2500);
+    }, 3500);
+    return () => clearTimeout(peekTimer);
+  }, []);
+
+  const bmWidth = bookmarkHovered
+    ? 276
+    : bookmarkPeeked
+      ? 200 + bookmarkMagnet
+      : 36 + bookmarkMagnet;
+
+  const bmTransition = bookmarkHovered || bookmarkPeeked
+    ? 'width 600ms cubic-bezier(0.25, 1, 0.5, 1)'
+    : 'width 150ms ease-out';
+
   return (
     <div className="min-h-screen bg-white">
+      {/* Sidebar Bookmark CTA — fixed, below nav */}
+      <div
+        ref={bookmarkTabRef}
+        className="fixed right-0 top-[64px] sm:top-[72px] md:top-[80px] z-40 cursor-pointer flex justify-end"
+        style={{ width: `${bmWidth}px`, transition: bmTransition }}
+        onMouseEnter={() => setBookmarkHovered(true)}
+        onMouseLeave={() => setBookmarkHovered(false)}
+      >
+        <div className="flex w-full" style={{ minHeight: '180px' }}>
+          {bookmarkHovered && (
+            <div
+              className="flex-1 p-4 min-w-0 overflow-hidden"
+              style={{
+                background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
+                borderTopLeftRadius: '12px',
+                borderBottomLeftRadius: '12px',
+                boxShadow: '-4px 0 24px rgba(161, 88, 255, 0.5)',
+              }}
+            >
+              <div className="animate-[expandIn_0.35s_ease-out]">
+                <p className="text-white/70 text-[10px] font-semibold uppercase tracking-wider mb-1">🚀 Founding Member</p>
+                <p className="text-white font-extrabold text-2xl mb-0.5">FREE</p>
+                <p className="text-white/70 text-xs mb-3 leading-relaxed">50 spots &middot; Lifetime access.<br />Once gone, price is $25/mo.</p>
+                <Link
+                  href="/founding-member"
+                  className="inline-block w-full text-center py-2.5 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-lg border border-white/20 transition-colors"
+                >
+                  Apply Now →
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {bookmarkPeeked && !bookmarkHovered && (
+            <div
+              className="flex-1 flex items-center px-3 overflow-hidden"
+              style={{
+                background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
+                borderTopLeftRadius: '12px',
+                borderBottomLeftRadius: '12px',
+              }}
+            >
+              <p className="text-white font-bold text-sm whitespace-nowrap animate-[expandIn_0.4s_ease-out]">Lifetime free — 50 spots</p>
+            </div>
+          )}
+
+          {!bookmarkHovered && !bookmarkPeeked && bookmarkMagnet > 0 && (
+            <div
+              className="flex-1"
+              style={{
+                background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
+                borderTopLeftRadius: '8px',
+                borderBottomLeftRadius: '8px',
+              }}
+            />
+          )}
+
+          <div
+            className="w-9 flex-shrink-0 relative overflow-hidden animate-[purpleGlow_2.5s_ease-in-out_infinite]"
+            style={{
+              background: 'linear-gradient(180deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
+              borderTopLeftRadius: bookmarkHovered || bookmarkPeeked || bookmarkMagnet > 0 ? '0' : '8px',
+              borderBottomLeftRadius: bookmarkHovered || bookmarkPeeked || bookmarkMagnet > 0 ? '0' : '8px',
+            }}
+          >
+            <div
+              className="absolute inset-0 pointer-events-none animate-[goldShimmerSweep_5s_ease-in-out_2s_infinite]"
+              style={{
+                background: 'linear-gradient(180deg, transparent 0%, rgba(253,204,2,0) 15%, rgba(253,204,2,0.45) 50%, rgba(253,204,2,0) 85%, transparent 100%)',
+                backgroundSize: '100% 300%',
+              }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+              <div
+                className="animate-[tickerScrollSmooth_10s_linear_infinite]"
+                style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+              >
+                <span className="text-white/90 font-bold text-[9px] tracking-[0.15em] uppercase whitespace-nowrap block">
+                  🚀 50 FREE SPOTS • LIFETIME FREE • APPLY NOW • 🚀 50 FREE SPOTS • LIFETIME FREE • APPLY NOW •&nbsp;
+                </span>
+                <span className="text-white/90 font-bold text-[9px] tracking-[0.15em] uppercase whitespace-nowrap block">
+                  🚀 50 FREE SPOTS • LIFETIME FREE • APPLY NOW • 🚀 50 FREE SPOTS • LIFETIME FREE • APPLY NOW •&nbsp;
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0D4D4D] shadow-lg">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
@@ -897,6 +1027,21 @@ export default function V3LandingPage() {
           </div>
         </div>
       </footer>
+
+      <style jsx>{`
+        @keyframes expandIn {
+          from { opacity: 0; transform: translateX(20px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes tickerScrollSmooth {
+          from { transform: translateY(0); }
+          to { transform: translateY(-50%); }
+        }
+        @keyframes goldShimmerSweep {
+          0%, 75%, 100% { background-position: 100% 200%; }
+          35% { background-position: 100% -100%; }
+        }
+      `}</style>
     </div>
   );
 }
