@@ -2,38 +2,33 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 export default function CTAOptionsPage() {
-  // Combo A state
   const [comboAPeeked, setComboAPeeked] = useState(false);
   const [comboAExpanded, setComboAExpanded] = useState(false);
 
-  // Combo B state
   const [comboBExpanded, setComboBExpanded] = useState(false);
   const [comboBMilestone, setComboBMilestone] = useState(false);
   const comboBScrollRef = useRef<HTMLDivElement>(null);
 
-  // Combo C state
   const [comboCMagnet, setComboCMagnet] = useState(0);
   const [comboCPeeked, setComboCPeeked] = useState(false);
   const [comboCHovered, setComboCHovered] = useState(false);
   const comboCContainerRef = useRef<HTMLDivElement>(null);
   const comboCTabRef = useRef<HTMLDivElement>(null);
+  const justLeftHoverRef = useRef(false);
+  const justLeftTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Combo A: peek on load + repeat
   useEffect(() => {
     const peekTimer = setTimeout(() => {
       setComboAPeeked(true);
       setTimeout(() => setComboAPeeked(false), 2500);
     }, 2500);
-
     const peekInterval = setInterval(() => {
       setComboAPeeked(true);
       setTimeout(() => setComboAPeeked(false), 2500);
     }, 20000);
-
     return () => { clearTimeout(peekTimer); clearInterval(peekInterval); };
   }, []);
 
-  // Combo B: scroll-milestone trigger
   useEffect(() => {
     const container = comboBScrollRef.current;
     if (!container) return;
@@ -43,16 +38,13 @@ export default function CTAOptionsPage() {
       if (scrollPercent > 0.25) {
         setComboBMilestone(true);
         setComboBExpanded(true);
-        setTimeout(() => {
-          setComboBExpanded(false);
-        }, 3500);
+        setTimeout(() => setComboBExpanded(false), 3500);
       }
     };
     container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
   }, [comboBMilestone]);
 
-  // Combo C: cursor magnet — width grows leftward when mouse is near
   const handleCMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const tab = comboCTabRef.current;
     const container = comboCContainerRef.current;
@@ -69,7 +61,6 @@ export default function CTAOptionsPage() {
     setComboCMagnet(pull);
   }, []);
 
-  // Combo C: content tease peek ~3.5s after load
   useEffect(() => {
     const peekTimer = setTimeout(() => {
       setComboCPeeked(true);
@@ -78,16 +69,33 @@ export default function CTAOptionsPage() {
     return () => clearTimeout(peekTimer);
   }, []);
 
-  // Compute Combo C bookmark width
-  const comboCWidth = comboCHovered
-    ? 276
-    : comboCPeeked
-      ? 200 + comboCMagnet
-      : 36 + comboCMagnet;
+  const COMBO_C_EXPANDED_W = 276;
+  const COMBO_C_PEEK_W = 220;
+  const COMBO_C_TAB_W = 36;
 
-  const comboCTransition = comboCHovered || comboCPeeked
-    ? 'width 600ms cubic-bezier(0.25, 1, 0.5, 1)'
-    : 'width 150ms ease-out';
+  const comboCWidth = comboCHovered
+    ? COMBO_C_EXPANDED_W
+    : comboCPeeked
+      ? COMBO_C_PEEK_W
+      : COMBO_C_TAB_W + comboCMagnet;
+
+  const useSlowTransition = comboCHovered || comboCPeeked || justLeftHoverRef.current;
+  const comboCTransition = useSlowTransition
+    ? 'width 600ms cubic-bezier(0.22, 1, 0.36, 1)'
+    : comboCMagnet > 0
+      ? 'width 120ms ease-out'
+      : 'width 500ms cubic-bezier(0.22, 1, 0.36, 1)';
+
+  const handleCEnter = () => {
+    setComboCHovered(true);
+    justLeftHoverRef.current = false;
+    if (justLeftTimerRef.current) clearTimeout(justLeftTimerRef.current);
+  };
+  const handleCLeave = () => {
+    setComboCHovered(false);
+    justLeftHoverRef.current = true;
+    justLeftTimerRef.current = setTimeout(() => { justLeftHoverRef.current = false; }, 700);
+  };
 
   const MockNav = () => (
     <div className="relative w-full h-14 bg-[#0D4D4D] flex items-center justify-between px-4 sm:px-6 flex-shrink-0 z-10">
@@ -137,7 +145,7 @@ export default function CTAOptionsPage() {
 
         <div className="space-y-12">
 
-          {/* ========== COMBO A: Peek-and-bounce + Ticker text + Content tease ========== */}
+          {/* ========== COMBO A ========== */}
           <div>
             <div className="flex items-baseline gap-3 mb-1">
               <span className="text-xs font-bold text-white bg-[#a158ff] rounded-full px-3 py-1">A</span>
@@ -147,9 +155,7 @@ export default function CTAOptionsPage() {
             <div className="relative w-full h-[400px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-[#0D4D4D] flex flex-col">
               <MockNav />
               <div
-                className={`absolute right-0 top-[56px] z-20 cursor-pointer transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] flex ${
-                  comboAExpanded ? 'translate-x-0' : comboAPeeked ? 'translate-x-0' : 'translate-x-0'
-                }`}
+                className="absolute right-0 top-[56px] z-20 cursor-pointer flex"
                 onClick={() => setComboAExpanded(!comboAExpanded)}
               >
                 <div className={`flex transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] overflow-hidden ${
@@ -157,27 +163,11 @@ export default function CTAOptionsPage() {
                 }`}>
                   {comboAExpanded && <ExpandedPanel onClose={() => setComboAExpanded(false)} />}
                   {comboAPeeked && !comboAExpanded && (
-                    <div
-                      className="flex items-center px-3 py-3"
-                      style={{
-                        background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
-                        borderTopLeftRadius: '12px',
-                        borderBottomLeftRadius: '12px',
-                        width: '160px',
-                      }}
-                    >
+                    <div className="flex items-center px-3 py-3" style={{ background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)', borderTopLeftRadius: '12px', borderBottomLeftRadius: '12px', width: '160px' }}>
                       <p className="text-white font-bold text-sm whitespace-nowrap">Lifetime free — 50 spots</p>
                     </div>
                   )}
-                  <div
-                    className="w-10 flex-shrink-0 flex items-center justify-center animate-[purpleGlow_2.5s_ease-in-out_infinite] overflow-hidden relative"
-                    style={{
-                      background: 'linear-gradient(180deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
-                      borderTopLeftRadius: comboAExpanded || comboAPeeked ? '0' : '8px',
-                      borderBottomLeftRadius: comboAExpanded || comboAPeeked ? '0' : '8px',
-                      minHeight: '160px',
-                    }}
-                  >
+                  <div className="w-10 flex-shrink-0 flex items-center justify-center animate-[purpleGlow_2.5s_ease-in-out_infinite] overflow-hidden relative" style={{ background: 'linear-gradient(180deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)', borderTopLeftRadius: comboAExpanded || comboAPeeked ? '0' : '8px', borderBottomLeftRadius: comboAExpanded || comboAPeeked ? '0' : '8px', minHeight: '160px' }}>
                     <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
                       <div className="animate-[tickerScroll_12s_linear_infinite]" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>
                         <span className="text-white font-bold text-[10px] tracking-[0.2em] uppercase whitespace-nowrap inline-block py-4">
@@ -198,44 +188,21 @@ export default function CTAOptionsPage() {
             </div>
           </div>
 
-          {/* ========== COMBO B: Wiggle + Progress bar + Scroll-milestone ========== */}
+          {/* ========== COMBO B ========== */}
           <div>
             <div className="flex items-baseline gap-3 mb-1">
               <span className="text-xs font-bold text-white bg-[#a158ff] rounded-full px-3 py-1">B</span>
               <h2 className="text-lg font-bold text-[#0D4D4D]">Wiggle + Progress Bar + Scroll Milestone</h2>
             </div>
-            <p className="text-sm text-[#6B7280] mb-3 ml-9">Tab gently jiggles every ~10s. Shows spots-claimed progress bar. Scroll the preview ~25% to trigger auto-expand. Click to toggle anytime.</p>
+            <p className="text-sm text-[#6B7280] mb-3 ml-9">Tab gently jiggles every ~10s. Shows spots-claimed progress bar. Scroll ~25% to trigger auto-expand. Click to toggle.</p>
             <div className="relative w-full h-[400px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-[#0D4D4D]">
               <div className="absolute inset-0 flex flex-col">
                 <MockNav />
-                <div
-                  className={`absolute right-0 top-[56px] z-20 cursor-pointer flex transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] overflow-hidden ${
-                    comboBExpanded ? 'w-[260px]' : 'w-10'
-                  }`}
-                  onClick={() => setComboBExpanded(!comboBExpanded)}
-                >
+                <div className={`absolute right-0 top-[56px] z-20 cursor-pointer flex transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] overflow-hidden ${comboBExpanded ? 'w-[260px]' : 'w-10'}`} onClick={() => setComboBExpanded(!comboBExpanded)}>
                   {comboBExpanded && <ExpandedPanel onClose={() => setComboBExpanded(false)} />}
-                  <div
-                    className="w-10 flex-shrink-0 flex flex-col items-center justify-center animate-[wiggleSlow_12s_ease-in-out_infinite] animate-[purpleGlow_2.5s_ease-in-out_infinite]"
-                    style={{
-                      background: 'linear-gradient(180deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
-                      borderTopLeftRadius: comboBExpanded ? '0' : '8px',
-                      borderBottomLeftRadius: comboBExpanded ? '0' : '8px',
-                      minHeight: '160px',
-                    }}
-                  >
-                    <span
-                      className="text-white font-bold text-[10px] tracking-widest uppercase whitespace-nowrap mb-2"
-                      style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
-                    >
-                      50 FREE SPOTS
-                    </span>
-                    <div className="w-[18px] h-[40px] bg-white/10 rounded-full overflow-hidden relative">
-                      <div
-                        className="absolute bottom-0 left-0 right-0 bg-[#fdcc02] rounded-full"
-                        style={{ height: '30%' }}
-                      />
-                    </div>
+                  <div className="w-10 flex-shrink-0 flex flex-col items-center justify-center animate-[purpleGlow_2.5s_ease-in-out_infinite]" style={{ background: 'linear-gradient(180deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)', borderTopLeftRadius: comboBExpanded ? '0' : '8px', borderBottomLeftRadius: comboBExpanded ? '0' : '8px', minHeight: '160px' }}>
+                    <span className="text-white font-bold text-[10px] tracking-widest uppercase whitespace-nowrap mb-2" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>50 FREE SPOTS</span>
+                    <div className="w-[18px] h-[40px] bg-white/10 rounded-full overflow-hidden relative"><div className="absolute bottom-0 left-0 right-0 bg-[#fdcc02] rounded-full" style={{ height: '30%' }} /></div>
                     <span className="text-white/50 text-[7px] mt-1 font-medium">15/50</span>
                   </div>
                 </div>
@@ -244,123 +211,120 @@ export default function CTAOptionsPage() {
                     <p className="text-white/40 text-xs uppercase tracking-widest mb-2">Hero Section Preview</p>
                     <p className="text-white font-bold text-lg sm:text-xl text-center mb-6">Your Insurance Business,<br /><span className="text-[#3DD6C3]">On Autopilot.</span></p>
                     <p className="text-white/25 text-sm mt-12">↓ Scroll to trigger milestone expand ↓</p>
-                    <div className="mt-[120px] text-white/15 text-xs text-center space-y-24">
-                      <p>Feature section content...</p>
-                      <p>Retention details...</p>
-                      <p>Referral pipeline...</p>
-                    </div>
+                    <div className="mt-[120px] text-white/15 text-xs text-center space-y-24"><p>Feature section content...</p><p>Retention details...</p><p>Referral pipeline...</p></div>
                   </div>
                 </div>
               </div>
-              <p className="absolute bottom-3 left-0 right-0 text-center text-white/40 text-xs z-10">Wiggles every ~10s → progress bar → scroll to trigger expand</p>
+              <p className="absolute bottom-3 left-0 right-0 text-center text-white/40 text-xs z-10">Wiggles → progress bar → scroll to trigger expand</p>
             </div>
           </div>
 
-          {/* ========== COMBO C: Cursor magnet + Gold shimmer + Ticker + Content tease ========== */}
+          {/* ========== COMBO C: The polished one ========== */}
           <div>
             <div className="flex items-baseline gap-3 mb-1">
               <span className="text-xs font-bold text-white bg-[#a158ff] rounded-full px-3 py-1">C</span>
               <h2 className="text-lg font-bold text-[#0D4D4D]">Cursor Magnet + Gold Shimmer + Ticker + Content Tease</h2>
             </div>
-            <p className="text-sm text-[#6B7280] mb-3 ml-9">Tab stays pinned to right edge — magnet and expand grow leftward via width. Gold shimmer every ~5s. Seamless vertical ticker. Peeks after 3.5s. Hover to expand.</p>
+            <p className="text-sm text-[#6B7280] mb-3 ml-9">Tab pinned to right edge. Cursor magnet pulls it wider. Gold shimmer every ~5s. Seamless vertical ticker. Peeks at 3.5s. Hover to expand.</p>
             <div
               ref={comboCContainerRef}
-              className="relative w-full h-[400px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-[#0D4D4D] flex flex-col"
+              className="relative w-full h-[420px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-[#0D4D4D] flex flex-col"
               onMouseMove={handleCMouseMove}
               onMouseLeave={() => setComboCMagnet(0)}
             >
               <MockNav />
 
-              {/* Right-pinned bookmark — right:0 means right edge is locked; width grows LEFT */}
+              {/*
+                Bookmark outer shell:
+                - position: absolute; right: 0 → right edge locked
+                - overflow: hidden → content clipped to current width
+                - display: flex; justify-content: flex-end → inner content right-aligned,
+                  so the tab strip is always visible and the panel reveals from the left
+                - width transitions smoothly between states
+              */}
               <div
                 ref={comboCTabRef}
-                className="absolute right-0 top-[56px] z-20 cursor-pointer flex justify-end"
+                className="absolute right-0 top-[56px] z-20 cursor-pointer overflow-hidden flex justify-end"
                 style={{
                   width: `${comboCWidth}px`,
                   transition: comboCTransition,
+                  height: '180px',
                 }}
-                onMouseEnter={() => setComboCHovered(true)}
-                onMouseLeave={() => setComboCHovered(false)}
+                onMouseEnter={handleCEnter}
+                onMouseLeave={handleCLeave}
               >
-                <div className="flex w-full" style={{ minHeight: '180px' }}>
+                {/* Inner container — always full expanded width, right-aligned in parent */}
+                <div className="flex flex-shrink-0" style={{ width: `${COMBO_C_EXPANDED_W}px`, height: '100%' }}>
 
-                  {/* Expanded panel — only when hovered */}
-                  {comboCHovered && (
-                    <div
-                      className="flex-1 p-4 min-w-0 overflow-hidden"
-                      style={{
-                        background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
-                        borderTopLeftRadius: '12px',
-                        borderBottomLeftRadius: '12px',
-                        boxShadow: '-4px 0 24px rgba(161, 88, 255, 0.5)',
-                      }}
-                    >
-                      <div className="animate-[expandIn_0.35s_ease-out]">
-                        <p className="text-white/70 text-[10px] font-semibold uppercase tracking-wider mb-1">🚀 Founding Member</p>
-                        <p className="text-white font-extrabold text-2xl mb-0.5">FREE</p>
-                        <p className="text-white/70 text-xs mb-3 leading-relaxed">50 spots &middot; Lifetime access.<br />Once gone, price is $25/mo.</p>
-                        <span className="inline-block w-full text-center py-2.5 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-lg border border-white/20 transition-colors">
-                          Apply Now →
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Peek tease content — only when peeked and not hovered */}
-                  {comboCPeeked && !comboCHovered && (
-                    <div
-                      className="flex-1 flex items-center px-3 overflow-hidden"
-                      style={{
-                        background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
-                        borderTopLeftRadius: '12px',
-                        borderBottomLeftRadius: '12px',
-                      }}
-                    >
-                      <p className="text-white font-bold text-sm whitespace-nowrap animate-[expandIn_0.4s_ease-out]">Lifetime free — 50 spots</p>
-                    </div>
-                  )}
-
-                  {/* Magnet pull fill — only when magnet is active, not peeked/hovered */}
-                  {!comboCHovered && !comboCPeeked && comboCMagnet > 0 && (
-                    <div
-                      className="flex-1"
-                      style={{
-                        background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
-                        borderTopLeftRadius: '8px',
-                        borderBottomLeftRadius: '8px',
-                      }}
-                    />
-                  )}
-
-                  {/* The 36px tab strip — always rightmost, always visible */}
+                  {/* Panel area — always rendered, revealed by parent width */}
                   <div
-                    className="w-9 flex-shrink-0 relative overflow-hidden animate-[purpleGlow_2.5s_ease-in-out_infinite]"
+                    className="flex-1 relative overflow-hidden"
                     style={{
-                      background: 'linear-gradient(180deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
-                      borderTopLeftRadius: comboCHovered || comboCPeeked || comboCMagnet > 0 ? '0' : '8px',
-                      borderBottomLeftRadius: comboCHovered || comboCPeeked || comboCMagnet > 0 ? '0' : '8px',
+                      background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
+                      borderTopLeftRadius: '12px',
+                      borderBottomLeftRadius: '12px',
                     }}
                   >
-                    {/* Gold shimmer sweep */}
+                    {/* Full expanded content — opacity-fades on hover */}
                     <div
-                      className="absolute inset-0 pointer-events-none animate-[goldShimmerSweep_5s_ease-in-out_2s_infinite]"
+                      className="absolute inset-0 p-4 flex flex-col justify-center"
                       style={{
-                        background: 'linear-gradient(180deg, transparent 0%, rgba(253,204,2,0) 15%, rgba(253,204,2,0.45) 50%, rgba(253,204,2,0) 85%, transparent 100%)',
-                        backgroundSize: '100% 300%',
+                        opacity: comboCHovered ? 1 : 0,
+                        transform: comboCHovered ? 'none' : 'translateX(10px)',
+                        transition: comboCHovered
+                          ? 'opacity 350ms ease 100ms, transform 350ms ease 100ms'
+                          : 'opacity 200ms ease, transform 200ms ease',
+                        pointerEvents: comboCHovered ? 'auto' : 'none',
+                      }}
+                    >
+                      <p className="text-white/70 text-[10px] font-semibold uppercase tracking-wider mb-1">🚀 Founding Member</p>
+                      <p className="text-white font-extrabold text-2xl mb-0.5">FREE</p>
+                      <p className="text-white/70 text-xs mb-3 leading-relaxed">50 spots &middot; Lifetime access.<br />Once gone, price is $25/mo.</p>
+                      <span className="inline-block w-full text-center py-2.5 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-lg border border-white/20 transition-colors">
+                        Apply Now →
+                      </span>
+                    </div>
+
+                    {/* Peek content — opacity-fades during peek */}
+                    <div
+                      className="absolute inset-0 flex items-center px-4"
+                      style={{
+                        opacity: comboCPeeked && !comboCHovered ? 1 : 0,
+                        transform: comboCPeeked && !comboCHovered ? 'none' : 'translateX(6px)',
+                        transition: 'opacity 400ms ease, transform 400ms ease',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      <p className="text-white font-bold text-sm whitespace-nowrap">Lifetime free — 50 spots</p>
+                    </div>
+                  </div>
+
+                  {/* Tab strip — 36px, always the rightmost element */}
+                  <div
+                    className="flex-shrink-0 relative overflow-hidden animate-[purpleGlow_2.5s_ease-in-out_infinite]"
+                    style={{
+                      width: `${COMBO_C_TAB_W}px`,
+                      background: 'linear-gradient(180deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
+                      borderTopLeftRadius: comboCWidth <= COMBO_C_TAB_W ? '8px' : '0',
+                      borderBottomLeftRadius: comboCWidth <= COMBO_C_TAB_W ? '8px' : '0',
+                    }}
+                  >
+                    {/* Gold shimmer — sweeps bottom-to-top */}
+                    <div
+                      className="absolute inset-0 pointer-events-none animate-[goldShimmer_5s_ease-in-out_infinite]"
+                      style={{
+                        background: 'linear-gradient(180deg, transparent 0%, rgba(253,204,2,0.4) 50%, transparent 100%)',
                       }}
                     />
 
-                    {/* Seamless vertical ticker — two copies for infinite loop */}
-                    <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+                    {/* Seamless vertical ticker — single text repeated 2x, scroll -50% */}
+                    <div className="absolute inset-0 flex justify-center overflow-hidden">
                       <div
-                        className="animate-[tickerScrollSmooth_10s_linear_infinite]"
+                        className="animate-[tickerUp_10s_linear_infinite] flex-shrink-0"
                         style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
                       >
-                        <span className="text-white/90 font-bold text-[9px] tracking-[0.15em] uppercase whitespace-nowrap block">
-                          🚀 50 FREE SPOTS • LIFETIME FREE • APPLY NOW • 🚀 50 FREE SPOTS • LIFETIME FREE • APPLY NOW •&nbsp;
-                        </span>
-                        <span className="text-white/90 font-bold text-[9px] tracking-[0.15em] uppercase whitespace-nowrap block">
-                          🚀 50 FREE SPOTS • LIFETIME FREE • APPLY NOW • 🚀 50 FREE SPOTS • LIFETIME FREE • APPLY NOW •&nbsp;
+                        <span className="text-white/90 font-bold text-[9px] tracking-[0.15em] uppercase whitespace-nowrap">
+                          {"🚀 50 FREE SPOTS \u2022 LIFETIME FREE \u2022 APPLY NOW \u2022 🚀 50 FREE SPOTS \u2022 LIFETIME FREE \u2022 APPLY NOW \u2022 "}
                         </span>
                       </div>
                     </div>
@@ -394,9 +358,16 @@ export default function CTAOptionsPage() {
           from { transform: translateY(0); }
           to { transform: translateY(-50%); }
         }
-        @keyframes tickerScrollSmooth {
+        @keyframes tickerUp {
           from { transform: translateY(0); }
           to { transform: translateY(-50%); }
+        }
+        @keyframes goldShimmer {
+          0%, 100% { transform: translateY(150%); opacity: 0; }
+          5% { transform: translateY(80%); opacity: 1; }
+          15% { transform: translateY(-80%); opacity: 1; }
+          20% { transform: translateY(-150%); opacity: 0; }
+          21% { transform: translateY(150%); opacity: 0; }
         }
         @keyframes wiggleSlow {
           0%, 90%, 100% { transform: translateX(0); }
@@ -404,10 +375,6 @@ export default function CTAOptionsPage() {
           94% { transform: translateX(3px); }
           96% { transform: translateX(-2px); }
           98% { transform: translateX(1px); }
-        }
-        @keyframes goldShimmerSweep {
-          0%, 75%, 100% { background-position: 100% 200%; }
-          35% { background-position: 100% -100%; }
         }
         @keyframes shimmerSweep {
           0%, 80%, 100% { background-position: 100% 200%; }
