@@ -136,34 +136,6 @@ export default function V3LandingPage() {
         </div>
       </nav>
 
-      {/* Founding Member Tab - angled folder tab pinned below header, right edge */}
-      <Link
-        href="/founding-member"
-        className="fixed right-0 top-14 sm:top-16 md:top-20 z-50 group"
-        style={{ width: '16.667%', minWidth: '180px', maxWidth: '280px' }}
-      >
-        <div
-          className="relative animate-[purpleGlow_2.5s_ease-in-out_infinite]"
-          style={{
-            background: 'linear-gradient(135deg, #b06aff 0%, #a158ff 40%, #8a3ee8 100%)',
-            clipPath: 'polygon(30% 0%, 100% 0%, 100% 100%, 15% 100%)',
-          }}
-        >
-          <div className="pl-12 pr-4 py-2.5 sm:py-3 text-center">
-            <p className="text-white font-bold text-xs sm:text-sm leading-tight">
-              {spotsRemaining !== null && spotsRemaining > 0 ? `${spotsRemaining} Free Spots` : '50 Free Spots'}
-            </p>
-            <p className="text-white/80 text-[10px] sm:text-xs leading-tight">Apply Now →</p>
-          </div>
-          <div
-            className="absolute inset-x-0 bottom-0 h-[3px]"
-            style={{
-              background: 'linear-gradient(90deg, transparent 15%, rgba(255,255,255,0.4) 50%, transparent 100%)',
-            }}
-          />
-        </div>
-      </Link>
-
       <main>
         {/* ============================================ */}
         {/* HERO                                         */}
