@@ -7,23 +7,22 @@ export default function CTAOptionsPage() {
   const [toastDismissed, setToastDismissed] = useState(false);
 
   const MockNav = ({ children, splitTone }: { children?: React.ReactNode; splitTone?: boolean }) => (
-    <div className="relative w-full h-14 sm:h-16 bg-[#0D4D4D] flex items-center justify-between px-4 sm:px-6">
+    <div className="relative w-full h-14 sm:h-16 bg-[#0D4D4D] flex items-center justify-between px-4 sm:px-6" style={splitTone ? { paddingRight: '22%' } : undefined}>
       <div className="flex items-center gap-2">
         <div className="w-10 h-6 bg-white/20 rounded" />
         <span className="text-white font-semibold text-sm">AgentForLife</span>
       </div>
       {children}
-      {splitTone ? (
-        <div className="absolute right-0 top-0 bottom-0 bg-[#a158ff] flex items-center justify-center px-6 cursor-pointer hover:bg-[#8a3ee8] transition-colors" style={{ width: '22%', minWidth: '160px' }}>
+      <div className="flex items-center gap-2">
+        <span className="text-white/60 text-xs">Login</span>
+        <span className="px-3 py-1 bg-[#fdcc02] text-[#0D4D4D] text-xs font-semibold rounded-full">Get Started</span>
+      </div>
+      {splitTone && (
+        <div className="absolute right-0 top-0 bottom-0 bg-[#a158ff] flex items-center justify-center px-6 cursor-pointer hover:bg-[#8a3ee8] transition-colors" style={{ width: '20%', minWidth: '150px' }}>
           <div className="text-center">
             <p className="text-white font-bold text-xs sm:text-sm leading-tight">50 Free Spots</p>
             <p className="text-white/80 text-[10px] sm:text-xs">Apply Now →</p>
           </div>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2">
-          <span className="text-white/60 text-xs">Login</span>
-          <span className="px-3 py-1 bg-[#fdcc02] text-[#0D4D4D] text-xs font-semibold rounded-full">Get Started</span>
         </div>
       )}
     </div>
