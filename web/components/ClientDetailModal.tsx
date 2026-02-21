@@ -88,6 +88,13 @@ export default function ClientDetailModal({
   const [notifError, setNotifError] = useState('');
   const [showNotifForm, setShowNotifForm] = useState(false);
 
+  // ── Holiday card state ──
+  const [showHolidayForm, setShowHolidayForm] = useState(false);
+  const [selectedHoliday, setSelectedHoliday] = useState('thanksgiving');
+  const [holidaySending, setHolidaySending] = useState(false);
+  const [holidayStatus, setHolidayStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [holidayError, setHolidayError] = useState('');
+
   // Animate in on mount
   useEffect(() => {
     if (client) {
@@ -161,6 +168,9 @@ export default function ClientDetailModal({
       setNotifStatus('idle');
       setNotifError('');
       setShowNotifForm(false);
+      setShowHolidayForm(false);
+      setHolidayStatus('idle');
+      setHolidayError('');
     }
   }, [client?.id]);
 
@@ -214,6 +224,78 @@ export default function ClientDetailModal({
       setNotifSending(false);
     }
   }, [client, notifTitle, notifBody, includeBookingLink]);
+
+  const holidayCards: Record<string, { label: string; emoji: string; title: string; greeting: (name: string, agent: string) => string }> = {
+    christmas: {
+      label: 'Christmas', emoji: '🎄', title: 'Christmas Greetings',
+      greeting: (n, a) => `Merry Christmas, ${n}! Wishing you and your family a season full of warmth, joy, and time together. It\u2019s a privilege to be your agent \u2014 I hope this holiday brings you everything you deserve. \u2014 ${a}`,
+    },
+    newyear: {
+      label: "New Year\u2019s", emoji: '🎆', title: "New Year\u2019s Day Greetings",
+      greeting: (n, a) => `Happy New Year, ${n}! Here\u2019s to a fresh start and a year full of good things. I\u2019m honored to be the one looking out for you and your family \u2014 let\u2019s make this year a great one. \u2014 ${a}`,
+    },
+    valentines: {
+      label: "Valentine\u2019s Day", emoji: '💝', title: "Valentine\u2019s Day Greetings",
+      greeting: (n, a) => `Happy Valentine\u2019s Day, ${n}! Today is all about the people who matter most \u2014 and protecting the ones you love is something I never take lightly. Enjoy every moment with your loved ones today. \u2014 ${a}`,
+    },
+    july4th: {
+      label: '4th of July', emoji: '🇺🇸', title: 'Independence Day Greetings',
+      greeting: (n, a) => `Happy 4th of July, ${n}! Wishing you a day full of good food, great company, and maybe a few fireworks. Enjoy the celebration \u2014 you and your family deserve it. \u2014 ${a}`,
+    },
+    thanksgiving: {
+      label: 'Thanksgiving', emoji: '🍂', title: 'Thanksgiving Greetings',
+      greeting: (n, a) => `Happy Thanksgiving, ${n}! I\u2019m grateful for the trust you place in me to protect what matters most to your family. I hope your table is full and your heart is fuller. Enjoy every bite. \u2014 ${a}`,
+    },
+  };
+
+  const handleSendHolidayCard = useCallback(async () => {
+    if (!client) return;
+
+    setHolidaySending(true);
+    setHolidayStatus('idle');
+    setHolidayError('');
+
+    try {
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Not authenticated');
+
+      const card = holidayCards[selectedHoliday];
+      const firstName = (client.name || 'Friend').split(' ')[0];
+      const agent = agentName || 'Your Agent';
+
+      const token = await currentUser.getIdToken();
+      const response = await fetch('/api/notifications/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          clientId: client.id,
+          type: 'holiday',
+          holiday: selectedHoliday,
+          title: card.title,
+          body: card.greeting(firstName, agent),
+          includeBookingLink: true,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to send holiday card');
+
+      setHolidayStatus('success');
+      setTimeout(() => {
+        setHolidayStatus('idle');
+        setShowHolidayForm(false);
+      }, 4000);
+    } catch (err) {
+      setHolidayStatus('error');
+      setHolidayError(err instanceof Error ? err.message : 'Failed to send holiday card');
+    } finally {
+      setHolidaySending(false);
+    }
+  }, [client, selectedHoliday, agentName]);
 
   if (!client && !isClosing) return null;
 
@@ -346,16 +428,114 @@ export default function ClientDetailModal({
 
           {/* ── Send Notification Section ── */}
           <div className="px-6 pt-5 pb-4">
-            {!showNotifForm ? (
-              <button
-                onClick={() => setShowNotifForm(true)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#005851]/5 hover:bg-[#005851]/10 border border-[#005851]/20 hover:border-[#005851]/30 rounded-[5px] text-[#005851] font-semibold text-sm transition-all duration-200"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-                Send Push Notification
-              </button>
+            {!showNotifForm && !showHolidayForm ? (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowNotifForm(true)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[#005851]/5 hover:bg-[#005851]/10 border border-[#005851]/20 hover:border-[#005851]/30 rounded-[5px] text-[#005851] font-semibold text-sm transition-all duration-200"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                  Send Message
+                </button>
+                <button
+                  onClick={() => setShowHolidayForm(true)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-amber-50 hover:bg-amber-100 border border-amber-200 hover:border-amber-300 rounded-[5px] text-amber-800 font-semibold text-sm transition-all duration-200"
+                >
+                  <span className="text-base">🎄</span>
+                  Send Holiday Card
+                </button>
+              </div>
+            ) : showHolidayForm ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-[5px] p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-amber-900 flex items-center gap-2">
+                    <span className="text-base">🎄</span>
+                    Send Holiday Card
+                  </h3>
+                  <button
+                    onClick={() => { setShowHolidayForm(false); setHolidayStatus('idle'); }}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {clientPushToken === null && (
+                  <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-gray-100 border border-gray-200 rounded-[5px] text-xs text-gray-500">
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    This client has not enabled push notifications yet.
+                  </div>
+                )}
+
+                {holidayStatus === 'success' ? (
+                  <div className="flex items-center gap-2 px-3 py-3 bg-green-50 border border-green-200 rounded-[5px] text-sm text-green-700">
+                    <svg className="w-5 h-5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="font-medium">Holiday card sent!</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {Object.entries(holidayCards).map(([key, card]) => (
+                        <button
+                          key={key}
+                          onClick={() => setSelectedHoliday(key)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${selectedHoliday === key ? 'bg-amber-800 text-white shadow-sm' : 'bg-white text-amber-800 border border-amber-200 hover:bg-amber-100'}`}
+                        >
+                          {card.emoji} {card.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="bg-white rounded-[5px] border border-amber-100 p-3 mb-3">
+                      <p className="text-xs text-gray-400 uppercase tracking-wide mb-1.5">Preview</p>
+                      <p className="text-sm text-gray-700 leading-relaxed">
+                        {holidayCards[selectedHoliday].greeting(
+                          (client?.name || 'Friend').split(' ')[0],
+                          agentName || 'Your Agent'
+                        )}
+                      </p>
+                    </div>
+
+                    {holidayStatus === 'error' && (
+                      <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-[5px] text-xs text-red-600">
+                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {holidayError}
+                      </div>
+                    )}
+
+                    <button
+                      onClick={handleSendHolidayCard}
+                      disabled={holidaySending || clientPushToken === null}
+                      className="w-full px-4 py-2.5 bg-amber-700 hover:bg-amber-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-[5px] shadow-lg shadow-amber-700/20 transition-all duration-200 flex items-center justify-center gap-2 text-sm"
+                    >
+                      {holidaySending ? (
+                        <>
+                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <span>{holidayCards[selectedHoliday].emoji}</span>
+                          Send {holidayCards[selectedHoliday].label} Card
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
+              </div>
             ) : (
               <div className="bg-[#005851]/5 border border-[#005851]/20 rounded-[5px] p-4">
                 <div className="flex items-center justify-between mb-3">

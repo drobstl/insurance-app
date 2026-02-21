@@ -10,9 +10,16 @@ import { FieldValue } from 'firebase-admin/firestore';
  * Sends a push notification to a specific client via the Expo Push API
  * and stores a notification record in Firestore for history / mobile display.
  *
- * Body: { clientId, title?, body, includeBookingLink? }
+ * Body: {
+ *   clientId, title?, body, includeBookingLink?,
+ *   type?  — 'message' (default) | 'holiday' | 'birthday'
+ *   holiday? — required when type is 'holiday': 'christmas' | 'newyear' | 'valentines' | 'july4th' | 'thanksgiving'
+ * }
  * Auth: Bearer <Firebase ID token> — the agent must own the client.
  */
+
+const VALID_TYPES = ['message', 'holiday', 'birthday', 'anniversary'] as const;
+const VALID_HOLIDAYS = ['christmas', 'newyear', 'valentines', 'july4th', 'thanksgiving'] as const;
 
 interface ExpoPushMessage {
   to: string;
@@ -36,11 +43,30 @@ export async function POST(req: NextRequest) {
     const agentId = decodedToken.uid;
 
     // ── Parse body ───────────────────────────────────────────────────
-    const { clientId, title, body: messageBody, includeBookingLink } = await req.json();
+    const {
+      clientId,
+      title,
+      body: messageBody,
+      includeBookingLink,
+      type: rawType,
+      holiday: rawHoliday,
+    } = await req.json();
 
     if (!clientId || !messageBody) {
       return NextResponse.json(
         { error: 'Missing required fields: clientId, body' },
+        { status: 400 }
+      );
+    }
+
+    const notifType = (VALID_TYPES as readonly string[]).includes(rawType) ? rawType : 'message';
+    const holiday = notifType === 'holiday' && (VALID_HOLIDAYS as readonly string[]).includes(rawHoliday)
+      ? rawHoliday
+      : undefined;
+
+    if (notifType === 'holiday' && !holiday) {
+      return NextResponse.json(
+        { error: 'Missing or invalid holiday field. Must be one of: christmas, newyear, valentines, july4th, thanksgiving' },
         { status: 400 }
       );
     }
@@ -76,12 +102,15 @@ export async function POST(req: NextRequest) {
 
     // ── Build the push notification payload ──────────────────────────
     const pushData: Record<string, unknown> = {
-      type: 'message',
+      type: notifType,
       agentId,
       clientId,
     };
 
-    // If the agent wants to include a booking link, fetch their scheduling URL
+    if (holiday) {
+      pushData.holiday = holiday;
+    }
+
     if (includeBookingLink) {
       const schedulingUrl = agentData?.schedulingUrl as string | undefined;
       if (schedulingUrl) {
@@ -111,7 +140,6 @@ export async function POST(req: NextRequest) {
 
     const expoResult = await expoResponse.json();
 
-    // Check for Expo-level errors
     const pushStatus = expoResult?.data?.status === 'ok' ? 'sent' : 'failed';
     if (pushStatus === 'failed') {
       console.error('Expo push error:', expoResult?.data?.message || expoResult);
@@ -119,8 +147,8 @@ export async function POST(req: NextRequest) {
 
     // ── Store notification record in Firestore ───────────────────────
     const notificationsRef = clientRef.collection('notifications');
-    const notificationRecord = {
-      type: 'message' as const,
+    const notificationRecord: Record<string, unknown> = {
+      type: notifType,
       title: notificationTitle,
       body: messageBody,
       includeBookingLink: includeBookingLink || false,
@@ -128,6 +156,10 @@ export async function POST(req: NextRequest) {
       readAt: null,
       status: pushStatus,
     };
+
+    if (holiday) {
+      notificationRecord.holiday = holiday;
+    }
 
     const docRef = await notificationsRef.add(notificationRecord);
 
@@ -139,7 +171,6 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('Error sending notification:', error);
 
-    // Handle auth errors specifically
     if (error instanceof Error && error.message.includes('Firebase ID token')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
