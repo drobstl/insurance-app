@@ -163,3 +163,10 @@ input[type="range"].slider-thumb:focus::-webkit-slider-thumb {
     transform: translateY(0);
   }
 }
+
+/* Fade-in for toasts / tooltips */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in { animation: fadeIn 150ms ease-out; }

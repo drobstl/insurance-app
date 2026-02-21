@@ -309,21 +309,21 @@ export default function ClientDetailModal({
     .join(', ');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex justify-end">
       {/* Backdrop */}
       <div
-        className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-200 ${
+        className={`absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${
           isVisible && !isClosing ? 'opacity-100' : 'opacity-0'
         }`}
         onClick={handleClose}
       />
 
-      {/* Modal */}
+      {/* Slide-over Panel */}
       <div
-        className={`relative w-full max-w-2xl bg-white rounded-[5px] border border-gray-200 shadow-2xl flex flex-col max-h-[90vh] transition-all duration-200 ${
+        className={`relative w-full max-w-xl bg-white border-l border-gray-200 shadow-2xl flex flex-col h-full transition-transform duration-300 ease-out ${
           isVisible && !isClosing
-            ? 'opacity-100 scale-100 translate-y-0'
-            : 'opacity-0 scale-95 translate-y-4'
+            ? 'translate-x-0'
+            : 'translate-x-full'
         }`}
       >
         {/* ── Header ── */}

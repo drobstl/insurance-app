@@ -10,6 +10,7 @@ interface OnboardingOverlayProps {
   onComplete: () => void;
   onOpenTutorial: () => void;
   onOpenProfile: () => void;
+  onOpenClients?: () => void;
 }
 
 const STEPS = [
@@ -33,7 +34,7 @@ const STEPS = [
       </svg>
     ),
     title: 'Set Up Your Profile',
-    description: 'Add your photo, phone number, and agency branding. This is what your clients see.',
+    description: 'Add your photo, phone number, and agency branding. This is what your clients see in the app.',
     buttonLabel: 'Open Settings',
     action: 'profile' as const,
   },
@@ -45,21 +46,9 @@ const STEPS = [
       </svg>
     ),
     title: 'Add Your First Client',
-    description: "Click the + button to add a client. They'll get a unique code to download your app.",
-    buttonLabel: 'I\'ll Do This Next',
-    action: 'dismiss' as const,
-  },
-  {
-    id: 'share',
-    icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-      </svg>
-    ),
-    title: 'Share the App Code',
-    description: "Each client gets a unique code. Text it to them and they'll download YOUR branded app.",
-    buttonLabel: 'Got It',
-    action: 'dismiss' as const,
+    description: 'Each client gets a unique code. Hit the Share button to text it to them — they download your branded app instantly.',
+    buttonLabel: 'Go to Clients',
+    action: 'clients' as const,
   },
 ];
 
@@ -69,6 +58,7 @@ export default function OnboardingOverlay({
   onComplete,
   onOpenTutorial,
   onOpenProfile,
+  onOpenClients,
 }: OnboardingOverlayProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
@@ -88,9 +78,12 @@ export default function OnboardingOverlay({
       onOpenProfile();
       handleFinish();
       return;
+    } else if (step.action === 'clients') {
+      onOpenClients?.();
+      handleFinish();
+      return;
     }
 
-    // Move to next step or finish
     if (currentStep < STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
@@ -132,7 +125,6 @@ export default function OnboardingOverlay({
           />
         </div>
 
-        {/* Header — only on first step */}
         {currentStep === 0 && (
           <div className="px-8 pt-8 pb-2 text-center">
             <div className="w-16 h-16 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -142,12 +134,11 @@ export default function OnboardingOverlay({
               Welcome, {firstName}!
             </h2>
             <p className="text-[#707070] mt-2">
-              Let&rsquo;s get your dashboard set up in a few quick steps.
+              Three quick steps and you&rsquo;re ready to go.
             </p>
           </div>
         )}
 
-        {/* Step content */}
         <div className="px-8 py-6">
           <div className="flex items-start gap-4">
             <div
@@ -177,7 +168,6 @@ export default function OnboardingOverlay({
           </div>
         </div>
 
-        {/* Step indicators */}
         <div className="flex justify-center gap-2 px-8 pb-4">
           {STEPS.map((s, i) => (
             <div
@@ -193,7 +183,6 @@ export default function OnboardingOverlay({
           ))}
         </div>
 
-        {/* Actions */}
         <div className="px-8 pb-8 flex items-center justify-between gap-3">
           <button
             onClick={handleSkip}
