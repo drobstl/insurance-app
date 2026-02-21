@@ -2,7 +2,7 @@ import 'server-only';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
-import { getTwilioClient, getTwilioPhoneNumber } from '../../../../lib/twilio';
+import { getTwilioClient, getTwilioPhoneNumber, validateTwilioRequest } from '../../../../lib/twilio';
 import { generateReferralResponse, ConversationMessage, ReferralContext } from '../../../../lib/referral-ai';
 import { normalizePhone } from '../../../../lib/phone';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -19,6 +19,12 @@ import { FieldValue } from 'firebase-admin/firestore';
  */
 export async function POST(req: NextRequest) {
   try {
+    const isValid = await validateTwilioRequest(req);
+    if (!isValid) {
+      console.warn('Rejected webhook request: invalid Twilio signature');
+      return new NextResponse('Forbidden', { status: 403 });
+    }
+
     const formData = await req.formData();
     const from = formData.get('From') as string;
     const body = formData.get('Body') as string;
@@ -132,56 +138,49 @@ export async function POST(req: NextRequest) {
 
 /**
  * Find a referral record by the sender's phone number.
- * Checks the agent who owns the Twilio number first (fast path),
- * then falls back to searching all agents.
+ * Looks up the agent who owns the Twilio number, then searches
+ * that agent's referrals for a matching phone.
  */
 async function findReferralByPhone(
   db: FirebaseFirestore.Firestore,
   phone: string,
   twilioNumber: string,
 ) {
-  // First, find which agent owns this Twilio number
   const agentsSnapshot = await db
     .collection('agents')
     .where('twilioPhoneNumber', '==', twilioNumber)
     .limit(1)
     .get();
 
-  let agentIds: string[] = [];
-
-  if (!agentsSnapshot.empty) {
-    agentIds = [agentsSnapshot.docs[0].id];
-  } else {
-    // Fallback: the platform test number — search all agents
-    const allAgents = await db.collection('agents').get();
-    agentIds = allAgents.docs.map((d) => d.id);
+  if (agentsSnapshot.empty) {
+    console.warn('No agent found for Twilio number:', twilioNumber);
+    return null;
   }
 
-  for (const agentId of agentIds) {
-    // Query referrals by phone, most recent first
-    const referralsSnapshot = await db
-      .collection('agents')
-      .doc(agentId)
-      .collection('referrals')
-      .where('referralPhone', '==', phone)
-      .orderBy('createdAt', 'desc')
-      .limit(1)
-      .get();
+  const agentId = agentsSnapshot.docs[0].id;
 
-    if (!referralsSnapshot.empty) {
-      const referralDoc = referralsSnapshot.docs[0];
-      const agentDoc = await db.collection('agents').doc(agentId).get();
+  const referralsSnapshot = await db
+    .collection('agents')
+    .doc(agentId)
+    .collection('referrals')
+    .where('referralPhone', '==', phone)
+    .orderBy('createdAt', 'desc')
+    .limit(1)
+    .get();
 
-      return {
-        agentId,
-        referralId: referralDoc.id,
-        referralData: referralDoc.data() as Record<string, unknown>,
-        agentData: agentDoc.data() as Record<string, unknown>,
-      };
-    }
+  if (referralsSnapshot.empty) {
+    return null;
   }
 
-  return null;
+  const referralDoc = referralsSnapshot.docs[0];
+  const agentDoc = await db.collection('agents').doc(agentId).get();
+
+  return {
+    agentId,
+    referralId: referralDoc.id,
+    referralData: referralDoc.data() as Record<string, unknown>,
+    agentData: agentDoc.data() as Record<string, unknown>,
+  };
 }
 
 /**
