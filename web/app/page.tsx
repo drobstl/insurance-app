@@ -155,7 +155,7 @@ export default function LandingPage() {
     },
     {
       question: "What exactly is Agent For Life?",
-      answer: "It's a complete client relationship system built for insurance agents. You get: a branded mobile app for your clients, automated touchpoints (holidays, birthdays, anniversaries), one-tap referrals with an AI business line that books appointments, conservation alerts that rescue at-risk policies, anniversary rewrite alerts that turn renewals into booked appointments, CSV import, PDF parsing, push notifications, and a web dashboard to manage it all — starting at just $25/month (and free for our first 50 founding members)."
+      answer: "It's a complete client relationship system built for insurance agents. You get: a branded mobile app for your clients, automated touchpoints (holidays, birthdays, anniversaries), one-tap referrals with an AI business line that books appointments, conservation alerts that rescue at-risk policies, anniversary rewrite alerts that turn renewals into booked appointments, CSV import, PDF parsing, push notifications, and a web dashboard to manage it all — normally $49/month, but free for life for our first 50 founding members."
     },
     {
       question: "What carriers does it work with?",
@@ -165,8 +165,17 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-white">
+      {/* Urgency Banner */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-[#a158ff] text-white text-center py-1.5 px-4 text-xs sm:text-sm font-semibold tracking-wide">
+        <Link href="/founding-member" className="hover:underline">
+          {spotsRemaining !== null
+            ? <>Only <span className="font-black">{spotsRemaining} of 50</span> free lifetime spots remaining — Normally <span className="line-through">$49/mo</span><span className="hidden sm:inline"> — Claim yours now</span></>
+            : <>Limited free lifetime spots remaining — Normally <span className="line-through">$49/mo</span></>}
+        </Link>
+      </div>
+
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0D4D4D] shadow-lg">
+      <nav className="fixed top-[34px] left-0 right-0 z-50 bg-[#0D4D4D] shadow-lg">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16 md:h-20">
             <Link href="/" className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-shrink">
@@ -185,7 +194,7 @@ export default function LandingPage() {
       <div
         className="fixed right-0 z-40 cursor-pointer"
         style={{
-          top: '80px',
+          top: '114px',
           width: `${CTA_EXPANDED_W}px`,
           height: '180px',
           clipPath: `inset(0 0 0 ${CTA_EXPANDED_W - ctaWidth}px round ${ctaWidth <= CTA_TAB_W ? 8 : 12}px 0 0 ${ctaWidth <= CTA_TAB_W ? 8 : 12}px)`,
@@ -218,7 +227,7 @@ export default function LandingPage() {
               <p className="text-white/70 text-[10px] font-semibold uppercase tracking-wider mb-1">🚀 Founding Member</p>
               <p className="text-white font-extrabold text-2xl mb-0.5">FREE</p>
               <p className="text-white/70 text-xs mb-3 leading-relaxed">
-                50 spots &middot; Lifetime access.<br />
+                {spotsRemaining !== null ? spotsRemaining : 50} spots left &middot; Lifetime access.<br />
                 Usually <span className="line-through opacity-70">$49/mo</span> — free for the first 50.
               </p>
               <Link href="/founding-member" className="inline-block w-full text-center py-2.5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-xs font-bold rounded-lg transition-colors">
@@ -245,7 +254,7 @@ export default function LandingPage() {
                 style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
               >
                 <span className="text-white/90 font-bold text-[9px] tracking-[0.15em] uppercase whitespace-nowrap">
-                  {"🚀 50 FREE SPOTS \u2022 LIFETIME FREE \u2022 APPLY NOW \u2022 🚀 50 FREE SPOTS \u2022 LIFETIME FREE \u2022 APPLY NOW \u2022 "}
+                  {`🚀 ${spotsRemaining !== null ? spotsRemaining : 50} FREE SPOTS \u2022 LIFETIME FREE \u2022 APPLY NOW \u2022 🚀 ${spotsRemaining !== null ? spotsRemaining : 50} FREE SPOTS \u2022 LIFETIME FREE \u2022 APPLY NOW \u2022 `}
                 </span>
               </div>
             </div>
@@ -271,7 +280,7 @@ export default function LandingPage() {
         {/* ============================================ */}
         {/* HERO                                         */}
         {/* ============================================ */}
-        <section className="relative bg-[#0D4D4D] pb-24 md:pb-32 overflow-hidden pt-32 md:pt-40">
+        <section className="relative bg-[#0D4D4D] pb-24 md:pb-32 overflow-hidden pt-40 md:pt-48">
           <div className="absolute inset-0">
             <div className="absolute top-20 left-10 w-96 h-96 bg-[#3DD6C3] rounded-full blur-[150px] opacity-20"></div>
             <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-[#3DD6C3] rounded-full blur-[200px] opacity-15"></div>
@@ -284,7 +293,7 @@ export default function LandingPage() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0D4D4D] opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[#0D4D4D]"></span>
               </span>
-              <span className="text-[#0D4D4D] font-bold text-sm uppercase tracking-wide">The Insurance Revenue Multiplier</span>
+              <span className="text-[#0D4D4D] font-bold text-sm uppercase tracking-wide">{spotsRemaining !== null ? `Only ${spotsRemaining} of 50 Free Lifetime Spots Left` : 'Limited Free Lifetime Spots Available'}</span>
             </div>
 
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] mb-8">
@@ -294,14 +303,26 @@ export default function LandingPage() {
             </h1>
 
             <p className="text-xl md:text-2xl text-white/80 mb-10 max-w-3xl mx-auto leading-relaxed">
-              Stop the &quot;one-and-done&quot; cycle. Agent For Life <span className="text-white font-semibold">fortifies your client relationships</span> with automated touchpoints, one-tap referrals, and your own AI-powered business line — <span className="text-[#fdcc02] font-bold">starting at just $25/month</span>.
+              Stop the &quot;one-and-done&quot; cycle. Agent For Life <span className="text-white font-semibold">fortifies your client relationships</span> with automated touchpoints, one-tap referrals, and your own AI-powered business line. It will cost <span className="line-through opacity-70">$49/month</span> — but the first 50 agents get it <span className="text-[#fdcc02] font-bold">free. For life.</span>
             </p>
 
             <Link href="/founding-member" className="inline-flex items-center gap-3 px-12 py-5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-xl font-bold rounded-full transition-all shadow-2xl shadow-[#fdcc02]/40 hover:shadow-[#fdcc02]/60 hover:scale-105 border-2 border-[#fdcc02] hover:border-white/20">
-              Apply for Free Access
+              Lock In My Free Lifetime Spot
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
             </Link>
-            <p className="text-white/40 mt-4 text-sm">No contracts • Cancel anytime • Results in days</p>
+            <p className="text-white/40 mt-4 text-sm">{spotsRemaining !== null ? `Only ${spotsRemaining} spots left` : 'Limited spots'} • $0 forever • No credit card required</p>
+
+            {spotsRemaining !== null && (
+              <div className="mt-6 max-w-xs mx-auto">
+                <div className="w-full bg-white/10 rounded-full h-2.5 overflow-hidden">
+                  <div
+                    className="h-full bg-[#fdcc02] rounded-full transition-all duration-1000"
+                    style={{ width: `${((50 - spotsRemaining) / 50) * 100}%` }}
+                  />
+                </div>
+                <p className="text-white/50 text-xs mt-2">{50 - spotsRemaining} agent{50 - spotsRemaining !== 1 ? 's' : ''} already locked in {50 - spotsRemaining !== 1 ? 'their' : 'a'} free spot</p>
+              </div>
+            )}
           </div>
 
           <div className="absolute -bottom-1 left-0 right-0">
@@ -910,16 +931,16 @@ export default function LandingPage() {
               <div className="bg-[#D1FAE5] rounded-3xl p-8 border-2 border-[#3DD6C3] text-center">
                 <div className="w-16 h-16 bg-[#3DD6C3] rounded-2xl flex items-center justify-center mx-auto mb-4"><svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg></div>
                 <p className="text-[#0D4D4D] font-semibold text-sm uppercase tracking-wide mb-2">Agent For Life</p>
-                <p className="text-4xl md:text-5xl font-black text-[#0D4D4D] mb-2">$300</p>
-                <p className="text-[#3DD6C3] text-sm font-medium">$25/month × 12 months</p>
+                <p className="text-4xl md:text-5xl font-black text-[#0D4D4D] mb-2"><span className="line-through text-[#6B7280]/60">$588</span> <span className="text-[#3DD6C3]">$0</span></p>
+                <p className="text-[#3DD6C3] text-sm font-medium">$49/mo standard — free as a Founding Member</p>
               </div>
             </div>
             <div className="mt-12 bg-[#0D4D4D] rounded-3xl p-8 md:p-12 text-center relative overflow-hidden">
               <div className="absolute inset-0 opacity-20"><div className="absolute top-0 left-1/4 w-64 h-64 bg-[#3DD6C3] rounded-full blur-[100px]"></div><div className="absolute bottom-0 right-1/4 w-64 h-64 bg-[#fdcc02] rounded-full blur-[100px]"></div></div>
               <div className="relative">
                 <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#fdcc02] rounded-full mb-6"><svg className="w-5 h-5 text-[#0D4D4D]" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg><span className="text-[#0D4D4D] font-bold text-sm uppercase tracking-wide">Instant ROI</span></div>
-                <h3 className="text-3xl md:text-4xl lg:text-5xl font-black text-white mb-4">Save <span className="text-[#3DD6C3]">ONE</span> Policy = <span className="text-[#fdcc02]">4x Return</span></h3>
-                <p className="text-xl text-white/80 max-w-2xl mx-auto mb-6">One saved client or one referral pays for an <span className="text-white font-semibold">entire year</span> of Agent For Life—<span className="text-[#fdcc02] font-semibold">and then some</span>. Everything after that is pure profit.</p>
+                <h3 className="text-3xl md:text-4xl lg:text-5xl font-black text-white mb-4">As a Founding Member, <span className="text-[#fdcc02]">Every Dollar is Pure Profit</span></h3>
+                <p className="text-xl text-white/80 max-w-2xl mx-auto mb-6">At $49/mo, one saved client or one referral already pays for an <span className="text-white font-semibold">entire year</span>. At <span className="text-[#fdcc02] font-semibold">$0/mo?</span> It&apos;s all upside — forever.</p>
                 <div className="flex flex-wrap justify-center gap-6 text-white/70">
                   <div className="flex items-center gap-2"><svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg><span>1 saved policy = 4x ROI</span></div>
                   <div className="flex items-center gap-2"><svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg><span>1 referral = 4x ROI</span></div>
