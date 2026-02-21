@@ -11,10 +11,6 @@ import { getAdminFirestore } from '../../../../lib/firebase-admin';
  *   GET /api/test/check-push-token?agentId=xxx&clientId=yyy
  */
 export async function GET(req: NextRequest) {
-  if (process.env.NODE_ENV === 'production') {
-    return NextResponse.json({ error: 'Not available in production' }, { status: 403 });
-  }
-
   const { searchParams } = new URL(req.url);
   const clientName = searchParams.get('clientName');
   const agentId = searchParams.get('agentId');
