@@ -11,10 +11,12 @@ import {
   Platform,
 } from 'react-native';
 import { router } from 'expo-router';
-import { collection, query, where, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { registerForPushNotificationsAsync } from './_layout';
 import * as SecureStore from 'expo-secure-store';
+
+const API_BASE = 'https://agentforlife.app';
 
 const SESSION_KEY = 'client_session';
 
@@ -28,7 +30,7 @@ async function saveSession(session: SavedSession) {
   await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session));
 }
 
-async function getSession(): Promise<SavedSession | null> {
+export async function getSession(): Promise<SavedSession | null> {
   const raw = await SecureStore.getItemAsync(SESSION_KEY);
   if (!raw) return null;
   try {
@@ -62,6 +64,49 @@ async function lookupClientCode(clientCode: string) {
   return null;
 }
 
+/**
+ * Register for push notifications and save the token via the server API.
+ * Retries up to 3 times with exponential backoff.
+ * Exported so _layout.tsx can call it on app resume.
+ */
+export async function registerAndSavePushToken(clientCode: string): Promise<boolean> {
+  if (!clientCode) return false;
+
+  const pushToken = await registerForPushNotificationsAsync();
+  if (!pushToken) {
+    console.log('Push token unavailable (permission denied or simulator)');
+    return false;
+  }
+
+  const maxRetries = 3;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(`${API_BASE}/api/push-token/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientCode, pushToken }),
+      });
+
+      if (res.ok) {
+        console.log('Push token registered successfully');
+        return true;
+      }
+
+      const body = await res.json().catch(() => ({}));
+      console.warn(`Push token register attempt ${attempt} failed (${res.status}):`, body);
+    } catch (networkErr) {
+      console.warn(`Push token register attempt ${attempt} network error:`, networkErr);
+    }
+
+    if (attempt < maxRetries) {
+      await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
+    }
+  }
+
+  console.error('Push token registration failed after all retries');
+  return false;
+}
+
 async function navigateToProfile(agentId: string, clientId: string, clientData: Record<string, unknown>) {
   const agentDocRef = doc(db, 'agents', agentId);
   const agentDocSnap = await getDoc(agentDocRef);
@@ -81,16 +126,10 @@ async function navigateToProfile(agentId: string, clientId: string, clientData: 
   const referralMessage = (agentData.referralMessage as string) || '';
   const clientName = (clientData.name as string) || 'Client';
 
-  registerForPushNotificationsAsync().then(async (pushToken) => {
-    if (pushToken) {
-      try {
-        const clientDocRef = doc(db, 'agents', agentId, 'clients', clientId);
-        await updateDoc(clientDocRef, { pushToken });
-      } catch (tokenError) {
-        console.error('Error saving push token:', tokenError);
-      }
-    }
-  });
+  const clientCode = (clientData.clientCode as string) || '';
+  registerAndSavePushToken(clientCode).catch((err) =>
+    console.warn('Push token registration failed:', err),
+  );
 
   router.replace({
     pathname: '/agent-profile',

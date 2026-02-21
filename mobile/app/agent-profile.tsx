@@ -20,10 +20,11 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import { doc, getDoc } from 'firebase/firestore';
+import * as Notifications from 'expo-notifications';
 import { db } from '../firebase';
 import Confetti from '../components/confetti';
 import MessageCard from '../components/MessageCard';
-import { clearSession } from './index';
+import { clearSession, getSession, registerAndSavePushToken } from './index';
 
 // Get first name from full name
 const getFirstName = (fullName: string | undefined) => {
@@ -58,6 +59,8 @@ export default function AgentProfileScreen() {
   const [schedulingUrl, setSchedulingUrl] = useState<string | null>(null);
   const [twilioPhoneNumber, setTwilioPhoneNumber] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(true);
+  const [pushStatus, setPushStatus] = useState<'checking' | 'enabled' | 'denied' | 'error'>('checking');
+  const [retrying, setRetrying] = useState(false);
 
   const agentId = getParamValue(params.agentId).trim();
   const clientId = getParamValue(params.clientId).trim();
@@ -96,6 +99,43 @@ export default function AgentProfileScreen() {
     
     fetchAgentExtras();
   }, [agentId]);
+
+  // Check push notification status on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status !== 'granted') {
+          setPushStatus('denied');
+          return;
+        }
+        const session = await getSession();
+        if (session?.clientCode) {
+          const ok = await registerAndSavePushToken(session.clientCode);
+          setPushStatus(ok ? 'enabled' : 'error');
+        } else {
+          setPushStatus('error');
+        }
+      } catch {
+        setPushStatus('error');
+      }
+    })();
+  }, []);
+
+  const handleRetryPush = async () => {
+    setRetrying(true);
+    try {
+      const session = await getSession();
+      if (session?.clientCode) {
+        const ok = await registerAndSavePushToken(session.clientCode);
+        setPushStatus(ok ? 'enabled' : 'error');
+      }
+    } catch {
+      setPushStatus('error');
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   // Check if we have a valid base64 photo
   const hasValidPhoto = agentPhotoBase64 && 
@@ -586,6 +626,36 @@ export default function AgentProfileScreen() {
             <Text style={styles.buttonArrow}>›</Text>
           </TouchableOpacity>
 
+          {/* Push Notification Status */}
+          {pushStatus !== 'checking' && (
+            <View style={[
+              styles.pushBanner,
+              pushStatus === 'enabled' && styles.pushBannerEnabled,
+              pushStatus === 'denied' && styles.pushBannerDenied,
+              pushStatus === 'error' && styles.pushBannerError,
+            ]}>
+              <View style={styles.pushBannerContent}>
+                <Text style={styles.pushBannerIcon}>
+                  {pushStatus === 'enabled' ? '🔔' : pushStatus === 'denied' ? '🔕' : '⚠️'}
+                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.pushBannerText}>
+                    {pushStatus === 'enabled'
+                      ? 'Push notifications are enabled'
+                      : pushStatus === 'denied'
+                        ? 'Notifications are turned off in your device settings'
+                        : 'Could not register for notifications'}
+                  </Text>
+                </View>
+                {pushStatus === 'error' && (
+                  <TouchableOpacity onPress={handleRetryPush} disabled={retrying} style={styles.pushRetryButton}>
+                    <Text style={styles.pushRetryText}>{retrying ? '...' : 'Retry'}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          )}
+
           {/* Help Section */}
           <View style={styles.helpSection}>
             <Text style={styles.helpTitle}>Need Help?</Text>
@@ -971,6 +1041,51 @@ const styles = StyleSheet.create({
     height: 2,
     borderRadius: 1,
     backgroundColor: '#FFFFFF',
+  },
+  // Push notification status banner
+  pushBanner: {
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 20,
+  },
+  pushBannerEnabled: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  pushBannerDenied: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  pushBannerError: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  pushBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  pushBannerIcon: {
+    fontSize: 18,
+  },
+  pushBannerText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  pushRetryButton: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  pushRetryText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
   },
   // Calendar icon for Book Appointment
   calendarIconOuter: {

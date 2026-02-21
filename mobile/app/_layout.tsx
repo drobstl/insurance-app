@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
+import { AppState, AppStateStatus, Platform } from 'react-native';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -8,6 +8,7 @@ import analytics from '@react-native-firebase/analytics';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
+import { getSession, registerAndSavePushToken } from './index';
 
 // Configure how notifications are presented when the app is in the foreground
 Notifications.setNotificationHandler({
@@ -91,6 +92,26 @@ export default function RootLayout() {
       screen_class: pathname,
     });
   }, [pathname]);
+
+  // Re-register push token when the app comes back to foreground.
+  // Handles token rotation and recovers from failed initial registrations.
+  useEffect(() => {
+    const handleAppStateChange = async (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        try {
+          const session = await getSession();
+          if (session?.clientCode) {
+            registerAndSavePushToken(session.clientCode).catch(() => {});
+          }
+        } catch {
+          // Silently ignore -- best-effort refresh
+        }
+      }
+    };
+
+    const sub = AppState.addEventListener('change', handleAppStateChange);
+    return () => sub.remove();
+  }, []);
 
   // Set up notification listeners
   useEffect(() => {
