@@ -13,7 +13,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.danielroberts.agentforlife",
-      "buildNumber": "21",
+      "buildNumber": "24",
       "googleServicesFile": "./GoogleService-Info.plist",
       "entitlements": {
         "aps-environment": "production"
@@ -56,7 +56,20 @@
       "backgroundColor": "#0D4D4D"
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static",
+            "forceStaticLinking": [
+              "RNFBApp",
+              "RNFBAnalytics"
+            ]
+          }
+        }
+      ],
       "@react-native-firebase/app",
+      "./plugins/withFirebaseModularHeaders",
       "expo-router",
       [
         "expo-splash-screen",
@@ -80,16 +93,7 @@
           "color": "#3DD6C3"
         }
       ],
-      "expo-secure-store",
-      [
-        "expo-build-properties",
-        {
-          "ios": {
-            "useFrameworks": "static"
-          }
-        }
-      ],
-      "./plugins/withFirebaseModularHeaders"
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true
