@@ -13,7 +13,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.danielroberts.agentforlife",
-      "buildNumber": "20",
+      "buildNumber": "21",
       "googleServicesFile": "./GoogleService-Info.plist",
       "entitlements": {
         "aps-environment": "production"
@@ -88,7 +88,8 @@
             "useFrameworks": "static"
           }
         }
-      ]
+      ],
+      "./plugins/withFirebaseModularHeaders"
     ],
     "experiments": {
       "typedRoutes": true
