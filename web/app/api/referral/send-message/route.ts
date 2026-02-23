@@ -2,16 +2,17 @@ import 'server-only';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
-import { getTwilioClient, getTwilioPhoneNumber } from '../../../../lib/twilio';
+import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /**
  * POST /api/referral/send-message
  *
- * Sends a manual text from the agent's dashboard through their Twilio
- * business line. Records the message in Firestore and marks the referral
- * as agent-managed (aiEnabled = false) so the webhook won't auto-respond.
+ * Sends a manual text from the agent's dashboard via Linq.
+ * Uses the referral's directChatId for the 1-on-1 thread.
+ * Records the message in Firestore and marks the referral as
+ * agent-managed (aiEnabled = false) so the webhook won't auto-respond.
  *
  * Body: { agentId, referralId, body }
  */
@@ -32,8 +33,6 @@ export async function POST(req: NextRequest) {
     if (!agentDoc.exists) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
-    const agentData = agentDoc.data() as Record<string, unknown>;
-    const twilioNumber = (agentData.twilioPhoneNumber as string) || getTwilioPhoneNumber();
 
     const referralRef = db
       .collection('agents')
@@ -55,15 +54,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const twilioClient = getTwilioClient();
-    await twilioClient.messages.create({
-      body: body.trim(),
-      from: twilioNumber,
+    const directChatId = (referralData.directChatId as string) || null;
+
+    const result = await sendOrCreateChat({
       to: referralPhone,
+      chatId: directChatId,
+      text: body.trim(),
     });
 
-    // Record in Firestore. If this fails the SMS was already sent, so we
-    // log aggressively but still return success to avoid confusing the agent.
     const message = {
       role: 'agent-manual',
       body: body.trim(),
@@ -71,14 +69,18 @@ export async function POST(req: NextRequest) {
     };
 
     try {
-      await referralRef.update({
+      const update: Record<string, unknown> = {
         conversation: FieldValue.arrayUnion(message),
         aiEnabled: false,
         updatedAt: FieldValue.serverTimestamp(),
-      });
+      };
+      if (!directChatId) {
+        update.directChatId = result.chatId;
+      }
+      await referralRef.update(update);
     } catch (dbError) {
       console.error(
-        'Twilio send succeeded but Firestore update failed for referral',
+        'Linq send succeeded but Firestore update failed for referral',
         referralId,
         dbError,
       );

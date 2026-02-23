@@ -3,6 +3,9 @@ import 'server-only';
 import { App, cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
+
+const STORAGE_BUCKET = 'insurance-agent-app-6f613.firebasestorage.app';
 
 let adminApp: App | null = null;
 
@@ -29,9 +32,12 @@ const getAdminApp = () => {
   }
 
   const credential = cert(JSON.parse(serviceAccountJson));
-  adminApp = getApps().length ? getApps()[0] : initializeApp({ credential });
+  adminApp = getApps().length
+    ? getApps()[0]
+    : initializeApp({ credential, storageBucket: STORAGE_BUCKET });
   return adminApp;
 };
 
 export const getAdminAuth = () => getAuth(getAdminApp());
 export const getAdminFirestore = () => getFirestore(getAdminApp());
+export const getAdminStorage = () => getStorage(getAdminApp());

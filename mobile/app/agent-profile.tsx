@@ -57,7 +57,8 @@ export default function AgentProfileScreen() {
   const [isReferring, setIsReferring] = useState(false);
   const [businessCardBase64, setBusinessCardBase64] = useState<string | null>(null);
   const [schedulingUrl, setSchedulingUrl] = useState<string | null>(null);
-  const [twilioPhoneNumber, setTwilioPhoneNumber] = useState<string | null>(null);
+  const [aiAssistantEnabled, setAiAssistantEnabled] = useState<boolean>(true);
+  const [linqPhoneNumber, setLinqPhoneNumber] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(true);
   const [pushStatus, setPushStatus] = useState<'checking' | 'enabled' | 'denied' | 'error'>('checking');
   const [retrying, setRetrying] = useState(false);
@@ -88,8 +89,11 @@ export default function AgentProfileScreen() {
           if (data.schedulingUrl) {
             setSchedulingUrl(data.schedulingUrl);
           }
-          if (data.twilioPhoneNumber) {
-            setTwilioPhoneNumber(data.twilioPhoneNumber);
+          if (data.aiAssistantEnabled !== undefined) {
+            setAiAssistantEnabled(data.aiAssistantEnabled !== false);
+          }
+          if (data.linqPhoneNumber) {
+            setLinqPhoneNumber(data.linqPhoneNumber);
           }
         }
       } catch (error) {
@@ -274,10 +278,9 @@ export default function AgentProfileScreen() {
         return;
       }
 
-      // Build the referral message
       let message = referralMessage;
       if (!message || message === 'undefined' || message === 'null') {
-        message = `Hey [referral], I just got helped by [agent] getting protection to pay off our mortgage if something happens to me. I really liked the way [agent] was able to help me and thought they might be able to help you too.`;
+        message = `Hey [referral], I wanted to connect you with my insurance agent [agent]. They helped me get my family's finances protected and I thought they might be able to help you too. They'll probably reach out — super easy to talk to.`;
       }
 
       // Replace placeholders
@@ -287,16 +290,14 @@ export default function AgentProfileScreen() {
         .replace(/\[Agent-First-Name\]/gi, agentFirstName)
         .replace(/\[client\]/gi, clientFirstName);
 
-      // Build recipients array — use agent's AI business line (Twilio number)
-      // so the AI can handle the referral conversation in the group text.
-      // Falls back to agent's personal phone if no Twilio number is set.
+      // When AI is enabled, create a group chat: client + referral + agent's Linq number.
+      // The Linq webhook detects the group message and triggers the AI flow.
+      // When AI is off, create a group chat: client + referral + agent's personal phone.
       const recipients: string[] = [referralPhone];
-      const agentLineNumber = twilioPhoneNumber || agentPhone;
-      if (agentLineNumber) {
-        const cleanNumber = agentLineNumber.replace(/[^0-9+]/g, '');
-        if (cleanNumber && !recipients.includes(cleanNumber)) {
-          recipients.push(cleanNumber);
-        }
+      if (aiAssistantEnabled && linqPhoneNumber) {
+        recipients.push(linqPhoneNumber);
+      } else if (agentPhone) {
+        recipients.push(agentPhone);
       }
 
       // Check if we have a business card to attach (fetched from Firestore)
@@ -339,7 +340,7 @@ export default function AgentProfileScreen() {
         if (result === 'sent') {
           Alert.alert(
             'Referral Sent!',
-            `Thank you for referring ${agentFirstName} to ${referralFirstName}!`,
+            `Thank you for connecting ${referralFirstName} with ${agentFirstName}! They'll follow up shortly.`,
             [{ text: 'OK' }]
           );
 

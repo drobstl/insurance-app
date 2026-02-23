@@ -481,20 +481,19 @@ export default function ClientsPage() {
 
         setFormSuccess('Client added!');
 
-        // Auto-send welcome text with code if Twilio number is set and client has a phone
-        if (agentProfile.twilioPhoneNumber && formData.phone.trim()) {
+        // Auto-send welcome text with code via Linq if client has a phone
+        if (formData.phone.trim()) {
           const firstName = formData.name.trim().split(' ')[0];
           const agentName = agentProfile.name || 'your agent';
           const welcomeText = `Hey ${firstName}! ${agentName} here. Download the AgentForLife app and use code ${code} to connect with me. https://agentforlife.app`;
           try {
             const token = await user.getIdToken();
-            await fetch('/api/notifications/send', {
+            await fetch('/api/client/welcome-sms', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
               body: JSON.stringify({
                 clientPhone: formData.phone.trim(),
                 message: welcomeText,
-                twilioNumber: agentProfile.twilioPhoneNumber,
               }),
             });
           } catch (smsErr) {

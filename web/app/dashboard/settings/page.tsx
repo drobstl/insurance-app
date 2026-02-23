@@ -713,7 +713,7 @@ export default function SettingsPage() {
             </p>
             <ul className="space-y-2 mb-6">
               {[
-                'Your AI business line and phone number',
+                'Your AI referral assistant',
                 'All client records and policy data',
                 'Referral conversations and AI history',
                 'Conservation alerts and outreach tracking',

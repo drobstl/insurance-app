@@ -2,7 +2,6 @@ import 'server-only';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
-import { validateTwilioRequest } from '../../../../lib/twilio';
 
 /**
  * POST /api/twilio/voice-forward
@@ -13,12 +12,6 @@ import { validateTwilioRequest } from '../../../../lib/twilio';
  */
 export async function POST(req: NextRequest) {
   try {
-    const isValid = await validateTwilioRequest(req);
-    if (!isValid) {
-      console.warn('Rejected voice-forward request: invalid Twilio signature');
-      return new NextResponse('Forbidden', { status: 403 });
-    }
-
     const formData = await req.formData();
     const to = formData.get('To') as string;
 

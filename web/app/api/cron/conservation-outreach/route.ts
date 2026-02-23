@@ -3,7 +3,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
-import { getTwilioClient, getTwilioPhoneNumber } from '../../../../lib/twilio';
+import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { generateOutreachMessage } from '../../../../lib/conservation-ai';
 import type { ConservationOutreachContext } from '../../../../lib/conservation-types';
@@ -13,9 +13,9 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DRIP_STATUSES = ['outreach_sent', 'drip_1', 'drip_2'] as const;
 
 const DRIP_DELAYS: Record<string, number> = {
-  outreach_sent: 2 * MS_PER_DAY,  // Day 2
-  drip_1: 3 * MS_PER_DAY,         // Day 5 (2 + 3)
-  drip_2: 2 * MS_PER_DAY,         // Day 7 (5 + 2)
+  outreach_sent: 2 * MS_PER_DAY,
+  drip_1: 3 * MS_PER_DAY,
+  drip_2: 2 * MS_PER_DAY,
 };
 
 const NEXT_STATUS: Record<string, string> = {
@@ -37,6 +37,8 @@ const DRIP_NUMBER: Record<string, number> = {
  *
  * A) Fires scheduled outreach for alerts past their 2-hour grace period.
  * B) Sends drip follow-ups on Day 2, Day 5, Day 7 for unresolved alerts.
+ *
+ * All messages sent via Linq (iMessage with SMS/RCS fallback).
  */
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
@@ -57,7 +59,6 @@ export async function GET(req: NextRequest) {
       const agentData = agentDoc.data();
       const agentName = (agentData.name as string) || 'Your Agent';
       const agentFirstName = agentName.split(' ')[0];
-      const twilioNumber = (agentData.twilioPhoneNumber as string) || getTwilioPhoneNumber();
       const schedulingUrl = (agentData.schedulingUrl as string) || null;
 
       const alertsRef = db
@@ -65,7 +66,7 @@ export async function GET(req: NextRequest) {
         .doc(agentDoc.id)
         .collection('conservationAlerts');
 
-      // ── A) Fire scheduled outreach past grace period ───────────────────
+      // A) Fire scheduled outreach past grace period
       const scheduledSnap = await alertsRef
         .where('status', '==', 'outreach_scheduled')
         .get();
@@ -99,7 +100,6 @@ export async function GET(req: NextRequest) {
         let smsSent = false;
         const nowIso = new Date().toISOString();
 
-        // Push notification
         if (pushToken) {
           try {
             const pushData: Record<string, unknown> = {
@@ -135,23 +135,19 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        // SMS
         const normalizedPhone = normalizePhone(clientPhone);
         if (isValidE164(normalizedPhone)) {
           try {
-            const twilioClient = getTwilioClient();
-            await twilioClient.messages.create({
-              body: message,
-              from: twilioNumber,
+            await sendOrCreateChat({
               to: normalizedPhone,
+              text: message,
             });
             smsSent = true;
           } catch (e) {
-            console.error('Conservation cron SMS error:', e);
+            console.error('Conservation cron Linq error:', e);
           }
         }
 
-        // Write notification record
         if (pushSent || smsSent) {
           await db
             .collection('agents')
@@ -182,7 +178,7 @@ export async function GET(req: NextRequest) {
         outreachFired++;
       }
 
-      // ── B) Drip follow-ups ─────────────────────────────────────────────
+      // B) Drip follow-ups
       for (const status of DRIP_STATUSES) {
         const dripSnap = await alertsRef.where('status', '==', status).get();
 
@@ -219,7 +215,6 @@ export async function GET(req: NextRequest) {
           const pushToken = clientData.pushToken as string | undefined;
           const clientName = (alertData.clientName as string) || 'Client';
 
-          // Generate AI drip message
           const dripNumber = DRIP_NUMBER[status];
           const outreachCtx: ConservationOutreachContext = {
             clientFirstName: clientName.split(' ')[0],
@@ -247,23 +242,19 @@ export async function GET(req: NextRequest) {
           let smsSent = false;
           let pushSent = false;
 
-          // SMS
           const normalizedPhone = normalizePhone(clientPhone);
           if (isValidE164(normalizedPhone)) {
             try {
-              const twilioClient = getTwilioClient();
-              await twilioClient.messages.create({
-                body: dripMessage,
-                from: twilioNumber,
+              await sendOrCreateChat({
                 to: normalizedPhone,
+                text: dripMessage,
               });
               smsSent = true;
             } catch (e) {
-              console.error('Conservation drip SMS error:', e);
+              console.error('Conservation drip Linq error:', e);
             }
           }
 
-          // Push
           if (pushToken) {
             try {
               const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {

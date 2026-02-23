@@ -2,7 +2,7 @@ import 'server-only';
 
 /**
  * Normalize a US phone number to E.164 format (+1XXXXXXXXXX).
- * Handles common formats from contact pickers, Twilio webhooks,
+ * Handles common formats from contact pickers, Linq webhooks,
  * and user input. Returns the original string if it can't be normalized.
  */
 export function normalizePhone(raw: string): string {

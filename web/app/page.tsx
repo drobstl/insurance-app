@@ -164,11 +164,11 @@ export default function LandingPage() {
     },
     {
       question: "How do I get more referrals from existing clients?",
-      answer: "Make it effortless. Your clients tap one button, pick a contact, and a warm personal introduction goes out via text — with your business card attached. Your AI-powered business line then picks up the conversation, gathers the referral's info, and books an appointment on your calendar. If the referral doesn't reply, AI automatically follows up on Day 2, 5, and 8. You just show up and close."
+      answer: "Make it effortless. Your clients tap one button, pick a contact, and send a warm personal text — with your business card attached. Then your AI reaches out separately via iMessage, has a qualifying conversation, gathers their info, and books an appointment on your calendar. If the referral doesn't reply, AI automatically follows up on Day 2, 5, and 8. You just show up and close."
     },
     {
-      question: "What is the AI business line?",
-      answer: "Every agent gets a dedicated phone number powered by AI. When a referral replies to the group text, the AI responds as you — warm, conversational, and natural. It learns what coverage they need, answers basic questions, and shares your scheduling link to book a call. Calls to your business line forward straight to your personal phone. The referral thinks they're texting you directly."
+      question: "What is the AI Referral Assistant?",
+      answer: "When your client refers someone, the AI reaches out via iMessage (blue bubbles, ~99% read rate) in a separate 1-on-1 thread — responding as you, warm and conversational. It builds trust through a qualifying conversation, learns what coverage they need, and shares your scheduling link to book a call. The referral thinks they're texting you directly."
     },
     {
       question: "How do insurance agents generate rewrites?",
@@ -180,11 +180,11 @@ export default function LandingPage() {
     },
     {
       question: "How hard is it to get started?",
-      answer: "You can be up and running in 10 minutes. Import your existing clients via CSV spreadsheet or upload PDF insurance applications — our AI extracts client info, policy details, and beneficiaries automatically. Your AI business line is provisioned instantly when you sign up. Share your branded app code with clients and you're live."
+      answer: "You can be up and running in 10 minutes. Import your existing clients via CSV spreadsheet or upload PDF insurance applications — our AI extracts client info, policy details, and beneficiaries automatically. Enable the AI referral assistant with one toggle and share your branded app code with clients — you're live."
     },
     {
       question: "What exactly is Agent For Life?",
-      answer: "It's a complete client relationship system built for insurance agents. You get: a branded mobile app for your clients, automated touchpoints (holidays, birthdays, anniversaries), one-tap referrals with an AI business line that books appointments, conservation alerts that rescue at-risk policies, anniversary rewrite alerts that turn renewals into booked appointments, CSV import, PDF parsing, push notifications, and a web dashboard to manage it all — normally $49/month, but free for life for our first 50 founding members."
+      answer: "It's a complete client relationship system built for insurance agents. You get: a branded mobile app for your clients, automated touchpoints (holidays, birthdays, anniversaries), one-tap referrals with an AI assistant that qualifies leads via iMessage and books appointments, conservation alerts that rescue at-risk policies, anniversary rewrite alerts that turn renewals into booked appointments, CSV import, PDF parsing, push notifications, and a web dashboard to manage it all — normally $49/month, but free for life for our first 50 founding members."
     },
     {
       question: "What carriers does it work with?",
@@ -338,7 +338,7 @@ export default function LandingPage() {
             </h1>
 
             <p className="text-xl md:text-2xl text-white/80 mb-10 max-w-3xl mx-auto leading-relaxed">
-              Stop the &quot;one-and-done&quot; cycle. Agent For Life <span className="text-white font-semibold">fortifies your client relationships</span> with automated touchpoints, one-tap referrals, and your own AI-powered business line. It will cost <span className="line-through opacity-70">$49/month</span> — but the first 50 agents get it <span className="text-[#fdcc02] font-bold">free. For life.</span>
+              Stop the &quot;one-and-done&quot; cycle. Agent For Life <span className="text-white font-semibold">fortifies your client relationships</span> with automated touchpoints, one-tap referrals, and an AI assistant that qualifies leads via iMessage. It will cost <span className="line-through opacity-70">$49/month</span> — but the first 50 agents get it <span className="text-[#fdcc02] font-bold">free. For life.</span>
             </p>
 
             <Link href="/founding-member" className="inline-flex items-center gap-3 px-12 py-5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-xl font-bold rounded-full transition-all shadow-2xl shadow-[#fdcc02]/40 hover:shadow-[#fdcc02]/60 hover:scale-105 border-2 border-[#fdcc02] hover:border-white/20">
@@ -481,7 +481,7 @@ export default function LandingPage() {
                     </div>
                     <div>
                       <h3 className="text-xl font-bold text-white mb-2">Referrals — One Tap to Booked Appointment</h3>
-                      <p className="text-white/60 leading-relaxed">Your client picks a contact, a warm intro goes out with your business card, and your AI business line takes the conversation from there — qualifying, gathering info, and booking on your calendar. You just show up.</p>
+                      <p className="text-white/60 leading-relaxed">Your client picks a contact and sends a personal text with your business card. Then your AI follows up via iMessage — qualifying, gathering info, and booking on your calendar. You just show up.</p>
                     </div>
                   </div>
                 </div>
@@ -827,7 +827,7 @@ export default function LandingPage() {
                 <div className="absolute top-4 right-4"><span className="px-2 py-1 bg-[#fdcc02] text-[#0D4D4D] text-[10px] font-bold rounded-full uppercase">AI Powered</span></div>
                 <div className="w-12 h-12 bg-[#fdcc02] rounded-full flex items-center justify-center text-xl font-bold text-[#0D4D4D] mb-5">3</div>
                 <h3 className="text-xl font-bold text-white mb-3">AI Books the Appointment</h3>
-                <p className="text-white/70 leading-relaxed">When the referral replies, your <span className="text-white font-semibold">AI business line</span> picks up the conversation — texting as you. It gathers their info and books them on your calendar. <span className="text-[#fdcc02] font-semibold">You just show up and close.</span></p>
+                <p className="text-white/70 leading-relaxed">Your <span className="text-white font-semibold">AI assistant</span> reaches out via iMessage — texting as you. It builds trust through conversation, gathers their info, and books them on your calendar. <span className="text-[#fdcc02] font-semibold">You just show up and close.</span></p>
               </div>
             </div>
 
@@ -849,11 +849,10 @@ export default function LandingPage() {
                       </div>
                     </div>
                     <div className="bg-[#111] px-4 py-4 space-y-3 rounded-b-[1.6rem] min-h-[180px]">
-                      <div className="flex justify-start" style={fade(0)}><div className="bg-[#333] rounded-2xl rounded-tl-sm px-3.5 py-2.5 max-w-[88%]"><p className="text-white/40 text-[10px] mb-0.5 font-medium">Sarah</p><p className="text-white text-[13px] leading-relaxed">Hey Mike, I just got helped by Daniel getting protection for my family. He was great and I thought he might be able to help you too!</p></div></div>
-                      <div className="flex justify-end" style={fade(1)}><div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[88%]"><p className="text-[#3DD6C3] text-[10px] mb-0.5 font-medium">Daniel</p><p className="text-white text-[13px] leading-relaxed">Hey Mike! Sarah, thank you for connecting us. Mike, great to meet you — I&apos;ll shoot you a text.</p></div></div>
+                      <div className="flex justify-end" style={fade(0)}><div className="bg-[#007AFF] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[88%]"><p className="text-white/60 text-[10px] mb-0.5 font-medium">Sarah</p><p className="text-white text-[13px] leading-relaxed">Hey Mike, I wanted to connect you with my insurance agent Daniel. He helped me get my family&apos;s finances protected and I thought he might be able to help you too. He&apos;ll probably reach out!</p></div></div>
                     </div>
                   </div>
-                  <p className="text-center text-white/30 text-xs mt-3 font-medium">Group text — warm intro from your client</p>
+                  <p className="text-center text-white/30 text-xs mt-3 font-medium">Personal text — warm intro from your client</p>
                 </div>
 
                 {/* AI Handoff (mobile) */}
@@ -878,7 +877,7 @@ export default function LandingPage() {
                     <div className="bg-[#111] px-5 pb-3 border-b border-white/5">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-full bg-[#005851] flex items-center justify-center"><span className="text-[#3DD6C3] text-xs font-bold">D</span></div>
-                        <div><p className="text-white text-sm font-semibold">Daniel</p><p className="text-white/30 text-[10px]">Your AI Business Line</p></div>
+                        <div><p className="text-white text-sm font-semibold">Daniel</p><p className="text-white/30 text-[10px]">AI Referral Assistant</p></div>
                       </div>
                     </div>
                     <div className="bg-[#111] px-4 py-4 space-y-2.5 rounded-b-[1.6rem]">
@@ -906,7 +905,7 @@ export default function LandingPage() {
                   <div className="w-10 h-10 bg-[#3DD6C3]/20 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"><svg className="w-5 h-5 text-[#3DD6C3]" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg></div>
                   <div>
                     <p className="text-white font-semibold text-sm mb-1">The referral thinks they&apos;re texting you</p>
-                    <p className="text-white/50 text-sm leading-relaxed">Your AI business line responds in your voice — warm, personal, and natural. It qualifies the lead, gathers their info, and books the appointment on your calendar. You just show up and close.</p>
+                    <p className="text-white/50 text-sm leading-relaxed">Your AI assistant reaches out via iMessage — warm, personal, and natural. It qualifies the lead through conversation, gathers their info, and books the appointment on your calendar. You just show up and close.</p>
                   </div>
                 </div>
               </div>

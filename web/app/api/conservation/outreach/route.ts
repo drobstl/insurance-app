@@ -3,13 +3,13 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
-import { getTwilioClient, getTwilioPhoneNumber } from '../../../../lib/twilio';
+import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 
 /**
  * POST /api/conservation/outreach
  *
- * Sends push notification + SMS to the client for a conservation alert.
+ * Sends push notification + iMessage to the client for a conservation alert.
  * Called manually by the agent, or by the cron job after the grace period.
  *
  * Body: { alertId: string }
@@ -20,7 +20,6 @@ export async function POST(req: NextRequest) {
     const db = getAdminFirestore();
     let agentId: string;
 
-    // Support both agent auth and cron secret
     const authHeader = req.headers.get('Authorization');
     const cronSecret = process.env.CRON_SECRET;
     const body = await req.json();
@@ -28,7 +27,6 @@ export async function POST(req: NextRequest) {
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.split('Bearer ')[1];
 
-      // Check if it's a cron secret
       if (cronSecret && token === cronSecret) {
         agentId = body.agentId;
         if (!agentId) {
@@ -48,7 +46,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required field: alertId' }, { status: 400 });
     }
 
-    // Fetch the alert
     const alertRef = db
       .collection('agents')
       .doc(agentId)
@@ -78,7 +75,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Fetch client data
     const clientRef = db.collection('agents').doc(agentId).collection('clients').doc(clientId);
     const clientDoc = await clientRef.get();
     if (!clientDoc.exists) {
@@ -89,18 +85,15 @@ export async function POST(req: NextRequest) {
     const pushToken = clientData.pushToken as string | undefined;
     const clientPhone = (clientData.phone as string) || '';
 
-    // Fetch agent data
     const agentDoc = await db.collection('agents').doc(agentId).get();
     const agentData = agentDoc.data() || {};
     const agentName = (agentData.name as string) || 'Your Agent';
-    const twilioNumber = (agentData.twilioPhoneNumber as string) || getTwilioPhoneNumber();
     const schedulingUrl = (agentData.schedulingUrl as string) || null;
 
     const now = new Date().toISOString();
     let pushSent = false;
     let smsSent = false;
 
-    // Send push notification if client has app
     if (pushToken) {
       try {
         const pushData: Record<string, unknown> = {
@@ -141,23 +134,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Send SMS if client has a valid phone number
     const normalizedPhone = normalizePhone(clientPhone);
     if (isValidE164(normalizedPhone)) {
       try {
-        const twilioClient = getTwilioClient();
-        await twilioClient.messages.create({
-          body: message,
-          from: twilioNumber,
+        await sendOrCreateChat({
           to: normalizedPhone,
+          text: message,
         });
         smsSent = true;
       } catch (smsError) {
-        console.error('Failed to send conservation SMS:', smsError);
+        console.error('Failed to send conservation message via Linq:', smsError);
       }
     }
 
-    // Write notification record to client's notifications subcollection
     await clientRef.collection('notifications').add({
       type: 'conservation',
       title: `Message from ${agentName}`,
@@ -169,7 +158,6 @@ export async function POST(req: NextRequest) {
       status: pushSent ? 'sent' : smsSent ? 'sent' : 'failed',
     });
 
-    // Update alert status
     await alertRef.update({
       status: 'outreach_sent',
       outreachSentAt: now,

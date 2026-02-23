@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, doc, getDoc, onSnapshot, query, orderBy, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, orderBy, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
 
@@ -19,35 +19,22 @@ interface Referral {
 }
 
 export default function ReferralsPage() {
-  const { user, agentProfile, loading } = useDashboard();
+  const { user, agentProfile, setAgentProfile, loading } = useDashboard();
 
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [referralsLoading, setReferralsLoading] = useState(true);
   const [expandedReferral, setExpandedReferral] = useState<string | null>(null);
-  const [agentTwilioNumber, setAgentTwilioNumber] = useState<string | null>(null);
-  const [provisioningNumber, setProvisioningNumber] = useState(false);
   const [manualMessageText, setManualMessageText] = useState('');
   const [sendingManualMessage, setSendingManualMessage] = useState(false);
+  const [togglingAi, setTogglingAi] = useState(false);
 
-  const aiAssistantEnabled = agentProfile.aiAssistantEnabled ?? true;
+  const aiAssistantEnabled = agentProfile.aiAssistantEnabled ?? false;
+  const hasBusinessCard = !!agentProfile.businessCardBase64;
+  const hasSchedulingUrl = !!agentProfile.schedulingUrl;
+  const canEnableAi = hasBusinessCard && hasSchedulingUrl;
 
   useEffect(() => {
     if (!user) return;
-
-    const fetchTwilioNumber = async () => {
-      try {
-        const agentDoc = await getDoc(doc(db, 'agents', user.uid));
-        if (agentDoc.exists()) {
-          const data = agentDoc.data();
-          if (data.twilioPhoneNumber) {
-            setAgentTwilioNumber(data.twilioPhoneNumber);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching Twilio number:', err);
-      }
-    };
-    fetchTwilioNumber();
 
     const referralsRef = collection(db, 'agents', user.uid, 'referrals');
     const refQuery = query(referralsRef, orderBy('createdAt', 'desc'));
@@ -67,27 +54,22 @@ export default function ReferralsPage() {
     return () => unsubscribe();
   }, [user]);
 
-  const handleProvisionNumber = async () => {
-    if (!user) return;
-    setProvisioningNumber(true);
+  const handleToggleAi = async () => {
+    if (!user || togglingAi) return;
+
+    if (!aiAssistantEnabled && !canEnableAi) return;
+
+    setTogglingAi(true);
     try {
-      const token = await user.getIdToken();
-      const res = await fetch('/api/twilio/provision', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({}),
+      const newValue = !aiAssistantEnabled;
+      await updateDoc(doc(db, 'agents', user.uid), {
+        aiAssistantEnabled: newValue,
       });
-      const data = await res.json();
-      if (data.success && data.phoneNumber) {
-        setAgentTwilioNumber(data.phoneNumber);
-      }
+      setAgentProfile((prev) => ({ ...prev, aiAssistantEnabled: newValue }));
     } catch (err) {
-      console.error('Error provisioning number:', err);
+      console.error('Error toggling AI assistant:', err);
     } finally {
-      setProvisioningNumber(false);
+      setTogglingAi(false);
     }
   };
 
@@ -134,36 +116,64 @@ export default function ReferralsPage() {
         <p className="text-[#707070] text-sm mt-1">Track referral conversations and booked appointments.</p>
       </div>
 
-      {/* AI Business Line Card */}
+      {/* AI Referral Assistant Card */}
       <div className="bg-white rounded-[5px] border border-[#d0d0d0] mb-6 p-5">
         <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-[#000000] mb-1">Your AI Business Line</h3>
-            {agentTwilioNumber ? (
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-bold text-[#005851]">{agentTwilioNumber.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3')}</span>
-                <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium">Active</span>
-              </div>
+          <div className="flex-1 mr-4">
+            <h3 className="text-sm font-semibold text-[#000000] mb-1">AI Referral Assistant</h3>
+            {aiAssistantEnabled ? (
+              <p className="text-sm text-[#707070]">
+                Referral texts are handled by AI via iMessage — responding as you, building trust through conversation, and booking appointments.
+              </p>
+            ) : canEnableAi ? (
+              <p className="text-sm text-[#707070]">
+                Enable AI to automatically text referrals via iMessage, have qualifying conversations, and book appointments — all as you.
+              </p>
             ) : (
-              <p className="text-sm text-[#707070]">Get your dedicated AI business line — calls forward to your phone, texts are handled by AI.</p>
+              <div className="space-y-1.5">
+                <p className="text-sm text-[#707070]">Complete these items before enabling:</p>
+                <div className="flex flex-col gap-1">
+                  <span className={`text-xs flex items-center gap-1.5 ${hasBusinessCard ? 'text-green-600' : 'text-amber-600'}`}>
+                    {hasBusinessCard ? (
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
+                    )}
+                    Business card uploaded
+                  </span>
+                  <span className={`text-xs flex items-center gap-1.5 ${hasSchedulingUrl ? 'text-green-600' : 'text-amber-600'}`}>
+                    {hasSchedulingUrl ? (
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
+                    )}
+                    Scheduling URL set
+                  </span>
+                </div>
+              </div>
             )}
           </div>
-          {!agentTwilioNumber && (
-            <button
-              onClick={handleProvisionNumber}
-              disabled={provisioningNumber}
-              className="px-4 py-2 bg-[#005851] text-white rounded-[5px] text-sm font-semibold hover:bg-[#004440] transition-colors disabled:opacity-50"
-            >
-              {provisioningNumber ? 'Setting up...' : 'Get My Number'}
-            </button>
-          )}
+          <button
+            onClick={handleToggleAi}
+            disabled={togglingAi || (!aiAssistantEnabled && !canEnableAi)}
+            className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#45bcaa] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+              aiAssistantEnabled ? 'bg-[#005851]' : 'bg-gray-300'
+            }`}
+            role="switch"
+            aria-checked={aiAssistantEnabled}
+          >
+            <span
+              className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                aiAssistantEnabled ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
         </div>
-        {agentTwilioNumber && (
-          <p className="text-xs text-[#707070] mt-2">
-            {aiAssistantEnabled
-              ? 'Calls to this number ring your personal phone. Referral texts are handled by AI — responding as you.'
-              : 'Manual mode — text referrals through your dashboard. AI tracks everything.'}
-          </p>
+        {aiAssistantEnabled && (
+          <div className="flex items-center gap-2 mt-3">
+            <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium">Active</span>
+            <span className="text-xs text-[#707070]">iMessage with SMS fallback</span>
+          </div>
         )}
       </div>
 
@@ -204,14 +214,14 @@ export default function ReferralsPage() {
                   <span className="w-6 h-6 bg-[#005851] text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">1</span>
                   <div>
                     <p className="text-sm font-semibold text-[#000000]">Your client taps &ldquo;Refer a Friend&rdquo;</p>
-                    <p className="text-xs text-[#707070]">Inside their AgentForLife app, they enter their friend&rsquo;s name and phone number.</p>
+                    <p className="text-xs text-[#707070]">Inside their AgentForLife app, they pick a contact and send a personal recommendation with your business card attached.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 bg-[#f8f8f8] rounded-[5px] p-3.5">
                   <span className="w-6 h-6 bg-[#005851] text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">2</span>
                   <div>
-                    <p className="text-sm font-semibold text-[#000000]">AI texts the referral from your business line</p>
-                    <p className="text-xs text-[#707070]">A personalized message goes out automatically, sounding like you. It gathers info about their insurance needs.</p>
+                    <p className="text-sm font-semibold text-[#000000]">AI texts the referral via iMessage</p>
+                    <p className="text-xs text-[#707070]">A personalized message goes out automatically via iMessage (blue bubbles, ~99% read rate), sounding like you. It builds trust through conversation before booking.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 bg-[#f8f8f8] rounded-[5px] p-3.5">

@@ -25,7 +25,6 @@ export interface AgentProfile {
   autoHolidayCards?: boolean;
   aiAssistantEnabled?: boolean;
   anniversaryMessageStyle?: 'check_in' | 'lower_price';
-  twilioPhoneNumber?: string;
   onboardingComplete?: boolean;
 }
 
@@ -89,7 +88,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           autoHolidayCards: data.autoHolidayCards,
           aiAssistantEnabled: data.aiAssistantEnabled,
           anniversaryMessageStyle: data.anniversaryMessageStyle,
-          twilioPhoneNumber: data.twilioPhoneNumber,
           onboardingComplete: data.onboardingComplete,
         });
       }
