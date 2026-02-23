@@ -317,10 +317,16 @@ export async function uploadAttachment(opts: {
     required_headers: Record<string, string>;
   };
 
+  const bytes = new Uint8Array(
+    opts.fileBuffer.buffer,
+    opts.fileBuffer.byteOffset,
+    opts.fileBuffer.byteLength,
+  );
+
   const uploadRes = await fetch(data.upload_url, {
     method: 'PUT',
     headers: data.required_headers,
-    body: opts.fileBuffer,
+    body: bytes,
   });
 
   if (!uploadRes.ok) {
