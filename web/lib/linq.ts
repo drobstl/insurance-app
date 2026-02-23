@@ -317,12 +317,10 @@ export async function uploadAttachment(opts: {
     required_headers: Record<string, string>;
   };
 
-  const blob = new Blob([opts.fileBuffer], { type: opts.contentType });
-
   const uploadRes = await fetch(data.upload_url, {
     method: 'PUT',
-    headers: data.required_headers,
-    body: blob,
+    headers: { ...data.required_headers, 'Content-Length': String(opts.sizeBytes) },
+    body: opts.fileBuffer as unknown as BodyInit,
   });
 
   if (!uploadRes.ok) {
