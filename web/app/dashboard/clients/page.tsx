@@ -288,9 +288,6 @@ export default function ClientsPage() {
       setClientPushToken(undefined);
       return;
     }
-    // #region agent log
-    console.log('[DEBUG-3c0330] Push token from snapshot:', { clientId: selectedClient.id, pushToken: selectedClient.pushToken || null });
-    // #endregion
     setClientPushToken(selectedClient.pushToken || null);
   }, [selectedClient]);
 

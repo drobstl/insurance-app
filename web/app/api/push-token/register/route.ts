@@ -41,10 +41,6 @@ export async function POST(req: NextRequest) {
         const clientDoc = clientsSnap.docs[0];
         await clientDoc.ref.update({ pushToken });
 
-        // #region agent log
-        fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c0330'},body:JSON.stringify({sessionId:'3c0330',location:'push-token/register:44',message:'Push token saved to agent subcollection',data:{agentId:agentDoc.id,clientId:clientDoc.id,clientCode:normalizedCode,tokenPrefix:pushToken.substring(0,20)},timestamp:Date.now(),hypothesisId:'H4-write-path'})}).catch(()=>{});
-        // #endregion
-
         return NextResponse.json({
           success: true,
           agentId: agentDoc.id,
@@ -52,10 +48,6 @@ export async function POST(req: NextRequest) {
         });
       }
     }
-
-    // #region agent log
-    fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c0330'},body:JSON.stringify({sessionId:'3c0330',location:'push-token/register:56',message:'Client code not found',data:{normalizedCode},timestamp:Date.now(),hypothesisId:'H3-code-mismatch'})}).catch(()=>{});
-    // #endregion
 
     return NextResponse.json({ error: 'Client code not found' }, { status: 404 });
   } catch (error) {
