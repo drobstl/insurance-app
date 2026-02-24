@@ -4,7 +4,6 @@ import { useState, useRef, useCallback } from 'react';
 import { doc, setDoc } from 'firebase/firestore';
 import {
   updatePassword,
-  updateEmail,
   reauthenticateWithCredential,
   EmailAuthProvider,
 } from 'firebase/auth';
@@ -181,22 +180,32 @@ export default function SettingsPage() {
     if (!user?.email) return;
     setChangingEmail(true);
     try {
+      // Re-authenticate to prove identity
       const credential = EmailAuthProvider.credential(user.email, emailPassword);
       await reauthenticateWithCredential(user, credential);
-      await updateEmail(user, trimmedEmail);
-      await setDoc(doc(db, 'agents', user.uid), { email: trimmedEmail }, { merge: true });
+
+      // Use server endpoint (Admin SDK) to update both Auth + Firestore
+      const token = await user.getIdToken(true);
+      const res = await fetch('/api/auth/update-email', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ newEmail: trimmedEmail }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setEmailError(data.error || 'Failed to update email. Please try again.');
+        return;
+      }
+
       setAgentProfile((prev) => ({ ...prev, email: trimmedEmail }));
-      setEmailSuccess(`Email updated to ${trimmedEmail}. This is now your sign-in and profile email.`);
+      setEmailSuccess(`Email updated to ${trimmedEmail}. Sign out and sign back in with your new email.`);
       setNewEmail('');
       setEmailPassword('');
     } catch (err: unknown) {
       const code = (err as { code?: string }).code;
       if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
         setEmailError('Current password is incorrect.');
-      } else if (code === 'auth/email-already-in-use') {
-        setEmailError('That email is already associated with another account.');
-      } else if (code === 'auth/invalid-email') {
-        setEmailError('Please enter a valid email address.');
       } else {
         setEmailError('Failed to update email. Please try again.');
       }
