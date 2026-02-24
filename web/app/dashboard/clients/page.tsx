@@ -281,33 +281,23 @@ export default function ClientsPage() {
     return () => unsub();
   }, [user, selectedClient]);
 
-  // Fetch push token when a client is selected
+  // Fetch push token from agent's client subcollection (where the mobile app writes it)
   useEffect(() => {
-    if (!selectedClient) {
+    if (!selectedClient || !user) {
       setClientPushToken(undefined);
       return;
     }
     (async () => {
       try {
+        const clientDoc = await getDoc(doc(db, 'agents', user.uid, 'clients', selectedClient.id));
         // #region agent log
-        fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c0330'},body:JSON.stringify({sessionId:'3c0330',location:'clients/page.tsx:292',message:'Fetching push token - checking top-level doc',data:{clientId:selectedClient.id,clientName:selectedClient.name},timestamp:Date.now(),hypothesisId:'H1-toplevel-read'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c0330'},body:JSON.stringify({sessionId:'3c0330',location:'clients/page.tsx:290',message:'Push token read from agent subcollection',data:{exists:clientDoc.exists(),pushToken:clientDoc.exists()?clientDoc.data()?.pushToken:null,clientId:selectedClient.id},timestamp:Date.now(),hypothesisId:'H5-fix-verify'})}).catch(()=>{});
         // #endregion
-        const tokenDoc = await getDoc(doc(db, 'clients', selectedClient.id));
-        // #region agent log
-        fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c0330'},body:JSON.stringify({sessionId:'3c0330',location:'clients/page.tsx:294',message:'Top-level doc result',data:{exists:tokenDoc.exists(),pushToken:tokenDoc.exists()?tokenDoc.data()?.pushToken:null,allFields:tokenDoc.exists()?Object.keys(tokenDoc.data()||{}):[],clientId:selectedClient.id},timestamp:Date.now(),hypothesisId:'H1-toplevel-read'})}).catch(()=>{});
-        // #endregion
-        if (tokenDoc.exists()) {
-          setClientPushToken(tokenDoc.data()?.pushToken || null);
+        if (clientDoc.exists()) {
+          setClientPushToken(clientDoc.data()?.pushToken || null);
         } else {
           setClientPushToken(null);
         }
-
-        // #region agent log
-        if (user) {
-          const agentClientDoc = await getDoc(doc(db, 'agents', user.uid, 'clients', selectedClient.id));
-          fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c0330'},body:JSON.stringify({sessionId:'3c0330',location:'clients/page.tsx:305',message:'Agent subcollection doc result',data:{exists:agentClientDoc.exists(),pushToken:agentClientDoc.exists()?agentClientDoc.data()?.pushToken:null,allFields:agentClientDoc.exists()?Object.keys(agentClientDoc.data()||{}):[],clientId:selectedClient.id},timestamp:Date.now(),hypothesisId:'H5-subcollection-has-token'})}).catch(()=>{});
-        }
-        // #endregion
       } catch {
         setClientPushToken(null);
       }
