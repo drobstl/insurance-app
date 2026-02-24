@@ -97,8 +97,39 @@ export async function POST(req: NextRequest) {
     const agentId = agentDoc.id;
     const agentName = (agentDoc.data().name as string) || 'Agent';
 
-    // Extract the email body text (prefer plain text, fall back to subject)
-    const rawText = emailData.text || emailData.html || emailData.subject || '';
+    // Extract the email body text
+    // Forwarded emails often have the real content in HTML only; plain text may just be headers
+    let rawText = emailData.text || '';
+    const htmlText = emailData.html || '';
+
+    // #region agent log
+    await debugLog('webhook-raw-content', { textLength: rawText.length, htmlLength: htmlText.length, textPreview: rawText.substring(0, 200), htmlPreview: htmlText.substring(0, 300) });
+    // #endregion
+
+    // If plain text is too short but HTML has content, strip HTML tags and use that
+    if (rawText.trim().length < 150 && htmlText.length > rawText.length) {
+      rawText = htmlText
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/\s+/g, ' ')
+        .trim();
+      // #region agent log
+      await debugLog('webhook-used-html', { strippedLength: rawText.length, strippedPreview: rawText.substring(0, 300) });
+      // #endregion
+    }
+
+    if (!rawText || rawText.trim().length < 10) {
+      // Fall back to subject
+      rawText = emailData.subject || '';
+    }
+
     if (!rawText || rawText.trim().length < 10) {
       console.warn('Resend inbound: email body too short from:', senderEmail);
       return NextResponse.json({ received: true, skipped: 'body too short' });
