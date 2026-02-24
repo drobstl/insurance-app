@@ -45,3 +45,4 @@ firebase-admin-key.json
 *-firebase-adminsdk-*.json
 keys/
 COPY_THIS_TO_VERCEL.txt
+.env*.local

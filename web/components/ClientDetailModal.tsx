@@ -202,6 +202,9 @@ export default function ClientDetailModal({
       });
 
       const result = await response.json();
+      // #region agent log
+      console.log('[DEBUG-3c0330] Send notification response:', JSON.stringify(result));
+      // #endregion
 
       if (!response.ok) {
         throw new Error(result.error || 'Failed to send notification');

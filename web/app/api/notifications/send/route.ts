@@ -152,6 +152,10 @@ export async function POST(req: NextRequest) {
 
     const expoResult = await expoResponse.json();
 
+    // #region agent log
+    console.log('[DEBUG-3c0330] Expo push response:', JSON.stringify({ expoResult, pushMessage: { ...pushMessage, to: pushMessage.to.substring(0, 25) + '...' } }));
+    // #endregion
+
     const pushStatus = expoResult?.data?.status === 'ok' ? 'sent' : 'failed';
     if (pushStatus === 'failed') {
       console.error('Expo push error:', expoResult?.data?.message || expoResult);
@@ -179,6 +183,9 @@ export async function POST(req: NextRequest) {
       success: true,
       notificationId: docRef.id,
       pushStatus,
+      // #region agent log
+      _debug: { expoResult, tokenPrefix: pushToken.substring(0, 25) },
+      // #endregion
     });
   } catch (error) {
     console.error('Error sending notification:', error);
