@@ -63,19 +63,25 @@ export async function extractConservationData(
     anthropic.messages.create({
       model: MODEL,
       max_tokens: 500,
-      system: `You extract structured data from insurance carrier conservation opportunity notifications. These come from carrier emails or portal pages and indicate a client's policy has lapsed, had a missed payment, or been canceled.
+      system: `You extract structured data from insurance carrier conservation opportunity notifications. These are forwarded carrier emails or portal pages indicating a client's policy has lapsed, had a missed payment, or been canceled.
 
 Extract the following fields. Return ONLY a JSON object, no other text:
 {
-  "clientName": "full name of the policyholder/insured",
+  "clientName": "full name of the policyholder/insured/client",
   "policyNumber": "policy number (may be partial or formatted differently)",
   "carrier": "insurance company name",
   "reason": "lapsed_payment" | "cancellation" | "other",
   "confidence": "high" | "medium" | "low"
 }
 
-Rules:
-- For reason: use "lapsed_payment" if it mentions missed payment, non-payment, lapse, NSF, or premium due. Use "cancellation" if it mentions cancellation, surrender, or termination by the client. Use "other" if unclear.
+CRITICAL RULES for clientName:
+- The CLIENT is the policyholder/insured person, NOT the agent or SPA who forwarded the email.
+- Look for explicit labels like "Client Name:", "Insured:", "Policyholder:", "Insured Name:", "Owner:", or "Name:" in the email body. Use that value.
+- Names in the email subject line or after "SPA", "Agent", or "Writing Agent" typically refer to the AGENT, not the client. Do NOT use those as the client name.
+- The email may be forwarded, so ignore forwarding headers and focus on the original carrier notification content.
+
+Other rules:
+- For reason: use "lapsed_payment" if it mentions missed payment, non-payment, lapse, NSF, premium due, or "danger of lapsing". Use "cancellation" if it mentions cancellation, surrender, or termination by the client. Use "other" if unclear.
 - For confidence: "high" if all 4 fields are clearly present, "medium" if 1 field required inference, "low" if 2+ fields are uncertain.
 - If a field is genuinely missing from the text, use your best guess or "Unknown" for strings.
 - Policy numbers may appear in various formats: with dashes, spaces, or prefixes. Include the full number as shown.`,
