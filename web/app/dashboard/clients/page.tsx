@@ -469,17 +469,21 @@ export default function ClientsPage() {
         if (formData.dateOfBirth) newClient.dateOfBirth = formData.dateOfBirth;
         const docRef = await addDoc(collection(db, 'agents', user.uid, 'clients'), newClient);
 
-        // Also create the top-level client doc for the mobile app
-        await setDoc(doc(db, 'clients', docRef.id), {
-          name: formData.name.trim(),
-          email: formData.email.trim(),
-          phone: formData.phone.trim(),
-          clientCode: code,
-          agentId: user.uid,
-          createdAt: serverTimestamp(),
-        });
-
         setFormSuccess('Client added!');
+
+        // Mirror to top-level clients collection for the mobile app (non-blocking)
+        try {
+          await setDoc(doc(db, 'clients', docRef.id), {
+            name: formData.name.trim(),
+            email: formData.email.trim(),
+            phone: formData.phone.trim(),
+            clientCode: code,
+            agentId: user.uid,
+            createdAt: serverTimestamp(),
+          });
+        } catch (mirrorErr) {
+          console.error('Top-level client mirror failed (non-blocking):', mirrorErr);
+        }
 
         // Auto-send welcome text with code via Linq if client has a phone
         if (formData.phone.trim()) {
