@@ -1,6 +1,0 @@
-{"sessionId":"ba143b","location":"settings/page.tsx:handleEmailChange","message":"Starting email change","data":{"userEmail":"robertsfamilyagency@gmail.com","newEmail":"daniel@crosswindsfg.com"},"timestamp":1771973017806,"hypothesisId":"H1"}
-{"sessionId":"ba143b","location":"settings/page.tsx:handleEmailChange","message":"Reauthentication succeeded","data":{},"timestamp":1771973017942,"hypothesisId":"H1"}
-{"sessionId":"ba143b","location":"settings/page.tsx:handleEmailChange","message":"Got ID token","data":{"tokenLength":977},"timestamp":1771973017984,"hypothesisId":"H4"}
-{"sessionId":"ba143b","location":"settings/page.tsx:handleEmailChange","message":"API response received","data":{"status":500,"contentType":"application/json","rawBody":"{\"error\":\"Failed to update email\"}"},"timestamp":1771973018579,"hypothesisId":"H2,H3"}
-{"sessionId":"ba143b","location":"update-email/route.ts:PATCH","message":"API handler entered","data":{},"timestamp":1771973018530,"hypothesisId":"H5"}
-{"sessionId":"ba143b","location":"update-email/route.ts:PATCH:catch","message":"API caught error","data":{"message":"Firebase Admin credentials are not configured.","name":"Error","errorString":"Error: Firebase Admin credentials are not configured."},"timestamp":1771973018575,"hypothesisId":"H5"}
