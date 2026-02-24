@@ -16,6 +16,7 @@ import Animated, {
   withSequence,
   Easing,
 } from 'react-native-reanimated';
+import * as Notifications from 'expo-notifications';
 import {
   subscribeToUnreadNotifications,
   markNotificationAsRead,
@@ -134,7 +135,7 @@ export default function MessageCard({
     }
 
     if (notifications.length <= 1) {
-      // Last notification — collapse the card
+      Notifications.setBadgeCountAsync(0).catch(() => {});
       cardOpacity.value = withTiming(0, { duration: 200 });
       cardScale.value = withTiming(0.95, { duration: 200 });
       containerHeight.value = withDelay(

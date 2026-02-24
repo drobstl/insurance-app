@@ -47,7 +47,17 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     // #region agent log
-    await debugLog('webhook-received', { type: body.type, hasData: !!body.data, keys: Object.keys(body), from: body.data?.from, to: body.data?.to, subject: body.data?.subject });
+    const dataKeys = body.data ? Object.keys(body.data) : [];
+    const dataPreview: Record<string, unknown> = {};
+    if (body.data) {
+      for (const k of dataKeys) {
+        const v = body.data[k];
+        if (typeof v === 'string') dataPreview[k] = v.substring(0, 200) + (v.length > 200 ? '...' : '');
+        else if (Array.isArray(v)) dataPreview[k] = v.slice(0, 5);
+        else dataPreview[k] = typeof v;
+      }
+    }
+    await debugLog('webhook-received', { type: body.type, bodyKeys: Object.keys(body), dataKeys, dataPreview });
     // #endregion
 
     // Verify this is an email.received event

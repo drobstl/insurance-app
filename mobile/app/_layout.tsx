@@ -93,11 +93,14 @@ export default function RootLayout() {
     });
   }, [pathname]);
 
-  // Re-register push token when the app comes back to foreground.
+  // Re-register push token and clear badge when the app comes back to foreground.
   // Handles token rotation and recovers from failed initial registrations.
   useEffect(() => {
+    Notifications.setBadgeCountAsync(0).catch(() => {});
+
     const handleAppStateChange = async (nextState: AppStateStatus) => {
       if (nextState === 'active') {
+        Notifications.setBadgeCountAsync(0).catch(() => {});
         try {
           const session = await getSession();
           if (session?.clientCode) {
