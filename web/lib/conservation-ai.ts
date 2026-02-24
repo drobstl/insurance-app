@@ -4,7 +4,10 @@ import Anthropic from '@anthropic-ai/sdk';
 import type {
   ExtractedConservationData,
   ConservationOutreachContext,
+  ConservationConversationContext,
+  ConservationMessage,
   ConservationReason,
+  SaveSignalResult,
 } from './conservation-types';
 
 let _anthropic: Anthropic | null = null;
@@ -241,4 +244,224 @@ export async function assessSaveability(context: {
   }
 
   return `${outlook} -- ${factors.join(', ')}.`;
+}
+
+function describePolicyAge(policyAge: number | null): string {
+  if (!policyAge) return 'recently';
+  if (policyAge < 30) return 'less than a month ago';
+  if (policyAge < 90) return 'a few months ago';
+  if (policyAge < 365) return `about ${Math.round(policyAge / 30)} months ago`;
+  return 'over a year ago';
+}
+
+function describeReason(reason: ConservationReason): string {
+  if (reason === 'lapsed_payment') return 'missed/lapsed premium payment';
+  if (reason === 'cancellation') return 'policy cancellation request';
+  return 'policy issue';
+}
+
+function formatConversationHistory(conversation: ConservationMessage[]): string {
+  return conversation
+    .map((m) => {
+      const sender =
+        m.role === 'client'
+          ? 'Client'
+          : m.role === 'agent-manual'
+            ? 'Agent (manual)'
+            : 'Agent (AI)';
+      return `${sender}: ${m.body}`;
+    })
+    .join('\n');
+}
+
+/**
+ * Generates an AI reply in an ongoing conservation conversation.
+ * Goal: help the client reinstate/save their at-risk policy.
+ */
+export async function generateConservationResponse(
+  ctx: ConservationConversationContext,
+  incomingText: string,
+): Promise<string> {
+  const anthropic = getAnthropic();
+
+  const reasonDesc = describeReason(ctx.reason);
+  const policyAgeDesc = describePolicyAge(ctx.policyAge);
+
+  const schedulingNote = ctx.schedulingUrl
+    ? `You have a scheduling URL: ${ctx.schedulingUrl}. Mention it if the client seems ready to talk.`
+    : 'You do not have a scheduling link. Offer to chat or take a call instead.';
+
+  const historyBlock =
+    ctx.conversation.length > 0
+      ? `\nCONVERSATION SO FAR:\n${formatConversationHistory(ctx.conversation)}\n`
+      : '';
+
+  const message = await withRetry(() =>
+    anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 250,
+      system: `You are ${ctx.agentName}, an insurance agent, texting your client ${ctx.clientFirstName}. You ARE ${ctx.agentFirstName}. Never reveal you are AI.
+
+SITUATION:
+- ${ctx.clientFirstName}'s ${ctx.policyType || 'insurance'} policy is at risk due to ${reasonDesc}.
+- The policy was written ${policyAgeDesc}.
+${ctx.premiumAmount ? `- Premium: $${ctx.premiumAmount}/month.` : ''}
+${ctx.coverageAmount ? `- Coverage: $${ctx.coverageAmount.toLocaleString()}.` : ''}
+
+YOUR GOAL: Help ${ctx.clientFirstName} save their policy. Be helpful, understanding, and solution-oriented.
+
+TONE:
+- ${ctx.reason === 'lapsed_payment' ? 'Missed payments happen. Focus on how easy it is to fix. Be warm.' : ctx.reason === 'cancellation' ? 'Be understanding and curious. Explore what changed. Focus on options.' : 'Be warm and check in.'}
+- If the client says they already fixed it or made a payment, congratulate them and confirm.
+- If the client has concerns, address them directly and offer to help.
+- ${schedulingNote}
+${historyBlock}
+RULES:
+- Keep it 1-3 sentences. This is a text conversation.
+- Sound like a real person texting, not a form letter.
+- No emojis except one max if natural.
+- No markdown, no bullet points. Plain conversational text.
+- Never mention specific policy numbers or internal jargon.
+- Respond naturally to what the client just said.`,
+      messages: [
+        {
+          role: 'user',
+          content: `The client just texted: "${incomingText}"\n\nWrite your reply.`,
+        },
+      ],
+    }),
+  );
+
+  const block = message.content[0];
+  return block.type === 'text' ? block.text.trim() : '';
+}
+
+/**
+ * Generates a richer email for conservation outreach (used on later drips
+ * as a complement to SMS, or as the sole channel for email-only clients).
+ */
+export async function generateConservationEmail(
+  ctx: ConservationOutreachContext & { agentEmail?: string | null; agentPhone?: string | null },
+): Promise<string> {
+  const anthropic = getAnthropic();
+
+  const policyAgeDesc = describePolicyAge(ctx.policyAge);
+  const reasonDesc = describeReason(ctx.reason);
+
+  const dripContext =
+    ctx.dripNumber === 0
+      ? 'This is the INITIAL outreach. Be warm, helpful, no pressure.'
+      : ctx.dripNumber === 1
+        ? 'This is follow-up #1 (day 2). Slightly more direct, show you care.'
+        : ctx.dripNumber === 2
+          ? 'This is follow-up #2 (day 5). Remind them what they stand to lose. Still respectful.'
+          : 'This is the FINAL follow-up (day 7). Gracious, leave the door open.';
+
+  const contactInfo = [
+    ctx.agentPhone ? `phone: ${ctx.agentPhone}` : null,
+    ctx.agentEmail ? `email: ${ctx.agentEmail}` : null,
+    ctx.schedulingUrl ? `scheduling link: ${ctx.schedulingUrl}` : null,
+  ]
+    .filter(Boolean)
+    .join(', ');
+
+  const message = await withRetry(() =>
+    anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 500,
+      system: `You are writing a short personal email as ${ctx.agentName}, an insurance agent, to their client ${ctx.clientFirstName}. You ARE ${ctx.agentFirstName}. Never reveal you are AI.
+
+SITUATION:
+- ${ctx.clientFirstName}'s ${ctx.policyType || 'insurance'} policy is at risk due to ${reasonDesc}.
+- The policy was written ${policyAgeDesc}.
+${ctx.premiumAmount ? `- Premium: $${ctx.premiumAmount}/month.` : ''}
+${ctx.coverageAmount ? `- Coverage: $${ctx.coverageAmount.toLocaleString()}.` : ''}
+
+TONE GUIDANCE:
+- ${ctx.reason === 'lapsed_payment' ? 'Be helpful and understanding. Missed payments happen.' : ctx.reason === 'cancellation' ? 'Be understanding and curious. Explore what changed.' : 'Be warm and check in.'}
+- ${dripContext}
+
+FORMAT:
+- This is an EMAIL, not a text. Write 3-5 sentences.
+- Start with a warm greeting using their first name.
+- Be specific about what they stand to lose (coverage amount, beneficiary protection) when you have the data.
+- End with a clear call to action and sign off as ${ctx.agentFirstName}.
+${contactInfo ? `- Include your contact info in the sign-off: ${contactInfo}` : ''}
+- No markdown, no bullet points, no emojis. Warm, professional, personal.
+- Do not include a subject line. Just the email body.`,
+      messages: [
+        {
+          role: 'user',
+          content: 'Write the email body.',
+        },
+      ],
+    }),
+  );
+
+  const block = message.content[0];
+  return block.type === 'text' ? block.text.trim() : '';
+}
+
+/**
+ * Analyzes a conservation conversation to detect if the client has indicated
+ * the policy is saved/reinstated. Returns a confidence level.
+ */
+export async function detectSaveSignal(
+  conversation: ConservationMessage[],
+): Promise<SaveSignalResult> {
+  if (conversation.length === 0) {
+    return { saved: false, confidence: 'low' };
+  }
+
+  const clientMessages = conversation.filter((m) => m.role === 'client');
+  if (clientMessages.length === 0) {
+    return { saved: false, confidence: 'low' };
+  }
+
+  const anthropic = getAnthropic();
+
+  const historyBlock = formatConversationHistory(conversation);
+
+  const message = await withRetry(() =>
+    anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 100,
+      system: `You analyze insurance conservation conversations to determine if the client has indicated their policy is saved, reinstated, or the issue is resolved.
+
+Look for signals like: "I made the payment", "it's been taken care of", "I called the carrier", "policy is back on track", "already handled it", "payment went through", etc.
+
+Return ONLY a JSON object:
+{
+  "saved": true/false,
+  "confidence": "high" | "medium" | "low"
+}
+
+- "high": client explicitly stated they resolved it
+- "medium": client implied it but didn't say directly
+- "low": unclear or no signal`,
+      messages: [
+        {
+          role: 'user',
+          content: `Does this conversation indicate the policy has been saved?\n\n${historyBlock}`,
+        },
+      ],
+    }),
+  );
+
+  const block = message.content[0];
+  const text = block.type === 'text' ? block.text.trim() : '';
+
+  try {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return { saved: false, confidence: 'low' };
+    const parsed = JSON.parse(jsonMatch[0]);
+    return {
+      saved: !!parsed.saved,
+      confidence: parsed.confidence === 'high' || parsed.confidence === 'medium'
+        ? parsed.confidence
+        : 'low',
+    };
+  } catch {
+    return { saved: false, confidence: 'low' };
+  }
 }

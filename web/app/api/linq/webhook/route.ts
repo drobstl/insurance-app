@@ -16,6 +16,14 @@ import {
   type ConversationMessage,
   type ReferralContext,
 } from '../../../../lib/referral-ai';
+import {
+  generateConservationResponse,
+  detectSaveSignal,
+} from '../../../../lib/conservation-ai';
+import type {
+  ConservationConversationContext,
+  ConservationMessage as ConservationMsg,
+} from '../../../../lib/conservation-types';
 import { normalizePhone } from '../../../../lib/phone';
 import { FieldValue } from 'firebase-admin/firestore';
 
@@ -232,7 +240,14 @@ async function handleDirectMessage(data: LinqWebhookMessageData) {
     referralResult = await findReferralByPhone(db, senderHandle);
   }
 
-  if (!referralResult) return;
+  if (!referralResult) {
+    // No referral match -- try conservation alerts
+    const conservationResult = await findConservationAlertByChatId(db, chatId);
+    if (conservationResult) {
+      await handleConservationReply(conservationResult, text, chatId, senderHandle);
+    }
+    return;
+  }
 
   const { agentId, referralId, referralData, agentData, referralRef } = referralResult;
 
@@ -387,4 +402,133 @@ async function findReferralByPhone(
     agentData: (agentDoc.data() as Record<string, unknown>) || {},
     referralRef: doc.ref,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Conservation alert lookup + reply handling
+// ---------------------------------------------------------------------------
+
+interface ConservationAlertResult {
+  agentId: string;
+  alertId: string;
+  alertData: Record<string, unknown>;
+  agentData: Record<string, unknown>;
+  alertRef: FirebaseFirestore.DocumentReference;
+}
+
+async function findConservationAlertByChatId(
+  db: FirebaseFirestore.Firestore,
+  chatId: string,
+): Promise<ConservationAlertResult | null> {
+  const snap = await db
+    .collectionGroup('conservationAlerts')
+    .where('chatId', '==', chatId)
+    .limit(1)
+    .get();
+
+  if (snap.empty) return null;
+
+  const doc = snap.docs[0];
+  const agentId = doc.ref.parent.parent!.id;
+  const agentDoc = await db.collection('agents').doc(agentId).get();
+
+  return {
+    agentId,
+    alertId: doc.id,
+    alertData: doc.data() as Record<string, unknown>,
+    agentData: (agentDoc.data() as Record<string, unknown>) || {},
+    alertRef: doc.ref,
+  };
+}
+
+async function handleConservationReply(
+  result: ConservationAlertResult,
+  text: string,
+  chatId: string,
+  senderHandle: string,
+) {
+  const { agentId, alertId, alertData, agentData, alertRef } = result;
+
+  const resolvedStatuses = ['saved', 'lost'];
+  if (resolvedStatuses.includes(alertData.status as string)) return;
+
+  const newIncoming: ConservationMsg = {
+    role: 'client',
+    body: text,
+    timestamp: new Date().toISOString(),
+  };
+
+  await alertRef.update({
+    conversation: FieldValue.arrayUnion(newIncoming),
+  });
+
+  if (alertData.aiEnabled === false) return;
+
+  const conversation = (alertData.conversation as ConservationMsg[]) || [];
+  const conversationWithIncoming = [...conversation, newIncoming];
+
+  const agentName = (agentData.name as string) || 'Your agent';
+  const agentFirstName = agentName.split(' ')[0];
+  const schedulingUrl = (agentData.schedulingUrl as string) || null;
+  const clientName = (alertData.clientName as string) || 'Client';
+
+  const ctx: ConservationConversationContext = {
+    clientFirstName: clientName.split(' ')[0],
+    clientName,
+    agentName,
+    agentFirstName,
+    policyType: (alertData.policyType as string) || null,
+    policyAge: (alertData.policyAge as number) || null,
+    reason: (alertData.reason as 'lapsed_payment' | 'cancellation' | 'other') || 'other',
+    schedulingUrl,
+    premiumAmount: (alertData.premiumAmount as number) || null,
+    coverageAmount: (alertData.coverageAmount as number) || null,
+    conversation: conversationWithIncoming,
+  };
+
+  try {
+    await startTypingIndicator(chatId);
+  } catch { /* non-critical */ }
+
+  let aiResponse: string | null = null;
+  try {
+    aiResponse = await generateConservationResponse(ctx, text);
+  } catch (e) {
+    console.error('Conservation AI response failed for alert', alertId, e);
+    try { await stopTypingIndicator(chatId); } catch { /* ignore */ }
+    return;
+  }
+
+  try {
+    await stopTypingIndicator(chatId);
+  } catch { /* non-critical */ }
+
+  if (aiResponse) {
+    const newOutgoing: ConservationMsg = {
+      role: 'agent-ai',
+      body: aiResponse,
+      timestamp: new Date().toISOString(),
+      channels: ['sms'],
+    };
+
+    await sendOrCreateChat({
+      to: senderHandle,
+      chatId,
+      text: aiResponse,
+    });
+
+    await alertRef.update({
+      conversation: FieldValue.arrayUnion(newOutgoing),
+    });
+  }
+
+  // Check if the conversation indicates the policy was saved
+  try {
+    const saveResult = await detectSaveSignal(conversationWithIncoming);
+    if (saveResult.saved && (saveResult.confidence === 'high' || saveResult.confidence === 'medium')) {
+      await alertRef.update({ saveSuggested: true });
+    }
+  } catch (e) {
+    console.error('Save signal detection failed:', e);
+  }
 }

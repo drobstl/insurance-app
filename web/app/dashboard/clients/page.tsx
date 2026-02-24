@@ -674,7 +674,6 @@ export default function ClientsPage() {
   const handleClientApplicationExtracted = useCallback((data: ExtractedApplicationData) => {
     setIsClientUploadModalOpen(false);
     setPendingClientApplicationData(data);
-    // Pre-fill client form with extracted data
     setFormData((prev) => ({
       ...prev,
       name: data.insuredName || prev.name,
@@ -683,6 +682,82 @@ export default function ClientsPage() {
       dateOfBirth: data.insuredDateOfBirth || prev.dateOfBirth,
     }));
   }, []);
+
+  const handleCreateClientAndPolicy = useCallback(async (
+    clientInfo: { name: string; email: string; phone: string; dateOfBirth: string },
+    appData: ExtractedApplicationData,
+  ) => {
+    if (!user || !clientInfo.name.trim()) return;
+    setIsClientUploadModalOpen(false);
+    setSubmitting(true);
+    setFormError('');
+
+    try {
+      const code = generateClientCode();
+      const newClient: Record<string, unknown> = {
+        name: clientInfo.name.trim(),
+        email: clientInfo.email.trim(),
+        phone: clientInfo.phone.trim(),
+        clientCode: code,
+        agentId: user.uid,
+        createdAt: serverTimestamp(),
+      };
+      if (clientInfo.dateOfBirth) newClient.dateOfBirth = clientInfo.dateOfBirth;
+
+      const docRef = await addDoc(collection(db, 'agents', user.uid, 'clients'), newClient);
+
+      await setDoc(doc(db, 'clients', docRef.id), {
+        name: clientInfo.name.trim(),
+        email: clientInfo.email.trim(),
+        phone: clientInfo.phone.trim(),
+        clientCode: code,
+        agentId: user.uid,
+        createdAt: serverTimestamp(),
+      });
+
+      // Auto-send welcome text with code via Linq if client has a phone
+      if (clientInfo.phone.trim()) {
+        const firstName = clientInfo.name.trim().split(' ')[0];
+        const agentNameStr = agentProfile.name || 'your agent';
+        const welcomeText = `Hey ${firstName}! ${agentNameStr} here. Download the AgentForLife app and use code ${code} to connect with me. https://agentforlife.app`;
+        try {
+          const token = await user.getIdToken();
+          await fetch('/api/client/welcome-sms', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ clientPhone: clientInfo.phone.trim(), message: welcomeText }),
+          });
+        } catch (smsErr) {
+          console.error('Auto-text failed (non-blocking):', smsErr);
+        }
+      }
+
+      // Create the policy from the extracted data
+      const mapped = mapExtractedApplicationToPolicyFormData(appData);
+      const policyData: Record<string, unknown> = {
+        policyType: mapped.policyType || '',
+        policyNumber: mapped.policyNumber || '',
+        insuranceCompany: mapped.insuranceCompany === 'Other' ? (mapped.otherCarrier || '') : (mapped.insuranceCompany || ''),
+        policyOwner: mapped.policyOwner || clientInfo.name.trim(),
+        beneficiaries: mapped.beneficiaries || [],
+        coverageAmount: mapped.coverageAmount ? parseFloat(mapped.coverageAmount) : 0,
+        premiumAmount: mapped.premiumAmount ? parseFloat(mapped.premiumAmount) : 0,
+        premiumFrequency: mapped.premiumFrequency || 'monthly',
+        renewalDate: mapped.renewalDate || '',
+        status: 'Active',
+        createdAt: serverTimestamp(),
+      };
+      await addDoc(collection(db, 'agents', user.uid, 'clients', docRef.id, 'policies'), policyData);
+
+      setFormSuccess('Client & policy created!');
+      setTimeout(() => setFormSuccess(''), 3000);
+    } catch (err) {
+      console.error('Error creating client & policy:', err);
+      setFormError('Failed to create client. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [user, agentProfile]);
 
   // ─── CSV Import Handlers ─────────────────────────────────
 
@@ -1916,12 +1991,14 @@ export default function ClientsPage() {
         />
       )}
 
-      {/* ── Application Upload (for new client creation) ── */}
+      {/* ── Application Upload (for new client + policy creation) ── */}
       {isClientUploadModalOpen && (
         <ApplicationUpload
           clientName="New Client"
           onExtracted={handleClientApplicationExtracted}
           onClose={() => setIsClientUploadModalOpen(false)}
+          onCreateClientAndPolicy={handleCreateClientAndPolicy}
+          mode="client-and-policy"
         />
       )}
 

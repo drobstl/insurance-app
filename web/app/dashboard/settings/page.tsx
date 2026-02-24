@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from 'react';
 import { doc, setDoc } from 'firebase/firestore';
 import {
   updatePassword,
+  updateEmail,
   reauthenticateWithCredential,
   EmailAuthProvider,
 } from 'firebase/auth';
@@ -69,6 +70,14 @@ export default function SettingsPage() {
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
+
+  // Email change
+  const [showEmailSection, setShowEmailSection] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [emailPassword, setEmailPassword] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [emailSuccess, setEmailSuccess] = useState('');
+  const [changingEmail, setChangingEmail] = useState(false);
 
   // Stripe portal
   const [portalLoading, setPortalLoading] = useState(false);
@@ -154,6 +163,45 @@ export default function SettingsPage() {
       }
     } finally {
       setChangingPassword(false);
+    }
+  };
+
+  const handleEmailChange = async () => {
+    setEmailError('');
+    setEmailSuccess('');
+    const trimmedEmail = newEmail.trim().toLowerCase();
+    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setEmailError('Please enter a valid email address.');
+      return;
+    }
+    if (!emailPassword) {
+      setEmailError('Please enter your current password to confirm.');
+      return;
+    }
+    if (!user?.email) return;
+    setChangingEmail(true);
+    try {
+      const credential = EmailAuthProvider.credential(user.email, emailPassword);
+      await reauthenticateWithCredential(user, credential);
+      await updateEmail(user, trimmedEmail);
+      await setDoc(doc(db, 'agents', user.uid), { email: trimmedEmail }, { merge: true });
+      setAgentProfile((prev) => ({ ...prev, email: trimmedEmail }));
+      setEmailSuccess(`Email updated to ${trimmedEmail}. This is now your sign-in and profile email.`);
+      setNewEmail('');
+      setEmailPassword('');
+    } catch (err: unknown) {
+      const code = (err as { code?: string }).code;
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        setEmailError('Current password is incorrect.');
+      } else if (code === 'auth/email-already-in-use') {
+        setEmailError('That email is already associated with another account.');
+      } else if (code === 'auth/invalid-email') {
+        setEmailError('Please enter a valid email address.');
+      } else {
+        setEmailError('Failed to update email. Please try again.');
+      }
+    } finally {
+      setChangingEmail(false);
     }
   };
 
@@ -261,12 +309,20 @@ export default function SettingsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-[#000000] mb-1">Email</label>
-                <input
-                  type="email"
-                  value={agentProfile.email || user?.email || ''}
-                  readOnly
-                  className="w-full px-3 py-2 rounded-[5px] border border-gray-200 bg-[#f5f5f5] text-[#707070] text-sm cursor-not-allowed"
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="email"
+                    value={agentProfile.email || user?.email || ''}
+                    readOnly
+                    className="flex-1 px-3 py-2 rounded-[5px] border border-gray-200 bg-[#f5f5f5] text-[#707070] text-sm cursor-not-allowed"
+                  />
+                  <button
+                    onClick={() => { setActiveTab('account'); setShowEmailSection(true); }}
+                    className="px-3 py-2 text-xs font-medium text-[#005851] border border-[#005851] rounded-[5px] hover:bg-[#005851] hover:text-white transition-colors whitespace-nowrap"
+                  >
+                    Change
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-[#000000] mb-1">Phone Number</label>
@@ -612,6 +668,69 @@ export default function SettingsPage() {
                 </button>
               )}
             </div>
+          </div>
+
+          {/* Email */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <button
+              onClick={() => setShowEmailSection(!showEmailSection)}
+              className="w-full flex items-center justify-between"
+            >
+              <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide">Change Email</h3>
+              <svg
+                className={`w-5 h-5 text-[#707070] transition-transform ${showEmailSection ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showEmailSection && (
+              <div className="mt-4 space-y-3">
+                <p className="text-xs text-[#707070]">
+                  This will update both your sign-in email and your profile email (used for conservation alerts, notifications, etc.).
+                </p>
+                <div>
+                  <label className="block text-sm font-medium text-[#000000] mb-1">Current Email</label>
+                  <input
+                    type="email"
+                    value={agentProfile.email || user?.email || ''}
+                    readOnly
+                    className="w-full px-3 py-2 rounded-[5px] border border-gray-200 bg-[#f5f5f5] text-[#707070] text-sm cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#000000] mb-1">New Email</label>
+                  <input
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="newemail@example.com"
+                    className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#000000] mb-1">Current Password</label>
+                  <input
+                    type="password"
+                    value={emailPassword}
+                    onChange={(e) => setEmailPassword(e.target.value)}
+                    placeholder="Enter your password to confirm"
+                    className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
+                  />
+                </div>
+                {emailError && <p className="text-sm text-red-600">{emailError}</p>}
+                {emailSuccess && <p className="text-sm text-green-600">{emailSuccess}</p>}
+                <button
+                  onClick={handleEmailChange}
+                  disabled={changingEmail || !newEmail.trim() || !emailPassword}
+                  className="px-4 py-2 text-sm font-medium bg-[#005851] text-white rounded-[5px] hover:bg-[#004440] transition-colors disabled:opacity-50"
+                >
+                  {changingEmail ? 'Updating...' : 'Update Email'}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Password */}

@@ -17,7 +17,7 @@ function getResend() {
  * POST /api/webhooks/resend-inbound
  *
  * Resend inbound email webhook. Receives forwarded carrier emails
- * sent to AI@conserve.agentforlife.app, identifies the agent by sender
+ * sent to ai@savepolicy.agentforlife.app, identifies the agent by sender
  * email, and creates a conservation alert.
  *
  * Payload structure (Resend email.received event):
@@ -25,7 +25,7 @@ function getResend() {
  *   type: "email.received",
  *   data: {
  *     from: "agent@example.com",
- *     to: ["AI@conserve.agentforlife.app"],
+ *     to: ["ai@savepolicy.agentforlife.app"],
  *     subject: "Fwd: Conservation Opportunity - ...",
  *     text: "...",
  *     html: "..."

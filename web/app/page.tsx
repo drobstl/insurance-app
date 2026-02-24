@@ -761,7 +761,7 @@ export default function LandingPage() {
                   <div className="text-center md:text-left">
                     <div className="w-10 h-10 bg-[#fdcc02] rounded-full flex items-center justify-center text-lg font-bold text-[#0D4D4D] mb-3 mx-auto md:mx-0">1</div>
                     <h4 className="text-white font-bold mb-2">Forward the Alert</h4>
-                    <p className="text-white/60 text-sm leading-relaxed">Forward the carrier&apos;s conservation notice to <span className="text-[#fdcc02] font-semibold">AI@conserve.agentforlife.app</span> or paste it in your dashboard.</p>
+                    <p className="text-white/60 text-sm leading-relaxed">Forward the carrier&apos;s conservation notice to <span className="text-[#fdcc02] font-semibold">ai@savepolicy.agentforlife.app</span> or paste it in your dashboard.</p>
                   </div>
                   <div className="text-center md:text-left">
                     <div className="w-10 h-10 bg-[#3DD6C3] rounded-full flex items-center justify-center text-lg font-bold text-[#0D4D4D] mb-3 mx-auto md:mx-0">2</div>

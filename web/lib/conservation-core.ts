@@ -3,10 +3,12 @@ import 'server-only';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminFirestore } from './firebase-admin';
 import { extractConservationData, generateOutreachMessage, assessSaveability } from './conservation-ai';
+import { normalizePhone, isValidE164 } from './phone';
 import type {
   ConservationSource,
   ConservationAlert,
   ConservationOutreachContext,
+  ConservationChannel,
 } from './conservation-types';
 
 const GRACE_PERIOD_MS = 2 * 60 * 60 * 1000; // 2 hours
@@ -15,6 +17,7 @@ interface MatchResult {
   clientId: string;
   clientName: string;
   clientPhone: string | null;
+  clientEmail: string | null;
   clientHasApp: boolean;
   policyId: string;
   policyAge: number | null;
@@ -83,6 +86,7 @@ async function findMatch(
           clientId: clientDoc.id,
           clientName: (clientData.name as string) || clientName,
           clientPhone: (clientData.phone as string) || null,
+          clientEmail: (clientData.email as string) || null,
           clientHasApp: !!(clientData.pushToken as string),
           policyId: policyDoc.id,
           policyAge,
@@ -112,6 +116,7 @@ async function findMatch(
         clientId: clientDoc.id,
         clientName: (clientData.name as string) || clientName,
         clientPhone: (clientData.phone as string) || null,
+        clientEmail: (clientData.email as string) || null,
         clientHasApp: !!(clientData.pushToken as string),
         policyId: policyDoc.id,
         policyAge,
@@ -160,7 +165,22 @@ export async function createConservationAlert(
   const priority = match?.isChargebackRisk ? 'high' : 'low';
   const clientFirstName = (match?.clientName || extracted.clientName).split(' ')[0];
 
-  // 4. Generate AI outreach message
+  // 4. Determine available contact channels
+  const availableChannels: ConservationChannel[] = [];
+  if (match) {
+    if (match.clientPhone && isValidE164(normalizePhone(match.clientPhone))) {
+      availableChannels.push('sms');
+    }
+    if (match.clientHasApp) {
+      availableChannels.push('push');
+    }
+    if (match.clientEmail) {
+      availableChannels.push('email');
+    }
+  }
+  const noContactMethod = match !== null && availableChannels.length === 0;
+
+  // 5. Generate AI outreach message
   const outreachCtx: ConservationOutreachContext = {
     clientFirstName,
     clientName: match?.clientName || extracted.clientName,
@@ -173,11 +193,12 @@ export async function createConservationAlert(
     dripNumber: 0,
     premiumAmount: match?.premiumAmount ?? null,
     coverageAmount: match?.coverageAmount ?? null,
+    availableChannels,
   };
 
   const initialMessage = await generateOutreachMessage(outreachCtx);
 
-  // 5. Assess saveability
+  // 6. Assess saveability
   const aiInsight = match
     ? await assessSaveability({
         clientName: match.clientName,
@@ -189,12 +210,16 @@ export async function createConservationAlert(
       })
     : null;
 
-  // 6. Schedule auto-outreach for high-priority alerts
+  // 7. Schedule auto-outreach for high-priority alerts
   const now = new Date();
   const isHighPriority = priority === 'high' && match !== null;
   const scheduledOutreachAt = isHighPriority
     ? new Date(now.getTime() + GRACE_PERIOD_MS).toISOString()
     : null;
+
+  const initialConversation = initialMessage
+    ? [{ role: 'agent-ai' as const, body: initialMessage, timestamp: now.toISOString() }]
+    : [];
 
   const alertData = {
     source,
@@ -221,6 +246,12 @@ export async function createConservationAlert(
     dripCount: 0,
     initialMessage,
     dripMessages: [] as string[],
+    conversation: initialConversation,
+    chatId: null as string | null,
+    aiEnabled: true,
+    availableChannels,
+    noContactMethod,
+    saveSuggested: false,
     aiInsight,
     notes: null,
     createdAt: FieldValue.serverTimestamp(),

@@ -14,6 +14,15 @@ export type ConservationStatus =
 
 export type ConservationSource = 'email_forward' | 'paste';
 
+export type ConservationChannel = 'sms' | 'push' | 'email';
+
+export interface ConservationMessage {
+  role: 'client' | 'agent-ai' | 'agent-manual';
+  body: string;
+  timestamp: string;
+  channels?: ConservationChannel[];
+}
+
 export interface ConservationAlert {
   id: string;
 
@@ -46,6 +55,12 @@ export interface ConservationAlert {
 
   initialMessage: string | null;
   dripMessages: string[];
+  conversation: ConservationMessage[];
+  chatId: string | null;
+  aiEnabled: boolean;
+  availableChannels: ConservationChannel[];
+  noContactMethod: boolean;
+  saveSuggested: boolean;
   aiInsight: string | null;
 
   notes: string | null;
@@ -73,4 +88,24 @@ export interface ConservationOutreachContext {
   dripNumber: number;
   premiumAmount: number | null;
   coverageAmount?: number | null;
+  availableChannels?: ConservationChannel[];
+}
+
+export interface ConservationConversationContext {
+  clientFirstName: string;
+  clientName: string;
+  agentName: string;
+  agentFirstName: string;
+  policyType: string | null;
+  policyAge: number | null;
+  reason: ConservationReason;
+  schedulingUrl: string | null;
+  premiumAmount: number | null;
+  coverageAmount?: number | null;
+  conversation: ConservationMessage[];
+}
+
+export interface SaveSignalResult {
+  saved: boolean;
+  confidence: 'high' | 'medium' | 'low';
 }

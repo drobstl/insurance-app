@@ -5,8 +5,15 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
-import { generateOutreachMessage } from '../../../../lib/conservation-ai';
-import type { ConservationOutreachContext } from '../../../../lib/conservation-types';
+import { Resend } from 'resend';
+import { generateOutreachMessage, generateConservationEmail } from '../../../../lib/conservation-ai';
+import type { ConservationOutreachContext, ConservationChannel } from '../../../../lib/conservation-types';
+
+function getResend() {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) throw new Error('RESEND_API_KEY is not configured');
+  return new Resend(key);
+}
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -30,6 +37,59 @@ const DRIP_NUMBER: Record<string, number> = {
   drip_2: 3,
 };
 
+const EMAIL_DRIP_NUMBERS = new Set([2, 3]);
+
+async function sendPushNotification(
+  pushToken: string,
+  agentName: string,
+  message: string,
+  data: Record<string, unknown>,
+): Promise<boolean> {
+  try {
+    const res = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'Accept-Encoding': 'gzip, deflate',
+      },
+      body: JSON.stringify({
+        to: pushToken,
+        title: `Message from ${agentName}`,
+        body: message,
+        sound: 'default',
+        data,
+      }),
+    });
+    const result = await res.json();
+    return result?.data?.status === 'ok';
+  } catch (e) {
+    console.error('Conservation push error:', e);
+    return false;
+  }
+}
+
+async function sendConservationEmailMessage(
+  to: string,
+  agentName: string,
+  subject: string,
+  body: string,
+): Promise<boolean> {
+  try {
+    const resend = getResend();
+    await resend.emails.send({
+      from: `${agentName} via AgentForLife <support@agentforlife.app>`,
+      to,
+      subject,
+      text: body,
+    });
+    return true;
+  } catch (e) {
+    console.error('Conservation email error:', e);
+    return false;
+  }
+}
+
 /**
  * GET /api/cron/conservation-outreach
  *
@@ -38,7 +98,8 @@ const DRIP_NUMBER: Record<string, number> = {
  * A) Fires scheduled outreach for alerts past their 2-hour grace period.
  * B) Sends drip follow-ups on Day 2, Day 5, Day 7 for unresolved alerts.
  *
- * All messages sent via Linq (iMessage with SMS/RCS fallback).
+ * Channels: Linq (iMessage > RCS > SMS) + Push + Email (complement on drips 2-3,
+ * sole channel for email-only clients).
  */
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
@@ -60,6 +121,8 @@ export async function GET(req: NextRequest) {
       const agentName = (agentData.name as string) || 'Your Agent';
       const agentFirstName = agentName.split(' ')[0];
       const schedulingUrl = (agentData.schedulingUrl as string) || null;
+      const agentEmail = (agentData.email as string) || null;
+      const agentPhone = (agentData.phoneNumber as string) || null;
 
       const alertsRef = db
         .collection('agents')
@@ -92,63 +155,57 @@ export async function GET(req: NextRequest) {
         const clientData = clientDoc.data()!;
         const pushToken = clientData.pushToken as string | undefined;
         const clientPhone = (clientData.phone as string) || '';
+        const clientEmail = (clientData.email as string) || '';
         const message = (alertData.initialMessage as string) || '';
 
         if (!message) continue;
 
         let pushSent = false;
         let smsSent = false;
+        let emailSent = false;
+        let linqChatId: string | null = (alertData.chatId as string) || null;
         const nowIso = new Date().toISOString();
+        const usedChannels: ConservationChannel[] = [];
 
         if (pushToken) {
-          try {
-            const pushData: Record<string, unknown> = {
-              type: 'conservation',
-              agentId: agentDoc.id,
-              clientId,
-            };
-            if (schedulingUrl) {
-              pushData.schedulingUrl = schedulingUrl;
-              pushData.includeBookingLink = true;
-            }
-
-            const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-                'Accept-Encoding': 'gzip, deflate',
-              },
-              body: JSON.stringify({
-                to: pushToken,
-                title: `Message from ${agentName}`,
-                body: message,
-                sound: 'default',
-                data: pushData,
-              }),
-            });
-
-            const expoResult = await expoResponse.json();
-            pushSent = expoResult?.data?.status === 'ok';
-          } catch (e) {
-            console.error('Conservation cron push error:', e);
+          const pushData: Record<string, unknown> = {
+            type: 'conservation',
+            agentId: agentDoc.id,
+            clientId,
+          };
+          if (schedulingUrl) {
+            pushData.schedulingUrl = schedulingUrl;
+            pushData.includeBookingLink = true;
           }
+          pushSent = await sendPushNotification(pushToken, agentName, message, pushData);
+          if (pushSent) usedChannels.push('push');
         }
 
         const normalizedPhone = normalizePhone(clientPhone);
         if (isValidE164(normalizedPhone)) {
           try {
-            await sendOrCreateChat({
-              to: normalizedPhone,
-              text: message,
-            });
+            const result = await sendOrCreateChat({ to: normalizedPhone, text: message });
             smsSent = true;
+            linqChatId = result.chatId;
+            usedChannels.push('sms');
           } catch (e) {
             console.error('Conservation cron Linq error:', e);
           }
         }
 
-        if (pushSent || smsSent) {
+        // Email-only fallback: if no SMS and no push available, send via email
+        if (!smsSent && !pushSent && clientEmail) {
+          const clientFirstName = ((alertData.clientName as string) || 'Client').split(' ')[0];
+          emailSent = await sendConservationEmailMessage(
+            clientEmail,
+            agentName,
+            `${agentFirstName} here -- about your policy`,
+            message,
+          );
+          if (emailSent) usedChannels.push('email');
+        }
+
+        if (pushSent || smsSent || emailSent) {
           await db
             .collection('agents')
             .doc(agentDoc.id)
@@ -163,9 +220,16 @@ export async function GET(req: NextRequest) {
               schedulingUrl: schedulingUrl || null,
               sentAt: FieldValue.serverTimestamp(),
               readAt: null,
-              status: pushSent ? 'sent' : 'failed',
+              status: pushSent ? 'sent' : smsSent ? 'sent' : emailSent ? 'sent' : 'failed',
             });
         }
+
+        const conversationEntry = {
+          role: 'agent-ai' as const,
+          body: message,
+          timestamp: nowIso,
+          channels: usedChannels,
+        };
 
         await alertDoc.ref.update({
           status: 'outreach_sent',
@@ -173,6 +237,8 @@ export async function GET(req: NextRequest) {
           pushSentAt: pushSent ? nowIso : null,
           smsSentAt: smsSent ? nowIso : null,
           lastDripAt: nowIso,
+          chatId: linqChatId,
+          conversation: FieldValue.arrayUnion(conversationEntry),
         });
 
         outreachFired++;
@@ -212,21 +278,26 @@ export async function GET(req: NextRequest) {
 
           const clientData = clientDoc.data()!;
           const clientPhone = (clientData.phone as string) || '';
+          const clientEmail = (clientData.email as string) || '';
           const pushToken = clientData.pushToken as string | undefined;
           const clientName = (alertData.clientName as string) || 'Client';
+          const clientFirstName = clientName.split(' ')[0];
+          const channels = (alertData.availableChannels as ConservationChannel[]) || [];
 
           const dripNumber = DRIP_NUMBER[status];
+          const reason = (alertData.reason as 'lapsed_payment' | 'cancellation' | 'other') || 'other';
           const outreachCtx: ConservationOutreachContext = {
-            clientFirstName: clientName.split(' ')[0],
+            clientFirstName,
             clientName,
             agentName,
             agentFirstName,
             policyType: (alertData.policyType as string) || null,
             policyAge: (alertData.policyAge as number) || null,
-            reason: (alertData.reason as 'lapsed_payment' | 'cancellation' | 'other') || 'other',
+            reason,
             schedulingUrl,
             dripNumber,
             premiumAmount: (alertData.premiumAmount as number) || null,
+            availableChannels: channels,
           };
 
           let dripMessage: string;
@@ -241,45 +312,61 @@ export async function GET(req: NextRequest) {
 
           let smsSent = false;
           let pushSent = false;
+          let emailSent = false;
+          let linqChatId: string | null = (alertData.chatId as string) || null;
+          const usedChannels: ConservationChannel[] = [];
 
           const normalizedPhone = normalizePhone(clientPhone);
           if (isValidE164(normalizedPhone)) {
             try {
-              await sendOrCreateChat({
+              const result = await sendOrCreateChat({
                 to: normalizedPhone,
+                chatId: linqChatId,
                 text: dripMessage,
               });
               smsSent = true;
+              if (!linqChatId) linqChatId = result.chatId;
+              usedChannels.push('sms');
             } catch (e) {
               console.error('Conservation drip Linq error:', e);
             }
           }
 
           if (pushToken) {
+            pushSent = await sendPushNotification(
+              pushToken,
+              agentName,
+              dripMessage,
+              { type: 'conservation', agentId: agentDoc.id, clientId },
+            );
+            if (pushSent) usedChannels.push('push');
+          }
+
+          // Email complement on drips 2+3, or email-only fallback at any stage
+          const isEmailOnlyClient = !smsSent && !pushSent && clientEmail;
+          const shouldComplementWithEmail = EMAIL_DRIP_NUMBERS.has(dripNumber) && clientEmail;
+
+          if (isEmailOnlyClient || shouldComplementWithEmail) {
             try {
-              const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Accept: 'application/json',
-                  'Accept-Encoding': 'gzip, deflate',
-                },
-                body: JSON.stringify({
-                  to: pushToken,
-                  title: `Message from ${agentName}`,
-                  body: dripMessage,
-                  sound: 'default',
-                  data: { type: 'conservation', agentId: agentDoc.id, clientId },
-                }),
+              const emailBody = await generateConservationEmail({
+                ...outreachCtx,
+                agentEmail,
+                agentPhone,
+                coverageAmount: (alertData.coverageAmount as number) || null,
               });
-              const expoResult = await expoResponse.json();
-              pushSent = expoResult?.data?.status === 'ok';
+              emailSent = await sendConservationEmailMessage(
+                clientEmail,
+                agentName,
+                `${agentFirstName} here -- about your ${(alertData.policyType as string) || 'insurance'} policy`,
+                emailBody,
+              );
+              if (emailSent) usedChannels.push('email');
             } catch (e) {
-              console.error('Conservation drip push error:', e);
+              console.error('Conservation drip email error:', e);
             }
           }
 
-          if (smsSent || pushSent) {
+          if (smsSent || pushSent || emailSent) {
             await db
               .collection('agents')
               .doc(agentDoc.id)
@@ -292,17 +379,31 @@ export async function GET(req: NextRequest) {
                 body: dripMessage,
                 sentAt: FieldValue.serverTimestamp(),
                 readAt: null,
-                status: pushSent ? 'sent' : 'failed',
+                status: pushSent ? 'sent' : smsSent ? 'sent' : emailSent ? 'sent' : 'failed',
               });
           }
 
+          const conversationEntry = {
+            role: 'agent-ai' as const,
+            body: dripMessage,
+            timestamp: new Date().toISOString(),
+            channels: usedChannels,
+          };
+
           const existingDripMessages = (alertData.dripMessages as string[]) || [];
-          await alertDoc.ref.update({
+          const updateData: Record<string, unknown> = {
             status: NEXT_STATUS[status],
             dripCount: (alertData.dripCount || 0) + 1,
             lastDripAt: new Date().toISOString(),
             dripMessages: [...existingDripMessages, dripMessage],
-          });
+            conversation: FieldValue.arrayUnion(conversationEntry),
+          };
+
+          if (linqChatId && !alertData.chatId) {
+            updateData.chatId = linqChatId;
+          }
+
+          await alertDoc.ref.update(updateData);
 
           dripsSent++;
         }

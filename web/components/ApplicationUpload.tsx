@@ -1,17 +1,21 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import type { ExtractedApplicationData, ParseApplicationResponse } from '../lib/types';
+import type { ExtractedApplicationData, ParseApplicationResponse, Beneficiary } from '../lib/types';
 
 interface ApplicationUploadProps {
   clientName: string;
+  /** Called when the user confirms extracted data (existing behavior for adding policy to existing client) */
   onExtracted: (data: ExtractedApplicationData) => void;
   onClose: () => void;
+  /** When set, the review stage shows editable client + policy fields with a single create action */
+  onCreateClientAndPolicy?: (client: { name: string; email: string; phone: string; dateOfBirth: string }, data: ExtractedApplicationData) => void;
+  mode?: 'policy-only' | 'client-and-policy';
 }
 
 type Stage = 'upload' | 'processing' | 'review' | 'error';
 
-export default function ApplicationUpload({ clientName, onExtracted, onClose }: ApplicationUploadProps) {
+export default function ApplicationUpload({ clientName, onExtracted, onClose, onCreateClientAndPolicy, mode = 'policy-only' }: ApplicationUploadProps) {
   const [stage, setStage] = useState<Stage>('upload');
   const [fileName, setFileName] = useState('');
   const [pageCount, setPageCount] = useState(0);
@@ -21,8 +25,18 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Editable client fields (only used in client-and-policy mode)
+  const [clientFields, setClientFields] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    dateOfBirth: '',
+  });
+
+  // Editable policy fields
+  const [policyFields, setPolicyFields] = useState<ExtractedApplicationData | null>(null);
+
   const processFile = useCallback(async (file: File) => {
-    // Validate client-side
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
       setErrorMessage('Please upload a PDF file.');
       setStage('error');
@@ -41,7 +55,6 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
       const formData = new FormData();
       formData.append('file', file);
 
-      // Abort if the server hasn't responded within 45 seconds
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 45_000);
 
@@ -54,7 +67,6 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
       clearTimeout(timeout);
 
       if (!res.ok) {
-        // Try to extract a JSON error message; fall back to status text
         let message = `Server error (${res.status})`;
         try {
           const body = await res.json();
@@ -78,11 +90,21 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
       }
 
       setExtractedData(result.data);
+      setPolicyFields(result.data);
       setPageCount(result.pageCount || 0);
       setNote(result.note || null);
+
+      if (mode === 'client-and-policy') {
+        setClientFields({
+          name: result.data.insuredName || '',
+          email: result.data.insuredEmail || '',
+          phone: result.data.insuredPhone || '',
+          dateOfBirth: result.data.insuredDateOfBirth || '',
+        });
+      }
+
       setStage('review');
     } catch (err) {
-      console.error('Upload application error:', err);
       let message = 'Something went wrong. Please try again.';
       if (err instanceof DOMException && err.name === 'AbortError') {
         message = 'Request timed out. The PDF may be too large — try again shortly.';
@@ -94,7 +116,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
       setErrorMessage(message);
       setStage('error');
     }
-  }, []);
+  }, [mode]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -116,22 +138,38 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
   const handleDragLeave = () => setDragActive(false);
 
   const handleConfirm = () => {
-    if (extractedData) onExtracted(extractedData);
+    if (mode === 'client-and-policy' && onCreateClientAndPolicy && policyFields) {
+      if (!clientFields.name.trim()) return;
+      onCreateClientAndPolicy(
+        {
+          name: clientFields.name.trim(),
+          email: clientFields.email.trim(),
+          phone: clientFields.phone.trim(),
+          dateOfBirth: clientFields.dateOfBirth,
+        },
+        policyFields,
+      );
+    } else if (extractedData) {
+      onExtracted(policyFields || extractedData);
+    }
   };
 
   const handleRetry = () => {
     setStage('upload');
     setErrorMessage('');
     setExtractedData(null);
+    setPolicyFields(null);
     setFileName('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Count how many fields were successfully extracted
   const filledFields = extractedData
     ? Object.entries(extractedData).filter(([, v]) => v !== null && v !== undefined).length
     : 0;
   const totalFields = 13;
+
+  const isClientAndPolicy = mode === 'client-and-policy';
+  const missingContact = isClientAndPolicy && !clientFields.phone.trim() && !clientFields.email.trim();
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
@@ -141,9 +179,11 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
         <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
           <div>
             <h3 className="text-xl font-bold text-[#000000]">
-              {stage === 'review' ? 'Review Extracted Data' : 'Upload Application'}
+              {stage === 'review'
+                ? isClientAndPolicy ? 'Review Client & Policy' : 'Review Extracted Data'
+                : 'Upload Application'}
             </h3>
-            <p className="text-gray-500 text-sm">For {clientName}</p>
+            {!isClientAndPolicy && <p className="text-gray-500 text-sm">For {clientName}</p>}
           </div>
           <button
             onClick={onClose}
@@ -156,7 +196,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
         </div>
 
         <div className="p-6">
-          {/* ─── Upload Stage ─── */}
+          {/* Upload Stage */}
           {stage === 'upload' && (
             <div
               onDrop={handleDrop}
@@ -180,7 +220,9 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
                     {dragActive ? 'Drop your PDF here' : 'Upload application PDF'}
                   </p>
                   <p className="text-gray-500 text-sm">
-                    Drag & drop or click to browse. Max 10MB.
+                    {isClientAndPolicy
+                      ? 'AI will extract client info and policy details in one step. Max 10MB.'
+                      : 'Drag & drop or click to browse. Max 10MB.'}
                   </p>
                 </div>
               </div>
@@ -194,7 +236,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
             </div>
           )}
 
-          {/* ─── Processing Stage ─── */}
+          {/* Processing Stage */}
           {stage === 'processing' && (
             <div className="flex flex-col items-center py-10 gap-5">
               <div className="relative">
@@ -218,7 +260,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
             </div>
           )}
 
-          {/* ─── Error Stage ─── */}
+          {/* Error Stage */}
           {stage === 'error' && (
             <div className="flex flex-col items-center py-8 gap-4">
               <div className="w-14 h-14 bg-red-100 rounded-[5px] flex items-center justify-center">
@@ -231,26 +273,19 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
                 <p className="text-gray-500 text-sm max-w-sm">{errorMessage}</p>
               </div>
               <div className="flex gap-3 mt-2">
-                <button
-                  onClick={handleRetry}
-                  className="px-5 py-2.5 bg-[#0099FF] hover:bg-[#0088DD] text-white font-semibold rounded-[5px] shadow-lg shadow-[#0099FF]/30 transition-all duration-200"
-                >
+                <button onClick={handleRetry} className="px-5 py-2.5 bg-[#0099FF] hover:bg-[#0088DD] text-white font-semibold rounded-[5px] shadow-lg shadow-[#0099FF]/30 transition-all duration-200">
                   Try Again
                 </button>
-                <button
-                  onClick={onClose}
-                  className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-all duration-200"
-                >
+                <button onClick={onClose} className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-all duration-200">
                   Cancel
                 </button>
               </div>
             </div>
           )}
 
-          {/* ─── Review Stage ─── */}
+          {/* Review Stage */}
           {stage === 'review' && extractedData && (
             <div className="space-y-4">
-              {/* Summary bar */}
               <div className="bg-[#44bbaa]/10 border border-[#45bcaa]/30 rounded-[5px] p-4 flex items-start gap-3">
                 <svg className="w-5 h-5 text-[#45bcaa] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -260,7 +295,9 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
                     Extracted {filledFields} of {totalFields} fields from {pageCount} page{pageCount !== 1 ? 's' : ''}
                   </p>
                   <p className="text-[#005851]/70 text-xs mt-0.5">
-                    Review below, then confirm to pre-fill the policy form.
+                    {isClientAndPolicy
+                      ? 'Review and edit the details below, then create the client and policy.'
+                      : 'Review below, then confirm to pre-fill the policy form.'}
                   </p>
                 </div>
               </div>
@@ -274,63 +311,93 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
                 </div>
               )}
 
-              {/* Extracted fields */}
-              <div className="space-y-1">
-                <FieldRow label="Policy Type" value={extractedData.policyType} />
-                <FieldRow label="Insurance Company" value={extractedData.insuranceCompany} />
-                <FieldRow label="Policy Number" value={extractedData.policyNumber} />
-                <FieldRow label="Policy Owner" value={extractedData.policyOwner} />
-                <FieldRow label="Insured" value={extractedData.insuredName} />
-                {extractedData.beneficiaries && extractedData.beneficiaries.length > 0 ? (
-                  <>
-                    {extractedData.beneficiaries.filter(b => b.type === 'primary').length > 0 && (
-                      <div className="py-2.5 px-3 rounded-[5px] hover:bg-gray-50 transition-colors">
-                        <span className="text-gray-500 text-sm">Primary Beneficiaries</span>
-                        <div className="mt-1 space-y-0.5">
-                          {extractedData.beneficiaries.filter(b => b.type === 'primary').map((b, i) => (
-                            <p key={i} className="text-[#000000] text-sm font-medium text-right">
-                              {b.name}
-                              {b.relationship && <span className="text-gray-400 text-xs ml-1">({b.relationship})</span>}
-                              {b.percentage != null && <span className="text-gray-400 text-xs ml-1">{b.percentage}%</span>}
-                            </p>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {extractedData.beneficiaries.filter(b => b.type === 'contingent').length > 0 && (
-                      <div className="py-2.5 px-3 rounded-[5px] hover:bg-gray-50 transition-colors">
-                        <span className="text-gray-500 text-sm">Contingent Beneficiaries</span>
-                        <div className="mt-1 space-y-0.5">
-                          {extractedData.beneficiaries.filter(b => b.type === 'contingent').map((b, i) => (
-                            <p key={i} className="text-[#000000] text-sm font-medium text-right">
-                              {b.name}
-                              {b.relationship && <span className="text-gray-400 text-xs ml-1">({b.relationship})</span>}
-                              {b.percentage != null && <span className="text-gray-400 text-xs ml-1">{b.percentage}%</span>}
-                            </p>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <FieldRow label="Beneficiaries" value={null} />
+              {/* Client Details Section (only in client-and-policy mode) */}
+              {isClientAndPolicy && (
+                <div>
+                  <h4 className="text-xs font-semibold text-[#005851] uppercase tracking-wide mb-2">Client Details</h4>
+                  <div className="space-y-2">
+                    <EditableField label="Name *" value={clientFields.name} onChange={(v) => setClientFields(f => ({ ...f, name: v }))} />
+                    <EditableField label="Email" value={clientFields.email} onChange={(v) => setClientFields(f => ({ ...f, email: v }))} placeholder="email@example.com" />
+                    <EditableField label="Phone" value={clientFields.phone} onChange={(v) => setClientFields(f => ({ ...f, phone: v }))} placeholder="(555) 123-4567" />
+                    <EditableField label="Date of Birth" value={clientFields.dateOfBirth} onChange={(v) => setClientFields(f => ({ ...f, dateOfBirth: v }))} type="date" />
+                  </div>
+                  {missingContact && (
+                    <div className="mt-2 bg-amber-50 border border-amber-200 rounded-[5px] p-2.5 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                      <p className="text-xs text-amber-700">No phone or email found. This client won&apos;t have a way to be contacted.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Policy Details Section */}
+              <div>
+                {isClientAndPolicy && (
+                  <h4 className="text-xs font-semibold text-[#005851] uppercase tracking-wide mb-2">Policy Details</h4>
                 )}
-                <FieldRow
-                  label="Death Benefit"
-                  value={extractedData.coverageAmount != null ? `$${extractedData.coverageAmount.toLocaleString()}` : null}
-                />
-                <FieldRow
-                  label="Premium"
-                  value={
-                    extractedData.premiumAmount != null
-                      ? `$${extractedData.premiumAmount.toLocaleString()}${extractedData.premiumFrequency ? ` / ${extractedData.premiumFrequency}` : ''}`
-                      : null
-                  }
-                />
-                <FieldRow label="Renewal Date" value={extractedData.renewalDate} />
-                <FieldRow label="Email" value={extractedData.insuredEmail} />
-                <FieldRow label="Phone" value={extractedData.insuredPhone} />
-                <FieldRow label="Birthday" value={extractedData.insuredDateOfBirth} />
+                <div className="space-y-1">
+                  <FieldRow label="Policy Type" value={policyFields?.policyType} />
+                  <FieldRow label="Insurance Company" value={policyFields?.insuranceCompany} />
+                  <FieldRow label="Policy Number" value={policyFields?.policyNumber} />
+                  <FieldRow label="Policy Owner" value={policyFields?.policyOwner} />
+                  <FieldRow label="Insured" value={policyFields?.insuredName} />
+                  {policyFields?.beneficiaries && policyFields.beneficiaries.length > 0 ? (
+                    <>
+                      {policyFields.beneficiaries.filter(b => b.type === 'primary').length > 0 && (
+                        <div className="py-2.5 px-3 rounded-[5px] hover:bg-gray-50 transition-colors">
+                          <span className="text-gray-500 text-sm">Primary Beneficiaries</span>
+                          <div className="mt-1 space-y-0.5">
+                            {policyFields.beneficiaries.filter(b => b.type === 'primary').map((b, i) => (
+                              <p key={i} className="text-[#000000] text-sm font-medium text-right">
+                                {b.name}
+                                {b.relationship && <span className="text-gray-400 text-xs ml-1">({b.relationship})</span>}
+                                {b.percentage != null && <span className="text-gray-400 text-xs ml-1">{b.percentage}%</span>}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {policyFields.beneficiaries.filter(b => b.type === 'contingent').length > 0 && (
+                        <div className="py-2.5 px-3 rounded-[5px] hover:bg-gray-50 transition-colors">
+                          <span className="text-gray-500 text-sm">Contingent Beneficiaries</span>
+                          <div className="mt-1 space-y-0.5">
+                            {policyFields.beneficiaries.filter(b => b.type === 'contingent').map((b, i) => (
+                              <p key={i} className="text-[#000000] text-sm font-medium text-right">
+                                {b.name}
+                                {b.relationship && <span className="text-gray-400 text-xs ml-1">({b.relationship})</span>}
+                                {b.percentage != null && <span className="text-gray-400 text-xs ml-1">{b.percentage}%</span>}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <FieldRow label="Beneficiaries" value={null} />
+                  )}
+                  <FieldRow
+                    label="Death Benefit"
+                    value={policyFields?.coverageAmount != null ? `$${policyFields.coverageAmount.toLocaleString()}` : null}
+                  />
+                  <FieldRow
+                    label="Premium"
+                    value={
+                      policyFields?.premiumAmount != null
+                        ? `$${policyFields.premiumAmount.toLocaleString()}${policyFields.premiumFrequency ? ` / ${policyFields.premiumFrequency}` : ''}`
+                        : null
+                    }
+                  />
+                  <FieldRow label="Renewal Date" value={policyFields?.renewalDate} />
+                  {!isClientAndPolicy && (
+                    <>
+                      <FieldRow label="Email" value={policyFields?.insuredEmail} />
+                      <FieldRow label="Phone" value={policyFields?.insuredPhone} />
+                      <FieldRow label="Birthday" value={policyFields?.insuredDateOfBirth} />
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* Actions */}
@@ -343,17 +410,20 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
                 </button>
                 <button
                   onClick={handleConfirm}
-                  className="flex-1 py-3 px-4 bg-[#0099FF] hover:bg-[#0088DD] text-white font-semibold rounded-[5px] shadow-lg shadow-[#0099FF]/30 hover:shadow-[#0099FF]/40 transition-all duration-200 flex items-center justify-center gap-2"
+                  disabled={isClientAndPolicy && !clientFields.name.trim()}
+                  className="flex-1 py-3 px-4 bg-[#0099FF] hover:bg-[#0088DD] text-white font-semibold rounded-[5px] shadow-lg shadow-[#0099FF]/30 hover:shadow-[#0099FF]/40 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  Use These Values
+                  {isClientAndPolicy ? 'Create Client & Policy' : 'Use These Values'}
                 </button>
               </div>
 
               <p className="text-gray-400 text-xs text-center">
-                You&apos;ll be able to review and edit all fields before saving.
+                {isClientAndPolicy
+                  ? 'Both the client and their policy will be created from this data.'
+                  : 'You\u2019ll be able to review and edit all fields before saving.'}
               </p>
             </div>
           )}
@@ -363,7 +433,31 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose }: 
   );
 }
 
-/** A single row in the review table */
+function EditableField({ label, value, onChange, placeholder, type = 'text' }: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+}) {
+  const hasValue = value.trim() !== '';
+  return (
+    <div className="flex items-center gap-3 py-1.5 px-3 rounded-[5px] hover:bg-gray-50 transition-colors">
+      <span className="text-gray-500 text-sm w-28 shrink-0">{label}</span>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="flex-1 text-sm text-[#000000] bg-transparent border-b border-gray-200 focus:border-[#45bcaa] focus:outline-none py-0.5 transition-colors"
+      />
+      {!hasValue && (
+        <span className="text-[10px] text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded shrink-0">Not found</span>
+      )}
+    </div>
+  );
+}
+
 function FieldRow({ label, value }: { label: string; value: string | number | null | undefined }) {
   const hasValue = value !== null && value !== undefined && value !== '';
   return (
