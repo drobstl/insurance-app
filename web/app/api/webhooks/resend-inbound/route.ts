@@ -107,18 +107,42 @@ export async function POST(req: NextRequest) {
     const agentId = agentDoc.id;
     const agentName = (agentDoc.data().name as string) || 'Agent';
 
-    // Extract the email body text
-    // Forwarded emails often have the real content in HTML only; plain text may just be headers
-    let rawText = emailData.text || '';
-    const htmlText = emailData.html || '';
+    // Resend webhooks do NOT include the email body -- fetch it via the Receiving API
+    const emailId = emailData.email_id;
+    if (!emailId) {
+      // #region agent log
+      await debugLog('webhook-no-email-id', { dataKeys: Object.keys(emailData) });
+      // #endregion
+      return NextResponse.json({ received: true, skipped: 'no email_id in payload' });
+    }
+
+    const resendForFetch = getResend();
+    const { data: fullEmail, error: fetchError } = await resendForFetch.emails.receiving.get(emailId);
 
     // #region agent log
-    await debugLog('webhook-raw-content', { textLength: rawText.length, htmlLength: htmlText.length, textPreview: rawText.substring(0, 200), htmlPreview: htmlText.substring(0, 300) });
+    await debugLog('webhook-fetched-email', {
+      emailId,
+      fetchError: fetchError ? String(fetchError) : null,
+      hasText: !!(fullEmail?.text),
+      hasHtml: !!(fullEmail?.html),
+      textLength: fullEmail?.text?.length || 0,
+      htmlLength: fullEmail?.html?.length || 0,
+      textPreview: fullEmail?.text?.substring(0, 300) || '',
+    });
     // #endregion
 
-    // If plain text is too short but HTML has content, strip HTML tags and use that
-    if (rawText.trim().length < 150 && htmlText.length > rawText.length) {
-      rawText = htmlText
+    if (fetchError || !fullEmail) {
+      // #region agent log
+      await debugLog('webhook-fetch-failed', { fetchError: String(fetchError) });
+      // #endregion
+      return NextResponse.json({ received: true, skipped: 'failed to fetch email body' });
+    }
+
+    let rawText = fullEmail.text || '';
+
+    // If plain text is too short, strip HTML and use that
+    if (rawText.trim().length < 150 && fullEmail.html && fullEmail.html.length > rawText.length) {
+      rawText = fullEmail.html
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
         .replace(/<[^>]+>/g, ' ')
@@ -130,13 +154,9 @@ export async function POST(req: NextRequest) {
         .replace(/&#39;/g, "'")
         .replace(/\s+/g, ' ')
         .trim();
-      // #region agent log
-      await debugLog('webhook-used-html', { strippedLength: rawText.length, strippedPreview: rawText.substring(0, 300) });
-      // #endregion
     }
 
     if (!rawText || rawText.trim().length < 10) {
-      // Fall back to subject
       rawText = emailData.subject || '';
     }
 
