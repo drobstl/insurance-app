@@ -64,6 +64,7 @@ interface Client {
   phone: string;
   clientCode?: string;
   dateOfBirth?: string;
+  pushToken?: string;
   createdAt: Timestamp;
   agentId: string;
 }
@@ -281,46 +282,17 @@ export default function ClientsPage() {
     return () => unsub();
   }, [user, selectedClient]);
 
-  // Fetch push token from agent's client subcollection (where the mobile app writes it)
+  // Read push token directly from the already-loaded client snapshot data
   useEffect(() => {
-    if (!selectedClient || !user) {
+    if (!selectedClient) {
       setClientPushToken(undefined);
       return;
     }
-    (async () => {
-      try {
-        const clientDoc = await getDoc(doc(db, 'agents', user.uid, 'clients', selectedClient.id));
-        // #region agent log
-        console.log('[DEBUG-3c0330] Agent subcollection read:', {
-          path: `agents/${user.uid}/clients/${selectedClient.id}`,
-          exists: clientDoc.exists(),
-          pushToken: clientDoc.exists() ? clientDoc.data()?.pushToken : 'N/A',
-          allFields: clientDoc.exists() ? Object.keys(clientDoc.data() || {}) : [],
-        });
-        // #endregion
-        if (clientDoc.exists()) {
-          setClientPushToken(clientDoc.data()?.pushToken || null);
-        } else {
-          setClientPushToken(null);
-        }
-
-        // #region agent log
-        const topLevelDoc = await getDoc(doc(db, 'clients', selectedClient.id));
-        console.log('[DEBUG-3c0330] Top-level collection read:', {
-          path: `clients/${selectedClient.id}`,
-          exists: topLevelDoc.exists(),
-          pushToken: topLevelDoc.exists() ? topLevelDoc.data()?.pushToken : 'N/A',
-          allFields: topLevelDoc.exists() ? Object.keys(topLevelDoc.data() || {}) : [],
-        });
-        // #endregion
-      } catch (err) {
-        // #region agent log
-        console.error('[DEBUG-3c0330] Push token fetch error:', err);
-        // #endregion
-        setClientPushToken(null);
-      }
-    })();
-  }, [selectedClient, user]);
+    // #region agent log
+    console.log('[DEBUG-3c0330] Push token from snapshot:', { clientId: selectedClient.id, pushToken: selectedClient.pushToken || null });
+    // #endregion
+    setClientPushToken(selectedClient.pushToken || null);
+  }, [selectedClient]);
 
   // Fetch policy counts across all clients for anniversary detection
   useEffect(() => {
