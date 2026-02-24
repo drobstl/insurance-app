@@ -97,10 +97,12 @@ export default function RootLayout() {
   // Handles token rotation and recovers from failed initial registrations.
   useEffect(() => {
     Notifications.setBadgeCountAsync(0).catch(() => {});
+    Notifications.dismissAllNotificationsAsync().catch(() => {});
 
     const handleAppStateChange = async (nextState: AppStateStatus) => {
       if (nextState === 'active') {
         Notifications.setBadgeCountAsync(0).catch(() => {});
+        Notifications.dismissAllNotificationsAsync().catch(() => {});
         try {
           const session = await getSession();
           if (session?.clientCode) {
