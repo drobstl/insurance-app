@@ -289,17 +289,30 @@ export default function ClientsPage() {
     }
     (async () => {
       try {
+        // #region agent log
+        fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c0330'},body:JSON.stringify({sessionId:'3c0330',location:'clients/page.tsx:292',message:'Fetching push token - checking top-level doc',data:{clientId:selectedClient.id,clientName:selectedClient.name},timestamp:Date.now(),hypothesisId:'H1-toplevel-read'})}).catch(()=>{});
+        // #endregion
         const tokenDoc = await getDoc(doc(db, 'clients', selectedClient.id));
+        // #region agent log
+        fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c0330'},body:JSON.stringify({sessionId:'3c0330',location:'clients/page.tsx:294',message:'Top-level doc result',data:{exists:tokenDoc.exists(),pushToken:tokenDoc.exists()?tokenDoc.data()?.pushToken:null,allFields:tokenDoc.exists()?Object.keys(tokenDoc.data()||{}):[],clientId:selectedClient.id},timestamp:Date.now(),hypothesisId:'H1-toplevel-read'})}).catch(()=>{});
+        // #endregion
         if (tokenDoc.exists()) {
           setClientPushToken(tokenDoc.data()?.pushToken || null);
         } else {
           setClientPushToken(null);
         }
+
+        // #region agent log
+        if (user) {
+          const agentClientDoc = await getDoc(doc(db, 'agents', user.uid, 'clients', selectedClient.id));
+          fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c0330'},body:JSON.stringify({sessionId:'3c0330',location:'clients/page.tsx:305',message:'Agent subcollection doc result',data:{exists:agentClientDoc.exists(),pushToken:agentClientDoc.exists()?agentClientDoc.data()?.pushToken:null,allFields:agentClientDoc.exists()?Object.keys(agentClientDoc.data()||{}):[],clientId:selectedClient.id},timestamp:Date.now(),hypothesisId:'H5-subcollection-has-token'})}).catch(()=>{});
+        }
+        // #endregion
       } catch {
         setClientPushToken(null);
       }
     })();
-  }, [selectedClient]);
+  }, [selectedClient, user]);
 
   // Fetch policy counts across all clients for anniversary detection
   useEffect(() => {
