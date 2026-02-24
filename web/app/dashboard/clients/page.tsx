@@ -291,14 +291,32 @@ export default function ClientsPage() {
       try {
         const clientDoc = await getDoc(doc(db, 'agents', user.uid, 'clients', selectedClient.id));
         // #region agent log
-        fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3c0330'},body:JSON.stringify({sessionId:'3c0330',location:'clients/page.tsx:290',message:'Push token read from agent subcollection',data:{exists:clientDoc.exists(),pushToken:clientDoc.exists()?clientDoc.data()?.pushToken:null,clientId:selectedClient.id},timestamp:Date.now(),hypothesisId:'H5-fix-verify'})}).catch(()=>{});
+        console.log('[DEBUG-3c0330] Agent subcollection read:', {
+          path: `agents/${user.uid}/clients/${selectedClient.id}`,
+          exists: clientDoc.exists(),
+          pushToken: clientDoc.exists() ? clientDoc.data()?.pushToken : 'N/A',
+          allFields: clientDoc.exists() ? Object.keys(clientDoc.data() || {}) : [],
+        });
         // #endregion
         if (clientDoc.exists()) {
           setClientPushToken(clientDoc.data()?.pushToken || null);
         } else {
           setClientPushToken(null);
         }
-      } catch {
+
+        // #region agent log
+        const topLevelDoc = await getDoc(doc(db, 'clients', selectedClient.id));
+        console.log('[DEBUG-3c0330] Top-level collection read:', {
+          path: `clients/${selectedClient.id}`,
+          exists: topLevelDoc.exists(),
+          pushToken: topLevelDoc.exists() ? topLevelDoc.data()?.pushToken : 'N/A',
+          allFields: topLevelDoc.exists() ? Object.keys(topLevelDoc.data() || {}) : [],
+        });
+        // #endregion
+      } catch (err) {
+        // #region agent log
+        console.error('[DEBUG-3c0330] Push token fetch error:', err);
+        // #endregion
         setClientPushToken(null);
       }
     })();
