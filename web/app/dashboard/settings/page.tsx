@@ -180,35 +180,15 @@ export default function SettingsPage() {
     if (!user?.email) return;
     setChangingEmail(true);
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ba143b'},body:JSON.stringify({sessionId:'ba143b',location:'settings/page.tsx:handleEmailChange',message:'Starting email change',data:{userEmail:user.email,newEmail:trimmedEmail},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-      // #endregion
-
       const credential = EmailAuthProvider.credential(user.email, emailPassword);
       await reauthenticateWithCredential(user, credential);
 
-      // #region agent log
-      fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ba143b'},body:JSON.stringify({sessionId:'ba143b',location:'settings/page.tsx:handleEmailChange',message:'Reauthentication succeeded',data:{},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-      // #endregion
-
       const token = await user.getIdToken(true);
-
-      // #region agent log
-      fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ba143b'},body:JSON.stringify({sessionId:'ba143b',location:'settings/page.tsx:handleEmailChange',message:'Got ID token',data:{tokenLength:token?.length},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-      // #endregion
-
       const res = await fetch('/api/auth/update-email', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ newEmail: trimmedEmail }),
       });
-
-      // #region agent log
-      const contentType = res.headers.get('content-type');
-      const rawText = await res.clone().text();
-      fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ba143b'},body:JSON.stringify({sessionId:'ba143b',location:'settings/page.tsx:handleEmailChange',message:'API response received',data:{status:res.status,contentType,rawBody:rawText.substring(0,500)},timestamp:Date.now(),hypothesisId:'H2,H3'})}).catch(()=>{});
-      // #endregion
-
       const data = await res.json();
 
       if (!res.ok) {
@@ -221,11 +201,6 @@ export default function SettingsPage() {
       setNewEmail('');
       setEmailPassword('');
     } catch (err: unknown) {
-      // #region agent log
-      const errObj = err as Record<string, unknown>;
-      fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ba143b'},body:JSON.stringify({sessionId:'ba143b',location:'settings/page.tsx:handleEmailChange:catch',message:'Caught error in handleEmailChange',data:{code:errObj?.code,message:errObj?.message,name:errObj?.name,errorString:String(err)},timestamp:Date.now(),hypothesisId:'H1,H2,H3,H4'})}).catch(()=>{});
-      // #endregion
-
       const code = (err as { code?: string }).code;
       if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
         setEmailError('Current password is incorrect.');

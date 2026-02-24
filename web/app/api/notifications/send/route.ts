@@ -152,10 +152,6 @@ export async function POST(req: NextRequest) {
 
     const expoResult = await expoResponse.json();
 
-    // #region agent log
-    console.log('[DEBUG-3c0330] Expo push response:', JSON.stringify({ expoResult, pushMessage: { ...pushMessage, to: pushMessage.to.substring(0, 25) + '...' } }));
-    // #endregion
-
     const pushStatus = expoResult?.data?.status === 'ok' ? 'sent' : 'failed';
     if (pushStatus === 'failed') {
       console.error('Expo push error:', expoResult?.data?.message || expoResult);
@@ -179,30 +175,10 @@ export async function POST(req: NextRequest) {
 
     const docRef = await notificationsRef.add(notificationRecord);
 
-    // #region agent log — check Expo push receipt after short delay
-    let receiptResult: unknown = null;
-    const ticketId = expoResult?.data?.id;
-    if (ticketId) {
-      await new Promise(r => setTimeout(r, 5000));
-      try {
-        const receiptRes = await fetch('https://exp.host/--/api/v2/push/getReceipts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ids: [ticketId] }),
-        });
-        receiptResult = await receiptRes.json();
-      } catch (e) { receiptResult = { error: String(e) }; }
-      console.log('[DEBUG-3c0330] Expo receipt:', JSON.stringify({ ticketId, receiptResult }));
-    }
-    // #endregion
-
     return NextResponse.json({
       success: true,
       notificationId: docRef.id,
       pushStatus,
-      // #region agent log
-      _debug: { expoResult, receiptResult, ticketId, tokenPrefix: pushToken.substring(0, 25) },
-      // #endregion
     });
   } catch (error) {
     console.error('Error sending notification:', error);
