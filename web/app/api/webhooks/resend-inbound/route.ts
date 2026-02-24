@@ -33,11 +33,28 @@ function getResend() {
  * }
  */
 export async function POST(req: NextRequest) {
+  // #region agent log
+  const debugDb = getAdminFirestore();
+  const debugLog = async (step: string, data: Record<string, unknown>) => {
+    try {
+      await debugDb.collection('_debug_webhook').add({ step, ...data, ts: Date.now() });
+      console.log(`[DEBUG-3c0330] ${step}:`, JSON.stringify(data));
+    } catch (e) { console.error('debug log failed:', e); }
+  };
+  // #endregion
+
   try {
     const body = await req.json();
 
+    // #region agent log
+    await debugLog('webhook-received', { type: body.type, hasData: !!body.data, keys: Object.keys(body), from: body.data?.from, to: body.data?.to, subject: body.data?.subject });
+    // #endregion
+
     // Verify this is an email.received event
     if (body.type !== 'email.received') {
+      // #region agent log
+      await debugLog('webhook-skipped', { reason: 'not email.received', actualType: body.type });
+      // #endregion
       return NextResponse.json({ received: true, skipped: 'not email.received' });
     }
 
@@ -49,9 +66,16 @@ export async function POST(req: NextRequest) {
     // Extract sender email -- this should be the agent who forwarded the email
     const senderEmail = extractEmail(emailData.from);
     if (!senderEmail) {
+      // #region agent log
+      await debugLog('webhook-no-sender', { from: emailData.from });
+      // #endregion
       console.warn('Resend inbound: could not extract sender email from:', emailData.from);
       return NextResponse.json({ received: true, skipped: 'no sender email' });
     }
+
+    // #region agent log
+    await debugLog('webhook-sender', { senderEmail });
+    // #endregion
 
     // Look up the agent by email
     const db = getAdminFirestore();
@@ -62,6 +86,9 @@ export async function POST(req: NextRequest) {
       .get();
 
     if (agentsSnap.empty) {
+      // #region agent log
+      await debugLog('webhook-agent-not-found', { senderEmail });
+      // #endregion
       console.warn('Resend inbound: no agent found for email:', senderEmail);
       return NextResponse.json({ received: true, skipped: 'agent not found' });
     }
@@ -128,12 +155,19 @@ export async function POST(req: NextRequest) {
       console.error('Failed to send confirmation email:', emailError);
     }
 
+    // #region agent log
+    await debugLog('webhook-success', { alertId: result.alertId, matched: result.matched, agentId });
+    // #endregion
+
     return NextResponse.json({
       received: true,
       alertId: result.alertId,
       matched: result.matched,
     });
   } catch (error) {
+    // #region agent log
+    await debugLog('webhook-error', { error: String(error), stack: (error as Error)?.stack?.substring(0, 500) });
+    // #endregion
     console.error('Resend inbound webhook error:', error);
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }
