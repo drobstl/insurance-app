@@ -1,10 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { ExtractedApplicationData, Beneficiary } from './types';
-import type { PageImage } from './pdf-parser';
 
-const SYSTEM_PROMPT = `You are an expert insurance application document parser. You extract structured data from insurance application PDFs by examining page images directly.
+const SYSTEM_PROMPT = `You are an expert insurance application document parser. You extract structured data from insurance application PDFs by examining the full document directly.
 
-You are viewing selected pages from a fillable insurance application PDF. Use the visible form layout, labels, and filled-in values to extract the requested fields.
+You are viewing a complete insurance application PDF. Use the visible form layout, labels, and filled-in values to extract the requested fields. Examine ALL pages including any addendum or supplemental pages.
 
 ROLE DISAMBIGUATION (extremely important):
 - "Proposed Insured" / "Applicant" / "Insured" = the person whose life is being insured. This is the MAIN person on the application.
@@ -50,7 +49,7 @@ FIELD EXTRACTION RULES:
 "effectiveDate": Policy effective date, issue date, or application date. Format: YYYY-MM-DD.
 
 STRICT RULES:
-- NEVER fabricate, guess, or infer values not explicitly visible on the pages
+- NEVER fabricate, guess, or infer values not explicitly visible in the document
 - If a field cannot be determined, set it to null
 - The beneficiary is NEVER the insured — they are different people/roles
 - Strip trailing "X" characters from names (checkbox marks)
@@ -110,12 +109,12 @@ const EXTRACTION_SCHEMA = {
 // ─── Main extraction ───────────────────────────────────────
 
 /**
- * Send page images to Claude Sonnet 4.6 and get structured application data back.
- * Uses vision to read the form layout directly, avoiding text-extraction artifacts.
+ * Send the full PDF to Claude Sonnet 4.6 as a native document content block.
+ * Claude processes the raw PDF with full visual fidelity — no image rendering
+ * or text extraction needed on our side.
  */
 export async function extractApplicationFields(
-  pageImages: PageImage[],
-  totalPages: number,
+  pdfBase64: string,
 ): Promise<{ data: ExtractedApplicationData; note?: string }> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -123,21 +122,6 @@ export async function extractApplicationFields(
   }
 
   const anthropic = new Anthropic({ apiKey });
-
-  const imageBlocks: Anthropic.ImageBlockParam[] = pageImages.map((img) => ({
-    type: 'image' as const,
-    source: {
-      type: 'base64' as const,
-      media_type: 'image/png' as const,
-      data: img.base64,
-    },
-  }));
-
-  const pageLabel = pageImages.map((p) => p.pageNum).join(', ');
-  const textBlock: Anthropic.TextBlockParam = {
-    type: 'text' as const,
-    text: `Extract all available fields from these insurance application pages (pages ${pageLabel} of ${totalPages} total).`,
-  };
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6-20250514',
@@ -152,7 +136,20 @@ export async function extractApplicationFields(
     messages: [
       {
         role: 'user',
-        content: [...imageBlocks, textBlock],
+        content: [
+          {
+            type: 'document',
+            source: {
+              type: 'base64',
+              media_type: 'application/pdf',
+              data: pdfBase64,
+            },
+          },
+          {
+            type: 'text',
+            text: 'Extract all available fields from this insurance application PDF.',
+          },
+        ],
       },
     ],
   });
