@@ -362,27 +362,34 @@ export default function ClientsPage() {
     let cancelled = false;
     setPoliciesLoading(true);
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+
     (async () => {
       try {
         const token = await user.getIdToken();
         const res = await fetch(`/api/policies?clientId=${selectedClient.id}`, {
           headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         });
         if (!res.ok) throw new Error(`API error ${res.status}`);
         const { policies: data } = await res.json();
         if (!cancelled) {
           setPolicies(data as Policy[]);
-          setPoliciesLoading(false);
         }
       } catch {
         if (!cancelled) {
           setPolicies([]);
+        }
+      } finally {
+        clearTimeout(timeout);
+        if (!cancelled) {
           setPoliciesLoading(false);
         }
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); clearTimeout(timeout); };
   }, [user, selectedClient, policiesVersion]);
 
   // Read push token directly from the already-loaded client snapshot data
