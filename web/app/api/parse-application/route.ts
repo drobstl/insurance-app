@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { extractTextFromPdf, renderPdfPages } from '../../../lib/pdf-parser';
-import { selectRelevantPageIndices, extractApplicationFields } from '../../../lib/application-extractor';
+import { renderAllPdfPages } from '../../../lib/pdf-parser';
+import { extractApplicationFields } from '../../../lib/application-extractor';
 import type { ParseApplicationResponse } from '../../../lib/types';
 
 /** Allow up to 60 seconds for PDF parsing + AI extraction (Vercel Pro). */
@@ -21,7 +21,6 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
       );
     }
 
-    // Validate file type
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
       return NextResponse.json(
         { success: false, error: 'Please upload a PDF file.' },
@@ -29,7 +28,6 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
       );
     }
 
-    // Validate file size
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
         { success: false, error: 'File is too large. Maximum size is 10MB.' },
@@ -40,37 +38,29 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Step 1: Extract text (used for page relevance scoring)
-    let pdfResult;
-    try {
-      pdfResult = await extractTextFromPdf(buffer);
-    } catch (pdfError) {
-      const message = pdfError instanceof Error ? pdfError.message : 'Failed to read the PDF.';
-      return NextResponse.json(
-        { success: false, error: message },
-        { status: 422 }
-      );
-    }
-
-    // Step 2: Score pages and select the most relevant ones
-    const { indices, totalPages } = selectRelevantPageIndices(pdfResult.pages);
-
-    // Step 3: Render selected pages to PNG images
+    // Step 1: Render all PDF pages to images
     let pageImages;
     try {
-      pageImages = await renderPdfPages(buffer, indices);
+      pageImages = await renderAllPdfPages(buffer);
     } catch (renderError) {
-      const message = renderError instanceof Error ? renderError.message : 'Failed to render PDF pages.';
+      const message = renderError instanceof Error ? renderError.message : 'Failed to read the PDF.';
       return NextResponse.json(
         { success: false, error: message },
         { status: 422 }
       );
     }
 
-    // Step 4: Send images to Claude for vision-based extraction
+    if (pageImages.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'This PDF has no pages.' },
+        { status: 422 }
+      );
+    }
+
+    // Step 2: Send ALL page images to Claude for vision-based extraction
     let extraction;
     try {
-      extraction = await extractApplicationFields(pageImages, totalPages);
+      extraction = await extractApplicationFields(pageImages, pageImages.length);
     } catch (aiError) {
       const message = aiError instanceof Error ? aiError.message : 'AI extraction failed.';
       return NextResponse.json(
@@ -82,7 +72,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
     return NextResponse.json({
       success: true,
       data: extraction.data,
-      pageCount: pdfResult.pageCount,
+      pageCount: pageImages.length,
       note: extraction.note,
     });
   } catch (error) {

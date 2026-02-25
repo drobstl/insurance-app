@@ -107,64 +107,6 @@ const EXTRACTION_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-// ─── Page relevance scoring ────────────────────────────────
-
-const RELEVANCE_KEYWORDS: string[] = [
-  'insured', 'applicant', 'proposed insured', 'owner', 'policy owner',
-  'beneficiary', 'primary beneficiary', 'contingent beneficiary',
-  'face amount', 'death benefit', 'coverage amount', 'specified amount',
-  'initial death benefit', 'base face amount',
-  'premium', 'planned premium', 'scheduled premium', 'modal premium',
-  'premium mode', 'premium frequency', 'payment mode', 'billing frequency',
-  'bank draft', 'modal prem',
-  'policy number', 'application number', 'certificate number',
-  'case no', 'telephone case',
-  'effective date', 'issue date', 'renewal date',
-  'indexed universal life', 'term life', 'whole life', 'universal life',
-  'mortgage protection', 'accidental death',
-  'home certainty', 'mortgage company', 'mortgage loan',
-  'life insurance company', 'insurance company', 'underwritten by',
-  'email', 'e-mail', 'phone', 'telephone', 'cell',
-  'date of birth', 'dob', 'birth date', 'born', 'birthdate',
-  'addendum', 'beneficiary details', 'driver', 'bank account',
-];
-
-function scorePage(pageText: string): number {
-  const lower = pageText.toLowerCase();
-  let score = 0;
-  for (const kw of RELEVANCE_KEYWORDS) {
-    if (lower.includes(kw)) score += 1;
-  }
-  return score;
-}
-
-/**
- * Score pages by keyword relevance and return the indices of the most
- * useful pages for extraction. Always includes page 0 (first page).
- * Returns 0-indexed page indices in original document order.
- */
-export function selectRelevantPageIndices(
-  pages: string[],
-  maxPages: number = 4,
-): { indices: number[]; totalPages: number } {
-  if (pages.length === 0) return { indices: [], totalPages: 0 };
-
-  const scored = pages.map((text, idx) => ({ idx, score: scorePage(text) }));
-  const first = scored[0];
-  const rest = scored.slice(1).sort((a, b) => b.score - a.score);
-
-  const selected = [first];
-  for (const page of rest) {
-    if (page.score === 0) continue;
-    if (selected.length >= maxPages) break;
-    selected.push(page);
-  }
-
-  selected.sort((a, b) => a.idx - b.idx);
-
-  return { indices: selected.map((p) => p.idx), totalPages: pages.length };
-}
-
 // ─── Main extraction ───────────────────────────────────────
 
 /**
