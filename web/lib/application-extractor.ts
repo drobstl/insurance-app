@@ -1,11 +1,31 @@
 import OpenAI from 'openai';
 import { ExtractedApplicationData, Beneficiary } from './types';
 
-const SYSTEM_PROMPT = `You are an insurance application document parser. Your job is to extract structured data from raw text extracted from insurance application PDFs.
+const SYSTEM_PROMPT = `You are an expert insurance application document parser. You extract structured data from raw text that was programmatically extracted from fillable insurance application PDFs.
 
-The text you receive contains selected pages from the application, annotated with page numbers (e.g. "--- Page 3 ---"). Pages are selected based on relevance — not every page of the original document is included. Use information from ALL provided pages to fill in as many fields as possible.
+CRITICAL — UNDERSTANDING THE TEXT FORMAT:
+The text comes from fillable PDF forms where labels and filled-in values are often on SEPARATE lines. Form field labels (e.g. "Proposed Insured:", "Owner:", "Primary Beneficiary:") appear first, followed by blank lines or underscores, then the actual filled-in values appear nearby — often on the next line or several lines later, in the same positional order as the labels. You MUST carefully match values to their corresponding labels by reading the document structure.
 
-Return ONLY a valid JSON object with these fields (no markdown, no explanation, just the JSON):
+For example, if you see:
+  Proposed Insured: _____ (First) (Middle) (Last)
+  Owner: Name _________ SS#_________ Address:_________
+  Primary Beneficiary _________ SS#_________ Relationship _________
+  ...
+  John    A    Smith
+  Jane Smith                        123-45-6789     123 Main St
+  Mary Johnson                      987-65-4321     Daughter
+
+Then: Proposed Insured = "John A Smith", Owner = "Jane Smith", Primary Beneficiary = "Mary Johnson" (Daughter).
+
+ROLE DISAMBIGUATION (extremely important):
+- "Proposed Insured" / "Applicant" / "Insured" = the person whose life is being insured. This is the MAIN person on the application.
+- "Owner" / "Policy Owner" = the person who owns the policy (often the same as the insured, but can be different — e.g. a parent or spouse).
+- "Primary Beneficiary" = the person who receives the death benefit. This is NOT the insured. The beneficiary's name often appears with a "Relationship" field (e.g. "Spouse", "Brother", "Child").
+- Do NOT confuse these roles. If a name appears next to "Beneficiary" or has a relationship label, it is the BENEFICIARY, not the insured.
+
+The text you receive contains selected pages annotated with page numbers (e.g. "--- Page 3 ---"). Use information from ALL provided pages.
+
+Return ONLY a valid JSON object with these fields:
 
 {
   "policyType": one of "IUL", "Term Life", "Whole Life", "Mortgage Protection", "Accidental", or "Other",
@@ -25,19 +45,51 @@ Return ONLY a valid JSON object with these fields (no markdown, no explanation, 
   "note": string or null
 }
 
-Rules:
-- "coverageAmount" = death benefit, face amount, specified amount, or coverage amount (in dollars, no commas/symbols)
-- "premiumAmount" = planned premium, scheduled premium, or modal premium (in dollars)
-- "policyType": IUL = Indexed Universal Life. Use "Other" if the product doesn't clearly fit a category.
-- "insuranceCompany": use the carrier's common name (e.g. "Mutual of Omaha", not "United of Omaha Life Insurance Company")
-- "policyOwner": the owner of the policy (often the insured, but not always)
-- "insuredName": the person whose life is insured
-- "beneficiaries": extract ALL primary and contingent beneficiaries. For each, include the name, relationship (e.g. "Spouse", "Child") if available, percentage split if available, and type ("primary" or "contingent"). If only one beneficiary is listed with no type specified, assume "primary".
-- "insuredDateOfBirth": the insured person's date of birth in YYYY-MM-DD format
-- "effectiveDate": the policy effective date, issue date, or application date in YYYY-MM-DD format. Look for labels like "Effective Date", "Policy Date", "Issue Date", "Date of Issue", "Application Date", or "Requested Policy Date".
-- If a field cannot be determined from the text, set it to null — do NOT guess
-- "note": brief note if you want to flag anything (e.g. "some fields could not be found")
-- Return ONLY the JSON object`;
+FIELD EXTRACTION RULES:
+
+"insuredName": The "Proposed Insured" or "Applicant" — the person whose life is insured. This name usually appears near the TOP of page 1 right after the form header fields. It is NOT the beneficiary. Include first, middle, and last name if available. Strip any trailing "X" characters (form checkboxes).
+
+"policyOwner": The "Owner" of the policy. If labeled "Owner: Name ___" the filled value is the owner. Often the same person as the insured.
+
+"beneficiaries": The "Primary Beneficiary" and/or "Contingent Beneficiary". Each must have a proper NAME (not just "Brother" or "Spouse"). The relationship label (e.g. "Brother", "Spouse", "Child") goes in the "relationship" field. Look in the main application AND any addendum pages which often have structured beneficiary tables.
+
+"coverageAmount": The "Face Amount", "Death Benefit", "Coverage Amount", or "Specified Amount" in dollars. This is the actual policy coverage, NOT any maximum limit mentioned in legal disclaimers or conditional receipt clauses. Parse as a number (e.g. 191000, not "$191,000").
+
+"premiumAmount": The "Modal Premium", "Planned Premium", or "Scheduled Premium". Look for a dollar amount near premium/payment fields. Parse as a number.
+
+"premiumFrequency": Determined by the payment mode. "Bank Draft" with monthly indicators = "monthly". Look for "Mode:", "Payment Mode:", "Billing Frequency:" fields. Common indicators: "Monthly"/"Bank Draft"/"MON" = monthly, "Quarterly"/"QTR" = quarterly, "Semi-Annual"/"SA" = semi-annual, "Annual"/"ANN" = annual.
+
+"policyNumber": The application/case/policy/certificate number. Often appears as a repeating reference number on multiple pages (e.g. "M3166549") or near "Policy Number:", "Application Number:", "Certificate Number:", "Telephone Case No:". Do NOT confuse with SS#, DL#, agent numbers, or form numbers (like "ICC18-AA3487").
+
+"policyType": Classify the product:
+  - "Mortgage Protection" = plans named "Home Certainty", "Mortgage Protection", "MP", or applications with mortgage company/loan sections
+  - "IUL" = "Indexed Universal Life", "IUL"
+  - "Term Life" = "Term", "Level Term", "Return of Premium Term"
+  - "Whole Life" = "Whole Life", "WL", "Ordinary Life"
+  - "Accidental" = "Accidental Death", "AD&D"
+  - "Other" = only if the product doesn't fit any category above
+
+"insuranceCompany": The carrier's common/short name. Common mappings:
+  - "American-Amicable Life Insurance Company of Texas" → "American-Amicable"
+  - "Mutual of Omaha Insurance Company" → "Mutual of Omaha"
+  - "National Western Life Insurance Company" → "National Western Life"
+  Use the recognizable carrier name, not the full legal entity name.
+
+"insuredDateOfBirth": Look for "Date of Birth", "DOB", "Birth Date" near the insured's info. Format: YYYY-MM-DD. Parse dates like "06/27/1964" → "1964-06-27".
+
+"insuredEmail": ONLY extract if an actual email address is visible in the text. Set to null if no email is found. NEVER fabricate or guess an email address.
+
+"insuredPhone": Phone number of the insured. Look for "Phone", "Telephone", "Cell" fields.
+
+"effectiveDate": Policy effective date, issue date, requested policy date, or application date. Format: YYYY-MM-DD.
+
+STRICT RULES:
+- NEVER fabricate, guess, or infer values that are not explicitly present in the text
+- If a field cannot be determined, set it to null
+- The beneficiary is NEVER the insured — they are different people/roles
+- Strip trailing "X" characters from names (these are checkbox marks in the form)
+- "note": brief note flagging anything unusual or uncertain
+- Return ONLY the JSON object — no markdown, no explanation`;
 
 // ─── Page relevance scoring ────────────────────────────────
 
@@ -54,18 +106,23 @@ const RELEVANCE_KEYWORDS: string[] = [
   'initial death benefit', 'base face amount',
   'premium', 'planned premium', 'scheduled premium', 'modal premium',
   'premium mode', 'premium frequency', 'payment mode', 'billing frequency',
+  'bank draft', 'modal prem',
   // Policy identification
   'policy number', 'application number', 'certificate number',
+  'case no', 'telephone case',
   'effective date', 'issue date', 'renewal date',
   // Product type
   'indexed universal life', 'term life', 'whole life', 'universal life',
   'mortgage protection', 'accidental death',
+  'home certainty', 'mortgage company', 'mortgage loan',
   // Carrier identification (page 1 / header)
   'life insurance company', 'insurance company', 'underwritten by',
   // Contact info
   'email', 'e-mail', 'phone', 'telephone', 'cell',
   // Personal details
   'date of birth', 'dob', 'birth date', 'born', 'birthdate',
+  // Supplemental pages with structured data
+  'addendum', 'beneficiary details', 'driver', 'bank account',
 ];
 
 /** Score a single page's text for relevance to the fields we extract. */
@@ -144,7 +201,7 @@ export async function extractApplicationFields(
 
   const openai = new OpenAI({ apiKey });
 
-  const { text, selectedPages, totalPages } = selectRelevantPages(pages, 30_000);
+  const { text, selectedPages, totalPages } = selectRelevantPages(pages, 60_000);
 
   const pageNote =
     selectedPages.length < totalPages
@@ -152,9 +209,9 @@ export async function extractApplicationFields(
       : '';
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: 'gpt-4o',
     temperature: 0,
-    max_tokens: 1024,
+    max_tokens: 2048,
     response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
@@ -163,7 +220,7 @@ export async function extractApplicationFields(
         content: `Extract all available fields from this insurance application:\n\n${text}${pageNote}`,
       },
     ],
-  }, { timeout: 30_000 });
+  }, { timeout: 45_000 });
 
   const content = response.choices[0]?.message?.content;
   if (!content) {
