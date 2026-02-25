@@ -31,6 +31,7 @@ interface Policy {
   renewalDate?: string;
   amountOfProtection?: number;
   protectionUnit?: 'months' | 'years';
+  effectiveDate?: string;
   status: 'Active' | 'Pending' | 'Lapsed';
   createdAt: Timestamp;
   anniversaryAgentNotifiedAt?: string;
@@ -711,7 +712,7 @@ export default function ClientDetailModal({
             ) : (
               <div className="space-y-3">
                 {policies.map((policy) => {
-                  const anniversaryDate = getAnniversaryDate(policy.createdAt);
+                  const anniversaryDate = getAnniversaryDate(policy.createdAt, policy.effectiveDate);
                   const days = anniversaryDate ? daysUntilAnniversary(anniversaryDate) : null;
                   return (
                   <div

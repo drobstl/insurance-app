@@ -105,10 +105,10 @@ export async function GET(req: NextRequest) {
           if (!created) {
             const createdAt = p.createdAt;
             if (!createdAt || !createdAt.toDate) continue;
-            created = createdAt.toDate();
+            created = createdAt.toDate() as Date;
           }
 
-          const anniversary = new Date(created);
+          const anniversary = new Date(created!);
           anniversary.setFullYear(anniversary.getFullYear() + 1);
 
           const msUntil = anniversary.getTime() - now.getTime();

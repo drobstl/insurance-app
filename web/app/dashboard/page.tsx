@@ -19,6 +19,7 @@ interface Policy {
   policyNumber: string;
   coverageAmount: number;
   premiumAmount: number;
+  effectiveDate?: string;
   status: 'Active' | 'Pending' | 'Lapsed';
   createdAt: Timestamp;
 }
@@ -101,7 +102,7 @@ export default function DashboardHomePage() {
               (data as Policy[]).forEach((p) => {
                 if (p.status === 'Active') active++;
                 if (p.status === 'Pending') pending++;
-                const annivDate = getAnniversaryDate(p.createdAt);
+                const annivDate = getAnniversaryDate(p.createdAt, p.effectiveDate);
                 if (annivDate) {
                   allAlerts.push({ clientName: client.name, clientId: client.id, policy: p, anniversaryDate: annivDate });
                 }
