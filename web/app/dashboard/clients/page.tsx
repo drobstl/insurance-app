@@ -4,7 +4,6 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   collection,
   addDoc,
-  updateDoc,
   deleteDoc,
   doc,
   onSnapshot,
@@ -12,8 +11,7 @@ import {
   orderBy,
   serverTimestamp,
   Timestamp,
-  getDoc,
-  getDocs,
+  updateDoc,
   setDoc,
 } from 'firebase/firestore';
 import { auth, db } from '../../../firebase';
@@ -231,6 +229,37 @@ function mapExtractedApplicationToPolicyFormData(data: ExtractedApplicationData)
   return mapped;
 }
 
+// ─── Policy API helpers (Admin SDK) ────────────────────────
+
+async function apiCreatePolicy(token: string, clientId: string, data: Record<string, unknown>): Promise<string> {
+  const res = await fetch('/api/policies', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ clientId, ...data }),
+  });
+  if (!res.ok) throw new Error(`Failed to create policy (${res.status})`);
+  const { id } = await res.json();
+  return id;
+}
+
+async function apiUpdatePolicy(token: string, clientId: string, policyId: string, data: Record<string, unknown>): Promise<void> {
+  const res = await fetch('/api/policies', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ clientId, policyId, ...data }),
+  });
+  if (!res.ok) throw new Error(`Failed to update policy (${res.status})`);
+}
+
+async function apiDeletePolicy(token: string, clientId: string, policyId?: string): Promise<void> {
+  const res = await fetch('/api/policies', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ clientId, policyId }),
+  });
+  if (!res.ok) throw new Error(`Failed to delete policy (${res.status})`);
+}
+
 // ─── Component ─────────────────────────────────────────────
 
 export default function ClientsPage() {
@@ -267,6 +296,8 @@ export default function ClientsPage() {
   // ── Policy state ──
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [policiesLoading, setPoliciesLoading] = useState(false);
+  const [policiesVersion, setPoliciesVersion] = useState(0);
+  const refreshPolicies = useCallback(() => setPoliciesVersion((v) => v + 1), []);
 
   // ── Policy form state ──
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
@@ -349,7 +380,7 @@ export default function ClientsPage() {
     })();
 
     return () => { cancelled = true; };
-  }, [user, selectedClient]);
+  }, [user, selectedClient, policiesVersion]);
 
   // Read push token directly from the already-loaded client snapshot data
   useEffect(() => {
@@ -591,9 +622,9 @@ export default function ClientsPage() {
             renewalDate: mapped.renewalDate || '',
             effectiveDate: mapped.effectiveDate || null,
             status: 'Active',
-            createdAt: serverTimestamp(),
           };
-          await addDoc(collection(db, 'agents', user.uid, 'clients', docRef.id, 'policies'), policyData);
+          const token = await user.getIdToken();
+          await apiCreatePolicy(token, docRef.id, policyData);
         }
 
         setTimeout(() => handleCloseModal(), 800);
@@ -610,13 +641,9 @@ export default function ClientsPage() {
     if (!user || !deleteConfirmClient) return;
     setDeletingClient(true);
     try {
-      // Delete all policies under this client first
-      const policiesSnap = await getDocs(
-        collection(db, 'agents', user.uid, 'clients', deleteConfirmClient.id, 'policies')
-      );
-      for (const pDoc of policiesSnap.docs) {
-        await deleteDoc(doc(db, 'agents', user.uid, 'clients', deleteConfirmClient.id, 'policies', pDoc.id));
-      }
+      // Delete all policies under this client first (via Admin SDK)
+      const token = await user.getIdToken();
+      await apiDeletePolicy(token, deleteConfirmClient.id);
       await deleteDoc(doc(db, 'agents', user.uid, 'clients', deleteConfirmClient.id));
       // Also delete top-level client doc
       try {
@@ -701,20 +728,15 @@ export default function ClientsPage() {
         policyPayload.protectionUnit = policyFormData.protectionUnit;
       }
 
+      const token = await user.getIdToken();
       if (editingPolicy) {
-        await updateDoc(
-          doc(db, 'agents', user.uid, 'clients', selectedClient.id, 'policies', editingPolicy.id),
-          policyPayload
-        );
+        await apiUpdatePolicy(token, selectedClient.id, editingPolicy.id, policyPayload);
         setPolicyFormSuccess('Policy updated!');
       } else {
-        policyPayload.createdAt = serverTimestamp();
-        await addDoc(
-          collection(db, 'agents', user.uid, 'clients', selectedClient.id, 'policies'),
-          policyPayload
-        );
+        await apiCreatePolicy(token, selectedClient.id, policyPayload);
         setPolicyFormSuccess('Policy added!');
       }
+      refreshPolicies();
       setTimeout(() => handleClosePolicyModal(), 800);
     } catch (err) {
       console.error('Error saving policy:', err);
@@ -722,22 +744,22 @@ export default function ClientsPage() {
     } finally {
       setPolicySubmitting(false);
     }
-  }, [user, selectedClient, policyFormData, editingPolicy, handleClosePolicyModal]);
+  }, [user, selectedClient, policyFormData, editingPolicy, handleClosePolicyModal, refreshPolicies]);
 
   const handleDeletePolicy = useCallback(async () => {
     if (!user || !selectedClient || !deleteConfirmPolicy) return;
     setDeleting(true);
     try {
-      await deleteDoc(
-        doc(db, 'agents', user.uid, 'clients', selectedClient.id, 'policies', deleteConfirmPolicy.id)
-      );
+      const token = await user.getIdToken();
+      await apiDeletePolicy(token, selectedClient.id, deleteConfirmPolicy.id);
       setDeleteConfirmPolicy(null);
+      refreshPolicies();
     } catch (err) {
       console.error('Error deleting policy:', err);
     } finally {
       setDeleting(false);
     }
-  }, [user, selectedClient, deleteConfirmPolicy]);
+  }, [user, selectedClient, deleteConfirmPolicy, refreshPolicies]);
 
   // ─── Application Upload Handlers ─────────────────────────
 
@@ -823,9 +845,9 @@ export default function ClientsPage() {
         renewalDate: mapped.renewalDate || '',
         effectiveDate: mapped.effectiveDate || null,
         status: 'Active',
-        createdAt: serverTimestamp(),
       };
-      await addDoc(collection(db, 'agents', user.uid, 'clients', docRef.id, 'policies'), policyData);
+      const policyToken = await user.getIdToken();
+      await apiCreatePolicy(policyToken, docRef.id, policyData);
 
       setFormSuccess('Client & policy created!');
       setTimeout(() => setFormSuccess(''), 3000);
@@ -987,10 +1009,10 @@ export default function ClientsPage() {
             renewalDate: '',
             effectiveDate: effDate,
             status: normalizeStatus(row.status),
-            createdAt: serverTimestamp(),
           };
 
-          await addDoc(collection(db, 'agents', user.uid, 'clients', docRef.id, 'policies'), policyPayload);
+          const importToken = await user.getIdToken();
+          await apiCreatePolicy(importToken, docRef.id, policyPayload);
           policiesCreated++;
         }
 
