@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { extractTextFromPdf } from '../../../lib/pdf-parser';
-import { extractApplicationFields } from '../../../lib/application-extractor';
+import { extractTextFromPdf, renderPdfPages } from '../../../lib/pdf-parser';
+import { selectRelevantPageIndices, extractApplicationFields } from '../../../lib/application-extractor';
 import type { ParseApplicationResponse } from '../../../lib/types';
 
 /** Allow up to 60 seconds for PDF parsing + AI extraction (Vercel Pro). */
@@ -37,10 +37,10 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
       );
     }
 
-    // Step 1: Extract text from PDF
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    // Step 1: Extract text (used for page relevance scoring)
     let pdfResult;
     try {
       pdfResult = await extractTextFromPdf(buffer);
@@ -52,10 +52,25 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
       );
     }
 
-    // Step 2: Extract fields using AI
+    // Step 2: Score pages and select the most relevant ones
+    const { indices, totalPages } = selectRelevantPageIndices(pdfResult.pages);
+
+    // Step 3: Render selected pages to PNG images
+    let pageImages;
+    try {
+      pageImages = await renderPdfPages(buffer, indices);
+    } catch (renderError) {
+      const message = renderError instanceof Error ? renderError.message : 'Failed to render PDF pages.';
+      return NextResponse.json(
+        { success: false, error: message },
+        { status: 422 }
+      );
+    }
+
+    // Step 4: Send images to Claude for vision-based extraction
     let extraction;
     try {
-      extraction = await extractApplicationFields(pdfResult.pages);
+      extraction = await extractApplicationFields(pageImages, totalPages);
     } catch (aiError) {
       const message = aiError instanceof Error ? aiError.message : 'AI extraction failed.';
       return NextResponse.json(
