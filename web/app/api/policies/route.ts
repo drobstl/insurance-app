@@ -65,20 +65,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { clientId, ...policyData } = await request.json();
+    const body = await request.json();
+    const { clientId, ...policyData } = body;
     if (!clientId) {
       return NextResponse.json({ error: 'clientId is required' }, { status: 400 });
     }
 
+    // Strip undefined values that Firestore rejects
+    const cleanData: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(policyData)) {
+      if (value !== undefined) cleanData[key] = value;
+    }
+
     const docRef = await policiesCol(authUser.uid, clientId).add({
-      ...policyData,
+      ...cleanData,
       createdAt: FieldValue.serverTimestamp(),
     });
 
     return NextResponse.json({ id: docRef.id });
   } catch (error) {
-    console.error('Error creating policy:', error);
-    return NextResponse.json({ error: 'Failed to create policy' }, { status: 500 });
+    const msg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error creating policy:', msg, error);
+    return NextResponse.json({ error: 'Failed to create policy', detail: msg }, { status: 500 });
   }
 }
 
