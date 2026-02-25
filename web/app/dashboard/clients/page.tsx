@@ -962,6 +962,18 @@ export default function ClientsPage() {
       const policyToken = await user.getIdToken();
       await apiCreatePolicy(policyToken, docRef.id, policyData);
 
+      // Update policy summary cache so the list reflects the new policy immediately
+      const policyStatus = (policyData.status as string) || 'Active';
+      setClientPolicySummaries(prev => ({
+        ...prev,
+        [docRef.id]: {
+          active: (prev[docRef.id]?.active || 0) + (policyStatus === 'Active' ? 1 : 0),
+          pending: (prev[docRef.id]?.pending || 0) + (policyStatus === 'Pending' ? 1 : 0),
+          lapsed: prev[docRef.id]?.lapsed || 0,
+          total: (prev[docRef.id]?.total || 0) + 1,
+        },
+      }));
+
       setFormSuccess('Client & policy created!');
       setTimeout(() => setFormSuccess(''), 3000);
     } catch (err) {
