@@ -171,6 +171,17 @@ export default function ConservationPage() {
     }
   };
 
+  const handleDelete = async (alertId: string) => {
+    if (!user || !confirm('Delete this alert? This cannot be undone.')) return;
+    try {
+      const alertRef = doc(db, 'agents', user.uid, 'conservationAlerts', alertId);
+      const { deleteDoc } = await import('firebase/firestore');
+      await deleteDoc(alertRef);
+    } catch (err) {
+      console.error('Error deleting alert:', err);
+    }
+  };
+
   const handleSendMessage = useCallback(async (alertId: string) => {
     if (!user || !manualMessage.trim() || sendingMessage) return;
     setSendingMessage(true);
@@ -597,6 +608,12 @@ export default function ConservationPage() {
                                 className="px-3 py-1.5 bg-white border border-[#d0d0d0] text-[#707070] text-xs font-medium rounded-[5px] hover:bg-[#f8f8f8] transition-colors"
                               >
                                 Mark Lost
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDelete(alert.id); }}
+                                className="px-3 py-1.5 bg-white border border-red-300 text-red-600 text-xs font-medium rounded-[5px] hover:bg-red-50 transition-colors"
+                              >
+                                Delete
                               </button>
                             </div>
                           )}
