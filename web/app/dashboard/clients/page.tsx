@@ -912,14 +912,19 @@ export default function ClientsPage() {
 
       const docRef = await addDoc(collection(db, 'agents', user.uid, 'clients'), newClient);
 
-      await setDoc(doc(db, 'clients', docRef.id), {
-        name: clientInfo.name.trim(),
-        email: clientInfo.email.trim(),
-        phone: clientInfo.phone.trim(),
-        clientCode: code,
-        agentId: user.uid,
-        createdAt: serverTimestamp(),
-      });
+      // Mirror to top-level clients collection for the mobile app (non-blocking)
+      try {
+        await setDoc(doc(db, 'clients', docRef.id), {
+          name: clientInfo.name.trim(),
+          email: clientInfo.email.trim(),
+          phone: clientInfo.phone.trim(),
+          clientCode: code,
+          agentId: user.uid,
+          createdAt: serverTimestamp(),
+        });
+      } catch (mirrorErr) {
+        console.error('Top-level client mirror failed (non-blocking):', mirrorErr);
+      }
 
       // Auto-send welcome text with code via Linq if client has a phone
       if (clientInfo.phone.trim()) {
@@ -1089,7 +1094,11 @@ export default function ClientsPage() {
         if (row.dateOfBirth) clientPayload.dateOfBirth = row.dateOfBirth.trim();
 
         const docRef = await addDoc(collection(db, 'agents', user.uid, 'clients'), clientPayload);
-        await setDoc(doc(db, 'clients', docRef.id), clientPayload);
+        try {
+          await setDoc(doc(db, 'clients', docRef.id), clientPayload);
+        } catch (mirrorErr) {
+          console.error('Top-level client mirror failed (non-blocking):', mirrorErr);
+        }
         clientsCreated++;
 
         // Create a policy if any policy field is present
