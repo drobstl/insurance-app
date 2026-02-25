@@ -926,22 +926,8 @@ export default function ClientsPage() {
         console.error('Top-level client mirror failed (non-blocking):', mirrorErr);
       }
 
-      // Auto-send welcome text with code via Linq if client has a phone
-      if (clientInfo.phone.trim()) {
-        const firstName = clientInfo.name.trim().split(' ')[0];
-        const agentNameStr = agentProfile.name || 'your agent';
-        const welcomeText = `Hey ${firstName}! ${agentNameStr} here. Download the AgentForLife app and use code ${code} to connect with me. https://agentforlife.app`;
-        try {
-          const token = await user.getIdToken();
-          await fetch('/api/client/welcome-sms', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ clientPhone: clientInfo.phone.trim(), message: welcomeText }),
-          });
-        } catch (smsErr) {
-          console.error('Auto-text failed (non-blocking):', smsErr);
-        }
-      }
+      // Skip auto-welcome SMS for PDF upload flow — the agent can send manually
+      // via the client detail page when ready
 
       // Create the policy from the extracted data
       const mapped = mapExtractedApplicationToPolicyFormData(appData);
