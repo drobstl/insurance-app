@@ -1,4 +1,4 @@
-import { extractText, getDocumentProxy } from 'unpdf';
+import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 
 export interface PdfParseResult {
   /** Full merged text (all pages concatenated). */
@@ -16,20 +16,34 @@ export interface PageImage {
 }
 
 /**
- * Extract raw text from a PDF buffer.
- * Uses unpdf which works in serverless environments (Vercel, Cloudflare, etc).
+ * Extract raw text from a PDF buffer using pdfjs-dist's legacy (Node-compatible) build.
  * Returns both the full merged text and per-page text for smart page selection.
  * Throws if the PDF cannot be parsed or contains no extractable text.
  */
 export async function extractTextFromPdf(buffer: Buffer): Promise<PdfParseResult> {
-  const pdf = await getDocumentProxy(new Uint8Array(buffer));
+  // Use the legacy build — same one pdf-to-img uses — which handles
+  // missing browser globals (DOMMatrix, etc.) gracefully in Node.js.
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
 
-  // Extract per-page text (mergePages: false returns string[])
-  const { text: perPageText, totalPages } = await extractText(pdf, { mergePages: false });
+  const data = new Uint8Array(buffer);
+  const loadingTask = pdfjs.getDocument({
+    data,
+    useWorkerFetch: false,
+    isEvalSupported: false,
+    useSystemFonts: true,
+  });
+  const pdf = await loadingTask.promise;
 
-  const pages: string[] = Array.isArray(perPageText)
-    ? perPageText.map((p) => (typeof p === 'string' ? p : ''))
-    : [typeof perPageText === 'string' ? perPageText : ''];
+  const pages: string[] = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items
+      .filter((item): item is TextItem => 'str' in item)
+      .map((item) => item.str)
+      .join(' ');
+    pages.push(pageText);
+  }
 
   const merged = pages.join('\n');
   const trimmed = merged.trim();
@@ -44,7 +58,7 @@ export async function extractTextFromPdf(buffer: Buffer): Promise<PdfParseResult
   return {
     text: merged,
     pages,
-    pageCount: totalPages,
+    pageCount: pdf.numPages,
   };
 }
 
