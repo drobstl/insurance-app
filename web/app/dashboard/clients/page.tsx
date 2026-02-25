@@ -221,12 +221,13 @@ async function apiCreatePolicy(token: string, clientId: string, data: Record<str
     body: JSON.stringify({ clientId, ...data }),
   });
   if (!res.ok) {
-    let errorBody = '';
-    try { errorBody = await res.text(); } catch {}
-    // #region agent log
-    fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'a7962f'},body:JSON.stringify({sessionId:'a7962f',location:'clients/page.tsx:apiCreatePolicy',message:'Policy API error response',data:{status:res.status,statusText:res.statusText,errorBody,clientId,dataKeys:Object.keys(data)},timestamp:Date.now(),hypothesisId:'POLICY_API_ERROR'})}).catch(()=>{});
-    // #endregion
-    throw new Error(`Failed to create policy (${res.status}): ${errorBody}`);
+    let detail = `status ${res.status}`;
+    try {
+      const body = await res.json();
+      if (body?.detail) detail = body.detail;
+      else if (body?.error) detail = body.error;
+    } catch {}
+    throw new Error(`Policy API failed: ${detail}`);
   }
   const { id } = await res.json();
   return id;
@@ -953,21 +954,15 @@ export default function ClientsPage() {
         status: 'Active',
       };
 
-      // #region agent log
-      fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'a7962f'},body:JSON.stringify({sessionId:'a7962f',location:'clients/page.tsx:handleCreateClientAndPolicy',message:'Policy data before API call',data:{clientId:docRef.id,policyData,mappedKeys:Object.keys(mapped)},timestamp:Date.now(),hypothesisId:'POLICY_DATA'})}).catch(()=>{});
-      // #endregion
-
       const policyToken = await user.getIdToken();
       await apiCreatePolicy(policyToken, docRef.id, policyData);
 
       setFormSuccess('Client & policy created!');
       setTimeout(() => setFormSuccess(''), 3000);
     } catch (err) {
-      // #region agent log
-      fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'a7962f'},body:JSON.stringify({sessionId:'a7962f',location:'clients/page.tsx:handleCreateClientAndPolicy:catch',message:'Error in client+policy creation',data:{error:String(err),errorMessage:(err as Error)?.message,errorStack:(err as Error)?.stack},timestamp:Date.now(),hypothesisId:'POLICY_ERROR'})}).catch(()=>{});
-      // #endregion
       console.error('Error creating client & policy:', err);
-      setFormError('Failed to create client. Please try again.');
+      const errMsg = err instanceof Error ? err.message : String(err);
+      setFormError(`Client created but policy failed: ${errMsg}`);
     } finally {
       setSubmitting(false);
     }
