@@ -60,42 +60,46 @@ STRICT RULES:
 // ─── JSON Schema for structured output ─────────────────────
 
 const EXTRACTION_SCHEMA = {
-  type: 'object',
+  type: 'object' as const,
   properties: {
     policyType: {
-      type: ['string', 'null'],
-      enum: ['IUL', 'Term Life', 'Whole Life', 'Mortgage Protection', 'Accidental', 'Other', null],
+      anyOf: [
+        { type: 'string' as const, enum: ['IUL', 'Term Life', 'Whole Life', 'Mortgage Protection', 'Accidental', 'Other'] },
+        { type: 'null' as const },
+      ],
     },
-    policyNumber: { type: ['string', 'null'] },
-    insuranceCompany: { type: ['string', 'null'] },
-    policyOwner: { type: ['string', 'null'] },
-    insuredName: { type: ['string', 'null'] },
+    policyNumber: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    insuranceCompany: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    policyOwner: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    insuredName: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
     beneficiaries: {
-      type: 'array',
+      type: 'array' as const,
       items: {
-        type: 'object',
+        type: 'object' as const,
         properties: {
-          name: { type: 'string' },
-          relationship: { type: ['string', 'null'] },
-          percentage: { type: ['number', 'null'] },
-          type: { type: 'string', enum: ['primary', 'contingent'] },
+          name: { type: 'string' as const },
+          relationship: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+          percentage: { anyOf: [{ type: 'number' as const }, { type: 'null' as const }] },
+          type: { type: 'string' as const, enum: ['primary', 'contingent'] },
         },
         required: ['name', 'type', 'relationship', 'percentage'],
         additionalProperties: false,
       },
     },
-    coverageAmount: { type: ['number', 'null'] },
-    premiumAmount: { type: ['number', 'null'] },
+    coverageAmount: { anyOf: [{ type: 'number' as const }, { type: 'null' as const }] },
+    premiumAmount: { anyOf: [{ type: 'number' as const }, { type: 'null' as const }] },
     premiumFrequency: {
-      type: ['string', 'null'],
-      enum: ['monthly', 'quarterly', 'semi-annual', 'annual', null],
+      anyOf: [
+        { type: 'string' as const, enum: ['monthly', 'quarterly', 'semi-annual', 'annual'] },
+        { type: 'null' as const },
+      ],
     },
-    renewalDate: { type: ['string', 'null'] },
-    insuredEmail: { type: ['string', 'null'] },
-    insuredPhone: { type: ['string', 'null'] },
-    insuredDateOfBirth: { type: ['string', 'null'] },
-    effectiveDate: { type: ['string', 'null'] },
-    note: { type: 'string' },
+    renewalDate: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    insuredEmail: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    insuredPhone: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    insuredDateOfBirth: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    effectiveDate: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    note: { type: 'string' as const },
   },
   required: [
     'policyType', 'policyNumber', 'insuranceCompany', 'policyOwner',
@@ -104,7 +108,7 @@ const EXTRACTION_SCHEMA = {
     'insuredDateOfBirth', 'effectiveDate', 'note',
   ],
   additionalProperties: false,
-} as const;
+};
 
 // ─── Main extraction ───────────────────────────────────────
 
