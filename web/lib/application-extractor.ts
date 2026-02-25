@@ -21,6 +21,7 @@ Return ONLY a valid JSON object with these fields (no markdown, no explanation, 
   "insuredEmail": string or null,
   "insuredPhone": string or null,
   "insuredDateOfBirth": "YYYY-MM-DD" or null,
+  "effectiveDate": "YYYY-MM-DD" or null,
   "note": string or null
 }
 
@@ -33,6 +34,7 @@ Rules:
 - "insuredName": the person whose life is insured
 - "beneficiaries": extract ALL primary and contingent beneficiaries. For each, include the name, relationship (e.g. "Spouse", "Child") if available, percentage split if available, and type ("primary" or "contingent"). If only one beneficiary is listed with no type specified, assume "primary".
 - "insuredDateOfBirth": the insured person's date of birth in YYYY-MM-DD format
+- "effectiveDate": the policy effective date, issue date, or application date in YYYY-MM-DD format. Look for labels like "Effective Date", "Policy Date", "Issue Date", "Date of Issue", "Application Date", or "Requested Policy Date".
 - If a field cannot be determined from the text, set it to null — do NOT guess
 - "note": brief note if you want to flag anything (e.g. "some fields could not be found")
 - Return ONLY the JSON object`;
@@ -192,6 +194,7 @@ export async function extractApplicationFields(
     insuredEmail: toStringOrNull(parsed.insuredEmail),
     insuredPhone: toStringOrNull(parsed.insuredPhone),
     insuredDateOfBirth: toStringOrNull(parsed.insuredDateOfBirth),
+    effectiveDate: toStringOrNull(parsed.effectiveDate),
   };
 
   return { data, note };

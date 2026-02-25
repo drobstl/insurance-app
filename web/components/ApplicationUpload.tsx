@@ -166,7 +166,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
   const filledFields = extractedData
     ? Object.entries(extractedData).filter(([, v]) => v !== null && v !== undefined).length
     : 0;
-  const totalFields = 13;
+  const totalFields = 14;
 
   const isClientAndPolicy = mode === 'client-and-policy';
   const missingContact = isClientAndPolicy && !clientFields.phone.trim() && !clientFields.email.trim();
@@ -389,6 +389,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
                         : null
                     }
                   />
+                  <FieldRow label="Effective Date" value={policyFields?.effectiveDate} />
                   <FieldRow label="Renewal Date" value={policyFields?.renewalDate} />
                   {!isClientAndPolicy && (
                     <>

@@ -26,6 +26,7 @@ export interface ExtractedApplicationData {
   insuredEmail: string | null;
   insuredPhone: string | null;
   insuredDateOfBirth: string | null;
+  effectiveDate: string | null;
 }
 
 /**

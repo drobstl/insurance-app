@@ -81,39 +81,48 @@ export default function DashboardHomePage() {
       return;
     }
 
-    const unsubscribes: (() => void)[] = [];
-    const policyCounts: Record<string, { active: number; pending: number }> = {};
-    const anniversaryMap: Record<string, AnniversaryAlert[]> = {};
+    let cancelled = false;
 
-    clients.forEach((client) => {
-      policyCounts[client.id] = { active: 0, pending: 0 };
-      anniversaryMap[client.id] = [];
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        let active = 0;
+        let pending = 0;
+        const allAlerts: AnniversaryAlert[] = [];
 
-      const policiesRef = collection(db, 'agents', user.uid, 'clients', client.id, 'policies');
-      const unsub = onSnapshot(policiesRef, (snap) => {
-        policyCounts[client.id] = {
-          active: snap.docs.filter((d) => d.data().status === 'Active').length,
-          pending: snap.docs.filter((d) => d.data().status === 'Pending').length,
-        };
+        await Promise.all(
+          clients.map(async (client) => {
+            try {
+              const res = await fetch(`/api/policies?clientId=${client.id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (!res.ok) return;
+              const { policies: data } = await res.json();
+              (data as Policy[]).forEach((p) => {
+                if (p.status === 'Active') active++;
+                if (p.status === 'Pending') pending++;
+                const annivDate = getAnniversaryDate(p.createdAt);
+                if (annivDate) {
+                  allAlerts.push({ clientName: client.name, clientId: client.id, policy: p, anniversaryDate: annivDate });
+                }
+              });
+            } catch {
+              // skip this client on error
+            }
+          })
+        );
 
-        const clientAnniv: AnniversaryAlert[] = [];
-        snap.docs.forEach((d) => {
-          const p = { id: d.id, ...d.data() } as Policy;
-          const annivDate = getAnniversaryDate(p.createdAt);
-          if (annivDate) {
-            clientAnniv.push({ clientName: client.name, clientId: client.id, policy: p, anniversaryDate: annivDate });
-          }
-        });
-        anniversaryMap[client.id] = clientAnniv;
+        if (!cancelled) {
+          setTotalActive(active);
+          setTotalPending(pending);
+          setAnniversaryAlerts(allAlerts.sort((a, b) => a.anniversaryDate.getTime() - b.anniversaryDate.getTime()));
+        }
+      } catch {
+        // ignore
+      }
+    })();
 
-        setTotalActive(Object.values(policyCounts).reduce((s, c) => s + c.active, 0));
-        setTotalPending(Object.values(policyCounts).reduce((s, c) => s + c.pending, 0));
-        setAnniversaryAlerts(Object.values(anniversaryMap).flat().sort((a, b) => a.anniversaryDate.getTime() - b.anniversaryDate.getTime()));
-      });
-      unsubscribes.push(unsub);
-    });
-
-    return () => unsubscribes.forEach((u) => u());
+    return () => { cancelled = true; };
   }, [user, clients]);
 
   // Fetch conservation alerts

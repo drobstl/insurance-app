@@ -83,6 +83,7 @@ interface Policy {
   renewalDate?: string;
   amountOfProtection?: number;
   protectionUnit?: 'months' | 'years';
+  effectiveDate?: string;
   status: 'Active' | 'Pending' | 'Lapsed';
   createdAt: Timestamp;
 }
@@ -98,6 +99,7 @@ interface PolicyFormData {
   premiumAmount: string;
   premiumFrequency: string;
   renewalDate: string;
+  effectiveDate: string;
   amountOfProtection: string;
   protectionUnit: string;
   status: string;
@@ -114,10 +116,61 @@ interface ImportRow {
   name: string;
   email: string;
   phone: string;
-  [key: string]: string;
+  dateOfBirth: string;
+  policyNumber: string;
+  carrier: string;
+  policyType: string;
+  effectiveDate: string;
+  premium: string;
+  coverageAmount: string;
+  status: string;
 }
 
 // ─── Helpers ───────────────────────────────────────────────
+
+function normalizePolicyType(raw: string): string {
+  const lower = raw.trim().toLowerCase();
+  const map: Record<string, string> = {
+    'iul': 'IUL',
+    'indexed universal life': 'IUL',
+    'term': 'Term Life',
+    'term life': 'Term Life',
+    'whole life': 'Whole Life',
+    'whole': 'Whole Life',
+    'mortgage protection': 'Mortgage Protection',
+    'mortgage': 'Mortgage Protection',
+    'accidental': 'Accidental',
+    'accidental death': 'Accidental',
+    'ad&d': 'Accidental',
+  };
+  return map[lower] || (raw.trim() || 'Other');
+}
+
+function normalizeStatus(raw: string): 'Active' | 'Pending' | 'Lapsed' {
+  const lower = raw.trim().toLowerCase();
+  if (lower === 'pending' || lower === 'applied') return 'Pending';
+  if (lower === 'lapsed' || lower === 'cancelled' || lower === 'canceled' || lower === 'terminated') return 'Lapsed';
+  return 'Active';
+}
+
+function normalizeImportDate(raw: string): string | null {
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+  // MM/DD/YYYY or M/D/YYYY
+  const slashMatch = raw.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/);
+  if (slashMatch) {
+    const [, m, d, y] = slashMatch;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
+  // Try Date.parse as fallback
+  const parsed = new Date(raw);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toISOString().split('T')[0];
+  }
+  return null;
+}
 
 function generateClientCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -139,6 +192,7 @@ const emptyPolicyForm: PolicyFormData = {
   premiumAmount: '',
   premiumFrequency: 'monthly',
   renewalDate: '',
+  effectiveDate: '',
   amountOfProtection: '',
   protectionUnit: 'years',
   status: 'Active',
@@ -172,6 +226,7 @@ function mapExtractedApplicationToPolicyFormData(data: ExtractedApplicationData)
   if (data.premiumAmount != null) mapped.premiumAmount = String(data.premiumAmount);
   if (data.premiumFrequency) mapped.premiumFrequency = data.premiumFrequency;
   if (data.renewalDate) mapped.renewalDate = data.renewalDate;
+  if (data.effectiveDate) mapped.effectiveDate = data.effectiveDate;
   mapped.status = 'Active';
   return mapped;
 }
@@ -264,22 +319,36 @@ export default function ClientsPage() {
     return () => unsub();
   }, [user]);
 
-  // Fetch policies for selected client
+  // Fetch policies for selected client via Admin SDK API route
   useEffect(() => {
     if (!user || !selectedClient) {
       setPolicies([]);
       return;
     }
+    let cancelled = false;
     setPoliciesLoading(true);
-    const q = query(
-      collection(db, 'agents', user.uid, 'clients', selectedClient.id, 'policies'),
-      orderBy('createdAt', 'desc')
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      setPolicies(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Policy)));
-      setPoliciesLoading(false);
-    });
-    return () => unsub();
+
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch(`/api/policies?clientId=${selectedClient.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error(`API error ${res.status}`);
+        const { policies: data } = await res.json();
+        if (!cancelled) {
+          setPolicies(data as Policy[]);
+          setPoliciesLoading(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setPolicies([]);
+          setPoliciesLoading(false);
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, [user, selectedClient]);
 
   // Read push token directly from the already-loaded client snapshot data
@@ -298,37 +367,49 @@ export default function ClientsPage() {
       return;
     }
 
-    const unsubscribes: (() => void)[] = [];
-    const anniversaryMap: Record<string, AnniversaryAlert[]> = {};
+    let cancelled = false;
 
-    clients.forEach((client) => {
-      anniversaryMap[client.id] = [];
-      const policiesRef = collection(db, 'agents', user.uid, 'clients', client.id, 'policies');
-      const unsub = onSnapshot(policiesRef, (snap) => {
-        const clientAnniv: AnniversaryAlert[] = [];
-        snap.docs.forEach((d) => {
-          const p = { id: d.id, ...d.data() } as Policy;
-          const annivDate = getAnniversaryDate(p.createdAt);
-          if (annivDate) {
-            clientAnniv.push({
-              clientName: client.name,
-              clientId: client.id,
-              policy: p,
-              anniversaryDate: annivDate,
-            });
-          }
-        });
-        anniversaryMap[client.id] = clientAnniv;
-        setAnniversaryAlerts(
-          Object.values(anniversaryMap)
-            .flat()
-            .sort((a, b) => a.anniversaryDate.getTime() - b.anniversaryDate.getTime())
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const allAlerts: AnniversaryAlert[] = [];
+
+        await Promise.all(
+          clients.map(async (client) => {
+            try {
+              const res = await fetch(`/api/policies?clientId=${client.id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (!res.ok) return;
+              const { policies: data } = await res.json();
+              (data as Policy[]).forEach((p) => {
+                const annivDate = getAnniversaryDate(p.createdAt, p.effectiveDate);
+                if (annivDate) {
+                  allAlerts.push({
+                    clientName: client.name,
+                    clientId: client.id,
+                    policy: p,
+                    anniversaryDate: annivDate,
+                  });
+                }
+              });
+            } catch {
+              // skip this client on error
+            }
+          })
         );
-      });
-      unsubscribes.push(unsub);
-    });
 
-    return () => unsubscribes.forEach((u) => u());
+        if (!cancelled) {
+          setAnniversaryAlerts(
+            allAlerts.sort((a, b) => a.anniversaryDate.getTime() - b.anniversaryDate.getTime())
+          );
+        }
+      } catch {
+        // ignore
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, [user, clients]);
 
   // ─── Filtered + Sorted Clients ────────────────────────────
@@ -508,6 +589,7 @@ export default function ClientsPage() {
             premiumAmount: mapped.premiumAmount ? parseFloat(mapped.premiumAmount) : 0,
             premiumFrequency: mapped.premiumFrequency || 'monthly',
             renewalDate: mapped.renewalDate || '',
+            effectiveDate: mapped.effectiveDate || null,
             status: 'Active',
             createdAt: serverTimestamp(),
           };
@@ -608,6 +690,7 @@ export default function ClientsPage() {
         premiumAmount: policyFormData.premiumAmount ? parseFloat(policyFormData.premiumAmount) : 0,
         premiumFrequency: policyFormData.premiumFrequency,
         renewalDate: policyFormData.renewalDate,
+        effectiveDate: policyFormData.effectiveDate || null,
         status: policyFormData.status,
       };
 
@@ -738,6 +821,7 @@ export default function ClientsPage() {
         premiumAmount: mapped.premiumAmount ? parseFloat(mapped.premiumAmount) : 0,
         premiumFrequency: mapped.premiumFrequency || 'monthly',
         renewalDate: mapped.renewalDate || '',
+        effectiveDate: mapped.effectiveDate || null,
         status: 'Active',
         createdAt: serverTimestamp(),
       };
@@ -772,25 +856,66 @@ export default function ClientsPage() {
           return;
         }
 
-        const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
-        const nameIdx = headers.findIndex((h) => h === 'name' || h === 'full name' || h === 'client name');
-        const emailIdx = headers.findIndex((h) => h === 'email' || h === 'email address');
-        const phoneIdx = headers.findIndex((h) => h === 'phone' || h === 'phone number' || h === 'mobile');
+        // Smart CSV parsing that handles quoted fields with commas
+        const parseCsvLine = (line: string): string[] => {
+          const result: string[] = [];
+          let current = '';
+          let inQuotes = false;
+          for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"') {
+              inQuotes = !inQuotes;
+            } else if (ch === ',' && !inQuotes) {
+              result.push(current.trim());
+              current = '';
+            } else {
+              current += ch;
+            }
+          }
+          result.push(current.trim());
+          return result;
+        };
+
+        const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim());
+
+        // Smart column matching with multiple aliases
+        const match = (aliases: string[]) =>
+          headers.findIndex((h) => aliases.some((a) => h === a || h.includes(a)));
+
+        const nameIdx = match(['name', 'full name', 'client name', 'client', 'insured name', 'insured']);
+        const emailIdx = match(['email', 'email address', 'e-mail']);
+        const phoneIdx = match(['phone', 'phone number', 'mobile', 'cell', 'telephone']);
+        const dobIdx = match(['dob', 'date of birth', 'birthday', 'birth date', 'birthdate']);
+        const policyNumIdx = match(['policy number', 'policy no', 'policy #', 'policy num', 'policynumber']);
+        const carrierIdx = match(['carrier', 'insurance company', 'company', 'insurer', 'insurance carrier']);
+        const policyTypeIdx = match(['policy type', 'type', 'product', 'product type', 'plan type']);
+        const effectiveDateIdx = match(['effective date', 'issue date', 'start date', 'policy date', 'effectivedate', 'inception date']);
+        const premiumIdx = match(['premium', 'premium amount', 'monthly premium', 'payment']);
+        const coverageIdx = match(['coverage', 'coverage amount', 'death benefit', 'face amount', 'face value', 'benefit amount']);
+        const statusIdx = match(['status', 'policy status']);
 
         if (nameIdx === -1) {
-          setImportError('CSV must have a "Name" column.');
+          setImportError('CSV must have a "Name" column. Accepted: Name, Full Name, Client Name, Insured Name.');
           return;
         }
 
         const rows: ImportRow[] = [];
         for (let i = 1; i < lines.length; i++) {
-          const cols = lines[i].split(',').map((c) => c.trim());
+          const cols = parseCsvLine(lines[i]);
           const name = cols[nameIdx] || '';
           if (!name) continue;
           rows.push({
             name,
             email: emailIdx !== -1 ? (cols[emailIdx] || '') : '',
             phone: phoneIdx !== -1 ? (cols[phoneIdx] || '') : '',
+            dateOfBirth: dobIdx !== -1 ? (cols[dobIdx] || '') : '',
+            policyNumber: policyNumIdx !== -1 ? (cols[policyNumIdx] || '') : '',
+            carrier: carrierIdx !== -1 ? (cols[carrierIdx] || '') : '',
+            policyType: policyTypeIdx !== -1 ? (cols[policyTypeIdx] || '') : '',
+            effectiveDate: effectiveDateIdx !== -1 ? (cols[effectiveDateIdx] || '') : '',
+            premium: premiumIdx !== -1 ? (cols[premiumIdx] || '') : '',
+            coverageAmount: coverageIdx !== -1 ? (cols[coverageIdx] || '') : '',
+            status: statusIdx !== -1 ? (cols[statusIdx] || '') : '',
           });
         }
 
@@ -805,7 +930,6 @@ export default function ClientsPage() {
       }
     };
     reader.readAsText(file);
-    // Reset file input so the same file can be re-selected
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, []);
 
@@ -816,11 +940,14 @@ export default function ClientsPage() {
     setImportError('');
     setImportSuccess('');
 
+    let clientsCreated = 0;
+    let policiesCreated = 0;
+
     try {
       for (let i = 0; i < importData.length; i++) {
         const row = importData[i];
         const code = generateClientCode();
-        const clientPayload = {
+        const clientPayload: Record<string, unknown> = {
           name: row.name.trim(),
           email: row.email.trim(),
           phone: row.phone.trim(),
@@ -828,15 +955,55 @@ export default function ClientsPage() {
           agentId: user.uid,
           createdAt: serverTimestamp(),
         };
+        if (row.dateOfBirth) clientPayload.dateOfBirth = row.dateOfBirth.trim();
+
         const docRef = await addDoc(collection(db, 'agents', user.uid, 'clients'), clientPayload);
         await setDoc(doc(db, 'clients', docRef.id), clientPayload);
+        clientsCreated++;
+
+        // Create a policy if any policy field is present
+        const hasPolicy = row.policyNumber || row.carrier || row.policyType || row.premium || row.coverageAmount;
+        if (hasPolicy) {
+          const normType = normalizePolicyType(row.policyType);
+          const normCarrier = row.carrier.trim();
+          const premiumNum = parseFloat(row.premium.replace(/[,$]/g, ''));
+          const coverageNum = parseFloat(row.coverageAmount.replace(/[,$]/g, ''));
+
+          // Normalize effectiveDate to YYYY-MM-DD
+          let effDate: string | null = null;
+          if (row.effectiveDate.trim()) {
+            effDate = normalizeImportDate(row.effectiveDate.trim());
+          }
+
+          const policyPayload: Record<string, unknown> = {
+            policyType: normType,
+            policyNumber: row.policyNumber.trim(),
+            insuranceCompany: normCarrier,
+            policyOwner: row.name.trim(),
+            beneficiaries: [],
+            coverageAmount: isNaN(coverageNum) ? 0 : coverageNum,
+            premiumAmount: isNaN(premiumNum) ? 0 : premiumNum,
+            premiumFrequency: 'monthly',
+            renewalDate: '',
+            effectiveDate: effDate,
+            status: normalizeStatus(row.status),
+            createdAt: serverTimestamp(),
+          };
+
+          await addDoc(collection(db, 'agents', user.uid, 'clients', docRef.id, 'policies'), policyPayload);
+          policiesCreated++;
+        }
+
         setImportProgress(Math.round(((i + 1) / importData.length) * 100));
       }
-      setImportSuccess(`Successfully imported ${importData.length} client${importData.length !== 1 ? 's' : ''}!`);
+
+      const parts = [`${clientsCreated} client${clientsCreated !== 1 ? 's' : ''}`];
+      if (policiesCreated > 0) parts.push(`${policiesCreated} ${policiesCreated !== 1 ? 'policies' : 'policy'}`);
+      setImportSuccess(`Successfully imported ${parts.join(' and ')}!`);
       setImportData([]);
     } catch (err) {
       console.error('Error importing clients:', err);
-      setImportError('Failed to import some clients. Please try again.');
+      setImportError('Failed to import some records. Please try again.');
     } finally {
       setImporting(false);
     }
@@ -1360,7 +1527,7 @@ export default function ClientsPage() {
           />
           <div className="relative w-full max-w-lg bg-white rounded-[5px] border border-gray-200 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
-              <h3 className="text-xl font-bold text-[#000000]">Import Clients from CSV</h3>
+              <h3 className="text-xl font-bold text-[#000000]">Import Book of Business</h3>
               <button
                 onClick={() => !importing && setIsImportModalOpen(false)}
                 className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#000000] transition-colors"
@@ -1391,11 +1558,14 @@ export default function ClientsPage() {
                 <>
                   <div className="bg-[#f8f8f8] border border-[#d0d0d0] rounded-[5px] p-4">
                     <p className="text-sm text-[#707070] mb-2">
-                      Upload a CSV file with client data. Required column: <span className="font-semibold text-[#000000]">Name</span>. Optional: Email, Phone.
+                      Upload a CSV with your book of business. Required: <span className="font-semibold text-[#000000]">Name</span>. 
+                      Policy columns are optional — if present, policies will be created automatically.
                     </p>
-                    <p className="text-xs text-[#707070]">
-                      Example: Name, Email, Phone
-                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {['Name', 'Phone', 'Email', 'DOB', 'Policy Number', 'Carrier', 'Policy Type', 'Effective Date', 'Premium', 'Coverage Amount', 'Status'].map((col) => (
+                        <span key={col} className="px-2 py-0.5 bg-white border border-[#d0d0d0] rounded text-[10px] text-[#707070] font-medium">{col}</span>
+                      ))}
+                    </div>
                   </div>
 
                   <div>
@@ -1419,22 +1589,62 @@ export default function ClientsPage() {
 
                   {importData.length > 0 && (
                     <>
+                      {/* Summary of detected fields */}
+                      {(() => {
+                        const withPolicy = importData.filter(r => r.policyNumber || r.carrier || r.policyType || r.premium || r.coverageAmount).length;
+                        const withEffDate = importData.filter(r => r.effectiveDate).length;
+                        return (
+                          <div className="flex flex-wrap gap-2">
+                            <span className="px-2.5 py-1 bg-[#daf3f0] text-[#005851] text-xs font-semibold rounded-[5px]">
+                              {importData.length} client{importData.length !== 1 ? 's' : ''}
+                            </span>
+                            {withPolicy > 0 && (
+                              <span className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-semibold rounded-[5px]">
+                                {withPolicy} {withPolicy !== 1 ? 'policies' : 'policy'}
+                              </span>
+                            )}
+                            {withEffDate > 0 && (
+                              <span className="px-2.5 py-1 bg-purple-50 text-purple-700 text-xs font-semibold rounded-[5px]">
+                                {withEffDate} with effective date
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
+
                       <div className="border border-[#d0d0d0] rounded-[5px] overflow-hidden">
                         <div className="bg-[#f8f8f8] px-4 py-2 border-b border-[#d0d0d0]">
                           <p className="text-xs font-semibold text-[#707070]">
-                            Preview ({importData.length} client{importData.length !== 1 ? 's' : ''})
+                            Preview ({importData.length} row{importData.length !== 1 ? 's' : ''})
                           </p>
                         </div>
-                        <div className="max-h-60 overflow-y-auto divide-y divide-[#f0f0f0]">
-                          {importData.slice(0, 50).map((row, i) => (
-                            <div key={i} className="px-4 py-2 flex items-center gap-3">
-                              <span className="text-xs text-[#707070] w-6">{i + 1}</span>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-[#000000] truncate">{row.name}</p>
-                                <p className="text-xs text-[#707070] truncate">{[row.email, row.phone].filter(Boolean).join(' · ') || 'No contact info'}</p>
+                        <div className="max-h-72 overflow-y-auto divide-y divide-[#f0f0f0]">
+                          {importData.slice(0, 50).map((row, i) => {
+                            const hasPolicy = row.policyNumber || row.carrier || row.policyType;
+                            return (
+                              <div key={i} className="px-4 py-2.5 flex items-start gap-3">
+                                <span className="text-xs text-[#707070] w-6 pt-0.5 shrink-0">{i + 1}</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-[#000000] truncate">{row.name}</p>
+                                  <p className="text-xs text-[#707070] truncate">
+                                    {[row.email, row.phone].filter(Boolean).join(' · ') || 'No contact info'}
+                                  </p>
+                                  {hasPolicy && (
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                      <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded font-medium">
+                                        {[row.policyType, row.carrier, row.policyNumber].filter(Boolean).join(' · ')}
+                                      </span>
+                                      {row.effectiveDate && (
+                                        <span className="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded font-medium">
+                                          Eff: {row.effectiveDate}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                           {importData.length > 50 && (
                             <div className="px-4 py-2 text-xs text-[#707070] text-center">
                               +{importData.length - 50} more rows
@@ -1481,7 +1691,7 @@ export default function ClientsPage() {
                               Importing...
                             </>
                           ) : (
-                            `Import ${importData.length} Client${importData.length !== 1 ? 's' : ''}`
+                            `Import ${importData.length} Record${importData.length !== 1 ? 's' : ''}`
                           )}
                         </button>
                       </div>
@@ -1731,6 +1941,18 @@ export default function ClientsPage() {
                 </select>
               </div>
 
+              {/* Effective Date */}
+              <div>
+                <label className="block text-sm font-medium text-[#000000] mb-1">Effective Date</label>
+                <input
+                  type="date"
+                  value={policyFormData.effectiveDate}
+                  onChange={(e) => setPolicyFormData((f) => ({ ...f, effectiveDate: e.target.value }))}
+                  className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                />
+                <p className="text-xs text-[#707070] mt-1">When the policy was originally issued. Used for policy age calculations.</p>
+              </div>
+
               {/* Renewal Date (Term Life) */}
               {policyFormData.policyType === 'Term Life' && (
                 <div>
@@ -1959,6 +2181,7 @@ export default function ClientsPage() {
               premiumAmount: policy.premiumAmount ? String(policy.premiumAmount) : '',
               premiumFrequency: policy.premiumFrequency || 'monthly',
               renewalDate: policy.renewalDate || '',
+              effectiveDate: policy.effectiveDate || '',
               amountOfProtection: policy.amountOfProtection ? String(policy.amountOfProtection) : '',
               protectionUnit: policy.protectionUnit || 'years',
               status: policy.status || 'Active',

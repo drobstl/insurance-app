@@ -13,6 +13,35 @@ import type {
 
 const GRACE_PERIOD_MS = 2 * 60 * 60 * 1000; // 2 hours
 
+/**
+ * Compute policy age in days. Prefers effectiveDate (YYYY-MM-DD string) over
+ * createdAt (Firestore Timestamp) so that imported / backdated policies report
+ * the correct age.
+ */
+function computePolicyAge(
+  policyData: FirebaseFirestore.DocumentData,
+): number | null {
+  const effectiveDate = policyData.effectiveDate as string | undefined;
+  if (effectiveDate) {
+    const parsed = new Date(effectiveDate + 'T00:00:00');
+    if (!isNaN(parsed.getTime())) {
+      return Math.floor(
+        (Date.now() - parsed.getTime()) / (1000 * 60 * 60 * 24),
+      );
+    }
+  }
+
+  const createdAt = policyData.createdAt;
+  if (createdAt && createdAt.toDate) {
+    const created: Date = createdAt.toDate();
+    return Math.floor(
+      (Date.now() - created.getTime()) / (1000 * 60 * 60 * 24),
+    );
+  }
+
+  return null;
+}
+
 interface MatchResult {
   clientId: string;
   clientName: string;
@@ -73,14 +102,7 @@ async function findMatch(
         (polNum === normalizedPolicyNum || polNum.includes(normalizedPolicyNum));
 
       if (nameMatch || policyNumMatch) {
-        const createdAt = policyData.createdAt;
-        let policyAge: number | null = null;
-        if (createdAt && createdAt.toDate) {
-          const created: Date = createdAt.toDate();
-          policyAge = Math.floor(
-            (Date.now() - created.getTime()) / (1000 * 60 * 60 * 24),
-          );
-        }
+        const policyAge = computePolicyAge(policyData);
 
         return {
           clientId: clientDoc.id,
@@ -103,14 +125,7 @@ async function findMatch(
     if (nameMatch && policiesSnap.size > 0) {
       const policyDoc = policiesSnap.docs[0];
       const policyData = policyDoc.data();
-      const createdAt = policyData.createdAt;
-      let policyAge: number | null = null;
-      if (createdAt && createdAt.toDate) {
-        const created: Date = createdAt.toDate();
-        policyAge = Math.floor(
-          (Date.now() - created.getTime()) / (1000 * 60 * 60 * 24),
-        );
-      }
+      const policyAge = computePolicyAge(policyData);
 
       return {
         clientId: clientDoc.id,

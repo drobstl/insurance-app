@@ -9,14 +9,23 @@ import { Timestamp } from 'firebase/firestore';
  * Returns `null` if not approaching, or the anniversary Date if it is.
  */
 export const getAnniversaryDate = (
-  createdAt: Timestamp | { seconds: number; nanoseconds: number } | undefined
+  createdAt: Timestamp | { seconds: number; nanoseconds: number } | undefined,
+  effectiveDate?: string,
 ): Date | null => {
-  if (!createdAt) return null;
+  let created: Date | null = null;
 
-  const created =
-    createdAt instanceof Timestamp
-      ? createdAt.toDate()
-      : new Date(createdAt.seconds * 1000);
+  if (effectiveDate) {
+    const parsed = new Date(effectiveDate + 'T00:00:00');
+    if (!isNaN(parsed.getTime())) created = parsed;
+  }
+
+  if (!created) {
+    if (!createdAt) return null;
+    created =
+      createdAt instanceof Timestamp
+        ? createdAt.toDate()
+        : new Date(createdAt.seconds * 1000);
+  }
 
   const anniversary = new Date(created);
   anniversary.setFullYear(anniversary.getFullYear() + 1);
@@ -44,13 +53,22 @@ export const daysUntilAnniversary = (anniversary: Date): number => {
  */
 export const getPolicyAgeDays = (
   createdAt: Timestamp | { seconds: number; nanoseconds: number } | undefined,
+  effectiveDate?: string,
 ): number | null => {
-  if (!createdAt) return null;
+  let created: Date | null = null;
 
-  const created =
-    createdAt instanceof Timestamp
-      ? createdAt.toDate()
-      : new Date(createdAt.seconds * 1000);
+  if (effectiveDate) {
+    const parsed = new Date(effectiveDate + 'T00:00:00');
+    if (!isNaN(parsed.getTime())) created = parsed;
+  }
+
+  if (!created) {
+    if (!createdAt) return null;
+    created =
+      createdAt instanceof Timestamp
+        ? createdAt.toDate()
+        : new Date(createdAt.seconds * 1000);
+  }
 
   const now = new Date();
   return Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));

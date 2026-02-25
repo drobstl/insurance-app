@@ -95,11 +95,19 @@ export async function GET(req: NextRequest) {
           // Skip if agent has already been notified for this anniversary window
           if (p.anniversaryAgentNotifiedAt) continue;
 
-          // Compute anniversary
-          const createdAt = p.createdAt;
-          if (!createdAt || !createdAt.toDate) continue;
+          // Compute anniversary -- prefer effectiveDate over createdAt
+          let created: Date | null = null;
+          const effectiveDate = p.effectiveDate as string | undefined;
+          if (effectiveDate) {
+            const parsed = new Date(effectiveDate + 'T00:00:00');
+            if (!isNaN(parsed.getTime())) created = parsed;
+          }
+          if (!created) {
+            const createdAt = p.createdAt;
+            if (!createdAt || !createdAt.toDate) continue;
+            created = createdAt.toDate();
+          }
 
-          const created: Date = createdAt.toDate();
           const anniversary = new Date(created);
           anniversary.setFullYear(anniversary.getFullYear() + 1);
 
