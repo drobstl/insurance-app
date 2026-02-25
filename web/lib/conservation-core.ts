@@ -152,12 +152,6 @@ export async function createConservationAlert(
   // 1. AI extraction
   const extracted = await extractConservationData(rawText);
 
-  // #region agent log
-  try {
-    await db.collection('_debug_webhook').add({ step: 'ai-extraction-result', extracted, rawTextLength: rawText.length, ts: Date.now() });
-  } catch (e) { console.error('debug log failed:', e); }
-  // #endregion
-
   // 2. Auto-match to client + policy
   const match = await findMatch(agentId, extracted.clientName, extracted.policyNumber);
 

@@ -20,51 +20,14 @@ function getResend() {
  * sent to ai@savepolicy.agentforlife.app, identifies the agent by sender
  * email, and creates a conservation alert.
  *
- * Payload structure (Resend email.received event):
- * {
- *   type: "email.received",
- *   data: {
- *     from: "agent@example.com",
- *     to: ["ai@savepolicy.agentforlife.app"],
- *     subject: "Fwd: Conservation Opportunity - ...",
- *     text: "...",
- *     html: "..."
- *   }
- * }
+ * The webhook payload only contains metadata (from, to, subject, email_id).
+ * The actual email body must be fetched via resend.emails.receiving.get().
  */
 export async function POST(req: NextRequest) {
-  // #region agent log
-  const debugDb = getAdminFirestore();
-  const debugLog = async (step: string, data: Record<string, unknown>) => {
-    try {
-      await debugDb.collection('_debug_webhook').add({ step, ...data, ts: Date.now() });
-      console.log(`[DEBUG-3c0330] ${step}:`, JSON.stringify(data));
-    } catch (e) { console.error('debug log failed:', e); }
-  };
-  // #endregion
-
   try {
     const body = await req.json();
 
-    // #region agent log
-    const dataKeys = body.data ? Object.keys(body.data) : [];
-    const dataPreview: Record<string, unknown> = {};
-    if (body.data) {
-      for (const k of dataKeys) {
-        const v = body.data[k];
-        if (typeof v === 'string') dataPreview[k] = v.substring(0, 200) + (v.length > 200 ? '...' : '');
-        else if (Array.isArray(v)) dataPreview[k] = v.slice(0, 5);
-        else dataPreview[k] = typeof v;
-      }
-    }
-    await debugLog('webhook-received', { type: body.type, bodyKeys: Object.keys(body), dataKeys, dataPreview });
-    // #endregion
-
-    // Verify this is an email.received event
     if (body.type !== 'email.received') {
-      // #region agent log
-      await debugLog('webhook-skipped', { reason: 'not email.received', actualType: body.type });
-      // #endregion
       return NextResponse.json({ received: true, skipped: 'not email.received' });
     }
 
@@ -73,21 +36,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No email data' }, { status: 400 });
     }
 
-    // Extract sender email -- this should be the agent who forwarded the email
     const senderEmail = extractEmail(emailData.from);
     if (!senderEmail) {
-      // #region agent log
-      await debugLog('webhook-no-sender', { from: emailData.from });
-      // #endregion
       console.warn('Resend inbound: could not extract sender email from:', emailData.from);
       return NextResponse.json({ received: true, skipped: 'no sender email' });
     }
 
-    // #region agent log
-    await debugLog('webhook-sender', { senderEmail });
-    // #endregion
-
-    // Look up the agent by email
     const db = getAdminFirestore();
     const agentsSnap = await db
       .collection('agents')
@@ -96,9 +50,6 @@ export async function POST(req: NextRequest) {
       .get();
 
     if (agentsSnap.empty) {
-      // #region agent log
-      await debugLog('webhook-agent-not-found', { senderEmail });
-      // #endregion
       console.warn('Resend inbound: no agent found for email:', senderEmail);
       return NextResponse.json({ received: true, skipped: 'agent not found' });
     }
@@ -107,34 +58,17 @@ export async function POST(req: NextRequest) {
     const agentId = agentDoc.id;
     const agentName = (agentDoc.data().name as string) || 'Agent';
 
-    // Resend webhooks do NOT include the email body -- fetch it via the Receiving API
+    // Resend webhooks do NOT include the email body -- fetch via Receiving API
     const emailId = emailData.email_id;
     if (!emailId) {
-      // #region agent log
-      await debugLog('webhook-no-email-id', { dataKeys: Object.keys(emailData) });
-      // #endregion
       return NextResponse.json({ received: true, skipped: 'no email_id in payload' });
     }
 
     const resendForFetch = getResend();
     const { data: fullEmail, error: fetchError } = await resendForFetch.emails.receiving.get(emailId);
 
-    // #region agent log
-    await debugLog('webhook-fetched-email', {
-      emailId,
-      fetchError: fetchError ? String(fetchError) : null,
-      hasText: !!(fullEmail?.text),
-      hasHtml: !!(fullEmail?.html),
-      textLength: fullEmail?.text?.length || 0,
-      htmlLength: fullEmail?.html?.length || 0,
-      textPreview: fullEmail?.text?.substring(0, 300) || '',
-    });
-    // #endregion
-
     if (fetchError || !fullEmail) {
-      // #region agent log
-      await debugLog('webhook-fetch-failed', { fetchError: String(fetchError) });
-      // #endregion
+      console.error('Failed to fetch email body:', fetchError);
       return NextResponse.json({ received: true, skipped: 'failed to fetch email body' });
     }
 
@@ -165,7 +99,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ received: true, skipped: 'body too short' });
     }
 
-    // Create the conservation alert using shared core logic
     const result = await createConservationAlert(agentId, rawText.trim(), 'email_forward');
 
     // Send confirmation email back to the agent
@@ -216,19 +149,12 @@ export async function POST(req: NextRequest) {
       console.error('Failed to send confirmation email:', emailError);
     }
 
-    // #region agent log
-    await debugLog('webhook-success', { alertId: result.alertId, matched: result.matched, agentId });
-    // #endregion
-
     return NextResponse.json({
       received: true,
       alertId: result.alertId,
       matched: result.matched,
     });
   } catch (error) {
-    // #region agent log
-    await debugLog('webhook-error', { error: String(error), stack: (error as Error)?.stack?.substring(0, 500) });
-    // #endregion
     console.error('Resend inbound webhook error:', error);
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }
