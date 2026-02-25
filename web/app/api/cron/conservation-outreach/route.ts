@@ -7,6 +7,7 @@ import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { Resend } from 'resend';
 import { generateOutreachMessage, generateConservationEmail } from '../../../../lib/conservation-ai';
+import { getCarrierServicePhone } from '../../../../lib/carriers';
 import type { ConservationOutreachContext, ConservationChannel } from '../../../../lib/conservation-types';
 
 function getResend() {
@@ -288,6 +289,9 @@ export async function GET(req: NextRequest) {
 
           const dripNumber = DRIP_NUMBER[status];
           const reason = (alertData.reason as 'lapsed_payment' | 'cancellation' | 'other') || 'other';
+          const carrierName = (alertData.carrier as string) || '';
+          const carrierServicePhone = getCarrierServicePhone(carrierName);
+
           const outreachCtx: ConservationOutreachContext = {
             clientFirstName,
             clientName,
@@ -300,6 +304,8 @@ export async function GET(req: NextRequest) {
             dripNumber,
             premiumAmount: (alertData.premiumAmount as number) || null,
             availableChannels: channels,
+            carrier: carrierName || null,
+            carrierServicePhone,
           };
 
           let dripMessage: string;

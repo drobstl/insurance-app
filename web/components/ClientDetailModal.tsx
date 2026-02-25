@@ -48,6 +48,7 @@ interface ClientDetailModalProps {
   onDeletePolicy: (policy: Policy) => void;
   onUploadApplication: () => void;
   onEditClient?: (client: Client) => void;
+  onFlagAtRisk?: (policyId: string, reason: 'lapsed_payment' | 'cancellation') => void;
   agentName?: string;
   hasSchedulingUrl?: boolean;
   clientPushToken?: string | null;
@@ -63,6 +64,7 @@ export default function ClientDetailModal({
   onDeletePolicy,
   onUploadApplication,
   onEditClient,
+  onFlagAtRisk,
   agentName,
   hasSchedulingUrl,
   clientPushToken,
@@ -95,6 +97,16 @@ export default function ClientDetailModal({
   const [holidaySending, setHolidaySending] = useState(false);
   const [holidayStatus, setHolidayStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [holidayError, setHolidayError] = useState('');
+
+  // ── Send code state ──
+  const [sendingCode, setSendingCode] = useState(false);
+  const [codeSent, setCodeSent] = useState(false);
+
+  // ── Flag at risk inline state ──
+  const [flaggingPolicyId, setFlaggingPolicyId] = useState<string | null>(null);
+  const [flagReason, setFlagReason] = useState<'lapsed_payment' | 'cancellation'>('lapsed_payment');
+  const [flagSubmitting, setFlagSubmitting] = useState(false);
+  const [flagResult, setFlagResult] = useState<{ policyId: string; success: boolean; message: string } | null>(null);
 
   // Animate in on mount
   useEffect(() => {
@@ -159,6 +171,65 @@ export default function ClientDetailModal({
     }
   }, [client?.clientCode]);
 
+  const handleSendCode = useCallback(async () => {
+    if (!client?.clientCode || !client.phone) return;
+    setSendingCode(true);
+    try {
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Not authenticated');
+      const token = await currentUser.getIdToken();
+      const firstName = (client.name || 'there').split(' ')[0];
+      const agent = agentName || 'your agent';
+      const message = `Hey ${firstName}! ${agent} here. Download the AgentForLife app and use code ${client.clientCode} to connect with me. https://agentforlife.app`;
+      await fetch('/api/client/welcome-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ clientPhone: client.phone, message }),
+      });
+      setCodeSent(true);
+      setTimeout(() => setCodeSent(false), 3000);
+    } catch (err) {
+      console.error('Failed to send code:', err);
+    } finally {
+      setSendingCode(false);
+    }
+  }, [client, agentName]);
+
+  const handleFlagAtRisk = useCallback(async (policyId: string) => {
+    if (!onFlagAtRisk) return;
+    setFlagSubmitting(true);
+    setFlagResult(null);
+    try {
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Not authenticated');
+      const token = await currentUser.getIdToken();
+      const res = await fetch('/api/conservation/flag-at-risk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ clientId: client?.id, policyId, reason: flagReason }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFlagResult({
+          policyId,
+          success: true,
+          message: data.alert?.isChargebackRisk
+            ? 'Chargeback risk — outreach scheduled.'
+            : 'Alert created. Outreach will begin.',
+        });
+        setFlaggingPolicyId(null);
+      } else {
+        setFlagResult({ policyId, success: false, message: data.error || 'Failed.' });
+      }
+    } catch {
+      setFlagResult({ policyId, success: false, message: 'Something went wrong.' });
+    } finally {
+      setFlagSubmitting(false);
+    }
+  }, [client?.id, flagReason, onFlagAtRisk]);
+
   // Reset notification form when client changes
   useEffect(() => {
     if (client) {
@@ -172,6 +243,10 @@ export default function ClientDetailModal({
       setShowHolidayForm(false);
       setHolidayStatus('idle');
       setHolidayError('');
+      setCodeSent(false);
+      setSendingCode(false);
+      setFlaggingPolicyId(null);
+      setFlagResult(null);
     }
   }, [client?.id]);
 
@@ -370,7 +445,7 @@ export default function ClientDetailModal({
             <div className="bg-[#daf3f0] border border-[#45bcaa]/30 rounded-[5px] p-5">
               <p className="text-xs uppercase tracking-widest text-[#337973] font-semibold mb-2">Client Code</p>
               {client?.clientCode ? (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <span className="text-3xl font-mono font-bold text-[#005851] tracking-wider">
                     {client.clientCode}
                   </span>
@@ -394,6 +469,37 @@ export default function ClientDetailModal({
                       </>
                     )}
                   </button>
+                  {client.phone && (
+                    <button
+                      onClick={handleSendCode}
+                      disabled={sendingCode || codeSent}
+                      className="px-3 py-1.5 bg-[#005851] hover:bg-[#004540] disabled:opacity-60 text-white border border-[#005851] rounded-[5px] text-sm font-medium transition-colors flex items-center gap-1.5"
+                    >
+                      {codeSent ? (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Sent!
+                        </>
+                      ) : sendingCode ? (
+                        <>
+                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                          </svg>
+                          Send to Client
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               ) : (
                 <span className="text-[#337973] text-sm italic">No code assigned</span>
@@ -841,8 +947,70 @@ export default function ClientDetailModal({
                       )}
                     </div>
 
-                    {/* Edit/Delete Actions */}
+                    {/* Flag at risk result */}
+                    {flagResult && flagResult.policyId === policy.id && (
+                      <div className={`mt-3 px-3 py-2 rounded-[5px] text-xs font-medium ${flagResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
+                        {flagResult.message}
+                      </div>
+                    )}
+
+                    {/* Flag at risk inline */}
+                    {flaggingPolicyId === policy.id && (
+                      <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-[5px] space-y-3">
+                        <p className="text-xs font-semibold text-amber-800">What happened?</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => setFlagReason('lapsed_payment')}
+                            className={`px-3 py-2 rounded-[5px] border text-xs font-medium transition-all ${
+                              flagReason === 'lapsed_payment'
+                                ? 'border-[#005851] bg-[#daf3f0] text-[#005851]'
+                                : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                            }`}
+                          >
+                            Missed Payment
+                          </button>
+                          <button
+                            onClick={() => setFlagReason('cancellation')}
+                            className={`px-3 py-2 rounded-[5px] border text-xs font-medium transition-all ${
+                              flagReason === 'cancellation'
+                                ? 'border-[#005851] bg-[#daf3f0] text-[#005851]'
+                                : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                            }`}
+                          >
+                            Cancellation
+                          </button>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleFlagAtRisk(policy.id)}
+                            disabled={flagSubmitting}
+                            className="flex-1 px-3 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-semibold rounded-[5px] transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            {flagSubmitting ? 'Creating...' : 'Flag & Start Outreach'}
+                          </button>
+                          <button
+                            onClick={() => setFlaggingPolicyId(null)}
+                            className="px-3 py-2 bg-white border border-gray-200 text-gray-500 text-xs font-medium rounded-[5px] hover:bg-gray-50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Edit/Delete/Flag Actions */}
                     <div className="flex gap-2 mt-4 pt-4 border-t border-gray-200">
+                      {onFlagAtRisk && policy.status !== 'Lapsed' && flaggingPolicyId !== policy.id && (
+                        <button
+                          onClick={() => { setFlaggingPolicyId(policy.id); setFlagResult(null); }}
+                          className="flex-1 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 hover:text-amber-800 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 border border-amber-200"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                          Flag At Risk
+                        </button>
+                      )}
                       <button
                         onClick={() => onEditPolicy(policy)}
                         className="flex-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-[#000000] rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"

@@ -32,26 +32,9 @@ import {
 
 const POLICY_TYPES = ['IUL', 'Term Life', 'Whole Life', 'Mortgage Protection', 'Accidental', 'Other'];
 const POLICY_STATUSES = ['Active', 'Pending', 'Lapsed'];
-const KNOWN_CARRIERS = [
-  'Americo',
-  'Mutual of Omaha',
-  'American-Amicable',
-  'Banner',
-  'United Home Life',
-  'SBLI',
-  'Corebridge',
-  'AIG',
-  'Transamerica',
-  'F&G',
-  'Foresters',
-  'National Life Group',
-  'Lincoln Financial',
-  'Nationwide',
-  'Prudential',
-  'Protective',
-  'North American',
-  'Athene',
-];
+import { KNOWN_CARRIER_NAMES } from '../../../lib/carriers';
+
+const KNOWN_CARRIERS = KNOWN_CARRIER_NAMES;
 
 // ─── Interfaces ────────────────────────────────────────────
 
@@ -334,6 +317,18 @@ export default function ClientsPage() {
   // ── Push token cache for ClientDetailModal ──
   const [clientPushToken, setClientPushToken] = useState<string | null | undefined>(undefined);
 
+  // ── Flag At Risk state ──
+  const [flagAtRiskClient, setFlagAtRiskClient] = useState<Client | null>(null);
+  const [flagAtRiskPolicies, setFlagAtRiskPolicies] = useState<Policy[]>([]);
+  const [flagAtRiskPolicyId, setFlagAtRiskPolicyId] = useState<string | null>(null);
+  const [flagAtRiskReason, setFlagAtRiskReason] = useState<'lapsed_payment' | 'cancellation'>('lapsed_payment');
+  const [flagAtRiskLoading, setFlagAtRiskLoading] = useState(false);
+  const [flagAtRiskPoliciesLoading, setFlagAtRiskPoliciesLoading] = useState(false);
+  const [flagAtRiskResult, setFlagAtRiskResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // ── Client policy summary cache ──
+  const [clientPolicySummaries, setClientPolicySummaries] = useState<Record<string, { active: number; pending: number; lapsed: number; total: number }>>({});
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Data Fetching ───────────────────────────────────────
@@ -442,6 +437,110 @@ export default function ClientsPage() {
 
     return () => { cancelled = true; };
   }, [user, clients]);
+
+  // ─── Fetch policy summaries for client table ──────────────
+  useEffect(() => {
+    if (!user || clients.length === 0) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const summaries: Record<string, { active: number; pending: number; lapsed: number; total: number }> = {};
+
+        await Promise.all(
+          clients.map(async (client) => {
+            try {
+              const res = await fetch(`/api/policies?clientId=${client.id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (!res.ok) return;
+              const { policies: data } = await res.json();
+              const pols = data as Policy[];
+              summaries[client.id] = {
+                active: pols.filter((p) => p.status === 'Active').length,
+                pending: pols.filter((p) => p.status === 'Pending').length,
+                lapsed: pols.filter((p) => p.status === 'Lapsed').length,
+                total: pols.length,
+              };
+            } catch { /* skip */ }
+          })
+        );
+
+        if (!cancelled) setClientPolicySummaries(summaries);
+      } catch { /* ignore */ }
+    })();
+
+    return () => { cancelled = true; };
+  }, [user, clients]);
+
+  // ─── Flag At Risk handlers ──────────────────────────────
+  const handleOpenFlagAtRisk = useCallback(async (client: Client) => {
+    setFlagAtRiskClient(client);
+    setFlagAtRiskPolicyId(null);
+    setFlagAtRiskReason('lapsed_payment');
+    setFlagAtRiskResult(null);
+    setFlagAtRiskPoliciesLoading(true);
+
+    if (user) {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch(`/api/policies?clientId=${client.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const { policies: data } = await res.json();
+          const pols = data as Policy[];
+          setFlagAtRiskPolicies(pols);
+          if (pols.length === 1) setFlagAtRiskPolicyId(pols[0].id);
+        }
+      } catch { /* ignore */ }
+    }
+    setFlagAtRiskPoliciesLoading(false);
+  }, [user]);
+
+  const handleCloseFlagAtRisk = useCallback(() => {
+    setFlagAtRiskClient(null);
+    setFlagAtRiskPolicies([]);
+    setFlagAtRiskPolicyId(null);
+    setFlagAtRiskResult(null);
+  }, []);
+
+  const handleSubmitFlagAtRisk = useCallback(async () => {
+    if (!user || !flagAtRiskClient || !flagAtRiskPolicyId) return;
+    setFlagAtRiskLoading(true);
+    setFlagAtRiskResult(null);
+
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/conservation/flag-at-risk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          clientId: flagAtRiskClient.id,
+          policyId: flagAtRiskPolicyId,
+          reason: flagAtRiskReason,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFlagAtRiskResult({
+          success: true,
+          message: data.alert?.isChargebackRisk
+            ? 'Alert created — chargeback risk detected. Outreach scheduled in 2 hours.'
+            : 'Alert created. You can manage it from the Conservation page.',
+        });
+        refreshPolicies();
+        setTimeout(() => handleCloseFlagAtRisk(), 3000);
+      } else {
+        setFlagAtRiskResult({ success: false, message: data.error || 'Failed to create alert.' });
+      }
+    } catch {
+      setFlagAtRiskResult({ success: false, message: 'Something went wrong. Please try again.' });
+    } finally {
+      setFlagAtRiskLoading(false);
+    }
+  }, [user, flagAtRiskClient, flagAtRiskPolicyId, flagAtRiskReason, refreshPolicies, handleCloseFlagAtRisk]);
 
   // ─── Filtered + Sorted Clients ────────────────────────────
 
@@ -1016,6 +1115,23 @@ export default function ClientsPage() {
           policiesCreated++;
         }
 
+        // Auto-send welcome SMS with code if client has a phone
+        if (row.phone.trim()) {
+          const firstName = row.name.trim().split(' ')[0];
+          const agentDisplayName = agentProfile.name || 'your agent';
+          const welcomeText = `Hey ${firstName}! ${agentDisplayName} here. Download the AgentForLife app and use code ${code} to connect with me. https://agentforlife.app`;
+          try {
+            const smsToken = await user.getIdToken();
+            await fetch('/api/client/welcome-sms', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${smsToken}` },
+              body: JSON.stringify({ clientPhone: row.phone.trim(), message: welcomeText }),
+            });
+          } catch {
+            // Non-blocking: don't fail import if SMS fails
+          }
+        }
+
         setImportProgress(Math.round(((i + 1) / importData.length) * 100));
       }
 
@@ -1203,19 +1319,19 @@ export default function ClientsPage() {
                   <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3 cursor-pointer select-none hover:text-[#005851] transition-colors" onClick={() => handleSort('name')}>
                     Name<SortIcon column="name" />
                   </th>
-                  <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3 cursor-pointer select-none hover:text-[#005851] transition-colors" onClick={() => handleSort('email')}>
-                    Email<SortIcon column="email" />
-                  </th>
-                  <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Phone</th>
                   <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3 cursor-pointer select-none hover:text-[#005851] transition-colors" onClick={() => handleSort('createdAt')}>
-                    Added<SortIcon column="createdAt" />
+                    Client Since<SortIcon column="createdAt" />
                   </th>
-                  <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Code</th>
+                  <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Policies</th>
+                  <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Status</th>
                   <th className="text-right text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f0f0f0]">
-                {paginatedClients.map((client) => (
+                {paginatedClients.map((client) => {
+                  const summary = clientPolicySummaries[client.id];
+                  const hasLapsed = summary && summary.lapsed > 0;
+                  return (
                   <tr
                     key={client.id}
                     className="hover:bg-[#f8f8f8] transition-colors cursor-pointer"
@@ -1226,41 +1342,57 @@ export default function ClientsPage() {
                         <div className="w-8 h-8 bg-[#005851] rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0">
                           {client.name.charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-sm font-medium text-[#000000]">{client.name}</span>
+                        <div className="min-w-0">
+                          <span className="text-sm font-medium text-[#000000] block truncate">{client.name}</span>
+                          <span className="text-xs text-[#a0a0a0] truncate block">{client.email || client.phone || ''}</span>
+                        </div>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-sm text-[#707070]">{client.email || '—'}</td>
-                    <td className="px-5 py-3.5 text-sm text-[#707070]">{client.phone || '—'}</td>
                     <td className="px-5 py-3.5 text-xs text-[#707070]">
                       {client.createdAt?.toDate ? client.createdAt.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
                     </td>
-                    <td className="px-5 py-3.5">
-                      {client.clientCode ? (
-                        <div className="relative inline-flex">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleShareCode(client);
-                            }}
-                            className="px-3 py-1 bg-[#daf3f0] hover:bg-[#c0ebe4] text-[#005851] text-xs font-semibold rounded-[5px] transition-colors flex items-center gap-1.5"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                            </svg>
-                            Share
-                          </button>
-                          {copiedClientId === client.id && (
-                            <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-[#005851] text-white text-xs rounded-[5px] whitespace-nowrap shadow-lg animate-fade-in">
-                              Copied!
-                            </span>
-                          )}
+                    <td className="px-5 py-3.5 text-sm text-[#707070]">
+                      {summary ? (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {summary.active > 0 && <span className="px-2 py-0.5 bg-green-50 text-green-700 text-xs rounded-full font-medium">{summary.active} Active</span>}
+                          {summary.pending > 0 && <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs rounded-full font-medium">{summary.pending} Pending</span>}
+                          {summary.lapsed > 0 && <span className="px-2 py-0.5 bg-red-50 text-red-600 text-xs rounded-full font-medium">{summary.lapsed} Lapsed</span>}
+                          {summary.total === 0 && <span className="text-xs text-[#a0a0a0] italic">No policies</span>}
                         </div>
                       ) : (
-                        <span className="text-xs text-[#707070] italic">No code</span>
+                        <span className="text-xs text-[#d0d0d0]">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      {hasLapsed ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-50 text-red-600 text-xs rounded-full font-semibold">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                          At Risk
+                        </span>
+                      ) : summary && summary.total > 0 ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 text-xs rounded-full font-medium">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Good
+                        </span>
+                      ) : (
+                        <span className="text-xs text-[#d0d0d0]">—</span>
                       )}
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => handleOpenFlagAtRisk(client)}
+                          className="p-1.5 rounded-[5px] hover:bg-amber-50 text-[#707070] hover:text-amber-600 transition-colors"
+                          title="Flag policy at risk"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                          </svg>
+                        </button>
                         <button
                           onClick={() => handleEditClient(client)}
                           className="p-1.5 rounded-[5px] hover:bg-gray-100 text-[#707070] hover:text-[#000000] transition-colors"
@@ -1282,14 +1414,18 @@ export default function ClientsPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
           {/* Mobile card list */}
           <div className="md:hidden divide-y divide-[#f0f0f0]">
-            {paginatedClients.map((client) => (
+            {paginatedClients.map((client) => {
+              const summary = clientPolicySummaries[client.id];
+              const hasLapsed = summary && summary.lapsed > 0;
+              return (
               <div
                 key={client.id}
                 className="p-4 hover:bg-[#f8f8f8] transition-colors cursor-pointer"
@@ -1300,53 +1436,61 @@ export default function ClientsPage() {
                     {client.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[#000000] truncate">{client.name}</p>
-                    <p className="text-xs text-[#707070] truncate">{client.email || client.phone || 'No contact info'}</p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {client.clientCode && (
-                      <div className="relative">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleShareCode(client);
-                          }}
-                          className="px-2.5 py-1 bg-[#daf3f0] hover:bg-[#c0ebe4] text-[#005851] text-xs font-semibold rounded-[5px] transition-colors flex items-center gap-1"
-                        >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-[#000000] truncate">{client.name}</p>
+                      {hasLapsed && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-red-50 text-red-600 text-[10px] rounded-full font-semibold shrink-0">
+                          <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                           </svg>
-                          Share
-                        </button>
-                        {copiedClientId === client.id && (
-                          <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-[#005851] text-white text-xs rounded-[5px] whitespace-nowrap shadow-lg">
-                            Copied!
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={() => handleEditClient(client)}
-                        className="p-1.5 rounded-[5px] hover:bg-gray-100 text-[#707070] hover:text-[#000000] transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirmClient(client)}
-                        className="p-1.5 rounded-[5px] hover:bg-red-50 text-[#707070] hover:text-red-600 transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
+                          At Risk
+                        </span>
+                      )}
                     </div>
+                    <p className="text-xs text-[#707070] truncate">
+                      {summary ? (
+                        <>
+                          {summary.active > 0 && `${summary.active} Active`}
+                          {summary.active > 0 && summary.lapsed > 0 && ', '}
+                          {summary.lapsed > 0 && `${summary.lapsed} Lapsed`}
+                          {summary.total === 0 && 'No policies'}
+                        </>
+                      ) : (
+                        client.email || client.phone || 'No contact info'
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => handleOpenFlagAtRisk(client)}
+                      className="p-1.5 rounded-[5px] hover:bg-amber-50 text-[#707070] hover:text-amber-600 transition-colors"
+                      title="Flag at risk"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleEditClient(client)}
+                      className="p-1.5 rounded-[5px] hover:bg-gray-100 text-[#707070] hover:text-[#000000] transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => setDeleteConfirmClient(client)}
+                      className="p-1.5 rounded-[5px] hover:bg-red-50 text-[#707070] hover:text-red-600 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Table footer with pagination */}
@@ -2215,6 +2359,7 @@ export default function ClientsPage() {
           onDeletePolicy={(policy) => setDeleteConfirmPolicy(policy)}
           onUploadApplication={() => setIsUploadModalOpen(true)}
           onEditClient={handleEditClient}
+          onFlagAtRisk={() => { refreshPolicies(); }}
           agentName={agentProfile.name}
           hasSchedulingUrl={!!agentProfile.schedulingUrl}
           clientPushToken={clientPushToken === undefined ? null : clientPushToken}
@@ -2239,6 +2384,139 @@ export default function ClientsPage() {
           onCreateClientAndPolicy={handleCreateClientAndPolicy}
           mode="client-and-policy"
         />
+      )}
+
+      {/* ── Flag At Risk Modal ── */}
+      {flagAtRiskClient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleCloseFlagAtRisk} />
+          <div className="relative bg-white rounded-[5px] shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-[#000000]">Flag Policy At Risk</h3>
+                <p className="text-sm text-[#707070]">{flagAtRiskClient.name}</p>
+              </div>
+              <button onClick={handleCloseFlagAtRisk} className="ml-auto text-gray-400 hover:text-gray-600 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {flagAtRiskResult ? (
+              <div className={`p-4 rounded-[5px] border ${flagAtRiskResult.success ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'}`}>
+                <p className={`text-sm font-medium ${flagAtRiskResult.success ? 'text-green-800' : 'text-red-700'}`}>
+                  {flagAtRiskResult.message}
+                </p>
+              </div>
+            ) : flagAtRiskPoliciesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <svg className="animate-spin w-6 h-6 text-[#45bcaa]" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              </div>
+            ) : flagAtRiskPolicies.length === 0 ? (
+              <div className="text-center py-6">
+                <p className="text-sm text-[#707070]">This client has no policies to flag.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {flagAtRiskPolicies.length > 1 && (
+                  <div>
+                    <label className="block text-xs font-semibold text-[#707070] uppercase tracking-wide mb-2">Select Policy</label>
+                    <div className="space-y-2">
+                      {flagAtRiskPolicies.map((p) => (
+                        <button
+                          key={p.id}
+                          onClick={() => setFlagAtRiskPolicyId(p.id)}
+                          className={`w-full text-left px-4 py-3 rounded-[5px] border transition-all ${
+                            flagAtRiskPolicyId === p.id
+                              ? 'border-[#005851] bg-[#daf3f0] ring-1 ring-[#005851]/30'
+                              : 'border-[#d0d0d0] hover:border-[#a0a0a0] bg-white'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-[#000000]">{p.policyType}</p>
+                              <p className="text-xs text-[#707070]">{p.insuranceCompany} &middot; #{p.policyNumber}</p>
+                            </div>
+                            <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
+                              p.status === 'Active' ? 'bg-green-50 text-green-700' :
+                              p.status === 'Lapsed' ? 'bg-red-50 text-red-600' :
+                              'bg-blue-50 text-blue-600'
+                            }`}>{p.status}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {flagAtRiskPolicies.length === 1 && (
+                  <div className="px-4 py-3 bg-[#f8f8f8] rounded-[5px] border border-[#d0d0d0]">
+                    <p className="text-sm font-medium text-[#000000]">{flagAtRiskPolicies[0].policyType}</p>
+                    <p className="text-xs text-[#707070]">{flagAtRiskPolicies[0].insuranceCompany} &middot; #{flagAtRiskPolicies[0].policyNumber}</p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#707070] uppercase tracking-wide mb-2">What happened?</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setFlagAtRiskReason('lapsed_payment')}
+                      className={`px-4 py-3 rounded-[5px] border text-sm font-medium transition-all ${
+                        flagAtRiskReason === 'lapsed_payment'
+                          ? 'border-[#005851] bg-[#daf3f0] text-[#005851] ring-1 ring-[#005851]/30'
+                          : 'border-[#d0d0d0] text-[#707070] hover:border-[#a0a0a0]'
+                      }`}
+                    >
+                      Missed Payment
+                    </button>
+                    <button
+                      onClick={() => setFlagAtRiskReason('cancellation')}
+                      className={`px-4 py-3 rounded-[5px] border text-sm font-medium transition-all ${
+                        flagAtRiskReason === 'cancellation'
+                          ? 'border-[#005851] bg-[#daf3f0] text-[#005851] ring-1 ring-[#005851]/30'
+                          : 'border-[#d0d0d0] text-[#707070] hover:border-[#a0a0a0]'
+                      }`}
+                    >
+                      Cancellation
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleSubmitFlagAtRisk}
+                  disabled={!flagAtRiskPolicyId || flagAtRiskLoading}
+                  className="w-full px-4 py-3 bg-[#44bbaa] hover:bg-[#005751] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-[5px] transition-colors flex items-center justify-center gap-2"
+                >
+                  {flagAtRiskLoading ? (
+                    <>
+                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Creating Alert...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      Flag At Risk &amp; Start Outreach
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Inline style for the toast animation */}

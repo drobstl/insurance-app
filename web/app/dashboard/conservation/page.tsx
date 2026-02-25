@@ -52,13 +52,6 @@ export default function ConservationPage() {
 
   const [alerts, setAlerts] = useState<ConservationAlertUI[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(false);
-  const [pasteText, setPasteText] = useState('');
-  const [processing, setProcessing] = useState(false);
-  const [processResult, setProcessResult] = useState<{
-    success: boolean;
-    matched: boolean;
-    alert: Record<string, unknown>;
-  } | null>(null);
 
   const [expandedAlert, setExpandedAlert] = useState<string | null>(null);
   const [manualMessage, setManualMessage] = useState('');
@@ -103,31 +96,6 @@ export default function ConservationPage() {
 
     return () => unsub();
   }, [user]);
-
-  const handleSubmit = async () => {
-    if (!user || !pasteText.trim()) return;
-    setProcessing(true);
-    setProcessResult(null);
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch('/api/conservation/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ rawText: pasteText }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setProcessResult({ success: true, matched: data.matched, alert: data.alert });
-        setPasteText('');
-      } else {
-        setProcessResult({ success: false, matched: false, alert: { error: data.error } });
-      }
-    } catch {
-      setProcessResult({ success: false, matched: false, alert: { error: 'Failed to process' } });
-    } finally {
-      setProcessing(false);
-    }
-  };
 
   const handleCancelOutreach = async (alertId: string) => {
     if (!user) return;
@@ -318,7 +286,7 @@ export default function ConservationPage() {
         </div>
       )}
 
-      {/* Explanation */}
+      {/* How to create alerts */}
       {!hasAlerts && (
         <div className="bg-white rounded-[5px] border border-[#d0d0d0] p-6 mb-6">
           <div className="flex items-start gap-4">
@@ -330,94 +298,44 @@ export default function ConservationPage() {
             <div className="flex-1">
               <h3 className="text-base font-bold text-[#000000] mb-1">What is Conservation?</h3>
               <p className="text-sm text-[#707070] mb-4">
-                When a carrier warns you that a client&rsquo;s policy is about to lapse, paste the notice below. Our AI reads it, matches it to your client, and helps you save the policy before you lose the commission.
+                When a client&rsquo;s policy is at risk, the system reaches out automatically to save it before you lose the commission.
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-                <div className="flex items-start gap-2">
-                  <span className="w-6 h-6 bg-[#005851] text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">1</span>
-                  <p className="text-xs text-[#505050]"><span className="font-semibold">Paste or forward</span> the carrier lapse notice</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div className="bg-[#f8f8f8] rounded-[5px] p-4 border border-[#e0e0e0]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <svg className="w-4 h-4 text-[#005851]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    <p className="text-sm font-semibold text-[#000000]">Flag from Clients</p>
+                  </div>
+                  <p className="text-xs text-[#707070]">Go to a client&rsquo;s profile, click &ldquo;Flag At Risk&rdquo; on any policy, and the outreach workflow starts immediately.</p>
                 </div>
-                <div className="flex items-start gap-2">
-                  <span className="w-6 h-6 bg-[#005851] text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">2</span>
-                  <p className="text-xs text-[#505050]"><span className="font-semibold">AI matches</span> it to your client and flags the risk</p>
+                <div className="bg-[#f8f8f8] rounded-[5px] p-4 border border-[#e0e0e0]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <svg className="w-4 h-4 text-[#005851]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    <p className="text-sm font-semibold text-[#000000]">Forward Carrier Emails</p>
+                  </div>
+                  <p className="text-xs text-[#707070]">Forward carrier lapse notices to <span className="font-semibold text-[#005851]">ai@savepolicy.agentforlife.app</span> and alerts are created automatically.</p>
                 </div>
-                <div className="flex items-start gap-2">
-                  <span className="w-6 h-6 bg-[#005851] text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">3</span>
-                  <p className="text-xs text-[#505050]"><span className="font-semibold">AI reaches out</span> and has a conversation to save the policy</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-[#005851]">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                <span>Prefer auto-forwarding? Send carrier emails to <span className="font-semibold">ai@savepolicy.agentforlife.app</span> and alerts are created automatically.</span>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Paste Box */}
-      <div className="bg-white rounded-[5px] border border-[#d0d0d0] p-5 mb-6">
-        <h3 className="text-sm font-semibold text-[#000000] mb-2">New Conservation Alert</h3>
-        <p className="text-xs text-[#707070] mb-3">
-          Paste the carrier email or portal text below. AI will extract the details and match it to your client.
-        </p>
-        <textarea
-          value={pasteText}
-          onChange={(e) => setPasteText(e.target.value)}
-          placeholder="Paste carrier conservation notice or portal text here..."
-          className="w-full h-32 px-4 py-3 bg-[#f8f8f8] border border-[#a4a4a4bf] rounded-[5px] text-[#000000] placeholder-[#707070] focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa] transition-all resize-none text-sm"
-        />
-        <div className="flex items-center justify-between mt-3">
-          <p className="text-xs text-[#707070]">
-            Or forward emails to <span className="font-semibold text-[#005851]">ai@savepolicy.agentforlife.app</span>
+      {/* Email forwarding reminder */}
+      {hasAlerts && (
+        <div className="bg-[#daf3f0] border border-[#45bcaa]/30 rounded-[5px] px-4 py-3 mb-6 flex items-center gap-3">
+          <svg className="w-4 h-4 text-[#005851] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+          <p className="text-xs text-[#005851]">
+            Forward carrier lapse emails to <span className="font-semibold">ai@savepolicy.agentforlife.app</span> or flag policies at risk from the Clients page.
           </p>
-          <button
-            onClick={handleSubmit}
-            disabled={processing || !pasteText.trim()}
-            className="flex items-center gap-2 px-5 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors disabled:opacity-50 text-sm"
-          >
-            {processing ? (
-              <>
-                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                Processing...
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                Process Alert
-              </>
-            )}
-          </button>
         </div>
-
-        {processResult && (
-          <div className={`mt-4 p-4 rounded-[5px] border ${processResult.success ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'}`}>
-            {processResult.success ? (
-              <div>
-                <p className="text-sm font-semibold text-green-800">
-                  Alert created{processResult.matched ? ' and matched' : ' (no match found)'}
-                </p>
-                <p className="text-xs text-green-700 mt-1">
-                  {processResult.alert.clientName as string} &mdash; {processResult.alert.carrier as string}
-                  {processResult.alert.isChargebackRisk ? ' — CHARGEBACK RISK' : ''}
-                </p>
-                {processResult.alert.status === 'outreach_scheduled' && (
-                  <p className="text-xs text-green-600 mt-1">Outreach scheduled to send automatically in 2 hours.</p>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-red-700">{processResult.alert.error as string || 'Failed to process alert'}</p>
-            )}
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Alert List */}
       <div className="bg-white rounded-[5px] border border-[#d0d0d0]">
@@ -437,7 +355,7 @@ export default function ConservationPage() {
             <svg className="w-10 h-10 text-[#d0d0d0] mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
-            <p className="text-sm text-[#707070]">No alerts yet. Paste a carrier notice above to create your first one.</p>
+            <p className="text-sm text-[#707070]">No alerts yet. Flag a policy at risk from the Clients page or forward a carrier email.</p>
           </div>
         ) : (
           <div className="divide-y divide-[#f0f0f0]">
@@ -565,6 +483,9 @@ export default function ConservationPage() {
                             </span>
                             {alert.source === 'email_forward' && (
                               <span className="text-xs text-[#a0a0a0]">via email</span>
+                            )}
+                            {alert.source === 'manual_flag' && (
+                              <span className="text-xs text-[#a0a0a0]">flagged by agent</span>
                             )}
                             {msgCount > 0 && (
                               <span className="text-xs text-[#707070]">{msgCount} msg{msgCount !== 1 ? 's' : ''}</span>

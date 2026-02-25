@@ -157,6 +157,12 @@ export async function generateOutreachMessage(
     ? `The agent has a scheduling URL: ${ctx.schedulingUrl}. If it feels natural, mention they can book a quick call.`
     : 'The agent does not have a scheduling link. Offer to chat or take a call instead.';
 
+  const carrierNote = ctx.carrierServicePhone && ctx.carrier
+    ? `IMPORTANT: The carrier is ${ctx.carrier} and the client can call ${ctx.carrierServicePhone} to reinstate their policy. Include this phone number in your message so the client has a clear action step.`
+    : ctx.carrier
+      ? `The carrier is ${ctx.carrier}. Suggest the client can call their carrier to resolve this.`
+      : '';
+
   const message = await withRetry(() =>
     anthropic.messages.create({
       model: MODEL,
@@ -169,6 +175,7 @@ SITUATION:
 - The policy was written ${policyAgeDesc}.
 ${ctx.premiumAmount ? `- Premium: $${ctx.premiumAmount}/month.` : ''}
 ${ctx.coverageAmount ? `- Coverage: $${ctx.coverageAmount.toLocaleString()}.` : ''}
+${carrierNote ? `\n${carrierNote}` : ''}
 
 TONE GUIDANCE:
 - ${ctx.reason === 'lapsed_payment' ? 'Be helpful and understanding. Missed payments happen. Focus on how easy it is to fix.' : ctx.reason === 'cancellation' ? 'Be understanding and curious. Something may have changed. Focus on exploring options.' : 'Be warm and check in.'}
@@ -371,6 +378,12 @@ export async function generateConservationEmail(
     .filter(Boolean)
     .join(', ');
 
+  const carrierNote = ctx.carrierServicePhone && ctx.carrier
+    ? `IMPORTANT: The carrier is ${ctx.carrier} and the client can call ${ctx.carrierServicePhone} to reinstate their policy. Include this phone number clearly in the email so the client has a direct action step.`
+    : ctx.carrier
+      ? `The carrier is ${ctx.carrier}. Suggest the client can call their carrier to resolve this.`
+      : '';
+
   const message = await withRetry(() =>
     anthropic.messages.create({
       model: MODEL,
@@ -382,6 +395,7 @@ SITUATION:
 - The policy was written ${policyAgeDesc}.
 ${ctx.premiumAmount ? `- Premium: $${ctx.premiumAmount}/month.` : ''}
 ${ctx.coverageAmount ? `- Coverage: $${ctx.coverageAmount.toLocaleString()}.` : ''}
+${carrierNote ? `\n${carrierNote}` : ''}
 
 TONE GUIDANCE:
 - ${ctx.reason === 'lapsed_payment' ? 'Be helpful and understanding. Missed payments happen.' : ctx.reason === 'cancellation' ? 'Be understanding and curious. Explore what changed.' : 'Be warm and check in.'}

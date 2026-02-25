@@ -4,11 +4,13 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminFirestore } from './firebase-admin';
 import { extractConservationData, generateOutreachMessage, assessSaveability } from './conservation-ai';
 import { normalizePhone, isValidE164 } from './phone';
+import { getCarrierServicePhone } from './carriers';
 import type {
   ConservationSource,
   ConservationAlert,
   ConservationOutreachContext,
   ConservationChannel,
+  ConservationReason,
 } from './conservation-types';
 
 const GRACE_PERIOD_MS = 2 * 60 * 60 * 1000; // 2 hours
@@ -153,6 +155,166 @@ export interface CreateConservationAlertResult {
   matched: boolean;
 }
 
+export interface ManualFlagParams {
+  clientId: string;
+  policyId: string;
+  reason: ConservationReason;
+}
+
+/**
+ * Create a conservation alert from a manual "flag at risk" action.
+ * The client and policy are already known — no AI extraction needed.
+ */
+export async function createManualConservationAlert(
+  agentId: string,
+  params: ManualFlagParams,
+): Promise<CreateConservationAlertResult> {
+  const db = getAdminFirestore();
+
+  const clientDoc = await db
+    .collection('agents').doc(agentId)
+    .collection('clients').doc(params.clientId)
+    .get();
+  if (!clientDoc.exists) throw new Error('Client not found');
+  const clientData = clientDoc.data()!;
+
+  const policyDoc = await db
+    .collection('agents').doc(agentId)
+    .collection('clients').doc(params.clientId)
+    .collection('policies').doc(params.policyId)
+    .get();
+  if (!policyDoc.exists) throw new Error('Policy not found');
+  const policyData = policyDoc.data()!;
+
+  const policiesSnap = await db
+    .collection('agents').doc(agentId)
+    .collection('clients').doc(params.clientId)
+    .collection('policies').get();
+
+  const policyAge = computePolicyAge(policyData);
+  const isChargebackRisk = policyAge !== null && policyAge < 365;
+  const priority = isChargebackRisk ? 'high' : 'low';
+
+  const clientName = (clientData.name as string) || 'Client';
+  const clientFirstName = clientName.split(' ')[0];
+  const clientPhone = (clientData.phone as string) || null;
+  const clientEmail = (clientData.email as string) || null;
+  const clientHasApp = !!(clientData.pushToken as string);
+  const carrier = (policyData.insuranceCompany as string) || '';
+  const policyType = (policyData.policyType as string) || null;
+  const premiumAmount = (policyData.premiumAmount as number) || null;
+  const coverageAmount = (policyData.coverageAmount as number) || null;
+  const policyNumber = (policyData.policyNumber as string) || '';
+
+  const agentDoc = await db.collection('agents').doc(agentId).get();
+  const agentData = agentDoc.data() || {};
+  const agentName = (agentData.name as string) || 'Your Agent';
+  const agentFirstName = agentName.split(' ')[0];
+  const schedulingUrl = (agentData.schedulingUrl as string) || null;
+
+  const availableChannels: ConservationChannel[] = [];
+  if (clientPhone && isValidE164(normalizePhone(clientPhone))) {
+    availableChannels.push('sms');
+  }
+  if (clientHasApp) availableChannels.push('push');
+  if (clientEmail) availableChannels.push('email');
+  const noContactMethod = availableChannels.length === 0;
+
+  const carrierServicePhone = getCarrierServicePhone(carrier);
+
+  const outreachCtx: ConservationOutreachContext = {
+    clientFirstName,
+    clientName,
+    agentName,
+    agentFirstName,
+    policyType,
+    policyAge,
+    reason: params.reason,
+    schedulingUrl,
+    dripNumber: 0,
+    premiumAmount,
+    coverageAmount,
+    availableChannels,
+    carrier: carrier || null,
+    carrierServicePhone,
+  };
+
+  const initialMessage = await generateOutreachMessage(outreachCtx);
+
+  const aiInsight = await assessSaveability({
+    clientName,
+    policyAge,
+    clientHasApp,
+    clientPolicyCount: policiesSnap.size,
+    reason: params.reason,
+    premiumAmount,
+  });
+
+  const now = new Date();
+  const isHighPriority = priority === 'high';
+  const scheduledOutreachAt = isHighPriority
+    ? new Date(now.getTime() + GRACE_PERIOD_MS).toISOString()
+    : null;
+
+  const initialConversation = initialMessage
+    ? [{ role: 'agent-ai' as const, body: initialMessage, timestamp: now.toISOString() }]
+    : [];
+
+  const alertData = {
+    source: 'manual_flag' as const,
+    rawText: `Manually flagged: ${params.reason === 'lapsed_payment' ? 'Missed Payment' : 'Cancellation'}`,
+    clientName,
+    policyNumber,
+    carrier,
+    reason: params.reason,
+    clientId: params.clientId,
+    policyId: params.policyId,
+    policyAge,
+    isChargebackRisk,
+    priority,
+    premiumAmount,
+    policyType,
+    clientHasApp,
+    clientPolicyCount: policiesSnap.size,
+    status: isHighPriority ? ('outreach_scheduled' as const) : ('new' as const),
+    scheduledOutreachAt,
+    outreachSentAt: null,
+    pushSentAt: null,
+    smsSentAt: null,
+    lastDripAt: null,
+    dripCount: 0,
+    initialMessage,
+    dripMessages: [] as string[],
+    conversation: initialConversation,
+    chatId: null as string | null,
+    aiEnabled: true,
+    availableChannels,
+    noContactMethod,
+    saveSuggested: false,
+    aiInsight,
+    notes: null,
+    createdAt: FieldValue.serverTimestamp(),
+    resolvedAt: null,
+  };
+
+  const alertRef = await db
+    .collection('agents').doc(agentId)
+    .collection('conservationAlerts')
+    .add(alertData);
+
+  if (policyData.status === 'Active') {
+    await policyDoc.ref.update({ status: 'Lapsed' });
+  }
+
+  return {
+    alertId: alertRef.id,
+    alert: { ...alertData, id: alertRef.id } as Omit<ConservationAlert, 'createdAt'> & {
+      createdAt?: unknown;
+    },
+    matched: true,
+  };
+}
+
 /**
  * Shared logic for creating a conservation alert from raw text.
  * Used by both the paste endpoint and the email forwarding webhook.
@@ -196,6 +358,9 @@ export async function createConservationAlert(
   const noContactMethod = match !== null && availableChannels.length === 0;
 
   // 5. Generate AI outreach message
+  const carrierName = extracted.carrier;
+  const carrierServicePhone = getCarrierServicePhone(carrierName);
+
   const outreachCtx: ConservationOutreachContext = {
     clientFirstName,
     clientName: match?.clientName || extracted.clientName,
@@ -209,6 +374,8 @@ export async function createConservationAlert(
     premiumAmount: match?.premiumAmount ?? null,
     coverageAmount: match?.coverageAmount ?? null,
     availableChannels,
+    carrier: carrierName,
+    carrierServicePhone,
   };
 
   const initialMessage = await generateOutreachMessage(outreachCtx);

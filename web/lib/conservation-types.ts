@@ -12,7 +12,7 @@ export type ConservationStatus =
   | 'saved'
   | 'lost';
 
-export type ConservationSource = 'email_forward' | 'paste';
+export type ConservationSource = 'email_forward' | 'paste' | 'manual_flag';
 
 export type ConservationChannel = 'sms' | 'push' | 'email';
 
@@ -89,6 +89,8 @@ export interface ConservationOutreachContext {
   premiumAmount: number | null;
   coverageAmount?: number | null;
   availableChannels?: ConservationChannel[];
+  carrierServicePhone?: string | null;
+  carrier?: string | null;
 }
 
 export interface ConservationConversationContext {
