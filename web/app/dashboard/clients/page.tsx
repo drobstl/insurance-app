@@ -978,8 +978,7 @@ export default function ClientsPage() {
       setTimeout(() => setFormSuccess(''), 3000);
     } catch (err) {
       console.error('Error creating client & policy:', err);
-      const errMsg = err instanceof Error ? err.message : String(err);
-      setFormError(`Client created but policy failed: ${errMsg}`);
+      setFormError('Client was created, but the policy could not be saved. Open the client and add the policy manually.');
     } finally {
       setSubmitting(false);
     }
