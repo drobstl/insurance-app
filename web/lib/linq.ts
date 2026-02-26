@@ -1,6 +1,7 @@
 import 'server-only';
 
 import crypto from 'crypto';
+import { normalizePhone } from './phone';
 
 const LINQ_BASE_URL = 'https://api.linqapp.com/api/partner/v3';
 
@@ -186,8 +187,8 @@ export async function createChat(opts: {
   idempotencyKey?: string;
   from?: string;
 }): Promise<CreateChatResult> {
-  const from = opts.from || getLinqPhoneNumber();
-  const toArray = Array.isArray(opts.to) ? opts.to : [opts.to];
+  const from = normalizePhone(opts.from || getLinqPhoneNumber());
+  const toArray = (Array.isArray(opts.to) ? opts.to : [opts.to]).map(normalizePhone);
 
   const message: Record<string, unknown> = {
     parts: buildParts(opts.text, opts.mediaUrls, opts.attachmentIds),
