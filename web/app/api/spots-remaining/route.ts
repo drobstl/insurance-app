@@ -42,7 +42,7 @@ export async function GET() {
     };
 
     // Determine which tier is currently open
-    let activeTierIndex = TIERS.length; // default: all full → standard
+    let activeTierIndex: number = TIERS.length; // default: all full → standard
     for (let i = 0; i < TIERS.length; i++) {
       if (counts[TIERS[i].id] < TIERS[i].total) {
         activeTierIndex = i;
