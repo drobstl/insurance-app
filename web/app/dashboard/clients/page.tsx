@@ -336,6 +336,8 @@ export default function ClientsPage() {
 
   // ── Client policy summary cache ──
   const [clientPolicySummaries, setClientPolicySummaries] = useState<Record<string, { active: number; pending: number; lapsed: number; total: number }>>({});
+  const [summaryVersion, setSummaryVersion] = useState(0);
+  const refreshSummaries = useCallback(() => setSummaryVersion((v) => v + 1), []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -487,7 +489,7 @@ export default function ClientsPage() {
     })();
 
     return () => { cancelled = true; };
-  }, [user, clients]);
+  }, [user, clients, summaryVersion]);
 
   // ─── Flag At Risk handlers ──────────────────────────────
   const handleOpenFlagAtRisk = useCallback(async (client: Client) => {
@@ -739,6 +741,7 @@ export default function ClientsPage() {
           };
           const token = await user.getIdToken();
           await apiCreatePolicy(token, docRef.id, policyData);
+          refreshSummaries();
         }
 
         setTimeout(() => handleCloseModal(), 800);
@@ -851,6 +854,7 @@ export default function ClientsPage() {
         setPolicyFormSuccess('Policy added!');
       }
       refreshPolicies();
+      refreshSummaries();
       setTimeout(() => handleClosePolicyModal(), 800);
     } catch (err) {
       console.error('Error saving policy:', err);
@@ -969,17 +973,8 @@ export default function ClientsPage() {
       const policyToken = await user.getIdToken();
       await apiCreatePolicy(policyToken, docRef.id, policyData);
 
-      // Update policy summary cache so the list reflects the new policy immediately
-      const policyStatus = (policyData.status as string) || 'Active';
-      setClientPolicySummaries(prev => ({
-        ...prev,
-        [docRef.id]: {
-          active: (prev[docRef.id]?.active || 0) + (policyStatus === 'Active' ? 1 : 0),
-          pending: (prev[docRef.id]?.pending || 0) + (policyStatus === 'Pending' ? 1 : 0),
-          lapsed: prev[docRef.id]?.lapsed || 0,
-          total: (prev[docRef.id]?.total || 0) + 1,
-        },
-      }));
+      // Re-fetch summaries from the server now that the policy is confirmed created
+      refreshSummaries();
 
       setFormSuccess('Client & policy created!');
       setTimeout(() => setFormSuccess(''), 3000);
@@ -1176,6 +1171,7 @@ export default function ClientsPage() {
       if (policiesCreated > 0) parts.push(`${policiesCreated} ${policiesCreated !== 1 ? 'policies' : 'policy'}`);
       setImportSuccess(`Successfully imported ${parts.join(' and ')}!`);
       setImportData([]);
+      if (policiesCreated > 0) refreshSummaries();
     } catch (err) {
       console.error('Error importing clients:', err);
       setImportError('Failed to import some records. Please try again.');
