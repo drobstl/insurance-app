@@ -11,8 +11,9 @@ import {
   StatusBar,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { collection, getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { Timestamp } from 'firebase/firestore';
+
+const API_BASE = 'https://agentforlife.app';
 
 interface Beneficiary {
   name: string;
@@ -43,6 +44,7 @@ export default function PoliciesScreen() {
     agentId: string;
     clientId: string;
     clientName: string;
+    clientCode: string;
   }>();
 
   const [policies, setPolicies] = useState<Policy[]>([]);
@@ -55,26 +57,30 @@ export default function PoliciesScreen() {
 
   const fetchPolicies = async () => {
     try {
-      const policiesRef = collection(
-        db,
-        'agents',
-        params.agentId,
-        'clients',
-        params.clientId,
-        'policies'
-      );
-      const q = query(policiesRef, orderBy('createdAt', 'desc'));
-      const snapshot = await getDocs(q);
+      const url = `${API_BASE}/api/mobile/policies?agentId=${encodeURIComponent(params.agentId)}&clientId=${encodeURIComponent(params.clientId)}&clientCode=${encodeURIComponent(params.clientCode)}`;
+      const res = await fetch(url);
 
-      const policyList: Policy[] = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(body.error || `Failed to load policies (${res.status})`);
+      }
+
+      const { policies: data } = await res.json();
+
+      const policyList: Policy[] = (data || []).map((p: Record<string, unknown>) => ({
+        ...p,
+        createdAt: p.createdAt
+          ? new Timestamp(
+              (p.createdAt as { seconds: number }).seconds,
+              (p.createdAt as { nanoseconds: number }).nanoseconds,
+            )
+          : null,
       } as Policy));
 
       setPolicies(policyList);
     } catch (err) {
       console.error('Error fetching policies:', err);
-      setError('Unable to load policies. Please try again.');
+      setError(err instanceof Error ? err.message : 'Unable to load policies. Please try again.');
     } finally {
       setLoading(false);
     }

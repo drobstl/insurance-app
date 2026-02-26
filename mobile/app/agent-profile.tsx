@@ -183,13 +183,15 @@ export default function AgentProfileScreen() {
     }
   };
 
-  const handleViewPolicies = () => {
+  const handleViewPolicies = async () => {
+    const session = await getSession();
     router.push({
       pathname: '/policies',
       params: {
         agentId,
         clientId,
         clientName,
+        clientCode: session?.clientCode || '',
       },
     });
   };
