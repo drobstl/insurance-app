@@ -42,24 +42,30 @@ export async function POST(req: NextRequest) {
     const timestamp = req.headers.get('X-Webhook-Timestamp') || '';
     const signature = req.headers.get('X-Webhook-Signature') || '';
 
+    console.log('[Linq Webhook] Received request, event body length:', rawBody.length);
+
     if (!verifyWebhookSignature(rawBody, timestamp, signature)) {
-      console.error('Linq webhook signature verification failed');
+      console.error('[Linq Webhook] Signature verification failed');
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     const envelope: LinqWebhookEnvelope = JSON.parse(rawBody);
+    console.log('[Linq Webhook] Event:', envelope.event_type, 'direction:', envelope.data?.direction, 'isGroup:', envelope.data?.chat?.is_group);
 
     if (envelope.event_type !== 'message.received') {
+      console.log('[Linq Webhook] Skipping non-message event:', envelope.event_type);
       return NextResponse.json({ ok: true });
     }
 
     const data = envelope.data;
 
     if (data.direction !== 'inbound') {
+      console.log('[Linq Webhook] Skipping outbound message');
       return NextResponse.json({ ok: true });
     }
 
     const isGroup = data.chat.is_group === true;
+    console.log('[Linq Webhook] Processing inbound message, isGroup:', isGroup, 'chatId:', data.chat.id, 'sender:', data.sender_handle?.handle);
 
     if (isGroup) {
       await handleGroupMessage(data);
@@ -67,9 +73,10 @@ export async function POST(req: NextRequest) {
       await handleDirectMessage(data);
     }
 
+    console.log('[Linq Webhook] Done processing');
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('Error in Linq webhook:', error);
+    console.error('[Linq Webhook] Error:', error);
     return NextResponse.json({ ok: true });
   }
 }
@@ -82,6 +89,8 @@ async function handleGroupMessage(data: LinqWebhookMessageData) {
   const chatId = data.chat.id;
   const senderHandle = normalizePhone(data.sender_handle.handle);
 
+  console.log('[Group Handler] chatId:', chatId, 'sender:', senderHandle);
+
   const db = getAdminFirestore();
 
   // Check if we already have a referral linked to this group chat
@@ -92,6 +101,7 @@ async function handleGroupMessage(data: LinqWebhookMessageData) {
     .get();
 
   if (!existingSnap.empty) {
+    console.log('[Group Handler] Referral already linked to this chat, skipping');
     return;
   }
 
@@ -99,9 +109,13 @@ async function handleGroupMessage(data: LinqWebhookMessageData) {
   // The sender is the client; the other non-Linq participant is the referral.
   // Find the agent who owns the Linq number in the chat.
   const ownerHandle = data.chat.owner_handle?.handle;
-  if (!ownerHandle) return;
+  if (!ownerHandle) {
+    console.log('[Group Handler] No owner_handle, skipping');
+    return;
+  }
 
   const linqPhone = normalizePhone(ownerHandle);
+  console.log('[Group Handler] Looking up agent by linqPhoneNumber:', linqPhone);
 
   // Find the agent with this Linq phone number
   const agentsSnap = await db
@@ -110,7 +124,11 @@ async function handleGroupMessage(data: LinqWebhookMessageData) {
     .limit(1)
     .get();
 
-  if (agentsSnap.empty) return;
+  if (agentsSnap.empty) {
+    console.log('[Group Handler] No agent found with linqPhoneNumber:', linqPhone);
+    return;
+  }
+  console.log('[Group Handler] Found agent:', agentsSnap.docs[0].id);
 
   const agentDoc = agentsSnap.docs[0];
   const agentId = agentDoc.id;
