@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import LeakyBucketCalculator from '@/components/LeakyBucketCalculator';
-import { SolutionShowcase } from '@/components/SolutionAnimations';
+import { SolutionSections } from '@/components/SolutionAnimations';
 
 export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -427,9 +427,9 @@ export default function LandingPage() {
         </section>
 
         {/* ============================================ */}
-        {/* TABBED SOLUTION SHOWCASE                       */}
+        {/* SCROLL-DRIVEN SOLUTION PATH                    */}
         {/* ============================================ */}
-        <SolutionShowcase />
+        <SolutionSections />
 
         {/* ============================================ */}
         {/* THE SYSTEM — what AgentForLife IS             */}
