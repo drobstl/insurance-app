@@ -443,15 +443,54 @@ export default function LandingPage() {
           <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#fdcc02] rounded-full mb-6">
-                <span className="text-[#0D4D4D] font-bold text-sm uppercase tracking-wide">The System</span>
+                <span className="text-[#0D4D4D] font-bold text-sm uppercase tracking-wide">The Difference Maker</span>
               </div>
               <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white mb-5">
                 Your Branded App. Your AI.{' '}<br className="hidden md:block" />
                 <span className="text-[#3DD6C3]">Their Phone.</span>
               </h2>
-              <p className="text-xl text-white/70 max-w-3xl mx-auto leading-relaxed">
-                AgentForLife puts <span className="text-white font-semibold">YOUR branded app</span> on every client&apos;s phone — with your photo, your contact info, and their policies at their fingertips. Behind it, AI and automation do the heavy lifting across three revenue streams.
+              <p className="text-xl text-white/70 max-w-3xl mx-auto leading-relaxed mb-4">
+                Right now, you&apos;re another name in a contact list. No presence on their phone. No system working between sales. <span className="text-white font-semibold">Every day you&apos;re invisible is a day you&apos;re losing money.</span>
               </p>
+              <p className="text-xl text-white/70 max-w-3xl mx-auto leading-relaxed">
+                One app changes that. <span className="text-white font-semibold">YOUR branded app</span> lives on every client&apos;s home screen — and behind it, a full-powered AI system retains clients, generates referrals, and books rewrites while you sleep.
+              </p>
+            </div>
+
+            {/* Before / After contrast */}
+            <div className="grid grid-cols-2 gap-4 max-w-2xl mx-auto mb-14">
+              <div className="space-y-3">
+                <p className="text-red-400/80 font-bold text-xs uppercase tracking-wider mb-4">Without the app</p>
+                {[
+                  'A name they scroll past',
+                  'You chase clients',
+                  'Referrals die on the vine',
+                  'Anniversaries go unnoticed',
+                ].map((item) => (
+                  <div key={item} className="flex items-center gap-2.5">
+                    <div className="w-5 h-5 rounded-full bg-red-400/15 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-3 h-3 text-red-400/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </div>
+                    <span className="text-white/40 text-sm">{item}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-3">
+                <p className="text-[#3DD6C3] font-bold text-xs uppercase tracking-wider mb-4">With the app</p>
+                {[
+                  'An app on their home screen',
+                  'AI chases for you',
+                  'Referrals book themselves',
+                  'Rewrites come to you',
+                ].map((item) => (
+                  <div key={item} className="flex items-center gap-2.5">
+                    <div className="w-5 h-5 rounded-full bg-[#3DD6C3]/15 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-3 h-3 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                    </div>
+                    <span className="text-white/90 text-sm font-medium">{item}</span>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center mb-16">
@@ -488,7 +527,7 @@ export default function LandingPage() {
                       </svg>
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-white mb-2">Retention — Keep Every Client</h3>
+                      <h3 className="text-xl font-bold text-white mb-2">Clients Stay. Policies Stick.</h3>
                       <p className="text-white/60 leading-relaxed">7+ automated touchpoints per year keep you top-of-mind. When a policy does lapse, AI reads the carrier notice, matches it to your client, and sends personalized outreach within hours — before the chargeback hits.</p>
                     </div>
                   </div>
@@ -502,7 +541,7 @@ export default function LandingPage() {
                       </svg>
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-white mb-2">Referrals — One Tap to Booked Appointment</h3>
+                      <h3 className="text-xl font-bold text-white mb-2">One Tap. Referral Booked.</h3>
                       <p className="text-white/60 leading-relaxed">Your client picks a contact and sends a personal text with your business card. Then your AI follows up via iMessage — qualifying, gathering info, and booking on your calendar. You just show up.</p>
                     </div>
                   </div>
@@ -516,7 +555,7 @@ export default function LandingPage() {
                       </svg>
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-white mb-2">Rewrites — Turn Anniversaries into Revenue</h3>
+                      <h3 className="text-xl font-bold text-white mb-2">Anniversaries That Pay You.</h3>
                       <p className="text-white/60 leading-relaxed">30 days before every policy anniversary, your client gets a notification that you may have found them a better deal — with a link to book on your calendar. The rewrite comes to you.</p>
                     </div>
                   </div>
@@ -524,7 +563,7 @@ export default function LandingPage() {
 
                 <div className="pt-2">
                   <Link href="/signup" className="inline-flex items-center gap-2 px-8 py-4 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-lg font-bold rounded-full transition-all shadow-lg shadow-[#fdcc02]/30">
-                    Get the System
+                    Put Your App on Their Phone
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
                   </Link>
                 </div>
