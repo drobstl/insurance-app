@@ -1,43 +1,41 @@
 'use client';
 
 import { useRef } from 'react';
+import Link from 'next/link';
 import { motion, useScroll, useTransform } from 'framer-motion';
 
 /* ═══════════════════════════════════════════════════
-   STATIC VISUAL CARDS
+   VISUAL CARDS
    ═══════════════════════════════════════════════════ */
 
 function RetentionCard() {
   return (
-    <div className="bg-[#1a1a2e] rounded-2xl p-5 shadow-2xl space-y-3 w-full max-w-sm">
-      {/* Holiday notification */}
-      <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3.5 border border-white/5">
-        <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-red-500 flex items-center justify-center flex-shrink-0">
+    <div className="bg-[#1a1a2e] rounded-2xl p-4 md:p-5 shadow-2xl space-y-3 w-full max-w-sm">
+      <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/5">
+        <div className="flex items-start gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-red-500 flex items-center justify-center flex-shrink-0">
             <span className="text-sm">🎄</span>
           </div>
           <div className="min-w-0">
             <p className="text-white/90 text-[11px] font-bold">Holiday Touchpoint</p>
-            <p className="text-white/60 text-[11px] leading-snug mt-0.5">Merry Christmas, Sarah! Wishing you and your family a wonderful holiday. — Daniel</p>
+            <p className="text-white/60 text-[10px] leading-snug mt-0.5">Merry Christmas, Sarah! Wishing you and your family a wonderful holiday. — Daniel</p>
           </div>
         </div>
       </div>
-      {/* Touchpoint tags */}
       <div className="flex flex-wrap gap-1.5 px-1">
         {['Christmas', "New Year's", 'Birthday', 'Anniversary', '+ more'].map((t, i) => (
           <span key={t} className={`px-2 py-0.5 rounded-md text-[8px] font-medium ${i === 0 ? 'bg-[#3DD6C3]/20 text-[#3DD6C3] border border-[#3DD6C3]/20' : 'bg-white/5 text-white/30 border border-white/5'}`}>{t}</span>
         ))}
       </div>
-      {/* Conservation alert */}
-      <div className="bg-white/5 rounded-xl p-3.5 border border-red-400/20">
-        <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-red-500/20 flex items-center justify-center flex-shrink-0">
+      <div className="bg-white/5 rounded-xl p-3 border border-red-400/20">
+        <div className="flex items-start gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-red-500/20 flex items-center justify-center flex-shrink-0">
             <span className="text-sm">⚠</span>
           </div>
           <div className="min-w-0">
             <p className="text-red-300 text-[11px] font-bold">Conservation Alert</p>
             <p className="text-white/60 text-[10px] leading-snug mt-0.5">AI identified Sarah — auto policy, lapsed payment</p>
-            <div className="flex items-center gap-1.5 mt-2">
+            <div className="flex items-center gap-1.5 mt-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-[#3DD6C3]" />
               <span className="text-[#3DD6C3] text-[9px] font-medium">Outreach sent via push + iMessage</span>
             </div>
@@ -50,8 +48,7 @@ function RetentionCard() {
 
 function ReferralCard() {
   return (
-    <div className="bg-[#1a1a2e] rounded-2xl p-5 shadow-2xl w-full max-w-sm">
-      {/* Chat header */}
+    <div className="bg-[#1a1a2e] rounded-2xl p-4 md:p-5 shadow-2xl w-full max-w-sm">
       <div className="flex items-center gap-2.5 pb-3 border-b border-white/10 mb-4">
         <div className="w-7 h-7 rounded-full bg-[#0B93F6]/30 flex items-center justify-center">
           <span className="text-[#0B93F6] text-[9px] font-bold">M</span>
@@ -59,7 +56,6 @@ function ReferralCard() {
         <span className="text-white/70 text-[11px] font-medium">Mike Johnson</span>
         <span className="ml-auto px-2 py-0.5 bg-[#0B93F6]/20 rounded text-[#0B93F6] text-[8px] font-medium">iMessage</span>
       </div>
-      {/* Conversation */}
       <div className="space-y-2.5">
         <div className="flex justify-start">
           <div className="bg-white/10 rounded-2xl rounded-bl-sm px-3.5 py-2.5 max-w-[85%]">
@@ -78,7 +74,6 @@ function ReferralCard() {
           </div>
         </div>
       </div>
-      {/* Booked badge */}
       <div className="flex justify-center mt-4">
         <div className="flex items-center gap-2 bg-[#3DD6C3]/15 border border-[#3DD6C3]/25 rounded-full px-4 py-1.5">
           <svg className="w-3.5 h-3.5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -94,21 +89,19 @@ function ReferralCard() {
 function RewriteCard() {
   const days = Array.from({ length: 28 }, (_, i) => i + 1);
   return (
-    <div className="bg-[#1a1a2e] rounded-2xl p-5 shadow-2xl space-y-3 w-full max-w-sm">
-      {/* Push notification */}
-      <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3.5 border border-[#fdcc02]/20">
-        <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[#fdcc02] flex items-center justify-center flex-shrink-0">
+    <div className="bg-[#1a1a2e] rounded-2xl p-4 md:p-5 shadow-2xl space-y-3 w-full max-w-sm">
+      <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-[#fdcc02]/20">
+        <div className="flex items-start gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-[#fdcc02] flex items-center justify-center flex-shrink-0">
             <span className="text-sm">📱</span>
           </div>
           <div className="min-w-0">
             <p className="text-white/90 text-[11px] font-bold">AgentForLife</p>
-            <p className="text-white/60 text-[11px] leading-snug mt-0.5">Your agent just found a better deal on your auto coverage. Book with them now.</p>
+            <p className="text-white/60 text-[10px] leading-snug mt-0.5">Your agent just found a better deal on your auto coverage. Book with them now.</p>
           </div>
         </div>
       </div>
-      {/* Mini calendar */}
-      <div className="bg-white/5 rounded-xl p-3.5">
+      <div className="bg-white/5 rounded-xl p-3">
         <div className="flex items-center justify-between mb-2">
           <span className="text-white/80 text-[11px] font-bold">Aug 2026</span>
           <span className="text-white/30 text-[9px]">Policy anniversary</span>
@@ -124,7 +117,6 @@ function RewriteCard() {
           ))}
         </div>
       </div>
-      {/* Booking slots */}
       <div className="space-y-1.5">
         {['10:00 AM', '11:30 AM', '2:00 PM'].map((time, i) => (
           <div key={time} className={`py-2 px-3 rounded-lg border text-center ${i === 1 ? 'bg-[#3DD6C3]/15 border-[#3DD6C3]/30' : 'bg-white/5 border-white/5'}`}>
@@ -137,27 +129,7 @@ function RewriteCard() {
 }
 
 /* ═══════════════════════════════════════════════════
-   WAYPOINT
-   ═══════════════════════════════════════════════════ */
-
-function Waypoint({ index }: { index: number }) {
-  return (
-    <motion.div
-      className="absolute left-1/2 -translate-x-1/2 z-10 hidden md:flex items-center justify-center"
-      style={{ top: `${15 + index * 35}%` }}
-      initial={{ scale: 0, opacity: 0 }}
-      whileInView={{ scale: 1, opacity: 1 }}
-      viewport={{ once: true, amount: 0.5 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 0.1 }}
-    >
-      <div className="w-4 h-4 rounded-full bg-[#3DD6C3] shadow-[0_0_12px_rgba(61,214,195,0.5)]" />
-      <div className="absolute w-8 h-8 rounded-full bg-[#3DD6C3]/10 animate-ping" />
-    </motion.div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════
-   FEATURE NODE
+   FEATURE DATA
    ═══════════════════════════════════════════════════ */
 
 const FEATURES = [
@@ -165,57 +137,281 @@ const FEATURES = [
     headline: 'Zero clients lost to silence.',
     description: '7+ automated touchpoints per year — holidays, birthdays, anniversaries. When a policy slips, you forward one email. Your AI system identifies the client, sends personalized outreach with the carrier\'s number, and follows up until the policy is saved.',
     card: RetentionCard,
-    reversed: false,
   },
   {
     headline: 'Referrals that book themselves.',
     description: 'Your client taps one button in their app. AI reaches out to the referral via iMessage, qualifies them with a few questions, and books directly on your calendar. You just show up.',
     card: ReferralCard,
-    reversed: true,
   },
   {
     headline: 'Every anniversary is a booked appointment.',
     description: '30 days before every policy anniversary, your client gets a push notification offering a rate review. They tap, pick a time, and book themselves. Revenue you\'ve already earned the right to.',
     card: RewriteCard,
-    reversed: false,
   },
 ];
 
-function FeatureNode({ headline, description, card: Card, reversed, index }: {
-  headline: string;
-  description: string;
-  card: React.ComponentType;
-  reversed: boolean;
-  index: number;
-}) {
-  return (
-    <motion.div
-      className={`grid md:grid-cols-2 gap-8 md:gap-14 items-center ${index > 0 ? 'mt-20 md:mt-28' : ''}`}
-      initial={{ opacity: 0, y: 40 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.3 }}
-      transition={{ duration: 0.6, ease: 'easeOut' }}
-    >
-      <div className={`${reversed ? 'md:order-2' : ''}`}>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-8 h-8 rounded-full bg-[#3DD6C3]/15 flex items-center justify-center flex-shrink-0">
-            <span className="text-[#3DD6C3] text-sm font-bold">{index + 1}</span>
-          </div>
-          <div className="h-px flex-1 bg-gradient-to-r from-[#3DD6C3]/20 to-transparent" />
-        </div>
-        <h3 className="text-2xl md:text-3xl font-extrabold text-[#0D4D4D] mb-4">{headline}</h3>
-        <p className="text-[#6B7280] text-base md:text-lg leading-relaxed">{description}</p>
-      </div>
-      <div className={`flex ${reversed ? 'md:order-1 justify-start' : 'justify-end'} justify-center`}>
-        <Card />
-      </div>
-    </motion.div>
-  );
-}
+const SETUP_STEPS = [
+  { num: '1', title: 'Sign Up & Brand', desc: 'Add your photo, logo, and contact info. 5 minutes.' },
+  { num: '2', title: 'Import Your Book', desc: 'CSV upload or paste a PDF — AI extracts everything.' },
+  { num: '3', title: 'Share with Clients', desc: 'They download YOUR app with a unique code and get a personalized welcome text from you via iMessage.' },
+  { num: '4', title: 'AI Takes Over', desc: 'Touchpoints, referrals, and conservation run on autopilot.' },
+];
 
 /* ═══════════════════════════════════════════════════
-   MAIN EXPORT
+   SYSTEM SHOWCASE — merged branded app + solution path
    ═══════════════════════════════════════════════════ */
+
+export function SystemShowcase() {
+  const featuresRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const { scrollYProgress } = useScroll({
+    target: featuresRef,
+    offset: ['start 60%', 'end 30%'],
+  });
+
+  /* Card crossfade opacities (desktop phone screen) */
+  const videoOp = useTransform(scrollYProgress, [0, 0.12], [1, 0]);
+  const card1Op = useTransform(scrollYProgress, [0, 0.12, 0.30, 0.38], [0, 1, 1, 0]);
+  const card2Op = useTransform(scrollYProgress, [0.30, 0.38, 0.63, 0.71], [0, 1, 1, 0]);
+  const card3Op = useTransform(scrollYProgress, [0.63, 0.71, 1, 1], [0, 1, 1, 1]);
+
+  /* Connecting line */
+  const lineOpacity = useTransform(scrollYProgress, [0, 0.05], [0, 1]);
+
+  return (
+    <section className="bg-[#0D4D4D] relative overflow-hidden">
+      {/* Background effects */}
+      <div className="absolute inset-0">
+        <div className="absolute top-10 left-1/4 w-80 h-80 bg-[#3DD6C3] rounded-full blur-[150px] opacity-15" />
+        <div className="absolute bottom-10 right-1/4 w-80 h-80 bg-[#fdcc02] rounded-full blur-[150px] opacity-10" />
+      </div>
+
+      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* ─── Intro ─── */}
+        <div className="text-center pt-20 md:pt-28 pb-12 md:pb-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.6 }}
+            transition={{ duration: 0.6 }}
+          >
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#fdcc02] rounded-full mb-6">
+              <span className="text-[#0D4D4D] font-bold text-sm uppercase tracking-wide">The Difference Maker</span>
+            </div>
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white mb-5">
+              Your Branded App. Your AI.{' '}<br className="hidden md:block" />
+              <span className="text-[#3DD6C3]">Their Phone.</span>
+            </h2>
+            <p className="text-lg md:text-xl text-white/70 max-w-3xl mx-auto leading-relaxed mb-4">
+              Right now, you&apos;re another name in a contact list. No presence on their phone. No system working between sales. <span className="text-white font-semibold">Every day you&apos;re invisible is a day you&apos;re losing money.</span>
+            </p>
+            <p className="text-lg md:text-xl text-white/70 max-w-3xl mx-auto leading-relaxed">
+              One app changes that. <span className="text-white font-semibold">YOUR branded app</span> lives on every client&apos;s home screen — and behind it, a full-powered AI system retains clients, generates referrals, and books rewrites while you sleep.
+            </p>
+          </motion.div>
+
+          {/* Before / After contrast */}
+          <motion.div
+            className="grid grid-cols-2 gap-4 max-w-2xl mx-auto mt-12"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.5 }}
+            transition={{ duration: 0.6, delay: 0.15 }}
+          >
+            <div className="space-y-3">
+              <p className="text-red-400/80 font-bold text-xs uppercase tracking-wider mb-4">Without the app</p>
+              {['A name they scroll past', 'You chase clients', 'Referrals die on the vine', 'Anniversaries go unnoticed'].map((item) => (
+                <div key={item} className="flex items-center gap-2.5">
+                  <div className="w-5 h-5 rounded-full bg-red-400/15 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3 text-red-400/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </div>
+                  <span className="text-white/40 text-sm text-left">{item}</span>
+                </div>
+              ))}
+            </div>
+            <div className="space-y-3">
+              <p className="text-[#3DD6C3] font-bold text-xs uppercase tracking-wider mb-4">With the app</p>
+              {['An app on their home screen', 'AI chases for you', 'Referrals book themselves', 'Rewrites come to you'].map((item) => (
+                <div key={item} className="flex items-center gap-2.5">
+                  <div className="w-5 h-5 rounded-full bg-[#3DD6C3]/15 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                  </div>
+                  <span className="text-white/90 text-sm font-medium text-left">{item}</span>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Mobile-only phone (video, scrolls away) */}
+          <div className="lg:hidden flex justify-center mt-14 mb-4">
+            <div className="relative">
+              <div className="w-56 h-[450px] bg-[#1a1a1a] rounded-[2.5rem] p-2.5 shadow-2xl border-4 border-[#2a2a2a]">
+                <div className="w-full h-full bg-black rounded-[2rem] overflow-hidden">
+                  <video
+                    className="w-full h-full object-cover"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    poster="/app-preview-poster.jpeg"
+                  >
+                    <source src="/app-preview.webm" type="video/webm" />
+                    <source src="/app-preview.mp4" type="video/mp4" />
+                  </video>
+                </div>
+              </div>
+              <p className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-white/50 text-xs whitespace-nowrap">What your clients see</p>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── Features area ─── */}
+        <div className="lg:grid lg:grid-cols-[auto_1fr] lg:gap-16 pb-20 md:pb-28 relative">
+
+          {/* Desktop: Sticky phone column */}
+          <div className="hidden lg:block w-72">
+            <div className="sticky top-[calc(50vh-290px)]">
+              <div className="w-72 h-[580px] bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl border-4 border-[#2a2a2a]">
+                <div className="w-full h-full bg-black rounded-[2.5rem] overflow-hidden relative">
+                  {/* Video (visible before features scroll in) */}
+                  <motion.div className="absolute inset-0" style={{ opacity: videoOp }}>
+                    <video
+                      ref={videoRef}
+                      className="w-full h-full object-cover"
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      poster="/app-preview-poster.jpeg"
+                    >
+                      <source src="/app-preview.webm" type="video/webm" />
+                      <source src="/app-preview.mp4" type="video/mp4" />
+                    </video>
+                  </motion.div>
+                  {/* Crossfading feature cards */}
+                  <motion.div className="absolute inset-0 flex items-center justify-center p-2" style={{ opacity: card1Op }}>
+                    <RetentionCard />
+                  </motion.div>
+                  <motion.div className="absolute inset-0 flex items-center justify-center p-2" style={{ opacity: card2Op }}>
+                    <ReferralCard />
+                  </motion.div>
+                  <motion.div className="absolute inset-0 flex items-center justify-center p-2" style={{ opacity: card3Op }}>
+                    <RewriteCard />
+                  </motion.div>
+                </div>
+              </div>
+              <p className="text-center text-white/50 text-sm mt-4">What your clients see</p>
+            </div>
+          </div>
+
+          {/* Mobile: scroll line + waypoints */}
+          <div className="absolute left-6 top-0 bottom-0 w-px lg:hidden pointer-events-none" aria-hidden="true">
+            <motion.div
+              className="w-full bg-gradient-to-b from-[#3DD6C3]/40 via-[#3DD6C3]/20 to-[#3DD6C3]/40 origin-top"
+              style={{ height: '100%', scaleY: scrollYProgress }}
+            />
+          </div>
+          {[0, 1, 2].map((i) => (
+            <motion.div
+              key={`mwp-${i}`}
+              className="absolute left-6 -translate-x-1/2 z-10 lg:hidden"
+              style={{ top: `${20 + i * 30}%` }}
+              initial={{ scale: 0, opacity: 0 }}
+              whileInView={{ scale: 1, opacity: 1 }}
+              viewport={{ once: true }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+            >
+              <div className="w-3 h-3 rounded-full bg-[#3DD6C3] shadow-[0_0_8px_rgba(61,214,195,0.4)]" />
+            </motion.div>
+          ))}
+
+          {/* Desktop: connecting line between phone and features */}
+          <div className="hidden lg:block absolute left-[304px] top-0 bottom-0 pointer-events-none" aria-hidden="true">
+            <motion.div
+              className="w-px h-full bg-gradient-to-b from-[#3DD6C3]/40 via-[#3DD6C3]/20 to-[#3DD6C3]/40 origin-top mx-auto"
+              style={{ scaleY: scrollYProgress, opacity: lineOpacity }}
+            />
+          </div>
+
+          {/* Feature nodes */}
+          <div ref={featuresRef} className="space-y-16 md:space-y-24 pl-10 lg:pl-0">
+            {/* Section header */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.8 }}
+              transition={{ duration: 0.6 }}
+            >
+              <p className="text-[#3DD6C3] font-bold text-sm tracking-widest uppercase mb-3">One System</p>
+              <h3 className="text-2xl md:text-3xl font-extrabold text-white">
+                Three ways to grow your income —<br className="hidden md:block" /> all on autopilot.
+              </h3>
+            </motion.div>
+
+            {/* Individual features */}
+            {FEATURES.map((feature, i) => (
+              <motion.div
+                key={feature.headline}
+                initial={{ opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.6, ease: 'easeOut' }}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-[#3DD6C3]/15 flex items-center justify-center flex-shrink-0">
+                    <span className="text-[#3DD6C3] text-sm font-bold">{i + 1}</span>
+                  </div>
+                  <div className="h-px flex-1 bg-gradient-to-r from-[#3DD6C3]/20 to-transparent" />
+                </div>
+                <h4 className="text-2xl md:text-3xl font-extrabold text-white mb-4">{feature.headline}</h4>
+                <p className="text-white/60 text-base md:text-lg leading-relaxed">{feature.description}</p>
+                {/* Card — mobile only */}
+                <div className="lg:hidden mt-8 flex justify-center">
+                  <feature.card />
+                </div>
+              </motion.div>
+            ))}
+
+            {/* Footer tagline */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.8 }}
+              transition={{ duration: 0.6 }}
+            >
+              <p className="text-xl md:text-2xl font-extrabold text-white">
+                Retention + Referrals + Rewrites.
+              </p>
+              <p className="text-white/60 text-lg mt-2">
+                That&apos;s how you <span className="text-[#3DD6C3] font-bold">3x</span>.
+              </p>
+            </motion.div>
+          </div>
+        </div>
+
+        {/* ─── Setup steps ─── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-4xl mx-auto pb-16">
+          {SETUP_STEPS.map((step) => (
+            <div key={step.num} className="text-center">
+              <div className="w-10 h-10 bg-[#3DD6C3] rounded-full flex items-center justify-center text-lg font-bold text-white mx-auto mb-3">{step.num}</div>
+              <h4 className="text-white font-bold text-sm mb-1">{step.title}</h4>
+              <p className="text-white/50 text-xs leading-relaxed">{step.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* ─── CTA ─── */}
+        <div className="text-center pb-20 md:pb-28">
+          <Link href="/signup" className="inline-flex items-center gap-2 px-8 py-4 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-lg font-bold rounded-full transition-all shadow-lg shadow-[#fdcc02]/30">
+            Put Your App on Their Phone
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 /* ═══════════════════════════════════════════════════
    APP → DASHBOARD BRIDGE
@@ -237,7 +433,6 @@ export function AppToDashboardBridge() {
       className="relative py-16 md:py-24"
       style={{ background: 'linear-gradient(to bottom, #0D4D4D 0%, #0D4D4D 10%, #ffffff 90%, #ffffff 100%)' }}
     >
-      {/* Desktop SVG arc */}
       <div className="absolute inset-0 hidden md:block pointer-events-none" aria-hidden="true">
         <svg
           className="absolute top-0 left-0 w-full h-full"
@@ -278,7 +473,6 @@ export function AppToDashboardBridge() {
         </svg>
       </div>
 
-      {/* Mobile vertical line */}
       <div className="absolute left-6 top-0 bottom-0 w-px md:hidden pointer-events-none" aria-hidden="true">
         <motion.div
           className="w-full bg-gradient-to-b from-[#3DD6C3]/50 to-[#3DD6C3]/20 origin-top"
@@ -286,7 +480,6 @@ export function AppToDashboardBridge() {
         />
       </div>
 
-      {/* Top waypoint */}
       <motion.div
         className="absolute left-1/2 -translate-x-1/2 top-[10%] z-10 hidden md:flex items-center justify-center"
         initial={{ scale: 0, opacity: 0 }}
@@ -298,7 +491,6 @@ export function AppToDashboardBridge() {
         <div className="absolute w-7 h-7 rounded-full bg-[#3DD6C3]/10 animate-ping" />
       </motion.div>
 
-      {/* Bottom waypoint */}
       <motion.div
         className="absolute left-1/2 -translate-x-1/2 bottom-[10%] z-10 hidden md:flex items-center justify-center"
         initial={{ scale: 0, opacity: 0 }}
@@ -310,7 +502,6 @@ export function AppToDashboardBridge() {
         <div className="absolute w-7 h-7 rounded-full bg-[#3DD6C3]/10 animate-ping" />
       </motion.div>
 
-      {/* Mobile waypoints */}
       <motion.div
         className="absolute left-6 -translate-x-1/2 top-[15%] z-10 md:hidden"
         initial={{ scale: 0, opacity: 0 }}
@@ -330,7 +521,6 @@ export function AppToDashboardBridge() {
         <div className="w-3 h-3 rounded-full bg-[#3DD6C3] shadow-[0_0_8px_rgba(61,214,195,0.4)]" />
       </motion.div>
 
-      {/* Text callout */}
       <motion.div
         className="relative z-10 text-center max-w-2xl mx-auto px-4"
         initial={{ opacity: 0, y: 20 }}
@@ -346,133 +536,5 @@ export function AppToDashboardBridge() {
         </p>
       </motion.div>
     </div>
-  );
-}
-
-export function SolutionSections() {
-  const sectionRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ['start 80%', 'end 20%'],
-  });
-
-  const pathLength = useTransform(scrollYProgress, [0, 1], [0, 1]);
-  const pathOpacity = useTransform(scrollYProgress, [0, 0.05], [0, 1]);
-
-  return (
-    <section ref={sectionRef} className="py-20 md:py-28 bg-white relative overflow-hidden">
-      {/* SVG winding path — desktop only */}
-      <div className="absolute inset-0 hidden md:block pointer-events-none" aria-hidden="true">
-        <svg
-          className="absolute top-0 left-0 w-full h-full"
-          viewBox="0 0 1200 1000"
-          fill="none"
-          preserveAspectRatio="none"
-        >
-          <defs>
-            <linearGradient id="pathGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#3DD6C3" stopOpacity="0.6" />
-              <stop offset="50%" stopColor="#3DD6C3" stopOpacity="0.3" />
-              <stop offset="100%" stopColor="#3DD6C3" stopOpacity="0.6" />
-            </linearGradient>
-            <filter id="pathGlow">
-              <feGaussianBlur stdDeviation="4" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-          {/* Background track */}
-          <motion.path
-            d="M 600 0 C 600 80, 300 120, 300 200 C 300 280, 600 320, 600 400 C 600 480, 900 520, 900 600 C 900 680, 600 720, 600 800 C 600 880, 300 920, 300 1000"
-            stroke="#3DD6C3"
-            strokeOpacity="0.06"
-            strokeWidth="3"
-            fill="none"
-            style={{ opacity: pathOpacity }}
-          />
-          {/* Animated drawing path */}
-          <motion.path
-            d="M 600 0 C 600 80, 300 120, 300 200 C 300 280, 600 320, 600 400 C 600 480, 900 520, 900 600 C 900 680, 600 720, 600 800 C 600 880, 300 920, 300 1000"
-            stroke="url(#pathGradient)"
-            strokeWidth="2.5"
-            fill="none"
-            filter="url(#pathGlow)"
-            style={{
-              pathLength,
-              opacity: pathOpacity,
-            }}
-            strokeLinecap="round"
-          />
-        </svg>
-      </div>
-
-      {/* Mobile vertical line */}
-      <div className="absolute left-6 top-0 bottom-0 w-px md:hidden pointer-events-none" aria-hidden="true">
-        <motion.div
-          className="w-full bg-gradient-to-b from-[#3DD6C3]/40 via-[#3DD6C3]/20 to-[#3DD6C3]/40 origin-top"
-          style={{ height: '100%', scaleY: scrollYProgress }}
-        />
-      </div>
-
-      {/* Mobile waypoints */}
-      {[0, 1, 2].map((i) => (
-        <motion.div
-          key={`mobile-wp-${i}`}
-          className="absolute left-6 -translate-x-1/2 z-10 md:hidden"
-          style={{ top: `${22 + i * 30}%` }}
-          initial={{ scale: 0, opacity: 0 }}
-          whileInView={{ scale: 1, opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-        >
-          <div className="w-3 h-3 rounded-full bg-[#3DD6C3] shadow-[0_0_8px_rgba(61,214,195,0.4)]" />
-        </motion.div>
-      ))}
-
-      {/* Desktop waypoints */}
-      <Waypoint index={0} />
-      <Waypoint index={1} />
-      <Waypoint index={2} />
-
-      {/* Content */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        {/* Header */}
-        <motion.div
-          className="text-center mb-16 md:mb-24"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.8 }}
-          transition={{ duration: 0.6 }}
-        >
-          <p className="text-[#3DD6C3] font-bold text-sm tracking-widest uppercase mb-3">One System</p>
-          <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D]">
-            Three ways to grow your income —<br className="hidden md:block" /> all on autopilot.
-          </h2>
-        </motion.div>
-
-        {/* Feature nodes */}
-        {FEATURES.map((feature, i) => (
-          <FeatureNode key={feature.headline} {...feature} index={i} />
-        ))}
-
-        {/* Footer */}
-        <motion.div
-          className="text-center mt-20 md:mt-28"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.8 }}
-          transition={{ duration: 0.6 }}
-        >
-          <p className="text-xl md:text-2xl font-extrabold text-[#0D4D4D]">
-            Retention + Referrals + Rewrites.
-          </p>
-          <p className="text-[#6B7280] text-lg mt-2">
-            That&apos;s how you <span className="text-[#3DD6C3] font-bold">3x</span>.
-          </p>
-        </motion.div>
-      </div>
-    </section>
   );
 }
