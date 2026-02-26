@@ -14,6 +14,7 @@
     "@vercel/kv": "^3.0.0",
     "firebase": "^12.7.0",
     "firebase-admin": "^12.5.0",
+    "framer-motion": "^12.34.3",
     "next": "16.1.1",
     "openai": "^6.18.0",
     "react": "19.2.3",

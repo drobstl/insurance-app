@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import LeakyBucketCalculator from '@/components/LeakyBucketCalculator';
+import { RetentionAnimation, ReferralAnimation, RewriteAnimation } from '@/components/SolutionAnimations';
 
 export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -370,174 +372,70 @@ export default function LandingPage() {
         {/* ============================================ */}
         {/* 3 WAYS YOU'RE BLEEDING MONEY                 */}
         {/* ============================================ */}
-        <section className="py-20 md:py-28 bg-[#F8F9FA] -mt-1">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            {/* Header */}
+        {/* ============================================ */}
+        {/* 3 WAYS YOU'RE BLEEDING MONEY                 */}
+        {/* ============================================ */}
+        <section className="py-20 md:py-28 bg-white -mt-1">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-14">
-              <h2 className="text-4xl md:text-5xl font-extrabold text-[#0D4D4D] mb-4">
+              <h2 className="text-4xl md:text-5xl font-extrabold text-[#0D4D4D]">
                 You&apos;re Losing Money in <span className="text-red-500">Three Places</span>.
               </h2>
-              <p className="text-xl text-[#6B7280]">
-                Nobody&apos;s built anything to fix it — <span className="text-[#0D4D4D] font-bold">until now</span>.
-              </p>
             </div>
 
-            {/* Three-column problem → solution grid */}
-            <div className="grid md:grid-cols-3 gap-8">
-
-              {/* ── Column 1: Retention ── */}
-              <div className="flex flex-col gap-0">
-                {/* Problem */}
-                <div className="bg-white rounded-t-2xl p-7 border-l-4 border-red-400">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500 font-black text-sm">1</span>
-                    <h3 className="text-lg font-bold text-[#0D4D4D]">Retention Is a Leaky Bucket</h3>
-                  </div>
-                  <p className="text-[#6B7280] text-sm leading-relaxed">Your clients forget about you within weeks. When a policy lapses, the conservation notice sits in your inbox until it&apos;s too late. You eat the chargeback.</p>
+            <div className="grid md:grid-cols-3 gap-6">
+              <div className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500 font-black text-sm">1</span>
+                  <h3 className="text-lg font-bold text-[#0D4D4D]">Retention Is a Leaky Bucket</h3>
                 </div>
-
-                {/* Connector */}
-                <div className="flex justify-center -my-px">
-                  <div className="w-full h-10 bg-gradient-to-b from-white to-white relative">
-                    <div className="absolute inset-x-0 top-0 h-full flex flex-col items-center justify-center">
-                      <div className="w-px h-2 bg-red-300"></div>
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-b from-red-100 to-[#D1FAE5] flex items-center justify-center shadow-sm">
-                        <svg className="w-4 h-4 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
-                      </div>
-                      <div className="w-px h-2 bg-[#3DD6C3]"></div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Solution */}
-                <div className="bg-white rounded-b-2xl shadow-xl p-7 border-l-4 border-[#3DD6C3] flex flex-col flex-1">
-                  <h3 className="text-xl font-extrabold text-[#0D4D4D] mb-4">Zero clients lost to silence.</h3>
-
-                  <div className="bg-[#1a1a2e] rounded-xl p-3.5 mb-5">
-                    <div className="flex items-start gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-[#3DD6C3] flex items-center justify-center flex-shrink-0">
-                        <span className="text-white text-[10px] font-bold">A</span>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-white text-[10px] font-semibold">AgentForLife</p>
-                        <p className="text-white/90 text-[10px] leading-snug mt-0.5">Merry Christmas, Sarah! Wishing you and your family a wonderful holiday. — Daniel</p>
-                      </div>
-                    </div>
-                    <div className="mt-2.5 flex flex-wrap gap-1">
-                      {['Christmas', 'New Year\'s', 'Birthday', 'Anniversary', '+ more'].map((t) => (
-                        <span key={t} className="px-1.5 py-0.5 bg-white/10 rounded text-white/50 text-[8px]">{t}</span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <p className="text-[#6B7280] text-xs mt-auto">7+ automated touchpoints per year. When a policy slips, forward one email — AI handles the rest.</p>
-                </div>
+                <p className="text-[#6B7280] leading-relaxed">Your clients forget about you within weeks. When a policy lapses, the conservation notice sits in your inbox until you eat the chargeback.</p>
               </div>
 
-              {/* ── Column 2: Referrals ── */}
-              <div className="flex flex-col gap-0">
-                {/* Problem */}
-                <div className="bg-white rounded-t-2xl p-7 border-l-4 border-red-400">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500 font-black text-sm">2</span>
-                    <h3 className="text-lg font-bold text-[#0D4D4D]">Referrals Are Stuck in the 1990s</h3>
-                  </div>
-                  <p className="text-[#6B7280] text-sm leading-relaxed">You ask clients to &quot;call your friend.&quot; By the time you follow up, it&apos;s a semi-warm lead at best. Most agents get 5% when 25% is possible.</p>
+              <div className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500 font-black text-sm">2</span>
+                  <h3 className="text-lg font-bold text-[#0D4D4D]">Referrals Are Stuck in the 1990s</h3>
                 </div>
-
-                {/* Connector */}
-                <div className="flex justify-center -my-px">
-                  <div className="w-full h-10 bg-gradient-to-b from-white to-white relative">
-                    <div className="absolute inset-x-0 top-0 h-full flex flex-col items-center justify-center">
-                      <div className="w-px h-2 bg-red-300"></div>
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-b from-red-100 to-[#FEF3C7] flex items-center justify-center shadow-sm">
-                        <svg className="w-4 h-4 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
-                      </div>
-                      <div className="w-px h-2 bg-[#fdcc02]"></div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Solution */}
-                <div className="bg-white rounded-b-2xl shadow-xl p-7 border-l-4 border-[#fdcc02] flex flex-col flex-1">
-                  <h3 className="text-xl font-extrabold text-[#0D4D4D] mb-4">Referrals that book themselves.</h3>
-
-                  <div className="bg-[#1a1a2e] rounded-xl p-3.5 mb-5">
-                    <div className="space-y-2">
-                      <div className="flex justify-start">
-                        <div className="bg-[#2a2a3e] rounded-2xl rounded-bl-sm px-3 py-1.5 max-w-[88%]">
-                          <p className="text-white/90 text-[10px] leading-snug">Hey Mike, Sarah connected us — would you be open to a couple quick questions?</p>
-                        </div>
-                      </div>
-                      <div className="flex justify-end">
-                        <div className="bg-[#0B93F6] rounded-2xl rounded-br-sm px-3 py-1.5 max-w-[65%]">
-                          <p className="text-white text-[10px] leading-snug">yeah sure</p>
-                        </div>
-                      </div>
-                      <div className="flex justify-start">
-                        <div className="bg-[#2a2a3e] rounded-2xl rounded-bl-sm px-3 py-1.5 max-w-[88%]">
-                          <p className="text-white/90 text-[10px] leading-snug">Here&apos;s my calendar: <span className="text-[#3DD6C3] underline">calendly.com/daniel</span></p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-2.5 flex items-center gap-1.5">
-                      <span className="px-1.5 py-0.5 bg-[#0B93F6]/20 rounded text-[#0B93F6] text-[8px] font-medium">iMessage</span>
-                      <span className="text-white/30 text-[8px]">AI responds as you</span>
-                    </div>
-                  </div>
-
-                  <p className="text-[#6B7280] text-xs mt-auto">Client taps one button. AI qualifies via iMessage and books on your calendar.</p>
-                </div>
+                <p className="text-[#6B7280] leading-relaxed">You tell clients to &quot;call your friend.&quot; By the time you follow up, it&apos;s a cold lead. Most agents get 5% when 25% is possible.</p>
               </div>
 
-              {/* ── Column 3: Rewrites ── */}
-              <div className="flex flex-col gap-0">
-                {/* Problem */}
-                <div className="bg-white rounded-t-2xl p-7 border-l-4 border-red-400">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500 font-black text-sm">3</span>
-                    <h3 className="text-lg font-bold text-[#0D4D4D]">Rewrites Are Sitting on the Table</h3>
-                  </div>
-                  <p className="text-[#6B7280] text-sm leading-relaxed">Every policy anniversary is a lay-down sale, but there&apos;s zero systems to flag it, get the client interested, and get them on your calendar.</p>
+              <div className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500 font-black text-sm">3</span>
+                  <h3 className="text-lg font-bold text-[#0D4D4D]">Rewrites Are Sitting on the Table</h3>
                 </div>
-
-                {/* Connector */}
-                <div className="flex justify-center -my-px">
-                  <div className="w-full h-10 bg-gradient-to-b from-white to-white relative">
-                    <div className="absolute inset-x-0 top-0 h-full flex flex-col items-center justify-center">
-                      <div className="w-px h-2 bg-red-300"></div>
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-b from-red-100 to-[#D1FAE5] flex items-center justify-center shadow-sm">
-                        <svg className="w-4 h-4 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
-                      </div>
-                      <div className="w-px h-2 bg-[#3DD6C3]"></div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Solution */}
-                <div className="bg-white rounded-b-2xl shadow-xl p-7 border-l-4 border-[#3DD6C3] flex flex-col flex-1">
-                  <h3 className="text-xl font-extrabold text-[#0D4D4D] mb-4">Every anniversary is a booked appointment.</h3>
-
-                  <div className="bg-[#1a1a2e] rounded-xl p-3.5 mb-5">
-                    <div className="flex items-start gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-[#fdcc02] flex items-center justify-center flex-shrink-0">
-                        <svg className="w-3.5 h-3.5 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-white text-[10px] font-semibold">Policy Anniversary</p>
-                        <p className="text-white/90 text-[10px] leading-snug mt-0.5">Hi Sarah, I&apos;ve been seeing lower rates for the same coverage. Tap below to grab a time.</p>
-                      </div>
-                    </div>
-                    <div className="mt-2.5">
-                      <div className="w-full py-1.5 bg-[#3DD6C3] rounded-lg text-center">
-                        <span className="text-[#0D4D4D] text-[10px] font-bold">Book with Daniel →</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <p className="text-[#6B7280] text-xs mt-auto">30 days out, your client hears from you — not the carrier. They book themselves.</p>
-                </div>
+                <p className="text-[#6B7280] leading-relaxed">Every policy anniversary is a lay-down sale. But there&apos;s no system to flag it, pitch the client, and get them on your calendar.</p>
               </div>
+            </div>
+
+            <motion.div
+              className="text-center mt-16"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.8 }}
+              transition={{ duration: 0.6 }}
+            >
+              <p className="text-2xl md:text-3xl font-extrabold text-[#0D4D4D]">
+                Nobody&apos;s built anything to fix it — <span className="text-[#3DD6C3]">until now</span>.
+              </p>
+              <p className="text-lg text-[#6B7280] mt-2">
+                We built one system that fixes all three.
+              </p>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ============================================ */}
+        {/* TRI-FOLD ANIMATED SOLUTIONS                   */}
+        {/* ============================================ */}
+        <section className="py-20 md:py-28 bg-[#F8F9FA]">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="grid md:grid-cols-3 gap-10">
+
+              <RetentionAnimation />
+              <ReferralAnimation />
+              <RewriteAnimation />
 
             </div>
           </div>
