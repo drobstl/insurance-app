@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import LeakyBucketCalculator from '@/components/LeakyBucketCalculator';
-import { SolutionSections } from '@/components/SolutionAnimations';
+import { SolutionSections, AppToDashboardBridge } from '@/components/SolutionAnimations';
 
 export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -550,9 +550,14 @@ export default function LandingPage() {
         </section>
 
         {/* ============================================ */}
+        {/* APP → DASHBOARD BRIDGE                       */}
+        {/* ============================================ */}
+        <AppToDashboardBridge />
+
+        {/* ============================================ */}
         {/* DASHBOARD PREVIEW                            */}
         {/* ============================================ */}
-        <section className="py-20 md:py-28 bg-white relative overflow-hidden">
+        <section className="pt-10 md:pt-16 pb-20 md:pb-28 bg-white relative overflow-hidden">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-14">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#0D4D4D]/10 border border-[#0D4D4D]/20 rounded-full mb-6">
