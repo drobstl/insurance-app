@@ -514,7 +514,7 @@ export default function LandingPage() {
               {[
                 { num: '1', title: 'Sign Up & Brand', desc: 'Add your photo, logo, and contact info. 5 minutes.' },
                 { num: '2', title: 'Import Your Book', desc: 'CSV upload or paste a PDF — AI extracts everything.' },
-                { num: '3', title: 'Share with Clients', desc: 'They download YOUR app with a unique code.' },
+                { num: '3', title: 'Share with Clients', desc: 'They download YOUR app with a unique code and get a personalized welcome text from you via iMessage.' },
                 { num: '4', title: 'AI Takes Over', desc: 'Touchpoints, referrals, and conservation run on autopilot.' },
               ].map((step) => (
                 <div key={step.num} className="text-center">
@@ -555,7 +555,7 @@ export default function LandingPage() {
                       <div className="w-2.5 h-2.5 rounded-full bg-[#28C840]"></div>
                     </div>
                     <div className="flex-1 mx-3">
-                      <div className="bg-white/10 rounded-md px-3 py-1 text-white/40 text-[11px] font-mono">app.agentforlife.com/dashboard</div>
+                      <div className="bg-white/10 rounded-md px-3 py-1 text-white/40 text-[11px] font-mono">agentforlife.app/dashboard</div>
                     </div>
                   </div>
 

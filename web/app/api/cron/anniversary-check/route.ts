@@ -205,6 +205,8 @@ export async function GET(req: NextRequest) {
         clientHitsMap.set(hit.clientId, existing);
       }
 
+      const messageStyle = (agentData.anniversaryMessageStyle as string) || 'check_in';
+
       for (const [, clientHits] of clientHitsMap) {
         const hit = clientHits[0]; // Representative hit for push token / name
         const policyLabel =
@@ -212,9 +214,20 @@ export async function GET(req: NextRequest) {
             ? `your ${clientHits[0].policyType} policy`
             : `${clientHits.length} of your policies`;
 
-        const pushTitle = 'Policy Check-In';
         const firstName = hit.clientName.split(' ')[0];
-        const pushBody = `Hi ${firstName}, it's been almost a year since we set up ${policyLabel}. A lot can change in a year — I'd love to make sure your coverage still fits your life. I'm here whenever you'd like to chat. — ${agentName}`;
+        const schedulingUrl = (agentData.schedulingUrl as string) || '';
+        const schedulingNote = schedulingUrl ? ` Tap here to grab a time on my calendar: ${schedulingUrl}` : '';
+
+        let pushTitle: string;
+        let pushBody: string;
+
+        if (messageStyle === 'lower_price') {
+          pushTitle = 'Rate Review';
+          pushBody = `Hi ${firstName}, your ${policyLabel} anniversary is coming up and I've been seeing some lower rates for the same coverage. Want me to run the numbers? It'll take 10 minutes.${schedulingNote} — ${agentName}`;
+        } else {
+          pushTitle = 'Policy Check-In';
+          pushBody = `Hi ${firstName}, it's been almost a year since we set up ${policyLabel}. A lot can change in a year — I'd love to make sure your coverage still fits your life. I'm here whenever you'd like to chat.${schedulingNote} — ${agentName}`;
+        }
 
         try {
           const expoResponse = await fetch(

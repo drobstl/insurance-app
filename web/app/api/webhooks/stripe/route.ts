@@ -16,6 +16,23 @@ async function getFirebaseUserIdFromCustomer(customerId: string): Promise<string
   }
 }
 
+const CHARTER_PRICE_IDS = new Set([
+  process.env.STRIPE_PRICE_ID_CHARTER_MONTHLY,
+  process.env.STRIPE_PRICE_ID_CHARTER_ANNUAL,
+].filter(Boolean));
+
+const INNER_CIRCLE_PRICE_IDS = new Set([
+  process.env.STRIPE_PRICE_ID_INNER_CIRCLE_MONTHLY,
+  process.env.STRIPE_PRICE_ID_INNER_CIRCLE_ANNUAL,
+].filter(Boolean));
+
+function deriveTier(priceId: string | undefined, sessionMeta: Record<string, string> | null): string {
+  if (sessionMeta?.membershipTier) return sessionMeta.membershipTier;
+  if (priceId && CHARTER_PRICE_IDS.has(priceId)) return 'charter';
+  if (priceId && INNER_CIRCLE_PRICE_IDS.has(priceId)) return 'inner_circle';
+  return 'standard';
+}
+
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
   const userId = session.metadata?.firebaseUserId;
   const customerId = session.customer as string;
@@ -31,6 +48,9 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const subscription = subscriptionResponse as any;
 
+  const priceId = subscription.items?.data?.[0]?.price?.id as string | undefined;
+  const membershipTier = deriveTier(priceId, session.metadata as Record<string, string> | null);
+
   // Update Firestore using Admin SDK (bypasses security rules)
   const db = getAdminFirestore();
   await db.collection('agents').doc(userId).set(
@@ -38,6 +58,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       subscriptionStatus: 'active',
       stripeCustomerId: customerId,
       subscriptionId: subscriptionId,
+      membershipTier,
       subscriptionStartDate: subscription.current_period_start
         ? new Date(subscription.current_period_start * 1000)
         : new Date(),

@@ -71,7 +71,7 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
                   ? 'Reactivate Subscription'
                   : 'Subscribe Now'}
               </button>
-              <p className="text-sm text-[#9CA3AF] mt-4">Only $9.99/month for unlimited clients and policies</p>
+              <p className="text-sm text-[#9CA3AF] mt-4">Subscribe to access your agent dashboard and all features</p>
             </div>
           </div>
         </div>

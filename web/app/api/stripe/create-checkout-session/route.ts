@@ -2,11 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe';
 import { getAdminAuth } from '../../../../lib/firebase-admin';
 
-// Price IDs from environment variables
-const PRICE_IDS = {
+// Price IDs from environment variables — keyed by "{tier}_{interval}"
+const PRICE_IDS: Record<string, string> = {
+  charter_monthly: process.env.STRIPE_PRICE_ID_CHARTER_MONTHLY || '',
+  charter_annual: process.env.STRIPE_PRICE_ID_CHARTER_ANNUAL || '',
+  inner_circle_monthly: process.env.STRIPE_PRICE_ID_INNER_CIRCLE_MONTHLY || '',
+  inner_circle_annual: process.env.STRIPE_PRICE_ID_INNER_CIRCLE_ANNUAL || '',
   monthly: process.env.STRIPE_PRICE_ID_MONTHLY || '',
   annual: process.env.STRIPE_PRICE_ID_ANNUAL || '',
 };
+
+const VALID_PLANS = new Set(Object.keys(PRICE_IDS));
+
+function tierFromPlan(plan: string): string {
+  if (plan.startsWith('charter_')) return 'charter';
+  if (plan.startsWith('inner_circle_')) return 'inner_circle';
+  return 'standard';
+}
 
 const getAuthUser = async (request: NextRequest) => {
   const authHeader = request.headers.get('authorization') || '';
@@ -39,16 +51,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate plan type
-    if (plan !== 'monthly' && plan !== 'annual') {
+    if (!VALID_PLANS.has(plan)) {
       return NextResponse.json(
-        { error: 'Invalid plan type. Must be "monthly" or "annual"' },
+        { error: `Invalid plan type: "${plan}"` },
         { status: 400 }
       );
     }
 
-    // Get the appropriate price ID
-    const priceId = PRICE_IDS[plan as keyof typeof PRICE_IDS];
+    const priceId = PRICE_IDS[plan];
+    const membershipTier = tierFromPlan(plan);
 
     if (!priceId) {
       console.error(`Price ID not configured for plan: ${plan}`);
@@ -104,11 +115,13 @@ export async function POST(request: NextRequest) {
       metadata: {
         firebaseUserId: userId,
         plan: plan,
+        membershipTier,
       },
       subscription_data: {
         metadata: {
           firebaseUserId: userId,
           plan: plan,
+          membershipTier,
         },
       },
     });
