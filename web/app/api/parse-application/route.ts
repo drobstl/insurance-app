@@ -39,21 +39,11 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
     const buffer = Buffer.from(arrayBuffer);
     const pdfBase64 = pdfToBase64(buffer);
 
-    // #region agent log
-    fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'a0b100'},body:JSON.stringify({sessionId:'a0b100',location:'route.ts:pdf-encoded',message:'PDF base64 encoded',data:{pdfSizeBytes:buffer.length,base64Length:pdfBase64.length},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-
     // Send the full PDF directly to Claude for vision-based extraction
     let extraction;
     try {
       extraction = await extractApplicationFields(pdfBase64);
-      // #region agent log
-      fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'a0b100'},body:JSON.stringify({sessionId:'a0b100',location:'route.ts:extraction-success',message:'Claude extraction succeeded',data:{hasData:!!extraction.data,note:extraction.note,insuredName:extraction.data?.insuredName,beneficiaries:extraction.data?.beneficiaries},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
     } catch (aiError) {
-      // #region agent log
-      fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'a0b100'},body:JSON.stringify({sessionId:'a0b100',location:'route.ts:extraction-error',message:'Claude extraction failed',data:{error:aiError instanceof Error ? aiError.message : String(aiError)},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       const message = aiError instanceof Error ? aiError.message : 'AI extraction failed.';
       return NextResponse.json(
         { success: false, error: message },

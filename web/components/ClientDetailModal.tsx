@@ -101,6 +101,7 @@ export default function ClientDetailModal({
   // ── Send code state ──
   const [sendingCode, setSendingCode] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
+  const [codeSendError, setCodeSendError] = useState<string | null>(null);
 
   // ── Flag at risk inline state ──
   const [flaggingPolicyId, setFlaggingPolicyId] = useState<string | null>(null);
@@ -174,6 +175,7 @@ export default function ClientDetailModal({
   const handleSendCode = useCallback(async () => {
     if (!client?.clientCode || !client.phone) return;
     setSendingCode(true);
+    setCodeSendError(null);
     try {
       const auth = getAuth();
       const currentUser = auth.currentUser;
@@ -182,15 +184,21 @@ export default function ClientDetailModal({
       const firstName = (client.name || 'there').split(' ')[0];
       const agent = agentName || 'your agent';
       const message = `Hey ${firstName}! ${agent} here. Download the AgentForLife app and use code ${client.clientCode} to connect with me. https://agentforlife.app`;
-      await fetch('/api/client/welcome-sms', {
+      const res = await fetch('/api/client/welcome-sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ clientPhone: client.phone, message }),
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(body.error || `SMS send failed (${res.status})`);
+      }
       setCodeSent(true);
       setTimeout(() => setCodeSent(false), 3000);
     } catch (err) {
       console.error('Failed to send code:', err);
+      setCodeSendError(err instanceof Error ? err.message : 'Failed to send code');
+      setTimeout(() => setCodeSendError(null), 5000);
     } finally {
       setSendingCode(false);
     }
@@ -499,6 +507,9 @@ export default function ClientDetailModal({
                         </>
                       )}
                     </button>
+                  )}
+                  {codeSendError && (
+                    <p className="text-red-600 text-xs mt-1">{codeSendError}</p>
                   )}
                 </div>
               ) : (

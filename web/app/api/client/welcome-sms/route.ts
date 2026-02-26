@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
+      console.error('[welcome-sms] No auth header');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -26,6 +27,8 @@ export async function POST(req: NextRequest) {
 
     const { clientPhone, message } = await req.json();
 
+    console.log('[welcome-sms] Received request:', { clientPhone, messageLength: message?.length });
+
     if (!clientPhone || !message) {
       return NextResponse.json(
         { error: 'Missing required fields: clientPhone, message' },
@@ -34,25 +37,32 @@ export async function POST(req: NextRequest) {
     }
 
     const normalizedPhone = normalizePhone(clientPhone);
-    if (!isValidE164(normalizedPhone)) {
+    const isValid = isValidE164(normalizedPhone);
+
+    console.log('[welcome-sms] Phone normalization:', { clientPhone, normalizedPhone, isValid });
+
+    if (!isValid) {
       return NextResponse.json(
-        { error: 'Invalid phone number' },
+        { error: `Invalid phone number: ${clientPhone} → ${normalizedPhone}` },
         { status: 422 },
       );
     }
 
-    await createChat({ to: normalizedPhone, text: message });
+    const result = await createChat({ to: normalizedPhone, text: message });
+
+    console.log('[welcome-sms] Linq createChat success:', { chatId: result.chatId, service: result.service });
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error sending welcome SMS:', error);
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error('[welcome-sms] Error:', errMsg);
 
     if (error instanceof Error && error.message.includes('Firebase ID token')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     return NextResponse.json(
-      { error: 'Failed to send welcome SMS' },
+      { error: errMsg },
       { status: 500 },
     );
   }
