@@ -42,38 +42,28 @@ export async function POST(req: NextRequest) {
     const timestamp = req.headers.get('X-Webhook-Timestamp') || '';
     const signature = req.headers.get('X-Webhook-Signature') || '';
 
-    console.log('[Linq Webhook] Received request, event body length:', rawBody.length);
-
     if (!verifyWebhookSignature(rawBody, timestamp, signature)) {
-      console.error('[Linq Webhook] Signature verification failed');
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     const envelope: LinqWebhookEnvelope = JSON.parse(rawBody);
-    console.log('[Linq Webhook] Event:', envelope.event_type, 'direction:', envelope.data?.direction, 'isGroup:', envelope.data?.chat?.is_group);
 
     if (envelope.event_type !== 'message.received') {
-      console.log('[Linq Webhook] Skipping non-message event:', envelope.event_type);
       return NextResponse.json({ ok: true });
     }
 
     const data = envelope.data;
 
     if (data.direction !== 'inbound') {
-      console.log('[Linq Webhook] Skipping outbound message');
       return NextResponse.json({ ok: true });
     }
 
-    const isGroup = data.chat.is_group === true;
-    console.log('[Linq Webhook] Processing inbound message, isGroup:', isGroup, 'chatId:', data.chat.id, 'sender:', data.sender_handle?.handle);
-
-    if (isGroup) {
+    if (data.chat.is_group === true) {
       await handleGroupMessage(data);
     } else {
       await handleDirectMessage(data);
     }
 
-    console.log('[Linq Webhook] Done processing');
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error('[Linq Webhook] Error:', error);
@@ -89,8 +79,6 @@ async function handleGroupMessage(data: LinqWebhookMessageData) {
   const chatId = data.chat.id;
   const senderHandle = normalizePhone(data.sender_handle.handle);
 
-  console.log('[Group Handler] chatId:', chatId, 'sender:', senderHandle);
-
   const db = getAdminFirestore();
 
   // Check if we already have a referral linked to this group chat
@@ -100,118 +88,163 @@ async function handleGroupMessage(data: LinqWebhookMessageData) {
     .limit(1)
     .get();
 
-  if (!existingSnap.empty) {
-    console.log('[Group Handler] Referral already linked to this chat, skipping');
-    return;
-  }
+  if (!existingSnap.empty) return;
 
-  // This is a new group chat — the client created it.
-  // The sender is the client; the other non-Linq participant is the referral.
-  // Find the agent who owns the Linq number in the chat.
-  const ownerHandle = data.chat.owner_handle?.handle;
-  if (!ownerHandle) {
-    console.log('[Group Handler] No owner_handle, skipping');
-    return;
-  }
+  // --- Primary path: find pending referral across ALL agents by clientPhone ---
+  // The mobile app calls /api/referral/notify (with clientPhone) before the
+  // group text is sent, so there should be a pending referral we can match.
+  let agentId: string | null = null;
+  let agentData: Record<string, unknown> = {};
+  let aiEnabled = true;
+  let clientName = 'A client';
+  let clientId: string | null = null;
+  let matchedRef: FirebaseFirestore.DocumentReference | null = null;
 
-  const linqPhone = normalizePhone(ownerHandle);
-  console.log('[Group Handler] Looking up agent by linqPhoneNumber:', linqPhone);
-
-  // Find the agent with this Linq phone number
-  const agentsSnap = await db
-    .collection('agents')
-    .where('linqPhoneNumber', '==', linqPhone)
-    .limit(1)
-    .get();
-
-  if (agentsSnap.empty) {
-    console.log('[Group Handler] No agent found with linqPhoneNumber:', linqPhone);
-    return;
-  }
-  console.log('[Group Handler] Found agent:', agentsSnap.docs[0].id);
-
-  const agentDoc = agentsSnap.docs[0];
-  const agentId = agentDoc.id;
-  const agentData = agentDoc.data();
-  const aiEnabled = (agentData.aiAssistantEnabled as boolean) !== false;
-
-  // The sender is the client — try to match by phone
-  const clientSnap = await db
-    .collection('agents')
-    .doc(agentId)
-    .collection('clients')
-    .where('phone', '==', senderHandle)
-    .limit(1)
-    .get();
-
-  const clientName = clientSnap.empty
-    ? 'A client'
-    : (clientSnap.docs[0].data().name as string) || 'A client';
-  const clientId = clientSnap.empty ? null : clientSnap.docs[0].id;
-
-  // Find the referral phone (the participant who is not the agent and not the sender)
-  const text = extractTextFromParts(data.parts);
-
-  // Look up the pending referral by client + phone match
-  // The mobile app calls /api/referral/notify first, so there should be a pending referral
   const pendingSnap = await db
-    .collection('agents')
-    .doc(agentId)
-    .collection('referrals')
+    .collectionGroup('referrals')
     .where('status', '==', 'pending')
     .where('groupChatId', '==', null)
     .orderBy('createdAt', 'desc')
-    .limit(5)
+    .limit(10)
     .get();
 
-  // Match by clientId or clientName
-  let matchedRef: FirebaseFirestore.DocumentReference | null = null;
   for (const doc of pendingSnap.docs) {
     const d = doc.data();
-    if (clientId && d.clientId === clientId) {
+    if (d.clientPhone === senderHandle) {
       matchedRef = doc.ref;
+      agentId = doc.ref.parent.parent!.id;
+      clientName = (d.clientName as string) || 'A client';
+      clientId = (d.clientId as string) || null;
       break;
     }
   }
-  if (!matchedRef && !pendingSnap.empty) {
-    matchedRef = pendingSnap.docs[0].ref;
+
+  // If clientPhone didn't match, try matching by clientId via client phone lookup
+  if (!matchedRef) {
+    for (const doc of pendingSnap.docs) {
+      const d = doc.data();
+      if (!d.clientId) continue;
+      const candidateAgentId = doc.ref.parent.parent!.id;
+      const clientSnap = await db
+        .collection('agents')
+        .doc(candidateAgentId)
+        .collection('clients')
+        .doc(d.clientId as string)
+        .get();
+      if (clientSnap.exists) {
+        const clientData = clientSnap.data();
+        if (clientData && normalizePhone(clientData.phone as string) === senderHandle) {
+          matchedRef = doc.ref;
+          agentId = candidateAgentId;
+          clientName = (d.clientName as string) || 'A client';
+          clientId = d.clientId as string;
+          break;
+        }
+      }
+    }
   }
 
-  if (matchedRef) {
+  if (agentId && matchedRef) {
+    // Matched via pending referral — load the agent
+    const agentDoc = await db.collection('agents').doc(agentId).get();
+    agentData = (agentDoc.data() as Record<string, unknown>) || {};
+    aiEnabled = (agentData.aiAssistantEnabled as boolean) !== false;
+
     await matchedRef.update({
       groupChatId: chatId,
       updatedAt: FieldValue.serverTimestamp(),
     });
   } else {
-    // No pending referral found — create one from the group message
-    const refData = {
-      referralName: 'Friend',
-      referralPhone: '',
-      clientName,
-      clientId,
-      status: 'pending',
-      conversation: [],
-      gatheredInfo: {},
-      appointmentBooked: false,
-      aiEnabled,
-      dripCount: 0,
-      lastDripAt: null,
-      groupChatId: chatId,
-      directChatId: null,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    };
+    // --- Fallback: find agent by linqPhoneNumber (e.g. organic text to the number) ---
+    const ownerHandle = data.chat.owner_handle?.handle;
+    if (!ownerHandle) return;
 
-    matchedRef = await db
+    const linqPhone = normalizePhone(ownerHandle);
+    const agentsSnap = await db
+      .collection('agents')
+      .where('linqPhoneNumber', '==', linqPhone)
+      .limit(1)
+      .get();
+
+    if (agentsSnap.empty) return;
+
+    const agentDoc = agentsSnap.docs[0];
+    agentId = agentDoc.id;
+    agentData = agentDoc.data();
+    aiEnabled = (agentData.aiAssistantEnabled as boolean) !== false;
+
+    const clientSnap = await db
+      .collection('agents')
+      .doc(agentId)
+      .collection('clients')
+      .where('phone', '==', senderHandle)
+      .limit(1)
+      .get();
+
+    clientName = clientSnap.empty
+      ? 'A client'
+      : (clientSnap.docs[0].data().name as string) || 'A client';
+    clientId = clientSnap.empty ? null : clientSnap.docs[0].id;
+
+    // Try to match a pending referral under this specific agent
+    const agentPendingSnap = await db
       .collection('agents')
       .doc(agentId)
       .collection('referrals')
-      .add(refData);
+      .where('status', '==', 'pending')
+      .where('groupChatId', '==', null)
+      .orderBy('createdAt', 'desc')
+      .limit(5)
+      .get();
+
+    for (const doc of agentPendingSnap.docs) {
+      const d = doc.data();
+      if (clientId && d.clientId === clientId) {
+        matchedRef = doc.ref;
+        break;
+      }
+    }
+    if (!matchedRef && !agentPendingSnap.empty) {
+      matchedRef = agentPendingSnap.docs[0].ref;
+    }
+
+    if (matchedRef) {
+      await matchedRef.update({
+        groupChatId: chatId,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } else {
+      const refData = {
+        referralName: 'Friend',
+        referralPhone: '',
+        clientName,
+        clientId,
+        clientPhone: senderHandle,
+        status: 'pending',
+        conversation: [],
+        gatheredInfo: {},
+        appointmentBooked: false,
+        aiEnabled,
+        dripCount: 0,
+        lastDripAt: null,
+        groupChatId: chatId,
+        directChatId: null,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+      matchedRef = await db
+        .collection('agents')
+        .doc(agentId)
+        .collection('referrals')
+        .add(refData);
+    }
   }
 
-  if (!aiEnabled) return;
+  if (!aiEnabled || !matchedRef || !agentId) return;
 
-  // Record the client's message in conversation
+  const text = extractTextFromParts(data.parts);
+
   if (text) {
     const msg: ConversationMessage = {
       role: 'referral',
@@ -224,7 +257,6 @@ async function handleGroupMessage(data: LinqWebhookMessageData) {
     });
   }
 
-  // Trigger the group-response flow asynchronously
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://agentforlife.app';
   fetch(`${appUrl}/api/referral/group-response`, {
     method: 'POST',

@@ -119,7 +119,6 @@ export async function POST(req: NextRequest) {
             title: `Message from ${agentName}`,
             body: message,
             sound: 'default',
-            badge: 1,
             priority: 'high',
             data: pushData,
           }),

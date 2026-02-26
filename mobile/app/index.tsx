@@ -27,7 +27,13 @@ interface SavedSession {
 }
 
 async function saveSession(session: SavedSession) {
+  // #region agent log
+  fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:saveSession',message:'saveSession called',data:{session},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
+  // #endregion
   await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session));
+  // #region agent log
+  fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:saveSession:after',message:'saveSession completed successfully',data:{session},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
+  // #endregion
 }
 
 export async function getSession(): Promise<SavedSession | null> {
@@ -158,8 +164,14 @@ export default function LoginScreen() {
   // On mount, check for a saved session and auto-login
   useEffect(() => {
     (async () => {
+      // #region agent log
+      fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:useEffect:start',message:'Auto-login check started',data:{},timestamp:Date.now(),hypothesisId:'ALL'})}).catch(()=>{});
+      // #endregion
       try {
         const session = await getSession();
+        // #region agent log
+        fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:useEffect:getSession',message:'getSession result',data:{hasSession:!!session,session},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
         if (!session) {
           setCheckingSession(false);
           return;
@@ -169,8 +181,15 @@ export default function LoginScreen() {
         const clientDocRef = doc(db, 'agents', session.agentId, 'clients', session.clientId);
         const clientDocSnap = await getDoc(clientDocRef);
 
+        // #region agent log
+        fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:useEffect:firestoreCheck',message:'Firestore doc check',data:{exists:clientDocSnap.exists(),agentId:session.agentId,clientId:session.clientId},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+
         if (!clientDocSnap.exists()) {
           // Client was deleted -- clear stale session and show login
+          // #region agent log
+          fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:useEffect:docNotExists',message:'Client doc not found - clearing session',data:{agentId:session.agentId,clientId:session.clientId},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
           await clearSession();
           setCheckingSession(false);
           return;
@@ -178,15 +197,28 @@ export default function LoginScreen() {
 
         const clientData = clientDocSnap.data();
 
+        // #region agent log
+        fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:useEffect:codeCompare',message:'Comparing client codes',data:{firestoreCode:clientData.clientCode,sessionCode:session.clientCode,match:clientData.clientCode===session.clientCode},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+
         // Verify the code still matches (agent may have regenerated it)
         if (clientData.clientCode !== session.clientCode) {
+          // #region agent log
+          fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:useEffect:codeMismatch',message:'Client code mismatch - clearing session',data:{firestoreCode:clientData.clientCode,sessionCode:session.clientCode},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
           await clearSession();
           setCheckingSession(false);
           return;
         }
 
+        // #region agent log
+        fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:useEffect:success',message:'Session valid - navigating to profile',data:{agentId:session.agentId,clientId:session.clientId},timestamp:Date.now(),hypothesisId:'ALL'})}).catch(()=>{});
+        // #endregion
         await navigateToProfile(session.agentId, session.clientId, clientData);
       } catch (err) {
+        // #region agent log
+        fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:useEffect:catch',message:'Auto-login CATCH block hit - clearing session',data:{errorMessage:String(err),errorName:err?.name,errorCode:err?.code},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         console.error('Auto-login error:', err);
         await clearSession();
         setCheckingSession(false);

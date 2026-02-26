@@ -15,11 +15,11 @@ import { FieldValue } from 'firebase-admin/firestore';
  * The Linq webhook (/api/linq/webhook) detects the inbound group message
  * and triggers the AI flow — no first-message endpoint needed.
  *
- * Body: { agentId, clientId, clientName, referralName, referralPhone }
+ * Body: { agentId, clientId, clientName, clientPhone, referralName, referralPhone }
  */
 export async function POST(req: NextRequest) {
   try {
-    const { agentId, clientId, clientName, referralName, referralPhone } = await req.json();
+    const { agentId, clientId, clientName, clientPhone, referralName, referralPhone } = await req.json();
 
     if (!agentId || !referralPhone) {
       return NextResponse.json(
@@ -37,11 +37,27 @@ export async function POST(req: NextRequest) {
 
     const aiEnabled = (agentData.aiAssistantEnabled as boolean) !== false;
 
+    // Resolve client phone: prefer explicit param, fall back to Firestore lookup
+    let resolvedClientPhone: string | null = clientPhone ? normalizePhone(clientPhone) : null;
+    if (!resolvedClientPhone && clientId) {
+      const clientDoc = await db
+        .collection('agents')
+        .doc(agentId)
+        .collection('clients')
+        .doc(clientId)
+        .get();
+      if (clientDoc.exists) {
+        const phone = (clientDoc.data() as Record<string, unknown>).phone as string | undefined;
+        if (phone) resolvedClientPhone = normalizePhone(phone);
+      }
+    }
+
     const referralData = {
       referralName: referralName || 'Friend',
       referralPhone: normalizedPhone,
       clientName: clientName || 'A client',
       clientId: clientId || null,
+      clientPhone: resolvedClientPhone,
       status: 'pending',
       conversation: [],
       gatheredInfo: {},

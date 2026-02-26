@@ -121,20 +121,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Count unread notifications to set badge
-    const unreadSnap = await clientRef
-      .collection('notifications')
-      .where('readAt', '==', null)
-      .count()
-      .get();
-    const unreadCount = (unreadSnap.data().count || 0) + 1;
-
     const pushMessage: ExpoPushMessage = {
       to: pushToken,
       title: notificationTitle,
       body: messageBody,
       sound: 'default',
-      badge: unreadCount,
       priority: 'high',
       data: pushData,
     };

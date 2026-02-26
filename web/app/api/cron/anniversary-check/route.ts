@@ -244,7 +244,6 @@ export async function GET(req: NextRequest) {
                 title: pushTitle,
                 body: pushBody,
                 sound: 'default',
-                badge: 1,
                 priority: 'high',
                 data: {
                   type: 'anniversary',
