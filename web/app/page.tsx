@@ -338,14 +338,20 @@ export default function LandingPage() {
             </div>
 
             <motion.div
-              className="text-center mt-16"
+              className="text-center mt-14 max-w-2xl mx-auto"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.8 }}
               transition={{ duration: 0.6 }}
             >
+              <p className="text-lg text-[#6B7280] leading-relaxed mb-4">
+                There&apos;s only one of you, and you&apos;re trained to keep selling forward. Meanwhile, the clients you already have forget you exist.
+              </p>
+              <p className="text-2xl md:text-3xl font-extrabold text-[#0D4D4D] mb-5">
+                Until now.
+              </p>
               <p className="text-2xl md:text-3xl font-extrabold text-[#0D4D4D]">
-                Here&apos;s a personalized app for your client&apos;s phone and an AI-powered system <span className="text-[#3DD6C3]">to fix that</span>.
+                Get a personalized app for your client&apos;s phone and an AI-powered system <span className="text-[#3DD6C3]">to fix that</span>.
               </p>
             </motion.div>
           </div>
