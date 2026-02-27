@@ -271,7 +271,7 @@ export function SystemShowcase() {
           </div>
 
           {/* Mobile: scroll line + waypoints */}
-          <div className="absolute left-6 top-0 bottom-0 w-px lg:hidden pointer-events-none" aria-hidden="true">
+          <div className="absolute left-4 top-0 bottom-0 w-px lg:hidden pointer-events-none" aria-hidden="true">
             <motion.div
               className="w-full bg-gradient-to-b from-[#3DD6C3]/40 via-[#3DD6C3]/20 to-[#3DD6C3]/40 origin-top"
               style={{ height: '100%', scaleY: scrollYProgress }}
@@ -280,7 +280,7 @@ export function SystemShowcase() {
           {[0, 1, 2].map((i) => (
             <motion.div
               key={`mwp-${i}`}
-              className="absolute left-6 -translate-x-1/2 z-10 lg:hidden"
+              className="absolute left-4 -translate-x-1/2 z-10 lg:hidden"
               style={{ top: `${20 + i * 30}%` }}
               initial={{ scale: 0, opacity: 0 }}
               whileInView={{ scale: 1, opacity: 1 }}
@@ -300,7 +300,7 @@ export function SystemShowcase() {
           </div>
 
           {/* Feature nodes */}
-          <div ref={featuresRef} className="space-y-16 md:space-y-24 pl-10 lg:pl-0">
+          <div ref={featuresRef} className="space-y-16 md:space-y-24 pl-8 lg:pl-0">
             {/* Section header */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}

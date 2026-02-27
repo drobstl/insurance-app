@@ -17,6 +17,9 @@ export default function LandingPage() {
   const ctaLoadTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const ctaIsPeekingRef = useRef(false);
 
+  const [showBottomCta, setShowBottomCta] = useState(false);
+  const heroRef = useRef<HTMLElement>(null);
+
   const CTA_EXPANDED_W = 276;
   const CTA_TAB_W = 36;
 
@@ -67,6 +70,16 @@ export default function LandingPage() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [ctaScrollTriggered]);
 
+  useEffect(() => {
+    const hero = heroRef.current;
+    if (!hero) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => setShowBottomCta(!entry.isIntersecting),
+      { threshold: 0 }
+    );
+    obs.observe(hero);
+    return () => obs.disconnect();
+  }, []);
 
   const toggleFaq = (index: number) => {
     setOpenFaq(openFaq === index ? null : index);
@@ -110,7 +123,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Urgency Banner */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-[#a158ff] text-white text-center py-1.5 px-4 text-xs sm:text-sm font-semibold tracking-wide">
+      <div className="fixed top-0 left-0 right-0 z-50 bg-[#a158ff] text-white text-center py-1 sm:py-1.5 px-4 text-[11px] sm:text-sm font-semibold tracking-wide">
         <Link href="/founding-member" className="hover:underline">
           {spotsRemaining !== null
             ? <>Only <span className="font-black">{spotsRemaining} of 50</span> free lifetime spots remaining — Normally <span className="line-through">$49/mo</span><span className="hidden sm:inline"> — Claim yours now</span></>
@@ -136,7 +149,7 @@ export default function LandingPage() {
 
       {/* Sidebar Bookmark CTA */}
       <div
-        className="fixed right-0 z-40 cursor-pointer"
+        className="fixed right-0 z-40 cursor-pointer hidden lg:block"
         style={{
           top: '114px',
           width: `${CTA_EXPANDED_W}px`,
@@ -230,7 +243,7 @@ export default function LandingPage() {
         {/* ============================================ */}
         {/* HERO                                         */}
         {/* ============================================ */}
-        <section className="relative bg-[#0D4D4D] pb-24 md:pb-32 overflow-hidden pt-40 md:pt-48">
+        <section ref={heroRef} className="relative bg-[#0D4D4D] pb-20 md:pb-32 overflow-hidden pt-28 md:pt-48">
           <div className="absolute inset-0">
             <div className="absolute top-20 left-10 w-96 h-96 bg-[#3DD6C3] rounded-full blur-[150px] opacity-20"></div>
             <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-[#3DD6C3] rounded-full blur-[200px] opacity-15"></div>
@@ -238,7 +251,7 @@ export default function LandingPage() {
           <div className="absolute inset-0 opacity-5" style={{ backgroundImage: `linear-gradient(to right, #3DD6C3 1px, transparent 1px), linear-gradient(to bottom, #3DD6C3 1px, transparent 1px)`, backgroundSize: '40px 40px' }}></div>
 
           <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#fdcc02] rounded-full mb-8">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#fdcc02] rounded-full mb-5 md:mb-8">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0D4D4D] opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[#0D4D4D]"></span>
@@ -246,19 +259,21 @@ export default function LandingPage() {
               <span className="text-[#0D4D4D] font-bold text-sm uppercase tracking-wide">{spotsRemaining !== null ? `Only ${spotsRemaining} of 50 Free Lifetime Spots Left` : 'Limited Free Lifetime Spots Available'}</span>
             </div>
 
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] mb-8">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] mb-4">
               <span className="text-[#fdcc02]">Kill Chargebacks</span>.<br />
               <span className="text-[#3DD6C3]">Explode Your Referrals</span>.<br />
               Triple Your Income from the Leads You Already Won.
             </h1>
 
-            <p className="text-xl md:text-2xl text-white/80 mb-10 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-sm md:text-base text-[#3DD6C3] font-semibold tracking-[0.15em] uppercase mb-6 md:mb-8">The first AI-powered client retention and warm referral system.</p>
+
+            <p className="text-lg md:text-2xl text-white/80 mb-8 md:mb-10 max-w-3xl mx-auto leading-relaxed">
               You close the deal. We make sure they <span className="text-white font-semibold">never leave</span>, keep sending you <span className="text-white font-semibold">referrals</span>, and rebook every <span className="text-white font-semibold">anniversary</span> — all on autopilot. It will cost <span className="line-through opacity-70">$49/month</span> — but the first 50 agents get it <span className="text-[#fdcc02] font-bold">free. For life.</span>
             </p>
 
-            <Link href="/founding-member" className="inline-flex items-center gap-3 px-12 py-5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-xl font-bold rounded-full transition-all shadow-2xl shadow-[#fdcc02]/40 hover:shadow-[#fdcc02]/60 hover:scale-105 border-2 border-[#fdcc02] hover:border-white/20">
+            <Link href="/founding-member" className="inline-flex items-center gap-2 md:gap-3 px-8 py-4 md:px-12 md:py-5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-lg md:text-xl font-bold rounded-full transition-all shadow-2xl shadow-[#fdcc02]/40 hover:shadow-[#fdcc02]/60 hover:scale-105 border-2 border-[#fdcc02] hover:border-white/20">
               Lock In My Free Lifetime Spot
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+              <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
             </Link>
             <p className="text-white/40 mt-4 text-sm">{spotsRemaining !== null ? `Only ${spotsRemaining} spots left` : 'Limited spots'} • $0 forever • No credit card required</p>
 
@@ -385,7 +400,7 @@ export default function LandingPage() {
                 <p className="text-4xl md:text-5xl font-black text-red-500 mb-2">$1,200</p>
                 <p className="text-red-400 text-sm">Average annual policy value lost</p>
               </div>
-              <div className="flex flex-col items-center justify-center py-8"><div className="text-4xl font-black text-[#6B7280]">vs</div></div>
+              <div className="flex flex-col items-center justify-center py-2 md:py-8"><div className="text-2xl md:text-4xl font-black text-[#6B7280]">vs</div></div>
               <div className="bg-[#D1FAE5] rounded-3xl p-8 border-2 border-[#3DD6C3] text-center">
                 <div className="w-16 h-16 bg-[#3DD6C3] rounded-2xl flex items-center justify-center mx-auto mb-4"><svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg></div>
                 <p className="text-[#0D4D4D] font-semibold text-sm uppercase tracking-wide mb-2">Agent For Life</p>
@@ -443,13 +458,13 @@ export default function LandingPage() {
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
               <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#0D4D4D] mb-6">This Will Cost <span className="line-through text-[#6B7280]/60">$49/mo</span>.<br /><span className="text-[#3DD6C3]">But Not for You.</span></h2>
-              <p className="text-xl text-[#6B7280] max-w-2xl mx-auto">Standard price is <span className="font-semibold">$49/mo</span> (or $490/yr). We&apos;re launching in tiers — <span className="font-semibold">150 early spots</span>, then they&apos;re gone forever. The earlier you join, the less you&apos;ll ever pay.</p>
+              <p className="text-base md:text-xl text-[#6B7280] max-w-2xl mx-auto">Standard price is <span className="font-semibold">$49/mo</span> (or $490/yr). We&apos;re launching in tiers — <span className="font-semibold">150 early spots</span>, then they&apos;re gone forever. The earlier you join, the less you&apos;ll ever pay.</p>
             </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-              <div className="relative bg-white rounded-2xl border-2 border-[#a158ff] p-6 text-center shadow-lg shadow-[#a158ff]/10">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-10">
+              <div className="relative bg-white rounded-2xl border-2 border-[#a158ff] p-4 md:p-6 text-center shadow-lg shadow-[#a158ff]/10">
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2"><span className="px-3 py-1 bg-[#a158ff] text-white text-xs font-bold rounded-full whitespace-nowrap">NOW OPEN</span></div>
                 <p className="text-sm text-[#6B7280] font-medium mt-2 mb-1">Founding Members</p>
-                <p className="text-4xl font-black text-[#0D4D4D] mb-1">FREE</p>
+                <p className="text-3xl md:text-4xl font-black text-[#0D4D4D] mb-1">FREE</p>
                 <p className="text-sm text-[#a158ff] font-semibold mb-1">For Life</p>
                 <p className="text-xs text-[#6B7280] line-through mb-1">$49/mo</p>
                 <p className="text-xs text-[#6B7280] mb-2">50 spots — then gone forever</p>
@@ -460,35 +475,35 @@ export default function LandingPage() {
                   <div className="w-full py-3 bg-gray-200 text-[#6B7280] text-sm font-bold rounded-xl">Filled</div>
                 )}
               </div>
-              <div className="relative bg-white rounded-2xl border-2 border-[#3DD6C3] p-6 text-center shadow-lg shadow-[#3DD6C3]/10">
+              <div className="relative bg-white rounded-2xl border-2 border-[#3DD6C3] p-4 md:p-6 text-center shadow-lg shadow-[#3DD6C3]/10">
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2"><span className="px-3 py-1 bg-[#3DD6C3] text-[#0D4D4D] text-xs font-bold rounded-full whitespace-nowrap">UP NEXT</span></div>
                 <p className="text-sm text-[#6B7280] font-medium mt-2 mb-1">Charter Members</p>
-                <div className="flex items-baseline justify-center gap-1 mb-1"><span className="text-4xl font-black text-[#0D4D4D]">$25</span><span className="text-sm text-[#6B7280]">/mo</span></div>
+                <div className="flex items-baseline justify-center gap-1 mb-1"><span className="text-3xl md:text-4xl font-black text-[#0D4D4D]">$25</span><span className="text-sm text-[#6B7280]">/mo</span></div>
                 <p className="text-sm text-[#3DD6C3] font-semibold mb-1">Locked in for life</p>
                 <p className="text-xs text-[#6B7280] line-through mb-1">$49/mo</p>
-                <p className="text-xs text-[#6B7280] mb-4">50 spots • or $250/yr — then gone forever</p>
-                <div className="w-full py-3 bg-[#0D4D4D]/10 text-[#0D4D4D] text-sm font-bold rounded-xl">Opens After Free Tier Fills</div>
+                <p className="text-xs text-[#6B7280] mb-4"><span className="hidden md:inline">50 spots • or $250/yr — then gone forever</span><span className="md:hidden">50 spots • $250/yr</span></p>
+                <div className="w-full py-2.5 md:py-3 bg-[#0D4D4D]/10 text-[#0D4D4D] text-xs md:text-sm font-bold rounded-xl">Opens After Free Tier</div>
               </div>
-              <div className="relative bg-white rounded-2xl border border-gray-200 p-6 text-center">
+              <div className="relative bg-white rounded-2xl border border-gray-200 p-4 md:p-6 text-center">
                 <p className="text-sm text-[#6B7280] font-medium mt-2 mb-1">Inner Circle</p>
-                <div className="flex items-baseline justify-center gap-1 mb-1"><span className="text-4xl font-black text-[#0D4D4D]">$35</span><span className="text-sm text-[#6B7280]">/mo</span></div>
+                <div className="flex items-baseline justify-center gap-1 mb-1"><span className="text-3xl md:text-4xl font-black text-[#0D4D4D]">$35</span><span className="text-sm text-[#6B7280]">/mo</span></div>
                 <p className="text-sm text-[#6B7280] font-semibold mb-1">Locked in for life</p>
                 <p className="text-xs text-[#6B7280] line-through mb-1">$49/mo</p>
-                <p className="text-xs text-[#6B7280] mb-4">50 spots • or $350/yr — then gone forever</p>
-                <div className="w-full py-3 bg-gray-100 text-[#6B7280] text-sm font-medium rounded-xl">Opens After $25 Tier Fills</div>
+                <p className="text-xs text-[#6B7280] mb-4"><span className="hidden md:inline">50 spots • or $350/yr — then gone forever</span><span className="md:hidden">50 spots • $350/yr</span></p>
+                <div className="w-full py-2.5 md:py-3 bg-gray-100 text-[#6B7280] text-xs md:text-sm font-medium rounded-xl">Opens After $25 Tier</div>
               </div>
-              <div className="relative bg-white rounded-2xl border border-gray-200 p-6 text-center bg-[#F8F9FA]">
+              <div className="relative bg-white rounded-2xl border border-gray-200 p-4 md:p-6 text-center bg-[#F8F9FA]">
                 <p className="text-sm text-[#6B7280] font-medium mt-2 mb-1">Standard Price</p>
-                <div className="flex items-baseline justify-center gap-1 mb-1"><span className="text-4xl font-black text-[#0D4D4D]">$49</span><span className="text-sm text-[#6B7280]">/mo</span></div>
+                <div className="flex items-baseline justify-center gap-1 mb-1"><span className="text-3xl md:text-4xl font-black text-[#0D4D4D]">$49</span><span className="text-sm text-[#6B7280]">/mo</span></div>
                 <p className="text-sm text-[#6B7280] font-semibold mb-1">Regular pricing</p>
                 <p className="text-xs text-[#6B7280] mb-1">&nbsp;</p>
-                <p className="text-xs text-[#6B7280] mb-4">Unlimited seats • or $490/yr</p>
-                <div className="w-full py-3 bg-gray-100 text-[#6B7280] text-sm font-medium rounded-xl">After All Tiers Fill</div>
+                <p className="text-xs text-[#6B7280] mb-4"><span className="hidden md:inline">Unlimited seats • or $490/yr</span><span className="md:hidden">$490/yr</span></p>
+                <div className="w-full py-2.5 md:py-3 bg-gray-100 text-[#6B7280] text-xs md:text-sm font-medium rounded-xl">After All Tiers Fill</div>
               </div>
             </div>
             <div className="text-center">
               <p className="text-[#6B7280] mb-6"><span className="text-[#0D4D4D] font-bold">Right now:</span> We&apos;re filling the first 50 Founding Member spots — <span className="text-[#a158ff] font-bold">free for life</span>. Once they&apos;re gone, the price goes to $25, then $35, then $49. <span className="font-semibold text-[#0D4D4D]">Your tier is locked in forever.</span></p>
-              <Link href="/founding-member" className="inline-flex items-center gap-3 px-12 py-6 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-2xl font-bold rounded-full transition-all shadow-2xl shadow-[#fdcc02]/40 hover:shadow-[#fdcc02]/60 hover:scale-105">
+              <Link href="/founding-member" className="inline-flex items-center gap-2 md:gap-3 px-8 py-4 md:px-12 md:py-6 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-lg md:text-2xl font-bold rounded-full transition-all shadow-2xl shadow-[#fdcc02]/40 hover:shadow-[#fdcc02]/60 hover:scale-105">
                 Apply for Founding Member
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
               </Link>
@@ -520,7 +535,7 @@ export default function LandingPage() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-[#0D4D4D] py-12">
+      <footer className="bg-[#0D4D4D] py-12 pb-24 lg:pb-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-2"><img src="/logo.png" alt="AgentForLife Logo" className="w-12 h-7 object-contain" /><span className="text-xl text-white brand-title">AgentForLife</span></div>
@@ -534,6 +549,31 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* Mobile Sticky Bottom CTA */}
+      <div
+        className={`fixed bottom-0 left-0 right-0 z-50 lg:hidden transition-all duration-300 ${
+          showBottomCta ? 'translate-y-0' : 'translate-y-full'
+        }`}
+      >
+        <div className="bg-[#0D4D4D]/95 backdrop-blur-sm border-t border-white/10 px-4 py-3 flex items-center justify-between gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.3)]">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="relative flex h-2 w-2 flex-shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#3DD6C3] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#3DD6C3]"></span>
+            </span>
+            <span className="text-white text-sm font-semibold truncate">
+              {spotsRemaining !== null ? <><span className="text-[#fdcc02]">{spotsRemaining}</span> free spots left</> : 'Free spots available'}
+            </span>
+          </div>
+          <Link
+            href="/founding-member"
+            className="flex-shrink-0 px-5 py-2.5 bg-[#fdcc02] text-[#0D4D4D] text-sm font-bold rounded-full whitespace-nowrap"
+          >
+            Claim Free Spot
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

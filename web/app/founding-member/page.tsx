@@ -155,7 +155,7 @@ export default function FoundingMemberPage() {
         {/* ============================================ */}
         {/* HERO SECTION */}
         {/* ============================================ */}
-        <section className="relative bg-[#0D4D4D] pt-32 pb-24 md:pt-44 md:pb-32 overflow-hidden">
+        <section className="relative bg-[#0D4D4D] pt-24 pb-20 md:pt-44 md:pb-32 overflow-hidden">
           {/* Background Effects */}
           <div className="absolute inset-0">
             <div className="absolute top-20 left-10 w-96 h-96 bg-[#3DD6C3] rounded-full blur-[150px] opacity-15"></div>
@@ -177,24 +177,31 @@ export default function FoundingMemberPage() {
               By Invitation Only
             </p>
 
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] mb-8">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] mb-4 md:mb-6">
               Become a Founding Member
             </h1>
 
-            <p className="text-lg md:text-xl text-white/75 mb-10 max-w-3xl mx-auto leading-relaxed">
-              50 agents will get lifetime free access to AgentForLife — in exchange for 60 days of
-              honest feedback. Once the group is full, this page disappears.
-            </p>
-
             {/* Spots remaining badge */}
-            <div className="inline-flex items-center gap-3 px-6 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full">
+            <div className="inline-flex items-center gap-3 px-5 py-2.5 md:px-6 md:py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full mb-5 md:mb-6">
               <span className="relative flex h-3 w-3">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#3DD6C3] opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-[#3DD6C3]"></span>
               </span>
-              <span className="text-white font-bold text-lg">
+              <span className="text-white font-bold text-base md:text-lg">
                 <span className="text-[#3DD6C3]">{spotsRemaining ?? '—'}</span> of 50 spots remaining
               </span>
+            </div>
+
+            <p className="text-base md:text-xl text-white/75 mb-6 md:mb-8 max-w-3xl mx-auto leading-relaxed">
+              50 agents will get lifetime free access to AgentForLife — in exchange for 60 days of
+              honest feedback. Once the group is full, this page disappears.
+            </p>
+
+            {/* Value snapshot */}
+            <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm md:text-base text-white/60">
+              <span className="flex items-center gap-1.5"><span className="text-[#3DD6C3]">&#10003;</span> <span className="text-white font-semibold">FREE forever</span> <span className="hidden sm:inline">($49/mo value)</span></span>
+              <span className="flex items-center gap-1.5"><span className="text-[#3DD6C3]">&#10003;</span> Branded client app</span>
+              <span className="flex items-center gap-1.5"><span className="text-[#3DD6C3]">&#10003;</span> AI referral assistant</span>
             </div>
           </div>
 

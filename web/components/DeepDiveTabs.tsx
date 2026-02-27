@@ -124,8 +124,28 @@ export default function DeepDiveTabs() {
           </h2>
         </div>
 
-        {/* Card-style tab selectors */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-12">
+        {/* Mobile pill tabs */}
+        <div className="flex sm:hidden gap-2 mb-8">
+          {TAB_CARDS.map((tab, i) => (
+            <button
+              key={`m-${tab.label}`}
+              onClick={() => setActiveTab(i)}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-3 rounded-xl text-sm font-bold transition-all ${
+                activeTab === i
+                  ? 'bg-[#0D4D4D] text-white shadow-lg'
+                  : 'bg-[#F8F9FA] text-[#6B7280]'
+              }`}
+            >
+              <svg className={`w-4 h-4 flex-shrink-0 ${activeTab === i ? 'text-[#3DD6C3]' : 'text-[#0D4D4D]'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tab.icon} />
+              </svg>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Card-style tab selectors (tablet+) */}
+        <div className="hidden sm:grid sm:grid-cols-3 gap-3 md:gap-4 mb-12">
           {TAB_CARDS.map((tab, i) => (
             <button
               key={tab.label}
