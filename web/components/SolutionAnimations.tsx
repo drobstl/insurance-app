@@ -232,7 +232,7 @@ export function SystemShowcase() {
         </div>
 
         {/* ─── Features area ─── */}
-        <div className="lg:grid lg:grid-cols-[auto_1fr] lg:gap-16 pb-20 md:pb-28 relative">
+        <div className="lg:grid lg:grid-cols-[auto_1fr] lg:gap-16 relative">
 
           {/* Desktop: Sticky phone column */}
           <div className="hidden lg:block w-72">
@@ -299,79 +299,82 @@ export function SystemShowcase() {
             />
           </div>
 
-          {/* Feature nodes */}
-          <div ref={featuresRef} className="space-y-16 md:space-y-24 pl-8 lg:pl-0">
-            {/* Section header */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.8 }}
-              transition={{ duration: 0.6 }}
-            >
-              <p className="text-[#3DD6C3] font-bold text-sm tracking-widest uppercase mb-3">One System</p>
-              <h3 className="text-2xl md:text-3xl font-extrabold text-white">
-                Three ways to grow your income —<br className="hidden md:block" /> all on autopilot.
-              </h3>
-            </motion.div>
-
-            {/* Individual features */}
-            {FEATURES.map((feature, i) => (
+          {/* Right column: features + setup steps + CTA */}
+          <div>
+            {/* Feature nodes */}
+            <div ref={featuresRef} className="space-y-16 md:space-y-24 pl-8 lg:pl-0">
+              {/* Section header */}
               <motion.div
-                key={feature.headline}
-                initial={{ opacity: 0, y: 40 }}
+                initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.3 }}
-                transition={{ duration: 0.6, ease: 'easeOut' }}
+                viewport={{ once: true, amount: 0.8 }}
+                transition={{ duration: 0.6 }}
               >
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-full bg-[#3DD6C3]/15 flex items-center justify-center flex-shrink-0">
-                    <span className="text-[#3DD6C3] text-sm font-bold">{i + 1}</span>
-                  </div>
-                  <div className="h-px flex-1 bg-gradient-to-r from-[#3DD6C3]/20 to-transparent" />
-                </div>
-                <h4 className="text-2xl md:text-3xl font-extrabold text-white mb-4">{feature.headline}</h4>
-                <p className="text-white/60 text-base md:text-lg leading-relaxed">{feature.description}</p>
-                {/* Card — mobile only */}
-                <div className="lg:hidden mt-8 flex justify-center">
-                  <feature.card />
-                </div>
+                <p className="text-[#3DD6C3] font-bold text-sm tracking-widest uppercase mb-3">One System</p>
+                <h3 className="text-2xl md:text-3xl font-extrabold text-white">
+                  Three ways to grow your income —<br className="hidden md:block" /> all on autopilot.
+                </h3>
               </motion.div>
-            ))}
 
-            {/* Footer tagline */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.8 }}
-              transition={{ duration: 0.6 }}
-            >
-              <p className="text-xl md:text-2xl font-extrabold text-white">
-                Retention + Referrals + Rewrites.
-              </p>
-              <p className="text-white/60 text-lg mt-2">
-                That&apos;s how you <span className="text-[#3DD6C3] font-bold">3x</span>.
-              </p>
-            </motion.div>
-          </div>
-        </div>
+              {/* Individual features */}
+              {FEATURES.map((feature, i) => (
+                <motion.div
+                  key={feature.headline}
+                  initial={{ opacity: 0, y: 40 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.3 }}
+                  transition={{ duration: 0.6, ease: 'easeOut' }}
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-8 h-8 rounded-full bg-[#3DD6C3]/15 flex items-center justify-center flex-shrink-0">
+                      <span className="text-[#3DD6C3] text-sm font-bold">{i + 1}</span>
+                    </div>
+                    <div className="h-px flex-1 bg-gradient-to-r from-[#3DD6C3]/20 to-transparent" />
+                  </div>
+                  <h4 className="text-2xl md:text-3xl font-extrabold text-white mb-4">{feature.headline}</h4>
+                  <p className="text-white/60 text-base md:text-lg leading-relaxed">{feature.description}</p>
+                  {/* Card — mobile only */}
+                  <div className="lg:hidden mt-8 flex justify-center">
+                    <feature.card />
+                  </div>
+                </motion.div>
+              ))}
 
-        {/* ─── Setup steps ─── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-4xl mx-auto pt-20 pb-16">
-          {SETUP_STEPS.map((step) => (
-            <div key={step.num} className="text-center">
-              <div className="w-10 h-10 bg-[#3DD6C3] rounded-full flex items-center justify-center text-lg font-bold text-white mx-auto mb-3">{step.num}</div>
-              <h4 className="text-white font-bold text-sm mb-1">{step.title}</h4>
-              <p className="text-white/50 text-xs leading-relaxed">{step.desc}</p>
+              {/* Footer tagline */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.8 }}
+                transition={{ duration: 0.6 }}
+              >
+                <p className="text-xl md:text-2xl font-extrabold text-white">
+                  Retention + Referrals + Rewrites.
+                </p>
+                <p className="text-white/60 text-lg mt-2">
+                  That&apos;s how you <span className="text-[#3DD6C3] font-bold">3x</span>.
+                </p>
+              </motion.div>
             </div>
-          ))}
-        </div>
 
-        {/* ─── CTA ─── */}
-        <div className="text-center pb-20 md:pb-28">
-          <Link href="/signup" className="inline-flex items-center gap-2 px-8 py-4 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-lg font-bold rounded-full transition-all shadow-lg shadow-[#fdcc02]/30">
-            Put Your App on Their Phone
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
-          </Link>
+            {/* ─── Setup steps ─── */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-4xl lg:max-w-none mx-auto pt-20 pb-16 pl-8 lg:pl-0">
+              {SETUP_STEPS.map((step) => (
+                <div key={step.num} className="text-center">
+                  <div className="w-10 h-10 bg-[#3DD6C3] rounded-full flex items-center justify-center text-lg font-bold text-white mx-auto mb-3">{step.num}</div>
+                  <h4 className="text-white font-bold text-sm mb-1">{step.title}</h4>
+                  <p className="text-white/50 text-xs leading-relaxed">{step.desc}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* ─── CTA ─── */}
+            <div className="text-center pb-20 md:pb-28 pl-8 lg:pl-0">
+              <Link href="/signup" className="inline-flex items-center gap-2 px-8 py-4 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-lg font-bold rounded-full transition-all shadow-lg shadow-[#fdcc02]/30">
+                Put Your App on Their Phone
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     </section>
