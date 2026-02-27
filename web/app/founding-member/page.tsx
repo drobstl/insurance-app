@@ -94,6 +94,11 @@ export default function FoundingMemberPage() {
 
   const faqItems = [
     {
+      question: 'Is this a finished product?',
+      answer:
+        "Not yet — that's where you come in. AgentForLife is in beta, which means the foundation is built but I'm actively improving and refining it based on feedback from agents like you. As a founding member, you get lifetime free access in exchange for helping me shape the product. The end goal is a tool that makes your job easier and helps you make more money — and your feedback is how we get there.",
+    },
+    {
       question: 'What happens after 60 days?',
       answer:
         "If you've been active and giving feedback, you keep lifetime free access. Period. No bait-and-switch.",
@@ -172,10 +177,15 @@ export default function FoundingMemberPage() {
           ></div>
 
           <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            {/* Small caps label */}
-            <p className="text-[#3DD6C3] text-xs sm:text-sm font-semibold uppercase tracking-[0.25em] mb-6">
-              By Invitation Only
-            </p>
+            {/* Beta + invite label */}
+            <div className="flex items-center justify-center gap-3 mb-6">
+              <span className="inline-flex items-center px-3 py-1 bg-[#3DD6C3]/20 border border-[#3DD6C3]/40 rounded-full text-[#3DD6C3] text-xs sm:text-sm font-bold uppercase tracking-wider">
+                Beta
+              </span>
+              <span className="text-[#3DD6C3] text-xs sm:text-sm font-semibold uppercase tracking-[0.25em]">
+                By Invitation Only
+              </span>
+            </div>
 
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] mb-4 md:mb-6">
               Become a Founding Member
@@ -193,8 +203,10 @@ export default function FoundingMemberPage() {
             </div>
 
             <p className="text-base md:text-xl text-white/75 mb-6 md:mb-8 max-w-3xl mx-auto leading-relaxed">
-              50 agents will get lifetime free access to AgentForLife — in exchange for 60 days of
-              honest feedback. Once the group is full, this page disappears.
+              AgentForLife is in beta — and I&rsquo;m hand-picking 50 agents to help me refine it.
+              You get lifetime free access. I get the feedback I need to build something that makes
+              your job easier and your bank account bigger. Ever wish you could be in two places at
+              once? That&rsquo;s what we&rsquo;re building.
             </p>
 
             {/* Value snapshot */}
@@ -219,6 +231,26 @@ export default function FoundingMemberPage() {
                 fill="white"
               />
             </svg>
+          </div>
+        </section>
+
+        {/* ============================================ */}
+        {/* BETA CALLOUT SECTION */}
+        {/* ============================================ */}
+        <section className="py-12 md:py-16 bg-white">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="border-l-4 border-[#3DD6C3] bg-[#F8F9FA] rounded-r-2xl px-6 py-6 md:px-8 md:py-8">
+              <h3 className="text-xl md:text-2xl font-extrabold text-[#0D4D4D] mb-3">
+                You&rsquo;re not buying a finished product. You&rsquo;re helping build one.
+              </h3>
+              <p className="text-[#2D3748] text-base md:text-lg leading-relaxed">
+                AgentForLife is in beta. The core is here — but I&rsquo;m still improving and
+                refining every part of it based on real agent feedback. As a founding member, your
+                input carries serious weight. You tell me what&rsquo;s working, what&rsquo;s not, and
+                what you need — and I build it. The mission is simple: make your day-to-day easier
+                and help you make more money. You get lifetime free access in return.
+              </p>
+            </div>
           </div>
         </section>
 
@@ -365,8 +397,9 @@ export default function FoundingMemberPage() {
             </div>
 
             <p className="text-center text-[#6B7280] italic mt-10 max-w-2xl mx-auto text-base leading-relaxed">
-              &ldquo;I&rsquo;m not looking for cheerleaders. I&rsquo;m looking for agents who will
-              tell me the truth so I can build something you can&rsquo;t live without.&rdquo;
+              &ldquo;This is a beta, not a finished product — and that&rsquo;s exactly why your seat
+              at the table matters. Help me improve and refine this into something built by agents,
+              for agents. The goal: make your job easier and make you more money.&rdquo;
             </p>
           </div>
         </section>
