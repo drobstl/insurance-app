@@ -344,14 +344,8 @@ export default function LandingPage() {
               viewport={{ once: true, amount: 0.8 }}
               transition={{ duration: 0.6 }}
             >
-              <p className="text-lg text-[#6B7280] leading-relaxed mb-4">
-                There&apos;s only one of you, and you&apos;re trained to keep selling forward. Meanwhile, the clients you already have forget you exist.
-              </p>
-              <p className="text-2xl md:text-3xl font-extrabold text-[#0D4D4D] mb-5">
-                Until now.
-              </p>
               <p className="text-2xl md:text-3xl font-extrabold text-[#0D4D4D]">
-                Get a personalized app for your client&apos;s phone and an AI-powered system <span className="text-[#3DD6C3]">to fix that</span>.
+                Get a personalized app for your client&apos;s phone — backed by an AI-powered system that <span className="text-[#3DD6C3]">fixes all three</span>.
               </p>
             </motion.div>
           </div>
@@ -421,9 +415,9 @@ export default function LandingPage() {
                 <h3 className="text-3xl md:text-4xl lg:text-5xl font-black text-white mb-4">As a Founding Member, <span className="text-[#fdcc02]">Every Dollar is Pure Profit</span></h3>
                 <p className="text-xl text-white/80 max-w-2xl mx-auto mb-6">At $49/mo, one saved client or one referral already pays for an <span className="text-white font-semibold">entire year</span>. At <span className="text-[#fdcc02] font-semibold">$0/mo?</span> It&apos;s all upside — forever.</p>
                 <div className="flex flex-wrap justify-center gap-6 text-white/70">
-                  <div className="flex items-center gap-2"><svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg><span>1 saved policy = <span className="line-through opacity-60">4x</span> <span className="text-[#fdcc02] font-bold">∞</span> ROI</span></div>
-                  <div className="flex items-center gap-2"><svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg><span>1 referral = <span className="line-through opacity-60">4x</span> <span className="text-[#fdcc02] font-bold">∞</span> ROI</span></div>
-                  <div className="flex items-center gap-2"><svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg><span>1 rewrite = <span className="line-through opacity-60">4x</span> <span className="text-[#fdcc02] font-bold">∞</span> ROI</span></div>
+                  <div className="flex items-center gap-2"><svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg><span className="flex items-center gap-1">1 saved policy = <span className="line-through opacity-60">4x</span> <svg className="w-6 h-6 text-[#fdcc02]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.33-6 4Z" /></svg> ROI</span></div>
+                  <div className="flex items-center gap-2"><svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg><span className="flex items-center gap-1">1 referral = <span className="line-through opacity-60">4x</span> <svg className="w-6 h-6 text-[#fdcc02]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.33-6 4Z" /></svg> ROI</span></div>
+                  <div className="flex items-center gap-2"><svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg><span className="flex items-center gap-1">1 rewrite = <span className="line-through opacity-60">4x</span> <svg className="w-6 h-6 text-[#fdcc02]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.33-6 4Z" /></svg> ROI</span></div>
                 </div>
               </div>
             </div>
