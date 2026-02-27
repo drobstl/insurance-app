@@ -2,7 +2,26 @@
 
 import { useState, useRef, useEffect } from 'react';
 
-const TABS = ['Retention', 'Referrals', 'Rewrites'] as const;
+const TAB_CARDS = [
+  {
+    label: 'Retention',
+    teaser: '7+ automated touchpoints + AI rescue',
+    icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
+    accent: '#3DD6C3',
+  },
+  {
+    label: 'Referrals',
+    teaser: 'One tap to booked appointment',
+    icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
+    accent: '#fdcc02',
+  },
+  {
+    label: 'Rewrites',
+    teaser: '30-day anniversary alerts',
+    icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+    accent: '#3DD6C3',
+  },
+] as const;
 
 const SMS_DELAYS = [
   600, 750, 300, 750, 750, 750,
@@ -101,30 +120,48 @@ export default function DeepDiveTabs() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-10">
           <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-3">
-            See How It <span className="text-[#3DD6C3]">Works</span>
+            Explore the <span className="text-[#3DD6C3]">System</span>
           </h2>
-          <p className="text-lg text-[#6B7280] max-w-2xl mx-auto">
-            Three systems working together behind the scenes. Pick a tab to explore each one.
-          </p>
         </div>
 
-        {/* Tab bar */}
-        <div className="flex justify-center mb-12">
-          <div className="inline-flex bg-gray-100 rounded-xl p-1 gap-1">
-            {TABS.map((tab, i) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(i)}
-                className={`px-5 sm:px-8 py-3 rounded-lg text-sm font-bold transition-all ${
-                  activeTab === i
-                    ? 'bg-[#0D4D4D] text-white shadow-md'
-                    : 'text-[#6B7280] hover:text-[#0D4D4D]'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
+        {/* Card-style tab selectors */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-12">
+          {TAB_CARDS.map((tab, i) => (
+            <button
+              key={tab.label}
+              onClick={() => setActiveTab(i)}
+              className={`group relative text-left rounded-2xl p-5 md:p-6 transition-all duration-200 ${
+                activeTab === i
+                  ? 'bg-[#0D4D4D] shadow-lg shadow-[#0D4D4D]/20 scale-[1.02]'
+                  : 'bg-[#F8F9FA] hover:bg-gray-100 hover:shadow-md hover:scale-[1.01]'
+              }`}
+            >
+              {activeTab === i && (
+                <div className="absolute left-0 top-4 bottom-4 w-1 rounded-full" style={{ backgroundColor: tab.accent }} />
+              )}
+              <div className="flex items-start gap-3.5">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                  activeTab === i ? 'bg-white/15' : 'bg-[#0D4D4D]/8'
+                }`}>
+                  <svg className={`w-5 h-5 ${activeTab === i ? 'text-white' : 'text-[#0D4D4D]'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tab.icon} />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <h3 className={`text-base md:text-lg font-extrabold mb-1 ${
+                    activeTab === i ? 'text-white' : 'text-[#0D4D4D]'
+                  }`}>
+                    {tab.label}
+                  </h3>
+                  <p className={`text-sm leading-snug ${
+                    activeTab === i ? 'text-white/70' : 'text-[#6B7280]'
+                  }`}>
+                    {tab.teaser}
+                  </p>
+                </div>
+              </div>
+            </button>
+          ))}
         </div>
 
         {/* ── Retention tab ── */}
@@ -458,6 +495,72 @@ export default function DeepDiveTabs() {
             </div>
           </div>
         )}
+
+        {/* ── Your Command Center footer ── */}
+        <div className="mt-16 bg-[#0D4D4D] rounded-3xl p-6 md:p-10 relative overflow-hidden">
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute top-0 right-10 w-64 h-64 bg-[#3DD6C3] rounded-full blur-[120px] opacity-10" />
+          </div>
+          <div className="relative grid md:grid-cols-[1fr_1.2fr] gap-8 items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-full mb-4">
+                <svg className="w-3.5 h-3.5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                <span className="text-white/70 text-xs font-bold uppercase tracking-wide">Your Dashboard</span>
+              </div>
+              <h3 className="text-2xl md:text-3xl font-extrabold text-white mb-3">
+                Your Command Center. <span className="text-[#3DD6C3]">One Screen.</span>
+              </h3>
+              <p className="text-white/60 text-sm leading-relaxed mb-5">
+                Conservation alerts, referral pipeline, client management, policy tracking — everything in one clean dashboard.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { label: 'Clients', color: '#3DD6C3' },
+                  { label: 'Policies', color: '#fdcc02' },
+                  { label: 'Alerts', color: '#EF4444' },
+                  { label: 'Import', color: '#3DD6C3' },
+                ].map((b) => (
+                  <span key={b.label} className="px-3 py-1 rounded-full text-[11px] font-semibold bg-white/10 text-white/80">{b.label}</span>
+                ))}
+              </div>
+            </div>
+
+            <div className="hidden md:block">
+              <div className="bg-[#1a1a2e] rounded-xl overflow-hidden border border-white/10 shadow-xl">
+                <div className="flex items-center gap-1.5 px-3 py-2 bg-[#111] border-b border-white/5">
+                  <div className="w-2 h-2 rounded-full bg-[#FF5F57]"></div>
+                  <div className="w-2 h-2 rounded-full bg-[#FEBC2E]"></div>
+                  <div className="w-2 h-2 rounded-full bg-[#28C840]"></div>
+                  <div className="flex-1 mx-2"><div className="bg-white/10 rounded px-2 py-0.5 text-white/30 text-[9px] font-mono">agentforlife.app/dashboard</div></div>
+                </div>
+                <div className="bg-[#F8F9FA] p-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[#0D4D4D] font-bold text-[11px]">Conservation Alerts</span>
+                      <span className="px-1.5 py-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full">3</span>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    {[
+                      { init: 'S', name: 'Sarah J.', issue: 'Payment lapsed', status: 'Outreach sent', sc: '#3DD6C3' },
+                      { init: 'M', name: 'Mike D.', issue: 'Carrier notice', status: 'AI reviewing', sc: '#F59E0B' },
+                      { init: 'R', name: 'Robert C.', issue: 'Resolved', status: 'Saved \u2713', sc: '#22C55E' },
+                    ].map((c, i) => (
+                      <div key={i} className={`flex items-center justify-between px-2.5 py-2 text-[10px] ${i < 2 ? 'border-b border-gray-50' : ''}`}>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-5 h-5 rounded-full bg-[#0D4D4D] flex items-center justify-center"><span className="text-white text-[7px] font-bold">{c.init}</span></div>
+                          <span className="text-[#0D4D4D] font-semibold">{c.name}</span>
+                        </div>
+                        <span className="text-[#6B7280] text-[9px]">{c.issue}</span>
+                        <span className="px-1.5 py-0.5 rounded-full text-[8px] font-semibold" style={{ backgroundColor: `${c.sc}18`, color: c.sc }}>{c.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
