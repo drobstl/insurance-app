@@ -356,7 +356,7 @@ export function SystemShowcase() {
         </div>
 
         {/* ─── Setup steps ─── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-4xl mx-auto pb-16">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-4xl mx-auto pt-20 pb-16">
           {SETUP_STEPS.map((step) => (
             <div key={step.num} className="text-center">
               <div className="w-10 h-10 bg-[#3DD6C3] rounded-full flex items-center justify-center text-lg font-bold text-white mx-auto mb-3">{step.num}</div>
