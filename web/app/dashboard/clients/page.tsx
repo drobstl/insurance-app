@@ -689,16 +689,19 @@ export default function ClientsPage() {
 
         setFormSuccess('Client added!');
 
-        // Mirror to top-level clients collection for the mobile app (non-blocking)
+        // Mirror to top-level collections for the mobile app (non-blocking)
         try {
-          await setDoc(doc(db, 'clients', docRef.id), {
-            name: formData.name.trim(),
-            email: formData.email.trim(),
-            phone: formData.phone.trim(),
-            clientCode: code,
-            agentId: user.uid,
-            createdAt: serverTimestamp(),
-          });
+          await Promise.all([
+            setDoc(doc(db, 'clients', docRef.id), {
+              name: formData.name.trim(),
+              email: formData.email.trim(),
+              phone: formData.phone.trim(),
+              clientCode: code,
+              agentId: user.uid,
+              createdAt: serverTimestamp(),
+            }),
+            setDoc(doc(db, 'clientCodes', code), { agentId: user.uid, clientId: docRef.id }),
+          ]);
         } catch (mirrorErr) {
           console.error('Top-level client mirror failed (non-blocking):', mirrorErr);
         }
@@ -762,9 +765,13 @@ export default function ClientsPage() {
       const token = await user.getIdToken();
       await apiDeletePolicy(token, deleteConfirmClient.id);
       await deleteDoc(doc(db, 'agents', user.uid, 'clients', deleteConfirmClient.id));
-      // Also delete top-level client doc
+      // Also delete top-level client doc and client code index
       try {
-        await deleteDoc(doc(db, 'clients', deleteConfirmClient.id));
+        const deletes: Promise<void>[] = [deleteDoc(doc(db, 'clients', deleteConfirmClient.id))];
+        if (deleteConfirmClient.clientCode) {
+          deletes.push(deleteDoc(doc(db, 'clientCodes', deleteConfirmClient.clientCode)));
+        }
+        await Promise.all(deletes);
       } catch { /* may not exist */ }
 
       if (selectedClient?.id === deleteConfirmClient.id) {
@@ -923,16 +930,19 @@ export default function ClientsPage() {
 
       const docRef = await addDoc(collection(db, 'agents', user.uid, 'clients'), newClient);
 
-      // Mirror to top-level clients collection for the mobile app (non-blocking)
+      // Mirror to top-level collections for the mobile app (non-blocking)
       try {
-        await setDoc(doc(db, 'clients', docRef.id), {
-          name: clientInfo.name.trim(),
-          email: clientInfo.email.trim(),
-          phone: clientInfo.phone.trim(),
-          clientCode: code,
-          agentId: user.uid,
-          createdAt: serverTimestamp(),
-        });
+        await Promise.all([
+          setDoc(doc(db, 'clients', docRef.id), {
+            name: clientInfo.name.trim(),
+            email: clientInfo.email.trim(),
+            phone: clientInfo.phone.trim(),
+            clientCode: code,
+            agentId: user.uid,
+            createdAt: serverTimestamp(),
+          }),
+          setDoc(doc(db, 'clientCodes', code), { agentId: user.uid, clientId: docRef.id }),
+        ]);
       } catch (mirrorErr) {
         console.error('Top-level client mirror failed (non-blocking):', mirrorErr);
       }
@@ -1108,7 +1118,10 @@ export default function ClientsPage() {
 
         const docRef = await addDoc(collection(db, 'agents', user.uid, 'clients'), clientPayload);
         try {
-          await setDoc(doc(db, 'clients', docRef.id), clientPayload);
+          await Promise.all([
+            setDoc(doc(db, 'clients', docRef.id), clientPayload),
+            setDoc(doc(db, 'clientCodes', code), { agentId: user.uid, clientId: docRef.id }),
+          ]);
         } catch (mirrorErr) {
           console.error('Top-level client mirror failed (non-blocking):', mirrorErr);
         }

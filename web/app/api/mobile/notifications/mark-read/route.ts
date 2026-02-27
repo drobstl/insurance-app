@@ -3,16 +3,26 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../../../../../lib/firebase-admin';
+import { checkRateLimit, getClientIp } from '../../../../../lib/rate-limit';
 
 /**
  * POST /api/mobile/notifications/mark-read
  *
  * Marks a notification as read. Authenticates via clientCode.
+ * Rate-limited to 30 requests/minute per IP.
  *
  * Body: { agentId, clientId, clientCode, notificationId }
  */
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req.headers);
+    const rl = checkRateLimit(`mark-read:${ip}`, 30, 60_000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } },
+      );
+    }
     const { agentId, clientId, clientCode, notificationId } = await req.json();
 
     if (!agentId || !clientId || !clientCode || !notificationId) {

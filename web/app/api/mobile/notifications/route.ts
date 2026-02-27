@@ -2,14 +2,24 @@ import 'server-only';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
+import { checkRateLimit, getClientIp } from '../../../../lib/rate-limit';
 
 /**
  * GET /api/mobile/notifications?agentId=...&clientId=...&clientCode=...
  *
  * Returns recent unread notifications for a client. Authenticates via clientCode.
+ * Rate-limited to 30 requests/minute per IP (polled every 30s).
  */
 export async function GET(request: NextRequest) {
   try {
+    const ip = getClientIp(request.headers);
+    const rl = checkRateLimit(`notif:${ip}`, 30, 60_000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } },
+      );
+    }
     const { searchParams } = request.nextUrl;
     const agentId = searchParams.get('agentId');
     const clientId = searchParams.get('clientId');

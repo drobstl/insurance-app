@@ -2,16 +2,25 @@ import 'server-only';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
+import { checkRateLimit, getClientIp } from '../../../../lib/rate-limit';
 
 /**
  * GET /api/mobile/agent-extras?agentId=...&clientId=...&clientCode=...
  *
  * Returns extra agent fields (scheduling URL, business card, etc.) that are
  * too large or unnecessary for the initial login response. Authenticates via
- * clientCode against the client doc.
+ * clientCode against the client doc. Rate-limited to 20 requests/minute per IP.
  */
 export async function GET(request: NextRequest) {
   try {
+    const ip = getClientIp(request.headers);
+    const rl = checkRateLimit(`agent-extras:${ip}`, 20, 60_000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } },
+      );
+    }
     const { searchParams } = request.nextUrl;
     const agentId = searchParams.get('agentId');
     const clientId = searchParams.get('clientId');
