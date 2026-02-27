@@ -241,7 +241,7 @@ export default function FoundingMemberPage() {
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="border-l-4 border-[#3DD6C3] bg-[#F8F9FA] rounded-r-2xl px-6 py-6 md:px-8 md:py-8">
               <h3 className="text-xl md:text-2xl font-extrabold text-[#0D4D4D] mb-3">
-                You&rsquo;re not buying a finished product. You&rsquo;re helping build one.
+                This is a beta — which means your voice actually matters.
               </h3>
               <p className="text-[#2D3748] text-base md:text-lg leading-relaxed">
                 AgentForLife is in beta. The core is here — but I&rsquo;m still improving and
