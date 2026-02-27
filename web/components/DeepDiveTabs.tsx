@@ -125,133 +125,111 @@ export default function DeepDiveTabs() {
         </div>
 
         {/* ╔══════════════════════════════════════════════════════════════╗
-            ║  MOBILE: Stacked summary cards (md:hidden)                  ║
+            ║  MOBILE: Product-led, one idea per screen (md:hidden)       ║
             ╚══════════════════════════════════════════════════════════════╝ */}
-        <div className="md:hidden space-y-10">
-          {/* Retention card */}
-          <div className="bg-[#F8F9FA] rounded-3xl p-6 border border-gray-200 overflow-hidden">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#3DD6C3]/10 border border-[#3DD6C3]/20 rounded-full mb-5">
-              <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-              <span className="text-[#0D4D4D] font-bold text-sm uppercase tracking-wide">Retention</span>
-            </div>
-            <h3 className="text-2xl font-extrabold text-[#0D4D4D] mb-4">
-              Two Layers of Protection. <span className="text-[#3DD6C3]">Zero Effort.</span>
-            </h3>
-            <p className="text-[#6B7280] text-base leading-relaxed mb-5">
-              <span className="text-[#0D4D4D] font-bold">7+ automated touchpoints per year</span> — holiday cards, birthday messages, and anniversary alerts — all as push notifications to their phone. When a policy <em>does</em> lapse, forward the carrier notice and AI sends personalized outreach within hours to save it.
-            </p>
-            <div className="flex flex-wrap gap-2 mb-6">
-              {['5 Holidays', 'Birthdays', 'Anniversaries', 'Conservation Alerts'].map((tag) => (
-                <span key={tag} className="px-3 py-1 bg-[#0D4D4D]/5 text-[#0D4D4D] text-xs font-semibold rounded-full border border-[#0D4D4D]/10">{tag}</span>
-              ))}
-            </div>
-            <div className="flex flex-col items-center">
-              <div className="w-[220px] h-[430px] bg-[#1a1a1a] rounded-[2.5rem] p-2.5 shadow-2xl border-4 border-[#2a2a2a]">
-                <div key={activeHoliday} className="w-full h-full rounded-[2rem] overflow-hidden relative" style={{ background: activeTheme.gradient }}>
+        <div className="md:hidden space-y-12">
+          {/* Throughline */}
+          <div className="flex items-center justify-center gap-2 text-[#6B7280] text-xs font-semibold">
+            <span className="text-[#3DD6C3]">1 Retention</span>
+            <span className="text-[#6B7280]/50">·</span>
+            <span className="text-[#fdcc02]">2 Referrals</span>
+            <span className="text-[#6B7280]/50">·</span>
+            <span className="text-[#3DD6C3]">3 Rewrites</span>
+          </div>
+
+          {/* 1 — Retention: visual first, one headline, one sentence */}
+          <div className="rounded-3xl overflow-hidden border border-[#0D4D4D]/10 bg-[#0D4D4D]/[0.02]">
+            <div className="flex flex-col items-center pt-6 pb-6 px-4">
+              <div className="w-[200px] h-[400px] bg-[#1a1a1a] rounded-[2.25rem] p-2 shadow-2xl border-4 border-[#2a2a2a] mb-5">
+                <div key={activeHoliday} className="w-full h-full rounded-[1.75rem] overflow-hidden relative" style={{ background: activeTheme.gradient }}>
                   {activeTheme.floatingEmoji.map((em: string, i: number) => (
-                    <span key={i} className="absolute text-lg pointer-events-none" style={{ left: `${10 + i * 25}%`, animation: `floatDrift ${6 + i * 2}s ease-in-out infinite`, animationDelay: `${i * 1.8}s`, opacity: 0 }}>{em}</span>
+                    <span key={i} className="absolute text-base pointer-events-none" style={{ left: `${10 + i * 25}%`, animation: `floatDrift ${6 + i * 2}s ease-in-out infinite`, animationDelay: `${i * 1.8}s`, opacity: 0 }}>{em}</span>
                   ))}
-                  <div className="flex flex-col items-center justify-center h-full px-4 text-center relative z-10">
-                    <div className="w-[72px] h-[72px] rounded-full border-[3px] border-white/40 bg-white/15 flex items-center justify-center mb-4" style={{ boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}>
-                      <span className="text-[30px] font-bold text-white">D</span>
+                  <div className="flex flex-col items-center justify-center h-full px-3 text-center relative z-10">
+                    <div className="w-[56px] h-[56px] rounded-full border-2 border-white/40 bg-white/15 flex items-center justify-center mb-3" style={{ boxShadow: '0 6px 16px rgba(0,0,0,0.2)' }}>
+                      <span className="text-[24px] font-bold text-white">D</span>
                     </div>
-                    <p className="text-white font-bold text-[13px] mb-0.5">Daniel Roberts</p>
-                    <p className="text-white/60 text-[10px] mb-4">Roberts Insurance Agency</p>
-                    <p className="text-white font-extrabold text-[18px] leading-tight mb-2">{activeTheme.greeting}</p>
-                    <p className="text-white/80 text-[11px] leading-relaxed mb-5 px-1 line-clamp-3">{activeTheme.body}</p>
-                    <div className="px-5 py-2 rounded-xl text-[12px] font-bold shadow-md" style={{ backgroundColor: activeTheme.accent, color: ['#FFFFFF', '#FFD700', '#C0C0C0', '#FFB6C1', '#DAA520'].includes(activeTheme.accent) ? '#1A1A2E' : '#FFFFFF' }}>
+                    <p className="text-white font-bold text-[11px] mb-0.5">Daniel Roberts</p>
+                    <p className="text-white/60 text-[9px] mb-3">Roberts Insurance Agency</p>
+                    <p className="text-white font-extrabold text-[14px] leading-tight mb-1">{activeTheme.greeting}</p>
+                    <p className="text-white/80 text-[10px] leading-relaxed line-clamp-2 px-0.5">{activeTheme.body}</p>
+                    <div className="px-4 py-1.5 rounded-lg text-[10px] font-bold shadow-md mt-2" style={{ backgroundColor: activeTheme.accent, color: ['#FFFFFF', '#FFD700', '#C0C0C0', '#FFB6C1', '#DAA520'].includes(activeTheme.accent) ? '#1A1A2E' : '#FFFFFF' }}>
                       Book your appointment
                     </div>
                   </div>
                 </div>
               </div>
-              <div className="flex flex-wrap justify-center gap-1.5 mt-4">
+              <div className="flex flex-wrap justify-center gap-1.5 mb-4">
                 {Object.entries(holidayThemes).map(([key, theme]) => (
-                  <button key={key} onClick={() => setActiveHoliday(key)} className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${activeHoliday === key ? 'bg-[#0D4D4D] text-white shadow-md scale-105' : 'bg-gray-200 text-[#6B7280] hover:bg-gray-300'}`}>
+                  <button key={key} onClick={() => setActiveHoliday(key)} className={`px-2 py-1 rounded-full text-[10px] font-semibold transition-all ${activeHoliday === key ? 'bg-[#0D4D4D] text-white' : 'bg-[#E5E7EB] text-[#6B7280]'}`}>
                     {theme.emoji} {theme.label}
                   </button>
                 ))}
               </div>
+              <h3 className="text-xl font-extrabold text-[#0D4D4D] text-center mb-2">
+                Two Layers of Protection. <span className="text-[#3DD6C3]">Zero Effort.</span>
+              </h3>
+              <p className="text-[#6B7280] text-sm text-center leading-snug max-w-[280px]">
+                7+ touchpoints keep clients warm; when a policy slips, AI rescues it.
+              </p>
             </div>
           </div>
 
-          {/* Referrals card */}
-          <div className="bg-[#F8F9FA] rounded-3xl p-6 border border-gray-200 overflow-hidden">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#fdcc02] rounded-full mb-5">
-              <span className="text-[#0D4D4D] font-bold text-sm uppercase tracking-wide">Referrals</span>
-            </div>
-            <h3 className="text-2xl font-extrabold text-[#0D4D4D] mb-4">
-              From <span className="text-[#3DD6C3]">One Tap</span> to <span className="text-[#fdcc02]">Booked Appointment</span>.
-            </h3>
-            <p className="text-[#6B7280] text-base leading-relaxed mb-5">
-              Your client taps one button, picks a contact, and sends a warm intro text with your business card attached. Then your <span className="text-[#0D4D4D] font-bold">AI reaches out via iMessage</span> — texting as you, qualifying the lead, and booking them on your calendar. You just show up and close.
-            </p>
-            <div className="bg-[#0D4D4D] rounded-xl p-4 mb-6">
-              <p className="text-white/40 text-xs uppercase tracking-[0.15em] font-medium mb-2">If they don&apos;t reply, AI follows up</p>
-              <div className="flex flex-wrap gap-2">
-                <span className="px-3 py-1.5 bg-white/10 rounded-full text-white/80 text-xs font-medium">Day 2 · Gentle nudge</span>
-                <span className="px-3 py-1.5 bg-white/10 rounded-full text-white/80 text-xs font-medium">Day 5 · New angle</span>
-                <span className="px-3 py-1.5 bg-[#fdcc02]/20 border border-[#fdcc02]/30 rounded-full text-[#fdcc02] text-xs font-medium">Day 8 · Direct ask</span>
-              </div>
-            </div>
-            <div className="flex flex-col items-center">
-              <p className="text-[#6B7280] text-xs text-center mb-3 uppercase tracking-[0.2em] font-medium">What the referral sees</p>
-              <div className="bg-[#1a1a2e] rounded-[2rem] p-1.5 shadow-2xl border border-[#3DD6C3]/20 w-full max-w-[300px]">
-                <div className="bg-[#111] rounded-t-[1.6rem] px-4 pt-2.5 pb-1.5 flex items-center justify-between">
-                  <span className="text-white/40 text-[10px] font-medium">9:44 AM</span>
-                  <div className="flex gap-0.5"><div className="w-1 h-2 bg-white/40 rounded-sm"></div><div className="w-1 h-2.5 bg-white/40 rounded-sm"></div><div className="w-1 h-3 bg-white/40 rounded-sm"></div><div className="w-1 h-3.5 bg-white/30 rounded-sm"></div></div>
+          {/* 2 — Referrals: visual first, one headline, one sentence */}
+          <div className="rounded-3xl overflow-hidden border border-[#0D4D4D]/10 bg-[#0D4D4D]/[0.02]">
+            <div className="flex flex-col items-center pt-6 pb-6 px-4">
+              <div className="bg-[#1a1a2e] rounded-[2rem] p-1.5 shadow-2xl border border-[#3DD6C3]/20 w-full max-w-[280px] mb-5">
+                <div className="bg-[#111] rounded-t-[1.5rem] px-3 pt-2 pb-1.5 flex items-center justify-between">
+                  <span className="text-white/40 text-[9px] font-medium">9:44 AM</span>
+                  <div className="flex gap-0.5"><div className="w-1 h-1.5 bg-white/40 rounded-sm"></div><div className="w-1 h-2 bg-white/40 rounded-sm"></div><div className="w-1 h-2.5 bg-white/40 rounded-sm"></div></div>
                 </div>
-                <div className="bg-[#111] px-4 pb-2.5 border-b border-white/5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-[#005851] flex items-center justify-center"><span className="text-[#3DD6C3] text-[10px] font-bold">D</span></div>
-                    <div><p className="text-white text-xs font-semibold">Daniel</p><p className="text-white/30 text-[9px]">AI Referral Assistant</p></div>
+                <div className="bg-[#111] px-3 pb-2 border-b border-white/5">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-6 h-6 rounded-full bg-[#005851] flex items-center justify-center"><span className="text-[#3DD6C3] text-[9px] font-bold">D</span></div>
+                    <div><p className="text-white text-[11px] font-semibold">Daniel</p><p className="text-white/30 text-[8px]">AI Referral Assistant</p></div>
                   </div>
                 </div>
-                <div className="bg-[#111] px-3 py-3 space-y-2 rounded-b-[1.6rem]">
-                  <div className="flex justify-end"><div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3 py-2 max-w-[88%]"><p className="text-white text-[11px] leading-snug">Hey Mike, this is Daniel. Sarah connected us — would you be open to a couple quick questions?</p></div></div>
-                  <div className="flex justify-start"><div className="bg-[#333] rounded-2xl rounded-tl-sm px-3 py-2 max-w-[88%]"><p className="text-white text-[11px]">yeah sure</p></div></div>
-                  <div className="flex justify-end"><div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3 py-2 max-w-[88%]"><p className="text-white text-[11px] leading-snug">What&apos;s most important to you when it comes to protecting your family?</p></div></div>
-                  <div className="flex justify-start"><div className="bg-[#333] rounded-2xl rounded-tl-sm px-3 py-2 max-w-[88%]"><p className="text-white text-[11px]">making sure my wife and kids are taken care of</p></div></div>
-                  <div className="flex justify-end"><div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3 py-2 max-w-[88%]"><p className="text-white text-[11px] leading-snug">I think a quick 15-min call would be worth it. Here&apos;s my calendar:</p><p className="text-[#3DD6C3] text-[11px] mt-1 underline">calendly.com/daniel</p></div></div>
+                <div className="bg-[#111] px-2.5 py-2 space-y-1.5 rounded-b-[1.5rem]">
+                  <div className="flex justify-end"><div className="bg-[#005851] rounded-xl rounded-tr-sm px-2.5 py-1.5 max-w-[90%]"><p className="text-white text-[10px] leading-snug">Hey Mike, Sarah connected us — open to a couple quick questions?</p></div></div>
+                  <div className="flex justify-start"><div className="bg-[#333] rounded-xl rounded-tl-sm px-2.5 py-1.5 max-w-[70%]"><p className="text-white text-[10px]">yeah sure</p></div></div>
+                  <div className="flex justify-end"><div className="bg-[#005851] rounded-xl rounded-tr-sm px-2.5 py-1.5 max-w-[90%]"><p className="text-white text-[10px] leading-snug">15-min call would be worth it. Here&apos;s my calendar:</p><p className="text-[#3DD6C3] text-[10px] mt-0.5 underline">calendly.com/daniel</p></div></div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 mt-3 px-3 py-1.5 bg-[#3DD6C3]/10 border border-[#3DD6C3]/20 rounded-full">
-                <svg className="w-3 h-3 text-[#3DD6C3]" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                <span className="text-[#3DD6C3] text-[10px] font-bold uppercase tracking-wide">The referral thinks they&apos;re texting you</span>
-              </div>
+              <p className="text-[#3DD6C3] text-[10px] font-bold uppercase tracking-wide mb-4">The referral thinks they&apos;re texting you</p>
+              <h3 className="text-xl font-extrabold text-[#0D4D4D] text-center mb-2">
+                From <span className="text-[#3DD6C3]">One Tap</span> to <span className="text-[#fdcc02]">Booked</span>.
+              </h3>
+              <p className="text-[#6B7280] text-sm text-center leading-snug max-w-[280px] mb-1">
+                Client refers, your AI texts and books the call. You show up and close.
+              </p>
+              <p className="text-[#6B7280] text-[10px]">AI follows up Day 2, 5, 8 if they don&apos;t reply.</p>
             </div>
           </div>
 
-          {/* Rewrites card */}
-          <div className="bg-[#F8F9FA] rounded-3xl p-6 border border-gray-200 overflow-hidden">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#0D4D4D] rounded-full mb-5">
-              <span className="text-[#3DD6C3] font-bold text-sm uppercase tracking-wide">Rewrites</span>
-            </div>
-            <h3 className="text-2xl font-extrabold text-[#0D4D4D] mb-4">
-              Every Anniversary Is a <span className="text-[#3DD6C3]">Booked Appointment</span>.
-            </h3>
-            <p className="text-[#6B7280] text-base leading-relaxed mb-5">
-              30 days before every policy anniversary, your client gets a push notification that you may have found them a <span className="text-[#0D4D4D] font-bold">lower price for the same coverage</span> — with a link to book on your calendar. The rewrite conversation starts with <em>them</em> reaching out to <em>you</em>.
-            </p>
-            <div className="flex flex-wrap gap-2 mb-6">
-              {['30-Day Alerts', 'Push Notifications', 'Auto-Booking', 'Email Digest'].map((tag) => (
-                <span key={tag} className="px-3 py-1 bg-[#0D4D4D]/5 text-[#0D4D4D] text-xs font-semibold rounded-full border border-[#0D4D4D]/10">{tag}</span>
-              ))}
-            </div>
-            <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-lg">
-              <div className="flex items-start gap-3 mb-4">
-                <div className="w-10 h-10 bg-[#0D4D4D] rounded-full flex items-center justify-center flex-shrink-0"><span className="text-[#3DD6C3] text-xs font-bold">D</span></div>
-                <div><p className="text-[#0D4D4D] font-semibold text-sm">Daniel Roberts</p><p className="text-[#6B7280] text-xs">Your Agent</p></div>
-              </div>
-              <div className="bg-[#F8F9FA] rounded-xl p-3.5 border border-gray-100">
-                <p className="text-[#0D4D4D] text-sm leading-relaxed">&quot;Hey Sarah! Your policy anniversary is coming up and I&apos;ve been seeing some <span className="font-bold text-[#3DD6C3]">lower rates for the same coverage</span>. Want me to run the numbers? Tap below to grab a time.&quot;</p>
-              </div>
-              <div className="mt-4 text-center">
-                <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#3DD6C3] text-[#0D4D4D] text-sm font-bold rounded-xl">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                  Book with Daniel
+          {/* 3 — Rewrites: visual first, one headline, one sentence */}
+          <div className="rounded-3xl overflow-hidden border border-[#0D4D4D]/10 bg-[#0D4D4D]/[0.02]">
+            <div className="flex flex-col items-center pt-6 pb-6 px-4">
+              <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-lg w-full max-w-[280px] mb-5">
+                <div className="flex items-start gap-2.5 mb-3">
+                  <div className="w-9 h-9 bg-[#0D4D4D] rounded-full flex items-center justify-center flex-shrink-0"><span className="text-[#3DD6C3] text-[10px] font-bold">D</span></div>
+                  <div><p className="text-[#0D4D4D] font-semibold text-xs">Daniel Roberts</p><p className="text-[#6B7280] text-[10px]">Your Agent</p></div>
+                </div>
+                <div className="bg-[#F8F9FA] rounded-xl p-3 border border-gray-100">
+                  <p className="text-[#0D4D4D] text-xs leading-relaxed">&quot;Anniversary coming up — <span className="font-bold text-[#3DD6C3]">lower rates</span> for same coverage. Tap below to grab a time.&quot;</p>
+                </div>
+                <div className="mt-3 text-center">
+                  <div className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#3DD6C3] text-[#0D4D4D] text-xs font-bold rounded-xl">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    Book with Daniel
+                  </div>
                 </div>
               </div>
+              <h3 className="text-xl font-extrabold text-[#0D4D4D] text-center mb-2">
+                Every Anniversary Is a <span className="text-[#3DD6C3]">Booked Appointment</span>.
+              </h3>
+              <p className="text-[#6B7280] text-sm text-center leading-snug max-w-[280px]">
+                30-day alert, one tap to book. The rewrite comes to you.
+              </p>
             </div>
           </div>
         </div>
