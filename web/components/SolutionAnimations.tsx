@@ -236,7 +236,7 @@ export function SystemShowcase() {
 
           {/* Desktop: Sticky phone column */}
           <div className="hidden lg:block w-72">
-            <div className="sticky top-[calc(50vh-290px)]">
+            <div className="sticky top-6">
               <div className="w-72 h-[580px] bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl border-4 border-[#2a2a2a]">
                 <div className="w-full h-full bg-black rounded-[2.5rem] overflow-hidden relative">
                   {/* Video (visible before features scroll in) */}
