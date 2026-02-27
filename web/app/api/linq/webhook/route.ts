@@ -535,7 +535,7 @@ async function handleConservationReply(
     schedulingUrl,
     premiumAmount: (alertData.premiumAmount as number) || null,
     coverageAmount: (alertData.coverageAmount as number) || null,
-    conversation: conversationWithIncoming,
+    conversation,
   };
 
   try {

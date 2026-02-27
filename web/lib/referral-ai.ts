@@ -12,7 +12,7 @@ function getAnthropic(): Anthropic {
   return _anthropic;
 }
 
-const MODEL = 'claude-opus-4-20250514';
+const MODEL_OPUS = 'claude-opus-4-20250514';
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1500;
 
@@ -142,13 +142,13 @@ HANDLING PUSHBACK — with questions, never rebuttals:
 - Not interested: "No worries at all, ${ctx.referralName}. ${ctx.clientFirstName} knows how to find me if anything ever comes up." Then return [DONE].
 - They stop responding: don't chase. Return [WAIT].
 
-PRE-UNDERWRITING INFO — gather politely before the appointment:
-Once ${ctx.referralName} is engaged and the conversation is flowing, work these in naturally so you can have everything ready before the call. Frame it as wanting to be prepared and not waste their time:
-- Birthday / date of birth: "So I can look into the best options ahead of time, when's your birthday?" or "What's your date of birth? Just so I can have everything pulled up before we talk."
+PRE-UNDERWRITING INFO — gather AFTER they've agreed to a call:
+Once ${ctx.referralName} has said yes to booking a call, THAT is when you gather this info. Frame it as wanting to come prepared so the call is quick and useful — not as filling out a form. This is the natural moment: they've committed to the call, and now you're prepping.
+- Birthday / date of birth: "So I can have everything pulled up before we talk, when's your birthday?" or "What's your date of birth? Just so I can look into the best options ahead of time."
 - Health / medications: Ask gently and with a reason. "Just so I'm not caught off guard on our call — any medications you're on currently?" or "Any major health stuff in the last few years I should know about so I can make sure we're looking at the right options?"
 - Smoker / non-smoker: "And you're not a smoker, right?" (assume non-smoker — most people aren't — and let them correct you if needed)
 - Homeowner / mortgage: "Are you a homeowner? Rough idea of the mortgage balance?"
-Don't ask all of these at once. Spread them across 2-3 messages. Frame each one as helping you come prepared so the call is quick and useful, not as filling out a form. If they hesitate on anything personal, don't push — say you can cover it on the call.
+Don't ask all of these at once. Spread them across 2-3 messages after they've confirmed the appointment. If they hesitate on anything personal, don't push — say you can cover it on the call. NEVER ask for this info during the engagement/discovery phase before they've agreed to a call.
 
 RULES:
 - You ARE ${ctx.agentFirstName}. Never break character.
@@ -173,7 +173,7 @@ export async function generateFirstMessage(ctx: ReferralContext): Promise<string
 
   const message = await withRetry(() =>
     anthropic.messages.create({
-      model: MODEL,
+      model: MODEL_OPUS,
       max_tokens: 300,
       system: systemPrompt,
       messages: [
@@ -207,7 +207,7 @@ export async function generateGroupIntroResponse(ctx: GroupIntroContext): Promis
 
   const message = await withRetry(() =>
     anthropic.messages.create({
-      model: MODEL,
+      model: MODEL_OPUS,
       max_tokens: 250,
       system: `You are ${ctx.agentFirstName}, an insurance professional. Never reveal you are AI. You ARE ${ctx.agentFirstName}. This is a group iMessage chat that ${ctx.clientFirstName} just created with you and ${ctx.referralName}. Write a warm, casual introduction — thank ${ctx.clientFirstName} (first name only) for connecting you and greet ${ctx.referralName}. Mention you'll reach out to ${ctx.referralName} separately so you're not blowing up the group chat. Keep it natural and brief — 1-3 sentences. One emoji max if it feels natural. No markdown.`,
       messages: [
@@ -247,7 +247,7 @@ export async function generateReferralResponse(
 
   const completion = await withRetry(() =>
     anthropic.messages.create({
-      model: MODEL,
+      model: MODEL_OPUS,
       max_tokens: 300,
       system: systemPrompt,
       messages,

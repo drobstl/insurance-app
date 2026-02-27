@@ -126,6 +126,20 @@ Other rules:
   }
 }
 
+function describePolicyAge(policyAge: number | null): string {
+  if (!policyAge) return 'recently';
+  if (policyAge < 30) return 'less than a month ago';
+  if (policyAge < 90) return 'a few months ago';
+  if (policyAge < 365) return `about ${Math.round(policyAge / 30)} months ago`;
+  return 'over a year ago';
+}
+
+function describeReason(reason: ConservationReason): string {
+  if (reason === 'lapsed_payment') return 'missed/lapsed premium payment';
+  if (reason === 'cancellation') return 'policy cancellation request';
+  return 'policy issue';
+}
+
 /**
  * Generates a personalized outreach message for a conservation alert.
  * Tone adapts based on reason (missed payment vs cancellation) and drip number.
@@ -135,15 +149,7 @@ export async function generateOutreachMessage(
 ): Promise<string> {
   const anthropic = getAnthropic();
 
-  const policyAgeDesc = ctx.policyAge
-    ? ctx.policyAge < 30
-      ? 'less than a month ago'
-      : ctx.policyAge < 90
-        ? 'a few months ago'
-        : ctx.policyAge < 365
-          ? `about ${Math.round(ctx.policyAge / 30)} months ago`
-          : `over a year ago`
-    : 'recently';
+  const policyAgeDesc = describePolicyAge(ctx.policyAge);
 
   const dripContext =
     ctx.dripNumber === 0
@@ -181,7 +187,7 @@ ${carrierNote ? `\n${carrierNote}` : ''}
 
 YOUR APPROACH:
 You're a problem-finder and problem-solver, not someone chasing a client to keep a policy on the books. Your job is to find out what's going on and see if you can help — not to guilt or pressure them.
-- ${ctx.reason === 'lapsed_payment' ? 'Lead with warmth. "Hey, just wanted to check in — noticed something came up with your policy." Make it easy for them. Give them the carrier number if you have it.' : ctx.reason === 'cancellation' ? 'Be genuinely curious about what changed. Don\'t assume you know why. Ask: "What\'s going on?" or "What changed?" before offering any solutions. They may have a good reason — respect that.' : 'Be warm, check in, see what\'s happening.'}
+- ${ctx.reason === 'lapsed_payment' ? 'Lead with warmth. "Hey, just wanted to check in — noticed something came up with your policy." Make it easy for them. Give them the carrier number if you have it.' : ctx.reason === 'cancellation' ? 'Be genuinely curious about what changed. Don\'t assume you know why. Ask: "What\'s going on?" or "What changed?" before offering any solutions. Help them reconnect to why they got coverage: "What was the main reason you got the policy originally?" or "Before this came up, how were you feeling about the coverage?" They may have a good reason — respect that.' : 'Be warm, check in, see what\'s happening.'}
 - ${dripContext}
 - ${schedulingNote}
 
@@ -268,20 +274,6 @@ export async function assessSaveability(context: {
   return `${outlook} -- ${factors.join(', ')}.`;
 }
 
-function describePolicyAge(policyAge: number | null): string {
-  if (!policyAge) return 'recently';
-  if (policyAge < 30) return 'less than a month ago';
-  if (policyAge < 90) return 'a few months ago';
-  if (policyAge < 365) return `about ${Math.round(policyAge / 30)} months ago`;
-  return 'over a year ago';
-}
-
-function describeReason(reason: ConservationReason): string {
-  if (reason === 'lapsed_payment') return 'missed/lapsed premium payment';
-  if (reason === 'cancellation') return 'policy cancellation request';
-  return 'policy issue';
-}
-
 function formatConversationHistory(conversation: ConservationMessage[]): string {
   return conversation
     .map((m) => {
@@ -299,37 +291,57 @@ function formatConversationHistory(conversation: ConservationMessage[]): string 
 /**
  * Generates an AI reply in an ongoing conservation conversation.
  * Goal: help the client reinstate/save their at-risk policy.
+ * Returns null if the AI decides not to respond ([WAIT] / [DONE]).
  */
 export async function generateConservationResponse(
   ctx: ConservationConversationContext,
   incomingText: string,
-): Promise<string> {
+): Promise<string | null> {
   const anthropic = getAnthropic();
 
   const reasonDesc = describeReason(ctx.reason);
   const policyAgeDesc = describePolicyAge(ctx.policyAge);
 
   const schedulingNote = ctx.schedulingUrl
-    ? `You have a scheduling URL: ${ctx.schedulingUrl}. Mention it if the client seems ready to talk.`
+    ? `You have a scheduling URL: ${ctx.schedulingUrl}. Mention it if the client seems ready to talk, or include it in your one pushback attempt when they try to disengage.`
     : 'You do not have a scheduling link. Offer to chat or take a call instead.';
 
-  const historyBlock =
-    ctx.conversation.length > 0
-      ? `\nCONVERSATION SO FAR:\n${formatConversationHistory(ctx.conversation)}\n`
+  const messages: Anthropic.MessageParam[] = [];
+  const priorOutreach: string[] = [];
+  let historyStarted = false;
+
+  for (const msg of ctx.conversation) {
+    const role = msg.role === 'client' ? ('user' as const) : ('assistant' as const);
+
+    if (!historyStarted && role === 'assistant') {
+      priorOutreach.push(msg.body);
+      continue;
+    }
+    historyStarted = true;
+
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.role === role) {
+      lastMsg.content = `${lastMsg.content}\n\n${msg.body}`;
+    } else {
+      messages.push({ role, content: msg.body });
+    }
+  }
+
+  messages.push({ role: 'user', content: incomingText });
+
+  const priorOutreachBlock =
+    priorOutreach.length > 0
+      ? `\nMESSAGES YOU'VE ALREADY SENT TO ${ctx.clientFirstName} (before they replied):\n${priorOutreach.map((m, i) => `${i + 1}. "${m}"`).join('\n')}\n`
       : '';
 
-  const message = await withRetry(() =>
-    anthropic.messages.create({
-      model: MODEL_OPUS,
-      max_tokens: 300,
-      system: `You are ${ctx.agentFirstName}, an insurance professional, texting your existing client ${ctx.clientFirstName}. Never reveal you are AI. You ARE ${ctx.agentFirstName}.
+  const systemPrompt = `You are ${ctx.agentFirstName}, an insurance professional, texting your existing client ${ctx.clientFirstName}. Never reveal you are AI. You ARE ${ctx.agentFirstName}.
 
 SITUATION:
 - ${ctx.clientFirstName}'s ${ctx.policyType || 'insurance'} policy is at risk due to ${reasonDesc}.
 - The policy was written ${policyAgeDesc}.
 ${ctx.premiumAmount ? `- Premium: $${ctx.premiumAmount}/month.` : ''}
 ${ctx.coverageAmount ? `- Coverage: $${ctx.coverageAmount.toLocaleString()}.` : ''}
-
+${priorOutreachBlock}
 THE NEPQ APPROACH TO RETENTION:
 Your job is to understand what's really going on — not to convince ${ctx.clientFirstName} to keep a policy they don't want. Ask before you prescribe. People who feel heard are far more likely to stay than people who feel pressured.
 
@@ -340,6 +352,7 @@ ${ctx.reason === 'lapsed_payment' ? `MISSED PAYMENT APPROACH:
 - Make the fix feel easy. Give them the carrier number if available. Offer to walk them through it.` : ctx.reason === 'cancellation' ? `CANCELLATION APPROACH:
 - Something changed. Your job is to find out WHAT, not to argue them out of it.
 - Ask with genuine curiosity: "What's going on?" "What changed?" "Can I ask what's behind this?"
+- Use reconnection questions to help them remember why they got coverage: "Before this came up, how were you feeling about the coverage?" or "What was the main reason you got the policy in the first place?" or "What was it that had you feel like this was the right move when you originally set it up?"
 - Use the Two Truths: "I know things aren't always 100% perfect — what would you have changed about the coverage if you could?"
 - If they have a real concern (cost, coverage gaps, life change), address the actual problem.
 - If they're set on cancelling, respect it: "I get it. Just want to make sure you know what you'd be walking away from so there's no surprises."` : `GENERAL APPROACH:
@@ -354,10 +367,21 @@ SOLUTION AWARENESS:
 - "If we could adjust something to make this work better for you, what would that look like?"
 - Help them see there may be options they haven't considered.
 
+WHEN THE CLIENT IS UPSET OR ANGRY:
+- If ${ctx.clientFirstName} is frustrated, hostile, or angry — your job is to listen, not argue. Their emotions are facts to them right now.
+- Don't get defensive. Validate first: "I hear you" or "That makes sense, I'd be frustrated too."
+- Ask: "What happened?" or "Can you tell me what's going on just so I understand?"
+- If they're angry about being contacted: "I apologize if this caught you at a bad time. I just wanted to make sure you knew what was happening with your coverage."
+- If they threaten escalation or demand no contact: one warm, respectful exit and return [DONE].
+
+HANDLING "LEAVE ME ALONE" / "STOP" / DISENGAGEMENT:
+- FIRST TIME they say stop, not interested, leave me alone, or similar: Do NOT immediately give up. This is your ONE chance to show genuine care. Ask a consequence question with real concern — help them see what they'd be walking away from. Express that you genuinely care and you're there for them if they change their mind.${ctx.schedulingUrl ? ` Share your scheduling link: ${ctx.schedulingUrl}.` : ''} Then let it go.
+- SECOND TIME they push back or repeat stop/leave me alone: Respect it completely. Send one gracious exit: "I respect that, ${ctx.clientFirstName}. If anything ever changes, you know where to find me." Then return [DONE].
+- If they go silent and stop responding: return [WAIT].
+
 CONVERSATION PACING:
 - Don't over-message. If you've made your case and offered help, let them decide.
 - If they've already fixed it or made a payment — celebrate that and confirm. Don't keep selling.
-- If they're clearly done — one warm, gracious exit: "I respect that. If anything changes down the road, you know where to find me."
 - ${schedulingNote}
 
 PERSONALITY:
@@ -366,26 +390,34 @@ PERSONALITY:
 - Validate before pivoting: "That makes sense..." "I hear you..."
 - Warm but real — no fake enthusiasm
 
-${historyBlock}
 RULES:
 - Keep it 1-3 sentences. This is texting.
 - Sound like a real person, not a retention script.
 - One emoji max, only if genuinely natural. Usually zero.
 - No markdown, no bullet points. Plain conversational text.
 - Never mention specific policy numbers or internal jargon.
-- Almost every response should contain a question — unless they've resolved it or said goodbye.
-- Respond naturally to what ${ctx.clientFirstName} just said.`,
-      messages: [
-        {
-          role: 'user',
-          content: `The client just texted: "${incomingText}"\n\nWrite your reply.`,
-        },
-      ],
+- Almost every response should contain a question — unless they've resolved it, said goodbye, or you're making your one pushback attempt.
+- Return [DONE] when the conversation is over (client firmly declined twice, or you've made your gracious exit).
+- Return [WAIT] if the client goes silent and stops responding.
+- Respond naturally to what ${ctx.clientFirstName} just said.`;
+
+  const completion = await withRetry(() =>
+    anthropic.messages.create({
+      model: MODEL_OPUS,
+      max_tokens: 300,
+      system: systemPrompt,
+      messages,
     }),
   );
 
-  const block = message.content[0];
-  return block.type === 'text' ? block.text.trim() : '';
+  const block = completion.content[0];
+  const response = block.type === 'text' ? block.text.trim() : null;
+
+  if (!response || response === '[WAIT]' || response === '[DONE]') {
+    return null;
+  }
+
+  return response;
 }
 
 /**
@@ -439,7 +471,7 @@ ${ctx.coverageAmount ? `- Coverage: $${ctx.coverageAmount.toLocaleString()}.` : 
 ${carrierNote ? `\n${carrierNote}` : ''}
 
 YOUR APPROACH:
-- ${ctx.reason === 'lapsed_payment' ? 'Lead with warmth. Missed payments happen to everyone. Make it feel easy to fix. If you have the carrier number, give it to them so they can call and reinstate quickly.' : ctx.reason === 'cancellation' ? 'Be genuinely curious about what changed. Don\'t assume you know why. Express that you want to make sure they\'re making an informed decision and aren\'t losing something they\'d regret.' : 'Be warm, check in, see how you can help.'}
+- ${ctx.reason === 'lapsed_payment' ? 'Lead with warmth. Missed payments happen to everyone. Make it feel easy to fix. If you have the carrier number, give it to them so they can call and reinstate quickly.' : ctx.reason === 'cancellation' ? 'Be genuinely curious about what changed. Don\'t assume you know why. Help them reconnect to why they got coverage: "What was the main reason you set this up originally?" Express that you want to make sure they\'re making an informed decision and aren\'t losing something they\'d regret.' : 'Be warm, check in, see how you can help.'}
 - ${dripContext}
 - Help them understand what they stand to lose — but with care, not guilt. If you have coverage amount data, mention what their family would be walking away from.
 
