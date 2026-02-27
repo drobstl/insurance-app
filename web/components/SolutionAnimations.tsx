@@ -153,7 +153,7 @@ const FEATURES = [
 const SETUP_STEPS = [
   { num: '1', title: 'Sign Up & Brand', desc: 'Add your photo, logo, and contact info. 5 minutes.' },
   { num: '2', title: 'Import Your Book', desc: 'CSV upload or paste a PDF — AI extracts everything.' },
-  { num: '3', title: 'Share with Clients', desc: 'They download YOUR app with a unique code and get a personalized welcome text from you via iMessage.' },
+  { num: '3', title: 'Share with Clients', desc: 'They download YOUR app with a unique code and get a personalized welcome text.' },
   { num: '4', title: 'AI Takes Over', desc: 'Touchpoints, referrals, and conservation run on autopilot.' },
 ];
 

@@ -1,0 +1,5 @@
+{"sessionId":"a0b100","location":"route.ts:step1-start","message":"Starting text extraction","data":{"fileSize":1219516},"timestamp":1772053176532}
+{"sessionId":"a0b100","location":"route.ts:step1-done","message":"Text extraction succeeded","data":{"pageCount":11},"timestamp":1772053176997}
+{"sessionId":"a0b100","location":"route.ts:step3-start","message":"Starting image rendering","data":{"indices":[0,1,2,9]},"timestamp":1772053176999}
+{"sessionId":"a0b100","location":"route.ts:step3-done","message":"Image rendering succeeded","data":{"imageCount":4},"timestamp":1772053177939}
+{"sessionId":"a0b100","location":"route.ts:step4-error","message":"AI extraction FAILED","data":{"error":"ANTHROPIC_API_KEY is not configured. Add it to your .env.local file."},"timestamp":1772053177939}

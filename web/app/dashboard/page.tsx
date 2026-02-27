@@ -70,6 +70,8 @@ export default function DashboardHomePage() {
     const q = query(collection(db, 'agents', user.uid, 'clients'), orderBy('createdAt', 'desc'));
     return onSnapshot(q, (snap) => {
       setClients(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Client)));
+    }, (error) => {
+      console.error('Error fetching clients:', error);
     });
   }, [user]);
 
@@ -132,6 +134,8 @@ export default function DashboardHomePage() {
     const q = query(collection(db, 'agents', user.uid, 'conservationAlerts'), orderBy('createdAt', 'desc'));
     return onSnapshot(q, (snap) => {
       setConservationAlerts(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ConservationAlert)));
+    }, (error) => {
+      console.error('Error fetching conservation alerts:', error);
     });
   }, [user]);
 
@@ -141,6 +145,8 @@ export default function DashboardHomePage() {
     const q = query(collection(db, 'agents', user.uid, 'referrals'), orderBy('createdAt', 'desc'));
     return onSnapshot(q, (snap) => {
       setReferrals(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Referral)));
+    }, (error) => {
+      console.error('Error fetching referrals:', error);
     });
   }, [user]);
 
