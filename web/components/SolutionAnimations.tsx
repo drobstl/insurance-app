@@ -208,25 +208,41 @@ export function SystemShowcase() {
             </p>
           </motion.div>
 
-          {/* Mobile-only phone (video, scrolls away) */}
-          <div className="lg:hidden flex justify-center mt-14 mb-4">
-            <div className="relative">
-              <div className="w-56 h-[450px] bg-[#1a1a1a] rounded-[2.5rem] p-2.5 shadow-2xl border-4 border-[#2a2a2a]">
-                <div className="w-full h-full bg-black rounded-[2rem] overflow-hidden">
-                  <video
-                    className="w-full h-full object-cover"
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                    poster="/app-preview-poster.jpeg"
-                  >
-                    <source src="/app-preview.webm" type="video/webm" />
-                    <source src="/app-preview.mp4" type="video/mp4" />
-                  </video>
+          {/* Mobile only: AI at work — referral + conservation (no duplicate video) */}
+          <div className="lg:hidden mt-10 mb-6 px-2">
+            <p className="text-white/70 text-sm font-semibold mb-4">Your AI goes to work</p>
+            <div className="space-y-4 max-w-sm mx-auto">
+              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#fdcc02]/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-[#fdcc02]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  </div>
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    <div className="flex -space-x-1">
+                      <div className="w-6 h-6 rounded-full bg-[#005851] border-2 border-[#0D4D4D] flex items-center justify-center"><span className="text-[#3DD6C3] text-[8px] font-bold">D</span></div>
+                      <div className="w-6 h-6 rounded-full bg-[#333] border-2 border-[#0D4D4D] flex items-center justify-center"><span className="text-white/80 text-[8px]">M</span></div>
+                    </div>
+                    <span className="text-[#3DD6C3] text-xs font-bold flex items-center gap-1">
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" /></svg>
+                      Booked
+                    </span>
+                  </div>
                 </div>
+                <p className="text-white/90 text-sm leading-snug">One tap from your client. Your AI texts the referral and books the call.</p>
               </div>
-              <p className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-white/50 text-xs whitespace-nowrap">What your clients see</p>
+              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#3DD6C3]/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                  </div>
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    <span className="text-white/60 text-xs">Forward</span>
+                    <svg className="w-4 h-4 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                    <span className="text-[#3DD6C3] text-xs font-bold">AI saves policy</span>
+                  </div>
+                </div>
+                <p className="text-white/90 text-sm leading-snug">Forward the carrier notice. AI finds the client and sends outreach to save the policy.</p>
+              </div>
             </div>
           </div>
         </div>
