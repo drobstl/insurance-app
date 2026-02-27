@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
     const agentFirstName = agentName.split(' ')[0];
     const schedulingUrl = (agentData.schedulingUrl as string) || null;
     const clientName = (referralData.clientName as string) || 'A friend';
+    const clientFirstName = clientName.split(' ')[0];
     const referralName = (referralData.referralName as string) || 'Friend';
     const referralPhone = normalizePhone((referralData.referralPhone as string) || '');
 
@@ -94,6 +95,7 @@ export async function POST(req: NextRequest) {
       agentName,
       agentFirstName,
       clientName,
+      clientFirstName,
       referralName,
     });
 
@@ -138,6 +140,7 @@ export async function POST(req: NextRequest) {
       agentName,
       agentFirstName,
       clientName,
+      clientFirstName,
       referralName,
       schedulingUrl,
       agentPhone: (agentData.phoneNumber as string) || null,

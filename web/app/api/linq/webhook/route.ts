@@ -335,10 +335,12 @@ async function handleDirectMessage(data: LinqWebhookMessageData) {
   const agentFirstName = agentName.split(' ')[0];
   const schedulingUrl = (agentData.schedulingUrl as string) || null;
 
+  const clientName = (referralData.clientName as string) || 'A friend';
   const ctx: ReferralContext = {
     agentName,
     agentFirstName,
-    clientName: (referralData.clientName as string) || 'A friend',
+    clientName,
+    clientFirstName: clientName.split(' ')[0],
     referralName: (referralData.referralName as string) || 'Friend',
     schedulingUrl,
     agentPhone: (agentData.phoneNumber as string) || null,
