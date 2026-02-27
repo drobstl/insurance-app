@@ -180,9 +180,9 @@ export function SystemShowcase() {
   const lineOpacity = useTransform(scrollYProgress, [0, 0.05], [0, 1]);
 
   return (
-    <section className="bg-[#0D4D4D] relative overflow-hidden">
-      {/* Background effects */}
-      <div className="absolute inset-0">
+    <section className="bg-[#0D4D4D] relative">
+      {/* Background effects (overflow-hidden on this container, NOT the section, so sticky works) */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-10 left-1/4 w-80 h-80 bg-[#3DD6C3] rounded-full blur-[150px] opacity-15" />
         <div className="absolute bottom-10 right-1/4 w-80 h-80 bg-[#fdcc02] rounded-full blur-[150px] opacity-10" />
       </div>
@@ -203,44 +203,9 @@ export function SystemShowcase() {
               Your Branded App. Your AI.{' '}<br className="hidden md:block" />
               <span className="text-[#3DD6C3]">Their Phone.</span>
             </h2>
-            <p className="text-lg md:text-xl text-white/70 max-w-3xl mx-auto leading-relaxed mb-4">
-              Right now, you&apos;re another name in a contact list. No presence on their phone. No system working between sales. <span className="text-white font-semibold">Every day you&apos;re invisible is a day you&apos;re losing money.</span>
+            <p className="text-lg md:text-xl text-white/60 max-w-2xl mx-auto">
+              You&apos;re just a name in their contacts. <span className="text-white font-semibold">One app changes everything.</span>
             </p>
-            <p className="text-lg md:text-xl text-white/70 max-w-3xl mx-auto leading-relaxed">
-              One app changes that. <span className="text-white font-semibold">YOUR branded app</span> lives on every client&apos;s home screen — and behind it, a full-powered AI system retains clients, generates referrals, and books rewrites while you sleep.
-            </p>
-          </motion.div>
-
-          {/* Before / After contrast */}
-          <motion.div
-            className="grid grid-cols-2 gap-4 max-w-2xl mx-auto mt-12"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.5 }}
-            transition={{ duration: 0.6, delay: 0.15 }}
-          >
-            <div className="space-y-3">
-              <p className="text-red-400/80 font-bold text-xs uppercase tracking-wider mb-4">Without the app</p>
-              {['A name they scroll past', 'You chase clients', 'Referrals die on the vine', 'Anniversaries go unnoticed'].map((item) => (
-                <div key={item} className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-red-400/15 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-3 h-3 text-red-400/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-                  </div>
-                  <span className="text-white/40 text-sm text-left">{item}</span>
-                </div>
-              ))}
-            </div>
-            <div className="space-y-3">
-              <p className="text-[#3DD6C3] font-bold text-xs uppercase tracking-wider mb-4">With the app</p>
-              {['An app on their home screen', 'AI chases for you', 'Referrals book themselves', 'Rewrites come to you'].map((item) => (
-                <div key={item} className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-[#3DD6C3]/15 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-3 h-3 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                  </div>
-                  <span className="text-white/90 text-sm font-medium text-left">{item}</span>
-                </div>
-              ))}
-            </div>
           </motion.div>
 
           {/* Mobile-only phone (video, scrolls away) */}
@@ -530,9 +495,6 @@ export function AppToDashboardBridge() {
       >
         <p className="text-2xl md:text-3xl font-extrabold text-white md:text-[#0D4D4D]">
           Their phone. Your dashboard. <span className="text-[#3DD6C3]">One system.</span>
-        </p>
-        <p className="text-base md:text-lg text-white/60 md:text-[#6B7280] mt-2">
-          The app lives on their phone. The controls live on yours.
         </p>
       </motion.div>
     </div>
