@@ -30,6 +30,8 @@ import FullScreenCard from './FullScreenCard';
 interface MessageCardProps {
   agentId: string;
   clientId: string;
+  /** Client code for API authentication */
+  clientCode?: string;
   /** Agent's display name */
   agentName?: string;
   /** Base64-encoded agent photo for the card avatar */
@@ -61,6 +63,7 @@ const ENTRANCE_DELAY = 1500; // ms after mount before card appears
 export default function MessageCard({
   agentId,
   clientId,
+  clientCode,
   agentName,
   agentPhotoBase64,
   schedulingUrl,
@@ -93,10 +96,12 @@ export default function MessageCard({
           setIsReady(true);
         }
       },
+      undefined,
+      clientCode,
     );
 
     return unsubscribe;
-  }, [agentId, clientId]);
+  }, [agentId, clientId, clientCode]);
 
   // ── Entrance Animation ───────────────────────────────────────────────────
 
@@ -129,7 +134,7 @@ export default function MessageCard({
 
     // Mark as read in Firestore — onSnapshot will remove it from the list
     try {
-      await markNotificationAsRead(agentId, clientId, current.id);
+      await markNotificationAsRead(agentId, clientId, current.id, clientCode);
     } catch (err) {
       console.error('Error marking notification as read:', err);
     }

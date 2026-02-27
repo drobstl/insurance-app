@@ -11,12 +11,10 @@ import {
   Platform,
 } from 'react-native';
 import { router } from 'expo-router';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
 import { registerForPushNotificationsAsync } from './_layout';
 import * as SecureStore from 'expo-secure-store';
 
-const API_BASE = 'https://agentforlife.app';
+const API_BASE = __DEV__ ? 'http://192.168.1.210:3000' : 'https://agentforlife.app';
 
 const SESSION_KEY = 'client_session';
 
@@ -27,13 +25,7 @@ interface SavedSession {
 }
 
 async function saveSession(session: SavedSession) {
-  // #region agent log
-  fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:saveSession',message:'saveSession called',data:{session},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
-  // #endregion
   await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session));
-  // #region agent log
-  fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:saveSession:after',message:'saveSession completed successfully',data:{session},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
-  // #endregion
 }
 
 export async function getSession(): Promise<SavedSession | null> {
@@ -50,24 +42,32 @@ export async function clearSession() {
   await SecureStore.deleteItemAsync(SESSION_KEY);
 }
 
-async function lookupClientCode(clientCode: string) {
-  const agentsRef = collection(db, 'agents');
-  const agentsSnapshot = await getDocs(agentsRef);
+type LookupResult = {
+  agentId: string;
+  clientId: string;
+  clientData: Record<string, unknown>;
+  agentData: Record<string, unknown>;
+};
 
-  for (const agentDoc of agentsSnapshot.docs) {
-    const clientsRef = collection(db, 'agents', agentDoc.id, 'clients');
-    const clientQuery = query(clientsRef, where('clientCode', '==', clientCode.trim().toUpperCase()));
-    const clientSnapshot = await getDocs(clientQuery);
-
-    if (!clientSnapshot.empty) {
-      return {
-        clientId: clientSnapshot.docs[0].id,
-        clientData: clientSnapshot.docs[0].data(),
-        agentId: agentDoc.id,
-      };
-    }
+async function lookupClientCode(clientCode: string): Promise<LookupResult | null> {
+  const normalizedCode = clientCode.trim().toUpperCase();
+  const res = await fetch(`${API_BASE}/api/mobile/lookup-client-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clientCode: normalizedCode }),
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || `Lookup failed (${res.status})`);
   }
-  return null;
+  const data = await res.json();
+  return {
+    agentId: data.agentId,
+    clientId: data.clientId,
+    clientData: data.clientData ?? {},
+    agentData: data.agentData ?? {},
+  };
 }
 
 /**
@@ -113,25 +113,12 @@ export async function registerAndSavePushToken(clientCode: string): Promise<bool
   return false;
 }
 
-async function navigateToProfile(agentId: string, clientId: string, clientData: Record<string, unknown>) {
-  const agentDocRef = doc(db, 'agents', agentId);
-  const agentDocSnap = await getDoc(agentDocRef);
-
-  if (!agentDocSnap.exists()) {
-    throw new Error('Agent data not found.');
-  }
-
-  const agentData = agentDocSnap.data();
-
-  const photoBase64 = (agentData.photoBase64 as string) || '';
-  const agentName = (agentData.name as string) || 'Your Agent';
-  const agentEmail = (agentData.email as string) || '';
-  const agentPhone = (agentData.phoneNumber as string) || '';
-  const agencyName = (agentData.agencyName as string) || '';
-  const agencyLogoBase64 = (agentData.agencyLogoBase64 as string) || '';
-  const referralMessage = (agentData.referralMessage as string) || '';
-  const clientName = (clientData.name as string) || 'Client';
-
+function navigateToProfile(
+  agentId: string,
+  clientId: string,
+  clientData: Record<string, unknown>,
+  agentData: Record<string, unknown>,
+) {
   const clientCode = (clientData.clientCode as string) || '';
   registerAndSavePushToken(clientCode).catch((err) =>
     console.warn('Push token registration failed:', err),
@@ -141,15 +128,15 @@ async function navigateToProfile(agentId: string, clientId: string, clientData: 
     pathname: '/agent-profile',
     params: {
       agentId,
-      agentName,
-      agentEmail,
-      agentPhone,
-      agentPhotoBase64: photoBase64,
-      agencyName,
-      agencyLogoBase64,
+      agentName: (agentData.name as string) || 'Your Agent',
+      agentEmail: (agentData.email as string) || '',
+      agentPhone: (agentData.phoneNumber as string) || '',
+      agentPhotoBase64: (agentData.photoBase64 as string) || '',
+      agencyName: (agentData.agencyName as string) || '',
+      agencyLogoBase64: (agentData.agencyLogoBase64 as string) || '',
       clientId,
-      clientName,
-      referralMessage,
+      clientName: (clientData.name as string) || 'Client',
+      referralMessage: (agentData.referralMessage as string) || '',
       businessCardBase64: (agentData.businessCardBase64 as string) || '',
     },
   });
@@ -161,64 +148,25 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const [checkingSession, setCheckingSession] = useState(true);
 
-  // On mount, check for a saved session and auto-login
+  // On mount, check for a saved session and auto-login via API
   useEffect(() => {
     (async () => {
-      // #region agent log
-      fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:useEffect:start',message:'Auto-login check started',data:{},timestamp:Date.now(),hypothesisId:'ALL'})}).catch(()=>{});
-      // #endregion
       try {
         const session = await getSession();
-        // #region agent log
-        fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:useEffect:getSession',message:'getSession result',data:{hasSession:!!session,session},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
         if (!session) {
           setCheckingSession(false);
           return;
         }
 
-        // Validate the saved session is still valid in Firestore
-        const clientDocRef = doc(db, 'agents', session.agentId, 'clients', session.clientId);
-        const clientDocSnap = await getDoc(clientDocRef);
-
-        // #region agent log
-        fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:useEffect:firestoreCheck',message:'Firestore doc check',data:{exists:clientDocSnap.exists(),agentId:session.agentId,clientId:session.clientId},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
-
-        if (!clientDocSnap.exists()) {
-          // Client was deleted -- clear stale session and show login
-          // #region agent log
-          fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:useEffect:docNotExists',message:'Client doc not found - clearing session',data:{agentId:session.agentId,clientId:session.clientId},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
-          // #endregion
+        const result = await lookupClientCode(session.clientCode);
+        if (!result) {
           await clearSession();
           setCheckingSession(false);
           return;
         }
 
-        const clientData = clientDocSnap.data();
-
-        // #region agent log
-        fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:useEffect:codeCompare',message:'Comparing client codes',data:{firestoreCode:clientData.clientCode,sessionCode:session.clientCode,match:clientData.clientCode===session.clientCode},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
-
-        // Verify the code still matches (agent may have regenerated it)
-        if (clientData.clientCode !== session.clientCode) {
-          // #region agent log
-          fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:useEffect:codeMismatch',message:'Client code mismatch - clearing session',data:{firestoreCode:clientData.clientCode,sessionCode:session.clientCode},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
-          await clearSession();
-          setCheckingSession(false);
-          return;
-        }
-
-        // #region agent log
-        fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:useEffect:success',message:'Session valid - navigating to profile',data:{agentId:session.agentId,clientId:session.clientId},timestamp:Date.now(),hypothesisId:'ALL'})}).catch(()=>{});
-        // #endregion
-        await navigateToProfile(session.agentId, session.clientId, clientData);
+        navigateToProfile(result.agentId, result.clientId, result.clientData, result.agentData);
       } catch (err) {
-        // #region agent log
-        fetch('http://127.0.0.1:7529/ingest/3df258c5-0e25-4ab3-9d32-fc3332e1a7f7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ead6c0'},body:JSON.stringify({sessionId:'ead6c0',location:'index.tsx:useEffect:catch',message:'Auto-login CATCH block hit - clearing session',data:{errorMessage:String(err),errorName:err?.name,errorCode:err?.code},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
         console.error('Auto-login error:', err);
         await clearSession();
         setCheckingSession(false);
@@ -239,14 +187,13 @@ export default function LoginScreen() {
       const result = await lookupClientCode(clientCode);
 
       if (result) {
-        // Save session for future auto-login
         await saveSession({
           clientCode: clientCode.trim().toUpperCase(),
           agentId: result.agentId,
           clientId: result.clientId,
         });
 
-        await navigateToProfile(result.agentId, result.clientId, result.clientData);
+        navigateToProfile(result.agentId, result.clientId, result.clientData, result.agentData);
       } else {
         setError('Invalid client code. Please check and try again.');
       }
@@ -258,7 +205,6 @@ export default function LoginScreen() {
     }
   };
 
-  // Show a loading screen while checking for saved session
   if (checkingSession) {
     return (
       <View style={styles.outerContainer}>
@@ -276,11 +222,9 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.outerContainer}>
-      {/* Status bar area with teal background */}
       <SafeAreaView style={styles.topSafeArea} />
       
       <View style={styles.container}>
-      {/* Dark Teal Header Section */}
       <View style={styles.headerSection}>
         <View style={styles.logoIcon}>
           <Text style={styles.logoIconText}>✓</Text>
@@ -289,7 +233,6 @@ export default function LoginScreen() {
         <Text style={styles.subtitle}>Access your policy information</Text>
       </View>
 
-        {/* White Content Section - extends to bottom */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.contentSection}

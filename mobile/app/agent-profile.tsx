@@ -19,9 +19,7 @@ import * as SMS from 'expo-sms';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
-import { doc, getDoc } from 'firebase/firestore';
 import * as Notifications from 'expo-notifications';
-import { db } from '../firebase';
 import Confetti from '../components/confetti';
 import MessageCard from '../components/MessageCard';
 import { clearSession, getSession, registerAndSavePushToken } from './index';
@@ -62,6 +60,7 @@ export default function AgentProfileScreen() {
   const [showConfetti, setShowConfetti] = useState(true);
   const [pushStatus, setPushStatus] = useState<'checking' | 'enabled' | 'denied' | 'error'>('checking');
   const [retrying, setRetrying] = useState(false);
+  const [storedClientCode, setStoredClientCode] = useState<string | undefined>(undefined);
 
   const agentId = getParamValue(params.agentId).trim();
   const clientId = getParamValue(params.clientId).trim();
@@ -74,35 +73,32 @@ export default function AgentProfileScreen() {
   const clientName = getParamValue(params.clientName);
   const referralMessage = getParamValue(params.referralMessage);
 
-  // Fetch agent-specific data from Firestore (fields too large for URL params)
+  useEffect(() => {
+    getSession().then((s) => { if (s?.clientCode) setStoredClientCode(s.clientCode); });
+  }, []);
+
+  // Fetch agent-specific data via server API (fields too large for URL params)
   useEffect(() => {
     const fetchAgentExtras = async () => {
-      if (!agentId) return;
-      
+      if (!agentId || !clientId) return;
       try {
-        const agentDoc = await getDoc(doc(db, 'agents', agentId));
-        if (agentDoc.exists()) {
-          const data = agentDoc.data();
-          if (data.businessCardBase64) {
-            setBusinessCardBase64(data.businessCardBase64);
-          }
-          if (data.schedulingUrl) {
-            setSchedulingUrl(data.schedulingUrl);
-          }
-          if (data.aiAssistantEnabled !== undefined) {
-            setAiAssistantEnabled(data.aiAssistantEnabled !== false);
-          }
-          if (data.linqPhoneNumber) {
-            setLinqPhoneNumber(data.linqPhoneNumber);
-          }
-        }
+        const session = await getSession();
+        if (!session?.clientCode) return;
+        const API = __DEV__ ? 'http://192.168.1.210:3000' : 'https://agentforlife.app';
+        const qs = `agentId=${agentId}&clientId=${clientId}&clientCode=${encodeURIComponent(session.clientCode)}`;
+        const res = await fetch(`${API}/api/mobile/agent-extras?${qs}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.businessCardBase64) setBusinessCardBase64(data.businessCardBase64);
+        if (data.schedulingUrl) setSchedulingUrl(data.schedulingUrl);
+        if (data.aiAssistantEnabled !== undefined) setAiAssistantEnabled(data.aiAssistantEnabled !== false);
+        if (data.linqPhoneNumber) setLinqPhoneNumber(data.linqPhoneNumber);
       } catch (error) {
         console.error('Error fetching agent data:', error);
       }
     };
-    
     fetchAgentExtras();
-  }, [agentId]);
+  }, [agentId, clientId]);
 
   // Check push notification status on mount
   useEffect(() => {
@@ -573,6 +569,7 @@ export default function AgentProfileScreen() {
           <MessageCard
             agentId={agentId}
             clientId={clientId}
+            clientCode={storedClientCode}
             agentName={agentName}
             agentPhotoBase64={agentPhotoBase64}
             schedulingUrl={schedulingUrl || undefined}

@@ -1,15 +1,3 @@
-import {
-  collection,
-  query,
-  orderBy,
-  limit,
-  onSnapshot,
-  doc,
-  updateDoc,
-  Timestamp,
-} from 'firebase/firestore';
-import { db } from '../firebase';
-
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type NotificationType = 'message' | 'anniversary' | 'birthday' | 'holiday';
@@ -21,72 +9,71 @@ export interface AgentNotification {
   body: string;
   holiday?: string;
   includeBookingLink?: boolean;
-  sentAt: Timestamp;
-  readAt: Timestamp | null;
+  sentAt: string | null;
+  readAt: string | null;
   status: 'sent' | 'failed';
 }
 
-// ── Firestore Helpers ────────────────────────────────────────────────────────
+const API_BASE = __DEV__ ? 'http://192.168.1.210:3000' : 'https://agentforlife.app';
+
+// ── API Helpers ───────────────────────────────────────────────────────────────
 
 /**
- * Subscribe to unread notifications for a specific client.
- * Returns the unsubscribe function.
+ * Fetch unread notifications for a client via server API, then call the
+ * callback. Starts polling every 30 seconds. Returns a cleanup function
+ * that stops polling (mirrors the old onSnapshot unsubscribe pattern).
  */
 export function subscribeToUnreadNotifications(
   agentId: string,
   clientId: string,
   onNotifications: (notifications: AgentNotification[]) => void,
   onError?: (error: Error) => void,
-) {
-  const notificationsRef = collection(
-    db,
-    'agents',
-    agentId,
-    'clients',
-    clientId,
-    'notifications',
-  );
+  clientCode?: string,
+): () => void {
+  let active = true;
 
-  // Fetch recent notifications and filter for unread client-side.
-  // This avoids needing a Firestore composite index on readAt + sentAt.
-  const q = query(
-    notificationsRef,
-    orderBy('sentAt', 'desc'),
-    limit(20),
-  );
+  const poll = async () => {
+    if (!active || !clientCode) return;
+    try {
+      const qs = `agentId=${agentId}&clientId=${clientId}&clientCode=${encodeURIComponent(clientCode)}`;
+      const res = await fetch(`${API_BASE}/api/mobile/notifications?${qs}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      if (active) onNotifications(data.notifications ?? []);
+    } catch (err) {
+      if (active) onError?.(err instanceof Error ? err : new Error(String(err)));
+    }
+  };
 
-  return onSnapshot(
-    q,
-    (snapshot) => {
-      const notifications = snapshot.docs
-        .map((d) => ({ id: d.id, ...d.data() }) as AgentNotification)
-        .filter((n) => !n.readAt)
-        .slice(0, 10);
-      onNotifications(notifications);
-    },
-    (error) => {
-      console.error('Error subscribing to notifications:', error);
-      onError?.(error);
-    },
-  );
+  poll();
+  const interval = setInterval(poll, 30_000);
+
+  return () => {
+    active = false;
+    clearInterval(interval);
+  };
 }
 
 /**
- * Mark a notification as read by setting the `readAt` timestamp.
+ * Mark a notification as read via server API.
  */
 export async function markNotificationAsRead(
   agentId: string,
   clientId: string,
   notificationId: string,
+  clientCode?: string,
 ): Promise<void> {
-  const notifRef = doc(
-    db,
-    'agents',
-    agentId,
-    'clients',
-    clientId,
-    'notifications',
-    notificationId,
-  );
-  await updateDoc(notifRef, { readAt: Timestamp.now() });
+  if (!clientCode) return;
+  const res = await fetch(`${API_BASE}/api/mobile/notifications/mark-read`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agentId, clientId, clientCode, notificationId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error || `HTTP ${res.status}`);
+  }
 }
