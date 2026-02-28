@@ -193,6 +193,148 @@ export default function MobileLandingV2() {
       </section>
 
       {/* ═══════════════════════════════════════════════════
+         WHAT IT IS — Moment of Clarity
+         ═══════════════════════════════════════════════════ */}
+      <section className="relative bg-[#070E1B] px-6 py-20 overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none will-change-transform">
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[400px] h-[400px] bg-[#3DD6C3] rounded-full blur-[220px] opacity-[0.05]" />
+        </div>
+
+        <div className="relative space-y-14">
+          {/* Part 1: The One-Liner */}
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] as const }}
+            style={{ willChange: 'transform, opacity' }}
+            className="space-y-4"
+          >
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/[0.06] border border-white/10 rounded-full">
+              <span className="text-[#3DD6C3] font-bold text-[10px] uppercase tracking-widest">What is Agent for Life</span>
+            </div>
+            <h2 className="text-[1.75rem] font-extrabold text-white leading-[1.15] tracking-tight">
+              Get off their contacts list.<br />
+              <span className="text-[#3DD6C3]">Get on their home screen.</span>
+            </h2>
+            <p className="text-white/40 text-[15px] leading-relaxed max-w-[300px]">
+              A branded app on their phone. An AI that never sleeps.
+            </p>
+          </motion.div>
+
+          {/* Part 2: The Visual — Contacts vs Home Screen */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Left phone — buried in contacts */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.05, ease: [0.25, 0.46, 0.45, 0.94] as const }}
+              style={{ willChange: 'transform, opacity' }}
+              className="flex flex-col items-center"
+            >
+              <div className="w-[140px] h-[210px] bg-[#1a1a1a] rounded-[1.5rem] p-1.5 border-2 border-[#2a2a2a] opacity-60">
+                <div className="w-full h-full bg-[#111] rounded-[1.2rem] overflow-hidden px-2.5 py-3">
+                  <p className="text-white/30 text-[7px] font-bold mb-1.5">Contacts</p>
+                  <div className="w-full h-3 bg-white/[0.06] rounded-full mb-2.5" />
+                  <div className="space-y-[6px]">
+                    {['Alex M.', 'Best Buy', 'Daniel Roberts', 'Jenny K.', 'Mom', 'State Farm'].map((name, i) => (
+                      <div key={name} className="flex items-center gap-1.5">
+                        <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[5px] font-bold ${i === 2 ? 'bg-[#005851] text-[#3DD6C3]' : 'bg-white/[0.08] text-white/20'}`}>{name[0]}</div>
+                        <span className={`text-[7px] ${i === 2 ? 'text-white/50 font-medium' : 'text-white/20'}`}>{name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <p className="text-white/25 text-[10px] font-medium mt-3 text-center">Buried in contacts</p>
+            </motion.div>
+
+            {/* Right phone — on their home screen */}
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.97 }}
+              whileInView={{ opacity: 1, y: 0, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.15, ease: [0.25, 0.46, 0.45, 0.94] as const }}
+              style={{ willChange: 'transform, opacity' }}
+              className="flex flex-col items-center"
+            >
+              <div className="relative w-[140px] h-[210px] bg-[#1a1a1a] rounded-[1.5rem] p-1.5 border-2 border-[#3DD6C3]/20">
+                <div className="absolute -inset-1 rounded-[1.8rem] bg-[#3DD6C3]/[0.06] pointer-events-none blur-md" />
+                <div className="w-full h-full bg-[#111] rounded-[1.2rem] overflow-hidden px-2.5 py-3 relative">
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-white/25 text-[6px]">9:41</span>
+                    <div className="flex gap-[2px]"><div className="w-[3px] h-1 bg-white/25 rounded-sm" /><div className="w-[3px] h-1.5 bg-white/25 rounded-sm" /><div className="w-[3px] h-2 bg-white/25 rounded-sm" /></div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-x-3 gap-y-3">
+                    {[0,1,2,3,4,5,6,7,8].map((i) => (
+                      i === 4 ? (
+                        <div key={i} className="flex flex-col items-center gap-1">
+                          <div className="w-9 h-9 bg-[#0D4D4D] rounded-xl flex items-center justify-center border border-[#3DD6C3]/30 shadow-lg shadow-[#3DD6C3]/20">
+                            <span className="text-[#3DD6C3] text-[11px] font-bold">D</span>
+                          </div>
+                          <span className="text-white/60 text-[5px] font-medium">AgentForLife</span>
+                        </div>
+                      ) : (
+                        <div key={i} className="flex flex-col items-center gap-1">
+                          <div className="w-9 h-9 bg-white/[0.06] rounded-xl" />
+                          <span className="text-white/15 text-[5px]">App</span>
+                        </div>
+                      )
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <p className="text-[#3DD6C3] text-[10px] font-semibold mt-3 text-center">On their home screen</p>
+            </motion.div>
+          </div>
+
+          {/* Part 3: The Payoff Line */}
+          <motion.p
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as const }}
+            style={{ willChange: 'transform, opacity' }}
+            className="text-center text-white/70 text-[1.1rem] font-extrabold leading-snug"
+          >
+            Three revenue streams on <span className="text-[#3DD6C3]">autopilot</span>.
+          </motion.p>
+
+          {/* Part 4: Three Outcomes */}
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={stagger}
+            style={{ willChange: 'transform, opacity' }}
+            className="space-y-4"
+          >
+            {[
+              { title: 'Stop Chargebacks', desc: 'AI nurtures the relationship and saves policies in danger.', accent: '#3DD6C3', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
+              { title: 'Automated Warm Referrals', desc: 'One tap from your client. AI handles everything to booked.', accent: '#fdcc02', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+              { title: 'Catch Every Rewrite', desc: 'Policy anniversaries trigger automatic outreach.', accent: '#3DD6C3', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+            ].map((item, i) => (
+              <motion.div
+                key={item.title}
+                variants={fadeUp}
+                custom={i * 0.06}
+                className="flex items-start gap-3.5"
+              >
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${item.accent}12` }}>
+                  <svg className="w-4.5 h-4.5" style={{ color: item.accent }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} /></svg>
+                </div>
+                <div>
+                  <p className="text-white font-bold text-[14px] mb-0.5">{item.title}</p>
+                  <p className="text-white/40 text-[13px] leading-relaxed">{item.desc}</p>
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════
          THE PROBLEM — Three Pain Points
          ═══════════════════════════════════════════════════ */}
       <section className="relative bg-white px-6 py-16">
@@ -261,43 +403,14 @@ export default function MobileLandingV2() {
           style={{ willChange: 'transform, opacity' }}
           className="relative space-y-6"
         >
-          {/* The Big Idea */}
           <motion.div variants={fadeUp} custom={0} className="mb-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/[0.06] border border-white/10 rounded-full mb-5">
-              <span className="text-[#3DD6C3] font-bold text-[11px] uppercase tracking-wide">The Shift</span>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/[0.06] border border-white/10 rounded-full mb-4">
+              <span className="text-[#3DD6C3] font-bold text-[11px] uppercase tracking-wide">The System</span>
             </div>
-            <h2 className="text-[1.65rem] font-extrabold text-white leading-tight mb-6">
-              Get off their contacts list.<br /><span className="text-[#3DD6C3]">Get on their home screen.</span>
+            <h2 className="text-[1.65rem] font-extrabold text-white leading-tight mb-2">
+              One System.<br />Three Revenue Streams.
             </h2>
-
-            {/* Before / After visual */}
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              {/* Before — buried in contacts */}
-              <div className="bg-white/[0.04] rounded-xl p-3.5 border border-white/[0.06] opacity-50">
-                <div className="space-y-2 mb-3">
-                  {['Alex M.', 'Daniel Roberts', 'Jenny K.', 'State Farm'].map((name, i) => (
-                    <div key={name} className="flex items-center gap-2">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[7px] font-bold ${i === 1 ? 'bg-[#005851] text-[#3DD6C3]' : 'bg-white/10 text-white/30'}`}>{name[0]}</div>
-                      <span className={`text-[9px] ${i === 1 ? 'text-white/60 font-medium' : 'text-white/25'}`}>{name}</span>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-white/25 text-[9px] font-semibold text-center">Buried. Forgotten.</p>
-              </div>
-
-              {/* After — on their home screen */}
-              <div className="bg-white/[0.06] rounded-xl p-3.5 border border-[#3DD6C3]/20 relative">
-                <div className="flex flex-col items-center justify-center h-full gap-2 py-2">
-                  <div className="w-14 h-14 bg-[#0D4D4D] rounded-2xl flex items-center justify-center border-2 border-[#3DD6C3]/30 shadow-lg shadow-[#3DD6C3]/10">
-                    <span className="text-[#3DD6C3] text-lg font-bold">D</span>
-                  </div>
-                  <p className="text-white/70 text-[9px] font-semibold">Daniel Roberts</p>
-                  <p className="text-[#3DD6C3] text-[9px] font-semibold text-center">Front and center.<br />Every day.</p>
-                </div>
-              </div>
-            </div>
-
-            <p className="text-white/40 text-[14px] leading-relaxed">A branded app on their phone. An AI that never sleeps. <span className="text-white/70 font-semibold">Three revenue streams on autopilot.</span></p>
+            <p className="text-white/40 text-[14px]">Here&apos;s how each one works.</p>
           </motion.div>
 
           {/* Revenue stream cards */}
