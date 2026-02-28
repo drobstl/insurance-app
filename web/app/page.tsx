@@ -268,7 +268,13 @@ export default function LandingPage() {
             <p className="text-sm md:text-base text-[#3DD6C3] font-semibold tracking-[0.15em] uppercase mb-6 md:mb-8">The first AI-powered client retention and warm referral system.</p>
 
             {/* Mobile only: phone mockup + three-pillar strip */}
-            <div className="md:hidden flex flex-col items-center mb-6">
+            <motion.div
+              className="md:hidden flex flex-col items-center mb-6"
+              initial={{ opacity: 0, scale: 0.96 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: 0.6, ease: 'easeOut' }}
+            >
               <div className="w-[200px] h-[360px] bg-[#1a1a1a] rounded-[2.25rem] p-2 shadow-2xl border-4 border-[#2a2a2a]">
                 <div className="w-full h-full bg-black rounded-[1.75rem] overflow-hidden">
                   <video
@@ -285,20 +291,25 @@ export default function LandingPage() {
                 </div>
               </div>
               <div className="flex flex-wrap justify-center gap-2 mt-4">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 rounded-full text-white text-xs font-semibold">
-                  <svg className="w-3.5 h-3.5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-                  Kill Chargebacks
-                </span>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 rounded-full text-white text-xs font-semibold">
-                  <svg className="w-3.5 h-3.5 text-[#fdcc02]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                  Warm Referrals
-                </span>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 rounded-full text-white text-xs font-semibold">
-                  <svg className="w-3.5 h-3.5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                  Anniversary Rewrites
-                </span>
+                {[
+                  { icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z', color: '#3DD6C3', label: 'Kill Chargebacks' },
+                  { icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z', color: '#fdcc02', label: 'Warm Referrals' },
+                  { icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', color: '#3DD6C3', label: 'Anniversary Rewrites' },
+                ].map((pill, i) => (
+                  <motion.span
+                    key={pill.label}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 rounded-full text-white text-xs font-semibold"
+                    initial={{ opacity: 0, y: 8 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.4, delay: 0.3 + i * 0.12 }}
+                  >
+                    <svg className="w-3.5 h-3.5" style={{ color: pill.color }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={pill.icon} /></svg>
+                    {pill.label}
+                  </motion.span>
+                ))}
               </div>
-            </div>
+            </motion.div>
 
             {/* Body: shorter on mobile, full on desktop */}
             <p className="md:hidden text-base text-white/80 mb-6 max-w-3xl mx-auto leading-relaxed">
@@ -349,29 +360,47 @@ export default function LandingPage() {
             </div>
 
             <div className="grid md:grid-cols-3 gap-6">
-              <div className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400">
+              <motion.div
+                className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400"
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.45, ease: 'easeOut' }}
+              >
                 <div className="flex items-center gap-3 mb-3">
                   <span className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500 font-black text-sm">1</span>
                   <h3 className="text-lg font-bold text-[#0D4D4D]">Retention Is a Leaky Bucket</h3>
                 </div>
                 <p className="text-[#6B7280] leading-relaxed">Your clients forget about you within weeks. When a policy lapses, the conservation notice sits in your inbox until you eat the chargeback.</p>
-              </div>
+              </motion.div>
 
-              <div className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400">
+              <motion.div
+                className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400"
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.45, ease: 'easeOut', delay: 0.1 }}
+              >
                 <div className="flex items-center gap-3 mb-3">
                   <span className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500 font-black text-sm">2</span>
                   <h3 className="text-lg font-bold text-[#0D4D4D]">Referrals Are Stuck in the 1990s</h3>
                 </div>
                 <p className="text-[#6B7280] leading-relaxed">You tell clients to &quot;call your friend.&quot; By the time you follow up, it&apos;s a cold lead. Most agents get 5% when 25% is possible.</p>
-              </div>
+              </motion.div>
 
-              <div className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400">
+              <motion.div
+                className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400"
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.45, ease: 'easeOut', delay: 0.2 }}
+              >
                 <div className="flex items-center gap-3 mb-3">
                   <span className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500 font-black text-sm">3</span>
                   <h3 className="text-lg font-bold text-[#0D4D4D]">Rewrites Are Sitting on the Table</h3>
                 </div>
                 <p className="text-[#6B7280] leading-relaxed">Every policy anniversary is a lay-down sale. But there&apos;s no system to flag it, pitch the client, and get them on your calendar.</p>
-              </div>
+              </motion.div>
             </div>
 
             <motion.div

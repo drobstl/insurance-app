@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { motion } from 'framer-motion';
 
 const TAB_CARDS = [
   {
@@ -138,7 +139,13 @@ export default function DeepDiveTabs() {
           </div>
 
           {/* 1 — Retention: visual first, one headline, one sentence */}
-          <div className="rounded-3xl overflow-hidden border border-[#0D4D4D]/10 bg-[#0D4D4D]/[0.02]">
+          <motion.div
+            className="rounded-3xl overflow-hidden border border-[#0D4D4D]/10 bg-[#0D4D4D]/[0.02]"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.15 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+          >
             <div className="flex flex-col items-center pt-6 pb-6 px-4">
               <div className="w-[200px] h-[400px] bg-[#1a1a1a] rounded-[2.25rem] p-2 shadow-2xl border-4 border-[#2a2a2a] mb-5">
                 <div key={activeHoliday} className="w-full h-full rounded-[1.75rem] overflow-hidden relative" style={{ background: activeTheme.gradient }}>
@@ -173,10 +180,16 @@ export default function DeepDiveTabs() {
                 7+ touchpoints keep clients warm; when a policy slips, AI rescues it.
               </p>
             </div>
-          </div>
+          </motion.div>
 
           {/* 2 — Referrals: visual first, one headline, one sentence */}
-          <div className="rounded-3xl overflow-hidden border border-[#0D4D4D]/10 bg-[#0D4D4D]/[0.02]">
+          <motion.div
+            className="rounded-3xl overflow-hidden border border-[#0D4D4D]/10 bg-[#0D4D4D]/[0.02]"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.15 }}
+            transition={{ duration: 0.5, ease: 'easeOut', delay: 0.1 }}
+          >
             <div className="flex flex-col items-center pt-6 pb-6 px-4">
               <div className="bg-[#1a1a2e] rounded-[2rem] p-1.5 shadow-2xl border border-[#3DD6C3]/20 w-full max-w-[280px] mb-5">
                 <div className="bg-[#111] rounded-t-[1.5rem] px-3 pt-2 pb-1.5 flex items-center justify-between">
@@ -204,10 +217,16 @@ export default function DeepDiveTabs() {
               </p>
               <p className="text-[#6B7280] text-[10px]">AI follows up Day 2, 5, 8 if they don&apos;t reply.</p>
             </div>
-          </div>
+          </motion.div>
 
           {/* 3 — Rewrites: visual first, one headline, one sentence */}
-          <div className="rounded-3xl overflow-hidden border border-[#0D4D4D]/10 bg-[#0D4D4D]/[0.02]">
+          <motion.div
+            className="rounded-3xl overflow-hidden border border-[#0D4D4D]/10 bg-[#0D4D4D]/[0.02]"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.15 }}
+            transition={{ duration: 0.5, ease: 'easeOut', delay: 0.1 }}
+          >
             <div className="flex flex-col items-center pt-6 pb-6 px-4">
               <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-lg w-full max-w-[280px] mb-5">
                 <div className="flex items-start gap-2.5 mb-3">
@@ -231,7 +250,7 @@ export default function DeepDiveTabs() {
                 30-day alert, one tap to book. The rewrite comes to you.
               </p>
             </div>
-          </div>
+          </motion.div>
         </div>
 
         {/* ╔══════════════════════════════════════════════════════════════╗
