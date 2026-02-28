@@ -515,6 +515,165 @@ export default function LandingPageV4() {
         </section>
 
         {/* ═══════════════════════════════════════════════════
+           TWO SURFACES — Dashboard + Client App
+           ═══════════════════════════════════════════════════ */}
+        <section className="py-20 md:py-28 bg-[#070E1B] relative overflow-hidden">
+          <div className="absolute inset-0">
+            <div className="absolute top-1/3 left-1/4 w-[500px] h-[500px] bg-[#3DD6C3] rounded-full blur-[250px] opacity-[0.06]" />
+            <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-[#fdcc02] rounded-full blur-[200px] opacity-[0.04]" />
+          </div>
+          <div className="absolute inset-0 opacity-[0.02]" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+
+          <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <motion.div className="text-center mb-14" initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/[0.06] border border-white/10 rounded-full mb-6">
+                <svg className="w-3.5 h-3.5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                <span className="text-[#3DD6C3] font-bold text-sm uppercase tracking-wide">Always in Sync</span>
+              </div>
+              <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white mb-4">Two Surfaces. <span className="text-[#3DD6C3]">One System.</span></h2>
+              <p className="text-lg text-white/50 max-w-2xl mx-auto">Your dashboard and your client&apos;s app are the same system. Every action, every touchpoint, every alert &mdash; synced in real time.</p>
+            </motion.div>
+
+            <div className="grid md:grid-cols-[1fr_auto_1fr] gap-4 md:gap-6 items-center mb-14">
+              {/* Dashboard mockup */}
+              <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
+                <div className="bg-white/[0.04] backdrop-blur-sm rounded-2xl overflow-hidden border border-white/[0.08]">
+                  <div className="flex items-center gap-1.5 px-4 py-2.5 bg-white/[0.03] border-b border-white/5">
+                    <div className="flex gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#FF5F57]" />
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#FEBC2E]" />
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#28C840]" />
+                    </div>
+                    <div className="flex-1 mx-3"><div className="bg-white/[0.06] rounded-md px-3 py-1 text-white/25 text-[9px] font-mono text-center">agentforlife.app/dashboard</div></div>
+                  </div>
+                  <div className="p-4 md:p-5 space-y-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 bg-[#0D4D4D] rounded-lg flex items-center justify-center"><span className="text-[#3DD6C3] text-[10px] font-bold">D</span></div>
+                        <span className="text-white/70 font-semibold text-[11px]">Agent Dashboard</span>
+                      </div>
+                      <span className="px-2 py-0.5 bg-[#3DD6C3]/10 text-[#3DD6C3] text-[8px] font-bold rounded-full uppercase">Live</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2.5 bg-white/[0.04] rounded-lg px-3 py-2 border border-white/[0.06]">
+                        <div className="w-1.5 h-1.5 rounded-full bg-[#3DD6C3] flex-shrink-0" />
+                        <span className="text-white/60 text-[10px] flex-1">Holiday card sent to 47 clients</span>
+                        <span className="text-white/25 text-[9px]">Auto</span>
+                      </div>
+                      <div className="flex items-center gap-2.5 bg-white/[0.04] rounded-lg px-3 py-2 border border-white/[0.06]">
+                        <div className="w-1.5 h-1.5 rounded-full bg-[#fdcc02] flex-shrink-0" />
+                        <span className="text-white/60 text-[10px] flex-1">New referral: Mike J. &mdash; AI qualifying</span>
+                        <span className="text-white/25 text-[9px]">Live</span>
+                      </div>
+                      <div className="flex items-center gap-2.5 bg-white/[0.04] rounded-lg px-3 py-2 border border-white/[0.06]">
+                        <div className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />
+                        <span className="text-white/60 text-[10px] flex-1">Conservation alert: Sarah J.</span>
+                        <span className="text-white/25 text-[9px]">Action</span>
+                      </div>
+                      <div className="flex items-center gap-2.5 bg-white/[0.04] rounded-lg px-3 py-2 border border-white/[0.06]">
+                        <div className="w-1.5 h-1.5 rounded-full bg-[#3DD6C3] flex-shrink-0" />
+                        <span className="text-white/60 text-[10px] flex-1">Policy review: Lisa M. &mdash; booked</span>
+                        <span className="text-white/25 text-[9px]">Win</span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 pt-1">
+                      <div className="bg-white/[0.04] rounded-lg border border-white/[0.06] p-2.5 text-center">
+                        <p className="text-lg font-black text-white">127</p>
+                        <p className="text-[8px] text-white/30 uppercase tracking-wide">Clients</p>
+                      </div>
+                      <div className="bg-white/[0.04] rounded-lg border border-white/[0.06] p-2.5 text-center">
+                        <p className="text-lg font-black text-[#3DD6C3]">12</p>
+                        <p className="text-[8px] text-white/30 uppercase tracking-wide">Referrals</p>
+                      </div>
+                      <div className="bg-white/[0.04] rounded-lg border border-white/[0.06] p-2.5 text-center">
+                        <p className="text-lg font-black text-[#fdcc02]">5</p>
+                        <p className="text-[8px] text-white/30 uppercase tracking-wide">Saved</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-center text-white/25 text-xs mt-3 font-medium">You see everything. Control everything.</p>
+              </motion.div>
+
+              {/* Sync indicator */}
+              <div className="hidden md:flex flex-col items-center gap-3 px-2">
+                <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}>
+                  <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                </motion.div>
+                <div className="flex flex-col items-center">
+                  <div className="w-px h-8 bg-gradient-to-b from-transparent via-[#3DD6C3]/40 to-transparent" />
+                  <span className="text-[#3DD6C3] text-[9px] font-bold uppercase tracking-widest [writing-mode:vertical-rl] py-2">Syncs Live</span>
+                  <div className="w-px h-8 bg-gradient-to-b from-transparent via-[#3DD6C3]/40 to-transparent" />
+                </div>
+                <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 1 }}>
+                  <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                </motion.div>
+              </div>
+              {/* Sync indicator — mobile */}
+              <div className="md:hidden flex justify-center py-2">
+                <div className="flex items-center gap-3">
+                  <div className="h-px w-10 bg-gradient-to-r from-transparent to-[#3DD6C3]/40" />
+                  <motion.div className="flex items-center gap-2" animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}>
+                    <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                    <span className="text-[#3DD6C3] text-[10px] font-bold uppercase tracking-widest">Syncs Live</span>
+                  </motion.div>
+                  <div className="h-px w-10 bg-gradient-to-l from-transparent to-[#3DD6C3]/40" />
+                </div>
+              </div>
+
+              {/* Phone mockup */}
+              <motion.div initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="flex justify-center">
+                <div>
+                  <div className="w-[200px] md:w-[220px] h-[380px] md:h-[410px] bg-[#1a1a1a] rounded-[2.5rem] p-2.5 shadow-2xl border-4 border-[#2a2a2a] relative">
+                    <div className="absolute -inset-1 rounded-[2.8rem] bg-gradient-to-b from-[#3DD6C3]/15 via-transparent to-[#fdcc02]/10 pointer-events-none blur-sm" />
+                    <div className="w-full h-full bg-[#111] rounded-[2rem] overflow-hidden px-3.5 py-5 relative">
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="w-8 h-8 rounded-full bg-[#005851] flex items-center justify-center"><span className="text-[#3DD6C3] text-[10px] font-bold">D</span></div>
+                        <div><p className="text-white text-[11px] font-semibold">Daniel Roberts</p><p className="text-white/35 text-[8px]">Your Agent</p></div>
+                      </div>
+                      <div className="space-y-2.5">
+                        <div className="bg-white/[0.08] rounded-xl p-2.5 border border-white/5">
+                          <div className="flex items-center gap-2"><span className="text-sm">🎄</span><div><p className="text-white/90 text-[9px] font-bold">Merry Christmas!</p><p className="text-white/40 text-[7px]">Tap to view your card</p></div></div>
+                        </div>
+                        <div className="bg-white/[0.08] rounded-xl p-2.5 border border-white/5">
+                          <p className="text-white/30 text-[7px] uppercase tracking-wider mb-1.5">Your Policies</p>
+                          <div className="flex items-center justify-between"><span className="text-white/70 text-[9px]">Auto — State Farm</span><span className="text-[#3DD6C3] text-[7px] font-semibold">Active</span></div>
+                          <div className="flex items-center justify-between mt-1"><span className="text-white/70 text-[9px]">Life — Mutual of Omaha</span><span className="text-[#3DD6C3] text-[7px] font-semibold">Active</span></div>
+                        </div>
+                        <div className="bg-[#fdcc02] rounded-xl py-2.5 text-center"><p className="text-[#0D4D4D] text-[10px] font-bold">Refer a Friend</p></div>
+                        <div className="bg-[#005851] rounded-xl py-2.5 text-center"><p className="text-white text-[10px] font-bold">Contact Daniel</p></div>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-center text-white/25 text-xs mt-3 font-medium">Your clients see their branded app.</p>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Live sync feed */}
+            <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { dashboard: 'You upload Sarah\'s policy', client: 'Sarah sees it in her app instantly', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', accent: '#3DD6C3' },
+                { dashboard: 'AI sends holiday card', client: 'Full-screen card on their phone', icon: 'M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7', accent: '#fdcc02' },
+                { dashboard: 'Referral comes in', client: 'AI texts referral via iMessage', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z', accent: '#fdcc02' },
+                { dashboard: 'Conservation alert fires', client: 'Client gets outreach in hours', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z', accent: '#3DD6C3' },
+              ].map((item, i) => (
+                <div key={i} className="bg-white/[0.04] backdrop-blur-sm rounded-xl p-4 border border-white/[0.06] hover:bg-white/[0.07] hover:border-white/[0.12] transition-all">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${item.accent}15` }}>
+                      <svg className="w-3.5 h-3.5" style={{ color: item.accent }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} /></svg>
+                    </div>
+                    <svg className="w-3 h-3 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                  </div>
+                  <p className="text-white/70 text-[11px] font-medium mb-1">{item.dashboard}</p>
+                  <p className="text-[11px] font-semibold" style={{ color: item.accent }}>{item.client}</p>
+                </div>
+              ))}
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════
            HOW IT WORKS
            ═══════════════════════════════════════════════════ */}
         <section className="py-20 md:py-28 bg-white">
