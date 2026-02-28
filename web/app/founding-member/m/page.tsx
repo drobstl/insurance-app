@@ -88,11 +88,11 @@ export default function FoundingMemberMobile() {
          ═══════════════════════════════════════════════════ */}
       <section className="relative min-h-[100svh] flex flex-col px-6 pt-14 pb-8 overflow-hidden">
         {/* Ambient glows */}
-        <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none will-change-transform">
           <div className="absolute -top-20 -left-20 w-[300px] h-[300px] bg-[#3DD6C3] rounded-full blur-[160px] opacity-20" />
           <div className="absolute bottom-20 -right-20 w-[250px] h-[250px] bg-[#a158ff] rounded-full blur-[140px] opacity-[0.12]" />
         </div>
-        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '48px 48px' }} />
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none will-change-transform" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '48px 48px' }} />
 
         <div className="relative z-10 flex flex-col flex-1">
           {/* Logo + Back */}
@@ -213,6 +213,7 @@ export default function FoundingMemberMobile() {
           whileInView="visible"
           viewport={{ once: true, margin: '-40px' }}
           variants={stagger}
+          style={{ willChange: 'transform, opacity' }}
           className="space-y-6"
         >
           <motion.div variants={fadeUp} custom={0}>
@@ -257,6 +258,7 @@ export default function FoundingMemberMobile() {
           whileInView="visible"
           viewport={{ once: true, margin: '-40px' }}
           variants={stagger}
+          style={{ willChange: 'transform, opacity' }}
           className="space-y-5"
         >
           <motion.div variants={fadeUp} custom={0}>
@@ -298,6 +300,7 @@ export default function FoundingMemberMobile() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
+          style={{ willChange: 'transform, opacity' }}
           className="border-l-[3px] border-[#3DD6C3] bg-[#F8F9FA] rounded-r-xl px-5 py-5"
         >
           <h3 className="text-lg font-extrabold text-[#0D4D4D] mb-2">
@@ -313,7 +316,7 @@ export default function FoundingMemberMobile() {
          APPLICATION FORM
          ═══════════════════════════════════════════════════ */}
       <section ref={formRef} className="relative bg-[#0D4D4D] px-6 py-16 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none will-change-transform">
           <div className="absolute top-0 right-0 w-[250px] h-[250px] bg-[#a158ff] rounded-full blur-[150px] opacity-[0.1]" />
           <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-[#3DD6C3] rounded-full blur-[120px] opacity-[0.08]" />
         </div>
@@ -325,6 +328,7 @@ export default function FoundingMemberMobile() {
               whileInView="visible"
               viewport={{ once: true }}
               variants={stagger}
+              style={{ willChange: 'transform, opacity' }}
             >
               <motion.div variants={fadeUp} custom={0} className="mb-8">
                 <h2 className="text-[1.65rem] font-extrabold text-white leading-tight mb-2">
@@ -484,6 +488,7 @@ export default function FoundingMemberMobile() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
+          style={{ willChange: 'transform, opacity' }}
           className="space-y-3"
         >
           <h2 className="text-xl font-extrabold text-[#0D4D4D] mb-5">
@@ -514,7 +519,7 @@ export default function FoundingMemberMobile() {
          FINAL CTA
          ═══════════════════════════════════════════════════ */}
       <section className="relative bg-[#0D4D4D] px-6 py-16 pb-28 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none will-change-transform">
           <div className="absolute top-0 left-1/4 w-[200px] h-[200px] bg-[#a158ff] rounded-full blur-[100px] opacity-15" />
         </div>
         <motion.div
@@ -522,6 +527,7 @@ export default function FoundingMemberMobile() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
+          style={{ willChange: 'transform, opacity' }}
           className="relative text-center space-y-5"
         >
           <h2 className="text-[1.5rem] font-extrabold text-white leading-tight">
@@ -564,8 +570,8 @@ export default function FoundingMemberMobile() {
       </footer>
 
       {/* ══════════ STICKY BOTTOM CTA ══════════ */}
-      <div className="fixed bottom-0 left-0 right-0 z-50">
-        <div className="bg-[#0D4D4D]/95 backdrop-blur-md border-t border-white/10 px-4 py-3 flex items-center justify-between gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.3)]">
+      <div className="fixed bottom-0 left-0 right-0 z-50 will-change-transform">
+        <div className="bg-[#0D4D4D]/95 backdrop-blur-md border-t border-white/10 px-4 py-3 flex items-center justify-between gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.3)] will-change-transform">
           <div className="flex items-center gap-2 min-w-0">
             <span className="relative flex h-2 w-2 flex-shrink-0">
               <span className="animate-ping absolute h-full w-full rounded-full bg-[#a158ff] opacity-75" />
