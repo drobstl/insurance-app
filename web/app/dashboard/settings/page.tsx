@@ -121,6 +121,7 @@ export default function SettingsPage() {
         referralMessage: agentProfile.referralMessage || '',
         autoHolidayCards: agentProfile.autoHolidayCards ?? false,
         anniversaryMessageStyle: agentProfile.anniversaryMessageStyle || 'check_in',
+        policyReviewAIEnabled: agentProfile.policyReviewAIEnabled ?? true,
       }, { merge: true });
       setSaveMessage({ type: 'success', text: 'Settings saved successfully.' });
       setTimeout(() => setSaveMessage(null), 3000);
@@ -635,6 +636,35 @@ export default function SettingsPage() {
                 <p className="text-xs text-[#707070]">
                   Proactively offer to shop for a better rate, positioning you as someone who saves them money.
                 </p>
+              </button>
+            </div>
+          </div>
+
+          {/* Policy Review AI Campaign */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Policy Review Campaigns</h3>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-[#000000]">
+                  {agentProfile.policyReviewAIEnabled !== false ? 'Enabled' : 'Disabled'}
+                </p>
+                <p className="text-xs text-[#707070] mt-1">
+                  {agentProfile.policyReviewAIEnabled !== false
+                    ? 'When a policy hits its 1-year anniversary, AI will automatically reach out to your client to schedule a review call. ROP and Graded policies are always skipped.'
+                    : 'Anniversary review campaigns are off. You\'ll need to reach out to clients manually for policy reviews.'}
+                </p>
+              </div>
+              <button
+                onClick={() => updateField('policyReviewAIEnabled', !(agentProfile.policyReviewAIEnabled !== false))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
+                  agentProfile.policyReviewAIEnabled !== false ? 'bg-[#44bbaa]' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
+                    agentProfile.policyReviewAIEnabled !== false ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
               </button>
             </div>
           </div>

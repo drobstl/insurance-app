@@ -19,6 +19,14 @@
     {
       "path": "/api/cron/conservation-outreach",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/policy-review",
+      "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/cron/policy-review-drip",
+      "schedule": "0 */4 * * *"
     }
   ]
 }

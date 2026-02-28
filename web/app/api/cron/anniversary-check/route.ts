@@ -114,8 +114,9 @@ export async function GET(req: NextRequest) {
           const msUntil = anniversary.getTime() - now.getTime();
           const daysUntil = Math.ceil(msUntil / (1000 * 60 * 60 * 24));
 
-          // Alert window: 0–30 days before the 1-year mark
-          if (daysUntil >= 0 && daysUntil <= 30) {
+          // Alert window: 0–5 days before the 1-year mark
+          // (Narrowed from 30 days. The new policy-review cron handles Day +1 outreach.)
+          if (daysUntil >= 0 && daysUntil <= 5) {
             hits.push({
               clientName,
               clientId: clientDoc.id,
@@ -195,8 +196,21 @@ export async function GET(req: NextRequest) {
       totalPoliciesFlagged += hits.length;
 
       // 5. Send push notifications to clients (Phase 4A)
-      // Group hits by clientId so each client gets one notification
-      // even if they have multiple policies approaching anniversary.
+      // Skip if the agent has Policy Review AI enabled — the new policy-review
+      // cron handles client outreach with AI-generated messages on Day +1.
+      const policyReviewAIEnabled = (agentData.policyReviewAIEnabled as boolean) !== false;
+      if (policyReviewAIEnabled) {
+        // Mark policies as agent-notified but skip client push — handled by policy-review cron
+        const batch2 = db.batch();
+        for (const hit of hits) {
+          const ref = db.doc(hit.policyPath);
+          batch2.update(ref, { anniversaryAgentNotifiedAt: now.toISOString() });
+        }
+        await batch2.commit();
+        continue;
+      }
+
+      // Fallback: send push notifications if Policy Review AI is disabled
       const clientHitsMap = new Map<string, AnniversaryHit[]>();
       for (const hit of hits) {
         if (!hit.pushToken || hit.clientAlreadyNotified) continue;

@@ -24,6 +24,12 @@ import type {
   ConservationConversationContext,
   ConservationMessage as ConservationMsg,
 } from '../../../../lib/conservation-types';
+import {
+  generateReviewResponse,
+  detectBookingSignal,
+  type PolicyReviewMessage,
+  type PolicyReviewConversationContext,
+} from '../../../../lib/policy-review-ai';
 import { normalizePhone } from '../../../../lib/phone';
 import { FieldValue } from 'firebase-admin/firestore';
 
@@ -291,7 +297,13 @@ async function handleDirectMessage(data: LinqWebhookMessageData) {
   }
 
   if (!referralResult) {
-    // No referral match -- try conservation alerts
+    // No referral match -- try policy reviews, then conservation alerts
+    const policyReviewResult = await findPolicyReviewByChatId(db, chatId);
+    if (policyReviewResult) {
+      await handlePolicyReviewReply(policyReviewResult, text, chatId, senderHandle);
+      return;
+    }
+
     const conservationResult = await findConservationAlertByChatId(db, chatId);
     if (conservationResult) {
       await handleConservationReply(conservationResult, text, chatId, senderHandle);
@@ -582,5 +594,135 @@ async function handleConservationReply(
     }
   } catch (e) {
     console.error('Save signal detection failed:', e);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Policy review lookup + reply handling
+// ---------------------------------------------------------------------------
+
+interface PolicyReviewResult {
+  agentId: string;
+  reviewId: string;
+  reviewData: Record<string, unknown>;
+  agentData: Record<string, unknown>;
+  reviewRef: FirebaseFirestore.DocumentReference;
+}
+
+async function findPolicyReviewByChatId(
+  db: FirebaseFirestore.Firestore,
+  chatId: string,
+): Promise<PolicyReviewResult | null> {
+  const snap = await db
+    .collectionGroup('policyReviews')
+    .where('chatId', '==', chatId)
+    .limit(1)
+    .get();
+
+  if (snap.empty) return null;
+
+  const doc = snap.docs[0];
+  const agentId = doc.ref.parent.parent!.id;
+  const agentDoc = await db.collection('agents').doc(agentId).get();
+
+  return {
+    agentId,
+    reviewId: doc.id,
+    reviewData: doc.data() as Record<string, unknown>,
+    agentData: (agentDoc.data() as Record<string, unknown>) || {},
+    reviewRef: doc.ref,
+  };
+}
+
+async function handlePolicyReviewReply(
+  result: PolicyReviewResult,
+  text: string,
+  chatId: string,
+  senderHandle: string,
+) {
+  const { reviewId, reviewData, agentData, reviewRef } = result;
+
+  const terminalStatuses = ['booked', 'closed', 'opted-out'];
+  if (terminalStatuses.includes(reviewData.status as string)) return;
+
+  const newIncoming: PolicyReviewMessage = {
+    role: 'client',
+    body: text,
+    timestamp: new Date().toISOString(),
+  };
+
+  const statusUpdate: Record<string, unknown> = {
+    conversation: FieldValue.arrayUnion(newIncoming),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  if (['outreach-sent', 'drip-1', 'drip-2', 'drip-complete'].includes(reviewData.status as string)) {
+    statusUpdate.status = 'conversation-active';
+  }
+
+  await reviewRef.update(statusUpdate);
+
+  if (reviewData.aiEnabled === false) return;
+
+  const conversation = (reviewData.conversation as PolicyReviewMessage[]) || [];
+  const agentName = (agentData.name as string) || 'Your agent';
+  const agentFirstName = agentName.split(' ')[0];
+  const schedulingUrl = (agentData.schedulingUrl as string) || null;
+
+  const ctx: PolicyReviewConversationContext = {
+    agentName,
+    agentFirstName,
+    clientName: (reviewData.clientName as string) || 'Client',
+    clientFirstName: (reviewData.clientFirstName as string) || 'Client',
+    policyType: (reviewData.policyType as string) || 'Policy',
+    carrier: (reviewData.carrier as string) || '',
+    premiumAmount: (reviewData.premiumAmount as number) || null,
+    coverageAmount: (reviewData.coverageAmount as number) || null,
+    schedulingUrl,
+    conversation,
+  };
+
+  try { await startTypingIndicator(chatId); } catch { /* non-critical */ }
+
+  let aiResponse: string | null = null;
+  try {
+    aiResponse = await generateReviewResponse(ctx, text);
+  } catch (e) {
+    console.error('Policy review AI response failed for', reviewId, e);
+    try { await stopTypingIndicator(chatId); } catch { /* ignore */ }
+    return;
+  }
+
+  try { await stopTypingIndicator(chatId); } catch { /* non-critical */ }
+
+  if (aiResponse) {
+    const newOutgoing: PolicyReviewMessage = {
+      role: 'agent-ai',
+      body: aiResponse,
+      timestamp: new Date().toISOString(),
+    };
+
+    await sendOrCreateChat({ to: senderHandle, chatId, text: aiResponse });
+
+    const aiUpdate: Record<string, unknown> = {
+      conversation: FieldValue.arrayUnion(newOutgoing),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+
+    if (schedulingUrl && aiResponse.includes(schedulingUrl)) {
+      aiUpdate.status = 'booking-sent';
+    }
+
+    await reviewRef.update(aiUpdate);
+  }
+
+  const conversationWithIncoming = [...conversation, newIncoming];
+  try {
+    const bookingResult = await detectBookingSignal(conversationWithIncoming);
+    if (bookingResult.booked && (bookingResult.confidence === 'high' || bookingResult.confidence === 'medium')) {
+      await reviewRef.update({ status: 'booked', updatedAt: FieldValue.serverTimestamp() });
+    }
+  } catch (e) {
+    console.error('Booking signal detection failed:', e);
   }
 }

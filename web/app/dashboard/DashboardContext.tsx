@@ -25,6 +25,7 @@ export interface AgentProfile {
   autoHolidayCards?: boolean;
   aiAssistantEnabled?: boolean;
   anniversaryMessageStyle?: 'check_in' | 'lower_price';
+  policyReviewAIEnabled?: boolean;
   onboardingComplete?: boolean;
 }
 
@@ -88,6 +89,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           autoHolidayCards: data.autoHolidayCards,
           aiAssistantEnabled: data.aiAssistantEnabled,
           anniversaryMessageStyle: data.anniversaryMessageStyle,
+          policyReviewAIEnabled: data.policyReviewAIEnabled,
           onboardingComplete: data.onboardingComplete,
         });
       }
