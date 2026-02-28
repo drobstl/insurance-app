@@ -9,7 +9,7 @@ const IMESSAGE_DELAYS = [900, 1100, 900, 1300, 900, 500, 1100];
 const FAQ_ITEMS = [
   { question: 'What exactly is Agent for Life?', answer: 'A complete client relationship system for insurance agents. You get a branded mobile app for your clients, automated touchpoints (holidays, birthdays, anniversaries), one-tap referrals with an AI assistant that qualifies leads via iMessage and books appointments, conservation alerts that rescue at-risk policies, and anniversary rewrite alerts — normally $49/month, but free for life for founding members.' },
   { question: 'How hard is it to get started?', answer: 'You can be live in 10 minutes. Import your clients via CSV or upload PDF applications — AI extracts everything. Enable the referral assistant with one toggle and share your app code with clients.' },
-  { question: 'Is my data safe?', answer: "Yes. Your data is encrypted, stored on Google\u2019s cloud, and only accessible by you and your agent. We can\u2019t see your credit card info, and no other agent can see your records." },
+  { question: 'Is my data safe?', answer: "Yes. Your client data is encrypted with AES-256, stored on Google Cloud, and only accessible by you. We never contact your clients independently, and no other agent can see your book of business." },
   { question: 'What carriers does it work with?', answer: 'All of them. Agent for Life is carrier-agnostic. Works for independent agents regardless of which carriers you\'re appointed with.' },
   { question: 'What do Founding Members get?', answer: 'Free access for life ($49/mo value), your own branded client app, direct line to the founder, your feedback shapes the roadmap, early access to every new feature, and "Founding Member" status. Only 50 spots total — no credit card required.' },
 ];
@@ -211,7 +211,7 @@ export default function MobileLandingV2() {
             style={{ willChange: 'transform, opacity' }}
             className="space-y-5"
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center gap-2">
               <div className="px-3 py-1.5 bg-white/[0.06] border border-white/10 rounded-full">
                 <span className="text-[#3DD6C3] font-bold text-[10px] uppercase tracking-wide">Your Branded App</span>
               </div>
@@ -220,10 +220,10 @@ export default function MobileLandingV2() {
                 <span className="text-[#3DD6C3] font-bold text-[10px] uppercase tracking-wide">Powerful AI</span>
               </div>
             </div>
-            <h2 className="text-[1.65rem] font-extrabold text-white leading-tight">
+            <h2 className="text-[1.65rem] font-extrabold text-white leading-tight text-center">
               On every client&apos;s phone.
             </h2>
-            <p className="text-white/40 text-[14px]">Your name. Your brand. Their policies. One tap away.</p>
+            <p className="text-white/40 text-[14px] text-center">Your name. Your brand. Their policies. One tap away.</p>
           </motion.div>
 
           {/* Phone mockup */}
@@ -290,7 +290,11 @@ export default function MobileLandingV2() {
             style={{ willChange: 'transform, opacity' }}
             className="flex flex-col items-center gap-3"
           >
-            <span className="text-white/15 text-3xl font-light">+</span>
+            <motion.span
+              animate={{ opacity: [0.15, 0.45, 0.15] }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+              className="text-white text-4xl font-light"
+            >+</motion.span>
             <p className="text-[#3DD6C3] text-[1.35rem] font-extrabold text-center">An AI that never sleeps.</p>
           </motion.div>
 
@@ -564,7 +568,7 @@ export default function MobileLandingV2() {
               {/* Messages */}
               <div className="bg-[#111] px-3.5 py-4 space-y-2.5 rounded-b-[1.5rem] min-h-[280px]">
                 <div className="flex justify-end" style={msgFade(0)}>
-                  <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[85%]">
+                  <div className="bg-[#007AFF] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[85%]">
                     <p className="text-white text-[12.5px] leading-relaxed">Hey Mike, Sarah connected us — I helped her family get protected and she thought I might be able to help you too. Open to a couple quick questions?</p>
                   </div>
                 </div>
@@ -574,7 +578,7 @@ export default function MobileLandingV2() {
                   </div>
                 </div>
                 <div className="flex justify-end" style={msgFade(2)}>
-                  <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[85%]">
+                  <div className="bg-[#007AFF] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[85%]">
                     <p className="text-white text-[12.5px] leading-relaxed">What matters most to you when it comes to protecting your family?</p>
                   </div>
                 </div>
@@ -584,9 +588,9 @@ export default function MobileLandingV2() {
                   </div>
                 </div>
                 <div className="flex justify-end" style={msgFade(4)}>
-                  <div className="bg-[#005851] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[85%]">
+                  <div className="bg-[#007AFF] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[85%]">
                     <p className="text-white text-[12.5px] leading-relaxed">Really appreciate that. A quick 15-min call would be worth it. Here&apos;s my calendar:</p>
-                    <p className="text-[#3DD6C3] text-[12.5px] mt-1 underline" style={msgFade(5)}>calendly.com/daniel</p>
+                    <p className="text-white/80 text-[12.5px] mt-1 underline" style={msgFade(5)}>calendly.com/daniel</p>
                   </div>
                 </div>
                 <div className="flex justify-center pt-2" style={msgFade(6)}>
@@ -598,21 +602,10 @@ export default function MobileLandingV2() {
               </div>
             </div>
             <p className="text-center text-white/25 text-[11px] mt-3">The referral thinks they&apos;re texting you.</p>
-
-            {/* Platform badges */}
-            <div className="flex items-center justify-center gap-3 mt-4">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.06] border border-white/[0.08] rounded-full">
-                <svg className="w-3 h-3 text-white/50" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
-                <span className="text-white/50 text-[10px] font-medium">iMessage</span>
-                <div className="w-1.5 h-1.5 rounded-full bg-[#007AFF]" />
-              </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.06] border border-white/[0.08] rounded-full">
-                <svg className="w-3 h-3 text-white/50" viewBox="0 0 24 24" fill="currentColor"><path d="M17.523 15.34c-.5 0-.9.4-.9.9s.4.9.9.9.9-.4.9-.9-.4-.9-.9-.9zm-11.046 0c-.5 0-.9.4-.9.9s.4.9.9.9.9-.4.9-.9-.4-.9-.9-.9zm11.405-6.02l1.9-3.46c.11-.2.04-.44-.15-.56-.2-.11-.44-.04-.56.15l-1.92 3.49C15.46 8.38 13.55 7.75 12 7.75s-3.46.63-5.14 1.72L4.94 5.98c-.12-.19-.36-.26-.56-.15-.19.12-.26.36-.15.56l1.9 3.46C2.64 11.96.34 15.55 0 19.8h24c-.34-4.25-2.64-7.84-6.12-9.48z"/></svg>
-                <span className="text-white/50 text-[10px] font-medium">RCS</span>
-                <div className="w-1.5 h-1.5 rounded-full bg-[#34C759]" />
-              </div>
+            <div className="flex items-center justify-center gap-1.5 mt-3">
+              <div className="w-1.5 h-1.5 rounded-full bg-[#34C759]" />
+              <p className="text-white/20 text-[10px]">Also native on Android via RCS</p>
             </div>
-            <p className="text-center text-white/20 text-[10px] mt-2">Native messaging on every device.</p>
           </div>
 
           {/* Follow-up badges */}
@@ -628,84 +621,130 @@ export default function MobileLandingV2() {
       {/* ═══════════════════════════════════════════════════
          RETENTION — How It Keeps Clients
          ═══════════════════════════════════════════════════ */}
-      <section className="relative bg-[#F8F9FA] px-6 py-16">
-        <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: '-40px' }}
-          variants={stagger}
-          style={{ willChange: 'transform, opacity' }}
-          className="space-y-8"
-        >
-          <motion.div variants={fadeUp} custom={0}>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#3DD6C3]/10 border border-[#3DD6C3]/20 rounded-full mb-4">
+      <section className="relative bg-[#0D4D4D] px-6 py-20 overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none will-change-transform">
+          <div className="absolute top-1/4 -left-20 w-[300px] h-[300px] bg-[#3DD6C3] rounded-full blur-[180px] opacity-[0.08]" />
+          <div className="absolute bottom-1/4 -right-10 w-[200px] h-[200px] bg-red-500 rounded-full blur-[150px] opacity-[0.05]" />
+        </div>
+
+        <div className="relative space-y-16">
+          {/* Header */}
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] as const }}
+            style={{ willChange: 'transform, opacity' }}
+          >
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/[0.06] border border-white/10 rounded-full mb-4">
               <svg className="w-3.5 h-3.5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-              <span className="text-[#0D4D4D] font-bold text-[11px] uppercase tracking-wide">Retention</span>
+              <span className="text-[#3DD6C3] font-bold text-[11px] uppercase tracking-wide">Retention</span>
             </div>
-            <h2 className="text-[1.65rem] font-extrabold text-[#0D4D4D] leading-tight mb-2">
-              Never lose a client to silence again.
+            <h2 className="text-[1.65rem] font-extrabold text-white leading-tight mb-2">
+              Never lose a client<br />to silence again.
             </h2>
-            <p className="text-[#6B7280] text-[14px] leading-relaxed">Two layers of protection. Zero effort from you.</p>
+            <p className="text-white/40 text-[14px]">Your AI protects every relationship. On autopilot.</p>
           </motion.div>
 
-          {/* Prevention layer */}
-          <motion.div variants={fadeUp} custom={0.1} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-6 h-6 rounded-lg bg-[#3DD6C3]/10 flex items-center justify-center">
-                <span className="text-[#3DD6C3] text-[10px] font-black">1</span>
-              </div>
-              <p className="text-[#0D4D4D] font-bold text-sm">Prevention</p>
+          {/* Layer 1: Prevention */}
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] as const }}
+            style={{ willChange: 'transform, opacity' }}
+            className="space-y-6"
+          >
+            {/* Stat */}
+            <div className="flex items-baseline gap-3">
+              <span className="text-5xl font-black text-[#3DD6C3]">7+</span>
+              <p className="text-white/50 text-[14px] leading-snug">automated touchpoints<br />per year, per client</p>
             </div>
-            <p className="text-[#6B7280] text-[13px] leading-relaxed mb-4">7+ personalized touchpoints per year — all as push notifications, completely automatic.</p>
-            {/* Notification mockups */}
+
+            <p className="text-white/40 text-[14px] leading-relaxed">
+              Holidays, birthdays, policy anniversaries &mdash; push notifications your clients actually love. You never lift a finger.
+            </p>
+
+            {/* Holiday cards */}
             <div className="flex gap-2.5 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
               {[
-                { emoji: '🎄', label: 'Christmas', bg: 'linear-gradient(135deg, #8B0000, #C41E3A)', from: 'Daniel Roberts' },
-                { emoji: '🎆', label: 'New Year', bg: 'linear-gradient(135deg, #0B1A3E, #162D6E)', from: 'Daniel Roberts' },
-                { emoji: '💝', label: "Valentine's", bg: 'linear-gradient(135deg, #9B1B30, #D63B5C)', from: 'Daniel Roberts' },
-                { emoji: '🇺🇸', label: '4th of July', bg: 'linear-gradient(135deg, #002868, #BF0A30)', from: 'Daniel Roberts' },
-                { emoji: '🍂', label: 'Thanksgiving', bg: 'linear-gradient(135deg, #8B4513, #BF6A20)', from: 'Daniel Roberts' },
-                { emoji: '🎂', label: 'Birthday', bg: 'linear-gradient(135deg, #6B21A8, #a158ff)', from: 'Daniel Roberts' },
-                { emoji: '📅', label: 'Anniversary', bg: 'linear-gradient(135deg, #005851, #0D4D4D)', from: 'Daniel Roberts' },
+                { emoji: '🎄', label: 'Christmas', bg: 'linear-gradient(135deg, #8B0000, #C41E3A)' },
+                { emoji: '🎆', label: 'New Year', bg: 'linear-gradient(135deg, #0B1A3E, #162D6E)' },
+                { emoji: '💝', label: "Valentine's", bg: 'linear-gradient(135deg, #9B1B30, #D63B5C)' },
+                { emoji: '🇺🇸', label: '4th of July', bg: 'linear-gradient(135deg, #002868, #BF0A30)' },
+                { emoji: '🍂', label: 'Thanksgiving', bg: 'linear-gradient(135deg, #8B4513, #BF6A20)' },
+                { emoji: '🎂', label: 'Birthday', bg: 'linear-gradient(135deg, #6B21A8, #a158ff)' },
+                { emoji: '📅', label: 'Anniversary', bg: 'linear-gradient(135deg, #005851, #0D4D4D)' },
               ].map((h) => (
-                <div key={h.label} className="flex-shrink-0 w-[100px] rounded-xl p-3 text-center" style={{ background: h.bg }}>
-                  <span className="text-2xl">{h.emoji}</span>
-                  <p className="text-white font-bold text-[9px] mt-1.5">{h.label}</p>
-                  <p className="text-white/50 text-[7px] mt-0.5">From: {h.from}</p>
+                <div key={h.label} className="flex-shrink-0 w-[110px] rounded-2xl p-4 text-center" style={{ background: h.bg }}>
+                  <span className="text-3xl">{h.emoji}</span>
+                  <p className="text-white font-bold text-[10px] mt-2">{h.label}</p>
                 </div>
               ))}
             </div>
           </motion.div>
 
-          {/* Rescue layer */}
-          <motion.div variants={fadeUp} custom={0.2} className="bg-[#0D4D4D] rounded-2xl p-5 border border-[#3DD6C3]/10">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-6 h-6 rounded-lg bg-red-500/15 flex items-center justify-center">
-                <span className="text-red-400 text-[10px] font-black">2</span>
+          {/* Divider */}
+          <div className="h-px bg-white/[0.06]" />
+
+          {/* Layer 2: Rescue */}
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] as const }}
+            style={{ willChange: 'transform, opacity' }}
+            className="space-y-6"
+          >
+            {/* Alert header */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute h-full w-full rounded-full bg-red-400 opacity-75" />
+                  <span className="relative rounded-full h-2.5 w-2.5 bg-red-400" />
+                </span>
+                <p className="text-white font-extrabold text-lg">Policy at risk?</p>
               </div>
-              <p className="text-white font-bold text-sm">Rescue</p>
+              <p className="text-[#3DD6C3] text-[1.1rem] font-bold">Forward one email. AI saves it.</p>
             </div>
-            <div className="space-y-3 mb-4">
-              {[
-                { num: '1', text: 'Forward the carrier email or tap a button in your dashboard' },
-                { num: '2', text: 'AI matches the client and reaches out within hours' },
-                { num: '3', text: 'Automatic follow-ups on Day 2, 5, and 7' },
-              ].map((step) => (
-                <div key={step.num} className="flex items-start gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-red-500/15 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-red-400 text-[8px] font-black">{step.num}</span>
+
+            {/* Flow */}
+            <div className="bg-white/[0.04] rounded-2xl p-5 border border-white/[0.06]">
+              <div className="flex items-center justify-between gap-2">
+                {[
+                  { icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z', label: 'Forward email', color: 'white/40' },
+                  { icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', label: 'AI reaches out', color: 'white/40' },
+                  { icon: 'M5 13l4 4L19 7', label: 'Policy saved', color: '#3DD6C3' },
+                ].map((step, i) => (
+                  <div key={step.label} className="flex items-center gap-2 flex-1">
+                    <div className="flex flex-col items-center gap-1.5 flex-1">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${i === 2 ? 'bg-[#3DD6C3]/15' : 'bg-white/[0.06]'}`}>
+                        <svg className="w-4 h-4" style={{ color: i === 2 ? '#3DD6C3' : 'rgba(255,255,255,0.4)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={step.icon} /></svg>
+                      </div>
+                      <p className={`text-[8px] font-semibold text-center leading-tight ${i === 2 ? 'text-[#3DD6C3]' : 'text-white/40'}`}>{step.label}</p>
+                    </div>
+                    {i < 2 && <div className="w-4 h-px bg-white/10 flex-shrink-0 -mt-4" />}
                   </div>
-                  <p className="text-white/60 text-[13px] leading-relaxed">{step.text}</p>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-            <p className="text-[#3DD6C3] text-[13px] font-bold">Save the policy before a chargeback hits.</p>
+
+            <p className="text-white/50 text-[13px] leading-relaxed">
+              Automatic follow-ups on Day 2, 5, and 7. <span className="text-white/70 font-semibold">You keep the commission.</span>
+            </p>
           </motion.div>
 
-          <motion.p variants={fadeUp} custom={0.3} className="text-[#6B7280]/60 text-[13px] italic text-center">
+          {/* Closing */}
+          <motion.p
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+            className="text-white/25 text-[13px] italic text-center"
+          >
             Your AI doesn&apos;t sleep. Or take lunch. Or forget to follow up.
           </motion.p>
-        </motion.div>
+        </div>
       </section>
 
       {/* ═══════════════════════════════════════════════════
