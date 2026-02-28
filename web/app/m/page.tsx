@@ -84,13 +84,13 @@ export default function MobileLandingV2() {
          ═══════════════════════════════════════════════════ */}
       <section ref={heroRef} className="relative min-h-[100svh] flex flex-col justify-between px-6 pt-14 pb-8 overflow-hidden">
         {/* Ambient glows */}
-        <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none will-change-transform">
           <div className="absolute -top-20 -left-20 w-[300px] h-[300px] bg-[#3DD6C3] rounded-full blur-[160px] opacity-20" />
           <div className="absolute bottom-20 -right-20 w-[250px] h-[250px] bg-[#fdcc02] rounded-full blur-[140px] opacity-[0.08]" />
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-[#3DD6C3] rounded-full blur-[200px] opacity-[0.06]" />
         </div>
         {/* Grid pattern */}
-        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '48px 48px' }} />
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none will-change-transform" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '48px 48px' }} />
 
         <div className="relative z-10 flex flex-col flex-1">
           {/* Logo */}
@@ -186,6 +186,7 @@ export default function MobileLandingV2() {
           whileInView="visible"
           viewport={{ once: true, margin: '-40px' }}
           variants={stagger}
+          style={{ willChange: 'transform, opacity' }}
           className="space-y-10"
         >
           <motion.div variants={fadeUp} custom={0}>
@@ -229,7 +230,7 @@ export default function MobileLandingV2() {
          THE SYSTEM — Three Revenue Streams
          ═══════════════════════════════════════════════════ */}
       <section className="relative bg-[#070E1B] px-6 py-16 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none will-change-transform">
           <div className="absolute top-0 -left-20 w-[300px] h-[300px] bg-[#3DD6C3] rounded-full blur-[180px] opacity-[0.08]" />
           <div className="absolute bottom-0 -right-10 w-[200px] h-[200px] bg-[#fdcc02] rounded-full blur-[120px] opacity-[0.06]" />
         </div>
@@ -239,6 +240,7 @@ export default function MobileLandingV2() {
           whileInView="visible"
           viewport={{ once: true, margin: '-40px' }}
           variants={stagger}
+          style={{ willChange: 'transform, opacity' }}
           className="relative space-y-6"
         >
           <motion.div variants={fadeUp} custom={0} className="mb-2">
@@ -308,7 +310,7 @@ export default function MobileLandingV2() {
          AI REFERRAL DEMO — The Wow Moment
          ═══════════════════════════════════════════════════ */}
       <section className="relative bg-[#0D4D4D] px-6 py-16 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none will-change-transform">
           <div className="absolute top-0 right-0 w-[250px] h-[250px] bg-[#3DD6C3] rounded-full blur-[150px] opacity-[0.1]" />
         </div>
 
@@ -318,6 +320,7 @@ export default function MobileLandingV2() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
+            style={{ willChange: 'transform, opacity' }}
           >
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#fdcc02]/15 border border-[#fdcc02]/25 rounded-full mb-4">
               <svg className="w-3.5 h-3.5 text-[#fdcc02]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -337,6 +340,7 @@ export default function MobileLandingV2() {
             whileInView="visible"
             viewport={{ once: true }}
             variants={stagger}
+            style={{ willChange: 'transform, opacity' }}
             className="flex gap-3"
           >
             {[
@@ -360,7 +364,7 @@ export default function MobileLandingV2() {
 
           {/* iMessage mockup */}
           <div ref={chatRef}>
-            <div className="bg-[#1a1a2e] rounded-[1.75rem] p-1 shadow-2xl border border-[#3DD6C3]/15">
+            <div className="bg-[#1a1a2e] rounded-[1.75rem] p-1 shadow-2xl border border-[#3DD6C3]/15 transform-gpu">
               {/* Status bar */}
               <div className="bg-[#111] rounded-t-[1.5rem] px-4 pt-2.5 pb-2 flex items-center justify-between">
                 <span className="text-white/40 text-[10px] font-medium">9:44 AM</span>
@@ -440,6 +444,7 @@ export default function MobileLandingV2() {
           whileInView="visible"
           viewport={{ once: true, margin: '-40px' }}
           variants={stagger}
+          style={{ willChange: 'transform, opacity' }}
           className="space-y-8"
         >
           <motion.div variants={fadeUp} custom={0}>
@@ -500,10 +505,10 @@ export default function MobileLandingV2() {
          CLIENT APP — Phone Mockup
          ═══════════════════════════════════════════════════ */}
       <section className="relative bg-[#070E1B] px-6 py-16 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none will-change-transform">
           <div className="absolute top-1/3 left-1/4 w-[300px] h-[300px] bg-[#3DD6C3] rounded-full blur-[180px] opacity-[0.06]" />
         </div>
-        <div className="absolute inset-0 opacity-[0.02] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+        <div className="absolute inset-0 opacity-[0.02] pointer-events-none will-change-transform" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
 
         <div className="relative">
           <motion.div
@@ -511,6 +516,7 @@ export default function MobileLandingV2() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
+            style={{ willChange: 'transform, opacity' }}
             className="text-center mb-8"
           >
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/[0.06] border border-white/10 rounded-full mb-4">
@@ -528,10 +534,11 @@ export default function MobileLandingV2() {
             whileInView={{ opacity: 1, y: 0, scale: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] }}
+            style={{ willChange: 'transform, opacity' }}
             className="flex justify-center mb-8"
           >
             <div className="relative">
-              <div className="w-[220px] h-[440px] bg-[#1a1a1a] rounded-[2.5rem] p-2.5 shadow-2xl border-4 border-[#2a2a2a]">
+              <div className="w-[220px] h-[440px] bg-[#1a1a1a] rounded-[2.5rem] p-2.5 shadow-2xl border-4 border-[#2a2a2a] transform-gpu">
                 <div className="absolute -inset-1.5 rounded-[2.8rem] bg-gradient-to-b from-[#3DD6C3]/15 via-transparent to-[#fdcc02]/10 pointer-events-none blur-sm" />
                 <div className="w-full h-full bg-[#111] rounded-[2rem] overflow-hidden px-3.5 py-5 relative">
                   {/* Agent info */}
@@ -584,6 +591,7 @@ export default function MobileLandingV2() {
             whileInView="visible"
             viewport={{ once: true }}
             variants={stagger}
+            style={{ willChange: 'transform, opacity' }}
             className="flex flex-wrap justify-center gap-2"
           >
             {[
@@ -624,7 +632,7 @@ export default function MobileLandingV2() {
          THE MATH — ROI
          ═══════════════════════════════════════════════════ */}
       <section className="relative bg-[#0D4D4D] px-6 py-16 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none will-change-transform">
           <div className="absolute top-0 left-0 w-[200px] h-[200px] bg-red-500 rounded-full blur-[120px] opacity-10" />
           <div className="absolute bottom-0 right-0 w-[200px] h-[200px] bg-[#3DD6C3] rounded-full blur-[120px] opacity-10" />
         </div>
@@ -634,6 +642,7 @@ export default function MobileLandingV2() {
           whileInView="visible"
           viewport={{ once: true, margin: '-40px' }}
           variants={stagger}
+          style={{ willChange: 'transform, opacity' }}
           className="relative space-y-6"
         >
           <motion.div variants={fadeUp} custom={0} className="text-center">
@@ -691,6 +700,7 @@ export default function MobileLandingV2() {
           whileInView="visible"
           viewport={{ once: true, margin: '-40px' }}
           variants={stagger}
+          style={{ willChange: 'transform, opacity' }}
           className="space-y-8"
         >
           <motion.div variants={fadeUp} custom={0} className="text-center">
@@ -748,6 +758,7 @@ export default function MobileLandingV2() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
+          style={{ willChange: 'opacity' }}
         >
           <h3 className="text-center text-sm font-bold text-[#0D4D4D] mb-6">
             Built for <span className="text-[#3DD6C3]">trust</span>
@@ -781,6 +792,7 @@ export default function MobileLandingV2() {
           whileInView="visible"
           viewport={{ once: true, margin: '-40px' }}
           variants={stagger}
+          style={{ willChange: 'transform, opacity' }}
           className="space-y-6"
         >
           <motion.div variants={fadeUp} custom={0} className="text-center">
@@ -848,6 +860,7 @@ export default function MobileLandingV2() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
+          style={{ willChange: 'transform, opacity' }}
           className="space-y-3"
         >
           <h2 className="text-xl font-extrabold text-[#0D4D4D] mb-6">
@@ -878,7 +891,7 @@ export default function MobileLandingV2() {
          FINAL CTA
          ═══════════════════════════════════════════════════ */}
       <section className="relative bg-[#0D4D4D] px-6 py-20 pb-32 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none will-change-transform">
           <div className="absolute top-0 left-1/4 w-[250px] h-[250px] bg-[#3DD6C3] rounded-full blur-[120px] opacity-15" />
           <div className="absolute bottom-0 right-1/4 w-[200px] h-[200px] bg-[#fdcc02] rounded-full blur-[100px] opacity-10" />
         </div>
@@ -888,6 +901,7 @@ export default function MobileLandingV2() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
+          style={{ willChange: 'transform, opacity' }}
           className="relative text-center space-y-6"
         >
           <p className="text-white/30 text-[11px] uppercase tracking-[0.2em] font-medium">Stop leaving money on the table</p>
@@ -929,8 +943,8 @@ export default function MobileLandingV2() {
       </footer>
 
       {/* ══════════ STICKY BOTTOM CTA ══════════ */}
-      <div className={`fixed bottom-0 left-0 right-0 z-50 transition-all duration-300 ${showBottomCta ? 'translate-y-0' : 'translate-y-full'}`}>
-        <div className="bg-[#0D4D4D]/95 backdrop-blur-md border-t border-white/10 px-4 py-3 flex items-center justify-between gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.3)]">
+      <div className={`fixed bottom-0 left-0 right-0 z-50 transition-all duration-300 will-change-transform ${showBottomCta ? 'translate-y-0' : 'translate-y-full'}`}>
+        <div className="bg-[#0D4D4D]/95 backdrop-blur-md border-t border-white/10 px-4 py-3 flex items-center justify-between gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.3)] will-change-transform">
           <div className="flex items-center gap-2 min-w-0">
             <span className="relative flex h-2 w-2 flex-shrink-0">
               <span className="animate-ping absolute h-full w-full rounded-full bg-[#3DD6C3] opacity-75" />
