@@ -56,6 +56,22 @@ export default function SubscribePage() {
         }
       }
 
+      // Auto-activate approved founding members (no Stripe, no credit card)
+      try {
+        const token = await currentUser.getIdToken();
+        const res = await fetch('/api/founding-member/activate', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const result = await res.json();
+        if (result.activated) {
+          router.push('/dashboard');
+          return;
+        }
+      } catch {
+        // Activation check failed — fall through to normal subscribe flow
+      }
+
       setUser(currentUser);
       setLoading(false);
     });

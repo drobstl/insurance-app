@@ -106,7 +106,7 @@ export default function FoundingMemberPage() {
     {
       question: 'Do I need a credit card?',
       answer:
-        "Yes — you'll sign up through our normal checkout with a special promo code I send you. Your card won't be charged as long as you're an active founding member.",
+        "No. Just create your account and you're in — no credit card, no checkout page. You'll be automatically activated as a founding member.",
     },
     {
       question: 'What if I want to cancel?',

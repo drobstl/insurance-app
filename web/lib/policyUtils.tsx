@@ -2,11 +2,11 @@ import React from 'react';
 import { Timestamp } from 'firebase/firestore';
 
 /**
- * Check whether a policy's createdAt date falls within the anniversary alert
- * window, i.e. it was created between 335 and 365 days ago (≈ 30-day heads-up
- * before the 1-year mark).
+ * Check whether a policy's createdAt date falls within the anniversary display
+ * window (0–30 days before the 1-year mark). Used for dashboard/UI to show
+ * "anniversary in X days". Client outreach is sent the day after the anniversary.
  *
- * Returns `null` if not approaching, or the anniversary Date if it is.
+ * Returns `null` if not in window, or the anniversary Date if it is.
  */
 export const getAnniversaryDate = (
   createdAt: Timestamp | { seconds: number; nanoseconds: number } | undefined,
@@ -34,7 +34,7 @@ export const getAnniversaryDate = (
   const msUntil = anniversary.getTime() - now.getTime();
   const daysUntil = msUntil / (1000 * 60 * 60 * 24);
 
-  // Alert window: 0 – 30 days before the 1-year anniversary
+  // Display window: 0–30 days before 1-year (for UI). Outreach is day-after.
   if (daysUntil >= 0 && daysUntil <= 30) {
     return anniversary;
   }

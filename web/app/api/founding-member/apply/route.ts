@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
 
               <p style="font-size: 16px;">Thanks for applying to the AgentForLife Founding Members program. I got your application and I'll personally review it within 24 hours.</p>
 
-              <p style="font-size: 16px;">If you're accepted, I'll send you everything you need to get started — including a promo code for lifetime free access.</p>
+              <p style="font-size: 16px;">If you're accepted, I'll send you everything you need to get started — just create your account and you're in. No credit card required.</p>
 
               <p style="font-size: 16px;">In the meantime, if you have any questions, just reply to this email.</p>
 

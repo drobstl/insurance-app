@@ -279,7 +279,7 @@ def s03_solution(prs, im):
          "Birthday, holiday, and anniversary messages.\nAI conservation catches lapsing policies within hours."),
         (C_BLUE, "F", "Referrals", "1-Tap", "referral system",
          "Client picks a contact, warm intro text goes out.\nAI business line qualifies and books the appointment."),
-        (C_YEL,  "W", "Rewrites",  "30-Day", "anniversary alerts",
+        (C_YEL,  "W", "Rewrites",  "1-Year", "anniversary outreach",
          "Clients notified before renewal with a booking link.\nRevenue agents never knew existed."),
     ]
 

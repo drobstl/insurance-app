@@ -6,8 +6,9 @@ import { motion } from 'framer-motion';
 import LeakyBucketCalculator from '@/components/LeakyBucketCalculator';
 import { SystemShowcase } from '@/components/SolutionAnimations';
 import DeepDiveTabs from '@/components/DeepDiveTabs';
+import HeroPhoneMockup from '@/components/HeroPhoneMockup';
 
-export default function LandingPage() {
+export default function LandingPageV2() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [spotsRemaining, setSpotsRemaining] = useState<number | null>(null);
 
@@ -241,74 +242,51 @@ export default function LandingPage() {
 
       <main>
         {/* ============================================ */}
-        {/* HERO                                         */}
+        {/* HERO V2 — Two-column with phone mockup      */}
         {/* ============================================ */}
-        <section ref={heroRef} className="relative bg-[#0D4D4D] pb-20 md:pb-32 overflow-hidden pt-28 md:pt-48">
+        <section ref={heroRef} className="relative bg-[#0D4D4D] pb-20 md:pb-32 overflow-hidden pt-28 md:pt-40">
           <div className="absolute inset-0">
             <div className="absolute top-20 left-10 w-96 h-96 bg-[#3DD6C3] rounded-full blur-[150px] opacity-20"></div>
             <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-[#3DD6C3] rounded-full blur-[200px] opacity-15"></div>
           </div>
           <div className="absolute inset-0 opacity-5" style={{ backgroundImage: `linear-gradient(to right, #3DD6C3 1px, transparent 1px), linear-gradient(to bottom, #3DD6C3 1px, transparent 1px)`, backgroundSize: '40px 40px' }}></div>
 
-          <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#fdcc02] rounded-full mb-5 md:mb-8">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0D4D4D] opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#0D4D4D]"></span>
-              </span>
-              <span className="text-[#0D4D4D] font-bold text-sm uppercase tracking-wide">{spotsRemaining !== null ? `Only ${spotsRemaining} of 50 Free Lifetime Spots Left` : 'Limited Free Lifetime Spots Available'}</span>
-            </div>
+          <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col lg:flex-row items-center gap-10 lg:gap-16">
+              {/* Left column — text */}
+              <div className="flex-1 text-center lg:text-left">
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#fdcc02] rounded-full mb-5 md:mb-6">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0D4D4D] opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#0D4D4D]"></span>
+                  </span>
+                  <span className="text-[#0D4D4D] font-bold text-sm uppercase tracking-wide">{spotsRemaining !== null ? `Only ${spotsRemaining} of 50 Free Spots Left` : 'Limited Free Lifetime Spots'}</span>
+                </div>
 
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] mb-6 md:mb-8">
-              <span className="text-[#fdcc02]">Kill Chargebacks</span>.<br />
-              <span className="text-[#3DD6C3]">Explode Your Referrals</span>.<br />
-              3x Your Income from Leads You Already Won.
-            </h1>
+                <h1 className="text-4xl md:text-5xl lg:text-[3.4rem] font-extrabold text-white leading-[1.1] mb-5">
+                  <span className="text-[#fdcc02]">Kill Chargebacks</span>.<br />
+                  <span className="text-[#3DD6C3]">Explode Your Referrals</span>.<br />
+                  Triple Your Income.
+                </h1>
 
-            {/* Phone mockup with video preview */}
-            <div className="flex justify-center mb-6 md:mb-8">
-              <div className="w-[180px] h-[390px] md:w-[200px] md:h-[434px] bg-[#1a1a1a] rounded-[2.25rem] md:rounded-[2.5rem] p-2 shadow-2xl border-4 border-[#2a2a2a]">
-                <div className="w-full h-full bg-black rounded-[1.75rem] md:rounded-[2rem] overflow-hidden">
-                  <video
-                    className="w-full h-full object-cover"
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                    webkit-playsinline=""
-                    poster="/app-preview-poster.jpeg"
-                    style={{ WebkitTransform: 'translateZ(0)' }}
-                  >
-                    <source src="/app-preview.webm" type="video/webm" />
-                    <source src="/app-preview.mp4" type="video/mp4" />
-                  </video>
+                <p className="text-lg md:text-xl text-white/70 mb-8 max-w-xl mx-auto lg:mx-0 leading-relaxed">
+                  You close the deal. We make sure they <span className="text-white font-semibold">never leave</span>, keep sending you <span className="text-white font-semibold">referrals</span>, and rebook every <span className="text-white font-semibold">anniversary</span> — on autopilot.
+                </p>
+
+                <div className="flex flex-col sm:flex-row items-center lg:items-start gap-4">
+                  <Link href="/founding-member" className="inline-flex items-center gap-2 px-8 py-4 md:px-10 md:py-4 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-lg font-bold rounded-full transition-all shadow-2xl shadow-[#fdcc02]/40 hover:shadow-[#fdcc02]/60 hover:scale-105 border-2 border-[#fdcc02] hover:border-white/20">
+                    Lock In My Free Spot
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+                  </Link>
+                  <span className="text-white/40 text-sm">{spotsRemaining !== null ? `${spotsRemaining} left` : 'Limited'} · $0 forever · No credit card</span>
                 </div>
               </div>
-            </div>
 
-            <p className="text-sm md:text-base text-[#3DD6C3] font-semibold tracking-[0.15em] uppercase mb-4 md:mb-6">The first AI-powered client retention and warm referral system.</p>
-
-            <p className="text-base md:text-xl lg:text-2xl text-white/80 mb-8 md:mb-10 max-w-3xl mx-auto leading-relaxed">
-              You close the deal. We make sure they <span className="text-white font-semibold">never leave</span>, keep sending you <span className="text-white font-semibold">referrals</span>, and rebook every <span className="text-white font-semibold">anniversary</span> — all on autopilot. It will cost <span className="line-through opacity-70">$49/month</span> — but the first 50 agents get it <span className="text-[#fdcc02] font-bold">free. For life.</span>
-            </p>
-
-            <Link href="/founding-member" className="inline-flex items-center gap-2 md:gap-3 px-8 py-4 md:px-12 md:py-5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-lg md:text-xl font-bold rounded-full transition-all shadow-2xl shadow-[#fdcc02]/40 hover:shadow-[#fdcc02]/60 hover:scale-105 border-2 border-[#fdcc02] hover:border-white/20">
-              Lock In My Free Lifetime Spot
-              <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
-            </Link>
-            <p className="text-white/40 mt-4 text-sm">{spotsRemaining !== null ? `Only ${spotsRemaining} spots left` : 'Limited spots'} • $0 forever • No credit card required</p>
-
-            {spotsRemaining !== null && (
-              <div className="mt-6 max-w-xs mx-auto">
-                <div className="w-full bg-white/10 rounded-full h-2.5 overflow-hidden">
-                  <div
-                    className="h-full bg-[#fdcc02] rounded-full transition-all duration-1000"
-                    style={{ width: `${((50 - spotsRemaining) / 50) * 100}%` }}
-                  />
-                </div>
-                <p className="text-white/50 text-xs mt-2">{50 - spotsRemaining} agent{50 - spotsRemaining !== 1 ? 's' : ''} already locked in {50 - spotsRemaining !== 1 ? 'their' : 'a'} free spot</p>
+              {/* Right column — phone mockup */}
+              <div className="flex-shrink-0 hidden md:flex justify-center">
+                <HeroPhoneMockup />
               </div>
-            )}
+            </div>
           </div>
 
           <div className="absolute -bottom-1 left-0 right-0">
@@ -321,9 +299,6 @@ export default function LandingPage() {
         {/* ============================================ */}
         {/* 3 WAYS YOU'RE BLEEDING MONEY                 */}
         {/* ============================================ */}
-        {/* ============================================ */}
-        {/* 3 WAYS YOU'RE BLEEDING MONEY                 */}
-        {/* ============================================ */}
         <section className="py-20 md:py-28 bg-white -mt-1">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-14">
@@ -333,47 +308,29 @@ export default function LandingPage() {
             </div>
 
             <div className="grid md:grid-cols-3 gap-6">
-              <motion.div
-                className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400"
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.3 }}
-                transition={{ duration: 0.45, ease: 'easeOut' }}
-              >
+              <div className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400">
                 <div className="flex items-center gap-3 mb-3">
                   <span className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500 font-black text-sm">1</span>
                   <h3 className="text-lg font-bold text-[#0D4D4D]">Retention Is a Leaky Bucket</h3>
                 </div>
                 <p className="text-[#6B7280] leading-relaxed">Your clients forget about you within weeks. When a policy lapses, the conservation notice sits in your inbox until you eat the chargeback.</p>
-              </motion.div>
+              </div>
 
-              <motion.div
-                className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400"
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.3 }}
-                transition={{ duration: 0.45, ease: 'easeOut', delay: 0.1 }}
-              >
+              <div className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400">
                 <div className="flex items-center gap-3 mb-3">
                   <span className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500 font-black text-sm">2</span>
                   <h3 className="text-lg font-bold text-[#0D4D4D]">Referrals Are Stuck in the 1990s</h3>
                 </div>
                 <p className="text-[#6B7280] leading-relaxed">You tell clients to &quot;call your friend.&quot; By the time you follow up, it&apos;s a cold lead. Most agents get 5% when 25% is possible.</p>
-              </motion.div>
+              </div>
 
-              <motion.div
-                className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400"
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.3 }}
-                transition={{ duration: 0.45, ease: 'easeOut', delay: 0.2 }}
-              >
+              <div className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400">
                 <div className="flex items-center gap-3 mb-3">
                   <span className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500 font-black text-sm">3</span>
                   <h3 className="text-lg font-bold text-[#0D4D4D]">Rewrites Are Sitting on the Table</h3>
                 </div>
                 <p className="text-[#6B7280] leading-relaxed">Every policy anniversary is a lay-down sale. But there&apos;s no system to flag it, pitch the client, and get them on your calendar.</p>
-              </motion.div>
+              </div>
             </div>
 
             <motion.div
@@ -584,7 +541,7 @@ export default function LandingPage() {
               <Link href="/privacy" className="text-white/70 hover:text-white transition-colors">Privacy</Link>
               <Link href="/terms" className="text-white/70 hover:text-white transition-colors">Terms</Link>
             </nav>
-            <p className="text-white/50 text-sm">© 2026 AgentForLife</p>
+            <p className="text-white/50 text-sm">&copy; 2026 AgentForLife</p>
           </div>
         </div>
       </footer>

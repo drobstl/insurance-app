@@ -7,7 +7,7 @@ import LeakyBucketCalculator from '@/components/LeakyBucketCalculator';
 import { SystemShowcase } from '@/components/SolutionAnimations';
 import DeepDiveTabs from '@/components/DeepDiveTabs';
 
-export default function LandingPage() {
+export default function LandingPageV3() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [spotsRemaining, setSpotsRemaining] = useState<number | null>(null);
 
@@ -259,36 +259,15 @@ export default function LandingPage() {
               <span className="text-[#0D4D4D] font-bold text-sm uppercase tracking-wide">{spotsRemaining !== null ? `Only ${spotsRemaining} of 50 Free Lifetime Spots Left` : 'Limited Free Lifetime Spots Available'}</span>
             </div>
 
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] mb-6 md:mb-8">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] mb-4">
               <span className="text-[#fdcc02]">Kill Chargebacks</span>.<br />
               <span className="text-[#3DD6C3]">Explode Your Referrals</span>.<br />
-              3x Your Income from Leads You Already Won.
+              Triple Your Income from the Leads You Already Won.
             </h1>
 
-            {/* Phone mockup with video preview */}
-            <div className="flex justify-center mb-6 md:mb-8">
-              <div className="w-[180px] h-[390px] md:w-[200px] md:h-[434px] bg-[#1a1a1a] rounded-[2.25rem] md:rounded-[2.5rem] p-2 shadow-2xl border-4 border-[#2a2a2a]">
-                <div className="w-full h-full bg-black rounded-[1.75rem] md:rounded-[2rem] overflow-hidden">
-                  <video
-                    className="w-full h-full object-cover"
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                    webkit-playsinline=""
-                    poster="/app-preview-poster.jpeg"
-                    style={{ WebkitTransform: 'translateZ(0)' }}
-                  >
-                    <source src="/app-preview.webm" type="video/webm" />
-                    <source src="/app-preview.mp4" type="video/mp4" />
-                  </video>
-                </div>
-              </div>
-            </div>
+            <p className="text-sm md:text-base text-[#3DD6C3] font-semibold tracking-[0.15em] uppercase mb-6 md:mb-8">The first AI-powered client retention and warm referral system.</p>
 
-            <p className="text-sm md:text-base text-[#3DD6C3] font-semibold tracking-[0.15em] uppercase mb-4 md:mb-6">The first AI-powered client retention and warm referral system.</p>
-
-            <p className="text-base md:text-xl lg:text-2xl text-white/80 mb-8 md:mb-10 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-lg md:text-2xl text-white/80 mb-8 md:mb-10 max-w-3xl mx-auto leading-relaxed">
               You close the deal. We make sure they <span className="text-white font-semibold">never leave</span>, keep sending you <span className="text-white font-semibold">referrals</span>, and rebook every <span className="text-white font-semibold">anniversary</span> — all on autopilot. It will cost <span className="line-through opacity-70">$49/month</span> — but the first 50 agents get it <span className="text-[#fdcc02] font-bold">free. For life.</span>
             </p>
 
@@ -297,6 +276,17 @@ export default function LandingPage() {
               <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
             </Link>
             <p className="text-white/40 mt-4 text-sm">{spotsRemaining !== null ? `Only ${spotsRemaining} spots left` : 'Limited spots'} • $0 forever • No credit card required</p>
+            <div className="flex items-center justify-center gap-3 mt-4">
+              <div className="flex items-center gap-1.5 text-white/50 text-xs font-medium">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+                iPhone
+              </div>
+              <span className="text-white/30">+</span>
+              <div className="flex items-center gap-1.5 text-white/50 text-xs font-medium">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.523 15.3414c-.5 0-.9.4-.9.9s.4.9.9.9.9-.4.9-.9-.4-.9-.9-.9zm-11.046 0c-.5 0-.9.4-.9.9s.4.9.9.9.9-.4.9-.9-.4-.9-.9-.9zm11.405-6.02l1.9-3.46c.11-.2.04-.44-.15-.56-.2-.11-.44-.04-.56.15l-1.92 3.49C15.464 8.38 13.554 7.75 12 7.75s-3.464.63-5.142 1.72L4.938 5.98c-.12-.19-.36-.26-.56-.15-.19.12-.26.36-.15.56l1.9 3.46C2.638 11.96.34 15.55 0 19.8h24c-.34-4.25-2.638-7.84-6.118-9.48z"/></svg>
+                Android
+              </div>
+            </div>
 
             {spotsRemaining !== null && (
               <div className="mt-6 max-w-xs mx-auto">
@@ -321,9 +311,6 @@ export default function LandingPage() {
         {/* ============================================ */}
         {/* 3 WAYS YOU'RE BLEEDING MONEY                 */}
         {/* ============================================ */}
-        {/* ============================================ */}
-        {/* 3 WAYS YOU'RE BLEEDING MONEY                 */}
-        {/* ============================================ */}
         <section className="py-20 md:py-28 bg-white -mt-1">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-14">
@@ -333,47 +320,29 @@ export default function LandingPage() {
             </div>
 
             <div className="grid md:grid-cols-3 gap-6">
-              <motion.div
-                className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400"
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.3 }}
-                transition={{ duration: 0.45, ease: 'easeOut' }}
-              >
+              <div className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400">
                 <div className="flex items-center gap-3 mb-3">
                   <span className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500 font-black text-sm">1</span>
                   <h3 className="text-lg font-bold text-[#0D4D4D]">Retention Is a Leaky Bucket</h3>
                 </div>
                 <p className="text-[#6B7280] leading-relaxed">Your clients forget about you within weeks. When a policy lapses, the conservation notice sits in your inbox until you eat the chargeback.</p>
-              </motion.div>
+              </div>
 
-              <motion.div
-                className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400"
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.3 }}
-                transition={{ duration: 0.45, ease: 'easeOut', delay: 0.1 }}
-              >
+              <div className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400">
                 <div className="flex items-center gap-3 mb-3">
                   <span className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500 font-black text-sm">2</span>
                   <h3 className="text-lg font-bold text-[#0D4D4D]">Referrals Are Stuck in the 1990s</h3>
                 </div>
                 <p className="text-[#6B7280] leading-relaxed">You tell clients to &quot;call your friend.&quot; By the time you follow up, it&apos;s a cold lead. Most agents get 5% when 25% is possible.</p>
-              </motion.div>
+              </div>
 
-              <motion.div
-                className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400"
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.3 }}
-                transition={{ duration: 0.45, ease: 'easeOut', delay: 0.2 }}
-              >
+              <div className="bg-[#F8F9FA] rounded-2xl p-7 border-l-4 border-red-400">
                 <div className="flex items-center gap-3 mb-3">
                   <span className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500 font-black text-sm">3</span>
                   <h3 className="text-lg font-bold text-[#0D4D4D]">Rewrites Are Sitting on the Table</h3>
                 </div>
                 <p className="text-[#6B7280] leading-relaxed">Every policy anniversary is a lay-down sale. But there&apos;s no system to flag it, pitch the client, and get them on your calendar.</p>
-              </motion.div>
+              </div>
             </div>
 
             <motion.div
@@ -396,6 +365,184 @@ export default function LandingPage() {
         <SystemShowcase />
 
         {/* ============================================ */}
+        {/* HOW IT WORKS                                 */}
+        {/* ============================================ */}
+        <section className="py-20 md:py-28 bg-[#F8F9FA]">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-14">
+              <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
+                Up and Running in <span className="text-[#3DD6C3]">10 Minutes</span>
+              </h2>
+              <p className="text-lg text-[#6B7280]">No complex setup. No IT department. Just four steps.</p>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
+              <div className="relative text-center">
+                <div className="w-14 h-14 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <span className="text-[#3DD6C3] text-xl font-bold">1</span>
+                </div>
+                <h3 className="text-base md:text-lg font-bold text-[#0D4D4D] mb-2">Sign Up &amp; Brand</h3>
+                <p className="text-[#6B7280] text-sm leading-relaxed">Add your photo, agency logo, and scheduling link. Your app is instantly branded to you.</p>
+                <div className="hidden md:block absolute top-7 -right-4 w-8"><div className="h-px bg-[#3DD6C3]/30 w-full relative"><svg className="w-2 h-2 text-[#3DD6C3]/50 absolute -right-1 -top-[3px]" fill="currentColor" viewBox="0 0 6 6"><path d="M0 0l6 3-6 3z"/></svg></div></div>
+              </div>
+              <div className="relative text-center">
+                <div className="w-14 h-14 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <span className="text-[#fdcc02] text-xl font-bold">2</span>
+                </div>
+                <h3 className="text-base md:text-lg font-bold text-[#0D4D4D] mb-2">Import Your Book</h3>
+                <p className="text-[#6B7280] text-sm leading-relaxed">Upload a CSV or drop in a PDF application — AI extracts clients, policies, and beneficiaries.</p>
+                <div className="hidden md:block absolute top-7 -right-4 w-8"><div className="h-px bg-[#3DD6C3]/30 w-full relative"><svg className="w-2 h-2 text-[#3DD6C3]/50 absolute -right-1 -top-[3px]" fill="currentColor" viewBox="0 0 6 6"><path d="M0 0l6 3-6 3z"/></svg></div></div>
+              </div>
+              <div className="relative text-center">
+                <div className="w-14 h-14 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <span className="text-[#3DD6C3] text-xl font-bold">3</span>
+                </div>
+                <h3 className="text-base md:text-lg font-bold text-[#0D4D4D] mb-2">Share with Clients</h3>
+                <p className="text-[#6B7280] text-sm leading-relaxed">Clients download your app with a unique code and get a personalized welcome notification.</p>
+                <div className="hidden md:block absolute top-7 -right-4 w-8"><div className="h-px bg-[#3DD6C3]/30 w-full relative"><svg className="w-2 h-2 text-[#3DD6C3]/50 absolute -right-1 -top-[3px]" fill="currentColor" viewBox="0 0 6 6"><path d="M0 0l6 3-6 3z"/></svg></div></div>
+              </div>
+              <div className="text-center">
+                <div className="w-14 h-14 bg-[#0D4D4D] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <span className="text-[#fdcc02] text-xl font-bold">4</span>
+                </div>
+                <h3 className="text-base md:text-lg font-bold text-[#0D4D4D] mb-2">AI Takes Over</h3>
+                <p className="text-[#6B7280] text-sm leading-relaxed">Touchpoints, referral follow-ups, and conservation alerts — all run on autopilot.</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-center mt-12">
+              <div className="inline-flex items-center gap-4 px-6 py-3 bg-white border border-gray-200 rounded-full shadow-sm">
+                <div className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-[#0D4D4D]" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+                  <span className="text-[#0D4D4D] text-sm font-semibold">iPhone</span>
+                </div>
+                <div className="w-px h-5 bg-gray-200"></div>
+                <div className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-[#3DD6C3]" viewBox="0 0 24 24" fill="currentColor"><path d="M17.523 15.3414c-.5 0-.9.4-.9.9s.4.9.9.9.9-.4.9-.9-.4-.9-.9-.9zm-11.046 0c-.5 0-.9.4-.9.9s.4.9.9.9.9-.4.9-.9-.4-.9-.9-.9zm11.405-6.02l1.9-3.46c.11-.2.04-.44-.15-.56-.2-.11-.44-.04-.56.15l-1.92 3.49C15.464 8.38 13.554 7.75 12 7.75s-3.464.63-5.142 1.72L4.938 5.98c-.12-.19-.36-.26-.56-.15-.19.12-.26.36-.15.56l1.9 3.46C2.638 11.96.34 15.55 0 19.8h24c-.34-4.25-2.638-7.84-6.118-9.48z"/></svg>
+                  <span className="text-[#0D4D4D] text-sm font-semibold">Android</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ============================================ */}
+        {/* SEE IT IN ACTION                             */}
+        {/* ============================================ */}
+        <section className="py-20 md:py-28 bg-white">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-14">
+              <h2 className="text-3xl md:text-4xl font-extrabold text-[#0D4D4D] mb-4">
+                See How It All <span className="text-[#3DD6C3]">Connects</span>
+              </h2>
+              <p className="text-lg text-[#6B7280] max-w-2xl mx-auto">You manage everything from your dashboard. Your clients experience it through their app.</p>
+            </div>
+
+            <div className="grid md:grid-cols-[1fr_auto_1fr] gap-4 md:gap-6 items-center mb-16">
+              {/* Dashboard mockup */}
+              <div className="bg-[#1a1a2e] rounded-xl overflow-hidden border border-white/10 shadow-xl">
+                <div className="flex items-center gap-1.5 px-3 py-2 bg-[#111] border-b border-white/5">
+                  <div className="w-2 h-2 rounded-full bg-[#FF5F57]"></div>
+                  <div className="w-2 h-2 rounded-full bg-[#FEBC2E]"></div>
+                  <div className="w-2 h-2 rounded-full bg-[#28C840]"></div>
+                  <div className="flex-1 mx-2"><div className="bg-white/10 rounded px-2 py-0.5 text-white/30 text-[9px] font-mono text-center">agentforlife.app/dashboard</div></div>
+                </div>
+                <div className="bg-[#F8F9FA] p-3 md:p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[#0D4D4D] font-bold text-[11px]">Your Dashboard</span>
+                    <span className="px-2 py-0.5 bg-[#3DD6C3]/10 text-[#3DD6C3] text-[9px] font-bold rounded-full">AGENT VIEW</span>
+                  </div>
+                  <div className="bg-white rounded-lg border border-gray-200 p-2.5 md:p-3 space-y-2 mb-3">
+                    <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-[#3DD6C3] flex-shrink-0"></div><span className="text-[10px] text-[#0D4D4D] font-medium flex-1">Holiday card sent to 47 clients</span><span className="text-[9px] text-[#6B7280]">Auto</span></div>
+                    <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-[#fdcc02] flex-shrink-0"></div><span className="text-[10px] text-[#0D4D4D] font-medium flex-1">New referral: Mike J. — AI qualifying</span><span className="text-[9px] text-[#6B7280]">Live</span></div>
+                    <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-red-400 flex-shrink-0"></div><span className="text-[10px] text-[#0D4D4D] font-medium flex-1">Conservation alert: Sarah J.</span><span className="text-[9px] text-[#6B7280]">Action</span></div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-white rounded-lg border border-gray-200 p-2 text-center"><p className="text-base md:text-lg font-black text-[#0D4D4D]">127</p><p className="text-[8px] text-[#6B7280]">Clients</p></div>
+                    <div className="bg-white rounded-lg border border-gray-200 p-2 text-center"><p className="text-base md:text-lg font-black text-[#3DD6C3]">12</p><p className="text-[8px] text-[#6B7280]">Referrals</p></div>
+                    <div className="bg-white rounded-lg border border-gray-200 p-2 text-center"><p className="text-base md:text-lg font-black text-[#fdcc02]">5</p><p className="text-[8px] text-[#6B7280]">Saved</p></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sync indicator — desktop */}
+              <div className="hidden md:flex flex-col items-center gap-2 px-2">
+                <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                <span className="text-[#3DD6C3] text-[10px] font-bold uppercase tracking-wide [writing-mode:vertical-rl]">Syncs Live</span>
+                <svg className="w-4 h-4 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+              </div>
+              {/* Sync indicator — mobile */}
+              <div className="md:hidden flex justify-center py-1">
+                <div className="flex items-center gap-2"><div className="h-px w-8 bg-[#3DD6C3]/40"></div><span className="text-[#3DD6C3] text-[10px] font-bold uppercase tracking-wide">Syncs Live</span><div className="h-px w-8 bg-[#3DD6C3]/40"></div></div>
+              </div>
+
+              {/* Phone mockup */}
+              <div className="flex justify-center">
+                <div className="w-48 md:w-52 h-[360px] md:h-[380px] bg-[#1a1a1a] rounded-[2.5rem] p-2.5 shadow-2xl border-4 border-[#2a2a2a]">
+                  <div className="w-full h-full bg-[#111] rounded-[2rem] overflow-hidden px-3 md:px-4 py-5 md:py-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#005851] flex items-center justify-center"><span className="text-[#3DD6C3] text-[9px] md:text-[10px] font-bold">D</span></div>
+                      <div><p className="text-white text-[10px] md:text-[11px] font-semibold">Daniel Roberts</p><p className="text-white/40 text-[7px] md:text-[8px]">Your Agent</p></div>
+                    </div>
+                    <div className="space-y-2 md:space-y-2.5">
+                      <div className="bg-white/10 rounded-xl p-2 md:p-2.5 border border-white/5">
+                        <div className="flex items-center gap-2"><span className="text-sm">🎄</span><div><p className="text-white/90 text-[8px] md:text-[9px] font-bold">Merry Christmas!</p><p className="text-white/50 text-[7px] md:text-[8px]">Tap to view your card</p></div></div>
+                      </div>
+                      <div className="bg-white/10 rounded-xl p-2 md:p-2.5 border border-white/5">
+                        <p className="text-white/40 text-[7px] md:text-[8px] uppercase tracking-wider mb-1">Your Policies</p>
+                        <div className="flex items-center justify-between"><span className="text-white/80 text-[8px] md:text-[9px]">Auto — State Farm</span><span className="text-[#3DD6C3] text-[7px] md:text-[8px]">Active</span></div>
+                        <div className="flex items-center justify-between mt-1"><span className="text-white/80 text-[8px] md:text-[9px]">Life — Mutual of Omaha</span><span className="text-[#3DD6C3] text-[7px] md:text-[8px]">Active</span></div>
+                      </div>
+                      <div className="bg-[#fdcc02] rounded-xl p-2 md:p-2.5 text-center"><p className="text-[#0D4D4D] text-[9px] md:text-[10px] font-bold">Refer a Friend</p></div>
+                      <div className="bg-[#005851] rounded-xl p-2 md:p-2.5 text-center"><p className="text-white text-[9px] md:text-[10px] font-bold">Contact Daniel</p></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* How they connect — callouts */}
+            <div className="grid md:grid-cols-3 gap-4 mb-14">
+              <div className="bg-[#F8F9FA] rounded-xl p-5 border border-gray-200 text-center">
+                <div className="w-10 h-10 bg-[#0D4D4D] rounded-xl flex items-center justify-center mx-auto mb-3"><svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg></div>
+                <p className="text-sm font-bold text-[#0D4D4D] mb-1">You Manage</p>
+                <p className="text-xs text-[#6B7280] leading-relaxed">Add clients, upload policies, toggle AI — all from your web dashboard.</p>
+              </div>
+              <div className="bg-[#F8F9FA] rounded-xl p-5 border border-gray-200 text-center">
+                <div className="w-10 h-10 bg-[#0D4D4D] rounded-xl flex items-center justify-center mx-auto mb-3"><svg className="w-5 h-5 text-[#fdcc02]" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg></div>
+                <p className="text-sm font-bold text-[#0D4D4D] mb-1">AI Connects</p>
+                <p className="text-xs text-[#6B7280] leading-relaxed">Holiday cards, referral follow-ups, conservation alerts — all fire automatically.</p>
+              </div>
+              <div className="bg-[#F8F9FA] rounded-xl p-5 border border-gray-200 text-center">
+                <div className="w-10 h-10 bg-[#0D4D4D] rounded-xl flex items-center justify-center mx-auto mb-3"><svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg></div>
+                <p className="text-sm font-bold text-[#0D4D4D] mb-1">Clients Experience</p>
+                <p className="text-xs text-[#6B7280] leading-relaxed">Push notifications, holiday cards, referral buttons — right on their phone.</p>
+              </div>
+            </div>
+
+            {/* Video walkthrough placeholder */}
+            <div className="max-w-3xl mx-auto">
+              <div className="relative bg-[#0D4D4D] rounded-3xl overflow-hidden aspect-video flex items-center justify-center cursor-pointer group hover:shadow-2xl transition-shadow">
+                <div className="absolute inset-0 bg-gradient-to-br from-[#0D4D4D] to-[#1a1a2e]"></div>
+                <div className="absolute inset-0 opacity-5" style={{ backgroundImage: `linear-gradient(to right, #3DD6C3 1px, transparent 1px), linear-gradient(to bottom, #3DD6C3 1px, transparent 1px)`, backgroundSize: '30px 30px' }}></div>
+                <div className="relative text-center px-4">
+                  <div className="w-16 h-16 md:w-20 md:h-20 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-white/20 group-hover:scale-110 transition-all">
+                    <svg className="w-7 h-7 md:w-8 md:h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                  </div>
+                  <p className="text-white font-bold text-base md:text-lg">Watch the 2-Minute Walkthrough</p>
+                  <p className="text-white/50 text-sm mt-1">See how your dashboard and client app work together</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ============================================ */}
+        {/* DEEP DIVE — Retention / Referrals / Rewrites  */}
+        {/* ============================================ */}
+        <DeepDiveTabs />
+
+        {/* ============================================ */}
         {/* CHURN CALCULATOR                             */}
         {/* ============================================ */}
         <section className="py-20 md:py-28 bg-[#0D4D4D] relative overflow-hidden">
@@ -416,12 +563,6 @@ export default function LandingPage() {
             <LeakyBucketCalculator />
           </div>
         </section>
-
-        {/* ============================================ */}
-        {/* DEEP DIVE — Retention / Referrals / Rewrites  */}
-        {/* ============================================ */}
-        <DeepDiveTabs />
-
 
         {/* ============================================ */}
         {/* ROI                                          */}
@@ -485,6 +626,45 @@ export default function LandingPage() {
               </div>
               <div className="flex-shrink-0">
                 <div className="w-48 h-48 md:w-56 md:h-56 bg-[#0D4D4D] rounded-3xl flex items-center justify-center"><svg className="w-20 h-20 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ============================================ */}
+        {/* TRUST & SECURITY                             */}
+        {/* ============================================ */}
+        <section className="py-16 md:py-20 bg-[#F8F9FA]">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-10">
+              <h2 className="text-2xl md:text-3xl font-extrabold text-[#0D4D4D] mb-3">Built for <span className="text-[#3DD6C3]">Trust</span></h2>
+              <p className="text-[#6B7280]">Your book of business is your livelihood. We treat it that way.</p>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-6">
+              <div className="text-center p-3 md:p-4">
+                <div className="w-12 h-12 bg-[#0D4D4D]/5 rounded-xl flex items-center justify-center mx-auto mb-3"><svg className="w-6 h-6 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg></div>
+                <p className="text-sm font-bold text-[#0D4D4D] mb-1">Your Data, Your Book</p>
+                <p className="text-xs text-[#6B7280] leading-relaxed">We never contact your clients independently. You own your data — always.</p>
+              </div>
+              <div className="text-center p-3 md:p-4">
+                <div className="w-12 h-12 bg-[#0D4D4D]/5 rounded-xl flex items-center justify-center mx-auto mb-3"><svg className="w-6 h-6 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg></div>
+                <p className="text-sm font-bold text-[#0D4D4D] mb-1">Encrypted &amp; Secure</p>
+                <p className="text-xs text-[#6B7280] leading-relaxed">All data encrypted in transit and at rest. Bank-level security standards.</p>
+              </div>
+              <div className="text-center p-3 md:p-4">
+                <div className="w-12 h-12 bg-[#0D4D4D]/5 rounded-xl flex items-center justify-center mx-auto mb-3"><svg className="w-6 h-6 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
+                <p className="text-sm font-bold text-[#0D4D4D] mb-1">TCPA Compliant</p>
+                <p className="text-xs text-[#6B7280] leading-relaxed">All automated messaging follows federal telecommunications regulations.</p>
+              </div>
+              <div className="text-center p-3 md:p-4">
+                <div className="w-12 h-12 bg-[#0D4D4D]/5 rounded-xl flex items-center justify-center mx-auto mb-3"><svg className="w-6 h-6 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg></div>
+                <p className="text-sm font-bold text-[#0D4D4D] mb-1">No Lock-In</p>
+                <p className="text-xs text-[#6B7280] leading-relaxed">Month-to-month. Cancel anytime. Export your data whenever you want.</p>
+              </div>
+              <div className="text-center p-3 md:p-4 col-span-2 md:col-span-1">
+                <div className="w-12 h-12 bg-[#0D4D4D]/5 rounded-xl flex items-center justify-center mx-auto mb-3"><svg className="w-6 h-6 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg></div>
+                <p className="text-sm font-bold text-[#0D4D4D] mb-1">Carrier Agnostic</p>
+                <p className="text-xs text-[#6B7280] leading-relaxed">Works with every insurance carrier. Built for independent agents.</p>
               </div>
             </div>
           </div>

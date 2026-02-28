@@ -62,8 +62,8 @@ export async function POST(req: NextRequest) {
 
           <ol style="font-size: 16px; padding-left: 20px;">
             <li style="margin-bottom: 8px;">Go to <a href="https://agentforlife.app/signup" style="color: #0D4D4D; font-weight: 600;">agentforlife.app/signup</a> and create your account</li>
-            <li style="margin-bottom: 8px;">At checkout, enter this promo code: <strong style="color: #0D4D4D; background: #E6FAF7; padding: 2px 8px; border-radius: 4px; font-size: 18px;">FOUNDER</strong></li>
-            <li style="margin-bottom: 8px;">That makes it free — your card won't be charged</li>
+            <li style="margin-bottom: 8px;"><strong style="color: #0D4D4D;">Important:</strong> Use this same email address (<strong>${applicantEmail}</strong>) when you sign up so we can match your account</li>
+            <li style="margin-bottom: 8px;">You'll be automatically activated as a founding member — no credit card, no checkout</li>
             <li style="margin-bottom: 8px;">Watch the tutorial, set up your profile with your photo, contact info, and business card</li>
             <li style="margin-bottom: 8px;">Add a few real clients and have them download the app</li>
           </ol>

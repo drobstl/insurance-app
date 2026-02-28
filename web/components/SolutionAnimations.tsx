@@ -316,7 +316,7 @@ const FEATURES = [
   },
   {
     headline: 'Every anniversary is a booked appointment.',
-    description: '30 days before every policy anniversary, your client gets a push notification offering a rate review. They tap, pick a time, and book themselves. Revenue you\'ve already earned the right to.',
+    description: 'When a policy hits its one-year anniversary, your client gets a push notification offering a rate review. They tap, pick a time, and book themselves. Revenue you\'ve already earned the right to.',
     card: RewriteCard,
   },
 ];
