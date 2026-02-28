@@ -267,10 +267,10 @@ export default function LandingPage() {
 
             {/* Phone mockup with video preview */}
             <div className="flex justify-center mb-6 md:mb-8">
-              <div className="w-[200px] h-[360px] md:w-[220px] md:h-[400px] bg-[#1a1a1a] rounded-[2.25rem] md:rounded-[2.5rem] p-2 shadow-2xl border-4 border-[#2a2a2a] relative">
+              <div className="w-[180px] h-[390px] md:w-[200px] md:h-[434px] bg-[#1a1a1a] rounded-[2.25rem] md:rounded-[2.5rem] p-2 shadow-2xl border-4 border-[#2a2a2a]">
                 <div className="w-full h-full bg-black rounded-[1.75rem] md:rounded-[2rem] overflow-hidden">
                   <video
-                    className="w-full h-full object-contain bg-black"
+                    className="w-full h-full object-cover"
                     autoPlay
                     muted
                     loop
