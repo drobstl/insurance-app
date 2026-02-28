@@ -193,122 +193,127 @@ export default function MobileLandingV2() {
       </section>
 
       {/* ═══════════════════════════════════════════════════
-         WHAT IT IS — Moment of Clarity
+         WHAT IT IS — Branded App + AI
          ═══════════════════════════════════════════════════ */}
       <section className="relative bg-[#070E1B] px-6 py-20 overflow-hidden">
         <div className="absolute inset-0 pointer-events-none will-change-transform">
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[400px] h-[400px] bg-[#3DD6C3] rounded-full blur-[220px] opacity-[0.05]" />
+          <div className="absolute top-1/3 left-1/4 w-[300px] h-[300px] bg-[#3DD6C3] rounded-full blur-[180px] opacity-[0.06]" />
         </div>
+        <div className="absolute inset-0 opacity-[0.02] pointer-events-none will-change-transform" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
 
-        <div className="relative space-y-14">
-          {/* Part 1: The One-Liner */}
+        <div className="relative space-y-10">
+          {/* Two pill badges */}
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] as const }}
             style={{ willChange: 'transform, opacity' }}
-            className="space-y-4"
+            className="space-y-5"
           >
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/[0.06] border border-white/10 rounded-full">
-              <span className="text-[#3DD6C3] font-bold text-[10px] uppercase tracking-widest">What is Agent for Life</span>
+            <div className="flex items-center gap-2">
+              <div className="px-3 py-1.5 bg-white/[0.06] border border-white/10 rounded-full">
+                <span className="text-[#3DD6C3] font-bold text-[10px] uppercase tracking-wide">Your Branded App</span>
+              </div>
+              <span className="text-white/20 text-sm font-bold">+</span>
+              <div className="px-3 py-1.5 bg-white/[0.06] border border-white/10 rounded-full">
+                <span className="text-[#3DD6C3] font-bold text-[10px] uppercase tracking-wide">Powerful AI</span>
+              </div>
             </div>
-            <h2 className="text-[1.75rem] font-extrabold text-white leading-[1.15] tracking-tight">
-              Get off their contacts list.<br />
-              <span className="text-[#3DD6C3]">Get on their home screen.</span>
+            <h2 className="text-[1.65rem] font-extrabold text-white leading-tight">
+              On every client&apos;s phone.
             </h2>
-            <p className="text-white/40 text-[15px] leading-relaxed max-w-[300px]">
-              A branded app on their phone. An AI that never sleeps.
-            </p>
+            <p className="text-white/40 text-[14px]">Your name. Your brand. Their policies. One tap away.</p>
           </motion.div>
 
-          {/* Part 2: The Visual — Contacts vs Home Screen */}
-          <div className="grid grid-cols-2 gap-4">
-            {/* Left phone — buried in contacts */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.05, ease: [0.25, 0.46, 0.45, 0.94] as const }}
-              style={{ willChange: 'transform, opacity' }}
-              className="flex flex-col items-center"
-            >
-              <div className="w-[140px] h-[210px] bg-[#1a1a1a] rounded-[1.5rem] p-1.5 border-2 border-[#2a2a2a] opacity-60">
-                <div className="w-full h-full bg-[#111] rounded-[1.2rem] overflow-hidden px-2.5 py-3">
-                  <p className="text-white/30 text-[7px] font-bold mb-1.5">Contacts</p>
-                  <div className="w-full h-3 bg-white/[0.06] rounded-full mb-2.5" />
-                  <div className="space-y-[6px]">
-                    {['Alex M.', 'Best Buy', 'Daniel Roberts', 'Jenny K.', 'Mom', 'State Farm'].map((name, i) => (
-                      <div key={name} className="flex items-center gap-1.5">
-                        <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[5px] font-bold ${i === 2 ? 'bg-[#005851] text-[#3DD6C3]' : 'bg-white/[0.08] text-white/20'}`}>{name[0]}</div>
-                        <span className={`text-[7px] ${i === 2 ? 'text-white/50 font-medium' : 'text-white/20'}`}>{name}</span>
+          {/* Phone mockup */}
+          <motion.div
+            initial={{ opacity: 0, y: 30, scale: 0.96 }}
+            whileInView={{ opacity: 1, y: 0, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] as const }}
+            style={{ willChange: 'transform, opacity' }}
+            className="flex justify-center"
+          >
+            <div className="relative">
+              <div className="w-[220px] h-[440px] bg-[#1a1a1a] rounded-[2.5rem] p-2.5 shadow-2xl border-4 border-[#2a2a2a] transform-gpu">
+                <div className="absolute -inset-1.5 rounded-[2.8rem] bg-gradient-to-b from-[#3DD6C3]/15 via-transparent to-[#fdcc02]/10 pointer-events-none blur-sm" />
+                <div className="w-full h-full bg-[#111] rounded-[2rem] overflow-hidden px-3.5 py-5 relative">
+                  <div className="flex items-center gap-2.5 mb-5">
+                    <div className="w-9 h-9 rounded-full bg-[#005851] flex items-center justify-center">
+                      <span className="text-[#3DD6C3] text-[11px] font-bold">D</span>
+                    </div>
+                    <div>
+                      <p className="text-white text-[11px] font-semibold">Daniel Roberts</p>
+                      <p className="text-white/35 text-[8px]">Roberts Insurance Agency</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2.5">
+                    <div className="bg-white/[0.08] rounded-xl p-2.5 border border-white/5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">🎄</span>
+                        <div>
+                          <p className="text-white/90 text-[9px] font-bold">Merry Christmas!</p>
+                          <p className="text-white/40 text-[7px]">Tap to view your card</p>
+                        </div>
                       </div>
-                    ))}
+                    </div>
+                    <div className="bg-white/[0.08] rounded-xl p-2.5 border border-white/5">
+                      <p className="text-white/30 text-[7px] uppercase tracking-wider mb-1.5">Your Policies</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/70 text-[9px]">Auto &mdash; State Farm</span>
+                        <span className="text-[#3DD6C3] text-[7px] font-semibold">Active</span>
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-white/70 text-[9px]">Life &mdash; Mutual of Omaha</span>
+                        <span className="text-[#3DD6C3] text-[7px] font-semibold">Active</span>
+                      </div>
+                    </div>
+                    <div className="bg-[#fdcc02] rounded-xl py-2.5 text-center">
+                      <p className="text-[#0D4D4D] text-[10px] font-bold">Refer a Friend</p>
+                    </div>
+                    <div className="bg-[#005851] rounded-xl py-2.5 text-center">
+                      <p className="text-white text-[10px] font-bold">Contact Daniel</p>
+                    </div>
                   </div>
                 </div>
               </div>
-              <p className="text-white/25 text-[10px] font-medium mt-3 text-center">Buried in contacts</p>
-            </motion.div>
+            </div>
+          </motion.div>
 
-            {/* Right phone — on their home screen */}
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.97 }}
-              whileInView={{ opacity: 1, y: 0, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.15, ease: [0.25, 0.46, 0.45, 0.94] as const }}
-              style={{ willChange: 'transform, opacity' }}
-              className="flex flex-col items-center"
-            >
-              <div className="relative w-[140px] h-[210px] bg-[#1a1a1a] rounded-[1.5rem] p-1.5 border-2 border-[#3DD6C3]/20">
-                <div className="absolute -inset-1 rounded-[1.8rem] bg-[#3DD6C3]/[0.06] pointer-events-none blur-md" />
-                <div className="w-full h-full bg-[#111] rounded-[1.2rem] overflow-hidden px-2.5 py-3 relative">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="text-white/25 text-[6px]">9:41</span>
-                    <div className="flex gap-[2px]"><div className="w-[3px] h-1 bg-white/25 rounded-sm" /><div className="w-[3px] h-1.5 bg-white/25 rounded-sm" /><div className="w-[3px] h-2 bg-white/25 rounded-sm" /></div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-x-3 gap-y-3">
-                    {[0,1,2,3,4,5,6,7,8].map((i) => (
-                      i === 4 ? (
-                        <div key={i} className="flex flex-col items-center gap-1">
-                          <div className="w-9 h-9 bg-[#0D4D4D] rounded-xl flex items-center justify-center border border-[#3DD6C3]/30 shadow-lg shadow-[#3DD6C3]/20">
-                            <span className="text-[#3DD6C3] text-[11px] font-bold">D</span>
-                          </div>
-                          <span className="text-white/60 text-[5px] font-medium">AgentForLife</span>
-                        </div>
-                      ) : (
-                        <div key={i} className="flex flex-col items-center gap-1">
-                          <div className="w-9 h-9 bg-white/[0.06] rounded-xl" />
-                          <span className="text-white/15 text-[5px]">App</span>
-                        </div>
-                      )
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <p className="text-[#3DD6C3] text-[10px] font-semibold mt-3 text-center">On their home screen</p>
-            </motion.div>
-          </div>
-
-          {/* Part 3: The Payoff Line */}
-          <motion.p
+          {/* Plus + AI line */}
+          <motion.div
             initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as const }}
             style={{ willChange: 'transform, opacity' }}
-            className="text-center text-white/70 text-[1.1rem] font-extrabold leading-snug"
+            className="flex flex-col items-center gap-3"
           >
-            Three revenue streams on <span className="text-[#3DD6C3]">autopilot</span>.
+            <span className="text-white/15 text-3xl font-light">+</span>
+            <p className="text-[#3DD6C3] text-[1.35rem] font-extrabold text-center">An AI that never sleeps.</p>
+          </motion.div>
+
+          {/* Payoff line */}
+          <motion.p
+            initial={{ opacity: 0, y: 12 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.1, ease: [0.25, 0.46, 0.45, 0.94] as const }}
+            style={{ willChange: 'transform, opacity' }}
+            className="text-center text-white/50 text-[14px]"
+          >
+            One system. Three revenue streams on autopilot.
           </motion.p>
 
-          {/* Part 4: Three Outcomes */}
+          {/* Three Outcomes */}
           <motion.div
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true }}
             variants={stagger}
             style={{ willChange: 'transform, opacity' }}
-            className="space-y-4"
+            className="space-y-4 pt-4"
           >
             {[
               { title: 'Stop Chargebacks', desc: 'AI nurtures the relationship and saves policies in danger.', accent: '#3DD6C3', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
@@ -376,9 +381,14 @@ export default function MobileLandingV2() {
 
           <motion.div variants={fadeUp} custom={0.4} className="pt-4">
             <div className="bg-[#0D4D4D] rounded-2xl p-6 text-center border border-[#3DD6C3]/15">
-              <p className="text-[1.35rem] font-extrabold text-white leading-snug">
-                We built a system that{' '}
-                <span className="text-[#3DD6C3]">fixes all three</span>.
+              <p className="text-[1.2rem] font-extrabold text-white leading-snug mb-1">
+                Get off their contacts list.
+              </p>
+              <p className="text-[1.2rem] font-extrabold text-[#3DD6C3] leading-snug mb-2">
+                Get on their home screen.
+              </p>
+              <p className="text-white/40 text-[13px]">
+                We built a system that fixes all three.
               </p>
               <svg className="w-4 h-4 text-[#3DD6C3]/40 mx-auto mt-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7" /></svg>
             </div>
@@ -696,133 +706,6 @@ export default function MobileLandingV2() {
             Your AI doesn&apos;t sleep. Or take lunch. Or forget to follow up.
           </motion.p>
         </motion.div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════
-         CLIENT APP — Phone Mockup
-         ═══════════════════════════════════════════════════ */}
-      <section className="relative bg-[#070E1B] px-6 py-16 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none will-change-transform">
-          <div className="absolute top-1/3 left-1/4 w-[300px] h-[300px] bg-[#3DD6C3] rounded-full blur-[180px] opacity-[0.06]" />
-        </div>
-        <div className="absolute inset-0 opacity-[0.02] pointer-events-none will-change-transform" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
-
-        <div className="relative">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            style={{ willChange: 'transform, opacity' }}
-            className="text-center mb-8"
-          >
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/[0.06] border border-white/10 rounded-full mb-4">
-              <span className="text-[#3DD6C3] font-bold text-[11px] uppercase tracking-wide">Your Branded App</span>
-            </div>
-            <h2 className="text-[1.65rem] font-extrabold text-white leading-tight mb-2">
-              On every client&apos;s phone.
-            </h2>
-            <p className="text-white/40 text-[14px]">Your name. Your brand. Their policies. One tap away.</p>
-          </motion.div>
-
-          {/* Phone mockup */}
-          <motion.div
-            initial={{ opacity: 0, y: 30, scale: 0.96 }}
-            whileInView={{ opacity: 1, y: 0, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] }}
-            style={{ willChange: 'transform, opacity' }}
-            className="flex justify-center mb-8"
-          >
-            <div className="relative">
-              <div className="w-[220px] h-[440px] bg-[#1a1a1a] rounded-[2.5rem] p-2.5 shadow-2xl border-4 border-[#2a2a2a] transform-gpu">
-                <div className="absolute -inset-1.5 rounded-[2.8rem] bg-gradient-to-b from-[#3DD6C3]/15 via-transparent to-[#fdcc02]/10 pointer-events-none blur-sm" />
-                <div className="w-full h-full bg-[#111] rounded-[2rem] overflow-hidden px-3.5 py-5 relative">
-                  {/* Agent info */}
-                  <div className="flex items-center gap-2.5 mb-5">
-                    <div className="w-9 h-9 rounded-full bg-[#005851] flex items-center justify-center">
-                      <span className="text-[#3DD6C3] text-[11px] font-bold">D</span>
-                    </div>
-                    <div>
-                      <p className="text-white text-[11px] font-semibold">Daniel Roberts</p>
-                      <p className="text-white/35 text-[8px]">Roberts Insurance Agency</p>
-                    </div>
-                  </div>
-                  {/* App content */}
-                  <div className="space-y-2.5">
-                    <div className="bg-white/[0.08] rounded-xl p-2.5 border border-white/5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">🎄</span>
-                        <div>
-                          <p className="text-white/90 text-[9px] font-bold">Merry Christmas!</p>
-                          <p className="text-white/40 text-[7px]">Tap to view your card</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-white/[0.08] rounded-xl p-2.5 border border-white/5">
-                      <p className="text-white/30 text-[7px] uppercase tracking-wider mb-1.5">Your Policies</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-white/70 text-[9px]">Auto — State Farm</span>
-                        <span className="text-[#3DD6C3] text-[7px] font-semibold">Active</span>
-                      </div>
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="text-white/70 text-[9px]">Life — Mutual of Omaha</span>
-                        <span className="text-[#3DD6C3] text-[7px] font-semibold">Active</span>
-                      </div>
-                    </div>
-                    <div className="bg-[#fdcc02] rounded-xl py-2.5 text-center">
-                      <p className="text-[#0D4D4D] text-[10px] font-bold">Refer a Friend</p>
-                    </div>
-                    <div className="bg-[#005851] rounded-xl py-2.5 text-center">
-                      <p className="text-white text-[10px] font-bold">Contact Daniel</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Feature pills */}
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={stagger}
-            style={{ willChange: 'transform, opacity' }}
-            className="flex flex-wrap justify-center gap-2"
-          >
-            {[
-              { label: 'Push notifications', icon: '🔔' },
-              { label: 'One-tap referrals', icon: '🤝' },
-              { label: 'Policy views', icon: '📋' },
-              { label: 'Holiday cards', icon: '🎄' },
-              { label: 'Agent contact', icon: '📞' },
-            ].map((pill) => (
-              <motion.div
-                key={pill.label}
-                variants={fadeUp}
-                custom={0}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.06] border border-white/[0.08] rounded-full"
-              >
-                <span className="text-[11px]">{pill.icon}</span>
-                <span className="text-white/50 text-[11px] font-medium">{pill.label}</span>
-              </motion.div>
-            ))}
-          </motion.div>
-
-          {/* Platform badges */}
-          <div className="flex items-center justify-center gap-4 mt-6">
-            <div className="flex items-center gap-1.5 text-white/30 text-[11px] font-medium">
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
-              iPhone
-            </div>
-            <span className="text-white/15">+</span>
-            <div className="flex items-center gap-1.5 text-white/30 text-[11px] font-medium">
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.523 15.34c-.5 0-.9.4-.9.9s.4.9.9.9.9-.4.9-.9-.4-.9-.9-.9zm-11.046 0c-.5 0-.9.4-.9.9s.4.9.9.9.9-.4.9-.9-.4-.9-.9-.9zm11.405-6.02l1.9-3.46c.11-.2.04-.44-.15-.56-.2-.11-.44-.04-.56.15l-1.92 3.49C15.46 8.38 13.55 7.75 12 7.75s-3.46.63-5.14 1.72L4.94 5.98c-.12-.19-.36-.26-.56-.15-.19.12-.26.36-.15.56l1.9 3.46C2.64 11.96.34 15.55 0 19.8h24c-.34-4.25-2.64-7.84-6.12-9.48z"/></svg>
-              Android
-            </div>
-          </div>
-        </div>
       </section>
 
       {/* ═══════════════════════════════════════════════════
