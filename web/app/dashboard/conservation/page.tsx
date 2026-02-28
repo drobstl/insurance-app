@@ -264,7 +264,7 @@ export default function ConservationPage() {
       )}
 
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#000000]">Conservation Alerts</h1>
+        <h1 className="text-2xl font-bold text-[#000000]">Retention</h1>
         <p className="text-[#707070] text-sm mt-1">Track and save at-risk policies before they lapse.</p>
       </div>
 
@@ -296,7 +296,7 @@ export default function ConservationPage() {
               </svg>
             </div>
             <div className="flex-1">
-              <h3 className="text-base font-bold text-[#000000] mb-1">What is Conservation?</h3>
+              <h3 className="text-base font-bold text-[#000000] mb-1">What is Retention?</h3>
               <p className="text-sm text-[#707070] mb-4">
                 When a client&rsquo;s policy is at risk, the system reaches out automatically to save it before you lose the commission.
               </p>

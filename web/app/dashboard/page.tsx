@@ -308,16 +308,16 @@ export default function DashboardHomePage() {
           )}
         </div>
 
-        {/* Conservation Summary */}
+        {/* Retention Summary */}
         <div className="bg-white rounded-[5px] border border-[#d0d0d0] p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-[#000000]">Conservation Status</h3>
+            <h3 className="text-sm font-semibold text-[#000000]">Retention Status</h3>
             <button onClick={() => router.push('/dashboard/conservation')} className="text-xs text-[#005851] font-medium hover:underline">
               View All
             </button>
           </div>
           {conservationAlerts.length === 0 ? (
-            <p className="text-sm text-[#707070]">No at-risk policies. When a carrier sends a lapse notice, paste it in Conservation to track it.</p>
+            <p className="text-sm text-[#707070]">No at-risk policies. When a carrier sends a lapse notice, paste it in Retention to track it.</p>
           ) : (
             <div className="flex items-center gap-3">
               <div className="flex-1 text-center">

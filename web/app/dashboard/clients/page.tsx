@@ -545,7 +545,7 @@ export default function ClientsPage() {
           success: true,
           message: data.alert?.isChargebackRisk
             ? 'Alert created — chargeback risk detected. Outreach scheduled in 2 hours.'
-            : 'Alert created. You can manage it from the Conservation page.',
+            : 'Alert created. You can manage it from the Retention page.',
         });
         refreshPolicies();
         setTimeout(() => handleCloseFlagAtRisk(), 3000);

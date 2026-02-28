@@ -640,9 +640,9 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Policy Review AI Campaign */}
+          {/* Rewrite campaigns (policy review AI) */}
           <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Policy Review Campaigns</h3>
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Rewrite Campaigns</h3>
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
                 <p className="text-sm font-medium text-[#000000]">
@@ -872,7 +872,7 @@ export default function SettingsPage() {
                 'Your AI referral assistant',
                 'All client records and policy data',
                 'Referral conversations and AI history',
-                'Conservation alerts and outreach tracking',
+                'Retention alerts and outreach tracking',
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2 text-sm text-[#374151]">
                   <svg className="w-4 h-4 text-red-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
