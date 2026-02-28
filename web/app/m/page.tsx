@@ -371,396 +371,204 @@ export default function MobileLandingV2() {
       </section>
 
       {/* ═══════════════════════════════════════════════════
-         THE SYSTEM — Three Revenue Streams
+         EARN MORE — Notion-Style Feature Cards
          ═══════════════════════════════════════════════════ */}
-      <section className="relative bg-[#070E1B] px-6 py-16 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none will-change-transform">
-          <div className="absolute top-0 -left-20 w-[300px] h-[300px] bg-[#3DD6C3] rounded-full blur-[180px] opacity-[0.08]" />
-          <div className="absolute bottom-0 -right-10 w-[200px] h-[200px] bg-[#fdcc02] rounded-full blur-[120px] opacity-[0.06]" />
-        </div>
-
+      <section className="bg-white px-5 py-16">
         <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: '-40px' }}
-          variants={stagger}
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] as const }}
           style={{ willChange: 'transform, opacity' }}
-          className="relative space-y-6"
+          className="space-y-6"
         >
-          <motion.div variants={fadeUp} custom={0} className="mb-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/[0.06] border border-white/10 rounded-full mb-4">
-              <span className="text-[#3DD6C3] font-bold text-[11px] uppercase tracking-wide">The System</span>
-            </div>
-            <h2 className="text-[1.65rem] font-extrabold text-white leading-tight mb-2">
-              One System.<br />Three Revenue Streams.
-            </h2>
-            <p className="text-white/40 text-[14px]">Here&apos;s how each one works.</p>
-          </motion.div>
+          <h2 className="text-[1.75rem] font-extrabold text-[#0D4D4D] leading-tight">
+            Earn more from<br />leads you&apos;ve won.
+          </h2>
 
-          {/* Revenue stream cards */}
-          {[
-            {
-              icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
-              title: 'Retention',
-              stat: '7+',
-              statLabel: 'touchpoints/yr',
-              desc: 'Automated holiday cards, birthdays, and push notifications. When a policy slips, forward one email\u200A\u2014\u200A',
-              punchline: 'AI handles the rest.',
-              accent: '#3DD6C3',
-            },
-            {
-              icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
-              title: 'Referrals',
-              stat: '~99%',
-              statLabel: 'read rate',
-              desc: 'One-tap referral from your app. AI texts via iMessage, qualifies the lead, and books them on your calendar. ',
-              punchline: 'You just show up and close.',
-              accent: '#fdcc02',
-            },
-            {
-              icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
-              title: 'Rewrites',
-              stat: '24-48h',
-              statLabel: 'to booked',
-              desc: 'At each policy anniversary, your client gets a notification with a rate review offer. ',
-              punchline: 'They book themselves on your calendar.',
-              accent: '#3DD6C3',
-            },
-          ].map((f, i) => (
-            <motion.div
-              key={f.title}
-              variants={fadeUp}
-              custom={0.15 + i * 0.1}
-              className="bg-white/[0.04] backdrop-blur-sm rounded-2xl p-6 border border-white/[0.08] border-l-2"
-              style={{ borderLeftColor: f.accent }}
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${f.accent}15` }}>
-                    <svg className="w-5 h-5" style={{ color: f.accent }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={f.icon} /></svg>
+          {/* Card 1: Referrals */}
+          <Link href="/m/referrals" className="block">
+            <div className="rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+              <div className="p-5 pb-4">
+                <p className="text-[12px] text-[#6B7280] font-medium mb-1">One tap referrals</p>
+                <div className="flex items-end justify-between gap-3">
+                  <h3 className="text-[1.25rem] font-extrabold text-[#0D4D4D] leading-tight">
+                    Clients pick a contact, your AI handles the rest.
+                  </h3>
+                  <div className="w-10 h-10 rounded-full bg-[#0D4D4D] flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-extrabold text-white">{f.title}</h3>
-                    <div className="h-0.5 w-8 rounded-full mt-1" style={{ backgroundColor: f.accent }} />
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xl font-black" style={{ color: f.accent }}>{f.stat}</p>
-                  <p className="text-[10px] text-white/30 uppercase tracking-wide">{f.statLabel}</p>
                 </div>
               </div>
-              <p className="text-white/50 text-[14px] leading-relaxed">{f.desc}<span className="font-bold" style={{ color: f.accent }}>{f.punchline}</span></p>
-            </motion.div>
-          ))}
+              <div className="bg-[#fdcc02] px-5 pt-6 pb-0 relative overflow-hidden" style={{ minHeight: '220px' }}>
+                <div className="flex justify-center gap-3 -mb-4">
+                  {/* Left phone */}
+                  <div className="w-[130px] bg-[#1a1a1a] rounded-[1.2rem] p-[3px] shadow-xl transform -rotate-2 translate-y-2">
+                    <div className="w-full bg-[#111] rounded-[1rem] overflow-hidden px-2.5 py-3">
+                      <div className="flex items-center gap-1.5 mb-3">
+                        <div className="w-5 h-5 rounded-full bg-[#005851] flex items-center justify-center">
+                          <span className="text-[#3DD6C3] text-[6px] font-bold">D</span>
+                        </div>
+                        <span className="text-white text-[7px] font-semibold">Daniel Roberts</span>
+                      </div>
+                      <div className="bg-[#fdcc02] rounded-lg py-2 text-center mb-2">
+                        <p className="text-[#0D4D4D] text-[7px] font-bold">Refer a Friend</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        {['Mike Johnson', 'Sarah Thompson'].map((n, i) => (
+                          <div key={n} className="flex items-center gap-1.5">
+                            <div className={`w-3 h-3 rounded-full border ${i === 0 ? 'border-[#3DD6C3] bg-[#3DD6C3]' : 'border-white/20'}`} />
+                            <span className="text-white/60 text-[6px]">{n}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  {/* Right phone */}
+                  <div className="w-[130px] bg-[#1a1a1a] rounded-[1.2rem] p-[3px] shadow-xl transform rotate-2 translate-y-6">
+                    <div className="w-full bg-[#111] rounded-[1rem] overflow-hidden px-2.5 py-3">
+                      <div className="flex items-center gap-1.5 mb-3">
+                        <div className="w-5 h-5 rounded-full bg-[#005851] flex items-center justify-center">
+                          <span className="text-[#3DD6C3] text-[6px] font-bold">D</span>
+                        </div>
+                        <span className="text-white text-[7px] font-semibold">Daniel</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex justify-end">
+                          <div className="bg-[#007AFF] rounded-xl rounded-tr-sm px-2 py-1.5 max-w-[90%]">
+                            <p className="text-white text-[6px] leading-snug">Hey Mike, Sarah connected us...</p>
+                          </div>
+                        </div>
+                        <div className="flex justify-start">
+                          <div className="bg-[#333] rounded-xl rounded-tl-sm px-2 py-1.5">
+                            <p className="text-white text-[6px]">yeah sure</p>
+                          </div>
+                        </div>
+                        <div className="flex justify-center">
+                          <div className="bg-[#3DD6C3]/20 rounded-full px-2 py-0.5">
+                            <span className="text-[#3DD6C3] text-[5px] font-bold">Booked</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          {/* Card 2: Rewrites */}
+          <Link href="/m/rewrites" className="block">
+            <div className="rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+              <div className="p-5 pb-4">
+                <p className="text-[12px] text-[#6B7280] font-medium mb-1">Automated rewrites</p>
+                <div className="flex items-end justify-between gap-3">
+                  <h3 className="text-[1.25rem] font-extrabold text-[#0D4D4D] leading-tight">
+                    AI so nice, you get the commission twice.
+                  </h3>
+                  <div className="w-10 h-10 rounded-full bg-[#0D4D4D] flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-[#F4845F] px-5 pt-6 pb-0 relative overflow-hidden" style={{ minHeight: '220px' }}>
+                <div className="flex justify-center gap-3 -mb-4">
+                  {/* Left phone - push notification */}
+                  <div className="w-[130px] bg-[#1a1a1a] rounded-[1.2rem] p-[3px] shadow-xl transform -rotate-2 translate-y-2">
+                    <div className="w-full bg-[#111] rounded-[1rem] overflow-hidden px-2.5 py-3">
+                      <div className="flex items-center gap-1.5 mb-3">
+                        <div className="w-5 h-5 rounded-full bg-[#005851] flex items-center justify-center">
+                          <span className="text-[#3DD6C3] text-[6px] font-bold">D</span>
+                        </div>
+                        <span className="text-white text-[7px] font-semibold">Daniel Roberts</span>
+                      </div>
+                      <div className="bg-white/[0.08] rounded-lg p-2 border border-white/5 mb-2">
+                        <p className="text-[#3DD6C3] text-[6px] font-bold mb-0.5">Anniversary Alert</p>
+                        <p className="text-white/50 text-[5px] leading-snug">I may have found you a lower rate for the same coverage...</p>
+                      </div>
+                      <div className="bg-[#3DD6C3] rounded-lg py-1.5 text-center">
+                        <p className="text-[#0D4D4D] text-[6px] font-bold">Book with Daniel</p>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Right phone - booking */}
+                  <div className="w-[130px] bg-[#1a1a1a] rounded-[1.2rem] p-[3px] shadow-xl transform rotate-2 translate-y-6">
+                    <div className="w-full bg-[#111] rounded-[1rem] overflow-hidden px-2.5 py-3">
+                      <p className="text-white/30 text-[6px] font-bold mb-2">Aug 2026</p>
+                      <div className="grid grid-cols-7 gap-px mb-3">
+                        {Array.from({ length: 21 }, (_, i) => i + 1).map(d => (
+                          <div key={d} className={`py-0.5 rounded text-center text-[5px] ${d === 15 ? 'bg-[#fdcc02] text-[#0D4D4D] font-bold' : 'text-white/25'}`}>{d}</div>
+                        ))}
+                      </div>
+                      <div className="flex justify-center">
+                        <div className="bg-[#3DD6C3]/20 rounded-full px-2 py-0.5">
+                          <span className="text-[#3DD6C3] text-[5px] font-bold">Appointment Set</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          {/* Card 3: Retention */}
+          <Link href="/m/retention" className="block">
+            <div className="rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+              <div className="p-5 pb-4">
+                <p className="text-[12px] text-[#6B7280] font-medium mb-1">Automated retention</p>
+                <div className="flex items-end justify-between gap-3">
+                  <h3 className="text-[1.25rem] font-extrabold text-[#0D4D4D] leading-tight">
+                    Never lose a client to silence again.
+                  </h3>
+                  <div className="w-10 h-10 rounded-full bg-[#0D4D4D] flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-[#3DD6C3] px-5 pt-6 pb-0 relative overflow-hidden" style={{ minHeight: '220px' }}>
+                <div className="flex justify-center gap-3 -mb-4">
+                  {/* Left phone - holiday cards */}
+                  <div className="w-[130px] bg-[#1a1a1a] rounded-[1.2rem] p-[3px] shadow-xl transform -rotate-2 translate-y-2">
+                    <div className="w-full rounded-[1rem] overflow-hidden" style={{ background: 'linear-gradient(135deg, #8B0000, #C41E3A)' }}>
+                      <div className="flex flex-col items-center justify-center py-6 px-3">
+                        <span className="text-2xl mb-1">🎄</span>
+                        <p className="text-white font-bold text-[8px] text-center">Merry Christmas, Sarah!</p>
+                        <p className="text-white/60 text-[6px] text-center mt-1">Wishing you warmth and joy.</p>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Right phone - rescue */}
+                  <div className="w-[130px] bg-[#1a1a1a] rounded-[1.2rem] p-[3px] shadow-xl transform rotate-2 translate-y-6">
+                    <div className="w-full bg-[#111] rounded-[1rem] overflow-hidden px-2.5 py-3">
+                      <div className="flex items-center gap-1 mb-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                        <p className="text-white text-[7px] font-bold">Policy at risk</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex justify-end">
+                          <div className="bg-[#007AFF] rounded-xl rounded-tr-sm px-2 py-1.5 max-w-[90%]">
+                            <p className="text-white text-[5px] leading-snug">Hey Sarah, I noticed your policy may need attention...</p>
+                          </div>
+                        </div>
+                        <div className="flex justify-start">
+                          <div className="bg-[#333] rounded-xl rounded-tl-sm px-2 py-1.5">
+                            <p className="text-white text-[5px]">oh thanks for reaching out!</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex justify-center mt-2">
+                        <div className="bg-[#3DD6C3]/20 rounded-full px-2 py-0.5">
+                          <span className="text-[#3DD6C3] text-[5px] font-bold">Policy Saved</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Link>
         </motion.div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════
-         AI REFERRAL DEMO — The Wow Moment
-         ═══════════════════════════════════════════════════ */}
-      <section className="relative bg-[#0D4D4D] px-6 py-16 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none will-change-transform">
-          <div className="absolute top-0 right-0 w-[250px] h-[250px] bg-[#3DD6C3] rounded-full blur-[150px] opacity-[0.1]" />
-        </div>
-
-        <div className="relative space-y-10">
-          {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            style={{ willChange: 'transform, opacity' }}
-          >
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#fdcc02]/15 border border-[#fdcc02]/25 rounded-full mb-4">
-              <svg className="w-3.5 h-3.5 text-[#fdcc02]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-              <span className="text-white font-bold text-[11px] uppercase tracking-wide">AI Referrals</span>
-            </div>
-            <h2 className="text-[1.65rem] font-extrabold text-white leading-tight mb-2">
-              From one tap to<br />booked appointment.
-            </h2>
-            <p className="text-white/40 text-[14px] leading-relaxed">
-              Your clients already trust you. Now they can share that trust.
-            </p>
-          </motion.div>
-
-          {/* Beat 1: The One-Tap Flow */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            style={{ willChange: 'transform, opacity' }}
-            className="space-y-5"
-          >
-            <div className="flex items-stretch gap-2">
-              {/* Step 1: Tap */}
-              <div className="flex-1 bg-white/[0.04] rounded-xl p-3 border border-white/[0.06] flex flex-col items-center justify-center gap-2">
-                <div className="bg-[#fdcc02] rounded-lg px-4 py-2">
-                  <p className="text-[#0D4D4D] text-[8px] font-bold">Refer a Friend</p>
-                </div>
-                <p className="text-white/40 text-[9px] font-semibold">Tap</p>
-              </div>
-
-              <div className="flex items-center"><svg className="w-3 h-3 text-white/15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></div>
-
-              {/* Step 2: Pick */}
-              <div className="flex-1 bg-white/[0.04] rounded-xl p-3 border border-white/[0.06] flex flex-col items-center justify-center gap-1.5">
-                <div className="space-y-1 w-full px-1">
-                  {['Mike J.', 'Sarah T.'].map((n, i) => (
-                    <div key={n} className="flex items-center gap-1.5">
-                      <div className={`w-3 h-3 rounded-full border ${i === 0 ? 'border-[#3DD6C3] bg-[#3DD6C3]' : 'border-white/20'} flex items-center justify-center`}>
-                        {i === 0 && <svg className="w-1.5 h-1.5 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M5 13l4 4L19 7" /></svg>}
-                      </div>
-                      <span className={`text-[8px] ${i === 0 ? 'text-white/70 font-medium' : 'text-white/25'}`}>{n}</span>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-white/40 text-[9px] font-semibold">Pick</p>
-              </div>
-
-              <div className="flex items-center"><svg className="w-3 h-3 text-white/15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></div>
-
-              {/* Step 3: Sent */}
-              <div className="flex-1 bg-white/[0.04] rounded-xl p-3 border border-white/[0.06] flex flex-col items-center justify-center gap-1.5">
-                <div className="bg-[#007AFF] rounded-lg px-2 py-1.5 w-full">
-                  <p className="text-white text-[6px] leading-snug">Hey! My agent Daniel helped me...</p>
-                </div>
-                <div className="flex items-center gap-1 w-full px-0.5">
-                  <div className="w-3 h-3 bg-white/10 rounded-sm" />
-                  <span className="text-white/25 text-[5px]">Business card</span>
-                </div>
-                <p className="text-white/40 text-[9px] font-semibold">Sent</p>
-              </div>
-            </div>
-
-            <p className="text-white/30 text-[12px] text-center leading-relaxed">
-              Your client taps one button. The message and your business card are pre-loaded. <span className="text-white/60 font-semibold">That&apos;s it.</span>
-            </p>
-          </motion.div>
-
-          {/* Transition */}
-          <motion.p
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="text-white/50 text-[14px] text-center font-semibold"
-          >
-            Then your AI takes over.
-          </motion.p>
-
-          {/* iMessage / RCS badges */}
-          <div className="flex items-center justify-center gap-3">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.06] border border-white/[0.08] rounded-full">
-              <svg className="w-3 h-3 text-white/50" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
-              <span className="text-white/50 text-[10px] font-medium">iMessage</span>
-              <div className="w-1.5 h-1.5 rounded-full bg-[#007AFF]" />
-            </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.06] border border-white/[0.08] rounded-full">
-              <svg className="w-3 h-3 text-white/50" viewBox="0 0 24 24" fill="currentColor"><path d="M17.523 15.34c-.5 0-.9.4-.9.9s.4.9.9.9.9-.4.9-.9-.4-.9-.9-.9zm-11.046 0c-.5 0-.9.4-.9.9s.4.9.9.9.9-.4.9-.9-.4-.9-.9-.9zm11.405-6.02l1.9-3.46c.11-.2.04-.44-.15-.56-.2-.11-.44-.04-.56.15l-1.92 3.49C15.46 8.38 13.55 7.75 12 7.75s-3.46.63-5.14 1.72L4.94 5.98c-.12-.19-.36-.26-.56-.15-.19.12-.26.36-.15.56l1.9 3.46C2.64 11.96.34 15.55 0 19.8h24c-.34-4.25-2.64-7.84-6.12-9.48z"/></svg>
-              <span className="text-white/50 text-[10px] font-medium">RCS</span>
-              <div className="w-1.5 h-1.5 rounded-full bg-[#34C759]" />
-            </div>
-          </div>
-
-          {/* Beat 2: AI Conversation */}
-          <div ref={chatRef}>
-            <div className="bg-[#1a1a2e] rounded-[1.75rem] p-1 shadow-2xl border border-[#007AFF]/20 transform-gpu">
-              <div className="bg-[#111] rounded-t-[1.5rem] px-4 pt-2.5 pb-2 flex items-center justify-between">
-                <span className="text-white/40 text-[10px] font-medium">9:44 AM</span>
-                <div className="flex gap-0.5">
-                  <div className="w-1 h-2 bg-white/40 rounded-sm" />
-                  <div className="w-1 h-2.5 bg-white/40 rounded-sm" />
-                  <div className="w-1 h-3 bg-white/40 rounded-sm" />
-                </div>
-              </div>
-              <div className="bg-[#111] px-4 pb-2.5 border-b border-white/5">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-[#005851] flex items-center justify-center">
-                    <span className="text-[#3DD6C3] text-xs font-bold">D</span>
-                  </div>
-                  <div>
-                    <p className="text-white text-sm font-semibold">Daniel</p>
-                    <p className="text-white/30 text-[10px]">AI Referral Assistant</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-[#111] px-3.5 py-4 space-y-2.5 rounded-b-[1.5rem] min-h-[280px]">
-                <div className="flex justify-end" style={msgFade(0)}>
-                  <div className="bg-[#007AFF] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[85%]">
-                    <p className="text-white text-[12.5px] leading-relaxed">Hey Mike, Sarah connected us &mdash; I helped her family get protected and she thought I might be able to help you too. Open to a couple quick questions?</p>
-                  </div>
-                </div>
-                <div className="flex justify-start" style={msgFade(1)}>
-                  <div className="bg-[#333] rounded-2xl rounded-tl-sm px-3.5 py-2.5 max-w-[65%]">
-                    <p className="text-white text-[12.5px]">yeah sure</p>
-                  </div>
-                </div>
-                <div className="flex justify-end" style={msgFade(2)}>
-                  <div className="bg-[#007AFF] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[85%]">
-                    <p className="text-white text-[12.5px] leading-relaxed">What matters most to you when it comes to protecting your family?</p>
-                  </div>
-                </div>
-                <div className="flex justify-start" style={msgFade(3)}>
-                  <div className="bg-[#333] rounded-2xl rounded-tl-sm px-3.5 py-2.5 max-w-[85%]">
-                    <p className="text-white text-[12.5px]">making sure my wife and kids are covered if something happens</p>
-                  </div>
-                </div>
-                <div className="flex justify-end" style={msgFade(4)}>
-                  <div className="bg-[#007AFF] rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[85%]">
-                    <p className="text-white text-[12.5px] leading-relaxed">Really appreciate that. A quick 15-min call would be worth it. Here&apos;s my calendar:</p>
-                    <p className="text-white/80 text-[12.5px] mt-1 underline" style={msgFade(5)}>calendly.com/daniel</p>
-                  </div>
-                </div>
-                <div className="flex justify-center pt-2" style={msgFade(6)}>
-                  <div className="flex items-center gap-2 bg-[#3DD6C3]/15 border border-[#3DD6C3]/25 rounded-full px-4 py-1.5">
-                    <svg className="w-3.5 h-3.5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                    <span className="text-[#3DD6C3] text-[10px] font-bold">Appointment Booked</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <p className="text-center text-white/25 text-[11px] mt-3">The referral thinks they&apos;re texting you.</p>
-          </div>
-
-          {/* Follow-up badges */}
-          <div className="flex flex-wrap gap-2 justify-center">
-            {['Day 2 · Gentle nudge', 'Day 5 · New angle', 'Day 8 · Direct ask'].map((d, i) => (
-              <span key={d} className={`px-3 py-1.5 rounded-full text-[11px] font-medium ${i === 2 ? 'bg-[#fdcc02]/20 border border-[#fdcc02]/30 text-[#fdcc02]' : 'bg-white/10 text-white/50'}`}>{d}</span>
-            ))}
-          </div>
-          <p className="text-white/30 text-[11px] text-center">If they don&apos;t reply, AI follows up automatically.</p>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════
-         RETENTION — How It Keeps Clients
-         ═══════════════════════════════════════════════════ */}
-      <section className="relative bg-[#0D4D4D] px-6 py-20 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none will-change-transform">
-          <div className="absolute top-1/4 -left-20 w-[300px] h-[300px] bg-[#3DD6C3] rounded-full blur-[180px] opacity-[0.08]" />
-          <div className="absolute bottom-1/4 -right-10 w-[200px] h-[200px] bg-red-500 rounded-full blur-[150px] opacity-[0.05]" />
-        </div>
-
-        <div className="relative space-y-16">
-          {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] as const }}
-            style={{ willChange: 'transform, opacity' }}
-          >
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/[0.06] border border-white/10 rounded-full mb-4">
-              <svg className="w-3.5 h-3.5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-              <span className="text-[#3DD6C3] font-bold text-[11px] uppercase tracking-wide">Retention</span>
-            </div>
-            <h2 className="text-[1.65rem] font-extrabold text-white leading-tight mb-2">
-              Never lose a client<br />to silence again.
-            </h2>
-            <p className="text-white/40 text-[14px]">Your AI protects every relationship. On autopilot.</p>
-          </motion.div>
-
-          {/* Layer 1: Prevention */}
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] as const }}
-            style={{ willChange: 'transform, opacity' }}
-            className="space-y-6"
-          >
-            {/* Stat */}
-            <div className="flex items-baseline gap-3">
-              <span className="text-5xl font-black text-[#3DD6C3]">7+</span>
-              <p className="text-white/50 text-[14px] leading-snug">automated touchpoints<br />per year, per client</p>
-            </div>
-
-            <p className="text-white/40 text-[14px] leading-relaxed">
-              Holidays, birthdays, policy anniversaries &mdash; push notifications your clients actually love. You never lift a finger.
-            </p>
-
-            {/* Holiday cards */}
-            <div className="flex gap-2.5 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
-              {[
-                { emoji: '🎄', label: 'Christmas', bg: 'linear-gradient(135deg, #8B0000, #C41E3A)' },
-                { emoji: '🎆', label: 'New Year', bg: 'linear-gradient(135deg, #0B1A3E, #162D6E)' },
-                { emoji: '💝', label: "Valentine's", bg: 'linear-gradient(135deg, #9B1B30, #D63B5C)' },
-                { emoji: '🇺🇸', label: '4th of July', bg: 'linear-gradient(135deg, #002868, #BF0A30)' },
-                { emoji: '🍂', label: 'Thanksgiving', bg: 'linear-gradient(135deg, #8B4513, #BF6A20)' },
-                { emoji: '🎂', label: 'Birthday', bg: 'linear-gradient(135deg, #6B21A8, #a158ff)' },
-                { emoji: '📅', label: 'Anniversary', bg: 'linear-gradient(135deg, #005851, #0D4D4D)' },
-              ].map((h) => (
-                <div key={h.label} className="flex-shrink-0 w-[110px] rounded-2xl p-4 text-center" style={{ background: h.bg }}>
-                  <span className="text-3xl">{h.emoji}</span>
-                  <p className="text-white font-bold text-[10px] mt-2">{h.label}</p>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Divider */}
-          <div className="h-px bg-white/[0.06]" />
-
-          {/* Layer 2: Rescue */}
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] as const }}
-            style={{ willChange: 'transform, opacity' }}
-            className="space-y-6"
-          >
-            {/* Alert header */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute h-full w-full rounded-full bg-red-400 opacity-75" />
-                  <span className="relative rounded-full h-2.5 w-2.5 bg-red-400" />
-                </span>
-                <p className="text-white font-extrabold text-lg">Policy at risk?</p>
-              </div>
-              <p className="text-[#3DD6C3] text-[1.1rem] font-bold">Forward one email. AI saves it.</p>
-            </div>
-
-            {/* Flow */}
-            <div className="bg-white/[0.04] rounded-2xl p-5 border border-white/[0.06]">
-              <div className="flex items-center justify-between gap-2">
-                {[
-                  { icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z', label: 'Forward email', color: 'white/40' },
-                  { icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', label: 'AI reaches out', color: 'white/40' },
-                  { icon: 'M5 13l4 4L19 7', label: 'Policy saved', color: '#3DD6C3' },
-                ].map((step, i) => (
-                  <div key={step.label} className="flex items-center gap-2 flex-1">
-                    <div className="flex flex-col items-center gap-1.5 flex-1">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${i === 2 ? 'bg-[#3DD6C3]/15' : 'bg-white/[0.06]'}`}>
-                        <svg className="w-4 h-4" style={{ color: i === 2 ? '#3DD6C3' : 'rgba(255,255,255,0.4)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={step.icon} /></svg>
-                      </div>
-                      <p className={`text-[8px] font-semibold text-center leading-tight ${i === 2 ? 'text-[#3DD6C3]' : 'text-white/40'}`}>{step.label}</p>
-                    </div>
-                    {i < 2 && <div className="w-4 h-px bg-white/10 flex-shrink-0 -mt-4" />}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <p className="text-white/50 text-[13px] leading-relaxed">
-              Automatic follow-ups on Day 2, 5, and 7. <span className="text-white/70 font-semibold">You keep the commission.</span>
-            </p>
-          </motion.div>
-
-          {/* Closing */}
-          <motion.p
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="text-white/25 text-[13px] italic text-center"
-          >
-            Your AI doesn&apos;t sleep. Or take lunch. Or forget to follow up.
-          </motion.p>
-        </div>
       </section>
 
       {/* ═══════════════════════════════════════════════════
