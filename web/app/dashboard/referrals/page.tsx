@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, doc, onSnapshot, query, orderBy, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, orderBy, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
 
@@ -27,6 +27,8 @@ export default function ReferralsPage() {
   const [manualMessageText, setManualMessageText] = useState('');
   const [sendingManualMessage, setSendingManualMessage] = useState(false);
   const [togglingAi, setTogglingAi] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const aiAssistantEnabled = agentProfile.aiAssistantEnabled ?? false;
   const hasBusinessCard = !!agentProfile.businessCardBase64;
@@ -95,6 +97,20 @@ export default function ReferralsPage() {
       console.error('Error sending manual message:', err);
     } finally {
       setSendingManualMessage(false);
+    }
+  };
+
+  const handleDeleteReferral = async (referralId: string) => {
+    if (!user) return;
+    setDeletingId(referralId);
+    try {
+      await deleteDoc(doc(db, 'agents', user.uid, 'referrals', referralId));
+      setConfirmDeleteId(null);
+      if (expandedReferral === referralId) setExpandedReferral(null);
+    } catch (err) {
+      console.error('Error deleting referral:', err);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -283,11 +299,44 @@ export default function ReferralsPage() {
                         {statusLabels[referral.status] || referral.status}
                       </span>
                       <span className="text-xs text-[#707070]">{referral.conversation?.length || 0} msgs</span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(confirmDeleteId === referral.id ? null : referral.id); }}
+                        className="p-1 rounded text-[#707070] hover:bg-red-100 hover:text-red-600 transition-colors"
+                        title="Delete conversation"
+                        aria-label="Delete conversation"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                       <svg className={`w-4 h-4 text-[#707070] transition-transform ${expandedReferral === referral.id ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </div>
                   </div>
+
+                  {/* Confirm delete */}
+                  {confirmDeleteId === referral.id && (
+                    <div className="mt-3 pl-12 flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-[5px]">
+                      <span className="text-sm text-[#000000]">Delete this referral conversation? This cannot be undone.</span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteReferral(referral.id)}
+                        disabled={deletingId === referral.id}
+                        className="px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-medium rounded-[5px]"
+                      >
+                        {deletingId === referral.id ? 'Deleting...' : 'Delete'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
+                        className="px-3 py-1.5 border border-[#d0d0d0] bg-white hover:bg-gray-50 text-xs font-medium rounded-[5px]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
 
                   {/* Expanded conversation */}
                   {expandedReferral === referral.id && (
