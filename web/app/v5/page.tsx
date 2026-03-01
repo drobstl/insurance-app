@@ -315,7 +315,7 @@ export default function DesktopLandingV5() {
               <p className="text-white/70 text-lg leading-relaxed mb-8 max-w-lg">
                 7+ personalized touchpoints per year, per client — completely automatic. Holiday cards for 5 major holidays, birthday messages, anniversary alerts, and custom push notifications.
               </p>
-              <Link href="/v5/retention" className="inline-flex items-center gap-2 text-white font-bold text-base hover:text-[#fdcc02] transition-colors group">
+              <Link href="/v5/relationships" className="inline-flex items-center gap-2 text-white font-bold text-base hover:text-[#fdcc02] transition-colors group">
                 See how it works
                 <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
               </Link>

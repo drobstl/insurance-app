@@ -16,12 +16,12 @@ export function middleware(request: NextRequest) {
   const userAgent = request.headers.get('user-agent');
   const mobile = isMobile(userAgent);
 
-  // Root: mobile -> /m, desktop -> /v4
+  // Root: mobile -> /m, desktop -> /v5
   if (path === '/' || path === '') {
     if (mobile) {
       return NextResponse.rewrite(new URL('/m', request.url));
     }
-    return NextResponse.rewrite(new URL('/v4', request.url));
+    return NextResponse.rewrite(new URL('/v5', request.url));
   }
 
   // Founding member: mobile -> /founding-member/m

@@ -128,11 +128,18 @@ export default function ReferralsDeepDiveDesktop() {
               transition={{ duration: 0.7 }}
               className="max-w-xl"
             >
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#0D4D4D]/10 rounded-full mb-8">
-                <svg className="w-4 h-4 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <span className="text-[#0D4D4D] font-bold text-xs uppercase tracking-wide">One-Tap Referrals</span>
+              <div className="flex flex-wrap items-center gap-3 mb-8">
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#0D4D4D]/10 rounded-full">
+                  <svg className="w-4 h-4 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span className="text-[#0D4D4D] font-bold text-xs uppercase tracking-wide">One-Tap Referrals</span>
+                </div>
+                <div className="inline-flex items-center gap-3 px-4 py-2 bg-[#0D4D4D]/10 rounded-full">
+                  <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#007AFF]" /><span className="text-[#0D4D4D] font-bold text-xs">Blue Bubbles</span></span>
+                  <span className="text-[#0D4D4D]/30">+</span>
+                  <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#34C759]" /><span className="text-[#0D4D4D] font-bold text-xs">Green Bubbles</span></span>
+                </div>
               </div>
               <h1 className="text-5xl lg:text-6xl xl:text-7xl font-extrabold text-[#0D4D4D] leading-[1.05] mb-8">
                 Your clients refer.<br />
@@ -363,7 +370,7 @@ export default function ReferralsDeepDiveDesktop() {
               className="space-y-5 lg:pt-4"
             >
               {[
-                { icon: '💬', title: 'iMessage = ~99% read rate', desc: 'Not email. Not a link. Blue-bubble iMessage that gets read every time.' },
+                { icon: '💬', title: 'Blue bubbles + green bubbles', desc: 'iPhone users see blue iMessage bubbles. Android users see green. Both get ~99% read rates — not email, not a cold link.' },
                 { icon: '🤝', title: 'Warm intro, not cold outreach', desc: 'The referral already got a personal text from your client. AI follows up with trust already built.' },
                 { icon: '📅', title: 'AI books directly on your calendar', desc: 'No back-and-forth. AI shares your scheduling link and the referral picks a time.' },
                 { icon: '🔄', title: 'AI never gives up', desc: 'If the referral goes quiet, AI follows up on Day 2, Day 5, and Day 8 with different angles.' },

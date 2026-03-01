@@ -88,11 +88,18 @@ export default function RetentionDeepDiveDesktop() {
               transition={{ duration: 0.6 }}
               className="max-w-xl"
             >
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#0D4D4D]/15 rounded-full mb-8">
-                <svg className="w-4 h-4 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-                <span className="text-[#0D4D4D] font-bold text-xs uppercase tracking-wide">Automated Retention</span>
+              <div className="flex flex-wrap items-center gap-3 mb-8">
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#0D4D4D]/15 rounded-full">
+                  <svg className="w-4 h-4 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  <span className="text-[#0D4D4D] font-bold text-xs uppercase tracking-wide">Automated Retention</span>
+                </div>
+                <div className="inline-flex items-center gap-3 px-4 py-2 bg-[#0D4D4D]/10 rounded-full">
+                  <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#007AFF]" /><span className="text-[#0D4D4D] font-bold text-xs">Blue Bubbles</span></span>
+                  <span className="text-[#0D4D4D]/30">+</span>
+                  <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#34C759]" /><span className="text-[#0D4D4D] font-bold text-xs">Green Bubbles</span></span>
+                </div>
               </div>
               <h1 className="text-5xl xl:text-6xl font-extrabold text-[#0D4D4D] leading-[1.08] mb-7">
                 Two layers of<br />
@@ -289,7 +296,7 @@ export default function RetentionDeepDiveDesktop() {
                 {
                   num: '3',
                   title: 'Client gets reached',
-                  body: 'Personalized push notification + text within 2 hours. AI follows up on Day 2, 5, and 7 with different angles.',
+                  body: 'Push notification + iMessage (blue bubbles on iPhone, green on Android) within 2 hours. AI follows up on Day 2, 5, and 7 with different angles.',
                   color: '#fdcc02',
                 },
               ].map((step, i) => (
