@@ -229,7 +229,7 @@ export default function RetentionDeepDive() {
         </div>
       </section>
 
-      {/* Why most agents fail */}
+      {/* The real problem */}
       <section className="px-6 py-12">
         <motion.div
           initial="hidden"
@@ -239,26 +239,38 @@ export default function RetentionDeepDive() {
           className="space-y-5"
         >
           <motion.h2 variants={fadeUp} custom={0} className="text-[1.4rem] font-extrabold text-[#0D4D4D] leading-tight">
-            Why clients leave.
+            The real problem.
           </motion.h2>
 
-          {[
-            { stat: '#1', label: 'reason clients leave? They feel forgotten by their agent', color: '#FF5F57' },
-            { stat: '5\u201325x', label: 'cheaper to retain a client than acquire a new one', color: '#3DD6C3' },
-            { stat: '~$1,200', label: 'avg annual value of a single canceled policy', color: '#FF5F57' },
-          ].map((item, i) => (
-            <motion.div key={item.stat} variants={fadeUp} custom={0.1 + i * 0.08} className="flex items-center gap-4 bg-[#F8F9FA] rounded-2xl p-5 border border-gray-100">
-              <span className="text-2xl font-black flex-shrink-0" style={{ color: item.color }}>{item.stat}</span>
-              <p className="text-[#6B7280] text-[13px] leading-snug">{item.label}</p>
-            </motion.div>
-          ))}
+          <motion.p variants={fadeUp} custom={0.08} className="text-[#6B7280] text-[14px] leading-relaxed">
+            Your clients wanted the protection. They bought the policy because it mattered. But after the sale, the relationship stops. You&apos;re busy writing new business. They&apos;re just a name on a spreadsheet.
+          </motion.p>
 
-          <motion.div variants={fadeUp} custom={0.4} className="bg-[#0D4D4D] rounded-2xl p-5 text-center">
-            <p className="text-white font-bold text-[15px] leading-snug mb-1">
-              Agent For Life keeps you top-of-mind
+          <motion.div variants={fadeUp} custom={0.16} className="space-y-3">
+            {[
+              'A payment slips and they don\u2019t call you \u2014 they just stop paying.',
+              'They get frustrated and call the carrier directly to cancel.',
+              'A competitor reaches out and they switch because you were just a voice on the phone.',
+            ].map((line, i) => (
+              <div key={i} className="flex items-start gap-3 bg-[#F8F9FA] rounded-xl p-4 border border-gray-100">
+                <div className="w-5 h-5 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                </div>
+                <p className="text-[#6B7280] text-[13px] leading-snug">{line}</p>
+              </div>
+            ))}
+          </motion.div>
+
+          <motion.p variants={fadeUp} custom={0.24} className="text-[#6B7280] text-[14px] leading-relaxed">
+            It&apos;s not that they don&apos;t value the coverage. It&apos;s that you were never given a chance to fight for them. By the time you find out, it&apos;s already a chargeback.
+          </motion.p>
+
+          <motion.div variants={fadeUp} custom={0.32} className="bg-[#0D4D4D] rounded-2xl p-5">
+            <p className="text-white font-bold text-[15px] leading-snug mb-2">
+              Agent For Life gives you that chance.
             </p>
             <p className="text-white/50 text-[13px] leading-relaxed">
-              so when a competitor calls, your client says <span className="text-[#3DD6C3] font-semibold">&quot;I already have an agent.&quot;</span>
+              When a policy is at risk, you find out immediately &mdash; not weeks later when the chargeback hits. And your AI fights to save it while you focus on growing your business. A real relationship means they feel like you&apos;ve got their back.
             </p>
           </motion.div>
         </motion.div>
@@ -277,11 +289,11 @@ export default function RetentionDeepDive() {
           className="relative text-center space-y-5"
         >
           <h2 className="text-[1.5rem] font-extrabold text-white leading-tight">
-            Stop losing clients<br />
-            <span className="text-[#3DD6C3]">to silence</span>.
+            Be there for your clients<br />
+            <span className="text-[#3DD6C3]">even when you can&apos;t be</span>.
           </h2>
           <p className="text-white/40 text-[14px] leading-relaxed max-w-[280px] mx-auto">
-            Other agents let chargebacks eat their income. You forward one email and your AI fights to save every policy.
+            You can&apos;t fight for a client you don&apos;t know is at risk. Agent For Life makes sure you always know &mdash; and always have a chance to help.
           </p>
           <Link
             href="/founding-member/m"
