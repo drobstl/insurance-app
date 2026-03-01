@@ -185,6 +185,7 @@ export async function PATCH(req: NextRequest) {
                     title: `Your ${policyType} policy is secure!`,
                     body: clientMessage,
                     sound: 'default',
+                    badge: 1,
                     priority: 'high',
                     data: { type: 'conservation_saved', agentId },
                   }),

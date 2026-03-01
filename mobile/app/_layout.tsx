@@ -11,13 +11,13 @@ import Constants from 'expo-constants';
 import { getSession, registerAndSavePushToken } from './index';
 
 // Configure how notifications are presented when the app is in the foreground.
-// shouldSetBadge is false so the server-sent badge value doesn't override
-// client-side badge management (which clears to 0 on foreground).
+// shouldSetBadge is true so the app icon badge updates when a push arrives.
+// Badge is cleared back to 0 whenever the user foregrounds the app (see below).
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
-    shouldSetBadge: false,
+    shouldSetBadge: true,
   }),
 });
 

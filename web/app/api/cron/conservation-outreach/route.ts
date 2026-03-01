@@ -59,6 +59,7 @@ async function sendPushNotification(
         title: `Message from ${agentName}`,
         body: message,
         sound: 'default',
+        badge: 1,
         priority: 'high',
         data,
       }),

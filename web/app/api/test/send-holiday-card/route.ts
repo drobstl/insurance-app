@@ -112,6 +112,7 @@ export async function GET(req: NextRequest) {
             title: card.title,
             body,
             sound: 'default',
+            badge: 1,
             data: {
               type: 'holiday',
               holiday,

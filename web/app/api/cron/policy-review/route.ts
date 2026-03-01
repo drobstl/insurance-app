@@ -249,6 +249,7 @@ export async function GET(req: NextRequest) {
                     title: messageStyle === 'lower_price' ? 'Rate Review' : 'Policy Check-In',
                     body: aiMessage,
                     sound: 'default',
+                    badge: 1,
                     priority: 'high',
                     data: { type: 'policy-review', agentId: agentDoc.id, clientId: hit.clientId },
                   }),

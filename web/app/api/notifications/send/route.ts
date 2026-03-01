@@ -128,6 +128,7 @@ export async function POST(req: NextRequest) {
       title: notificationTitle,
       body: messageBody,
       sound: 'default',
+      badge: 1,
       priority: 'high',
       data: pushData,
     };
