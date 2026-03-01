@@ -377,10 +377,10 @@ export default function MobileLandingV2() {
               </div>
               <div className="bg-[#fdcc02] px-3 pt-6 relative overflow-hidden" style={{ minHeight: '400px' }}>
                 <div className="flex justify-center -mb-12">
-                  <div className="w-[55%] rounded-xl border-[6px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
+                  <div className="w-[55%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
                     <img src="/screenshot-referral-sent.png" alt="Referral sent confirmation" className="w-full h-auto block" />
                   </div>
-                  <div className="w-[60%] rounded-xl border-[6px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20">
+                  <div className="w-[60%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20">
                     <img src="/screenshot-referral-message.png" alt="Referral message with business card" className="w-full h-auto block" />
                   </div>
                 </div>
@@ -404,10 +404,10 @@ export default function MobileLandingV2() {
               </div>
               <div className="bg-[#F4845F] px-3 pt-6 relative overflow-hidden" style={{ minHeight: '400px' }}>
                 <div className="flex justify-center -mb-12">
-                  <div className="w-[55%] rounded-xl border-[6px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
+                  <div className="w-[55%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
                     <img src="/screenshot-rewrite-convo.png" alt="AI rewrite conversation" className="w-full h-auto block" />
                   </div>
-                  <div className="w-[60%] rounded-xl border-[6px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20 bg-white">
+                  <div className="w-[60%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20 bg-white">
                     <img src="/screenshot-rewrite-app.png" alt="Rewrite rate review in app" className="w-full h-auto block" />
                   </div>
                 </div>
@@ -447,13 +447,13 @@ export default function MobileLandingV2() {
                   </div>
                 </div>
               </div>
-              <div className="bg-[#3DD6C3] px-3 pt-6 relative overflow-hidden" style={{ minHeight: '400px' }}>
-                <div className="flex justify-center -mb-12">
-                  <div className="w-[55%] rounded-xl border-[6px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
-                    <img src="/screenshot-retention-message.png" alt="Conservation message in client app" className="w-full h-auto block" />
-                  </div>
-                  <div className="w-[60%] rounded-xl border-[6px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20">
+              <div className="bg-[#3DD6C3] px-3 pt-6 pb-6 relative overflow-hidden" style={{ minHeight: '400px' }}>
+                <div className="flex justify-center">
+                  <div className="w-[55%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden relative z-10">
                     <img src="/screenshot-retention-booking.png" alt="Booking calendar" className="w-full h-auto block" />
+                  </div>
+                  <div className="w-[60%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20">
+                    <img src="/screenshot-retention-message.png" alt="Conservation message in client app" className="w-full h-auto block" />
                   </div>
                 </div>
               </div>
@@ -476,10 +476,10 @@ export default function MobileLandingV2() {
               </div>
               <div className="bg-[#a158ff] px-3 pt-6 relative overflow-hidden" style={{ minHeight: '400px' }}>
                 <div className="flex justify-center -mb-12">
-                  <div className="w-[55%] rounded-xl border-[6px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
+                  <div className="w-[55%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
                     <img src="/screenshot-thanksgiving-notification.png" alt="Push notification on home screen" className="w-full h-auto block" />
                   </div>
-                  <div className="w-[60%] rounded-xl border-[6px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20">
+                  <div className="w-[60%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20">
                     <img src="/screenshot-thanksgiving-card.png" alt="Thanksgiving holiday card" className="w-full h-auto block" />
                   </div>
                 </div>
