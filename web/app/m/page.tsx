@@ -404,11 +404,11 @@ export default function MobileLandingV2() {
               </div>
               <div className="bg-[#F4845F] px-3 pt-6 pb-6 relative overflow-hidden" style={{ minHeight: '400px' }}>
                 <div className="flex justify-center">
-                  <div className="w-[55%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden relative z-10">
-                    <img src="/screenshot-rewrite-app.png" alt="Rewrite rate review in app" className="w-full h-auto block" />
-                  </div>
-                  <div className="w-[60%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20 bg-white">
+                  <div className="w-[55%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10 bg-white min-h-[320px]">
                     <img src="/screenshot-rewrite-convo.png" alt="AI rewrite conversation" className="w-full h-auto block" />
+                  </div>
+                  <div className="w-[60%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20 bg-white min-h-[280px]">
+                    <img src="/screenshot-rewrite-app.png" alt="Rewrite rate review in app" className="w-full h-auto block" />
                   </div>
                 </div>
               </div>
