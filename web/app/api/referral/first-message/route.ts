@@ -2,7 +2,8 @@ import 'server-only';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
-import { getTwilioClient, getTwilioPhoneNumber } from '../../../../lib/twilio';
+import { createChat, getLinqPhoneNumber } from '../../../../lib/linq';
+import { getLinqAttachmentId } from '../../../../lib/business-card-url';
 import { generateFirstMessage, filterConversationToGroupOnly, ReferralContext } from '../../../../lib/referral-ai';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
     const agentData = agentDoc.exists ? (agentDoc.data() as Record<string, unknown>) : {};
     const agentName = (agentData.name as string) || 'Your agent';
     const agentFirstName = agentName.split(' ')[0];
-    const twilioNumber = (agentData.twilioPhoneNumber as string) || getTwilioPhoneNumber();
+    const agentPhone = (agentData.linqPhoneNumber as string) || getLinqPhoneNumber();
     const schedulingUrl = (agentData.schedulingUrl as string) || null;
 
     const clientName = (referralData.clientName as string) || 'A friend';
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
       clientFirstName: clientName.split(' ')[0],
       referralName: (referralData.referralName as string) || 'Friend',
       schedulingUrl,
-      agentPhone: twilioNumber,
+      agentPhone,
       conversation: filterConversationToGroupOnly(rawConversation),
     };
 
@@ -88,14 +89,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid referral phone number' }, { status: 422 });
     }
 
-    const twilioClient = getTwilioClient();
-    await twilioClient.messages.create({
-      body: opener,
-      from: twilioNumber,
+    const businessCardAttachmentId = await getLinqAttachmentId(agentId);
+    const dmResult = await createChat({
       to: referralPhone,
+      text: opener,
+      attachmentIds: businessCardAttachmentId ? [businessCardAttachmentId] : undefined,
     });
 
-    // Record in Firestore
     const openerMessage = {
       role: 'agent-ai',
       body: opener,
@@ -104,6 +104,7 @@ export async function POST(req: NextRequest) {
 
     await referralRef.update({
       conversation: FieldValue.arrayUnion(openerMessage),
+      directChatId: dmResult.chatId,
       status: 'outreach-sent',
       lastDripAt: FieldValue.serverTimestamp(),
       dripCount: 0,
