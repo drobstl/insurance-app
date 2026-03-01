@@ -224,7 +224,7 @@ export default function MobileLandingV2() {
             <p className="text-white/40 text-[14px] text-center">Your name. Your brand. Their policies. One tap away.</p>
           </motion.div>
 
-          {/* Phone mockup with video preview */}
+          {/* Phone mockup with video preview + floating tags */}
           <motion.div
             initial={{ opacity: 0, y: 30, scale: 0.96 }}
             whileInView={{ opacity: 1, y: 0, scale: 1 }}
@@ -234,6 +234,28 @@ export default function MobileLandingV2() {
             className="flex justify-center"
           >
             <div className="relative">
+              {/* Floating feature tags */}
+              <div className="absolute -left-14 top-8 z-10 animate-float-a">
+                <div className="px-2.5 py-1.5 bg-[#3DD6C3]/15 border border-[#3DD6C3]/25 rounded-lg">
+                  <span className="text-[#3DD6C3] text-[10px] font-bold">🛡️ Conservation Alerts</span>
+                </div>
+              </div>
+              <div className="absolute -right-12 top-16 z-10 animate-float-b">
+                <div className="px-2.5 py-1.5 bg-[#fdcc02]/15 border border-[#fdcc02]/25 rounded-lg">
+                  <span className="text-[#fdcc02] text-[10px] font-bold">🤝 AI Referrals</span>
+                </div>
+              </div>
+              <div className="absolute -left-10 bottom-24 z-10 animate-float-c">
+                <div className="px-2.5 py-1.5 bg-white/[0.08] border border-white/15 rounded-lg">
+                  <span className="text-white/80 text-[10px] font-bold">🎄 Holiday Cards</span>
+                </div>
+              </div>
+              <div className="absolute -right-8 bottom-36 z-10 animate-float-d">
+                <div className="px-2.5 py-1.5 bg-[#F4845F]/15 border border-[#F4845F]/25 rounded-lg">
+                  <span className="text-[#F4845F] text-[10px] font-bold">📅 Rewrites</span>
+                </div>
+              </div>
+
               <div className="w-[220px] h-[440px] bg-[#1a1a1a] rounded-[2.5rem] p-2.5 shadow-2xl border-4 border-[#2a2a2a] transform-gpu">
                 <div className="absolute -inset-1.5 rounded-[2.8rem] bg-gradient-to-b from-[#3DD6C3]/15 via-transparent to-[#fdcc02]/10 pointer-events-none blur-sm" />
                 <div className="w-full h-full bg-black rounded-[2rem] overflow-hidden">
