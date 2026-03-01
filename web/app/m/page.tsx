@@ -215,8 +215,8 @@ export default function MobileLandingV2() {
               className="text-[2rem] leading-[1.1] font-extrabold text-white mb-5 tracking-tight"
             >
               Chargebacks happen{' '}
-              <br />
-              when clients forget{' '}
+              <span className="text-[#3DD6C3]">(and referrals don&apos;t)</span>
+              {' '}when clients forget{' '}
               <br />
               <span className="text-[#3DD6C3]">you exist.</span>
             </motion.h1>
@@ -225,9 +225,18 @@ export default function MobileLandingV2() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.45 }}
-              className="text-white/50 text-[15px] leading-relaxed mb-8 max-w-[300px]"
+              className="text-white/50 text-[15px] leading-relaxed mb-4 max-w-[300px]"
             >
               We built a system that makes sure they never do. Automated retention. AI&#8209;powered referrals. Complete autopilot.
+            </motion.p>
+
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.5 }}
+              className="text-white/40 text-[14px] leading-relaxed mb-8 max-w-[300px]"
+            >
+              Our philosophy is that better relationships are the key to better business. Our goal is to bring more value and service to clients, and for agents to earn more income and keep more of what they earn.
             </motion.p>
 
             {/* CTA */}
@@ -405,10 +414,10 @@ export default function MobileLandingV2() {
               <div className="bg-[#F4845F] px-3 pt-6 pb-6 relative overflow-hidden" style={{ minHeight: '400px' }}>
                 <div className="flex justify-center">
                   <div className="w-[55%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10 bg-white min-h-[320px]">
-                    <img src="/screenshot-rewrite-convo.png" alt="AI rewrite conversation" className="w-full h-auto block" />
+                    <img src="/screenshot-rewrite-app.png" alt="Rewrite rate review in app" className="w-full h-auto block" />
                   </div>
                   <div className="w-[60%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20 bg-white min-h-[280px]">
-                    <img src="/screenshot-rewrite-app.png" alt="Rewrite rate review in app" className="w-full h-auto block" />
+                    <img src="/screenshot-rewrite-convo.png" alt="AI rewrite conversation" className="w-full h-auto block" />
                   </div>
                 </div>
               </div>
@@ -467,7 +476,7 @@ export default function MobileLandingV2() {
                 <p className="text-[14px] text-black mb-1.5">Relationships</p>
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="text-[1.3rem] font-extrabold text-black leading-[1.2]">
-                    Keep them warm without lifting a finger.
+                    You keep the connection, we&apos;ll send the card.
                   </h3>
                   <div className="w-9 h-9 rounded-full bg-[#0D4D4D] flex items-center justify-center flex-shrink-0 mt-1">
                     <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
