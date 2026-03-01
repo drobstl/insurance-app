@@ -427,39 +427,13 @@ export default function MobileLandingV2() {
                   </div>
                 </div>
               </div>
-              <div className="bg-[#F4845F] px-4 pt-8 relative overflow-hidden" style={{ minHeight: '240px' }}>
-                <div className="flex justify-center -mb-6">
-                  <div className="w-[145px] bg-white rounded-[1rem] p-[3px] shadow-2xl transform -rotate-3 translate-y-1 relative z-10">
-                    <div className="w-full bg-[#111] rounded-[0.85rem] overflow-hidden px-2.5 py-3">
-                      <div className="flex items-center gap-1.5 mb-3">
-                        <div className="w-5 h-5 rounded-full bg-[#005851] flex items-center justify-center">
-                          <span className="text-[#3DD6C3] text-[6px] font-bold">D</span>
-                        </div>
-                        <span className="text-white text-[7px] font-semibold">Daniel Roberts</span>
-                      </div>
-                      <div className="bg-white/[0.08] rounded-lg p-2 border border-white/5 mb-2">
-                        <p className="text-[#3DD6C3] text-[6px] font-bold mb-0.5">Anniversary Alert</p>
-                        <p className="text-white/50 text-[5px] leading-snug">I may have found you a lower rate for the same coverage...</p>
-                      </div>
-                      <div className="bg-[#3DD6C3] rounded-lg py-1.5 text-center">
-                        <p className="text-[#0D4D4D] text-[6px] font-bold">Book with Daniel</p>
-                      </div>
-                    </div>
+              <div className="bg-[#F4845F] px-4 pt-8 relative overflow-hidden" style={{ minHeight: '280px' }}>
+                <div className="flex justify-center -mb-10">
+                  <div className="w-[155px] rounded-[1.25rem] border-[3px] border-black/80 shadow-2xl overflow-hidden transform -rotate-3 translate-y-1 relative z-10">
+                    <img src="/screenshot-rewrite-convo.png" alt="AI rewrite conversation" className="w-full h-auto block" />
                   </div>
-                  <div className="w-[145px] bg-white rounded-[1rem] p-[3px] shadow-2xl transform rotate-3 translate-y-8 -ml-6 relative z-20">
-                    <div className="w-full bg-[#111] rounded-[0.85rem] overflow-hidden px-2.5 py-3">
-                      <p className="text-white/30 text-[6px] font-bold mb-2">Aug 2026</p>
-                      <div className="grid grid-cols-7 gap-px mb-3">
-                        {Array.from({ length: 21 }, (_, i) => i + 1).map(d => (
-                          <div key={d} className={`py-0.5 rounded text-center text-[5px] ${d === 15 ? 'bg-[#fdcc02] text-[#0D4D4D] font-bold' : 'text-white/25'}`}>{d}</div>
-                        ))}
-                      </div>
-                      <div className="flex justify-center">
-                        <div className="bg-[#3DD6C3]/20 rounded-full px-2 py-0.5">
-                          <span className="text-[#3DD6C3] text-[5px] font-bold">Appointment Set</span>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="w-[155px] rounded-[1.25rem] border-[3px] border-black/80 shadow-2xl overflow-hidden transform rotate-3 translate-y-10 -ml-8 relative z-20">
+                    <img src="/screenshot-rewrite-dashboard.png" alt="Rewrites dashboard" className="w-full h-auto block" />
                   </div>
                 </div>
               </div>
@@ -498,56 +472,13 @@ export default function MobileLandingV2() {
                   </div>
                 </div>
               </div>
-              <div className="bg-[#3DD6C3] px-4 pt-8 relative overflow-hidden" style={{ minHeight: '240px' }}>
-                <div className="flex justify-center -mb-6">
-                  <div className="w-[145px] bg-white rounded-[1rem] p-[3px] shadow-2xl transform -rotate-3 translate-y-1 relative z-10">
-                    <div className="w-full bg-[#111] rounded-[0.85rem] overflow-hidden px-2.5 py-3">
-                      <div className="flex items-center gap-1 mb-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                        <p className="text-white text-[7px] font-bold">Policy at risk</p>
-                      </div>
-                      <div className="space-y-1.5">
-                        <div className="flex justify-end">
-                          <div className="bg-[#007AFF] rounded-xl rounded-tr-sm px-2 py-1.5 max-w-[90%]">
-                            <p className="text-white text-[5px] leading-snug">Hey Sarah, I noticed your policy may need attention...</p>
-                          </div>
-                        </div>
-                        <div className="flex justify-start">
-                          <div className="bg-[#333] rounded-xl rounded-tl-sm px-2 py-1.5">
-                            <p className="text-white text-[5px]">oh thanks for reaching out!</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex justify-center mt-2">
-                        <div className="bg-[#3DD6C3]/20 rounded-full px-2 py-0.5">
-                          <span className="text-[#3DD6C3] text-[5px] font-bold">Policy Saved</span>
-                        </div>
-                      </div>
-                    </div>
+              <div className="bg-[#3DD6C3] px-4 pt-8 relative overflow-hidden" style={{ minHeight: '280px' }}>
+                <div className="flex justify-center -mb-10">
+                  <div className="w-[155px] rounded-[1.25rem] border-[3px] border-black/80 shadow-2xl overflow-hidden transform -rotate-3 translate-y-1 relative z-10">
+                    <img src="/screenshot-retention-message.png" alt="Conservation message in client app" className="w-full h-auto block" />
                   </div>
-                  <div className="w-[145px] bg-white rounded-[1rem] p-[3px] shadow-2xl transform rotate-3 translate-y-8 -ml-6 relative z-20">
-                    <div className="w-full bg-[#111] rounded-[0.85rem] overflow-hidden px-2.5 py-3">
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <div className="w-5 h-5 rounded-full bg-[#005851] flex items-center justify-center">
-                          <span className="text-[#3DD6C3] text-[6px] font-bold">D</span>
-                        </div>
-                        <span className="text-white text-[7px] font-semibold">Dashboard</span>
-                      </div>
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-1.5 bg-white/[0.06] rounded-lg px-2 py-1.5">
-                          <div className="w-1 h-1 rounded-full bg-[#3DD6C3]" />
-                          <span className="text-white/50 text-[5px]">Holiday card sent to 47 clients</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 bg-white/[0.06] rounded-lg px-2 py-1.5">
-                          <div className="w-1 h-1 rounded-full bg-red-400" />
-                          <span className="text-white/50 text-[5px]">Conservation: Sarah J.</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 bg-white/[0.06] rounded-lg px-2 py-1.5">
-                          <div className="w-1 h-1 rounded-full bg-[#3DD6C3]" />
-                          <span className="text-white/50 text-[5px]">Policy saved: Lisa M.</span>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="w-[155px] rounded-[1.25rem] border-[3px] border-black/80 shadow-2xl overflow-hidden transform rotate-3 translate-y-10 -ml-8 relative z-20">
+                    <img src="/screenshot-retention-booking.png" alt="Booking calendar" className="w-full h-auto block" />
                   </div>
                 </div>
               </div>
