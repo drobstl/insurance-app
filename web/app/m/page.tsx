@@ -225,18 +225,9 @@ export default function MobileLandingV2() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.45 }}
-              className="text-white/50 text-[15px] leading-relaxed mb-4 max-w-[300px]"
+              className="text-white/50 text-[15px] leading-relaxed mb-8 max-w-[300px]"
             >
               We built a system that makes sure they never do. Automated retention. AI&#8209;powered referrals. Complete autopilot.
-            </motion.p>
-
-            <motion.p
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.5 }}
-              className="text-white/40 text-[14px] leading-relaxed mb-8 max-w-[300px]"
-            >
-              Our philosophy is that better relationships are the key to better business. Our goal is to bring more value and service to clients, and for agents to earn more income and keep more of what they earn.
             </motion.p>
 
             {/* CTA */}
@@ -411,12 +402,12 @@ export default function MobileLandingV2() {
                   </div>
                 </div>
               </div>
-              <div className="bg-[#F4845F] px-3 pt-6 pb-6 relative overflow-hidden" style={{ minHeight: '400px' }}>
-                <div className="flex justify-center">
-                  <div className="w-[55%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10 bg-white min-h-[320px]">
+              <div className="bg-[#F4845F] px-3 pt-6 relative overflow-hidden" style={{ minHeight: '400px' }}>
+                <div className="flex justify-center -mb-12">
+                  <div className="w-[60%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden relative z-20 bg-white">
                     <img src="/screenshot-rewrite-app.png" alt="Rewrite rate review in app" className="w-full h-auto block" />
                   </div>
-                  <div className="w-[60%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20 bg-white min-h-[280px]">
+                  <div className="w-[55%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden -ml-4 translate-y-8 relative z-10 bg-white">
                     <img src="/screenshot-rewrite-convo.png" alt="AI rewrite conversation" className="w-full h-auto block" />
                   </div>
                 </div>
@@ -835,6 +826,22 @@ export default function MobileLandingV2() {
             </div>
           ))}
         </motion.div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════
+         PHILOSOPHY
+         ═══════════════════════════════════════════════════ */}
+      <section className="bg-[#0D4D4D] px-6 py-12">
+        <motion.p
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          style={{ willChange: 'transform, opacity' }}
+          className="text-white/40 text-[14px] leading-relaxed text-center max-w-[320px] mx-auto"
+        >
+          Our philosophy is that better relationships are the key to better business. Our goal is to bring more value and service to clients, and for agents to earn more income and keep more of what they earn.
+        </motion.p>
       </section>
 
       {/* ═══════════════════════════════════════════════════
