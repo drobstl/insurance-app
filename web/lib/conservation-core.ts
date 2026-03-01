@@ -13,7 +13,7 @@ import type {
   ConservationReason,
 } from './conservation-types';
 
-const GRACE_PERIOD_MS = 2 * 60 * 60 * 1000; // 2 hours
+const GRACE_PERIOD_MS = 0; // TODO: revert to 2 * 60 * 60 * 1000 after flagging John Roberts
 
 /**
  * Compute policy age in days. Prefers effectiveDate (YYYY-MM-DD string) over
