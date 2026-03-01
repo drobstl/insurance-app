@@ -324,7 +324,7 @@ export default function MobileLandingV2() {
           <Link href="/m/referrals" className="block">
             <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
               <div className="p-5 pb-4">
-                <p className="text-[13px] text-black mb-1.5">One-Tap Referrals</p>
+                <p className="text-[14px] text-black mb-1.5">One-Tap Referrals</p>
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="text-[1.3rem] font-extrabold text-black leading-[1.2]">
                     Clients pick a contact, your AI handles the rest.
@@ -351,7 +351,7 @@ export default function MobileLandingV2() {
           <Link href="/m/rewrites" className="block">
             <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
               <div className="p-5 pb-4">
-                <p className="text-[13px] text-black mb-1.5">Automated rewrites</p>
+                <p className="text-[14px] text-black mb-1.5">Automated Rewrites</p>
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="text-[1.3rem] font-extrabold text-black leading-[1.2]">
                     AI so nice, get the commission twice.
@@ -396,7 +396,7 @@ export default function MobileLandingV2() {
           <Link href="/m/retention" className="block">
             <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
               <div className="p-5 pb-4">
-                <p className="text-[13px] text-black mb-1.5">Automated retention</p>
+                <p className="text-[14px] text-black mb-1.5">Automated Retention</p>
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="text-[1.3rem] font-extrabold text-black leading-[1.2]">
                     You move forward, AI&apos;s got your back.
@@ -423,7 +423,7 @@ export default function MobileLandingV2() {
           <Link href="/m/relationships" className="block">
             <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
               <div className="p-5 pb-4">
-                <p className="text-[13px] text-black mb-1.5">Relationships</p>
+                <p className="text-[14px] text-black mb-1.5">Relationships</p>
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="text-[1.3rem] font-extrabold text-black leading-[1.2]">
                     Keep them warm without lifting a finger.
