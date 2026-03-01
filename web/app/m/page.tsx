@@ -390,7 +390,7 @@ export default function MobileLandingV2() {
           <Link href="/m/referrals" className="block">
             <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
               <div className="p-5 pb-4">
-                <p className="text-[13px] text-[#6B7280] mb-1.5">One tap referrals</p>
+                <p className="text-[13px] text-[#6B7280] mb-1.5">One-Tap Referrals</p>
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="text-[1.3rem] font-extrabold text-[#0D4D4D] leading-[1.2]">
                     Clients pick a contact, your AI handles the rest.
@@ -400,55 +400,13 @@ export default function MobileLandingV2() {
                   </div>
                 </div>
               </div>
-              <div className="bg-[#fdcc02] px-4 pt-8 relative overflow-hidden" style={{ minHeight: '240px' }}>
-                <div className="flex justify-center -mb-6">
-                  <div className="w-[145px] bg-white rounded-[1rem] p-[3px] shadow-2xl transform -rotate-3 translate-y-1 relative z-10">
-                    <div className="w-full bg-[#111] rounded-[0.85rem] overflow-hidden px-2.5 py-3">
-                      <div className="flex items-center gap-1.5 mb-3">
-                        <div className="w-5 h-5 rounded-full bg-[#005851] flex items-center justify-center">
-                          <span className="text-[#3DD6C3] text-[6px] font-bold">D</span>
-                        </div>
-                        <span className="text-white text-[7px] font-semibold">Daniel Roberts</span>
-                      </div>
-                      <div className="bg-[#fdcc02] rounded-lg py-2 text-center mb-2">
-                        <p className="text-[#0D4D4D] text-[7px] font-bold">Refer a Friend</p>
-                      </div>
-                      <div className="space-y-1.5">
-                        {['Mike Johnson', 'Sarah Thompson'].map((n, i) => (
-                          <div key={n} className="flex items-center gap-1.5">
-                            <div className={`w-3 h-3 rounded-full border ${i === 0 ? 'border-[#3DD6C3] bg-[#3DD6C3]' : 'border-white/20'}`} />
-                            <span className="text-white/60 text-[6px]">{n}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+              <div className="bg-[#fdcc02] px-4 pt-8 relative overflow-hidden" style={{ minHeight: '280px' }}>
+                <div className="flex justify-center -mb-10">
+                  <div className="w-[155px] rounded-[1.25rem] border-[3px] border-black/80 shadow-2xl overflow-hidden transform -rotate-3 translate-y-1 relative z-10">
+                    <img src="/screenshot-referral-sent.png" alt="Referral sent confirmation" className="w-full h-auto block" />
                   </div>
-                  <div className="w-[145px] bg-white rounded-[1rem] p-[3px] shadow-2xl transform rotate-3 translate-y-8 -ml-6 relative z-20">
-                    <div className="w-full bg-[#111] rounded-[0.85rem] overflow-hidden px-2.5 py-3">
-                      <div className="flex items-center gap-1.5 mb-3">
-                        <div className="w-5 h-5 rounded-full bg-[#005851] flex items-center justify-center">
-                          <span className="text-[#3DD6C3] text-[6px] font-bold">D</span>
-                        </div>
-                        <span className="text-white text-[7px] font-semibold">Daniel</span>
-                      </div>
-                      <div className="space-y-1.5">
-                        <div className="flex justify-end">
-                          <div className="bg-[#007AFF] rounded-xl rounded-tr-sm px-2 py-1.5 max-w-[90%]">
-                            <p className="text-white text-[6px] leading-snug">Hey Mike, Sarah connected us...</p>
-                          </div>
-                        </div>
-                        <div className="flex justify-start">
-                          <div className="bg-[#333] rounded-xl rounded-tl-sm px-2 py-1.5">
-                            <p className="text-white text-[6px]">yeah sure</p>
-                          </div>
-                        </div>
-                        <div className="flex justify-center mt-1">
-                          <div className="bg-[#3DD6C3]/20 rounded-full px-2 py-0.5">
-                            <span className="text-[#3DD6C3] text-[5px] font-bold">Booked</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="w-[155px] rounded-[1.25rem] border-[3px] border-black/80 shadow-2xl overflow-hidden transform rotate-3 translate-y-10 -ml-8 relative z-20">
+                    <img src="/screenshot-referral-message.png" alt="Referral message with business card" className="w-full h-auto block" />
                   </div>
                 </div>
               </div>
