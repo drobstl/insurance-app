@@ -55,6 +55,24 @@ export async function POST(req: NextRequest) {
 
               <p style="font-size: 16px;">If you're accepted, I'll send you everything you need to get started — just create your account and you're in. No credit card required.</p>
 
+              <div style="margin: 32px 0; padding: 24px; background: #F8F9FA; border-radius: 12px; border-left: 3px solid #3DD6C3;">
+                <p style="font-size: 18px; font-weight: 700; color: #0D4D4D; margin: 0 0 16px 0;">What I'm Asking From You</p>
+                <table style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 8px 12px 8px 0; vertical-align: top; font-size: 20px; width: 36px;">🏢</td>
+                    <td style="padding: 8px 0; font-size: 15px; color: #2D3748;">Use it with real clients — not just a test account</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 12px 8px 0; vertical-align: top; font-size: 20px; width: 36px;">📝</td>
+                    <td style="padding: 8px 0; font-size: 15px; color: #2D3748;">Give honest feedback weekly — what's broken, what's missing, no sugarcoating. Takes 2 minutes in-app.</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 12px 8px 0; vertical-align: top; font-size: 20px; width: 36px;">📅</td>
+                    <td style="padding: 8px 0; font-size: 15px; color: #2D3748;">Commit for 60 days</td>
+                  </tr>
+                </table>
+              </div>
+
               <p style="font-size: 16px;">In the meantime, if you have any questions, just reply to this email.</p>
 
               <p style="font-size: 16px; margin-top: 32px;">

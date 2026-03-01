@@ -32,6 +32,7 @@ export default function FoundingMemberMobile() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [activeCard, setActiveCard] = useState(0);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -39,6 +40,7 @@ export default function FoundingMemberMobile() {
   const [biggestDifference, setBiggestDifference] = useState('');
 
   const formRef = useRef<HTMLElement>(null);
+  const carouselRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch('/api/spots-remaining')
@@ -52,6 +54,16 @@ export default function FoundingMemberMobile() {
 
   const scrollToForm = () => {
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleCarouselScroll = () => {
+    if (!carouselRef.current) return;
+    const el = carouselRef.current;
+    const firstChild = el.firstElementChild as HTMLElement | null;
+    if (!firstChild) return;
+    const cardWidth = firstChild.offsetWidth + 16;
+    const index = Math.round(el.scrollLeft / cardWidth);
+    setActiveCard(Math.max(0, Math.min(index, 3)));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -205,91 +217,63 @@ export default function FoundingMemberMobile() {
       </section>
 
       {/* ═══════════════════════════════════════════════════
-         WHAT YOU GET
+         WHAT YOU GET — Swipe Cards
          ═══════════════════════════════════════════════════ */}
-      <section className="relative bg-white px-6 py-16">
+      <section className="relative bg-white py-16">
         <motion.div
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: '-40px' }}
           variants={stagger}
           style={{ willChange: 'transform, opacity' }}
-          className="space-y-6"
         >
-          <motion.div variants={fadeUp} custom={0}>
+          <motion.div variants={fadeUp} custom={0} className="px-6 mb-6">
             <h2 className="text-[1.65rem] font-extrabold text-[#0D4D4D] leading-tight mb-1">
               What you get.
             </h2>
             <p className="text-[#6B7280] text-[14px]">Everything included. No upsells. No tiers.</p>
           </motion.div>
 
-          {[
-            { icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', title: 'Lifetime free access', desc: '$49/mo value — yours at $0 forever', accent: '#3DD6C3' },
-            { icon: 'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z', title: 'Branded client app', desc: 'iOS & Android, your name and logo', accent: '#3DD6C3' },
-            { icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z', title: 'AI referral assistant', desc: 'Qualifies leads via iMessage, books appointments', accent: '#fdcc02' },
-            { icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', title: 'Direct line to the founder', desc: 'Me. Daniel. For anything you need.', accent: '#3DD6C3' },
-            { icon: 'M13 10V3L4 14h7v7l9-11h-7z', title: 'Early access to everything', desc: 'New features before anyone else', accent: '#fdcc02' },
-            { icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z', title: 'Founding Member status', desc: 'Permanent badge + first access to every premium feature', accent: '#a158ff' },
-          ].map((item, i) => (
-            <motion.div
-              key={item.title}
-              variants={fadeUp}
-              custom={0.05 + i * 0.04}
-              className="flex items-start gap-3.5"
+          <motion.div variants={fadeUp} custom={0.05}>
+            <div
+              ref={carouselRef}
+              onScroll={handleCarouselScroll}
+              className="flex gap-4 overflow-x-auto snap-x snap-mandatory scroll-pl-6 pl-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
             >
-              <div className="w-10 h-10 bg-[#0D4D4D] rounded-xl flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5" style={{ color: item.accent }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} /></svg>
-              </div>
-              <div className="pt-0.5">
-                <p className="text-[#0D4D4D] font-bold text-[15px] mb-0.5">{item.title}</p>
-                <p className="text-[#6B7280] text-[13px] leading-relaxed">{item.desc}</p>
-              </div>
-            </motion.div>
-          ))}
-        </motion.div>
-      </section>
+              {[
+                { icon: 'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z', title: 'Branded client app', desc: 'iOS & Android, your name and logo — a fully branded app your clients download and use.', accent: '#3DD6C3' },
+                { icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z', title: 'AI referral assistant', desc: 'Qualifies leads via iMessage, books appointments — referrals on autopilot.', accent: '#fdcc02' },
+                { icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', title: 'Direct line to the founder', desc: 'Me. Daniel. For anything you need — feature requests, bugs, ideas.', accent: '#3DD6C3' },
+                { icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z', title: 'Founding Member status', desc: 'Permanent badge + first access to every premium feature we ship.', accent: '#a158ff' },
+              ].map((item, i) => (
+                <div
+                  key={item.title}
+                  className={`w-[75vw] flex-shrink-0 snap-start bg-[#F8F9FA] rounded-2xl p-5 border border-gray-100${i === 3 ? ' mr-6' : ''}`}
+                >
+                  <div className="w-12 h-12 bg-[#0D4D4D] rounded-xl flex items-center justify-center mb-3">
+                    <svg className="w-6 h-6" style={{ color: item.accent }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} /></svg>
+                  </div>
+                  <p className="text-[#0D4D4D] font-bold text-[16px] mb-1">{item.title}</p>
+                  <p className="text-[#6B7280] text-[14px] leading-relaxed">{item.desc}</p>
+                </div>
+              ))}
+            </div>
 
-      {/* ═══════════════════════════════════════════════════
-         WHAT I NEED FROM YOU
-         ═══════════════════════════════════════════════════ */}
-      <section className="relative bg-[#F8F9FA] px-6 py-16">
-        <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: '-40px' }}
-          variants={stagger}
-          style={{ willChange: 'transform, opacity' }}
-          className="space-y-5"
-        >
-          <motion.div variants={fadeUp} custom={0}>
-            <h2 className="text-[1.65rem] font-extrabold text-[#0D4D4D] leading-tight mb-1">
-              What I need from you.
-            </h2>
-            <p className="text-[#6B7280] text-[14px]">The deal is simple. Free access for real feedback.</p>
+            <div className="flex justify-center gap-2 mt-5">
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    activeCard === i ? 'w-6 bg-[#0D4D4D]' : 'w-2 bg-[#0D4D4D]/20'
+                  }`}
+                />
+              ))}
+            </div>
           </motion.div>
-
-          {[
-            { emoji: '🏢', text: 'Use it with real clients (not just a test account)' },
-            { emoji: '📝', text: 'Give feedback once a week — in-app, takes 2 minutes' },
-            { emoji: '🔥', text: "Be brutally honest about what sucks and what's missing" },
-            { emoji: '📅', text: 'Commit for 60 days' },
-          ].map((item, i) => (
-            <motion.div
-              key={i}
-              variants={fadeUp}
-              custom={0.05 + i * 0.04}
-              className="flex items-start gap-3.5 bg-white rounded-xl p-4 border border-gray-100 shadow-sm"
-            >
-              <span className="text-xl flex-shrink-0">{item.emoji}</span>
-              <p className="text-[#2D3748] text-[14px] leading-relaxed font-medium">{item.text}</p>
-            </motion.div>
-          ))}
-
-          <motion.p variants={fadeUp} custom={0.3} className="text-[#6B7280]/60 text-[13px] italic text-center pt-2">
-            &ldquo;Help me build something made by agents, for agents. Your voice shapes what this becomes.&rdquo;
-          </motion.p>
         </motion.div>
       </section>
+
+      {/* "What I'm Asking From You" section removed from here — now shown post-application */}
 
       {/* ═══════════════════════════════════════════════════
          THE BETA CONTEXT
@@ -457,23 +441,50 @@ export default function FoundingMemberMobile() {
               </motion.form>
             </motion.div>
           ) : (
-            /* ═══ Confirmation ═══ */
+            /* ═══ Confirmation + What I'm Asking From You ═══ */
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5 }}
-              className="text-center py-8"
+              className="py-8"
             >
-              <div className="w-16 h-16 bg-[#3DD6C3] rounded-full flex items-center justify-center mx-auto mb-6">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+              <div className="text-center mb-10">
+                <div className="w-16 h-16 bg-[#3DD6C3] rounded-full flex items-center justify-center mx-auto mb-6">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                </div>
+                <h2 className="text-2xl font-extrabold text-white mb-4">
+                  You&apos;re in the running.
+                </h2>
+                <p className="text-white/60 text-[15px] mb-6 leading-relaxed max-w-[280px] mx-auto">
+                  I&apos;ll personally review your application and get back to you within 24 hours. Keep an eye on your inbox.
+                </p>
+                <p className="text-[#3DD6C3] font-semibold">— Daniel Roberts</p>
               </div>
-              <h2 className="text-2xl font-extrabold text-white mb-4">
-                You&apos;re in the running.
-              </h2>
-              <p className="text-white/60 text-[15px] mb-6 leading-relaxed max-w-[280px] mx-auto">
-                I&apos;ll personally review your application and get back to you within 24 hours. Keep an eye on your inbox.
-              </p>
-              <p className="text-[#3DD6C3] font-semibold">— Daniel Roberts</p>
+
+              <div className="border-t border-white/10 pt-10 space-y-4">
+                <h3 className="text-xl font-extrabold text-white mb-1">
+                  What I&apos;m Asking From You
+                </h3>
+                <p className="text-white/40 text-[14px] mb-5">The deal is simple. Free access for real feedback.</p>
+
+                {[
+                  { emoji: '🏢', text: 'Use it with real clients — not just a test account' },
+                  { emoji: '📝', text: "Give honest feedback weekly — what's broken, what's missing, no sugarcoating. Takes 2 minutes in-app." },
+                  { emoji: '📅', text: 'Commit for 60 days' },
+                ].map((item, i) => (
+                  <div
+                    key={i}
+                    className="flex items-start gap-3.5 bg-white/[0.06] rounded-xl p-4 border border-white/10"
+                  >
+                    <span className="text-xl flex-shrink-0">{item.emoji}</span>
+                    <p className="text-white/80 text-[14px] leading-relaxed font-medium">{item.text}</p>
+                  </div>
+                ))}
+
+                <p className="text-white/30 text-[13px] italic text-center pt-3">
+                  &ldquo;Help me build something made by agents, for agents.&rdquo;
+                </p>
+              </div>
             </motion.div>
           )}
         </div>
