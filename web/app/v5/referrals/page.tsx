@@ -172,11 +172,10 @@ export default function ReferralsDeepDiveDesktop() {
       </section>
 
       {/* ── Real AI Conversation ── */}
-      <section className="bg-[#070E1B] relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 left-0 w-[400px] h-[400px] bg-[#3DD6C3] rounded-full blur-[200px] opacity-[0.06]" />
-          <div className="absolute bottom-0 right-0 w-[300px] h-[300px] bg-[#fdcc02] rounded-full blur-[200px] opacity-[0.04]" />
-        </div>
+      <section
+        className="relative overflow-hidden"
+        style={{ background: '#070E1B radial-gradient(ellipse 400px 400px at 0% 0%, rgba(61,214,195,0.06), transparent 70%), radial-gradient(ellipse 300px 300px at 100% 100%, rgba(253,204,2,0.04), transparent 70%)' }}
+      >
         <div className="relative max-w-[1440px] mx-auto px-10 lg:px-20 py-24 lg:py-32">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
             <motion.div
@@ -269,12 +268,10 @@ export default function ReferralsDeepDiveDesktop() {
       </section>
 
       {/* ── iMessage Demo + Why It Works (combined) ── */}
-      <section className="bg-[#070E1B] relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-[#3DD6C3] rounded-full blur-[220px] opacity-[0.07]" />
-          <div className="absolute bottom-0 left-1/4 w-[300px] h-[300px] bg-[#fdcc02] rounded-full blur-[200px] opacity-[0.04]" />
-        </div>
-
+      <section
+        className="relative overflow-hidden"
+        style={{ background: '#070E1B radial-gradient(ellipse 400px 400px at 100% 0%, rgba(61,214,195,0.07), transparent 70%), radial-gradient(ellipse 300px 300px at 25% 100%, rgba(253,204,2,0.04), transparent 70%)' }}
+      >
         <div className="relative max-w-[1440px] mx-auto px-10 lg:px-20 py-24 lg:py-32">
           <motion.div
             initial={{ opacity: 0, y: 24 }}
@@ -375,7 +372,7 @@ export default function ReferralsDeepDiveDesktop() {
                   key={item.title}
                   variants={fadeUp}
                   custom={0.05 + i * 0.1}
-                  className="bg-white/[0.05] backdrop-blur-sm rounded-2xl p-6 lg:p-7 border border-white/10 hover:bg-white/[0.08] hover:border-[#3DD6C3]/20 transition-colors duration-300"
+                  className="bg-white/[0.05] rounded-2xl p-6 lg:p-7 border border-white/10 hover:bg-white/[0.08] hover:border-[#3DD6C3]/20 transition-colors duration-300"
                 >
                   <div className="flex items-start gap-5">
                     <span className="text-2xl flex-shrink-0 mt-0.5">{item.icon}</span>
@@ -392,10 +389,10 @@ export default function ReferralsDeepDiveDesktop() {
       </section>
 
       {/* ── Follow-Up Cadence ── */}
-      <section className="bg-[#0D4D4D] relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-[#fdcc02] rounded-full blur-[200px] opacity-[0.08]" />
-        </div>
+      <section
+        className="relative overflow-hidden"
+        style={{ background: '#0D4D4D radial-gradient(ellipse 400px 400px at 0% 100%, rgba(253,204,2,0.08), transparent 70%)' }}
+      >
         <div className="relative max-w-[1440px] mx-auto px-10 lg:px-20 py-24 lg:py-32">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <motion.div
@@ -495,11 +492,10 @@ export default function ReferralsDeepDiveDesktop() {
       </section>
 
       {/* ── Final CTA ── */}
-      <section className="bg-[#0D4D4D] relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 left-1/4 w-[400px] h-[400px] bg-[#3DD6C3] rounded-full blur-[180px] opacity-[0.12]" />
-          <div className="absolute bottom-0 right-1/4 w-[300px] h-[300px] bg-[#fdcc02] rounded-full blur-[180px] opacity-[0.06]" />
-        </div>
+      <section
+        className="relative overflow-hidden"
+        style={{ background: '#0D4D4D radial-gradient(ellipse 400px 400px at 25% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 300px 300px at 75% 100%, rgba(253,204,2,0.06), transparent 70%)' }}
+      >
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}

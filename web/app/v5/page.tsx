@@ -71,12 +71,7 @@ export default function DesktopLandingV5() {
       </nav>
 
       {/* ═══ HERO ═══ */}
-      <section ref={heroRef} className="relative min-h-screen flex items-center overflow-hidden pt-20">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-[#3DD6C3] rounded-full blur-[250px] opacity-20" />
-          <div className="absolute bottom-20 -right-40 w-[500px] h-[500px] bg-[#fdcc02] rounded-full blur-[200px] opacity-[0.08]" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-[#3DD6C3] rounded-full blur-[300px] opacity-[0.05]" />
-        </div>
+      <section ref={heroRef} className="relative min-h-screen flex items-center overflow-hidden pt-20" style={{ background: '#0D4D4D radial-gradient(ellipse 600px 600px at 0% 0%, rgba(61,214,195,0.18), transparent 70%), radial-gradient(ellipse 500px 500px at 100% 80%, rgba(253,204,2,0.07), transparent 70%)' }}>
         <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
 
         <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8 w-full">
@@ -157,40 +152,31 @@ export default function DesktopLandingV5() {
               className="hidden lg:flex justify-center"
             >
               <div className="relative">
-                {/* Floating feature badges */}
-                <motion.div animate={{ y: [0, -8, 0] }} transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }} className="absolute -left-32 top-16 z-10">
-                  <div className="px-3.5 py-2 bg-[#3DD6C3]/15 border border-[#3DD6C3]/25 rounded-xl backdrop-blur-sm">
+                {/* Floating feature badges — CSS animations, no framer-motion */}
+                <div className="absolute -left-32 top-16 z-10 animate-float-a">
+                  <div className="px-3.5 py-2 bg-[#3DD6C3]/15 border border-[#3DD6C3]/25 rounded-xl">
                     <span className="text-[#3DD6C3] text-xs font-bold">🛡️ Conservation Alerts</span>
                   </div>
-                </motion.div>
-                <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }} className="absolute -right-28 top-32 z-10">
-                  <div className="px-3.5 py-2 bg-[#fdcc02]/15 border border-[#fdcc02]/25 rounded-xl backdrop-blur-sm">
+                </div>
+                <div className="absolute -right-28 top-32 z-10 animate-float-b">
+                  <div className="px-3.5 py-2 bg-[#fdcc02]/15 border border-[#fdcc02]/25 rounded-xl">
                     <span className="text-[#fdcc02] text-xs font-bold">🤝 AI Referrals</span>
                   </div>
-                </motion.div>
-                <motion.div animate={{ y: [0, -6, 0] }} transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 1 }} className="absolute -left-24 bottom-32 z-10">
-                  <div className="px-3.5 py-2 bg-white/[0.08] border border-white/15 rounded-xl backdrop-blur-sm">
+                </div>
+                <div className="absolute -left-24 bottom-32 z-10 animate-float-c">
+                  <div className="px-3.5 py-2 bg-white/[0.08] border border-white/15 rounded-xl">
                     <span className="text-white/80 text-xs font-bold">🎄 Holiday Cards</span>
                   </div>
-                </motion.div>
-                <motion.div animate={{ y: [0, 6, 0] }} transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut', delay: 1.5 }} className="absolute -right-20 bottom-48 z-10">
-                  <div className="px-3.5 py-2 bg-[#F4845F]/15 border border-[#F4845F]/25 rounded-xl backdrop-blur-sm">
+                </div>
+                <div className="absolute -right-20 bottom-48 z-10 animate-float-d">
+                  <div className="px-3.5 py-2 bg-[#F4845F]/15 border border-[#F4845F]/25 rounded-xl">
                     <span className="text-[#F4845F] text-xs font-bold">📅 Rewrites</span>
                   </div>
-                </motion.div>
+                </div>
 
-                <div className="w-[300px] h-[600px] bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl border-4 border-[#2a2a2a]">
-                  <div className="absolute -inset-2 rounded-[3.4rem] bg-gradient-to-b from-[#3DD6C3]/20 via-transparent to-[#fdcc02]/10 pointer-events-none blur-sm" />
+                <div className="w-[300px] h-[600px] bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl shadow-[#3DD6C3]/10 border-4 border-[#2a2a2a]">
                   <div className="w-full h-full bg-black rounded-[2.4rem] overflow-hidden">
                     <video
-                      ref={(el) => {
-                        if (!el) return;
-                        const observer = new IntersectionObserver(
-                          ([entry]) => { if (entry.isIntersecting) el.play().catch(() => {}); else el.pause(); },
-                          { threshold: 0.3 }
-                        );
-                        observer.observe(el);
-                      }}
                       className="w-full h-full object-contain"
                       autoPlay muted loop playsInline preload="auto"
                       poster="/app-preview-poster.jpeg"
@@ -205,13 +191,9 @@ export default function DesktopLandingV5() {
           </div>
         </div>
 
-        <motion.div
-          className="absolute bottom-10 left-1/2 -translate-x-1/2"
-          animate={{ y: [0, 8, 0] }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-        >
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 animate-bounce">
           <svg className="w-6 h-6 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7" /></svg>
-        </motion.div>
+        </div>
       </section>
 
       {/* ═══ FEATURE 1: REFERRALS (light bg) ═══ */}
@@ -247,10 +229,7 @@ export default function DesktopLandingV5() {
       </section>
 
       {/* ═══ FEATURE 2: REWRITES (dark bg) ═══ */}
-      <section className="bg-[#070E1B] px-6 lg:px-8 py-24 lg:py-32 relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-[#F4845F] rounded-full blur-[200px] opacity-[0.06]" />
-        </div>
+      <section className="px-6 lg:px-8 py-24 lg:py-32 relative overflow-hidden" style={{ background: '#070E1B radial-gradient(ellipse 400px 400px at 100% 100%, rgba(244,132,95,0.06), transparent 70%)' }}>
         <div className="max-w-6xl mx-auto relative">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
             <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="flex justify-center gap-4 lg:order-1">
@@ -346,11 +325,7 @@ export default function DesktopLandingV5() {
       </section>
 
       {/* ═══ ALWAYS IN SYNC — Two Surfaces, One System ═══ */}
-      <section className="bg-[#070E1B] px-6 lg:px-8 py-24 lg:py-32 relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/3 left-1/4 w-[500px] h-[500px] bg-[#3DD6C3] rounded-full blur-[250px] opacity-[0.06]" />
-          <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-[#fdcc02] rounded-full blur-[200px] opacity-[0.04]" />
-        </div>
+      <section className="px-6 lg:px-8 py-24 lg:py-32 relative overflow-hidden" style={{ background: '#070E1B radial-gradient(ellipse 500px 500px at 25% 33%, rgba(61,214,195,0.05), transparent 70%), radial-gradient(ellipse 400px 400px at 75% 75%, rgba(253,204,2,0.03), transparent 70%)' }}>
         <div className="absolute inset-0 opacity-[0.02] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
 
         <div className="relative max-w-6xl mx-auto">
@@ -366,7 +341,7 @@ export default function DesktopLandingV5() {
           <div className="grid md:grid-cols-[1fr_auto_1fr] gap-6 items-center mb-16">
             {/* Dashboard mockup */}
             <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
-              <div className="bg-white/[0.04] backdrop-blur-sm rounded-2xl overflow-hidden border border-white/[0.08]">
+              <div className="bg-white/[0.04] rounded-2xl overflow-hidden border border-white/[0.08]">
                 <div className="flex items-center gap-1.5 px-4 py-2.5 bg-white/[0.03] border-b border-white/5">
                   <div className="flex gap-1.5">
                     <div className="w-2.5 h-2.5 rounded-full bg-[#FF5F57]" />
@@ -415,25 +390,25 @@ export default function DesktopLandingV5() {
             </motion.div>
 
             {/* Sync indicator */}
+            {/* Sync indicator — CSS animation */}
             <div className="hidden md:flex flex-col items-center gap-3 px-2">
-              <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}>
+              <div className="animate-pulse-fade">
                 <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-              </motion.div>
+              </div>
               <div className="flex flex-col items-center">
                 <div className="w-px h-8 bg-gradient-to-b from-transparent via-[#3DD6C3]/40 to-transparent" />
                 <span className="text-[#3DD6C3] text-[9px] font-bold uppercase tracking-widest [writing-mode:vertical-rl] py-2">Syncs Live</span>
                 <div className="w-px h-8 bg-gradient-to-b from-transparent via-[#3DD6C3]/40 to-transparent" />
               </div>
-              <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 1 }}>
+              <div className="animate-pulse-fade-delay">
                 <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-              </motion.div>
+              </div>
             </div>
 
             {/* Phone mockup */}
             <motion.div initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="flex justify-center">
               <div>
-                <div className="w-[220px] h-[420px] bg-[#1a1a1a] rounded-[2.5rem] p-2.5 shadow-2xl border-4 border-[#2a2a2a] relative">
-                  <div className="absolute -inset-1 rounded-[2.8rem] bg-gradient-to-b from-[#3DD6C3]/15 via-transparent to-[#fdcc02]/10 pointer-events-none blur-sm" />
+                <div className="w-[220px] h-[420px] bg-[#1a1a1a] rounded-[2.5rem] p-2.5 shadow-2xl shadow-[#3DD6C3]/10 border-4 border-[#2a2a2a] relative">
                   <div className="w-full h-full bg-[#111] rounded-[2rem] overflow-hidden px-3.5 py-5 relative">
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-8 h-8 rounded-full bg-[#005851] flex items-center justify-center"><span className="text-[#3DD6C3] text-[10px] font-bold">D</span></div>
@@ -466,7 +441,7 @@ export default function DesktopLandingV5() {
               { dashboard: 'Referral comes in', client: 'AI texts referral via iMessage', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z', accent: '#fdcc02' },
               { dashboard: 'Conservation alert fires', client: 'Client gets outreach in hours', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z', accent: '#3DD6C3' },
             ].map((item, i) => (
-              <div key={i} className="bg-white/[0.04] backdrop-blur-sm rounded-xl p-4 border border-white/[0.06] hover:bg-white/[0.07] hover:border-white/[0.12] transition-all">
+              <div key={i} className="bg-white/[0.04] rounded-xl p-4 border border-white/[0.06] hover:bg-white/[0.07] hover:border-white/[0.12] transition-all">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${item.accent}15` }}>
                     <svg className="w-3.5 h-3.5" style={{ color: item.accent }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} /></svg>
@@ -534,11 +509,7 @@ export default function DesktopLandingV5() {
       </section>
 
       {/* ═══ ROI ═══ */}
-      <section className="relative bg-[#0D4D4D] px-6 lg:px-8 py-24 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 left-0 w-[300px] h-[300px] bg-red-500 rounded-full blur-[180px] opacity-10" />
-          <div className="absolute bottom-0 right-0 w-[300px] h-[300px] bg-[#3DD6C3] rounded-full blur-[180px] opacity-10" />
-        </div>
+      <section className="relative px-6 lg:px-8 py-24 overflow-hidden" style={{ background: '#0D4D4D radial-gradient(ellipse 300px 300px at 0% 0%, rgba(239,68,68,0.08), transparent 70%), radial-gradient(ellipse 300px 300px at 100% 100%, rgba(61,214,195,0.08), transparent 70%)' }}>
         <div className="relative max-w-5xl mx-auto">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-60px' }} variants={stagger} className="space-y-10">
             <motion.div variants={fadeUp} custom={0} className="text-center">
@@ -548,17 +519,17 @@ export default function DesktopLandingV5() {
               <p className="text-white/40 text-lg">One saved policy. One referral. That&apos;s all it takes.</p>
             </motion.div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <motion.div variants={fadeUp} custom={0.1} className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center backdrop-blur-sm">
+              <motion.div variants={fadeUp} custom={0.1} className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center">
                 <p className="text-red-400 font-semibold text-xs uppercase tracking-wide mb-3">1 Canceled Policy</p>
                 <p className="text-5xl font-black text-red-400 mb-2">$1,200</p>
                 <p className="text-red-400/50 text-sm">avg annual value lost</p>
               </motion.div>
-              <motion.div variants={fadeUp} custom={0.15} className="bg-[#3DD6C3]/10 border border-[#3DD6C3]/20 rounded-2xl p-8 text-center backdrop-blur-sm">
+              <motion.div variants={fadeUp} custom={0.15} className="bg-[#3DD6C3]/10 border border-[#3DD6C3]/20 rounded-2xl p-8 text-center">
                 <p className="text-[#3DD6C3] font-semibold text-xs uppercase tracking-wide mb-3">Agent for Life</p>
                 <p className="text-5xl font-black text-[#fdcc02] mb-2">$0</p>
                 <p className="text-[#3DD6C3]/50 text-sm">free as Founding Member</p>
               </motion.div>
-              <motion.div variants={fadeUp} custom={0.2} className="bg-white/[0.04] backdrop-blur-sm border border-white/10 rounded-2xl p-8 text-center flex flex-col justify-center">
+              <motion.div variants={fadeUp} custom={0.2} className="bg-white/[0.04] border border-white/10 rounded-2xl p-8 text-center flex flex-col justify-center">
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#fdcc02]/15 rounded-full mb-3 mx-auto">
                   <svg className="w-4 h-4 text-[#fdcc02]" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                   <span className="text-[#fdcc02] font-bold text-xs uppercase">Instant ROI</span>
@@ -726,11 +697,7 @@ export default function DesktopLandingV5() {
       </section>
 
       {/* ═══ FINAL CTA ═══ */}
-      <section className="relative bg-[#0D4D4D] px-6 lg:px-8 py-28 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 left-1/4 w-[400px] h-[400px] bg-[#3DD6C3] rounded-full blur-[200px] opacity-15" />
-          <div className="absolute bottom-0 right-1/4 w-[300px] h-[300px] bg-[#fdcc02] rounded-full blur-[150px] opacity-10" />
-        </div>
+      <section className="relative px-6 lg:px-8 py-28 overflow-hidden" style={{ background: '#0D4D4D radial-gradient(ellipse 400px 400px at 25% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 300px 300px at 75% 100%, rgba(253,204,2,0.08), transparent 70%)' }}>
         <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="relative text-center max-w-3xl mx-auto space-y-8">
           <p className="text-white/30 text-xs uppercase tracking-[0.2em] font-medium">Stop leaving money on the table</p>
           <h2 className="text-4xl lg:text-5xl font-extrabold text-white leading-tight">

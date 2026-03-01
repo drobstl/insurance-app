@@ -102,7 +102,7 @@ export default function RewritesDeepDiveDesktop() {
               transition={{ duration: 0.7 }}
               className="max-w-xl"
             >
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full mb-8">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/20 rounded-full mb-8">
                 <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
@@ -161,11 +161,13 @@ export default function RewritesDeepDiveDesktop() {
       </section>
 
       {/* ─── Real Product Screenshot: Full-width alternating ─── */}
-      <section className="bg-[#070E1B] relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-[#F4845F] rounded-full blur-[250px] opacity-[0.07]" />
-          <div className="absolute top-0 left-0 w-[400px] h-[400px] bg-[#3DD6C3] rounded-full blur-[200px] opacity-[0.04]" />
-        </div>
+      <section
+        className="relative overflow-hidden"
+        style={{
+          background:
+            '#070E1B radial-gradient(ellipse 500px 500px at 100% 100%, rgba(244,132,95,0.07), transparent 70%), radial-gradient(ellipse 400px 400px at 0% 0%, rgba(61,214,195,0.04), transparent 70%)',
+        }}
+      >
         <div className="relative max-w-[1400px] mx-auto px-10 lg:px-20 py-24 lg:py-32">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
             <motion.div
@@ -491,11 +493,13 @@ export default function RewritesDeepDiveDesktop() {
       </section>
 
       {/* ─── The Math ─── */}
-      <section className="bg-[#070E1B] relative overflow-hidden py-28 lg:py-36">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-[#F4845F] rounded-full blur-[250px] opacity-[0.08]" />
-          <div className="absolute top-1/2 left-0 w-[400px] h-[400px] bg-[#3DD6C3] rounded-full blur-[200px] opacity-[0.04]" />
-        </div>
+      <section
+        className="relative overflow-hidden py-28 lg:py-36"
+        style={{
+          background:
+            '#070E1B radial-gradient(ellipse 500px 500px at 100% 100%, rgba(244,132,95,0.08), transparent 70%), radial-gradient(ellipse 400px 400px at 0% 50%, rgba(61,214,195,0.04), transparent 70%)',
+        }}
+      >
         <div className="relative max-w-[1400px] mx-auto px-10 lg:px-20">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
             <motion.div
@@ -539,11 +543,13 @@ export default function RewritesDeepDiveDesktop() {
       </section>
 
       {/* ─── Final CTA ─── */}
-      <section className="bg-[#0D4D4D] relative overflow-hidden py-32 lg:py-40">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 left-1/4 w-[400px] h-[400px] bg-[#3DD6C3] rounded-full blur-[200px] opacity-[0.12]" />
-          <div className="absolute bottom-0 right-1/4 w-[300px] h-[300px] bg-[#fdcc02] rounded-full blur-[180px] opacity-[0.06]" />
-        </div>
+      <section
+        className="relative overflow-hidden py-32 lg:py-40"
+        style={{
+          background:
+            '#0D4D4D radial-gradient(ellipse 400px 400px at 25% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 300px 300px at 75% 100%, rgba(253,204,2,0.06), transparent 70%)',
+        }}
+      >
         <motion.div
           initial={{ opacity: 0, y: 28 }}
           whileInView={{ opacity: 1, y: 0 }}

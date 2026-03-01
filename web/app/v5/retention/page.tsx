@@ -243,11 +243,12 @@ export default function RetentionDeepDiveDesktop() {
       </section>
 
       {/* Layer 2: Rescue — full-width dark */}
-      <section className="w-full bg-[#0D4D4D] relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-[#fdcc02] rounded-full blur-[200px] opacity-[0.07]" />
-          <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-[#3DD6C3] rounded-full blur-[180px] opacity-[0.05]" />
-        </div>
+      <section
+        className="w-full relative overflow-hidden"
+        style={{
+          background: '#0D4D4D radial-gradient(ellipse 400px 400px at 0% 100%, rgba(253,204,2,0.07), transparent 70%), radial-gradient(ellipse 300px 300px at 100% 0%, rgba(61,214,195,0.05), transparent 70%)',
+        }}
+      >
         <div className="relative w-full px-8 lg:px-16 xl:px-24 py-28">
           <motion.div
             initial="hidden"
@@ -296,7 +297,7 @@ export default function RetentionDeepDiveDesktop() {
                   key={step.num}
                   variants={fadeUp}
                   custom={0.1 + i * 0.1}
-                  className="bg-white/[0.04] backdrop-blur-sm border border-white/10 rounded-2xl p-8 hover:bg-white/[0.08] hover:border-white/20 transition-colors duration-200"
+                  className="bg-white/[0.04] border border-white/10 rounded-2xl p-8 hover:bg-white/[0.08] hover:border-white/20 transition-colors duration-200"
                 >
                   <div
                     className="w-14 h-14 rounded-full flex items-center justify-center text-[#0D4D4D] text-lg font-bold mb-6"
@@ -335,11 +336,12 @@ export default function RetentionDeepDiveDesktop() {
       </section>
 
       {/* Real product screenshots — full-width alternating */}
-      <section className="w-full bg-[#070E1B] relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 left-0 w-[400px] h-[400px] bg-red-500 rounded-full blur-[200px] opacity-[0.05]" />
-          <div className="absolute bottom-0 right-0 w-[300px] h-[300px] bg-[#3DD6C3] rounded-full blur-[180px] opacity-[0.04]" />
-        </div>
+      <section
+        className="w-full relative overflow-hidden"
+        style={{
+          background: '#070E1B radial-gradient(ellipse 400px 400px at 0% 0%, rgba(239,68,68,0.05), transparent 70%), radial-gradient(ellipse 300px 300px at 100% 100%, rgba(61,214,195,0.04), transparent 70%)',
+        }}
+      >
         <div className="relative w-full px-8 lg:px-16 xl:px-24 py-28 space-y-28">
           {/* Conservation email — text left, screenshot right */}
           <div className="grid grid-cols-2 gap-20 items-center">
@@ -478,11 +480,12 @@ export default function RetentionDeepDiveDesktop() {
       </section>
 
       {/* Final CTA — full-width dark */}
-      <section className="w-full bg-[#0D4D4D] relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 left-1/4 w-[400px] h-[400px] bg-[#3DD6C3] rounded-full blur-[180px] opacity-[0.12]" />
-          <div className="absolute bottom-0 right-1/4 w-[300px] h-[300px] bg-[#fdcc02] rounded-full blur-[150px] opacity-[0.08]" />
-        </div>
+      <section
+        className="w-full relative overflow-hidden"
+        style={{
+          background: '#0D4D4D radial-gradient(ellipse 400px 400px at 25% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 300px 300px at 75% 100%, rgba(253,204,2,0.08), transparent 70%)',
+        }}
+      >
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
