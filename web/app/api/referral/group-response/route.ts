@@ -11,6 +11,7 @@ import {
 import {
   generateGroupIntroResponse,
   generateFirstMessage,
+  filterConversationToGroupOnly,
   type ReferralContext,
 } from '../../../../lib/referral-ai';
 import { getLinqAttachmentId } from '../../../../lib/business-card-url';
@@ -136,6 +137,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, groupOnly: true });
     }
 
+    const rawConversation = (referralData.conversation as ReferralContext['conversation']) || [];
     const ctx: ReferralContext = {
       agentName,
       agentFirstName,
@@ -144,7 +146,7 @@ export async function POST(req: NextRequest) {
       referralName,
       schedulingUrl,
       agentPhone: (agentData.phoneNumber as string) || null,
-      conversation: (referralData.conversation as ReferralContext['conversation']) || [],
+      conversation: filterConversationToGroupOnly(rawConversation),
     };
 
     const opener = await generateFirstMessage(ctx);
