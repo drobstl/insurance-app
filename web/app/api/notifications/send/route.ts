@@ -113,7 +113,9 @@ export async function POST(req: NextRequest) {
       pushData.holiday = holiday;
     }
 
-    if (includeBookingLink) {
+    // Only include booking link for rewrite/conservation-style flows, never for holiday cards
+    const shouldIncludeBooking = includeBookingLink && notifType !== 'holiday';
+    if (shouldIncludeBooking) {
       const schedulingUrl = agentData?.schedulingUrl as string | undefined;
       if (schedulingUrl) {
         pushData.schedulingUrl = schedulingUrl;
@@ -154,7 +156,7 @@ export async function POST(req: NextRequest) {
       type: notifType,
       title: notificationTitle,
       body: messageBody,
-      includeBookingLink: includeBookingLink || false,
+      includeBookingLink: notifType === 'holiday' ? false : (includeBookingLink || false),
       sentAt: FieldValue.serverTimestamp(),
       readAt: null,
       status: pushStatus,

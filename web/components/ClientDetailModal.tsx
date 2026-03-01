@@ -362,7 +362,7 @@ export default function ClientDetailModal({
           holiday: selectedHoliday,
           title: card.title,
           body: card.greeting(firstName, agent),
-          includeBookingLink: true,
+          includeBookingLink: false, // Holiday cards never show "Book your appointment"
         }),
       });
 

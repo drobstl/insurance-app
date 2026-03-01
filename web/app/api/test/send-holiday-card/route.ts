@@ -117,7 +117,6 @@ export async function GET(req: NextRequest) {
               holiday,
               agentId: foundAgentId,
               clientId: foundClientId,
-              ...(schedulingUrl ? { schedulingUrl, includeBookingLink: true } : {}),
             },
           }),
         });
@@ -142,7 +141,7 @@ export async function GET(req: NextRequest) {
       holiday,
       title: card.title,
       body,
-      includeBookingLink: !!schedulingUrl,
+      includeBookingLink: false, // Holiday cards never show "Book your appointment"
       sentAt: FieldValue.serverTimestamp(),
       readAt: null,
       status: pushStatus === 'sent' ? 'sent' : pushStatus,

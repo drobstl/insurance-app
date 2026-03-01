@@ -210,7 +210,8 @@ export default function MessageCard({
     agentPhotoBase64.length > 0 &&
     agentPhotoBase64 !== 'undefined' &&
     agentPhotoBase64 !== 'null';
-  const showBookingButton = current.includeBookingLink && schedulingUrl;
+  const showBookingButton =
+    current.type !== 'holiday' && current.includeBookingLink && schedulingUrl;
 
   // Determine inline card styling based on type
   const isDefault =
@@ -328,7 +329,7 @@ export default function MessageCard({
         agentPhotoBase64={agentPhotoBase64}
         agencyName={agencyName}
         agencyLogoBase64={agencyLogoBase64}
-        includeBookingLink={current.includeBookingLink}
+        includeBookingLink={current.type === 'holiday' ? false : current.includeBookingLink}
         schedulingUrl={schedulingUrl}
       />
     </>

@@ -63,13 +63,14 @@ export async function GET(request: NextRequest) {
     const notifications = snap.docs
       .map((d) => {
         const data = d.data();
+        const type = data.type ?? 'message';
         return {
           id: d.id,
-          type: data.type ?? 'message',
+          type,
           title: data.title ?? '',
           body: data.body ?? '',
           holiday: data.holiday ?? undefined,
-          includeBookingLink: data.includeBookingLink ?? false,
+          includeBookingLink: type === 'holiday' ? false : (data.includeBookingLink ?? false),
           sentAt: data.sentAt?.toDate?.()?.toISOString() ?? null,
           readAt: data.readAt?.toDate?.()?.toISOString() ?? null,
           status: data.status ?? 'sent',
