@@ -371,16 +371,16 @@ export default function MobileLandingV2() {
       </section>
 
       {/* ═══════════════════════════════════════════════════
-         EARN MORE — Notion-Style Feature Cards
+         SECTION 1 — Earn More
          ═══════════════════════════════════════════════════ */}
-      <section className="bg-white px-5 py-16">
+      <section className="bg-[#F8F9FA] px-5 py-14">
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] as const }}
           style={{ willChange: 'transform, opacity' }}
-          className="space-y-6"
+          className="space-y-5"
         >
           <h2 className="text-[1.75rem] font-extrabold text-[#0D4D4D] leading-tight">
             Earn more from<br />leads you&apos;ve won.
@@ -388,23 +388,22 @@ export default function MobileLandingV2() {
 
           {/* Card 1: Referrals */}
           <Link href="/m/referrals" className="block">
-            <div className="rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+            <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
               <div className="p-5 pb-4">
-                <p className="text-[12px] text-[#6B7280] font-medium mb-1">One tap referrals</p>
-                <div className="flex items-end justify-between gap-3">
-                  <h3 className="text-[1.25rem] font-extrabold text-[#0D4D4D] leading-tight">
+                <p className="text-[13px] text-[#6B7280] mb-1.5">One tap referrals</p>
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="text-[1.3rem] font-extrabold text-[#0D4D4D] leading-[1.2]">
                     Clients pick a contact, your AI handles the rest.
                   </h3>
-                  <div className="w-10 h-10 rounded-full bg-[#0D4D4D] flex items-center justify-center flex-shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-[#0D4D4D] flex items-center justify-center flex-shrink-0 mt-1">
                     <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
                   </div>
                 </div>
               </div>
-              <div className="bg-[#fdcc02] px-5 pt-6 pb-0 relative overflow-hidden" style={{ minHeight: '220px' }}>
-                <div className="flex justify-center gap-3 -mb-4">
-                  {/* Left phone */}
-                  <div className="w-[130px] bg-[#1a1a1a] rounded-[1.2rem] p-[3px] shadow-xl transform -rotate-2 translate-y-2">
-                    <div className="w-full bg-[#111] rounded-[1rem] overflow-hidden px-2.5 py-3">
+              <div className="bg-[#fdcc02] px-4 pt-8 relative overflow-hidden" style={{ minHeight: '240px' }}>
+                <div className="flex justify-center -mb-6">
+                  <div className="w-[145px] bg-white rounded-[1rem] p-[3px] shadow-2xl transform -rotate-3 translate-y-1 relative z-10">
+                    <div className="w-full bg-[#111] rounded-[0.85rem] overflow-hidden px-2.5 py-3">
                       <div className="flex items-center gap-1.5 mb-3">
                         <div className="w-5 h-5 rounded-full bg-[#005851] flex items-center justify-center">
                           <span className="text-[#3DD6C3] text-[6px] font-bold">D</span>
@@ -424,9 +423,8 @@ export default function MobileLandingV2() {
                       </div>
                     </div>
                   </div>
-                  {/* Right phone */}
-                  <div className="w-[130px] bg-[#1a1a1a] rounded-[1.2rem] p-[3px] shadow-xl transform rotate-2 translate-y-6">
-                    <div className="w-full bg-[#111] rounded-[1rem] overflow-hidden px-2.5 py-3">
+                  <div className="w-[145px] bg-white rounded-[1rem] p-[3px] shadow-2xl transform rotate-3 translate-y-8 -ml-6 relative z-20">
+                    <div className="w-full bg-[#111] rounded-[0.85rem] overflow-hidden px-2.5 py-3">
                       <div className="flex items-center gap-1.5 mb-3">
                         <div className="w-5 h-5 rounded-full bg-[#005851] flex items-center justify-center">
                           <span className="text-[#3DD6C3] text-[6px] font-bold">D</span>
@@ -444,7 +442,7 @@ export default function MobileLandingV2() {
                             <p className="text-white text-[6px]">yeah sure</p>
                           </div>
                         </div>
-                        <div className="flex justify-center">
+                        <div className="flex justify-center mt-1">
                           <div className="bg-[#3DD6C3]/20 rounded-full px-2 py-0.5">
                             <span className="text-[#3DD6C3] text-[5px] font-bold">Booked</span>
                           </div>
@@ -459,23 +457,22 @@ export default function MobileLandingV2() {
 
           {/* Card 2: Rewrites */}
           <Link href="/m/rewrites" className="block">
-            <div className="rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+            <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
               <div className="p-5 pb-4">
-                <p className="text-[12px] text-[#6B7280] font-medium mb-1">Automated rewrites</p>
-                <div className="flex items-end justify-between gap-3">
-                  <h3 className="text-[1.25rem] font-extrabold text-[#0D4D4D] leading-tight">
-                    AI so nice, you get the commission twice.
+                <p className="text-[13px] text-[#6B7280] mb-1.5">Automated rewrites</p>
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="text-[1.3rem] font-extrabold text-[#0D4D4D] leading-[1.2]">
+                    AI so nice, get the commission twice.
                   </h3>
-                  <div className="w-10 h-10 rounded-full bg-[#0D4D4D] flex items-center justify-center flex-shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-[#0D4D4D] flex items-center justify-center flex-shrink-0 mt-1">
                     <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
                   </div>
                 </div>
               </div>
-              <div className="bg-[#F4845F] px-5 pt-6 pb-0 relative overflow-hidden" style={{ minHeight: '220px' }}>
-                <div className="flex justify-center gap-3 -mb-4">
-                  {/* Left phone - push notification */}
-                  <div className="w-[130px] bg-[#1a1a1a] rounded-[1.2rem] p-[3px] shadow-xl transform -rotate-2 translate-y-2">
-                    <div className="w-full bg-[#111] rounded-[1rem] overflow-hidden px-2.5 py-3">
+              <div className="bg-[#F4845F] px-4 pt-8 relative overflow-hidden" style={{ minHeight: '240px' }}>
+                <div className="flex justify-center -mb-6">
+                  <div className="w-[145px] bg-white rounded-[1rem] p-[3px] shadow-2xl transform -rotate-3 translate-y-1 relative z-10">
+                    <div className="w-full bg-[#111] rounded-[0.85rem] overflow-hidden px-2.5 py-3">
                       <div className="flex items-center gap-1.5 mb-3">
                         <div className="w-5 h-5 rounded-full bg-[#005851] flex items-center justify-center">
                           <span className="text-[#3DD6C3] text-[6px] font-bold">D</span>
@@ -491,9 +488,8 @@ export default function MobileLandingV2() {
                       </div>
                     </div>
                   </div>
-                  {/* Right phone - booking */}
-                  <div className="w-[130px] bg-[#1a1a1a] rounded-[1.2rem] p-[3px] shadow-xl transform rotate-2 translate-y-6">
-                    <div className="w-full bg-[#111] rounded-[1rem] overflow-hidden px-2.5 py-3">
+                  <div className="w-[145px] bg-white rounded-[1rem] p-[3px] shadow-2xl transform rotate-3 translate-y-8 -ml-6 relative z-20">
+                    <div className="w-full bg-[#111] rounded-[0.85rem] overflow-hidden px-2.5 py-3">
                       <p className="text-white/30 text-[6px] font-bold mb-2">Aug 2026</p>
                       <div className="grid grid-cols-7 gap-px mb-3">
                         {Array.from({ length: 21 }, (_, i) => i + 1).map(d => (
@@ -511,36 +507,43 @@ export default function MobileLandingV2() {
               </div>
             </div>
           </Link>
+        </motion.div>
+      </section>
 
-          {/* Card 3: Retention */}
+      {/* ═══════════════════════════════════════════════════
+         SECTION 2 — Keep What You've Earned
+         ═══════════════════════════════════════════════════ */}
+      <section className="bg-[#F8F9FA] px-5 pb-14">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] as const }}
+          style={{ willChange: 'transform, opacity' }}
+          className="space-y-5"
+        >
+          <h2 className="text-[1.75rem] font-extrabold text-[#0D4D4D] leading-tight">
+            Keep what<br />you&apos;ve earned.
+          </h2>
+
+          {/* Card 1: Automated Retention (rescue) */}
           <Link href="/m/retention" className="block">
-            <div className="rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+            <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
               <div className="p-5 pb-4">
-                <p className="text-[12px] text-[#6B7280] font-medium mb-1">Automated retention</p>
-                <div className="flex items-end justify-between gap-3">
-                  <h3 className="text-[1.25rem] font-extrabold text-[#0D4D4D] leading-tight">
-                    Never lose a client to silence again.
+                <p className="text-[13px] text-[#6B7280] mb-1.5">Automated retention</p>
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="text-[1.3rem] font-extrabold text-[#0D4D4D] leading-[1.2]">
+                    You move forward, AI&apos;s got your back.
                   </h3>
-                  <div className="w-10 h-10 rounded-full bg-[#0D4D4D] flex items-center justify-center flex-shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-[#0D4D4D] flex items-center justify-center flex-shrink-0 mt-1">
                     <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
                   </div>
                 </div>
               </div>
-              <div className="bg-[#3DD6C3] px-5 pt-6 pb-0 relative overflow-hidden" style={{ minHeight: '220px' }}>
-                <div className="flex justify-center gap-3 -mb-4">
-                  {/* Left phone - holiday cards */}
-                  <div className="w-[130px] bg-[#1a1a1a] rounded-[1.2rem] p-[3px] shadow-xl transform -rotate-2 translate-y-2">
-                    <div className="w-full rounded-[1rem] overflow-hidden" style={{ background: 'linear-gradient(135deg, #8B0000, #C41E3A)' }}>
-                      <div className="flex flex-col items-center justify-center py-6 px-3">
-                        <span className="text-2xl mb-1">🎄</span>
-                        <p className="text-white font-bold text-[8px] text-center">Merry Christmas, Sarah!</p>
-                        <p className="text-white/60 text-[6px] text-center mt-1">Wishing you warmth and joy.</p>
-                      </div>
-                    </div>
-                  </div>
-                  {/* Right phone - rescue */}
-                  <div className="w-[130px] bg-[#1a1a1a] rounded-[1.2rem] p-[3px] shadow-xl transform rotate-2 translate-y-6">
-                    <div className="w-full bg-[#111] rounded-[1rem] overflow-hidden px-2.5 py-3">
+              <div className="bg-[#3DD6C3] px-4 pt-8 relative overflow-hidden" style={{ minHeight: '240px' }}>
+                <div className="flex justify-center -mb-6">
+                  <div className="w-[145px] bg-white rounded-[1rem] p-[3px] shadow-2xl transform -rotate-3 translate-y-1 relative z-10">
+                    <div className="w-full bg-[#111] rounded-[0.85rem] overflow-hidden px-2.5 py-3">
                       <div className="flex items-center gap-1 mb-2">
                         <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
                         <p className="text-white text-[7px] font-bold">Policy at risk</p>
@@ -561,6 +564,69 @@ export default function MobileLandingV2() {
                         <div className="bg-[#3DD6C3]/20 rounded-full px-2 py-0.5">
                           <span className="text-[#3DD6C3] text-[5px] font-bold">Policy Saved</span>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="w-[145px] bg-white rounded-[1rem] p-[3px] shadow-2xl transform rotate-3 translate-y-8 -ml-6 relative z-20">
+                    <div className="w-full bg-[#111] rounded-[0.85rem] overflow-hidden px-2.5 py-3">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <div className="w-5 h-5 rounded-full bg-[#005851] flex items-center justify-center">
+                          <span className="text-[#3DD6C3] text-[6px] font-bold">D</span>
+                        </div>
+                        <span className="text-white text-[7px] font-semibold">Dashboard</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 bg-white/[0.06] rounded-lg px-2 py-1.5">
+                          <div className="w-1 h-1 rounded-full bg-[#3DD6C3]" />
+                          <span className="text-white/50 text-[5px]">Holiday card sent to 47 clients</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 bg-white/[0.06] rounded-lg px-2 py-1.5">
+                          <div className="w-1 h-1 rounded-full bg-red-400" />
+                          <span className="text-white/50 text-[5px]">Conservation: Sarah J.</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 bg-white/[0.06] rounded-lg px-2 py-1.5">
+                          <div className="w-1 h-1 rounded-full bg-[#3DD6C3]" />
+                          <span className="text-white/50 text-[5px]">Policy saved: Lisa M.</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          {/* Card 2: Relationships (touchpoints) */}
+          <Link href="/m/retention" className="block">
+            <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+              <div className="p-5 pb-4">
+                <p className="text-[13px] text-[#6B7280] mb-1.5">Relationships</p>
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="text-[1.3rem] font-extrabold text-[#0D4D4D] leading-[1.2]">
+                    Keep them warm without lifting a finger.
+                  </h3>
+                  <div className="w-9 h-9 rounded-full bg-[#0D4D4D] flex items-center justify-center flex-shrink-0 mt-1">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-[#a158ff] px-4 pt-8 relative overflow-hidden" style={{ minHeight: '240px' }}>
+                <div className="flex justify-center -mb-6">
+                  <div className="w-[145px] bg-white rounded-[1rem] p-[3px] shadow-2xl transform -rotate-3 translate-y-1 relative z-10">
+                    <div className="w-full rounded-[0.85rem] overflow-hidden" style={{ background: 'linear-gradient(135deg, #8B0000, #C41E3A)' }}>
+                      <div className="flex flex-col items-center justify-center py-8 px-3">
+                        <span className="text-3xl mb-1.5">🎄</span>
+                        <p className="text-white font-bold text-[8px] text-center">Merry Christmas, Sarah!</p>
+                        <p className="text-white/60 text-[6px] text-center mt-1">Wishing you warmth and joy.</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="w-[145px] bg-white rounded-[1rem] p-[3px] shadow-2xl transform rotate-3 translate-y-8 -ml-6 relative z-20">
+                    <div className="w-full rounded-[0.85rem] overflow-hidden" style={{ background: 'linear-gradient(135deg, #6B21A8, #a158ff)' }}>
+                      <div className="flex flex-col items-center justify-center py-8 px-3">
+                        <span className="text-3xl mb-1.5">🎂</span>
+                        <p className="text-white font-bold text-[8px] text-center">Happy Birthday, Sarah!</p>
+                        <p className="text-white/60 text-[6px] text-center mt-1">Hope your day is amazing.</p>
                       </div>
                     </div>
                   </div>

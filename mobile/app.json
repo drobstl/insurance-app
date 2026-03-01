@@ -13,7 +13,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.danielroberts.agentforlife",
-      "buildNumber": "30",
+      "buildNumber": "31",
       "googleServicesFile": "./GoogleService-Info.plist",
       "entitlements": {
         "aps-environment": "production"
@@ -39,7 +39,7 @@
     },
     "android": {
       "package": "com.danielroberts.agentforlife",
-      "versionCode": 22,
+      "versionCode": 23,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
