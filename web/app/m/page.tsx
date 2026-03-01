@@ -436,10 +436,10 @@ export default function MobileLandingV2() {
               <div className="bg-[#a158ff] px-3 pt-6 relative overflow-hidden" style={{ minHeight: '400px' }}>
                 <div className="flex justify-center -mb-12">
                   <div className="w-[55%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
-                    <img src="/screenshot-thanksgiving-card.png" alt="Thanksgiving holiday card" className="w-full h-auto block" />
+                    <img src="/screenshot-thanksgiving-notification.png" alt="Push notification on home screen" className="w-full h-auto block" />
                   </div>
                   <div className="w-[60%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20">
-                    <img src="/screenshot-thanksgiving-notification.png" alt="Push notification on home screen" className="w-full h-auto block" />
+                    <img src="/screenshot-thanksgiving-card.png" alt="Thanksgiving holiday card" className="w-full h-auto block" />
                   </div>
                 </div>
               </div>
