@@ -610,25 +610,13 @@ export default function MobileLandingV2() {
                   </div>
                 </div>
               </div>
-              <div className="bg-[#a158ff] px-4 pt-8 relative overflow-hidden" style={{ minHeight: '240px' }}>
-                <div className="flex justify-center -mb-6">
-                  <div className="w-[145px] bg-white rounded-[1rem] p-[3px] shadow-2xl transform -rotate-3 translate-y-1 relative z-10">
-                    <div className="w-full rounded-[0.85rem] overflow-hidden" style={{ background: 'linear-gradient(135deg, #8B0000, #C41E3A)' }}>
-                      <div className="flex flex-col items-center justify-center py-8 px-3">
-                        <span className="text-3xl mb-1.5">🎄</span>
-                        <p className="text-white font-bold text-[8px] text-center">Merry Christmas, Sarah!</p>
-                        <p className="text-white/60 text-[6px] text-center mt-1">Wishing you warmth and joy.</p>
-                      </div>
-                    </div>
+              <div className="bg-[#a158ff] px-4 pt-8 relative overflow-hidden" style={{ minHeight: '280px' }}>
+                <div className="flex justify-center -mb-10">
+                  <div className="w-[155px] rounded-[1.25rem] border-[3px] border-black/80 shadow-2xl overflow-hidden transform -rotate-3 translate-y-1 relative z-10">
+                    <img src="/screenshot-thanksgiving-card.png" alt="Thanksgiving holiday card" className="w-full h-auto block" />
                   </div>
-                  <div className="w-[145px] bg-white rounded-[1rem] p-[3px] shadow-2xl transform rotate-3 translate-y-8 -ml-6 relative z-20">
-                    <div className="w-full rounded-[0.85rem] overflow-hidden" style={{ background: 'linear-gradient(135deg, #6B21A8, #a158ff)' }}>
-                      <div className="flex flex-col items-center justify-center py-8 px-3">
-                        <span className="text-3xl mb-1.5">🎂</span>
-                        <p className="text-white font-bold text-[8px] text-center">Happy Birthday, Sarah!</p>
-                        <p className="text-white/60 text-[6px] text-center mt-1">Hope your day is amazing.</p>
-                      </div>
-                    </div>
+                  <div className="w-[155px] rounded-[1.25rem] border-[3px] border-black/80 shadow-2xl overflow-hidden transform rotate-3 translate-y-10 -ml-8 relative z-20">
+                    <img src="/screenshot-thanksgiving-notification.png" alt="Push notification on home screen" className="w-full h-auto block" />
                   </div>
                 </div>
               </div>
