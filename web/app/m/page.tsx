@@ -222,7 +222,7 @@ export default function MobileLandingV2() {
             <p className="text-white/40 text-[14px] text-center">Your name. Your brand. Their policies. One tap away.</p>
           </motion.div>
 
-          {/* Phone mockup with video preview */}
+          {/* Phone mockup */}
           <motion.div
             initial={{ opacity: 0, y: 30, scale: 0.96 }}
             whileInView={{ opacity: 1, y: 0, scale: 1 }}
@@ -234,20 +234,44 @@ export default function MobileLandingV2() {
             <div className="relative">
               <div className="w-[220px] h-[440px] bg-[#1a1a1a] rounded-[2.5rem] p-2.5 shadow-2xl border-4 border-[#2a2a2a] transform-gpu">
                 <div className="absolute -inset-1.5 rounded-[2.8rem] bg-gradient-to-b from-[#3DD6C3]/15 via-transparent to-[#fdcc02]/10 pointer-events-none blur-sm" />
-                <div className="w-full h-full bg-black rounded-[2rem] overflow-hidden">
-                  <video
-                    className="w-full h-full object-cover"
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                    webkit-playsinline=""
-                    poster="/app-preview-poster.jpeg"
-                    style={{ WebkitTransform: 'translateZ(0)' }}
-                  >
-                    <source src="/app-preview.webm" type="video/webm" />
-                    <source src="/app-preview.mp4" type="video/mp4" />
-                  </video>
+                <div className="w-full h-full bg-[#111] rounded-[2rem] overflow-hidden px-3.5 py-5 relative">
+                  <div className="flex items-center gap-2.5 mb-5">
+                    <div className="w-9 h-9 rounded-full bg-[#005851] flex items-center justify-center">
+                      <span className="text-[#3DD6C3] text-[11px] font-bold">D</span>
+                    </div>
+                    <div>
+                      <p className="text-white text-[11px] font-semibold">Daniel Roberts</p>
+                      <p className="text-white/35 text-[8px]">Roberts Insurance Agency</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2.5">
+                    <div className="bg-white/[0.08] rounded-xl p-2.5 border border-white/5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">🎄</span>
+                        <div>
+                          <p className="text-white/90 text-[9px] font-bold">Merry Christmas!</p>
+                          <p className="text-white/40 text-[7px]">Tap to view your card</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-white/[0.08] rounded-xl p-2.5 border border-white/5">
+                      <p className="text-white/30 text-[7px] uppercase tracking-wider mb-1.5">Your Policies</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/70 text-[9px]">Auto &mdash; State Farm</span>
+                        <span className="text-[#3DD6C3] text-[7px] font-semibold">Active</span>
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-white/70 text-[9px]">Life &mdash; Mutual of Omaha</span>
+                        <span className="text-[#3DD6C3] text-[7px] font-semibold">Active</span>
+                      </div>
+                    </div>
+                    <div className="bg-[#fdcc02] rounded-xl py-2.5 text-center">
+                      <p className="text-[#0D4D4D] text-[10px] font-bold">Refer a Friend</p>
+                    </div>
+                    <div className="bg-[#005851] rounded-xl py-2.5 text-center">
+                      <p className="text-white text-[10px] font-bold">Contact Daniel</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -378,10 +402,10 @@ export default function MobileLandingV2() {
               </div>
               <div className="bg-[#fdcc02] px-3 pt-6 relative overflow-hidden" style={{ minHeight: '340px' }}>
                 <div className="flex justify-center -mb-12">
-                  <div className="w-[48%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden relative z-10">
+                  <div className="w-[45%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden translate-y-6 relative z-10">
                     <img src="/screenshot-referral-sent.png" alt="Referral sent confirmation" className="w-full h-auto block" />
                   </div>
-                  <div className="w-[48%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden translate-y-8 -ml-5 relative z-20">
+                  <div className="w-[50%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden -ml-5 relative z-20">
                     <img src="/screenshot-referral-message.png" alt="Referral message with business card" className="w-full h-auto block" />
                   </div>
                 </div>
@@ -405,10 +429,10 @@ export default function MobileLandingV2() {
               </div>
               <div className="bg-[#F4845F] px-3 pt-6 relative overflow-hidden" style={{ minHeight: '340px' }}>
                 <div className="flex justify-center -mb-12">
-                  <div className="w-[48%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden relative z-10">
+                  <div className="w-[45%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden translate-y-6 relative z-10">
                     <img src="/screenshot-rewrite-convo.png" alt="AI rewrite conversation" className="w-full h-auto block" />
                   </div>
-                  <div className="w-[48%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden translate-y-8 -ml-5 relative z-20 bg-white">
+                  <div className="w-[50%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden -ml-5 relative z-20 bg-white">
                     <img src="/screenshot-rewrite-app.png" alt="Rewrite rate review in app" className="w-full h-auto block" />
                   </div>
                 </div>
@@ -450,10 +474,10 @@ export default function MobileLandingV2() {
               </div>
               <div className="bg-[#3DD6C3] px-3 pt-6 relative overflow-hidden" style={{ minHeight: '340px' }}>
                 <div className="flex justify-center -mb-12">
-                  <div className="w-[48%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden relative z-10">
+                  <div className="w-[45%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden translate-y-6 relative z-10">
                     <img src="/screenshot-retention-message.png" alt="Conservation message in client app" className="w-full h-auto block" />
                   </div>
-                  <div className="w-[48%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden translate-y-8 -ml-5 relative z-20">
+                  <div className="w-[50%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden -ml-5 relative z-20">
                     <img src="/screenshot-retention-booking.png" alt="Booking calendar" className="w-full h-auto block" />
                   </div>
                 </div>
@@ -477,10 +501,10 @@ export default function MobileLandingV2() {
               </div>
               <div className="bg-[#a158ff] px-3 pt-6 relative overflow-hidden" style={{ minHeight: '340px' }}>
                 <div className="flex justify-center -mb-12">
-                  <div className="w-[48%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden relative z-10">
+                  <div className="w-[45%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden translate-y-6 relative z-10">
                     <img src="/screenshot-thanksgiving-card.png" alt="Thanksgiving holiday card" className="w-full h-auto block" />
                   </div>
-                  <div className="w-[48%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden translate-y-8 -ml-5 relative z-20">
+                  <div className="w-[50%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden -ml-5 relative z-20">
                     <img src="/screenshot-thanksgiving-notification.png" alt="Push notification on home screen" className="w-full h-auto block" />
                   </div>
                 </div>
