@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
+import LeakyBucketCalculator from '@/components/LeakyBucketCalculator';
 
 const IMESSAGE_DELAYS = [900, 1100, 900, 1300, 900, 500, 1100];
 
@@ -33,6 +34,7 @@ export default function MobileLandingV2() {
   const [showBottomCta, setShowBottomCta] = useState(false);
   const [msgStep, setMsgStep] = useState(-1);
   const [activeStep, setActiveStep] = useState(0);
+  const [openPain, setOpenPain] = useState<number | null>(null);
   const touchStartX = useRef(0);
 
   const heroRef = useRef<HTMLElement>(null);
@@ -222,7 +224,7 @@ export default function MobileLandingV2() {
             <p className="text-white/40 text-[14px] text-center">Your name. Your brand. Their policies. One tap away.</p>
           </motion.div>
 
-          {/* Phone mockup */}
+          {/* Phone mockup with video preview */}
           <motion.div
             initial={{ opacity: 0, y: 30, scale: 0.96 }}
             whileInView={{ opacity: 1, y: 0, scale: 1 }}
@@ -234,44 +236,33 @@ export default function MobileLandingV2() {
             <div className="relative">
               <div className="w-[220px] h-[440px] bg-[#1a1a1a] rounded-[2.5rem] p-2.5 shadow-2xl border-4 border-[#2a2a2a] transform-gpu">
                 <div className="absolute -inset-1.5 rounded-[2.8rem] bg-gradient-to-b from-[#3DD6C3]/15 via-transparent to-[#fdcc02]/10 pointer-events-none blur-sm" />
-                <div className="w-full h-full bg-[#111] rounded-[2rem] overflow-hidden px-3.5 py-5 relative">
-                  <div className="flex items-center gap-2.5 mb-5">
-                    <div className="w-9 h-9 rounded-full bg-[#005851] flex items-center justify-center">
-                      <span className="text-[#3DD6C3] text-[11px] font-bold">D</span>
-                    </div>
-                    <div>
-                      <p className="text-white text-[11px] font-semibold">Daniel Roberts</p>
-                      <p className="text-white/35 text-[8px]">Roberts Insurance Agency</p>
-                    </div>
-                  </div>
-                  <div className="space-y-2.5">
-                    <div className="bg-white/[0.08] rounded-xl p-2.5 border border-white/5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">🎄</span>
-                        <div>
-                          <p className="text-white/90 text-[9px] font-bold">Merry Christmas!</p>
-                          <p className="text-white/40 text-[7px]">Tap to view your card</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-white/[0.08] rounded-xl p-2.5 border border-white/5">
-                      <p className="text-white/30 text-[7px] uppercase tracking-wider mb-1.5">Your Policies</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-white/70 text-[9px]">Auto &mdash; State Farm</span>
-                        <span className="text-[#3DD6C3] text-[7px] font-semibold">Active</span>
-                      </div>
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="text-white/70 text-[9px]">Life &mdash; Mutual of Omaha</span>
-                        <span className="text-[#3DD6C3] text-[7px] font-semibold">Active</span>
-                      </div>
-                    </div>
-                    <div className="bg-[#fdcc02] rounded-xl py-2.5 text-center">
-                      <p className="text-[#0D4D4D] text-[10px] font-bold">Refer a Friend</p>
-                    </div>
-                    <div className="bg-[#005851] rounded-xl py-2.5 text-center">
-                      <p className="text-white text-[10px] font-bold">Contact Daniel</p>
-                    </div>
-                  </div>
+                <div className="w-full h-full bg-black rounded-[2rem] overflow-hidden">
+                  <video
+                    ref={(el) => {
+                      if (!el) return;
+                      const observer = new IntersectionObserver(
+                        ([entry]) => {
+                          if (entry.isIntersecting) {
+                            el.play().catch(() => {});
+                          } else {
+                            el.pause();
+                          }
+                        },
+                        { threshold: 0.3 }
+                      );
+                      observer.observe(el);
+                    }}
+                    className="w-full h-full object-contain"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload="auto"
+                    poster="/app-preview-poster.jpeg"
+                  >
+                    <source src="/app-preview.webm" type="video/webm" />
+                    <source src="/app-preview.mp4" type="video/mp4" />
+                  </video>
                 </div>
               </div>
             </div>
@@ -314,63 +305,6 @@ export default function MobileLandingV2() {
       </section>
 
       {/* ═══════════════════════════════════════════════════
-         THE PROBLEM — Three Pain Points
-         ═══════════════════════════════════════════════════ */}
-      <section className="relative bg-white px-6 py-16">
-        <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: '-40px' }}
-          variants={stagger}
-          style={{ willChange: 'transform, opacity' }}
-          className="space-y-10"
-        >
-          <motion.div variants={fadeUp} custom={0}>
-            <p className="text-red-400 font-bold text-[11px] uppercase tracking-[0.15em] mb-3">The uncomfortable truth</p>
-            <h2 className="text-[1.65rem] font-extrabold text-[#0D4D4D] leading-tight">
-              Here&apos;s what&apos;s costing you money right now.
-            </h2>
-          </motion.div>
-
-          {[
-            { num: '01', title: 'Silence.', body: 'After the close, you become a name they\'ll never call. Then a lapse notice hits — and a chargeback follows.', accent: '#FF5F57' },
-            { num: '02', title: 'Dead referrals.', body: 'You ask clients to refer friends. They say "sure." They never do. The few who try? The lead goes cold.', accent: '#FEBC2E' },
-            { num: '03', title: 'Missed rewrites.', body: 'Every policy anniversary is a lay-down sale. With no system to flag it, the carrier auto-renews and you miss out.', accent: '#fdcc02' },
-          ].map((card, i) => (
-            <motion.div
-              key={card.num}
-              variants={fadeUp}
-              custom={0.1 + i * 0.08}
-              className="flex gap-4"
-            >
-              <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${card.accent}15` }}>
-                <span className="text-xs font-black" style={{ color: card.accent }}>{card.num}</span>
-              </div>
-              <div>
-                <h3 className="text-lg font-extrabold text-[#0D4D4D] mb-1">{card.title}</h3>
-                <p className="text-[#6B7280] text-[14px] leading-relaxed">{card.body}</p>
-              </div>
-            </motion.div>
-          ))}
-
-          <motion.div variants={fadeUp} custom={0.4} className="pt-4">
-            <div className="bg-[#0D4D4D] rounded-2xl p-6 text-center border border-[#3DD6C3]/15">
-              <p className="text-[1.2rem] font-extrabold text-white leading-snug mb-1">
-                Get off their contacts list.
-              </p>
-              <p className="text-[1.2rem] font-extrabold text-[#3DD6C3] leading-snug mb-2">
-                Get on their home screen.
-              </p>
-              <p className="text-white/40 text-[13px]">
-                We built a system that fixes all three.
-              </p>
-              <svg className="w-4 h-4 text-[#3DD6C3]/40 mx-auto mt-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7" /></svg>
-            </div>
-          </motion.div>
-        </motion.div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════
          SECTION 1 — Earn More
          ═══════════════════════════════════════════════════ */}
       <section className="bg-[#F8F9FA] px-5 py-14">
@@ -400,8 +334,8 @@ export default function MobileLandingV2() {
                   </div>
                 </div>
               </div>
-              <div className="bg-[#fdcc02] px-3 pt-5 relative overflow-hidden" style={{ minHeight: '400px' }}>
-                <div className="flex justify-center -mb-16">
+              <div className="bg-[#fdcc02] px-3 pt-6 relative overflow-hidden" style={{ minHeight: '400px' }}>
+                <div className="flex justify-center -mb-12">
                   <div className="w-[55%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
                     <img src="/screenshot-referral-sent.png" alt="Referral sent confirmation" className="w-full h-auto block" />
                   </div>
@@ -427,8 +361,8 @@ export default function MobileLandingV2() {
                   </div>
                 </div>
               </div>
-              <div className="bg-[#F4845F] px-3 pt-5 relative overflow-hidden" style={{ minHeight: '400px' }}>
-                <div className="flex justify-center -mb-16">
+              <div className="bg-[#F4845F] px-3 pt-6 relative overflow-hidden" style={{ minHeight: '400px' }}>
+                <div className="flex justify-center -mb-12">
                   <div className="w-[55%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
                     <img src="/screenshot-rewrite-convo.png" alt="AI rewrite conversation" className="w-full h-auto block" />
                   </div>
@@ -472,8 +406,8 @@ export default function MobileLandingV2() {
                   </div>
                 </div>
               </div>
-              <div className="bg-[#3DD6C3] px-3 pt-5 relative overflow-hidden" style={{ minHeight: '400px' }}>
-                <div className="flex justify-center -mb-16">
+              <div className="bg-[#3DD6C3] px-3 pt-6 relative overflow-hidden" style={{ minHeight: '400px' }}>
+                <div className="flex justify-center -mb-12">
                   <div className="w-[55%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
                     <img src="/screenshot-retention-message.png" alt="Conservation message in client app" className="w-full h-auto block" />
                   </div>
@@ -499,8 +433,8 @@ export default function MobileLandingV2() {
                   </div>
                 </div>
               </div>
-              <div className="bg-[#a158ff] px-3 pt-5 relative overflow-hidden" style={{ minHeight: '400px' }}>
-                <div className="flex justify-center -mb-16">
+              <div className="bg-[#a158ff] px-3 pt-6 relative overflow-hidden" style={{ minHeight: '400px' }}>
+                <div className="flex justify-center -mb-12">
                   <div className="w-[55%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
                     <img src="/screenshot-thanksgiving-card.png" alt="Thanksgiving holiday card" className="w-full h-auto block" />
                   </div>
@@ -511,6 +445,68 @@ export default function MobileLandingV2() {
               </div>
             </div>
           </Link>
+        </motion.div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════
+         THE PROBLEM — Three Pain Points + Calculator
+         ═══════════════════════════════════════════════════ */}
+      <section className="relative bg-white px-6 py-16">
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: '-40px' }}
+          variants={stagger}
+          style={{ willChange: 'transform, opacity' }}
+          className="space-y-6"
+        >
+          <motion.div variants={fadeUp} custom={0}>
+            <p className="text-red-400 font-bold text-[11px] uppercase tracking-[0.15em] mb-3">The uncomfortable truth</p>
+            <h2 className="text-[1.65rem] font-extrabold text-[#0D4D4D] leading-tight">
+              Here&apos;s what&apos;s costing you money right now.
+            </h2>
+          </motion.div>
+
+          {[
+            { num: '01', title: 'Silence.', body: 'After the close, you become a name they\'ll never call. Then a lapse notice hits — and a chargeback follows.', accent: '#FF5F57' },
+            { num: '02', title: 'Dead referrals.', body: 'You ask clients to refer friends. They say "sure." They never do. The few who try? The lead goes cold.', accent: '#FEBC2E' },
+            { num: '03', title: 'Missed rewrites.', body: 'Every policy anniversary is a lay-down sale. With no system to flag it, the carrier auto-renews and you miss out.', accent: '#fdcc02' },
+          ].map((card, i) => (
+            <motion.div
+              key={card.num}
+              variants={fadeUp}
+              custom={0.1 + i * 0.08}
+            >
+              <button
+                onClick={() => setOpenPain(openPain === i ? null : i)}
+                className="flex gap-4 w-full text-left items-start"
+              >
+                <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${card.accent}15` }}>
+                  <span className="text-xs font-black" style={{ color: card.accent }}>{card.num}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-lg font-extrabold text-[#0D4D4D]">{card.title}</h3>
+                    <svg className={`w-4 h-4 text-[#6B7280] flex-shrink-0 transition-transform duration-200 ${openPain === i ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </div>
+                </div>
+              </button>
+              <div className={`overflow-hidden transition-all duration-300 ${openPain === i ? 'max-h-[200px]' : 'max-h-0'}`}>
+                <p className="text-[#6B7280] text-[14px] leading-relaxed pl-14 pt-2">{card.body}</p>
+              </div>
+            </motion.div>
+          ))}
+
+          <motion.div variants={fadeUp} custom={0.4} className="pt-4">
+            <LeakyBucketCalculator
+              initialBookSize={250000}
+              initialRetentionRate={70}
+              initialReferralRate={5}
+              initialRewriteRate={10}
+              ctaHref="/founding-member/m"
+              ctaText="Stop the Bleeding →"
+            />
+          </motion.div>
         </motion.div>
       </section>
 
@@ -664,17 +660,14 @@ export default function MobileLandingV2() {
           <h3 className="text-center text-sm font-bold text-[#0D4D4D] mb-6">
             Built for <span className="text-[#3DD6C3]">trust</span>
           </h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {[
               { icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z', label: 'Your Data, Your Book', sub: 'We never contact your clients independently' },
               { icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z', label: 'AES-256 Encryption', sub: 'At rest and in transit via TLS' },
-              { icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', label: 'Client Opt-In', sub: 'Clients join with your unique code' },
-              { icon: 'M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z', label: 'No Lock-In', sub: 'Month-to-month, cancel anytime' },
-              { icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', label: 'Carrier Agnostic', sub: 'Works with every insurance carrier' },
               { icon: 'M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4', label: 'Biometric Security', sub: 'Coming soon', badge: true },
             ].map((t) => (
-              <div key={t.label} className="flex items-start gap-2.5 p-2.5">
-                <div className="w-8 h-8 bg-[#0D4D4D]/5 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+              <div key={t.label} className="flex flex-col items-center text-center gap-2 p-2.5">
+                <div className="w-8 h-8 bg-[#0D4D4D]/5 rounded-lg flex items-center justify-center">
                   <svg className="w-3.5 h-3.5 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={t.icon} /></svg>
                 </div>
                 <div>
