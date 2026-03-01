@@ -125,6 +125,21 @@ export default function RetentionDeepDive() {
               </h2>
             </motion.div>
 
+            {/* iMessage / RCS badges */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.06] border border-white/[0.08] rounded-full">
+                <svg className="w-3 h-3 text-white/50" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+                <span className="text-white/50 text-[10px] font-medium">iMessage</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-[#007AFF]" />
+              </div>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.06] border border-white/[0.08] rounded-full">
+                <svg className="w-3 h-3 text-white/50" viewBox="0 0 24 24" fill="currentColor"><path d="M17.523 15.34c-.5 0-.9.4-.9.9s.4.9.9.9.9-.4.9-.9-.4-.9-.9-.9zm-11.046 0c-.5 0-.9.4-.9.9s.4.9.9.9.9-.4.9-.9-.4-.9-.9-.9zm11.405-6.02l1.9-3.46c.11-.2.04-.44-.15-.56-.2-.11-.44-.04-.56.15l-1.92 3.49C15.46 8.38 13.55 7.75 12 7.75s-3.46.63-5.14 1.72L4.94 5.98c-.12-.19-.36-.26-.56-.15-.19.12-.26.36-.15.56l1.9 3.46C2.64 11.96.34 15.55 0 19.8h24c-.34-4.25-2.64-7.84-6.12-9.48z"/></svg>
+                <span className="text-white/50 text-[10px] font-medium">RCS</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-[#34C759]" />
+              </div>
+            </div>
+            <p className="text-white/25 text-[10px]">Blue bubbles on iPhone. Green bubbles on Android. Native messaging &mdash; not SMS.</p>
+
             {[
               {
                 num: '1',
