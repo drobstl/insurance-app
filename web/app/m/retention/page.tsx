@@ -273,6 +273,59 @@ export default function RetentionDeepDive() {
         </div>
       </section>
 
+      {/* Real product screenshots */}
+      <section className="bg-[#070E1B] px-5 py-12 relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-0 left-0 w-[200px] h-[200px] bg-red-500 rounded-full blur-[120px] opacity-[0.06]" />
+        </div>
+        <div className="relative space-y-10">
+          <div className="text-center">
+            <p className="text-red-400 text-[11px] uppercase tracking-[0.15em] font-medium mb-2">See it in action</p>
+            <h3 className="text-[1.2rem] font-extrabold text-white leading-tight">
+              This is a real conservation<br />alert being processed.
+            </h3>
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="space-y-6"
+          >
+            <div className="flex justify-center">
+              <div className="w-[280px] rounded-2xl border-2 border-white/10 shadow-2xl overflow-hidden">
+                <img src="/screenshot-conservation-email.png" alt="Real conservation alert email — HIGH PRIORITY chargeback risk" className="w-full h-auto block" />
+              </div>
+            </div>
+            <p className="text-white/30 text-[11px] text-center">
+              Real alert &mdash; AI identified client, matched the policy, and scheduled outreach automatically.
+            </p>
+          </motion.div>
+
+          <div className="text-center pt-4">
+            <p className="text-[#3DD6C3] text-[11px] uppercase tracking-[0.15em] font-medium mb-2">Your dashboard</p>
+            <h3 className="text-[1.2rem] font-extrabold text-white leading-tight mb-5">
+              Every client. Every status.<br />One screen.
+            </h3>
+          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="flex justify-center"
+          >
+            <div className="w-full max-w-[340px] rounded-2xl border-2 border-white/10 shadow-2xl overflow-hidden">
+              <img src="/screenshot-clients-dashboard.png" alt="Real clients dashboard with policy statuses" className="w-full h-auto block" />
+            </div>
+          </motion.div>
+          <p className="text-white/30 text-[11px] text-center">
+            Real dashboard &mdash; client list with policy status, at-risk flags, and instant actions.
+          </p>
+        </div>
+      </section>
+
       {/* Why most agents fail */}
       <section className="px-6 py-12">
         <motion.div

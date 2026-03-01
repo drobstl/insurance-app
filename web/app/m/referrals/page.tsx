@@ -116,6 +116,35 @@ export default function ReferralsDeepDive() {
         </motion.div>
       </section>
 
+      {/* Real product screenshot */}
+      <section className="bg-[#070E1B] px-5 py-12 relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-0 left-0 w-[200px] h-[200px] bg-[#3DD6C3] rounded-full blur-[120px] opacity-[0.06]" />
+        </div>
+        <div className="relative space-y-5">
+          <div className="text-center">
+            <p className="text-[#3DD6C3] text-[11px] uppercase tracking-[0.15em] font-medium mb-2">Real AI conversation</p>
+            <h3 className="text-[1.2rem] font-extrabold text-white leading-tight">
+              This is an actual referral<br />being qualified by AI.
+            </h3>
+          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="flex justify-center"
+          >
+            <div className="w-[280px] rounded-2xl border-2 border-white/10 shadow-2xl overflow-hidden">
+              <img src="/screenshot-ai-referral-imessage.png" alt="Real AI referral conversation via iMessage" className="w-full h-auto block" />
+            </div>
+          </motion.div>
+          <p className="text-white/30 text-[11px] text-center">
+            Real iMessage conversation &mdash; AI qualifying a warm referral and booking the appointment.
+          </p>
+        </div>
+      </section>
+
       {/* How it works */}
       <section className="px-6 py-12">
         <motion.div

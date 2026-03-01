@@ -90,6 +90,35 @@ export default function RewritesDeepDive() {
         </motion.div>
       </section>
 
+      {/* Real product screenshot */}
+      <section className="bg-[#070E1B] px-5 py-12 relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute bottom-0 right-0 w-[200px] h-[200px] bg-[#F4845F] rounded-full blur-[120px] opacity-[0.08]" />
+        </div>
+        <div className="relative space-y-5">
+          <div className="text-center">
+            <p className="text-[#F4845F] text-[11px] uppercase tracking-[0.15em] font-medium mb-2">Your rewrite dashboard</p>
+            <h3 className="text-[1.2rem] font-extrabold text-white leading-tight">
+              See every conversation.<br />Track every booking.
+            </h3>
+          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="flex justify-center"
+          >
+            <div className="w-full max-w-[340px] rounded-2xl border-2 border-white/10 shadow-2xl overflow-hidden">
+              <img src="/screenshot-rewrites-dashboard.png" alt="Real rewrites dashboard with AI conversations" className="w-full h-auto block" />
+            </div>
+          </motion.div>
+          <p className="text-white/30 text-[11px] text-center">
+            Real dashboard &mdash; AI-powered rewrite campaigns with live conversations, booking status, and performance tracking.
+          </p>
+        </div>
+      </section>
+
       {/* How it works */}
       <section className="px-6 py-12">
         <motion.div
