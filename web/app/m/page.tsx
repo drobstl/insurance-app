@@ -420,7 +420,7 @@ export default function MobileLandingV2() {
           </Link>
 
           {/* Card 2: Relationships (touchpoints) */}
-          <Link href="/m/retention" className="block">
+          <Link href="/m/relationships" className="block">
             <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
               <div className="p-5 pb-4">
                 <p className="text-[13px] text-[#6B7280] mb-1.5">Relationships</p>

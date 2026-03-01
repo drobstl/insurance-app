@@ -62,12 +62,12 @@ export default function RewritesDeepDive() {
               <span className="text-white font-bold text-[11px] uppercase tracking-wide">Automated Rewrites</span>
             </div>
             <h1 className="text-[2rem] font-extrabold text-white leading-[1.1] mb-4">
-              Every anniversary<br />
-              is a booked<br />
-              appointment.
+              Better coverage.<br />
+              Better price.<br />
+              Booked automatically.
             </h1>
             <p className="text-white/80 text-[15px] leading-relaxed max-w-[320px]">
-              When a policy hits its one-year mark, your client hears from you &mdash; not the carrier. The rewrite comes to you.
+              When a policy anniversary hits, it&apos;s the perfect time to check if your client can get better coverage or a lower rate. Agent For Life makes sure that conversation happens.
             </p>
           </motion.div>
         </div>
@@ -145,7 +145,7 @@ export default function RewritesDeepDive() {
             {
               num: '2',
               title: 'Client gets a notification',
-              body: 'A personalized push notification goes to their phone — letting them know you may have found a lower price for the same coverage, with a link to book on your calendar.',
+              body: 'A personalized push notification goes to their phone — letting them know their policy anniversary is coming up and you\'d like to review their coverage to make sure they\'re still getting the best fit and the best rate.',
               color: '#3DD6C3',
             },
             {
@@ -232,9 +232,9 @@ export default function RewritesDeepDive() {
           </motion.h2>
 
           {[
-            { icon: '💰', title: 'You already earned it', desc: 'After the first year, there\'s no commission clawback risk. A rewrite is pure upside — you earn commission again on the same client.' },
-            { icon: '⏰', title: 'Timing is everything', desc: 'The anniversary is the one moment a client is most open to reviewing coverage. Miss the window and the carrier auto-renews.' },
-            { icon: '📱', title: 'They come to you', desc: 'Instead of cold-calling your book, your client gets a notification and books on your calendar. The rewrite starts with them reaching out.' },
+            { icon: '🛡️', title: 'Life changes. Coverage should too.', desc: 'Clients buy homes, have kids, change jobs. A policy anniversary is the natural moment to make sure their coverage still fits their life.' },
+            { icon: '💵', title: 'Save your client money', desc: 'Rates change. A year later, the same coverage might cost less with a different carrier. Your client deserves to know — and you\'re the one who can show them.' },
+            { icon: '📱', title: 'They come to you', desc: 'Instead of cold-calling your book, your client gets a notification and books on your calendar. The conversation starts with them reaching out.' },
             { icon: '📊', title: 'Track every opportunity', desc: 'Your dashboard shows upcoming anniversaries, notifications sent, and appointments booked. Nothing slips through.' },
           ].map((item, i) => (
             <motion.div key={item.title} variants={fadeUp} custom={0.1 + i * 0.08} className="bg-[#F8F9FA] rounded-2xl p-5 border border-gray-100">
@@ -257,22 +257,19 @@ export default function RewritesDeepDive() {
         </div>
         <div className="relative text-center space-y-6">
           <h2 className="text-[1.3rem] font-extrabold text-white leading-tight">
-            Revenue you&apos;re already<br />
-            <span className="text-[#F4845F]">entitled to</span>.
+            Good for your client.<br />
+            <span className="text-[#F4845F]">Good for your business.</span>
           </h2>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white/[0.06] border border-white/10 rounded-2xl p-5 text-center">
-              <p className="text-3xl font-black text-white">$1,200</p>
-              <p className="text-[11px] text-white/40 mt-1">Avg annual policy value</p>
+          <div className="space-y-3">
+            <div className="bg-white/[0.06] border border-white/10 rounded-2xl p-5">
+              <p className="text-white font-bold text-[14px] mb-1">For your client</p>
+              <p className="text-white/40 text-[13px] leading-relaxed">They get a coverage review at the one moment it matters most. If there&apos;s a better rate or a better fit, you find it for them.</p>
             </div>
-            <div className="bg-[#F4845F]/15 border border-[#F4845F]/25 rounded-2xl p-5 text-center">
-              <p className="text-3xl font-black text-[#F4845F]">2x</p>
-              <p className="text-[11px] text-white/40 mt-1">Commission on rewrite</p>
+            <div className="bg-[#F4845F]/15 border border-[#F4845F]/25 rounded-2xl p-5">
+              <p className="text-[#F4845F] font-bold text-[14px] mb-1">For your business</p>
+              <p className="text-white/40 text-[13px] leading-relaxed">When you rewrite a policy, you earn new first-year commission &mdash; on a client you&apos;ve already built trust with. No prospecting, no cold calls.</p>
             </div>
           </div>
-          <p className="text-white/40 text-[13px] leading-relaxed max-w-[280px] mx-auto">
-            Every policy anniversary is a lay-down sale. Your client wants better rates. You earn commission again. Everyone wins.
-          </p>
         </div>
       </section>
 
@@ -289,11 +286,11 @@ export default function RewritesDeepDive() {
           className="relative text-center space-y-5"
         >
           <h2 className="text-[1.5rem] font-extrabold text-white leading-tight">
-            Stop missing money<br />
-            <span className="text-[#F4845F]">you&apos;ve already earned</span>.
+            Your clients deserve<br />
+            <span className="text-[#F4845F]">an annual checkup</span>.
           </h2>
           <p className="text-white/40 text-[14px] leading-relaxed max-w-[280px] mx-auto">
-            Every policy anniversary is an opportunity. Agent For Life makes sure you never miss one.
+            Life changes. Rates change. Agent For Life makes sure every client gets a coverage review at the right time &mdash; and you get to be the one who delivers it.
           </p>
           <Link
             href="/founding-member/m"

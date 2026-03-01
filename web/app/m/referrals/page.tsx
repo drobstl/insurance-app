@@ -282,7 +282,7 @@ export default function ReferralsDeepDive() {
           </motion.h2>
 
           {[
-            { icon: '💬', title: 'iMessage = ~99% read rate', desc: 'Not email. Not a link. Blue-bubble iMessage that gets read every time.' },
+            { icon: '💬', title: 'Text messages get read', desc: 'Not email. Not a link. A real text message in their inbox — where open rates dwarf every other channel.' },
             { icon: '🤝', title: 'Warm intro, not cold outreach', desc: 'The referral already got a personal text from your client. AI follows up with trust already built.' },
             { icon: '📅', title: 'AI books directly on your calendar', desc: 'No back-and-forth. AI shares your scheduling link and the referral picks a time.' },
             { icon: '🔄', title: 'AI never gives up', desc: 'If the referral goes quiet, AI follows up on Day 2, Day 5, and Day 8 with different angles.' },
@@ -343,19 +343,12 @@ export default function ReferralsDeepDive() {
           <motion.h2 variants={fadeUp} custom={0} className="text-[1.4rem] font-extrabold text-[#0D4D4D] leading-tight text-center">
             The math.
           </motion.h2>
-          <div className="grid grid-cols-2 gap-3">
-            <motion.div variants={fadeUp} custom={0.1} className="bg-[#F8F9FA] rounded-2xl p-5 text-center border border-gray-100">
-              <p className="text-3xl font-black text-[#0D4D4D]">5%</p>
-              <p className="text-[11px] text-[#6B7280] mt-1">Avg agent referral rate</p>
-            </motion.div>
-            <motion.div variants={fadeUp} custom={0.15} className="bg-[#fdcc02]/10 rounded-2xl p-5 text-center border border-[#fdcc02]/20">
-              <p className="text-3xl font-black text-[#0D4D4D]">25%</p>
-              <p className="text-[11px] text-[#0D4D4D]/60 mt-1">What&apos;s actually possible</p>
-            </motion.div>
-          </div>
-          <motion.p variants={fadeUp} custom={0.2} className="text-[#6B7280] text-[13px] text-center leading-relaxed">
-            Most agents leave 80% of their referral potential on the table because the process is too manual. Agent For Life automates the entire flow.
-          </motion.p>
+          <motion.div variants={fadeUp} custom={0.1} className="bg-[#F8F9FA] rounded-2xl p-5 border border-gray-100 text-center">
+            <p className="text-[#0D4D4D] font-extrabold text-lg mb-2">Most referrals die from friction.</p>
+            <p className="text-[#6B7280] text-[13px] leading-relaxed">
+              Your clients want to refer you. The problem is the process &mdash; it&apos;s too many steps, too awkward, and leads go cold before you follow up. Agent For Life removes every point of friction so referrals actually happen.
+            </p>
+          </motion.div>
         </motion.div>
       </section>
 
