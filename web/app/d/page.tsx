@@ -681,7 +681,7 @@ export default function DesktopLanding() {
               viewport={{ once: true }}
               transition={{ duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] as const }}
             >
-              <div className="bg-[#1a1a1a] rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+              <div className="bg-[#1a1a1a] rounded-xl border-2 border-white shadow-2xl overflow-hidden">
                 {/* Browser chrome */}
                 <div className="bg-[#2a2a2a] px-4 py-3 flex items-center gap-6">
                   <div className="flex gap-2">
@@ -766,7 +766,7 @@ export default function DesktopLanding() {
             >
               <div className="relative">
                 <div className="absolute -inset-3 rounded-[3.5rem] bg-gradient-to-b from-[#3DD6C3]/15 via-transparent to-[#fdcc02]/10 blur-lg pointer-events-none" />
-                <div className="w-[260px] h-[530px] bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl border-4 border-[#2a2a2a] relative">
+                <div className="w-[260px] h-[530px] bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl border-4 border-white relative">
                   <div className="w-full h-full bg-[#111] rounded-[2.5rem] overflow-hidden px-4 py-6 relative">
                     <div className="flex items-center gap-3 mb-6">
                       <div className="w-10 h-10 rounded-full bg-[#005851] flex items-center justify-center">

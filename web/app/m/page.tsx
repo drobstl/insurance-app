@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import LeakyBucketCalculator from '@/components/LeakyBucketCalculator';
 
@@ -27,6 +27,72 @@ const fadeUp = {
 const stagger = {
   visible: { transition: { staggerChildren: 0.08 } },
 };
+
+function AppPreviewVideo() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [showReplay, setShowReplay] = useState(false);
+
+  const play = useCallback(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    el.currentTime = 0;
+    el.play().then(() => setShowReplay(false)).catch(() => setShowReplay(true));
+  }, []);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    const container = containerRef.current;
+    if (!el || !container) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          el.play().then(() => setShowReplay(false)).catch(() => setShowReplay(true));
+        } else {
+          el.pause();
+        }
+      },
+      { threshold: 0.2, rootMargin: '20px' }
+    );
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={containerRef} className="absolute inset-0 w-full h-full">
+      <video
+        ref={videoRef}
+        className="absolute inset-0 w-full h-full object-cover"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        poster="/app-preview-poster.jpeg"
+        onEnded={() => {
+          videoRef.current?.play().catch(() => setShowReplay(true));
+        }}
+        onError={() => setShowReplay(true)}
+        onPlaying={() => setShowReplay(false)}
+      >
+        <source src="/app-preview.webm" type="video/webm" />
+        <source src="/app-preview.mp4" type="video/mp4" />
+      </video>
+      {showReplay && (
+        <button
+          type="button"
+          onClick={play}
+          className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-[2rem]"
+          aria-label="Replay video"
+        >
+          <span className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+            <svg className="w-6 h-6 text-black ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+          </span>
+        </button>
+      )}
+    </div>
+  );
+}
 
 export default function MobileLandingV2() {
   const [spotsRemaining, setSpotsRemaining] = useState<number | null>(null);
@@ -224,7 +290,7 @@ export default function MobileLandingV2() {
             <p className="text-white/40 text-[14px] text-center">Your name. Your brand. Their policies. One tap away.</p>
           </motion.div>
 
-          {/* Phone mockup with video preview + floating tags */}
+          {/* Phone mockup with video — fills frame, loop + replay fallback */}
           <motion.div
             initial={{ opacity: 0, y: 30, scale: 0.96 }}
             whileInView={{ opacity: 1, y: 0, scale: 1 }}
@@ -234,57 +300,10 @@ export default function MobileLandingV2() {
             className="flex justify-center"
           >
             <div className="relative">
-              {/* Floating feature tags */}
-              <div className="absolute -left-14 top-8 z-10 animate-float-a">
-                <div className="px-2.5 py-1.5 bg-[#3DD6C3]/15 border border-[#3DD6C3]/25 rounded-lg">
-                  <span className="text-[#3DD6C3] text-[10px] font-bold">🛡️ Conservation Alerts</span>
-                </div>
-              </div>
-              <div className="absolute -right-12 top-16 z-10 animate-float-b">
-                <div className="px-2.5 py-1.5 bg-[#fdcc02]/15 border border-[#fdcc02]/25 rounded-lg">
-                  <span className="text-[#fdcc02] text-[10px] font-bold">🤝 AI Referrals</span>
-                </div>
-              </div>
-              <div className="absolute -left-10 bottom-24 z-10 animate-float-c">
-                <div className="px-2.5 py-1.5 bg-white/[0.08] border border-white/15 rounded-lg">
-                  <span className="text-white/80 text-[10px] font-bold">🎄 Holiday Cards</span>
-                </div>
-              </div>
-              <div className="absolute -right-8 bottom-36 z-10 animate-float-d">
-                <div className="px-2.5 py-1.5 bg-[#F4845F]/15 border border-[#F4845F]/25 rounded-lg">
-                  <span className="text-[#F4845F] text-[10px] font-bold">📅 Rewrites</span>
-                </div>
-              </div>
-
               <div className="w-[220px] h-[440px] bg-[#1a1a1a] rounded-[2.5rem] p-2.5 shadow-2xl border-4 border-[#2a2a2a] transform-gpu">
                 <div className="absolute -inset-1.5 rounded-[2.8rem] bg-gradient-to-b from-[#3DD6C3]/15 via-transparent to-[#fdcc02]/10 pointer-events-none blur-sm" />
-                <div className="w-full h-full bg-black rounded-[2rem] overflow-hidden">
-                  <video
-                    ref={(el) => {
-                      if (!el) return;
-                      const observer = new IntersectionObserver(
-                        ([entry]) => {
-                          if (entry.isIntersecting) {
-                            el.play().catch(() => {});
-                          } else {
-                            el.pause();
-                          }
-                        },
-                        { threshold: 0.3 }
-                      );
-                      observer.observe(el);
-                    }}
-                    className="w-full h-full object-contain"
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                    preload="auto"
-                    poster="/app-preview-poster.jpeg"
-                  >
-                    <source src="/app-preview.webm" type="video/webm" />
-                    <source src="/app-preview.mp4" type="video/mp4" />
-                  </video>
+                <div className="relative w-full h-full bg-black rounded-[2rem] overflow-hidden">
+                  <AppPreviewVideo />
                 </div>
               </div>
             </div>
@@ -358,10 +377,10 @@ export default function MobileLandingV2() {
               </div>
               <div className="bg-[#fdcc02] px-3 pt-6 relative overflow-hidden" style={{ minHeight: '400px' }}>
                 <div className="flex justify-center -mb-12">
-                  <div className="w-[55%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
+                  <div className="w-[55%] rounded-xl border-[6px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
                     <img src="/screenshot-referral-sent.png" alt="Referral sent confirmation" className="w-full h-auto block" />
                   </div>
-                  <div className="w-[60%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20">
+                  <div className="w-[60%] rounded-xl border-[6px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20">
                     <img src="/screenshot-referral-message.png" alt="Referral message with business card" className="w-full h-auto block" />
                   </div>
                 </div>
@@ -376,7 +395,7 @@ export default function MobileLandingV2() {
                 <p className="text-[14px] text-black mb-1.5">Automated Rewrites</p>
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="text-[1.3rem] font-extrabold text-black leading-[1.2]">
-                    AI so nice, get the commission twice.
+                    AI so nice, commission hits twice.
                   </h3>
                   <div className="w-9 h-9 rounded-full bg-[#0D4D4D] flex items-center justify-center flex-shrink-0 mt-1">
                     <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
@@ -385,10 +404,10 @@ export default function MobileLandingV2() {
               </div>
               <div className="bg-[#F4845F] px-3 pt-6 relative overflow-hidden" style={{ minHeight: '400px' }}>
                 <div className="flex justify-center -mb-12">
-                  <div className="w-[55%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
+                  <div className="w-[55%] rounded-xl border-[6px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
                     <img src="/screenshot-rewrite-convo.png" alt="AI rewrite conversation" className="w-full h-auto block" />
                   </div>
-                  <div className="w-[60%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20 bg-white">
+                  <div className="w-[60%] rounded-xl border-[6px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20 bg-white">
                     <img src="/screenshot-rewrite-app.png" alt="Rewrite rate review in app" className="w-full h-auto block" />
                   </div>
                 </div>
@@ -430,10 +449,10 @@ export default function MobileLandingV2() {
               </div>
               <div className="bg-[#3DD6C3] px-3 pt-6 relative overflow-hidden" style={{ minHeight: '400px' }}>
                 <div className="flex justify-center -mb-12">
-                  <div className="w-[55%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
+                  <div className="w-[55%] rounded-xl border-[6px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
                     <img src="/screenshot-retention-message.png" alt="Conservation message in client app" className="w-full h-auto block" />
                   </div>
-                  <div className="w-[60%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20">
+                  <div className="w-[60%] rounded-xl border-[6px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20">
                     <img src="/screenshot-retention-booking.png" alt="Booking calendar" className="w-full h-auto block" />
                   </div>
                 </div>
@@ -457,10 +476,10 @@ export default function MobileLandingV2() {
               </div>
               <div className="bg-[#a158ff] px-3 pt-6 relative overflow-hidden" style={{ minHeight: '400px' }}>
                 <div className="flex justify-center -mb-12">
-                  <div className="w-[55%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
+                  <div className="w-[55%] rounded-xl border-[6px] border-black shadow-2xl overflow-hidden translate-y-8 relative z-10">
                     <img src="/screenshot-thanksgiving-notification.png" alt="Push notification on home screen" className="w-full h-auto block" />
                   </div>
-                  <div className="w-[60%] rounded-xl border-[3px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20">
+                  <div className="w-[60%] rounded-xl border-[6px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20">
                     <img src="/screenshot-thanksgiving-card.png" alt="Thanksgiving holiday card" className="w-full h-auto block" />
                   </div>
                 </div>
