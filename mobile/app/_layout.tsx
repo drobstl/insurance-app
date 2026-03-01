@@ -11,13 +11,14 @@ import Constants from 'expo-constants';
 import { getSession, registerAndSavePushToken } from './index';
 
 // Configure how notifications are presented when the app is in the foreground.
-// shouldSetBadge is true so the app icon badge updates when a push arrives.
-// Badge is cleared back to 0 whenever the user foregrounds the app (see below).
+// shouldSetBadge is false because the user is already in the app — no need for
+// a badge. The server sends badge:1 so backgrounded pushes still show the dot.
+// Badge is cleared to 0 on foreground entry and when notifications are handled.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
-    shouldSetBadge: true,
+    shouldSetBadge: false,
   }),
 });
 
@@ -122,15 +123,19 @@ export default function RootLayout() {
 
   // Set up notification listeners
   useEffect(() => {
-    // Listener for when a notification is received while app is foregrounded
+    // Listener for when a notification is received while app is foregrounded.
+    // Clear the badge immediately — the user is already in the app.
     notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
       console.log('Notification received:', notification.request.content.title);
+      Notifications.setBadgeCountAsync(0).catch(() => {});
     });
 
-    // Listener for when the user taps a notification
+    // Listener for when the user taps a notification (from lock screen / notification center).
+    // Clear badge and dismiss all since they're now engaging with the app.
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
       console.log('Notification tapped:', response.notification.request.content.data);
-      // Future: handle deep linking based on notification data (e.g., open scheduling URL)
+      Notifications.setBadgeCountAsync(0).catch(() => {});
+      Notifications.dismissAllNotificationsAsync().catch(() => {});
     });
 
     return () => {
