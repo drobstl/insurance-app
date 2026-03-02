@@ -206,11 +206,8 @@ export default function DesktopLandingV5() {
                 <span className="text-[#0D4D4D] font-bold text-xs uppercase tracking-wide">One-Tap Referrals</span>
               </div>
               <h2 className="text-3xl lg:text-[2.75rem] font-extrabold text-[#0D4D4D] leading-tight mb-4">
-                People don&apos;t refer agents, they refer relationships.
-              </h2>
-              <p className="text-[#6B7280] text-lg leading-relaxed mb-4 max-w-lg">
                 Put a referral button in every client&apos;s pocket. AI takes it from there.
-              </p>
+              </h2>
               <p className="text-[#6B7280] text-lg leading-relaxed mb-8 max-w-lg">
                 One tap from your client. AI texts the referral via iMessage, qualifies them, and books the appointment on your calendar. You just show up and close.
               </p>
@@ -313,7 +310,7 @@ export default function DesktopLandingV5() {
                 <span className="text-white font-bold text-xs uppercase tracking-wide">Relationships on Autopilot</span>
               </div>
               <h2 className="text-3xl lg:text-[2.75rem] font-extrabold text-white leading-tight mb-4">
-                Keep them warm without lifting a finger.
+                People don&apos;t refer agents, they refer relationships.
               </h2>
               <p className="text-white/70 text-lg leading-relaxed mb-8 max-w-lg">
                 7+ personalized touchpoints per year, per client — completely automatic. Holiday cards for 5 major holidays, birthday messages, anniversary alerts, and custom push notifications.

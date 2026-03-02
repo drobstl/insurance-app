@@ -365,14 +365,9 @@ export default function MobileLandingV2() {
               <div className="p-5 pb-4">
                 <p className="text-[14px] text-black mb-1.5">One-Tap Referrals</p>
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-[1.3rem] font-extrabold text-black leading-[1.2]">
-                      People don&apos;t refer agents, they refer relationships.
-                    </h3>
-                    <p className="text-black/70 text-[14px] leading-relaxed mt-1.5">
-                      Put a referral button in every client&apos;s pocket. AI takes it from there.
-                    </p>
-                  </div>
+                  <h3 className="text-[1.3rem] font-extrabold text-black leading-[1.2]">
+                    Put a referral button in every client&apos;s pocket. AI takes it from there.
+                  </h3>
                   <div className="w-9 h-9 rounded-full bg-[#0D4D4D] flex items-center justify-center flex-shrink-0 mt-1">
                     <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
                   </div>
@@ -470,7 +465,7 @@ export default function MobileLandingV2() {
                 <p className="text-[14px] text-black mb-1.5">Relationships</p>
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="text-[1.3rem] font-extrabold text-black leading-[1.2]">
-                    You keep the connection, we&apos;ll send the card.
+                    People don&apos;t refer agents, they refer relationships.
                   </h3>
                   <div className="w-9 h-9 rounded-full bg-[#0D4D4D] flex items-center justify-center flex-shrink-0 mt-1">
                     <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
