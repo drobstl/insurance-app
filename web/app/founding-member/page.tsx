@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
+import confetti from 'canvas-confetti';
 
 export default function FoundingMemberPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -80,6 +81,13 @@ export default function FoundingMemberPage() {
       }
 
       setSubmitted(true);
+
+      const brandColors = ['#a158ff', '#3DD6C3', '#fdcc02'];
+      const burst = (angle: number, origin: { x: number; y: number }) =>
+        confetti({ particleCount: 80, spread: 70, angle, origin, colors: brandColors, gravity: 0.9, ticks: 200 });
+      burst(60, { x: 0, y: 0.65 });
+      burst(120, { x: 1, y: 0.65 });
+      setTimeout(() => confetti({ particleCount: 50, spread: 100, origin: { x: 0.5, y: 0.5 }, colors: brandColors, gravity: 0.8, ticks: 180 }), 250);
     } catch (err) {
       console.error('Error submitting application:', err);
       setError('Something went wrong. Please try again or email support@agentforlife.app directly.');
@@ -141,17 +149,26 @@ export default function FoundingMemberPage() {
                 AgentForLife
               </span>
             </Link>
-            <button
-              onClick={() => {
-                document.getElementById('apply-section')?.scrollIntoView({ behavior: 'smooth' });
-              }}
-              className="flex items-center gap-2 px-4 py-1.5 sm:px-5 sm:py-2 bg-[#a158ff] hover:bg-[#9248ed] text-white text-sm sm:text-base font-semibold rounded-full transition-all animate-[buttonGlowPurple_2s_ease-in-out_infinite] whitespace-nowrap shadow-[0_0_15px_4px_rgba(161,88,255,0.4)] hover:shadow-[0_0_25px_8px_rgba(161,88,255,0.5)]"
-            >
-              Apply Now
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-              </svg>
-            </button>
+            {submitted ? (
+              <div className="flex items-center gap-2 px-4 py-1.5 sm:px-5 sm:py-2 bg-[#3DD6C3]/20 border border-[#3DD6C3]/30 text-[#3DD6C3] text-sm sm:text-base font-semibold rounded-full whitespace-nowrap">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+                Applied
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  document.getElementById('apply-section')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="flex items-center gap-2 px-4 py-1.5 sm:px-5 sm:py-2 bg-[#a158ff] hover:bg-[#9248ed] text-white text-sm sm:text-base font-semibold rounded-full transition-all animate-[buttonGlowPurple_2s_ease-in-out_infinite] whitespace-nowrap shadow-[0_0_15px_4px_rgba(161,88,255,0.4)] hover:shadow-[0_0_25px_8px_rgba(161,88,255,0.5)]"
+              >
+                Apply Now
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       </nav>

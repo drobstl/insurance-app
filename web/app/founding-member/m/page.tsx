@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import confetti from 'canvas-confetti';
 
 const FAQ_ITEMS = [
   { question: 'Is this a finished product?', answer: "Not yet — that's where you come in. AgentForLife is in beta, which means the foundation is built but I'm actively improving it based on feedback from agents like you. Lifetime free access in exchange for helping me shape the product." },
@@ -84,6 +85,13 @@ export default function FoundingMemberMobile() {
       }
 
       setSubmitted(true);
+
+      const brandColors = ['#a158ff', '#3DD6C3', '#fdcc02'];
+      const burst = (angle: number, origin: { x: number; y: number }) =>
+        confetti({ particleCount: 80, spread: 70, angle, origin, colors: brandColors, gravity: 0.9, ticks: 200 });
+      burst(60, { x: 0, y: 0.65 });
+      burst(120, { x: 1, y: 0.65 });
+      setTimeout(() => confetti({ particleCount: 50, spread: 100, origin: { x: 0.5, y: 0.5 }, colors: brandColors, gravity: 0.8, ticks: 180 }), 250);
     } catch (err) {
       console.error('Error submitting application:', err);
       setError('Something went wrong. Please try again or email support@agentforlife.app directly.');
@@ -195,13 +203,20 @@ export default function FoundingMemberMobile() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.6 }}
             >
-              <button
-                onClick={scrollToForm}
-                className="w-full flex items-center justify-center gap-2.5 py-4 bg-[#a158ff] text-white text-base font-bold rounded-2xl shadow-lg shadow-[#a158ff]/25 active:scale-[0.97] transition-transform"
-              >
-                Apply Now
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
-              </button>
+              {submitted ? (
+                <div className="w-full flex items-center justify-center gap-2.5 py-4 bg-[#3DD6C3]/20 border border-[#3DD6C3]/30 text-[#3DD6C3] text-base font-bold rounded-2xl">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                  Application Submitted
+                </div>
+              ) : (
+                <button
+                  onClick={scrollToForm}
+                  className="w-full flex items-center justify-center gap-2.5 py-4 bg-[#a158ff] text-white text-base font-bold rounded-2xl shadow-lg shadow-[#a158ff]/25 active:scale-[0.97] transition-transform"
+                >
+                  Apply Now
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
+                </button>
+              )}
             </motion.div>
           </div>
 
@@ -541,23 +556,43 @@ export default function FoundingMemberMobile() {
           style={{ willChange: 'transform, opacity' }}
           className="relative text-center space-y-5"
         >
-          <h2 className="text-[1.5rem] font-extrabold text-white leading-tight">
-            50 spots. Then this{' '}
-            <span className="text-[#a158ff]">closes permanently</span>.
-          </h2>
-          <p className="text-white/40 text-[14px] leading-relaxed max-w-[280px] mx-auto">
-            No second round. No waitlist. Lock in your free lifetime spot now.
-          </p>
-          <button
-            onClick={scrollToForm}
-            className="w-full flex items-center justify-center gap-2.5 py-4 bg-[#a158ff] text-white text-base font-bold rounded-2xl shadow-lg shadow-[#a158ff]/25 active:scale-[0.97] transition-transform"
-          >
-            Apply Now
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
-          </button>
-          <p className="text-white/25 text-[11px]">
-            {spots} of 50 remaining · $0 forever · No credit card
-          </p>
+          {submitted ? (
+            <>
+              <div className="w-14 h-14 bg-[#3DD6C3]/20 rounded-full flex items-center justify-center mx-auto">
+                <svg className="w-7 h-7 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+              </div>
+              <h2 className="text-[1.5rem] font-extrabold text-white leading-tight">
+                You&apos;re all set.
+              </h2>
+              <p className="text-white/40 text-[14px] leading-relaxed max-w-[280px] mx-auto">
+                Your application is in. I&apos;ll review it personally and get back to you within 24 hours.
+              </p>
+              <div className="w-full flex items-center justify-center gap-2.5 py-4 bg-[#3DD6C3]/20 border border-[#3DD6C3]/30 text-[#3DD6C3] text-base font-bold rounded-2xl">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                Application Submitted
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 className="text-[1.5rem] font-extrabold text-white leading-tight">
+                50 spots. Then this{' '}
+                <span className="text-[#a158ff]">closes permanently</span>.
+              </h2>
+              <p className="text-white/40 text-[14px] leading-relaxed max-w-[280px] mx-auto">
+                No second round. No waitlist. Lock in your free lifetime spot now.
+              </p>
+              <button
+                onClick={scrollToForm}
+                className="w-full flex items-center justify-center gap-2.5 py-4 bg-[#a158ff] text-white text-base font-bold rounded-2xl shadow-lg shadow-[#a158ff]/25 active:scale-[0.97] transition-transform"
+              >
+                Apply Now
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
+              </button>
+              <p className="text-white/25 text-[11px]">
+                {spots} of 50 remaining · $0 forever · No credit card
+              </p>
+            </>
+          )}
         </motion.div>
       </section>
 
@@ -581,7 +616,7 @@ export default function FoundingMemberMobile() {
       </footer>
 
       {/* ══════════ STICKY BOTTOM CTA ══════════ */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 will-change-transform">
+      <div className={`fixed bottom-0 left-0 right-0 z-50 will-change-transform transition-transform duration-300 ${submitted ? 'translate-y-full' : ''}`}>
         <div className="bg-[#0D4D4D]/95 backdrop-blur-md border-t border-white/10 px-4 py-3 flex items-center justify-between gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.3)] will-change-transform">
           <div className="flex items-center gap-2 min-w-0">
             <span className="relative flex h-2 w-2 flex-shrink-0">

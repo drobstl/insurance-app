@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import confetti from 'canvas-confetti';
 
 const FAQ_ITEMS = [
   { question: 'Is this a finished product?', answer: "Not yet — that's where you come in. AgentForLife is in beta, which means the foundation is built but I'm actively improving and refining it based on feedback from agents like you. As a founding member, you get lifetime free access in exchange for helping me shape the product. The end goal is a tool that makes your job easier and helps you make more money — and your feedback is how we get there." },
@@ -95,6 +96,13 @@ export default function FoundingMemberDesktop() {
       }
 
       setSubmitted(true);
+
+      const brandColors = ['#a158ff', '#3DD6C3', '#fdcc02'];
+      const burst = (angle: number, origin: { x: number; y: number }) =>
+        confetti({ particleCount: 80, spread: 70, angle, origin, colors: brandColors, gravity: 0.9, ticks: 200 });
+      burst(60, { x: 0, y: 0.65 });
+      burst(120, { x: 1, y: 0.65 });
+      setTimeout(() => confetti({ particleCount: 50, spread: 100, origin: { x: 0.5, y: 0.5 }, colors: brandColors, gravity: 0.8, ticks: 180 }), 250);
     } catch (err) {
       console.error('Error submitting application:', err);
       setError('Something went wrong. Please try again or email support@agentforlife.app directly.');
@@ -119,12 +127,19 @@ export default function FoundingMemberDesktop() {
             <Link href="/d" className="text-white/50 text-sm font-medium hover:text-white/80 transition-colors">
               Back to AgentForLife.app
             </Link>
-            <button
-              onClick={scrollToForm}
-              className="px-6 py-2.5 bg-[#a158ff] text-white text-sm font-bold rounded-full animate-[buttonGlowPurple_2s_ease-in-out_infinite] hover:bg-[#9248ed] active:bg-[#8a3ee8] transition-colors"
-            >
-              Apply Now
-            </button>
+            {submitted ? (
+              <div className="flex items-center gap-2 px-6 py-2.5 bg-[#3DD6C3]/20 border border-[#3DD6C3]/30 text-[#3DD6C3] text-sm font-bold rounded-full">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                Applied
+              </div>
+            ) : (
+              <button
+                onClick={scrollToForm}
+                className="px-6 py-2.5 bg-[#a158ff] text-white text-sm font-bold rounded-full animate-[buttonGlowPurple_2s_ease-in-out_infinite] hover:bg-[#9248ed] active:bg-[#8a3ee8] transition-colors"
+              >
+                Apply Now
+              </button>
+            )}
           </div>
         </div>
       </nav>
@@ -231,13 +246,20 @@ export default function FoundingMemberDesktop() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.65 }}
           >
-            <button
-              onClick={scrollToForm}
-              className="inline-flex items-center gap-3 px-10 py-4 bg-[#a158ff] text-white text-lg font-bold rounded-2xl shadow-lg shadow-[#a158ff]/25 hover:bg-[#9248ed] active:bg-[#8a3ee8] hover:scale-[1.02] active:scale-[0.98] transition-all animate-[buttonGlowPurple_2s_ease-in-out_infinite]"
-            >
-              Apply Now
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
-            </button>
+            {submitted ? (
+              <div className="inline-flex items-center gap-3 px-10 py-4 bg-[#3DD6C3]/20 border border-[#3DD6C3]/30 text-[#3DD6C3] text-lg font-bold rounded-2xl">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                Application Submitted
+              </div>
+            ) : (
+              <button
+                onClick={scrollToForm}
+                className="inline-flex items-center gap-3 px-10 py-4 bg-[#a158ff] text-white text-lg font-bold rounded-2xl shadow-lg shadow-[#a158ff]/25 hover:bg-[#9248ed] active:bg-[#8a3ee8] hover:scale-[1.02] active:scale-[0.98] transition-all animate-[buttonGlowPurple_2s_ease-in-out_infinite]"
+              >
+                Apply Now
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
+              </button>
+            )}
           </motion.div>
 
           {/* Scroll hint */}
@@ -603,25 +625,45 @@ export default function FoundingMemberDesktop() {
             transition={{ duration: 0.5 }}
             className="space-y-6"
           >
-            <h2 className="text-3xl md:text-4xl font-extrabold text-white leading-tight">
-              50 spots. Then this{' '}
-              <span className="text-[#a158ff]">closes permanently</span>.
-            </h2>
-            <p className="text-white/40 text-lg leading-relaxed max-w-lg mx-auto">
-              No second round. No waitlist. Lock in your free lifetime spot now.
-            </p>
-            <div className="pt-2">
-              <button
-                onClick={scrollToForm}
-                className="inline-flex items-center gap-3 px-10 py-4 bg-[#a158ff] text-white text-lg font-bold rounded-2xl shadow-lg shadow-[#a158ff]/25 hover:bg-[#9248ed] active:bg-[#8a3ee8] hover:scale-[1.02] active:scale-[0.98] transition-all animate-[buttonGlowPurple_2s_ease-in-out_infinite]"
-              >
-                Apply Now
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
-              </button>
-            </div>
-            <p className="text-white/25 text-sm">
-              {spots} of 50 remaining · $0 forever · No credit card
-            </p>
+            {submitted ? (
+              <>
+                <div className="w-16 h-16 bg-[#3DD6C3]/20 rounded-full flex items-center justify-center mx-auto">
+                  <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                </div>
+                <h2 className="text-3xl md:text-4xl font-extrabold text-white leading-tight">
+                  You&apos;re all set.
+                </h2>
+                <p className="text-white/40 text-lg leading-relaxed max-w-lg mx-auto">
+                  Your application is in. I&apos;ll review it personally and get back to you within 24 hours.
+                </p>
+                <div className="inline-flex items-center gap-3 px-10 py-4 bg-[#3DD6C3]/20 border border-[#3DD6C3]/30 text-[#3DD6C3] text-lg font-bold rounded-2xl">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                  Application Submitted
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="text-3xl md:text-4xl font-extrabold text-white leading-tight">
+                  50 spots. Then this{' '}
+                  <span className="text-[#a158ff]">closes permanently</span>.
+                </h2>
+                <p className="text-white/40 text-lg leading-relaxed max-w-lg mx-auto">
+                  No second round. No waitlist. Lock in your free lifetime spot now.
+                </p>
+                <div className="pt-2">
+                  <button
+                    onClick={scrollToForm}
+                    className="inline-flex items-center gap-3 px-10 py-4 bg-[#a158ff] text-white text-lg font-bold rounded-2xl shadow-lg shadow-[#a158ff]/25 hover:bg-[#9248ed] active:bg-[#8a3ee8] hover:scale-[1.02] active:scale-[0.98] transition-all animate-[buttonGlowPurple_2s_ease-in-out_infinite]"
+                  >
+                    Apply Now
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
+                  </button>
+                </div>
+                <p className="text-white/25 text-sm">
+                  {spots} of 50 remaining · $0 forever · No credit card
+                </p>
+              </>
+            )}
             <div className="pt-6">
               <p className="text-white/40 text-sm">
                 Questions? <a href="mailto:support@agentforlife.app" className="text-[#3DD6C3] underline hover:text-[#3DD6C3]/80 transition-colors">support@agentforlife.app</a>
