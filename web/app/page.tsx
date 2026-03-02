@@ -8,6 +8,12 @@ import { SystemShowcase } from '@/components/SolutionAnimations';
 import DeepDiveTabs from '@/components/DeepDiveTabs';
 
 export default function LandingPage() {
+  useEffect(() => {
+    if (/iphone|ipod|ipad|android|webos|blackberry|iemobile|opera mini|mobile|kindle|silk/i.test(navigator.userAgent)) {
+      window.location.replace('/m');
+    }
+  }, []);
+
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [spotsRemaining, setSpotsRemaining] = useState<number | null>(null);
 
