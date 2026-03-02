@@ -170,7 +170,9 @@ export default function DesktopLanding() {
               transition={{ duration: 0.7, delay: 0.3, ease: [0.25, 0.46, 0.45, 0.94] as const }}
               className="text-5xl lg:text-6xl font-extrabold text-white leading-[1.08] tracking-tight mb-6"
             >
-              Chargebacks happen when clients forget{' '}
+              Chargebacks happen{' '}
+              <span className="text-[#3DD6C3]">(and referrals don&apos;t)</span>
+              {' '}when clients forget{' '}
               <span className="text-[#3DD6C3]">you exist.</span>
             </motion.h1>
 
@@ -335,7 +337,7 @@ export default function DesktopLanding() {
                 },
                 {
                   icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
-                  title: 'Referrals',
+                  title: 'People don\'t refer agents, they refer relationships.',
                   stat: '~99%',
                   statLabel: 'read rate',
                   desc: 'One-tap referral from your app. AI texts via iMessage, qualifies the lead, and books them on your calendar.',
