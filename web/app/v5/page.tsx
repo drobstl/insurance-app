@@ -209,7 +209,7 @@ export default function DesktopLandingV5() {
                 People don&apos;t refer agents, they refer relationships.
               </h2>
               <p className="text-[#6B7280] text-lg leading-relaxed mb-4 max-w-lg">
-                Put a referral button inside every client&apos;s pocket. AI takes it from there.
+                Put a referral button in every client&apos;s pocket. AI takes it from there.
               </p>
               <p className="text-[#6B7280] text-lg leading-relaxed mb-8 max-w-lg">
                 One tap from your client. AI texts the referral via iMessage, qualifies them, and books the appointment on your calendar. You just show up and close.

@@ -370,7 +370,7 @@ export default function MobileLandingV2() {
                       People don&apos;t refer agents, they refer relationships.
                     </h3>
                     <p className="text-black/70 text-[14px] leading-relaxed mt-1.5">
-                      Put a referral button inside every client&apos;s pocket. AI takes it from there.
+                      Put a referral button in every client&apos;s pocket. AI takes it from there.
                     </p>
                   </div>
                   <div className="w-9 h-9 rounded-full bg-[#0D4D4D] flex items-center justify-center flex-shrink-0 mt-1">
