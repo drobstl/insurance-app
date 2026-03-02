@@ -142,7 +142,8 @@ export default function ReferralsDeepDiveDesktop() {
                 </div>
               </div>
               <h1 className="text-5xl lg:text-6xl xl:text-7xl font-extrabold text-[#0D4D4D] leading-[1.05] mb-8">
-                Every client feels like your only client.
+                Your clients refer.<br />
+                AI closes.
               </h1>
               <p className="text-[#0D4D4D]/70 text-lg lg:text-xl leading-relaxed max-w-lg mb-10">
                 One tap from your client. AI texts the referral via iMessage, qualifies them, and books the appointment on your calendar.
@@ -511,7 +512,8 @@ export default function ReferralsDeepDiveDesktop() {
         >
           <div className="max-w-3xl mx-auto text-center space-y-10">
             <h2 className="text-4xl lg:text-5xl xl:text-6xl font-extrabold text-white leading-tight">
-              Every client feels like your only client.
+              Stop chasing referrals.<br />
+              <span className="text-[#fdcc02]">Let them chase you.</span>
             </h2>
             <p className="text-white/40 text-lg lg:text-xl leading-relaxed max-w-xl mx-auto">
               Your clients already trust you. Now they can share that trust with one tap. AI handles everything else.

@@ -68,9 +68,7 @@ export default function RelationshipsDeepDive() {
                 <span className="text-white font-bold text-xs uppercase tracking-wide">Relationships on Autopilot</span>
               </div>
               <h1 className="text-4xl lg:text-5xl xl:text-[3.5rem] font-extrabold text-white leading-[1.1] mb-6">
-                Keep them warm<br />
-                without lifting<br />
-                a finger.
+                Every client feels like your only client.
               </h1>
               <p className="text-white/80 text-lg lg:text-xl leading-relaxed max-w-lg mb-10">
                 7+ personalized touchpoints per year, per client &mdash; completely automatic. Holiday cards, birthday messages, anniversary alerts, and custom push notifications.
