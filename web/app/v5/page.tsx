@@ -206,7 +206,7 @@ export default function DesktopLandingV5() {
                 <span className="text-[#0D4D4D] font-bold text-xs uppercase tracking-wide">One-Tap Referrals</span>
               </div>
               <h2 className="text-3xl lg:text-[2.75rem] font-extrabold text-[#0D4D4D] leading-tight mb-4">
-                Clients pick a contact, your AI handles the rest.
+                Put a referral button inside every client&apos;s pocket. AI takes it from there.
               </h2>
               <p className="text-[#6B7280] text-lg leading-relaxed mb-8 max-w-lg">
                 One tap from your client. AI texts the referral via iMessage, qualifies them, and books the appointment on your calendar. You just show up and close.

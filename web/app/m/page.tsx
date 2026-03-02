@@ -214,9 +214,7 @@ export default function MobileLandingV2() {
               transition={{ duration: 0.6, delay: 0.3 }}
               className="text-[2rem] leading-[1.1] font-extrabold text-white mb-5 tracking-tight"
             >
-              Chargebacks happen{' '}
-              <span className="text-[#3DD6C3]">(and referrals don&apos;t)</span>
-              {' '}when clients forget{' '}
+              Chargebacks happen when clients forget{' '}
               <br />
               <span className="text-[#3DD6C3]">you exist.</span>
             </motion.h1>
@@ -368,7 +366,7 @@ export default function MobileLandingV2() {
                 <p className="text-[14px] text-black mb-1.5">One-Tap Referrals</p>
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="text-[1.3rem] font-extrabold text-black leading-[1.2]">
-                    Clients pick a contact, your AI handles the rest.
+                    Put a referral button inside every client&apos;s pocket. AI takes it from there.
                   </h3>
                   <div className="w-9 h-9 rounded-full bg-[#0D4D4D] flex items-center justify-center flex-shrink-0 mt-1">
                     <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
@@ -381,7 +379,7 @@ export default function MobileLandingV2() {
                     <img src="/screenshot-referral-sent.png" alt="Referral sent confirmation" className="w-full h-auto block" />
                   </div>
                   <div className="w-[60%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden -ml-4 relative z-20">
-                    <img src="/screenshot-referral-message.png" alt="Referral message with business card" className="w-full h-auto block" />
+                    <img src="/screenshot-referral-message.png?v=2" alt="Referral message with business card" className="w-full h-auto block" />
                   </div>
                 </div>
               </div>
@@ -538,7 +536,13 @@ export default function MobileLandingV2() {
             </motion.div>
           ))}
 
-          <motion.div variants={fadeUp} custom={0.4} className="pt-4">
+          <motion.div variants={fadeUp} custom={0.4} className="pt-6 text-center">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-full mb-4">
+              <span className="text-red-400 font-semibold text-xs uppercase tracking-wide">The Leaky Bucket</span>
+            </div>
+            <h3 className="text-[1.35rem] font-extrabold text-[#0D4D4D] leading-tight mb-4">How Much Are You <span className="text-red-400">Bleeding</span> Every Year?</h3>
+          </motion.div>
+          <motion.div variants={fadeUp} custom={0.45} className="pt-2">
             <LeakyBucketCalculator
               initialBookSize={250000}
               initialRetentionRate={70}
