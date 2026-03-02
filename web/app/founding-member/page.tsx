@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
-import confetti from 'canvas-confetti';
+
 
 export default function FoundingMemberPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -82,12 +82,14 @@ export default function FoundingMemberPage() {
 
       setSubmitted(true);
 
-      const brandColors = ['#a158ff', '#3DD6C3', '#fdcc02'];
-      const burst = (angle: number, origin: { x: number; y: number }) =>
-        confetti({ particleCount: 80, spread: 70, angle, origin, colors: brandColors, gravity: 0.9, ticks: 200 });
-      burst(60, { x: 0, y: 0.65 });
-      burst(120, { x: 1, y: 0.65 });
-      setTimeout(() => confetti({ particleCount: 50, spread: 100, origin: { x: 0.5, y: 0.5 }, colors: brandColors, gravity: 0.8, ticks: 180 }), 250);
+      import('canvas-confetti').then(({ default: confetti }) => {
+        const brandColors = ['#a158ff', '#3DD6C3', '#fdcc02'];
+        const burst = (angle: number, origin: { x: number; y: number }) =>
+          confetti({ particleCount: 80, spread: 70, angle, origin, colors: brandColors, gravity: 0.9, ticks: 200 });
+        burst(60, { x: 0, y: 0.65 });
+        burst(120, { x: 1, y: 0.65 });
+        setTimeout(() => confetti({ particleCount: 50, spread: 100, origin: { x: 0.5, y: 0.5 }, colors: brandColors, gravity: 0.8, ticks: 180 }), 250);
+      });
     } catch (err) {
       console.error('Error submitting application:', err);
       setError('Something went wrong. Please try again or email support@agentforlife.app directly.');
