@@ -5,12 +5,6 @@ import { useState, useEffect, useRef } from 'react';
 import { fireConfetti } from '@/lib/confetti';
 
 export default function FoundingMemberPage() {
-  useEffect(() => {
-    if (/iphone|ipod|ipad|android|webos|blackberry|iemobile|opera mini|mobile|kindle|silk/i.test(navigator.userAgent)) {
-      window.location.replace('/founding-member/m');
-    }
-  }, []);
-
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
