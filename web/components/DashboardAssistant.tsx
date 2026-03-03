@@ -4,6 +4,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 
+const MotionDiv = motion.div;
+
 interface Message {
   role: 'user' | 'assistant';
   content: string;
@@ -16,10 +18,15 @@ const SUGGESTED_QUESTIONS = [
   'Where do I change my branding?',
 ];
 
+const LINK_REGEX = /(\[[^\]]+\]\([^)]+\))/g;
+const LINK_MATCH_REGEX = /^\[([^\]]+)\]\(([^)]+)\)$/;
+const BOLD_REGEX = /(\*\*[^*]+\*\*)/g;
+const BOLD_MATCH_REGEX = /^\*\*([^*]+)\*\*$/;
+
 function parseLinks(text: string): React.ReactNode[] {
-  const parts = text.split(/(\[[^\]]+\]\([^)]+\))/g);
+  const parts = text.split(LINK_REGEX);
   return parts.map((part, i) => {
-    const match = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    const match = part.match(LINK_MATCH_REGEX);
     if (match) {
       const [, label, href] = match;
       if (href.startsWith('/dashboard')) {
@@ -44,8 +51,8 @@ function parseLinks(text: string): React.ReactNode[] {
       );
     }
 
-    return part.split(/(\*\*[^*]+\*\*)/).map((seg, j) => {
-      const boldMatch = seg.match(/^\*\*([^*]+)\*\*$/);
+    return part.split(BOLD_REGEX).map((seg, j) => {
+      const boldMatch = seg.match(BOLD_MATCH_REGEX);
       if (boldMatch) return <strong key={`${i}-${j}`}>{boldMatch[1]}</strong>;
       return <span key={`${i}-${j}`}>{seg}</span>;
     });
@@ -111,7 +118,7 @@ export default function DashboardAssistant() {
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Subtle tilt: 7° clockwise then back, on random intervals (only when button shows mascot)
+  // Subtle tilt: 7deg clockwise then back, on random intervals (only when button shows mascot)
   useEffect(() => {
     if (open) return;
     const timers: ReturnType<typeof setTimeout>[] = [];
@@ -292,15 +299,15 @@ export default function DashboardAssistant() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </motion.svg>
           ) : (
-            <motion.div
+            <MotionDiv
               key="mascot"
               initial={{ scale: 0.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.5, opacity: 0 }}
-              transition={{ scale: { duration: 0.15 }, opacity: { duration: 0.15 } }
+              transition={{ scale: { duration: 0.15 }, opacity: { duration: 0.15 } }}
             >
               <PatchMascot size={44} animated winkTrigger={showWink} />
-            </motion.div>
+            </MotionDiv>
           )}
         </AnimatePresence>
       </motion.button>
