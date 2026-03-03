@@ -6,6 +6,11 @@ import LoomVideoModal from '../../../components/LoomVideoModal';
 
 const FAQ_ITEMS = [
   {
+    question: 'Where can I get help using the dashboard?',
+    answer: 'Use Patch — the button in the bottom-right corner on any dashboard page. Patch can answer questions about the dashboard and link you to the right section.',
+    link: { href: '/dashboard', label: 'Go to Dashboard' },
+  },
+  {
     question: 'How do I add a client?',
     answer: 'Go to Clients and click "Add Client" (or import a CSV). Each client gets a unique code. Use the Share button to text them the app download link.',
     link: { href: '/dashboard/clients', label: 'Go to Clients' },
