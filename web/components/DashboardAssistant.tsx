@@ -63,34 +63,36 @@ function ShellyMascot({ size = 40, animated = false }: { size?: number; animated
       xmlns="http://www.w3.org/2000/svg"
       style={{ overflow: 'visible' }}
     >
-      {/* Eyes open: curved lines + tiny dots above */}
+      {/* Eyes + eyebrows open */}
       <g className={animated ? 'shelly-eyes-open' : undefined}>
-        <path d="M19,30 C21,27 25,27 27,30" stroke="#2a2a2a" strokeWidth="1.6" strokeLinecap="round" fill="none" />
-        <circle cx="21" cy="25.5" r="0.9" fill="#2a2a2a" />
-        <path d="M37,29 C39,26 43,26 45,29" stroke="#2a2a2a" strokeWidth="1.6" strokeLinecap="round" fill="none" />
-        <circle cx="43" cy="24.5" r="0.9" fill="#2a2a2a" />
+        {/* Eyebrows (curved arcs above eyes) */}
+        <path d="M16,24 C19,20 25,20 28,24" stroke="#2a2a2a" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+        <path d="M36,23 C39,19 45,19 48,23" stroke="#2a2a2a" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+        {/* Eye dots */}
+        <circle cx="22" cy="31" r="2.5" fill="#2a2a2a" />
+        <circle cx="42" cy="30" r="2.5" fill="#2a2a2a" />
       </g>
 
       {/* Eyes closed (blink) */}
       {animated && (
         <g className="shelly-eyes-closed">
-          <line x1="20" y1="29" x2="26" y2="29" stroke="#2a2a2a" strokeWidth="1.6" strokeLinecap="round" />
-          <line x1="38" y1="28" x2="44" y2="28" stroke="#2a2a2a" strokeWidth="1.6" strokeLinecap="round" />
+          <line x1="18" y1="30" x2="26" y2="30" stroke="#2a2a2a" strokeWidth="2" strokeLinecap="round" />
+          <line x1="38" y1="29" x2="46" y2="29" stroke="#2a2a2a" strokeWidth="2" strokeLinecap="round" />
         </g>
       )}
 
-      {/* Nose/mouth: angular Z-shape */}
-      <path d="M30,36 L30,39 L27,39 M30,39 L34,39" stroke="#2a2a2a" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      {/* Smile */}
+      <path d="M24,40 C28,44 36,44 40,40" stroke="#2a2a2a" strokeWidth="1.8" strokeLinecap="round" fill="none" />
 
       {/* Badge dot */}
-      <circle cx="50" cy="4" r="6" fill="#44bbaa" className={animated ? 'shelly-badge-dot' : undefined} />
+      <circle cx="52" cy="2" r="7" fill="#44bbaa" className={animated ? 'shelly-badge-dot' : undefined} />
 
       {/* Badge infinity */}
       {animated && (
         <path
-          d="M50,4 C60,-6 60,14 50,4 C40,14 40,-6 50,4"
+          d="M52,2 C64,-10 64,14 52,2 C40,14 40,-10 52,2"
           stroke="#44bbaa"
-          strokeWidth="3"
+          strokeWidth="3.2"
           strokeLinecap="round"
           fill="none"
           className="shelly-badge-infinity"
@@ -249,12 +251,12 @@ export default function DashboardAssistant() {
         }
         .shelly-badge-dot {
           transform-box: view-box;
-          transform-origin: 50px 4px;
+          transform-origin: 52px 2px;
           animation: shellyDot 7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
         }
         .shelly-badge-infinity {
           transform-box: view-box;
-          transform-origin: 50px 4px;
+          transform-origin: 52px 2px;
           opacity: 0;
           animation: shellyInfinity 7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
         }
@@ -275,7 +277,7 @@ export default function DashboardAssistant() {
         style={{ overflow: 'visible' }}
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.95 }}
-        aria-label={open ? 'Close assistant' : 'Open assistant'}
+        aria-label={open ? 'Close Patch' : 'Open Patch'}
       >
         <AnimatePresence mode="wait">
           {open ? (
@@ -304,7 +306,7 @@ export default function DashboardAssistant() {
                 y: { duration: 2.8, repeat: Infinity, ease: 'easeInOut', delay: 0.2 },
               }}
             >
-              <ShellyMascot size={36} animated />
+              <ShellyMascot size={44} animated />
             </motion.div>
           )}
         </AnimatePresence>
@@ -326,7 +328,7 @@ export default function DashboardAssistant() {
                 <ShellyMascot size={28} />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-bold leading-tight">Shelly</h3>
+                <h3 className="text-sm font-bold leading-tight">Patch</h3>
                 <p className="text-[11px] text-white/70">Dashboard assistant</p>
               </div>
               <button
@@ -349,7 +351,7 @@ export default function DashboardAssistant() {
                     <ShellyMascot size={56} />
                   </div>
                   <p className="text-sm text-[#505050] font-medium mb-1">
-                    Hi! I&apos;m Shelly.
+                    Hi! I&apos;m Patch.
                   </p>
                   <p className="text-xs text-[#888] mb-4">
                     Ask me anything about the dashboard.
