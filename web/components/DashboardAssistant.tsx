@@ -52,19 +52,22 @@ function parseLinks(text: string): React.ReactNode[] {
   });
 }
 
-function PatchMascot({ size = 40, animated = false }: { size?: number; animated?: boolean }) {
+function PatchMascot({ size = 40, animated = false, winkTrigger }: { size?: number; animated?: boolean; winkTrigger?: boolean }) {
   if (animated) {
+    const showWink = winkTrigger === true;
     return (
       <div className="relative" style={{ width: size, height: size }}>
         <img
           src="/patch-face.png"
           alt="Patch"
-          className="patch-face-open absolute inset-0 w-full h-full object-contain"
+          className="absolute inset-0 w-full h-full object-contain transition-opacity duration-150"
+          style={{ opacity: showWink ? 0 : 1 }}
         />
         <img
           src="/patch-face-wink.png"
           alt="Patch winking"
-          className="patch-face-wink absolute inset-0 w-full h-full object-contain"
+          className="absolute inset-0 w-full h-full object-contain transition-opacity duration-150"
+          style={{ opacity: showWink ? 1 : 0 }}
         />
       </div>
     );
@@ -92,15 +95,70 @@ function AssistantMessage({ content }: { content: string }) {
   );
 }
 
+function randomBetween(min: number, max: number) {
+  return min + Math.random() * (max - min);
+}
+
 export default function DashboardAssistant() {
   const { user } = useDashboard();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
+  const [tiltDeg, setTiltDeg] = useState(0);
+  const [showWink, setShowWink] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Subtle tilt: 7° clockwise then back, on random intervals (only when button shows mascot)
+  useEffect(() => {
+    if (open) return;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const scheduleTilt = () => {
+      timers.push(
+        setTimeout(() => {
+          setTiltDeg(7);
+          timers.push(
+            setTimeout(() => {
+              setTiltDeg(0);
+              scheduleTilt();
+            }, 350),
+          );
+        }, randomBetween(2000, 6000)),
+      );
+    };
+    scheduleTilt();
+    return () => timers.forEach((t) => clearTimeout(t));
+  }, [open]);
+
+  // Wink every now and then, random interval
+  useEffect(() => {
+    if (open) return;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const scheduleWink = () => {
+      timers.push(
+        setTimeout(() => {
+          setShowWink(true);
+          timers.push(
+            setTimeout(() => {
+              setShowWink(false);
+              scheduleWink();
+            }, 220),
+          );
+        }, randomBetween(3000, 8000)),
+      );
+    };
+    scheduleWink();
+    return () => timers.forEach((t) => clearTimeout(t));
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      setTiltDeg(0);
+      setShowWink(false);
+    }
+  }, [open]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -208,30 +266,12 @@ export default function DashboardAssistant() {
 
   return (
     <>
-      {/* Animation keyframes */}
-      <style>{`
-        .patch-face-open {
-          animation: patchWink 5s ease-in-out infinite;
-        }
-        .patch-face-wink {
-          opacity: 0;
-          animation: patchWinkInv 5s ease-in-out infinite;
-        }
-        /* Instant swap only — no crossfade, so no flash; only the eye appears to wink */
-        @keyframes patchWink {
-          0%, 92.9%, 100% { opacity: 1; }
-          93%, 97% { opacity: 0; }
-        }
-        @keyframes patchWinkInv {
-          0%, 92.9%, 100% { opacity: 0; }
-          93%, 97% { opacity: 1; }
-        }
-      `}</style>
-
       {/* Floating mascot button */}
       <motion.button
         onClick={() => setOpen((prev) => !prev)}
         className="fixed bottom-5 right-5 z-50 w-11 h-11 rounded-full flex items-center justify-center bg-transparent border border-gray-200/80 shadow-[0_4px_12px_rgba(0,0,0,0.12)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.15)] p-0 transition-shadow"
+        animate={{ rotate: open ? 0 : tiltDeg }}
+        transition={{ rotate: { duration: 0.35, ease: 'easeInOut' } }}
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.95 }}
         aria-label={open ? 'Close Patch' : 'Open Patch'}
@@ -255,15 +295,11 @@ export default function DashboardAssistant() {
             <motion.div
               key="mascot"
               initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1, y: [0, -2.5, 0] }}
+              animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.5, opacity: 0 }}
-              transition={{
-                scale: { duration: 0.15 },
-                opacity: { duration: 0.15 },
-                y: { duration: 2.8, repeat: Infinity, ease: 'easeInOut', delay: 0.2 },
-              }}
+              transition={{ scale: { duration: 0.15 }, opacity: { duration: 0.15 } }
             >
-              <PatchMascot size={44} animated />
+              <PatchMascot size={44} animated winkTrigger={showWink} />
             </motion.div>
           )}
         </AnimatePresence>
