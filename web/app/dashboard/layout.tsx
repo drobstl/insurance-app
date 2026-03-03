@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { DashboardProvider, useDashboard } from './DashboardContext';
 import OnboardingOverlay from '../../components/OnboardingOverlay';
 import LoomVideoModal from '../../components/LoomVideoModal';
+import DashboardAssistant from '../../components/DashboardAssistant';
 
 function SubscriptionGate({ children }: { children: React.ReactNode }) {
   const { user, loading, agentProfile, handleLogout } = useDashboard();
@@ -476,6 +477,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       )}
+
+      <DashboardAssistant />
     </div>
   );
 }
