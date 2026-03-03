@@ -33,6 +33,11 @@ import {
 
 const POLICY_TYPES = ['IUL', 'Term Life', 'Whole Life', 'Mortgage Protection', 'Accidental', 'Other'];
 const POLICY_STATUSES = ['Active', 'Pending', 'Lapsed'];
+const CLIENT_APP_URL = 'https://agentforlife.app/app';
+const MAX_IMPORT_ROWS = 400;
+const IMPORT_BATCH_SIZE = 50;
+const DEFAULT_INTRO_TEMPLATE =
+  "Hey {{firstName}}, I wanted to do something for you so I put together a free app showing your policies and also a button to reach me anytime. After you download, your code {{code}} will let you in — also say yes to push notifications so I can keep you in the loop on anything important. Download here: https://agentforlife.app/app Looking forward to talking soon! — {{agentName}}";
 import { KNOWN_CARRIER_NAMES } from '../../../lib/carriers';
 
 const KNOWN_CARRIERS = KNOWN_CARRIER_NAMES;
@@ -315,6 +320,10 @@ export default function ClientsPage() {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [importSuccess, setImportSuccess] = useState('');
+  const [justImportedClients, setJustImportedClients] = useState<{ clientId: string; phone: string; firstName: string; clientCode: string }[]>([]);
+  const [introMessage, setIntroMessage] = useState(DEFAULT_INTRO_TEMPLATE);
+  const [sendingIntro, setSendingIntro] = useState(false);
+  const [introSentCount, setIntroSentCount] = useState<number | null>(null);
 
   // ── Anniversary alerts ──
   const [anniversaryAlerts, setAnniversaryAlerts] = useState<AnniversaryAlert[]>([]);
@@ -711,7 +720,7 @@ export default function ClientsPage() {
         if (formData.phone.trim()) {
           const firstName = formData.name.trim().split(' ')[0];
           const agentName = agentProfile.name || 'your agent';
-          const welcomeText = `Hey ${firstName}! ${agentName} here. Download the AgentForLife app and use code ${code} to connect with me. https://agentforlife.app`;
+          const welcomeText = `Hey ${firstName}! ${agentName} here. Download the AgentForLife app and use code ${code} to connect with me. ${CLIENT_APP_URL}`;
           try {
             const token = await user.getIdToken();
             await fetch('/api/client/welcome-sms', {
@@ -952,7 +961,7 @@ export default function ClientsPage() {
       if (clientInfo.phone.trim()) {
         const firstName = clientInfo.name.trim().split(' ')[0];
         const agentNameStr = agentProfile.name || 'your agent';
-        const welcomeText = `Hey ${firstName}! ${agentNameStr} here. Download the AgentForLife app and use code ${code} to connect with me. https://agentforlife.app`;
+        const welcomeText = `Hey ${firstName}! ${agentNameStr} here. Download the AgentForLife app and use code ${code} to connect with me. ${CLIENT_APP_URL}`;
         try {
           const token = await user.getIdToken();
           await fetch('/api/client/welcome-sms', {
@@ -1083,6 +1092,10 @@ export default function ClientsPage() {
           setImportError('No valid rows found in CSV.');
           return;
         }
+        if (rows.length > MAX_IMPORT_ROWS) {
+          setImportError(`Maximum ${MAX_IMPORT_ROWS} clients per import. Your file has ${rows.length} rows. Split the file or import in multiple runs.`);
+          return;
+        }
 
         setImportData(rows);
       } catch {
@@ -1095,110 +1108,90 @@ export default function ClientsPage() {
 
   const handleImportClients = useCallback(async () => {
     if (!user || importData.length === 0) return;
+    if (importData.length > MAX_IMPORT_ROWS) {
+      setImportError(`Maximum ${MAX_IMPORT_ROWS} clients per import. Split your file or import in multiple runs.`);
+      return;
+    }
     setImporting(true);
     setImportProgress(0);
     setImportError('');
     setImportSuccess('');
+    setJustImportedClients([]);
+    setIntroSentCount(null);
 
-    let clientsCreated = 0;
-    let policiesCreated = 0;
+    const allCreated: { clientId: string; phone: string; firstName: string; clientCode: string }[] = [];
+    const chunks: ImportRow[][] = [];
+    for (let i = 0; i < importData.length; i += IMPORT_BATCH_SIZE) {
+      chunks.push(importData.slice(i, i + IMPORT_BATCH_SIZE));
+    }
 
     try {
-      for (let i = 0; i < importData.length; i++) {
-        const row = importData[i];
-        const code = generateClientCode();
-        const clientPayload: Record<string, unknown> = {
-          name: row.name.trim(),
-          email: row.email.trim(),
-          phone: row.phone.trim(),
-          clientCode: code,
-          agentId: user.uid,
-          createdAt: serverTimestamp(),
-        };
-        if (row.dateOfBirth) clientPayload.dateOfBirth = row.dateOfBirth.trim();
-
-        const docRef = await addDoc(collection(db, 'agents', user.uid, 'clients'), clientPayload);
-        try {
-          await Promise.all([
-            setDoc(doc(db, 'clients', docRef.id), clientPayload),
-            setDoc(doc(db, 'clientCodes', code), { agentId: user.uid, clientId: docRef.id }),
-          ]);
-        } catch (mirrorErr) {
-          console.error('Top-level client mirror failed (non-blocking):', mirrorErr);
+      const token = await user.getIdToken();
+      for (let c = 0; c < chunks.length; c++) {
+        const res = await fetch('/api/clients/import-batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ rows: chunks[c] }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `Import failed (${res.status})`);
         }
-        clientsCreated++;
-
-        // Create a policy if any policy field is present
-        const hasPolicy = row.policyNumber || row.carrier || row.policyType || row.premium || row.coverageAmount;
-        if (hasPolicy) {
-          const normType = normalizePolicyType(row.policyType);
-          const normCarrier = row.carrier.trim();
-          const premiumNum = parseFloat(row.premium.replace(/[,$]/g, ''));
-          const coverageNum = parseFloat(row.coverageAmount.replace(/[,$]/g, ''));
-
-          // Normalize effectiveDate to YYYY-MM-DD
-          let effDate: string | null = null;
-          if (row.effectiveDate.trim()) {
-            effDate = normalizeImportDate(row.effectiveDate.trim());
-          }
-
-          const policyPayload: Record<string, unknown> = {
-            policyType: normType,
-            policyNumber: row.policyNumber.trim(),
-            insuranceCompany: normCarrier,
-            policyOwner: row.name.trim(),
-            beneficiaries: [],
-            coverageAmount: isNaN(coverageNum) ? 0 : coverageNum,
-            premiumAmount: isNaN(premiumNum) ? 0 : premiumNum,
-            premiumFrequency: 'monthly',
-            renewalDate: '',
-            effectiveDate: effDate,
-            status: normalizeStatus(row.status),
-          };
-
-          const importToken = await user.getIdToken();
-          await apiCreatePolicy(importToken, docRef.id, policyPayload);
-          policiesCreated++;
-        }
-
-        // Auto-send welcome SMS with code if client has a phone
-        if (row.phone.trim()) {
-          const firstName = row.name.trim().split(' ')[0];
-          const agentDisplayName = agentProfile.name || 'your agent';
-          const welcomeText = `Hey ${firstName}! ${agentDisplayName} here. Download the AgentForLife app and use code ${code} to connect with me. https://agentforlife.app`;
-          try {
-            const smsToken = await user.getIdToken();
-            await fetch('/api/client/welcome-sms', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${smsToken}` },
-              body: JSON.stringify({ clientPhone: row.phone.trim(), message: welcomeText }),
-            });
-          } catch {
-            // Non-blocking: don't fail import if SMS fails
-          }
-        }
-
-        setImportProgress(Math.round(((i + 1) / importData.length) * 100));
+        const { created } = await res.json();
+        if (Array.isArray(created)) allCreated.push(...created);
+        setImportProgress(Math.round(((c + 1) / chunks.length) * 100));
       }
 
-      const parts = [`${clientsCreated} client${clientsCreated !== 1 ? 's' : ''}`];
-      if (policiesCreated > 0) parts.push(`${policiesCreated} ${policiesCreated !== 1 ? 'policies' : 'policy'}`);
+      const clientCount = allCreated.length;
+      const policyCount = chunks.reduce((sum, ch) => sum + ch.filter((r) => r.policyNumber || r.carrier || r.policyType || r.premium || r.coverageAmount).length, 0);
+      const parts = [`${clientCount} client${clientCount !== 1 ? 's' : ''}`];
+      if (policyCount > 0) parts.push(`${policyCount} ${policyCount !== 1 ? 'policies' : 'policy'}`);
       setImportSuccess(`Successfully imported ${parts.join(' and ')}!`);
+      setJustImportedClients(allCreated);
       setImportData([]);
-      if (policiesCreated > 0) refreshSummaries();
+      if (policyCount > 0) refreshSummaries();
     } catch (err) {
       console.error('Error importing clients:', err);
-      setImportError('Failed to import some records. Please try again.');
+      setImportError(err instanceof Error ? err.message : 'Failed to import some records. Please try again.');
     } finally {
       setImporting(false);
     }
-  }, [user, importData]);
+  }, [user, importData, refreshSummaries]);
+
+  const handleSendBulkIntro = useCallback(async () => {
+    const withPhone = justImportedClients.filter((r) => r.phone.trim());
+    if (!user || withPhone.length === 0) return;
+    setSendingIntro(true);
+    const messageToSend = introMessage.trim() || DEFAULT_INTRO_TEMPLATE;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/client/send-bulk-intro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          messageTemplate: messageToSend,
+          recipients: withPhone.map((r) => ({ phone: r.phone, firstName: r.firstName, code: r.clientCode })),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Send failed (${res.status})`);
+      }
+      const data = await res.json();
+      setIntroSentCount(data.sent ?? 0);
+    } catch (err) {
+      console.error('Send bulk intro error:', err);
+      setImportError(err instanceof Error ? err.message : 'Failed to send intro messages.');
+    } finally {
+      setSendingIntro(false);
+    }
+  }, [user, justImportedClients, introMessage]);
 
   // ─── Share Code Handler ──────────────────────────────────
 
   const handleShareCode = useCallback(async (client: Client) => {
     const firstName = client.name.split(' ')[0];
-    const message = `Hey ${firstName}! Download the AgentForLife app and use code ${client.clientCode} to connect with me. https://agentforlife.app`;
+    const message = `Hey ${firstName}! Download the AgentForLife app and use code ${client.clientCode} to connect with me. ${CLIENT_APP_URL}`;
     try {
       await navigator.clipboard.writeText(message);
       setCopiedClientId(client.id);
@@ -1297,6 +1290,9 @@ export default function ClientsPage() {
               setImportError('');
               setImportSuccess('');
               setImportProgress(0);
+              setJustImportedClients([]);
+              setIntroMessage(DEFAULT_INTRO_TEMPLATE);
+              setIntroSentCount(null);
             }}
             className="px-4 py-2.5 bg-white hover:bg-gray-50 text-[#000000] font-semibold rounded-[5px] border border-[#d0d0d0] transition-colors flex items-center gap-2 text-sm"
           >
@@ -1759,19 +1755,83 @@ export default function ClientsPage() {
 
             <div className="p-6 space-y-4">
               {importSuccess ? (
-                <div className="text-center py-6">
-                  <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg className="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <p className="text-lg font-bold text-[#000000] mb-2">{importSuccess}</p>
                   </div>
-                  <p className="text-lg font-bold text-[#000000] mb-2">{importSuccess}</p>
-                  <button
-                    onClick={() => setIsImportModalOpen(false)}
-                    className="px-6 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors text-sm"
-                  >
-                    Done
-                  </button>
+                  {introSentCount !== null ? (
+                    <div className="text-center">
+                      <p className="text-[#0D4D4D] font-semibold mb-4">Sent to {introSentCount} client{introSentCount !== 1 ? 's' : ''}.</p>
+                      <button
+                        onClick={() => {
+                          setIsImportModalOpen(false);
+                          setImportSuccess('');
+                          setJustImportedClients([]);
+                          setIntroMessage(DEFAULT_INTRO_TEMPLATE);
+                          setIntroSentCount(null);
+                        }}
+                        className="px-6 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors text-sm"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  ) : (() => {
+                    const withPhone = justImportedClients.filter((r) => r.phone.trim());
+                    if (withPhone.length === 0) {
+                      return (
+                        <button
+                          onClick={() => {
+                            setIsImportModalOpen(false);
+                            setImportSuccess('');
+                            setJustImportedClients([]);
+                            setIntroMessage(DEFAULT_INTRO_TEMPLATE);
+                            setIntroSentCount(null);
+                          }}
+                          className="w-full px-6 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors text-sm"
+                        >
+                          Done
+                        </button>
+                      );
+                    }
+                    return (
+                      <div className="space-y-3">
+                        <p className="text-sm text-[#707070]">
+                          Send a custom intro to clients with phone numbers. Use <strong>{'{{firstName}}'}</strong>, <strong>{'{{code}}'}</strong>, and <strong>{'{{agentName}}'}</strong> in your message.
+                        </p>
+                        <textarea
+                          value={introMessage}
+                          onChange={(e) => setIntroMessage(e.target.value)}
+                          rows={6}
+                          className="w-full px-3 py-2 border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] placeholder-[#707070] focus:outline-none focus:border-[#45bcaa] resize-y"
+                          placeholder={DEFAULT_INTRO_TEMPLATE}
+                        />
+                        <p className="text-xs text-[#707070]">If you leave this blank, we&apos;ll send the default message above.</p>
+                        <p className="text-xs text-[#707070]">Will send to {withPhone.length} client{withPhone.length !== 1 ? 's' : ''} (with phone numbers).</p>
+                        <button
+                          onClick={handleSendBulkIntro}
+                          disabled={sendingIntro}
+                          className="w-full py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] transition-colors flex items-center justify-center gap-2 text-sm"
+                        >
+                          {sendingIntro ? (
+                            <>
+                              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                              Sending...
+                            </>
+                          ) : (
+                            `Send intro to ${withPhone.length} client${withPhone.length !== 1 ? 's' : ''}`
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               ) : (
                 <>
@@ -1884,6 +1944,9 @@ export default function ClientsPage() {
                         </div>
                       )}
 
+                      {importData.length > MAX_IMPORT_ROWS && (
+                        <p className="text-xs text-red-600">Maximum {MAX_IMPORT_ROWS} clients per import. Split your file or import in multiple runs.</p>
+                      )}
                       <div className="flex gap-3">
                         <button
                           type="button"
@@ -1898,7 +1961,7 @@ export default function ClientsPage() {
                         </button>
                         <button
                           onClick={handleImportClients}
-                          disabled={importing}
+                          disabled={importing || importData.length > MAX_IMPORT_ROWS}
                           className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] transition-colors flex items-center justify-center gap-2 text-sm"
                         >
                           {importing ? (

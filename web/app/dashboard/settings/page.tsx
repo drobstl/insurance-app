@@ -542,7 +542,7 @@ export default function SettingsPage() {
             <textarea
               value={agentProfile.referralMessage || ''}
               onChange={(e) => updateField('referralMessage', e.target.value)}
-              placeholder="Hi [referral], [client] thought you might benefit from a quick insurance review. I'm [agent] and I'd love to help..."
+              placeholder="Hey [referral], wanted to connect you with my insurance agent [agent]. They just got my family's finances protected and I thought they might be able to help you too. They'll probably reach out — super easy to talk to."
               rows={4}
               className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa] resize-none"
             />
@@ -556,7 +556,7 @@ export default function SettingsPage() {
                 </span>
               ))}
             </div>
-            <p className="text-xs text-[#707070] mt-1.5">Use placeholders above. They&rsquo;ll be replaced with real names when sent.</p>
+            <p className="text-xs text-[#707070] mt-1.5">Unless you change it, this is the default message clients send when they refer someone. Use the placeholders above; they&rsquo;re replaced with real names when sent.</p>
           </div>
 
           {/* Holiday Cards */}

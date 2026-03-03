@@ -6,6 +6,11 @@ import LoomVideoModal from '../../../components/LoomVideoModal';
 
 const FAQ_ITEMS = [
   {
+    question: 'Where can I get help using the dashboard?',
+    answer: 'Use Patch — the button in the bottom-right corner on any dashboard page. Patch can answer questions about the dashboard and link you to the right section.',
+    link: { href: '/dashboard', label: 'Go to Dashboard' },
+  },
+  {
     question: 'How do I add a client?',
     answer: 'Go to Clients and click "Add Client" (or import a CSV). Each client gets a unique code. Use the Share button to text them the app download link.',
     link: { href: '/dashboard/clients', label: 'Go to Clients' },
@@ -17,7 +22,7 @@ const FAQ_ITEMS = [
   },
   {
     question: 'How do I handle a lapse or at-risk policy?',
-    answer: 'Go to Retention and paste the lapse notice. Or forward the carrier email to ai@savepolicy.agentforlife.app. We\u2019ll match it to a client and track outreach.',
+    answer: 'Forward the carrier\u2019s lapse notice to ai@savepolicy.agentforlife.app, or open the client in Clients, open the policy, and click "Flag at risk". We\u2019ll match it and track outreach on the Retention page.',
     link: { href: '/dashboard/conservation', label: 'Go to Retention' },
   },
   {

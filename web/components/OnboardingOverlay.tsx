@@ -58,7 +58,7 @@ const STEPS = [
       </svg>
     ),
     title: 'Find Your Way Around',
-    description: 'Use the sidebar on the left to switch between sections — Clients, Referrals, Retention, Rewrites, and more. Each section will show a quick tip the first time you visit.',
+    description: 'Use the sidebar on the left to switch between sections — Clients, Referrals, Retention, Rewrites, and more. Each section will show a quick tip the first time you visit. If you have questions, use Patch in the bottom-right corner — Patch can answer how-to questions and point you to the right place.',
     buttonLabel: "Let's Go",
     action: 'finish' as const,
   },
