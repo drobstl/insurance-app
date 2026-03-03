@@ -230,7 +230,7 @@ export default function DashboardAssistant() {
       {/* Floating mascot button */}
       <motion.button
         onClick={() => setOpen((prev) => !prev)}
-        className="fixed bottom-5 right-5 z-50 w-12 h-12 rounded-full flex items-center justify-center bg-transparent border-0 p-0"
+        className="fixed bottom-5 right-5 z-50 w-14 h-14 rounded-full flex items-center justify-center bg-transparent border-0 p-0"
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.95 }}
         aria-label={open ? 'Close Patch' : 'Open Patch'}
@@ -262,7 +262,7 @@ export default function DashboardAssistant() {
                 y: { duration: 2.8, repeat: Infinity, ease: 'easeInOut', delay: 0.2 },
               }}
             >
-              <PatchMascot size={48} animated />
+              <PatchMascot size={56} animated />
             </motion.div>
           )}
         </AnimatePresence>
