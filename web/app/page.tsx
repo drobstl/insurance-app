@@ -140,7 +140,7 @@ export default function LandingPage() {
               <span className="text-base sm:text-lg md:text-xl text-white brand-title truncate">AgentForLife</span>
             </Link>
             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-              <Link href="/login" className="px-3 py-1.5 sm:px-4 sm:py-2 text-white border border-white/50 hover:border-white hover:bg-white/10 rounded-full text-sm sm:text-base font-medium transition-colors">Agent Login</Link>
+              <Link href="/login" className="text-white/80 hover:text-white transition-colors text-sm sm:text-base">Login</Link>
               <Link href="/signup" className="px-3 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-sm sm:text-base font-semibold rounded-full transition-colors whitespace-nowrap">Get Started</Link>
             </div>
           </div>
@@ -579,7 +579,7 @@ export default function LandingPage() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-2"><img src="/logo.png" alt="AgentForLife Logo" className="w-12 h-7 object-contain" /><span className="text-xl text-white brand-title">AgentForLife</span></div>
             <nav className="flex flex-wrap justify-center gap-6">
-              <Link href="/login" className="text-white/70 hover:text-white transition-colors">Agent Login</Link>
+              <Link href="/login" className="text-white/70 hover:text-white transition-colors">Login</Link>
               <a href="mailto:support@agentforlife.app" className="text-white/70 hover:text-white transition-colors">Contact</a>
               <Link href="/privacy" className="text-white/70 hover:text-white transition-colors">Privacy</Link>
               <Link href="/terms" className="text-white/70 hover:text-white transition-colors">Terms</Link>
@@ -605,17 +605,12 @@ export default function LandingPage() {
               {spotsRemaining !== null ? <><span className="text-[#fdcc02]">{spotsRemaining}</span> free spots left</> : 'Free spots available'}
             </span>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <Link href="/login" className="px-4 py-2 text-white/90 hover:text-white text-sm font-medium">
-              Login
-            </Link>
-            <Link
-              href="/founding-member"
-              className="px-5 py-2.5 bg-[#fdcc02] text-[#0D4D4D] text-sm font-bold rounded-full whitespace-nowrap"
-            >
-              Claim Free Spot
-            </Link>
-          </div>
+          <Link
+            href="/founding-member"
+            className="flex-shrink-0 px-5 py-2.5 bg-[#fdcc02] text-[#0D4D4D] text-sm font-bold rounded-full whitespace-nowrap"
+          >
+            Claim Free Spot
+          </Link>
         </div>
       </div>
     </div>

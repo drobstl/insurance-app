@@ -211,7 +211,7 @@ export default function DashboardHomePage() {
 
       {!agentProfile.tipsSeen?.home && (
         <SectionTipCard onDismiss={() => dismissTip('home')}>
-          This is your command center. Stats, action items, and summaries update in real time. Start by adding clients on the Clients page. Questions? Ask Patch in the bottom-right corner.
+          This is your command center. Stats, action items, and summaries update in real time. Start by adding clients on the Clients page.
         </SectionTipCard>
       )}
 

@@ -86,10 +86,8 @@ export default function FoundingMemberMobile() {
       }
 
       setSubmitted(true);
+
       fireConfetti();
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
-      });
     } catch (err) {
       console.error('Error submitting application:', err);
       setError('Something went wrong. Please try again or email support@agentforlife.app directly.');
@@ -454,14 +452,14 @@ export default function FoundingMemberMobile() {
               </motion.form>
             </motion.div>
           ) : (
-            /* ═══ Confirmation only — What I'm Asking From You stays in email ═══ */
+            /* ═══ Confirmation + What I'm Asking From You ═══ */
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5 }}
               className="py-8"
             >
-              <div className="text-center">
+              <div className="text-center mb-10">
                 <div className="w-16 h-16 bg-[#3DD6C3] rounded-full flex items-center justify-center mx-auto mb-6">
                   <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                 </div>
@@ -472,6 +470,31 @@ export default function FoundingMemberMobile() {
                   I&apos;ll personally review your application and get back to you within 24 hours. Keep an eye on your inbox.
                 </p>
                 <p className="text-[#3DD6C3] font-semibold">— Daniel Roberts</p>
+              </div>
+
+              <div className="border-t border-white/10 pt-10 space-y-4">
+                <h3 className="text-xl font-extrabold text-white mb-1">
+                  What I&apos;m Asking From You
+                </h3>
+                <p className="text-white/40 text-[14px] mb-5">The deal is simple. Free access for real feedback.</p>
+
+                {[
+                  { emoji: '🏢', text: 'Use it with real clients — not just a test account' },
+                  { emoji: '📝', text: "Give honest feedback weekly — what's broken, what's missing, no sugarcoating. Takes 2 minutes in-app." },
+                  { emoji: '📅', text: 'Commit for 60 days' },
+                ].map((item, i) => (
+                  <div
+                    key={i}
+                    className="flex items-start gap-3.5 bg-white/[0.06] rounded-xl p-4 border border-white/10"
+                  >
+                    <span className="text-xl flex-shrink-0">{item.emoji}</span>
+                    <p className="text-white/80 text-[14px] leading-relaxed font-medium">{item.text}</p>
+                  </div>
+                ))}
+
+                <p className="text-white/30 text-[13px] italic text-center pt-3">
+                  &ldquo;Help me build something made by agents, for agents.&rdquo;
+                </p>
               </div>
             </motion.div>
           )}

@@ -61,20 +61,12 @@ export default function DesktopLandingV5() {
             <a href="#pricing" className="text-white/50 hover:text-white/80 text-sm font-medium transition-colors">Pricing</a>
             <a href="#faq" className="text-white/50 hover:text-white/80 text-sm font-medium transition-colors">FAQ</a>
           </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/login"
-              className="text-white/90 hover:text-white text-sm font-medium transition-colors"
-            >
-              Agent Login
-            </Link>
-            <Link
-              href="/founding-member"
-              className="px-5 py-2.5 bg-[#fdcc02] text-[#0D4D4D] text-sm font-bold rounded-full hover:bg-[#fdcc02]/90 transition-colors"
-            >
-              Get Started Free
-            </Link>
-          </div>
+          <Link
+            href="/founding-member"
+            className="px-5 py-2.5 bg-[#fdcc02] text-[#0D4D4D] text-sm font-bold rounded-full hover:bg-[#fdcc02]/90 transition-colors"
+          >
+            Get Started Free
+          </Link>
         </div>
       </nav>
 
@@ -728,7 +720,7 @@ export default function DesktopLandingV5() {
             <span className="text-lg text-white brand-title">AgentForLife</span>
           </div>
           <nav className="flex items-center gap-8">
-            <Link href="/login" className="text-white/70 text-sm hover:text-white transition-colors">Agent Login</Link>
+            <Link href="/login" className="text-white/40 text-sm hover:text-white/60 transition-colors">Login</Link>
             <a href="mailto:support@agentforlife.app" className="text-white/40 text-sm hover:text-white/60 transition-colors">Contact</a>
             <Link href="/privacy" className="text-white/40 text-sm hover:text-white/60 transition-colors">Privacy</Link>
             <Link href="/terms" className="text-white/40 text-sm hover:text-white/60 transition-colors">Terms</Link>

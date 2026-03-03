@@ -278,7 +278,7 @@ export default function AgentProfileScreen() {
 
       let message = referralMessage;
       if (!message || message === 'undefined' || message === 'null') {
-        message = `Hey [referral], wanted to connect you with my insurance agent [agent]. They just got my family's finances protected and I thought they might be able to help you too. They'll probably reach out — super easy to talk to.`;
+        message = `Hey [referral], I wanted to connect you with my insurance agent [agent]. They helped me get my family's finances protected and I thought they might be able to help you too. They'll probably reach out — super easy to talk to.`;
       }
 
       // Replace placeholders

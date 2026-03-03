@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useRouter } from 'next/navigation';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 
 interface Message {
@@ -53,63 +52,30 @@ function parseLinks(text: string): React.ReactNode[] {
   });
 }
 
-function ShellyMascot({ size = 40, animated = false }: { size?: number; animated?: boolean }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 64 64"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      {/* Left eye (open) */}
-      <g className={animated ? 'shelly-eye-open' : undefined}>
-        <ellipse cx="21" cy="27" rx="5.5" ry="6.5" fill="#2a2a2a" />
-      </g>
-
-      {/* Left eye (wink) */}
-      {animated && (
-        <path
-          d="M15,28 C17.5,23 24.5,23 27,28"
-          stroke="#2a2a2a"
-          strokeWidth="2.4"
-          strokeLinecap="round"
-          fill="none"
-          className="shelly-eye-wink"
+function PatchMascot({ size = 40, animated = false }: { size?: number; animated?: boolean }) {
+  if (animated) {
+    return (
+      <div className="relative" style={{ width: size, height: size }}>
+        <img
+          src="/shelly-face.png"
+          alt="Patch"
+          className="patch-face-open absolute inset-0 w-full h-full object-contain"
         />
-      )}
-
-      {/* Right eye patch */}
-      <path
-        d="M36,19 C39,17 47,18 48,22 C49,27 47,33 44,35 C41,37 37,35 36,31 C35,27 35,22 36,19Z"
-        fill="#2a2a2a"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M40,18 C41,14 43,12 44,11"
-        stroke="#2a2a2a"
-        strokeWidth="2"
-        strokeLinecap="round"
-        fill="none"
-      />
-      <path
-        d="M46,22 C49,20 51,19 53,18"
-        stroke="#2a2a2a"
-        strokeWidth="2"
-        strokeLinecap="round"
-        fill="none"
-      />
-
-      {/* Smile */}
-      <path
-        d="M14,42 C20,52 44,53 50,42"
-        stroke="#2a2a2a"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </svg>
+        <img
+          src="/shelly-face-wink.png"
+          alt="Patch winking"
+          className="patch-face-wink absolute inset-0 w-full h-full object-contain"
+        />
+      </div>
+    );
+  }
+  return (
+    <img
+      src="/shelly-face.png"
+      alt="Patch"
+      style={{ width: size, height: size }}
+      className="object-contain"
+    />
   );
 }
 
@@ -128,7 +94,6 @@ function AssistantMessage({ content }: { content: string }) {
 
 export default function DashboardAssistant() {
   const { user } = useDashboard();
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -245,18 +210,18 @@ export default function DashboardAssistant() {
     <>
       {/* Animation keyframes */}
       <style>{`
-        .shelly-eye-open {
-          animation: shellyWink 5s ease-in-out infinite;
+        .patch-face-open {
+          animation: patchWink 5s ease-in-out infinite;
         }
-        .shelly-eye-wink {
+        .patch-face-wink {
           opacity: 0;
-          animation: shellyWinkInv 5s ease-in-out infinite;
+          animation: patchWinkInv 5s ease-in-out infinite;
         }
-        @keyframes shellyWink {
+        @keyframes patchWink {
           0%, 93%, 100% { opacity: 1; }
           95.5%, 98% { opacity: 0; }
         }
-        @keyframes shellyWinkInv {
+        @keyframes patchWinkInv {
           0%, 93%, 100% { opacity: 0; }
           95.5%, 98% { opacity: 1; }
         }
@@ -265,8 +230,7 @@ export default function DashboardAssistant() {
       {/* Floating mascot button */}
       <motion.button
         onClick={() => setOpen((prev) => !prev)}
-        className="fixed bottom-5 right-5 z-50 w-12 h-12 rounded-full shadow-md hover:shadow-lg transition-shadow flex items-center justify-center border border-[#e0e0e0] bg-white"
-        style={{ overflow: 'visible' }}
+        className="fixed bottom-5 right-5 z-50 w-12 h-12 rounded-full shadow-md hover:shadow-lg transition-shadow flex items-center justify-center bg-white"
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.95 }}
         aria-label={open ? 'Close Patch' : 'Open Patch'}
@@ -298,7 +262,7 @@ export default function DashboardAssistant() {
                 y: { duration: 2.8, repeat: Infinity, ease: 'easeInOut', delay: 0.2 },
               }}
             >
-              <ShellyMascot size={44} animated />
+              <PatchMascot size={44} animated />
             </motion.div>
           )}
         </AnimatePresence>
@@ -316,8 +280,8 @@ export default function DashboardAssistant() {
           >
             {/* Header */}
             <div className="flex items-center gap-3 px-4 py-3 bg-[#005851] text-white shrink-0">
-              <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0">
-                <ShellyMascot size={28} />
+              <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0 overflow-hidden">
+                <PatchMascot size={28} />
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-bold leading-tight">Patch</h3>
@@ -340,7 +304,7 @@ export default function DashboardAssistant() {
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center text-center pt-4 pb-2">
                   <div className="mb-3 opacity-80">
-                    <ShellyMascot size={56} />
+                    <PatchMascot size={56} />
                   </div>
                   <p className="text-sm text-[#505050] font-medium mb-1">
                     Hi! I&apos;m Patch.

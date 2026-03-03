@@ -1,12 +1,3 @@
-/**
- * Landing-page routing for agentforlife.app
- *
- * Root (/) is rewritten by device:
- *   - Mobile  → /m   (app/m/page.tsx)
- *   - Desktop → /v5  (app/v5/page.tsx)
- *
- * These are the only two landing pages we maintain. See LANDING_PAGES.md.
- */
 import { NextRequest, NextResponse } from 'next/server';
 
 function isMobile(userAgent: string | null): boolean {

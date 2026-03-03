@@ -271,7 +271,7 @@ export default function ConservationPage() {
 
       {!agentProfile.tipsSeen?.conservation && (
         <SectionTipCard onDismiss={() => dismissTip('conservation')}>
-          Forward the carrier&rsquo;s lapse notice to ai@savepolicy.agentforlife.app, or flag a policy as at-risk from the client&rsquo;s profile (open the client, then the policy, and use &ldquo;Flag at risk&rdquo;). We&rsquo;ll match it and track outreach for you.
+          Paste a lapse notice or forward the carrier email to ai@savepolicy.agentforlife.app. We&rsquo;ll match it to a client and track outreach for you.
         </SectionTipCard>
       )}
 
