@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
+import SectionTipCard from '../../../components/SectionTipCard';
 
 interface ReviewMessage {
   role: 'client' | 'agent-ai' | 'agent-manual';
@@ -56,7 +57,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function PolicyReviewsPage() {
-  const { user, loading } = useDashboard();
+  const { user, loading, agentProfile, dismissTip } = useDashboard();
   const [reviews, setReviews] = useState<PolicyReviewUI[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [expandedReview, setExpandedReview] = useState<string | null>(null);
@@ -175,6 +176,12 @@ export default function PolicyReviewsPage() {
         <h1 className="text-2xl font-bold text-[#0D4D4D]">Rewrites</h1>
         <p className="text-[#6B7280] text-sm mt-1">Anniversary-based rewrite campaigns powered by AI.</p>
       </div>
+
+      {!agentProfile.tipsSeen?.policyReviews && (
+        <SectionTipCard onDismiss={() => dismissTip('policyReviews')}>
+          Policy-anniversary outreach lives here. When a client&rsquo;s policy hits its one-year mark, AI reaches out to see if a rewrite makes sense. Toggle on/off in Settings.
+        </SectionTipCard>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">

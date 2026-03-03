@@ -6,6 +6,7 @@ import { collection, onSnapshot, query, orderBy, Timestamp } from 'firebase/fire
 import { db } from '../../firebase';
 import { useDashboard } from './DashboardContext';
 import { getAnniversaryDate, daysUntilAnniversary, formatCurrency } from '../../lib/policyUtils';
+import SectionTipCard from '../../components/SectionTipCard';
 
 interface Client {
   id: string;
@@ -55,7 +56,7 @@ interface AnniversaryAlert {
 
 export default function DashboardHomePage() {
   const router = useRouter();
-  const { user, loading } = useDashboard();
+  const { user, loading, agentProfile, dismissTip } = useDashboard();
 
   const [clients, setClients] = useState<Client[]>([]);
   const [totalActive, setTotalActive] = useState(0);
@@ -207,6 +208,12 @@ export default function DashboardHomePage() {
         <h1 className="text-2xl font-bold text-[#000000]">Dashboard</h1>
         <p className="text-[#707070] text-sm mt-1">Here&rsquo;s what needs your attention today.</p>
       </div>
+
+      {!agentProfile.tipsSeen?.home && (
+        <SectionTipCard onDismiss={() => dismissTip('home')}>
+          This is your command center. Stats, action items, and summaries update in real time. Start by adding clients on the Clients page.
+        </SectionTipCard>
+      )}
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">

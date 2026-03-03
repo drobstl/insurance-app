@@ -1,17 +1,90 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import LoomVideoModal from '../../../components/LoomVideoModal';
+
+const FAQ_ITEMS = [
+  {
+    question: 'How do I add a client?',
+    answer: 'Go to Clients and click "Add Client" (or import a CSV). Each client gets a unique code. Use the Share button to text them the app download link.',
+    link: { href: '/dashboard/clients', label: 'Go to Clients' },
+  },
+  {
+    question: 'How do I turn on the referral AI?',
+    answer: 'Go to Settings, then the Referral & AI tab. Upload your business card and add a scheduling link first, then flip the toggle.',
+    link: { href: '/dashboard/settings', label: 'Go to Settings' },
+  },
+  {
+    question: 'How do I handle a lapse or at-risk policy?',
+    answer: 'Go to Retention and paste the lapse notice. Or forward the carrier email to ai@savepolicy.agentforlife.app. We\u2019ll match it to a client and track outreach.',
+    link: { href: '/dashboard/conservation', label: 'Go to Retention' },
+  },
+  {
+    question: 'Where do referrals from my app show up?',
+    answer: 'On the Referrals page. If the AI assistant is on, it texts the referral automatically and qualifies them.',
+    link: { href: '/dashboard/referrals', label: 'Go to Referrals' },
+  },
+  {
+    question: 'How do I change my photo or branding?',
+    answer: 'Settings \u2192 Profile tab (photo, phone, scheduling link) and Branding tab (agency logo, business card).',
+    link: { href: '/dashboard/settings', label: 'Go to Settings' },
+  },
+  {
+    question: 'What are Rewrites?',
+    answer: 'When a client\u2019s policy hits its 1-year anniversary, AI can text them to explore better rates. Managed on the Rewrites page; toggle on/off in Settings.',
+    link: { href: '/dashboard/policy-reviews', label: 'Go to Rewrites' },
+  },
+];
 
 export default function ResourcesPage() {
   const [showTutorialVideo, setShowTutorialVideo] = useState(false);
   const [showWorkflowVideo, setShowWorkflowVideo] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#000000]">Resources</h1>
         <p className="text-[#707070] text-sm mt-1">Downloadable tools and scripts to help you succeed.</p>
+      </div>
+
+      {/* How do I...? */}
+      <div className="bg-white rounded-[5px] border border-[#d0d0d0] mb-6">
+        <div className="px-4 py-3 border-b border-[#d0d0d0]">
+          <h2 className="text-sm font-semibold text-[#000000]">How do I&hellip;?</h2>
+        </div>
+        <div className="divide-y divide-[#d0d0d0]">
+          {FAQ_ITEMS.map((item, i) => (
+            <div key={i}>
+              <button
+                onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                className="flex items-center justify-between w-full px-4 py-3 hover:bg-[#f8f8f8] transition-colors text-left"
+              >
+                <span className="text-sm font-medium text-[#000000]">{item.question}</span>
+                <svg
+                  className={`w-4 h-4 text-[#707070] shrink-0 transition-transform duration-200 ${openFaq === i ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {openFaq === i && (
+                <div className="px-4 pb-3">
+                  <p className="text-sm text-[#707070] leading-relaxed">{item.answer}</p>
+                  <Link
+                    href={item.link.href}
+                    className="inline-block mt-2 text-xs font-medium text-[#005851] hover:text-[#003d38] hover:underline"
+                  >
+                    {item.link.label} &rarr;
+                  </Link>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Video Tutorials */}

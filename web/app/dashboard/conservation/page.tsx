@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { collection, doc, onSnapshot, query, orderBy, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
+import SectionTipCard from '../../../components/SectionTipCard';
 
 interface ConservationMessageUI {
   role: 'client' | 'agent-ai' | 'agent-manual';
@@ -48,7 +49,7 @@ interface ConservationAlertUI {
 }
 
 export default function ConservationPage() {
-  const { user, loading } = useDashboard();
+  const { user, loading, agentProfile, dismissTip } = useDashboard();
 
   const [alerts, setAlerts] = useState<ConservationAlertUI[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(false);
@@ -267,6 +268,12 @@ export default function ConservationPage() {
         <h1 className="text-2xl font-bold text-[#000000]">Retention</h1>
         <p className="text-[#707070] text-sm mt-1">Track and save at-risk policies before they lapse.</p>
       </div>
+
+      {!agentProfile.tipsSeen?.conservation && (
+        <SectionTipCard onDismiss={() => dismissTip('conservation')}>
+          Paste a lapse notice or forward the carrier email to ai@savepolicy.agentforlife.app. We&rsquo;ll match it to a client and track outreach for you.
+        </SectionTipCard>
+      )}
 
       {/* Summary Stats */}
       {hasAlerts && (

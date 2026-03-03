@@ -827,6 +827,26 @@ export default function SettingsPage() {
               </div>
             )}
           </div>
+
+          {/* Section Tips */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-2">Section Tips</h3>
+            <p className="text-sm text-[#707070] mb-3">Re-show the help tips that appear when you first visit each dashboard section.</p>
+            <button
+              onClick={async () => {
+                if (!user) return;
+                try {
+                  await setDoc(doc(db, 'agents', user.uid), { tipsSeen: {} }, { merge: true });
+                  setAgentProfile(prev => ({ ...prev, tipsSeen: {} }));
+                } catch (err) {
+                  console.error('Error resetting tips:', err);
+                }
+              }}
+              className="px-4 py-2 text-sm font-medium text-[#005851] border border-[#005851] rounded-[5px] hover:bg-[#005851] hover:text-white transition-colors"
+            >
+              Reset Tips
+            </button>
+          </div>
         </div>
       )}
 

@@ -18,6 +18,7 @@ import { auth, db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
 import ClientDetailModal from '../../../components/ClientDetailModal';
 import ApplicationUpload from '../../../components/ApplicationUpload';
+import SectionTipCard from '../../../components/SectionTipCard';
 import type { ExtractedApplicationData, Beneficiary } from '../../../lib/types';
 import {
   formatCurrency,
@@ -254,7 +255,7 @@ async function apiDeletePolicy(token: string, clientId: string, policyId?: strin
 // ─── Component ─────────────────────────────────────────────
 
 export default function ClientsPage() {
-  const { user, agentProfile, loading } = useDashboard();
+  const { user, agentProfile, loading, dismissTip } = useDashboard();
 
   // ── Client state ──
   const [clients, setClients] = useState<Client[]>([]);
@@ -1227,6 +1228,12 @@ export default function ClientsPage() {
         <h1 className="text-2xl font-bold text-[#000000]">Clients</h1>
         <p className="text-[#707070] text-sm mt-1">Manage your clients, policies, and applications.</p>
       </div>
+
+      {!agentProfile.tipsSeen?.clients && (
+        <SectionTipCard onDismiss={() => dismissTip('clients')}>
+          Add clients here &mdash; each gets a unique code. Use the Share button to text them the download link for your branded app.
+        </SectionTipCard>
+      )}
 
       {/* Anniversary Alert Banner */}
       {anniversaryAlerts.length > 0 && !anniversaryDismissed && (

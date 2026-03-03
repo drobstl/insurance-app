@@ -50,6 +50,18 @@ const STEPS = [
     buttonLabel: 'Go to Clients',
     action: 'clients' as const,
   },
+  {
+    id: 'navigate',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    ),
+    title: 'Find Your Way Around',
+    description: 'Use the sidebar on the left to switch between sections — Clients, Referrals, Retention, Rewrites, and more. Each section will show a quick tip the first time you visit.',
+    buttonLabel: "Let's Go",
+    action: 'finish' as const,
+  },
 ];
 
 export default function OnboardingOverlay({
@@ -80,6 +92,9 @@ export default function OnboardingOverlay({
       return;
     } else if (step.action === 'clients') {
       onOpenClients?.();
+      handleFinish();
+      return;
+    } else if (step.action === 'finish') {
       handleFinish();
       return;
     }
@@ -134,7 +149,7 @@ export default function OnboardingOverlay({
               Welcome, {firstName}!
             </h2>
             <p className="text-[#707070] mt-2">
-              Three quick steps and you&rsquo;re ready to go.
+              A few quick steps and you&rsquo;re ready to go.
             </p>
           </div>
         )}

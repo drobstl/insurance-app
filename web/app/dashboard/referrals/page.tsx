@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { collection, doc, onSnapshot, query, orderBy, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
+import SectionTipCard from '../../../components/SectionTipCard';
 
 interface Referral {
   id: string;
@@ -19,7 +20,7 @@ interface Referral {
 }
 
 export default function ReferralsPage() {
-  const { user, agentProfile, setAgentProfile, loading } = useDashboard();
+  const { user, agentProfile, setAgentProfile, loading, dismissTip } = useDashboard();
 
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [referralsLoading, setReferralsLoading] = useState(true);
@@ -131,6 +132,12 @@ export default function ReferralsPage() {
         <h1 className="text-2xl font-bold text-[#000000]">Referrals</h1>
         <p className="text-[#707070] text-sm mt-1">Track referral conversations and booked appointments.</p>
       </div>
+
+      {!agentProfile.tipsSeen?.referrals && (
+        <SectionTipCard onDismiss={() => dismissTip('referrals')}>
+          When clients refer someone through the app, they show up here. Turn on the AI assistant in Settings (you&rsquo;ll need a business card and scheduling link first).
+        </SectionTipCard>
+      )}
 
       {/* AI Referral Assistant Card */}
       <div className="bg-white rounded-[5px] border border-[#d0d0d0] mb-6 p-5">

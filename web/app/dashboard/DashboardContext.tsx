@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import { isAdminEmail } from '../../lib/admin';
 
@@ -27,6 +27,7 @@ export interface AgentProfile {
   anniversaryMessageStyle?: 'check_in' | 'lower_price';
   policyReviewAIEnabled?: boolean;
   onboardingComplete?: boolean;
+  tipsSeen?: Record<string, boolean>;
 }
 
 interface DashboardContextValue {
@@ -37,6 +38,7 @@ interface DashboardContextValue {
   isAdmin: boolean;
   handleLogout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  dismissTip: (sectionKey: string) => Promise<void>;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
@@ -91,6 +93,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           anniversaryMessageStyle: data.anniversaryMessageStyle,
           policyReviewAIEnabled: data.policyReviewAIEnabled,
           onboardingComplete: data.onboardingComplete,
+          tipsSeen: data.tipsSeen || {},
         });
       }
     } catch (error) {
@@ -111,6 +114,19 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }
   }, [router]);
 
+  const dismissTip = useCallback(async (sectionKey: string) => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'agents', user.uid), { [`tipsSeen.${sectionKey}`]: true });
+      setAgentProfile(prev => ({
+        ...prev,
+        tipsSeen: { ...prev.tipsSeen, [sectionKey]: true },
+      }));
+    } catch (error) {
+      console.error('Error dismissing tip:', error);
+    }
+  }, [user]);
+
   const isAdmin = isAdminEmail(user?.email);
 
   return (
@@ -123,6 +139,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         isAdmin,
         handleLogout,
         refreshProfile: fetchProfile,
+        dismissTip,
       }}
     >
       {children}
