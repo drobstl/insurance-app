@@ -63,35 +63,32 @@ function ShellyMascot({ size = 40, animated = false }: { size?: number; animated
       xmlns="http://www.w3.org/2000/svg"
       style={{ overflow: 'visible' }}
     >
-      {/* Head */}
-      <circle cx="32" cy="36" r="20" stroke="#2a2a2a" strokeWidth="2.2" fill="white" />
-
       {/* Eyes open */}
       <g className={animated ? 'shelly-eyes-open' : undefined}>
-        <path d="M23,34 C24,31 27,31 28,34" stroke="#2a2a2a" strokeWidth="2" strokeLinecap="round" fill="none" />
-        <circle cx="39" cy="32.5" r="1.8" fill="#2a2a2a" />
+        <path d="M21,30 C22,27 26,27 27,30" stroke="#2a2a2a" strokeWidth="2" strokeLinecap="round" fill="none" />
+        <circle cx="40" cy="28.5" r="2" fill="#2a2a2a" />
       </g>
 
       {/* Eyes closed (blink) */}
       {animated && (
         <g className="shelly-eyes-closed">
-          <line x1="23" y1="33" x2="28" y2="33" stroke="#2a2a2a" strokeWidth="2" strokeLinecap="round" />
-          <line x1="37" y1="32.5" x2="41" y2="32.5" stroke="#2a2a2a" strokeWidth="2" strokeLinecap="round" />
+          <line x1="21" y1="29" x2="27" y2="29" stroke="#2a2a2a" strokeWidth="2" strokeLinecap="round" />
+          <line x1="38" y1="28.5" x2="42" y2="28.5" stroke="#2a2a2a" strokeWidth="2" strokeLinecap="round" />
         </g>
       )}
 
       {/* Mouth */}
-      <path d="M27,42 C30,45 34,44 36,42" stroke="#2a2a2a" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+      <path d="M25,38 C28,41 33,40 35,38" stroke="#2a2a2a" strokeWidth="1.8" strokeLinecap="round" fill="none" />
 
       {/* Badge dot */}
-      <circle cx="44" cy="13" r="3.2" fill="#44bbaa" className={animated ? 'shelly-badge-dot' : undefined} />
+      <circle cx="46" cy="6" r="4.5" fill="#44bbaa" className={animated ? 'shelly-badge-dot' : undefined} />
 
       {/* Badge infinity */}
       {animated && (
         <path
-          d="M44,13 C51,6 51,20 44,13 C37,20 37,6 44,13"
+          d="M46,6 C55,-2 55,14 46,6 C37,14 37,-2 46,6"
           stroke="#44bbaa"
-          strokeWidth="2.2"
+          strokeWidth="2.8"
           strokeLinecap="round"
           fill="none"
           className="shelly-badge-infinity"
@@ -250,12 +247,12 @@ export default function DashboardAssistant() {
         }
         .shelly-badge-dot {
           transform-box: view-box;
-          transform-origin: 44px 13px;
+          transform-origin: 46px 6px;
           animation: shellyDot 7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
         }
         .shelly-badge-infinity {
           transform-box: view-box;
-          transform-origin: 44px 13px;
+          transform-origin: 46px 6px;
           opacity: 0;
           animation: shellyInfinity 7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
         }
@@ -272,7 +269,7 @@ export default function DashboardAssistant() {
       {/* Floating mascot button */}
       <motion.button
         onClick={() => setOpen((prev) => !prev)}
-        className="fixed bottom-8 right-8 z-50 w-14 h-14 rounded-full shadow-md hover:shadow-lg transition-shadow flex items-center justify-center border border-[#e0e0e0] bg-white"
+        className="fixed bottom-8 right-8 z-50 w-14 h-14 rounded-full shadow-md hover:shadow-lg transition-shadow flex items-center justify-center border-2 border-[#2a2a2a] bg-white"
         style={{ overflow: 'visible' }}
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.95 }}
