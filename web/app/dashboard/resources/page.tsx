@@ -43,7 +43,6 @@ const FAQ_ITEMS = [
 ];
 
 export default function ResourcesPage() {
-  const [showTutorialVideo, setShowTutorialVideo] = useState(false);
   const [showWorkflowVideo, setShowWorkflowVideo] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
@@ -98,22 +97,6 @@ export default function ResourcesPage() {
           <h2 className="text-sm font-semibold text-[#000000]">Video Tutorials</h2>
         </div>
         <div className="divide-y divide-[#d0d0d0]">
-          <button
-            onClick={() => setShowTutorialVideo(true)}
-            className="flex items-center gap-4 px-4 py-3 hover:bg-[#f8f8f8] transition-colors w-full text-left"
-          >
-            <div className="w-10 h-10 rounded-[5px] bg-gradient-to-br from-[#005851] to-[#0A3D3D] flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-[#45bcaa]" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-semibold text-[#000000]">Getting Started Tutorial</h3>
-              <p className="text-[#707070] text-xs">Quick walkthrough to set up your dashboard</p>
-            </div>
-            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-medium rounded-[5px] transition-colors text-xs flex-shrink-0">
-              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-              Watch
-            </span>
-          </button>
           <button
             onClick={() => setShowWorkflowVideo(true)}
             className="flex items-center gap-4 px-4 py-3 hover:bg-[#f8f8f8] transition-colors w-full text-left"
@@ -180,7 +163,6 @@ export default function ResourcesPage() {
         </div>
       </div>
 
-      <LoomVideoModal isOpen={showTutorialVideo} onClose={() => setShowTutorialVideo(false)} />
       <LoomVideoModal isOpen={showWorkflowVideo} onClose={() => setShowWorkflowVideo(false)} videoUrl="https://www.loom.com/embed/88422effb7ca4cdc8ae88646490fed00" />
     </div>
   );
