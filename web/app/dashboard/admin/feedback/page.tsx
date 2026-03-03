@@ -359,6 +359,9 @@ export default function AdminFeedbackPage() {
   const [loading, setLoading] = useState(true);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  const [resetOnboardingEmail, setResetOnboardingEmail] = useState('');
+  const [resetOnboardingStatus, setResetOnboardingStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [resetOnboardingMessage, setResetOnboardingMessage] = useState('');
 
   /* ---- Data ---- */
   const [surveyResponses, setSurveyResponses] = useState<SurveyResponse[]>([]);
@@ -734,6 +737,59 @@ export default function AdminFeedbackPage() {
                   value={bugReports.length}
                   subtext="all time"
                 />
+              </div>
+
+              {/* Reset onboarding (admin) */}
+              <div className="bg-white rounded-xl shadow-sm border border-[#d0d0d0] p-6 mb-6">
+                <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">Reset onboarding</h3>
+                <p className="text-sm text-[#707070] mb-3">
+                  Clear onboarding and section tips for an agent so they see the first-time tutorial again. Enter their email and click Reset.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="email"
+                    value={resetOnboardingEmail}
+                    onChange={(e) => { setResetOnboardingEmail(e.target.value); setResetOnboardingStatus('idle'); }}
+                    placeholder="agent@example.com"
+                    className="px-3 py-2 border border-[#d0d0d0] rounded-[5px] text-sm w-64 focus:outline-none focus:border-[#45bcaa]"
+                  />
+                  <button
+                    type="button"
+                    disabled={!resetOnboardingEmail.trim() || resetOnboardingStatus === 'loading'}
+                    onClick={async () => {
+                      if (!user) return;
+                      setResetOnboardingStatus('loading');
+                      setResetOnboardingMessage('');
+                      try {
+                        const token = await user.getIdToken();
+                        const res = await fetch('/api/admin/reset-onboarding', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                          body: JSON.stringify({ email: resetOnboardingEmail.trim() }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) {
+                          setResetOnboardingStatus('error');
+                          setResetOnboardingMessage(data.error || 'Failed');
+                          return;
+                        }
+                        setResetOnboardingStatus('success');
+                        setResetOnboardingMessage('Done. That user will see the tutorial on next dashboard load.');
+                      } catch (err) {
+                        setResetOnboardingStatus('error');
+                        setResetOnboardingMessage(err instanceof Error ? err.message : 'Request failed');
+                      }
+                    }}
+                    className="px-4 py-2 bg-[#005851] text-white text-sm font-medium rounded-[5px] hover:bg-[#004440] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {resetOnboardingStatus === 'loading' ? 'Resetting...' : 'Reset'}
+                  </button>
+                </div>
+                {resetOnboardingMessage && (
+                  <p className={`mt-2 text-sm ${resetOnboardingStatus === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                    {resetOnboardingMessage}
+                  </p>
+                )}
               </div>
 
               {/* Quick survey snapshot */}

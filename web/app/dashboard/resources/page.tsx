@@ -17,7 +17,7 @@ const FAQ_ITEMS = [
   },
   {
     question: 'How do I handle a lapse or at-risk policy?',
-    answer: 'Go to Retention and paste the lapse notice. Or forward the carrier email to ai@savepolicy.agentforlife.app. We\u2019ll match it to a client and track outreach.',
+    answer: 'Forward the carrier\u2019s lapse notice to ai@savepolicy.agentforlife.app, or open the client in Clients, open the policy, and click "Flag at risk". We\u2019ll match it and track outreach on the Retention page.',
     link: { href: '/dashboard/conservation', label: 'Go to Retention' },
   },
   {

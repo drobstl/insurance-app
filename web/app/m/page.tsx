@@ -894,7 +894,7 @@ export default function MobileLandingV2() {
             <span className="text-lg text-white brand-title">AgentForLife</span>
           </div>
           <nav className="flex flex-wrap justify-center gap-5">
-            <Link href="/login" className="text-white/40 text-[12px]">Login</Link>
+            <Link href="/login" className="text-white/90 hover:text-white text-sm font-medium">Agent Login</Link>
             <a href="mailto:support@agentforlife.app" className="text-white/40 text-[12px]">Contact</a>
             <Link href="/privacy" className="text-white/40 text-[12px]">Privacy</Link>
             <Link href="/terms" className="text-white/40 text-[12px]">Terms</Link>
