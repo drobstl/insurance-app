@@ -57,12 +57,12 @@ function PatchMascot({ size = 40, animated = false }: { size?: number; animated?
     return (
       <div className="relative" style={{ width: size, height: size }}>
         <img
-          src="/shelly-face.png"
+          src="/patch-face.png"
           alt="Patch"
           className="patch-face-open absolute inset-0 w-full h-full object-contain"
         />
         <img
-          src="/shelly-face-wink.png"
+          src="/patch-face-wink.png"
           alt="Patch winking"
           className="patch-face-wink absolute inset-0 w-full h-full object-contain"
         />
@@ -71,7 +71,7 @@ function PatchMascot({ size = 40, animated = false }: { size?: number; animated?
   }
   return (
     <img
-      src="/shelly-face.png"
+      src="/patch-face.png"
       alt="Patch"
       style={{ width: size, height: size }}
       className="object-contain"
@@ -230,7 +230,7 @@ export default function DashboardAssistant() {
       {/* Floating mascot button */}
       <motion.button
         onClick={() => setOpen((prev) => !prev)}
-        className="fixed bottom-5 right-5 z-50 w-12 h-12 rounded-full shadow-md hover:shadow-lg transition-shadow flex items-center justify-center bg-white"
+        className="fixed bottom-5 right-5 z-50 w-12 h-12 rounded-full flex items-center justify-center bg-transparent border-0 p-0"
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.95 }}
         aria-label={open ? 'Close Patch' : 'Open Patch'}
@@ -262,7 +262,7 @@ export default function DashboardAssistant() {
                 y: { duration: 2.8, repeat: Infinity, ease: 'easeInOut', delay: 0.2 },
               }}
             >
-              <PatchMascot size={44} animated />
+              <PatchMascot size={48} animated />
             </motion.div>
           )}
         </AnimatePresence>
