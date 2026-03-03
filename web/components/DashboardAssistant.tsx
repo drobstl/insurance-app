@@ -218,12 +218,16 @@ export default function DashboardAssistant() {
           animation: patchWinkInv 5s ease-in-out infinite;
         }
         @keyframes patchWink {
-          0%, 93%, 100% { opacity: 1; }
-          95.5%, 98% { opacity: 0; }
+          0%, 90%, 100% { opacity: 1; }
+          92% { opacity: 1; }
+          94% { opacity: 0; }
+          96% { opacity: 0; }
         }
         @keyframes patchWinkInv {
-          0%, 93%, 100% { opacity: 0; }
-          95.5%, 98% { opacity: 1; }
+          0%, 90%, 100% { opacity: 0; }
+          92% { opacity: 0; }
+          94% { opacity: 1; }
+          96% { opacity: 1; }
         }
       `}</style>
 
