@@ -67,13 +67,13 @@ function PatchMascot({ size = 40, animated = false, winkTrigger }: { size?: numb
         <img
           src="/patch-face.png"
           alt="Patch"
-          className="absolute inset-0 w-full h-full object-contain transition-opacity duration-150"
+          className="absolute inset-0 w-full h-full object-contain"
           style={{ opacity: showWink ? 0 : 1 }}
         />
         <img
           src="/patch-face-wink.png"
           alt="Patch winking"
-          className="absolute inset-0 w-full h-full object-contain transition-opacity duration-150"
+          className="absolute inset-0 w-full h-full object-contain"
           style={{ opacity: showWink ? 1 : 0 }}
         />
       </div>
@@ -118,20 +118,24 @@ export default function DashboardAssistant() {
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Subtle tilt: 7deg clockwise then back, on random intervals (only when button shows mascot)
+  // Tilt: two 10deg nods back-to-back, then rest, then random delay and repeat
   useEffect(() => {
     if (open) return;
     const timers: ReturnType<typeof setTimeout>[] = [];
     const scheduleTilt = () => {
       timers.push(
         setTimeout(() => {
-          setTiltDeg(7);
-          timers.push(
-            setTimeout(() => {
-              setTiltDeg(0);
-              scheduleTilt();
-            }, 350),
-          );
+          setTiltDeg(10);
+          timers.push(setTimeout(() => {
+            setTiltDeg(0);
+            timers.push(setTimeout(() => {
+              setTiltDeg(10);
+              timers.push(setTimeout(() => {
+                setTiltDeg(0);
+                scheduleTilt();
+              }, 350));
+            }, 250));
+          }, 350));
         }, randomBetween(2000, 6000)),
       );
     };
@@ -166,6 +170,12 @@ export default function DashboardAssistant() {
       setShowWink(false);
     }
   }, [open]);
+
+  // Preload wink image so first wink doesn't flash
+  useEffect(() => {
+    const img = new Image();
+    img.src = '/patch-face-wink.png';
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
