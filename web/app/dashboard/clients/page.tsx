@@ -1162,13 +1162,14 @@ export default function ClientsPage() {
     const withPhone = justImportedClients.filter((r) => r.phone.trim());
     if (!user || withPhone.length === 0) return;
     setSendingIntro(true);
+    const messageToSend = introMessage.trim() || DEFAULT_INTRO_TEMPLATE;
     try {
       const token = await user.getIdToken();
       const res = await fetch('/api/client/send-bulk-intro', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          messageTemplate: introMessage,
+          messageTemplate: messageToSend,
           recipients: withPhone.map((r) => ({ phone: r.phone, firstName: r.firstName, code: r.clientCode })),
         }),
       });
@@ -1809,6 +1810,7 @@ export default function ClientsPage() {
                           className="w-full px-3 py-2 border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] placeholder-[#707070] focus:outline-none focus:border-[#45bcaa] resize-y"
                           placeholder={DEFAULT_INTRO_TEMPLATE}
                         />
+                        <p className="text-xs text-[#707070]">If you leave this blank, we&apos;ll send the default message above.</p>
                         <p className="text-xs text-[#707070]">Will send to {withPhone.length} client{withPhone.length !== 1 ? 's' : ''} (with phone numbers).</p>
                         <button
                           onClick={handleSendBulkIntro}
