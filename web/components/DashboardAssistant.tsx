@@ -230,7 +230,7 @@ export default function DashboardAssistant() {
       {/* Floating mascot button */}
       <motion.button
         onClick={() => setOpen((prev) => !prev)}
-        className="fixed bottom-5 right-5 z-50 w-14 h-14 rounded-full flex items-center justify-center bg-transparent border-0 p-0"
+        className="fixed bottom-5 right-5 z-50 w-11 h-11 rounded-full flex items-center justify-center bg-transparent border border-gray-200/80 shadow-[0_4px_12px_rgba(0,0,0,0.12)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.15)] p-0 transition-shadow"
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.95 }}
         aria-label={open ? 'Close Patch' : 'Open Patch'}
@@ -262,7 +262,7 @@ export default function DashboardAssistant() {
                 y: { duration: 2.8, repeat: Infinity, ease: 'easeInOut', delay: 0.2 },
               }}
             >
-              <PatchMascot size={56} animated />
+              <PatchMascot size={44} animated />
             </motion.div>
           )}
         </AnimatePresence>
@@ -276,7 +276,7 @@ export default function DashboardAssistant() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="fixed bottom-[72px] right-5 z-50 w-[380px] max-h-[520px] bg-white rounded-[12px] shadow-2xl border border-[#e0e0e0] flex flex-col overflow-hidden"
+            className="fixed bottom-[60px] right-5 z-50 w-[380px] max-h-[520px] bg-white rounded-[12px] shadow-2xl border border-[#e0e0e0] flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center gap-3 px-4 py-3 bg-[#005851] text-white shrink-0">
@@ -304,7 +304,7 @@ export default function DashboardAssistant() {
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center text-center pt-4 pb-2">
                   <div className="mb-3 opacity-80">
-                    <PatchMascot size={56} />
+                    <PatchMascot size={40} />
                   </div>
                   <p className="text-sm text-[#505050] font-medium mb-1">
                     Hi! I&apos;m Patch.
