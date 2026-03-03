@@ -61,43 +61,54 @@ function ShellyMascot({ size = 40, animated = false }: { size?: number; animated
       viewBox="0 0 64 64"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      style={{ overflow: 'visible' }}
     >
-      {/* Eyes + eyebrows open */}
-      <g className={animated ? 'shelly-eyes-open' : undefined}>
-        {/* Eyebrows (curved arcs above eyes) */}
-        <path d="M16,24 C19,20 25,20 28,24" stroke="#2a2a2a" strokeWidth="1.8" strokeLinecap="round" fill="none" />
-        <path d="M36,23 C39,19 45,19 48,23" stroke="#2a2a2a" strokeWidth="1.8" strokeLinecap="round" fill="none" />
-        {/* Eye dots */}
-        <circle cx="22" cy="31" r="2.5" fill="#2a2a2a" />
-        <circle cx="42" cy="30" r="2.5" fill="#2a2a2a" />
+      {/* Left eye (open) */}
+      <g className={animated ? 'shelly-eye-open' : undefined}>
+        <ellipse cx="21" cy="27" rx="5.5" ry="6.5" fill="#2a2a2a" />
       </g>
 
-      {/* Eyes closed (blink) */}
-      {animated && (
-        <g className="shelly-eyes-closed">
-          <line x1="18" y1="30" x2="26" y2="30" stroke="#2a2a2a" strokeWidth="2" strokeLinecap="round" />
-          <line x1="38" y1="29" x2="46" y2="29" stroke="#2a2a2a" strokeWidth="2" strokeLinecap="round" />
-        </g>
-      )}
-
-      {/* Smile */}
-      <path d="M24,40 C28,44 36,44 40,40" stroke="#2a2a2a" strokeWidth="1.8" strokeLinecap="round" fill="none" />
-
-      {/* Badge dot */}
-      <circle cx="52" cy="2" r="7" fill="#44bbaa" className={animated ? 'shelly-badge-dot' : undefined} />
-
-      {/* Badge infinity */}
+      {/* Left eye (wink) */}
       {animated && (
         <path
-          d="M52,2 C64,-10 64,14 52,2 C40,14 40,-10 52,2"
-          stroke="#44bbaa"
-          strokeWidth="3.2"
+          d="M15,28 C17.5,23 24.5,23 27,28"
+          stroke="#2a2a2a"
+          strokeWidth="2.4"
           strokeLinecap="round"
           fill="none"
-          className="shelly-badge-infinity"
+          className="shelly-eye-wink"
         />
       )}
+
+      {/* Right eye patch */}
+      <path
+        d="M36,19 C39,17 47,18 48,22 C49,27 47,33 44,35 C41,37 37,35 36,31 C35,27 35,22 36,19Z"
+        fill="#2a2a2a"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M40,18 C41,14 43,12 44,11"
+        stroke="#2a2a2a"
+        strokeWidth="2"
+        strokeLinecap="round"
+        fill="none"
+      />
+      <path
+        d="M46,22 C49,20 51,19 53,18"
+        stroke="#2a2a2a"
+        strokeWidth="2"
+        strokeLinecap="round"
+        fill="none"
+      />
+
+      {/* Smile */}
+      <path
+        d="M14,42 C20,52 44,53 50,42"
+        stroke="#2a2a2a"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
     </svg>
   );
 }
@@ -234,39 +245,20 @@ export default function DashboardAssistant() {
     <>
       {/* Animation keyframes */}
       <style>{`
-        .shelly-eyes-open {
-          animation: shellyBlink 4.5s ease-in-out infinite;
+        .shelly-eye-open {
+          animation: shellyWink 5s ease-in-out infinite;
         }
-        .shelly-eyes-closed {
+        .shelly-eye-wink {
           opacity: 0;
-          animation: shellyBlinkInv 4.5s ease-in-out infinite;
+          animation: shellyWinkInv 5s ease-in-out infinite;
         }
-        @keyframes shellyBlink {
-          0%, 91%, 100% { opacity: 1; }
-          94%, 97% { opacity: 0; }
+        @keyframes shellyWink {
+          0%, 93%, 100% { opacity: 1; }
+          95.5%, 98% { opacity: 0; }
         }
-        @keyframes shellyBlinkInv {
-          0%, 91%, 100% { opacity: 0; }
-          94%, 97% { opacity: 1; }
-        }
-        .shelly-badge-dot {
-          transform-box: view-box;
-          transform-origin: 52px 2px;
-          animation: shellyDot 7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-        }
-        .shelly-badge-infinity {
-          transform-box: view-box;
-          transform-origin: 52px 2px;
-          opacity: 0;
-          animation: shellyInfinity 7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-        }
-        @keyframes shellyDot {
-          0%, 12%, 50%, 100% { transform: scale(1); opacity: 1; }
-          18%, 44% { transform: scale(0); opacity: 0; }
-        }
-        @keyframes shellyInfinity {
-          0%, 14%, 48%, 100% { transform: scaleX(0); opacity: 0; }
-          22%, 40% { transform: scaleX(1); opacity: 1; }
+        @keyframes shellyWinkInv {
+          0%, 93%, 100% { opacity: 0; }
+          95.5%, 98% { opacity: 1; }
         }
       `}</style>
 
