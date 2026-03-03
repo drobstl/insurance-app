@@ -53,6 +53,25 @@ function parseLinks(text: string): React.ReactNode[] {
   });
 }
 
+function ShellyMascot({ size = 40 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Head */}
+      <circle cx="32" cy="34" r="22" stroke="#2a2a2a" strokeWidth="2.2" fill="white" />
+      {/* Left eye */}
+      <circle cx="24" cy="32" r="2.2" fill="#2a2a2a" />
+      {/* Right eye */}
+      <circle cx="40" cy="32" r="2.2" fill="#2a2a2a" />
+      {/* Smile */}
+      <path d="M25 39 C28 43, 36 43, 39 39" stroke="#2a2a2a" strokeWidth="2" strokeLinecap="round" fill="none" />
+      {/* Leaf stem */}
+      <path d="M38 14 C38 18, 36 22, 36 24" stroke="#44bbaa" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+      {/* Leaf */}
+      <path d="M38 8 C44 10, 44 16, 38 14 C32 16, 32 10, 38 8Z" fill="#44bbaa" />
+    </svg>
+  );
+}
+
 function AssistantMessage({ content }: { content: string }) {
   const paragraphs = content.split('\n').filter(Boolean);
   return (
@@ -186,7 +205,7 @@ export default function DashboardAssistant() {
       {/* Floating mascot button */}
       <motion.button
         onClick={() => setOpen((prev) => !prev)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-lg hover:shadow-xl transition-shadow flex items-center justify-center overflow-hidden border-2 border-white/80 bg-[#005851]"
+        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-md hover:shadow-lg transition-shadow flex items-center justify-center overflow-hidden border border-[#e0e0e0] bg-white"
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.95 }}
         aria-label={open ? 'Close assistant' : 'Open assistant'}
@@ -199,7 +218,7 @@ export default function DashboardAssistant() {
               animate={{ rotate: 0, opacity: 1 }}
               exit={{ rotate: 90, opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className="w-6 h-6 text-white"
+              className="w-6 h-6 text-[#2a2a2a]"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -207,16 +226,15 @@ export default function DashboardAssistant() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </motion.svg>
           ) : (
-            <motion.img
+            <motion.div
               key="mascot"
-              src="/dashboard-assistant-mascot.png"
-              alt="Shelly"
-              className="w-10 h-10 object-contain"
               initial={{ scale: 0.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.5, opacity: 0 }}
               transition={{ duration: 0.15 }}
-            />
+            >
+              <ShellyMascot size={42} />
+            </motion.div>
           )}
         </AnimatePresence>
       </motion.button>
@@ -233,11 +251,9 @@ export default function DashboardAssistant() {
           >
             {/* Header */}
             <div className="flex items-center gap-3 px-4 py-3 bg-[#005851] text-white shrink-0">
-              <img
-                src="/dashboard-assistant-mascot.png"
-                alt="Shelly"
-                className="w-8 h-8 object-contain"
-              />
+              <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shrink-0">
+                <ShellyMascot size={28} />
+              </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-bold leading-tight">Shelly</h3>
                 <p className="text-[11px] text-white/70">Dashboard assistant</p>
@@ -258,11 +274,9 @@ export default function DashboardAssistant() {
             <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center text-center pt-4 pb-2">
-                  <img
-                    src="/dashboard-assistant-mascot.png"
-                    alt="Shelly"
-                    className="w-16 h-16 object-contain mb-3 opacity-80"
-                  />
+                  <div className="mb-3 opacity-80">
+                    <ShellyMascot size={56} />
+                  </div>
                   <p className="text-sm text-[#505050] font-medium mb-1">
                     Hi! I&apos;m Shelly.
                   </p>
