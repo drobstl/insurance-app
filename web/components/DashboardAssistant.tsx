@@ -53,21 +53,50 @@ function parseLinks(text: string): React.ReactNode[] {
   });
 }
 
-function ShellyMascot({ size = 40 }: { size?: number }) {
+function ShellyMascot({ size = 40, animated = false }: { size?: number; animated?: boolean }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 64 64"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      style={{ overflow: 'visible' }}
+    >
       {/* Head */}
-      <circle cx="32" cy="34" r="22" stroke="#2a2a2a" strokeWidth="2.2" fill="white" />
-      {/* Left eye */}
-      <circle cx="24" cy="32" r="2.2" fill="#2a2a2a" />
-      {/* Right eye */}
-      <circle cx="40" cy="32" r="2.2" fill="#2a2a2a" />
-      {/* Smile */}
-      <path d="M25 39 C28 43, 36 43, 39 39" stroke="#2a2a2a" strokeWidth="2" strokeLinecap="round" fill="none" />
-      {/* Leaf stem */}
-      <path d="M38 14 C38 18, 36 22, 36 24" stroke="#44bbaa" strokeWidth="1.8" strokeLinecap="round" fill="none" />
-      {/* Leaf */}
-      <path d="M38 8 C44 10, 44 16, 38 14 C32 16, 32 10, 38 8Z" fill="#44bbaa" />
+      <circle cx="32" cy="36" r="20" stroke="#2a2a2a" strokeWidth="2.2" fill="white" />
+
+      {/* Eyes open */}
+      <g className={animated ? 'shelly-eyes-open' : undefined}>
+        <path d="M23,34 C24,31 27,31 28,34" stroke="#2a2a2a" strokeWidth="2" strokeLinecap="round" fill="none" />
+        <circle cx="39" cy="32.5" r="1.8" fill="#2a2a2a" />
+      </g>
+
+      {/* Eyes closed (blink) */}
+      {animated && (
+        <g className="shelly-eyes-closed">
+          <line x1="23" y1="33" x2="28" y2="33" stroke="#2a2a2a" strokeWidth="2" strokeLinecap="round" />
+          <line x1="37" y1="32.5" x2="41" y2="32.5" stroke="#2a2a2a" strokeWidth="2" strokeLinecap="round" />
+        </g>
+      )}
+
+      {/* Mouth */}
+      <path d="M27,42 C30,45 34,44 36,42" stroke="#2a2a2a" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+
+      {/* Badge dot */}
+      <circle cx="44" cy="13" r="3.2" fill="#44bbaa" className={animated ? 'shelly-badge-dot' : undefined} />
+
+      {/* Badge infinity */}
+      {animated && (
+        <path
+          d="M44,13 C51,6 51,20 44,13 C37,20 37,6 44,13"
+          stroke="#44bbaa"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          fill="none"
+          className="shelly-badge-infinity"
+        />
+      )}
     </svg>
   );
 }
@@ -202,10 +231,49 @@ export default function DashboardAssistant() {
 
   return (
     <>
+      {/* Animation keyframes */}
+      <style>{`
+        .shelly-eyes-open {
+          animation: shellyBlink 4.5s ease-in-out infinite;
+        }
+        .shelly-eyes-closed {
+          opacity: 0;
+          animation: shellyBlinkInv 4.5s ease-in-out infinite;
+        }
+        @keyframes shellyBlink {
+          0%, 91%, 100% { opacity: 1; }
+          94%, 97% { opacity: 0; }
+        }
+        @keyframes shellyBlinkInv {
+          0%, 91%, 100% { opacity: 0; }
+          94%, 97% { opacity: 1; }
+        }
+        .shelly-badge-dot {
+          transform-box: view-box;
+          transform-origin: 44px 13px;
+          animation: shellyDot 7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        }
+        .shelly-badge-infinity {
+          transform-box: view-box;
+          transform-origin: 44px 13px;
+          opacity: 0;
+          animation: shellyInfinity 7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        }
+        @keyframes shellyDot {
+          0%, 12%, 50%, 100% { transform: scale(1); opacity: 1; }
+          18%, 44% { transform: scale(0); opacity: 0; }
+        }
+        @keyframes shellyInfinity {
+          0%, 14%, 48%, 100% { transform: scaleX(0); opacity: 0; }
+          22%, 40% { transform: scaleX(1); opacity: 1; }
+        }
+      `}</style>
+
       {/* Floating mascot button */}
       <motion.button
         onClick={() => setOpen((prev) => !prev)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-md hover:shadow-lg transition-shadow flex items-center justify-center overflow-hidden border border-[#e0e0e0] bg-white"
+        className="fixed bottom-8 right-8 z-50 w-14 h-14 rounded-full shadow-md hover:shadow-lg transition-shadow flex items-center justify-center border border-[#e0e0e0] bg-white"
+        style={{ overflow: 'visible' }}
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.95 }}
         aria-label={open ? 'Close assistant' : 'Open assistant'}
@@ -229,11 +297,15 @@ export default function DashboardAssistant() {
             <motion.div
               key="mascot"
               initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
+              animate={{ scale: 1, opacity: 1, y: [0, -2.5, 0] }}
               exit={{ scale: 0.5, opacity: 0 }}
-              transition={{ duration: 0.15 }}
+              transition={{
+                scale: { duration: 0.15 },
+                opacity: { duration: 0.15 },
+                y: { duration: 2.8, repeat: Infinity, ease: 'easeInOut', delay: 0.2 },
+              }}
             >
-              <ShellyMascot size={42} />
+              <ShellyMascot size={42} animated />
             </motion.div>
           )}
         </AnimatePresence>
@@ -247,7 +319,7 @@ export default function DashboardAssistant() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="fixed bottom-24 right-6 z-50 w-[380px] max-h-[520px] bg-white rounded-[12px] shadow-2xl border border-[#e0e0e0] flex flex-col overflow-hidden"
+            className="fixed bottom-[88px] right-8 z-50 w-[380px] max-h-[520px] bg-white rounded-[12px] shadow-2xl border border-[#e0e0e0] flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center gap-3 px-4 py-3 bg-[#005851] text-white shrink-0">
