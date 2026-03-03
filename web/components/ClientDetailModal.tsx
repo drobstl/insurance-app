@@ -184,7 +184,7 @@ export default function ClientDetailModal({
       const token = await currentUser.getIdToken();
       const firstName = (client.name || 'there').split(' ')[0];
       const agent = agentName || 'your agent';
-      const message = `Hey ${firstName}! ${agent} here. Download the AgentForLife app and use code ${client.clientCode} to connect with me. https://agentforlife.app`;
+      const message = `Hey ${firstName}! ${agent} here. Download the AgentForLife app and use code ${client.clientCode} to connect with me. https://agentforlife.app/app`;
       const res = await fetch('/api/client/welcome-sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
