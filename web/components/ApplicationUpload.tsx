@@ -56,7 +56,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       formData.append('file', file);
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 45_000);
+      const timeout = setTimeout(() => controller.abort(), 120_000);
 
       const res = await fetch('/api/parse-application', {
         method: 'POST',
@@ -73,7 +73,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
           if (body?.error) message = body.error;
         } catch {
           if (res.status === 504) {
-            message = 'Request timed out. Try a smaller PDF or try again shortly.';
+            message = 'Server timed out processing the PDF. Try again on a stronger connection, or try a smaller file.';
           }
         }
         setErrorMessage(message);
@@ -107,9 +107,9 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
     } catch (err) {
       let message = 'Something went wrong. Please try again.';
       if (err instanceof DOMException && err.name === 'AbortError') {
-        message = 'Request timed out. The PDF may be too large — try again shortly.';
+        message = 'Request timed out. If you\u2019re on a slow connection, try again on a stronger network.';
       } else if (err instanceof TypeError) {
-        message = 'Network error. Please check your connection and try again.';
+        message = 'Network error. Check your connection and try again.';
       } else if (err instanceof Error) {
         message = err.message;
       }
@@ -255,7 +255,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
                   <div className="w-2 h-2 rounded-full bg-[#0099FF] animate-bounce" style={{ animationDelay: '150ms' }} />
                   <div className="w-2 h-2 rounded-full bg-[#0099FF] animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
-                <p className="text-gray-400 text-xs">This takes 5–15 seconds</p>
+                <p className="text-gray-400 text-xs">This usually takes 5–15 seconds (longer on slow connections)</p>
               </div>
             </div>
           )}
