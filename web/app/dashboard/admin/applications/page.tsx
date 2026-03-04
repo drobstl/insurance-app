@@ -16,6 +16,9 @@ interface Application {
   email: string;
   clientCount: string;
   biggestDifference: string;
+  policiesLast12Months?: string;
+  isCurrentlyBuilding?: string;
+  downlineAgentCount?: string;
   timestamp: string | null;
   status: 'pending' | 'approved' | 'rejected';
   rejectionReason?: string;
@@ -438,6 +441,8 @@ export default function AdminApplicationsPage() {
                         <th className="px-5 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider">Name</th>
                         <th className="px-5 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider">Email</th>
                         <th className="px-5 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider">Clients</th>
+                        <th className="px-5 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider">Policies (12mo)</th>
+                        <th className="px-5 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider">Building / Downline</th>
                         <th className="px-5 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider">Biggest Difference</th>
                         <th className="px-5 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider">Applied</th>
                         <th className="px-5 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider">Status</th>
@@ -460,6 +465,16 @@ export default function AdminApplicationsPage() {
                           </td>
                           <td className="px-5 py-4 text-sm text-[#2D3748] whitespace-nowrap">
                             {app.clientCount}
+                          </td>
+                          <td className="px-5 py-4 text-sm text-[#2D3748] whitespace-nowrap">
+                            {app.policiesLast12Months || '—'}
+                          </td>
+                          <td className="px-5 py-4 text-sm text-[#2D3748] whitespace-nowrap">
+                            {app.isCurrentlyBuilding === 'yes'
+                              ? `Yes — ${app.downlineAgentCount || '—'}`
+                              : app.isCurrentlyBuilding === 'no'
+                              ? 'No'
+                              : '—'}
                           </td>
                           <td className="px-5 py-4 text-sm text-[#2D3748] max-w-[220px] truncate">
                             {app.biggestDifference}
@@ -525,6 +540,20 @@ export default function AdminApplicationsPage() {
                       <div className="flex justify-between">
                         <span className="text-[#707070]">Clients:</span>
                         <span className="font-medium">{app.clientCount}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#707070]">Policies (12mo):</span>
+                        <span className="font-medium">{app.policiesLast12Months || '—'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#707070]">Building / Downline:</span>
+                        <span className="font-medium">
+                          {app.isCurrentlyBuilding === 'yes'
+                            ? `Yes — ${app.downlineAgentCount || '—'}`
+                            : app.isCurrentlyBuilding === 'no'
+                            ? 'No'
+                            : '—'}
+                        </span>
                       </div>
                       <div>
                         <span className="text-[#707070]">Biggest Difference:</span>

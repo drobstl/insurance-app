@@ -15,6 +15,9 @@ export default function FoundingMemberPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [clientCount, setClientCount] = useState('');
+  const [policiesLast12Months, setPoliciesLast12Months] = useState('');
+  const [isCurrentlyBuilding, setIsCurrentlyBuilding] = useState('');
+  const [downlineAgentCount, setDownlineAgentCount] = useState('');
   const [biggestDifference, setBiggestDifference] = useState('');
 
   // Scroll animation refs
@@ -72,7 +75,15 @@ export default function FoundingMemberPage() {
       const res = await fetch('/api/founding-member/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, clientCount, biggestDifference }),
+        body: JSON.stringify({
+          name,
+          email,
+          clientCount,
+          policiesLast12Months,
+          isCurrentlyBuilding,
+          downlineAgentCount: isCurrentlyBuilding === 'yes' ? downlineAgentCount : '',
+          biggestDifference,
+        }),
       });
 
       if (!res.ok) {
@@ -513,6 +524,110 @@ export default function FoundingMemberPage() {
                       </option>
                     </select>
                   </div>
+
+                  {/* Policies Last 12 Months Dropdown */}
+                  <div>
+                    <label
+                      htmlFor="policiesLast12Months"
+                      className="block text-white font-semibold mb-2 text-base"
+                    >
+                      How many policies did you write in the last 12 months?{' '}
+                      <span className="text-[#3DD6C3]">*</span>
+                    </label>
+                    <select
+                      id="policiesLast12Months"
+                      required
+                      value={policiesLast12Months}
+                      onChange={(e) => setPoliciesLast12Months(e.target.value)}
+                      className="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-xl text-white focus:border-[#3DD6C3] focus:outline-none focus:ring-4 focus:ring-[#3DD6C3]/20 transition-all text-base appearance-none cursor-pointer"
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E")`,
+                        backgroundRepeat: 'no-repeat',
+                        backgroundPosition: 'right 1.25rem center',
+                      }}
+                    >
+                      <option value="" disabled className="bg-[#0D4D4D] text-white/40">
+                        Select one
+                      </option>
+                      <option value="0" className="bg-[#0D4D4D]">0</option>
+                      <option value="1-5" className="bg-[#0D4D4D]">1–5</option>
+                      <option value="6-15" className="bg-[#0D4D4D]">6–15</option>
+                      <option value="16-30" className="bg-[#0D4D4D]">16–30</option>
+                      <option value="31-50" className="bg-[#0D4D4D]">31–50</option>
+                      <option value="51-100" className="bg-[#0D4D4D]">51–100</option>
+                      <option value="100+" className="bg-[#0D4D4D]">100+</option>
+                    </select>
+                  </div>
+
+                  {/* Are you currently building? */}
+                  <div>
+                    <p className="block text-white font-semibold mb-3 text-base">
+                      Are you currently building? <span className="text-[#3DD6C3]">*</span>
+                    </p>
+                    <div className="flex gap-3">
+                      {(['yes', 'no'] as const).map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => {
+                            setIsCurrentlyBuilding(option);
+                            if (option === 'no') setDownlineAgentCount('');
+                          }}
+                          className={`flex-1 px-4 py-3.5 rounded-xl text-center text-base font-medium transition-all border cursor-pointer ${
+                            isCurrentlyBuilding === option
+                              ? 'bg-[#3DD6C3]/20 border-[#3DD6C3] text-white ring-2 ring-[#3DD6C3]/40'
+                              : 'bg-white/5 border-white/20 text-white/70 hover:bg-white/10 hover:border-white/30'
+                          }`}
+                        >
+                          {option === 'yes' ? 'Yes' : 'No'}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      value={isCurrentlyBuilding}
+                      onChange={() => {}}
+                      className="sr-only"
+                      tabIndex={-1}
+                      aria-hidden="true"
+                    />
+                  </div>
+
+                  {/* Downline Agent Count - shown only when building */}
+                  {isCurrentlyBuilding === 'yes' && (
+                    <div>
+                      <label
+                        htmlFor="downlineAgentCount"
+                        className="block text-white font-semibold mb-2 text-base"
+                      >
+                        How many agents are in your downline?{' '}
+                        <span className="text-[#3DD6C3]">*</span>
+                      </label>
+                      <select
+                        id="downlineAgentCount"
+                        required
+                        value={downlineAgentCount}
+                        onChange={(e) => setDownlineAgentCount(e.target.value)}
+                        className="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-xl text-white focus:border-[#3DD6C3] focus:outline-none focus:ring-4 focus:ring-[#3DD6C3]/20 transition-all text-base appearance-none cursor-pointer"
+                        style={{
+                          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E")`,
+                          backgroundRepeat: 'no-repeat',
+                          backgroundPosition: 'right 1.25rem center',
+                        }}
+                      >
+                        <option value="" disabled className="bg-[#0D4D4D] text-white/40">
+                          Select one
+                        </option>
+                        <option value="1-5" className="bg-[#0D4D4D]">1–5</option>
+                        <option value="6-15" className="bg-[#0D4D4D]">6–15</option>
+                        <option value="16-30" className="bg-[#0D4D4D]">16–30</option>
+                        <option value="31-50" className="bg-[#0D4D4D]">31–50</option>
+                        <option value="51-100" className="bg-[#0D4D4D]">51–100</option>
+                        <option value="100+" className="bg-[#0D4D4D]">100+</option>
+                      </select>
+                    </div>
+                  )}
 
                   {/* Biggest Difference - Radio Card Pills */}
                   <div>

@@ -12,11 +12,33 @@ function getResend() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, email, clientCount, biggestDifference } = await req.json();
+    const {
+      name,
+      email,
+      clientCount,
+      biggestDifference,
+      policiesLast12Months,
+      isCurrentlyBuilding,
+      downlineAgentCount,
+    } = await req.json();
 
     if (!name || !email || !clientCount || !biggestDifference) {
       return NextResponse.json(
         { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    if (!policiesLast12Months || !isCurrentlyBuilding) {
+      return NextResponse.json(
+        { error: 'Missing required fields: policies written and building status' },
+        { status: 400 }
+      );
+    }
+
+    if (isCurrentlyBuilding === 'yes' && !downlineAgentCount) {
+      return NextResponse.json(
+        { error: 'Downline agent count is required when currently building' },
         { status: 400 }
       );
     }
@@ -27,6 +49,9 @@ export async function POST(req: NextRequest) {
       email,
       clientCount,
       biggestDifference,
+      policiesLast12Months,
+      isCurrentlyBuilding,
+      downlineAgentCount: isCurrentlyBuilding === 'yes' ? downlineAgentCount : '',
       timestamp: new Date(),
       status: 'pending',
     });

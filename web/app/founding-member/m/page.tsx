@@ -39,6 +39,9 @@ export default function FoundingMemberMobile() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [clientCount, setClientCount] = useState('');
+  const [policiesLast12Months, setPoliciesLast12Months] = useState('');
+  const [isCurrentlyBuilding, setIsCurrentlyBuilding] = useState('');
+  const [downlineAgentCount, setDownlineAgentCount] = useState('');
   const [biggestDifference, setBiggestDifference] = useState('');
 
   const formRef = useRef<HTMLElement>(null);
@@ -77,7 +80,15 @@ export default function FoundingMemberMobile() {
       const res = await fetch('/api/founding-member/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, clientCount, biggestDifference }),
+        body: JSON.stringify({
+          name,
+          email,
+          clientCount,
+          policiesLast12Months,
+          isCurrentlyBuilding,
+          downlineAgentCount: isCurrentlyBuilding === 'yes' ? downlineAgentCount : '',
+          biggestDifference,
+        }),
       });
 
       if (!res.ok) {
@@ -393,6 +404,83 @@ export default function FoundingMemberMobile() {
                   </div>
                   <input type="text" required value={clientCount} onChange={() => {}} className="sr-only" tabIndex={-1} aria-hidden="true" />
                 </div>
+
+                {/* Policies Last 12 Months */}
+                <div>
+                  <label htmlFor="m-policies" className="block text-white font-semibold mb-2 text-[14px]">
+                    Policies written (last 12 months)? <span className="text-[#3DD6C3]">*</span>
+                  </label>
+                  <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                    {['0', '1-5', '6-15', '16-30', '31-50', '51-100', '100+'].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setPoliciesLast12Months(val)}
+                        className={`py-3 rounded-xl text-[12px] sm:text-[13px] font-semibold transition-all border ${
+                          policiesLast12Months === val
+                            ? 'bg-[#3DD6C3]/20 border-[#3DD6C3] text-white'
+                            : 'bg-white/5 border-white/15 text-white/50 active:bg-white/10'
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                  <input type="text" required value={policiesLast12Months} onChange={() => {}} className="sr-only" tabIndex={-1} aria-hidden="true" />
+                </div>
+
+                {/* Are you currently building? */}
+                <div>
+                  <p className="block text-white font-semibold mb-2.5 text-[14px]">
+                    Currently building? <span className="text-[#3DD6C3]">*</span>
+                  </p>
+                  <div className="flex gap-2">
+                    {(['yes', 'no'] as const).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => {
+                          setIsCurrentlyBuilding(option);
+                          if (option === 'no') setDownlineAgentCount('');
+                        }}
+                        className={`flex-1 py-3.5 rounded-xl text-center text-[14px] font-medium transition-all border ${
+                          isCurrentlyBuilding === option
+                            ? 'bg-[#3DD6C3]/15 border-[#3DD6C3] text-white'
+                            : 'bg-white/5 border-white/15 text-white/60 active:bg-white/10'
+                        }`}
+                      >
+                        {option === 'yes' ? 'Yes' : 'No'}
+                      </button>
+                    ))}
+                  </div>
+                  <input type="text" required value={isCurrentlyBuilding} onChange={() => {}} className="sr-only" tabIndex={-1} aria-hidden="true" />
+                </div>
+
+                {/* Downline - shown when building */}
+                {isCurrentlyBuilding === 'yes' && (
+                  <div>
+                    <label htmlFor="m-downline" className="block text-white font-semibold mb-2 text-[14px]">
+                      Agents in your downline? <span className="text-[#3DD6C3]">*</span>
+                    </label>
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                      {['1-5', '6-15', '16-30', '31-50', '51-100', '100+'].map((val) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setDownlineAgentCount(val)}
+                          className={`py-3 rounded-xl text-[12px] sm:text-[13px] font-semibold transition-all border ${
+                            downlineAgentCount === val
+                              ? 'bg-[#3DD6C3]/20 border-[#3DD6C3] text-white'
+                              : 'bg-white/5 border-white/15 text-white/50 active:bg-white/10'
+                          }`}
+                        >
+                          {val}
+                        </button>
+                      ))}
+                    </div>
+                    <input type="text" required value={downlineAgentCount} onChange={() => {}} className="sr-only" tabIndex={-1} aria-hidden="true" />
+                  </div>
+                )}
 
                 {/* Biggest Difference */}
                 <div>

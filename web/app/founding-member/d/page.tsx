@@ -61,6 +61,9 @@ export default function FoundingMemberDesktop() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [clientCount, setClientCount] = useState('');
+  const [policiesLast12Months, setPoliciesLast12Months] = useState('');
+  const [isCurrentlyBuilding, setIsCurrentlyBuilding] = useState('');
+  const [downlineAgentCount, setDownlineAgentCount] = useState('');
   const [biggestDifference, setBiggestDifference] = useState('');
 
   const formRef = useRef<HTMLElement>(null);
@@ -88,7 +91,15 @@ export default function FoundingMemberDesktop() {
       const res = await fetch('/api/founding-member/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, clientCount, biggestDifference }),
+        body: JSON.stringify({
+          name,
+          email,
+          clientCount,
+          policiesLast12Months,
+          isCurrentlyBuilding,
+          downlineAgentCount: isCurrentlyBuilding === 'yes' ? downlineAgentCount : '',
+          biggestDifference,
+        }),
       });
 
       if (!res.ok) {
@@ -478,6 +489,90 @@ export default function FoundingMemberDesktop() {
                     </div>
                   </div>
                 </div>
+
+                {/* Policies Last 12 Months */}
+                <div>
+                  <label htmlFor="d-policies" className="block text-white font-semibold mb-2 text-sm">
+                    How many policies did you write in the last 12 months? <span className="text-[#3DD6C3]">*</span>
+                  </label>
+                  <div className="relative">
+                    <select
+                      id="d-policies"
+                      required
+                      value={policiesLast12Months}
+                      onChange={(e) => setPoliciesLast12Months(e.target.value)}
+                      className="w-full px-4 py-3.5 bg-white/10 border border-white/20 rounded-xl text-white focus:border-[#3DD6C3] focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/30 transition-all text-[15px] appearance-none cursor-pointer"
+                    >
+                      <option value="" disabled className="bg-[#0D4D4D] text-white/50">Select a range</option>
+                      <option value="0" className="bg-[#0D4D4D] text-white">0</option>
+                      <option value="1-5" className="bg-[#0D4D4D] text-white">1–5</option>
+                      <option value="6-15" className="bg-[#0D4D4D] text-white">6–15</option>
+                      <option value="16-30" className="bg-[#0D4D4D] text-white">16–30</option>
+                      <option value="31-50" className="bg-[#0D4D4D] text-white">31–50</option>
+                      <option value="51-100" className="bg-[#0D4D4D] text-white">51–100</option>
+                      <option value="100+" className="bg-[#0D4D4D] text-white">100+</option>
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <svg className="w-5 h-5 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Are you currently building? */}
+                <div>
+                  <p className="text-white font-semibold mb-3 text-sm">
+                    Are you currently building? <span className="text-[#3DD6C3]">*</span>
+                  </p>
+                  <div className="flex gap-3">
+                    {(['yes', 'no'] as const).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => {
+                          setIsCurrentlyBuilding(option);
+                          if (option === 'no') setDownlineAgentCount('');
+                        }}
+                        className={`flex-1 px-5 py-4 rounded-xl text-center text-sm font-medium transition-all border cursor-pointer group ${
+                          isCurrentlyBuilding === option
+                            ? 'bg-[#a158ff]/15 border-[#a158ff] text-white shadow-lg shadow-[#a158ff]/10'
+                            : 'bg-white/[0.04] border-white/15 text-white/60 hover:bg-white/[0.08] hover:border-white/25'
+                        }`}
+                      >
+                        {option === 'yes' ? 'Yes' : 'No'}
+                      </button>
+                    ))}
+                  </div>
+                  <input type="text" required value={isCurrentlyBuilding} onChange={() => {}} className="sr-only" tabIndex={-1} aria-hidden="true" />
+                </div>
+
+                {/* Downline - shown when building */}
+                {isCurrentlyBuilding === 'yes' && (
+                  <div>
+                    <label htmlFor="d-downline" className="block text-white font-semibold mb-2 text-sm">
+                      How many agents are in your downline? <span className="text-[#3DD6C3]">*</span>
+                    </label>
+                    <div className="relative">
+                      <select
+                        id="d-downline"
+                        required
+                        value={downlineAgentCount}
+                        onChange={(e) => setDownlineAgentCount(e.target.value)}
+                        className="w-full px-4 py-3.5 bg-white/10 border border-white/20 rounded-xl text-white focus:border-[#3DD6C3] focus:outline-none focus:ring-2 focus:ring-[#3DD6C3]/30 transition-all text-[15px] appearance-none cursor-pointer"
+                      >
+                        <option value="" disabled className="bg-[#0D4D4D] text-white/50">Select a range</option>
+                        <option value="1-5" className="bg-[#0D4D4D] text-white">1–5</option>
+                        <option value="6-15" className="bg-[#0D4D4D] text-white">6–15</option>
+                        <option value="16-30" className="bg-[#0D4D4D] text-white">16–30</option>
+                        <option value="31-50" className="bg-[#0D4D4D] text-white">31–50</option>
+                        <option value="51-100" className="bg-[#0D4D4D] text-white">51–100</option>
+                        <option value="100+" className="bg-[#0D4D4D] text-white">100+</option>
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <svg className="w-5 h-5 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Biggest Difference - 2-col radio cards */}
                 <div>
