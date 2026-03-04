@@ -78,8 +78,10 @@ export async function GET(req: NextRequest) {
       if (!agentEmail) continue;
 
       const policyReviewAIEnabled = (agentData.policyReviewAIEnabled as boolean) !== false;
-      const messageStyle = ((agentData.anniversaryMessageStyle as string) || 'check_in') as 'lower_price' | 'check_in';
+      const messageStyle = ((agentData.anniversaryMessageStyle as string) || 'check_in') as 'lower_price' | 'check_in' | 'custom';
       const schedulingUrl = (agentData.schedulingUrl as string) || null;
+      const customTemplate = (agentData.anniversaryMessageCustom as string) || '';
+      const customTitle = (agentData.anniversaryMessageCustomTitle as string) || '';
 
       const clientsSnap = await db
         .collection('agents').doc(agentDoc.id)
@@ -211,30 +213,48 @@ export async function GET(req: NextRequest) {
 
       // ─── Job B: Day +1 Client Outreach ───
       if (outreachHits.length > 0 && policyReviewAIEnabled) {
+        const isCustom = messageStyle === 'custom' && customTemplate.trim();
+
         for (const hit of outreachHits) {
           try {
-            const outreachCtx: PolicyReviewOutreachContext = {
-              agentName,
-              agentFirstName,
-              clientName: hit.clientName,
-              clientFirstName: hit.clientFirstName,
-              policyType: hit.policyType,
-              carrier: hit.carrier,
-              premiumAmount: hit.premiumAmount,
-              coverageAmount: hit.coverageAmount,
-              schedulingUrl,
-              messageStyle,
-            };
+            let outreachMessage: string;
+            let pushTitleForHit: string;
 
-            const aiMessage = await generateInitialOutreach(outreachCtx);
-            if (!aiMessage) continue;
+            if (isCustom) {
+              const policyLabel = `your ${hit.policyType} policy`;
+              const schedulingNote = schedulingUrl ? ` Tap here to grab a time on my calendar: ${schedulingUrl}` : '';
+              outreachMessage = customTemplate
+                .replace(/\{\{firstName\}\}/g, hit.clientFirstName)
+                .replace(/\{\{policyLabel\}\}/g, policyLabel)
+                .replace(/\{\{agentName\}\}/g, agentName)
+                .replace(/\{\{schedulingNote\}\}/g, schedulingNote.trim());
+              pushTitleForHit = customTitle.trim() || 'Policy Review';
+            } else {
+              const outreachCtx: PolicyReviewOutreachContext = {
+                agentName,
+                agentFirstName,
+                clientName: hit.clientName,
+                clientFirstName: hit.clientFirstName,
+                policyType: hit.policyType,
+                carrier: hit.carrier,
+                premiumAmount: hit.premiumAmount,
+                coverageAmount: hit.coverageAmount,
+                schedulingUrl,
+                messageStyle: messageStyle === 'custom' ? 'check_in' : messageStyle,
+              };
+
+              const aiMessage = await generateInitialOutreach(outreachCtx);
+              if (!aiMessage) continue;
+              outreachMessage = aiMessage;
+              pushTitleForHit = messageStyle === 'lower_price' ? 'Rate Review' : 'Policy Check-In';
+            }
 
             let chatId: string | null = null;
             const phone = hit.clientPhone ? normalizePhone(hit.clientPhone) : null;
 
             if (phone && isValidE164(phone)) {
               const idempotencyKey = `policy-review-${hit.policyId}-initial`;
-              const result = await sendOrCreateChat({ to: phone, text: aiMessage, idempotencyKey });
+              const result = await sendOrCreateChat({ to: phone, text: outreachMessage, idempotencyKey });
               chatId = result.chatId;
             }
 
@@ -246,8 +266,8 @@ export async function GET(req: NextRequest) {
                   headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
                   body: JSON.stringify({
                     to: hit.clientPushToken,
-                    title: messageStyle === 'lower_price' ? 'Rate Review' : 'Policy Check-In',
-                    body: aiMessage,
+                    title: pushTitleForHit,
+                    body: outreachMessage,
                     sound: 'default',
                     badge: 1,
                     priority: 'high',
@@ -266,8 +286,8 @@ export async function GET(req: NextRequest) {
               .collection('notifications')
               .add({
                 type: 'anniversary',
-                title: messageStyle === 'lower_price' ? 'Rate Review' : 'Policy Check-In',
-                body: aiMessage,
+                title: pushTitleForHit,
+                body: outreachMessage,
                 sentAt: FieldValue.serverTimestamp(),
                 readAt: null,
                 status: 'sent',
@@ -292,14 +312,14 @@ export async function GET(req: NextRequest) {
                 messageStyle,
                 status: 'outreach-sent',
                 conversation: [{
-                  role: 'agent-ai',
-                  body: aiMessage,
+                  role: isCustom ? 'agent-manual' : 'agent-ai',
+                  body: outreachMessage,
                   timestamp: new Date().toISOString(),
                 }],
                 chatId,
                 dripCount: 0,
                 lastDripAt: FieldValue.serverTimestamp(),
-                aiEnabled: true,
+                aiEnabled: !isCustom,
                 createdAt: FieldValue.serverTimestamp(),
                 updatedAt: FieldValue.serverTimestamp(),
               });

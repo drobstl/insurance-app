@@ -220,6 +220,8 @@ export async function GET(req: NextRequest) {
       }
 
       const messageStyle = (agentData.anniversaryMessageStyle as string) || 'check_in';
+      const customTemplate = (agentData.anniversaryMessageCustom as string) || '';
+      const customTitle = (agentData.anniversaryMessageCustomTitle as string) || '';
 
       for (const [, clientHits] of clientHitsMap) {
         const hit = clientHits[0]; // Representative hit for push token / name
@@ -235,7 +237,14 @@ export async function GET(req: NextRequest) {
         let pushTitle: string;
         let pushBody: string;
 
-        if (messageStyle === 'lower_price') {
+        if (messageStyle === 'custom' && customTemplate.trim()) {
+          pushTitle = customTitle.trim() || 'Policy Review';
+          pushBody = customTemplate
+            .replace(/\{\{firstName\}\}/g, firstName)
+            .replace(/\{\{policyLabel\}\}/g, policyLabel)
+            .replace(/\{\{agentName\}\}/g, agentName)
+            .replace(/\{\{schedulingNote\}\}/g, schedulingNote.trim());
+        } else if (messageStyle === 'lower_price') {
           pushTitle = 'Rate Review';
           pushBody = `Hi ${firstName}, your ${policyLabel} anniversary is coming up and I've been seeing some lower rates for the same coverage. Want me to run the numbers? It'll take 10 minutes.${schedulingNote} — ${agentName}`;
         } else {

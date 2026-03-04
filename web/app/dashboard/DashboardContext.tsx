@@ -24,7 +24,9 @@ export interface AgentProfile {
   schedulingUrl?: string;
   autoHolidayCards?: boolean;
   aiAssistantEnabled?: boolean;
-  anniversaryMessageStyle?: 'check_in' | 'lower_price';
+  anniversaryMessageStyle?: 'check_in' | 'lower_price' | 'custom';
+  anniversaryMessageCustom?: string;
+  anniversaryMessageCustomTitle?: string;
   policyReviewAIEnabled?: boolean;
   onboardingComplete?: boolean;
   tipsSeen?: Record<string, boolean>;
@@ -91,6 +93,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           autoHolidayCards: data.autoHolidayCards,
           aiAssistantEnabled: data.aiAssistantEnabled,
           anniversaryMessageStyle: data.anniversaryMessageStyle,
+          anniversaryMessageCustom: data.anniversaryMessageCustom,
+          anniversaryMessageCustomTitle: data.anniversaryMessageCustomTitle,
           policyReviewAIEnabled: data.policyReviewAIEnabled,
           onboardingComplete: data.onboardingComplete,
           tipsSeen: data.tipsSeen || {},

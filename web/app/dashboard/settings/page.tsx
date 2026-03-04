@@ -121,6 +121,8 @@ export default function SettingsPage() {
         referralMessage: agentProfile.referralMessage || '',
         autoHolidayCards: agentProfile.autoHolidayCards ?? false,
         anniversaryMessageStyle: agentProfile.anniversaryMessageStyle || 'check_in',
+        anniversaryMessageCustom: agentProfile.anniversaryMessageCustom || '',
+        anniversaryMessageCustomTitle: agentProfile.anniversaryMessageCustomTitle || '',
         policyReviewAIEnabled: agentProfile.policyReviewAIEnabled ?? true,
       }, { merge: true });
       setSaveMessage({ type: 'success', text: 'Settings saved successfully.' });
@@ -594,7 +596,7 @@ export default function SettingsPage() {
           <div className="bg-white rounded-[5px] border border-gray-200 p-5">
             <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Anniversary Message Style</h3>
             <p className="text-xs text-[#707070] mb-3">Choose how your 1-year policy anniversary messages are framed.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <button
                 onClick={() => updateField('anniversaryMessageStyle', 'check_in')}
                 className={`p-4 rounded-[5px] border-2 text-left transition-colors ${
@@ -643,7 +645,67 @@ export default function SettingsPage() {
                   Proactively offer to shop for a better rate, positioning you as someone who saves them money.
                 </p>
               </button>
+              <button
+                onClick={() => updateField('anniversaryMessageStyle', 'custom')}
+                className={`p-4 rounded-[5px] border-2 text-left transition-colors ${
+                  agentProfile.anniversaryMessageStyle === 'custom'
+                    ? 'border-[#44bbaa] bg-[#f0faf8]'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    agentProfile.anniversaryMessageStyle === 'custom'
+                      ? 'border-[#44bbaa]'
+                      : 'border-gray-300'
+                  }`}>
+                    {agentProfile.anniversaryMessageStyle === 'custom' && (
+                      <div className="w-2 h-2 rounded-full bg-[#44bbaa]" />
+                    )}
+                  </div>
+                  <span className="text-sm font-semibold text-[#000000]">Custom Message</span>
+                </div>
+                <p className="text-xs text-[#707070]">
+                  Write your own message that goes out automatically to every client at their policy anniversary.
+                </p>
+              </button>
             </div>
+            {agentProfile.anniversaryMessageStyle === 'custom' && (
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-[#000000] mb-1">Push Notification Title <span className="text-[#707070] font-normal">(optional)</span></label>
+                  <input
+                    type="text"
+                    value={agentProfile.anniversaryMessageCustomTitle || ''}
+                    onChange={(e) => updateField('anniversaryMessageCustomTitle', e.target.value)}
+                    placeholder="Policy Review"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-[5px] text-sm text-[#000000] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#44bbaa] focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[#000000] mb-1">Message Template</label>
+                  <textarea
+                    value={agentProfile.anniversaryMessageCustom || ''}
+                    onChange={(e) => updateField('anniversaryMessageCustom', e.target.value)}
+                    placeholder={`Hi {{firstName}}, your {{policyLabel}} anniversary is coming up. I'd love to check in and make sure everything still fits. — {{agentName}}`}
+                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-[5px] text-sm text-[#000000] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#44bbaa] focus:border-transparent resize-y"
+                  />
+                  {agentProfile.anniversaryMessageStyle === 'custom' && !agentProfile.anniversaryMessageCustom?.trim() && (
+                    <p className="text-xs text-amber-600 mt-1">Please enter a message template before saving.</p>
+                  )}
+                </div>
+                <div className="bg-[#f8fafb] rounded-[5px] p-3 border border-gray-100">
+                  <p className="text-xs font-medium text-[#005851] mb-1.5">Available Placeholders</p>
+                  <div className="grid grid-cols-2 gap-1.5 text-xs text-[#707070]">
+                    <span><code className="bg-white px-1 py-0.5 rounded border border-gray-200 text-[#005851]">{`{{firstName}}`}</code> Client first name</span>
+                    <span><code className="bg-white px-1 py-0.5 rounded border border-gray-200 text-[#005851]">{`{{policyLabel}}`}</code> Policy description</span>
+                    <span><code className="bg-white px-1 py-0.5 rounded border border-gray-200 text-[#005851]">{`{{agentName}}`}</code> Your name</span>
+                    <span><code className="bg-white px-1 py-0.5 rounded border border-gray-200 text-[#005851]">{`{{schedulingNote}}`}</code> Scheduling link</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Rewrite campaigns (policy review AI) */}
