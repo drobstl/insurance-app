@@ -132,7 +132,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const [showCancelWarning, setShowCancelWarning] = useState(false);
 
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showTutorialVideo, setShowTutorialVideo] = useState(false);
   const [showWorkflowVideo, setShowWorkflowVideo] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
@@ -312,15 +311,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => setShowTutorialVideo(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] border border-[#3DD6C3] text-[#0D4D4D] hover:bg-[#3DD6C3]/10 transition-colors text-sm font-medium"
-              title="Watch tutorial"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-              <span className="hidden sm:inline">Tutorial</span>
-            </button>
-
             {/* Profile Dropdown */}
             <div className="relative">
               <button
@@ -419,13 +409,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           agentUid={user.uid}
           agentName={agentProfile.name || user.displayName || ''}
           onComplete={() => setShowOnboarding(false)}
-          onOpenTutorial={() => setShowTutorialVideo(true)}
           onOpenProfile={() => router.push('/dashboard/settings')}
           onOpenClients={() => router.push('/dashboard/clients')}
         />
       )}
 
-      <LoomVideoModal isOpen={showTutorialVideo} onClose={() => setShowTutorialVideo(false)} />
       <LoomVideoModal isOpen={showWorkflowVideo} onClose={() => setShowWorkflowVideo(false)} videoUrl="https://www.loom.com/embed/88422effb7ca4cdc8ae88646490fed00" />
 
       {showCancelWarning && (

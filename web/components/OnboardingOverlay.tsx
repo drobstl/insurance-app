@@ -8,24 +8,11 @@ interface OnboardingOverlayProps {
   agentUid: string;
   agentName: string;
   onComplete: () => void;
-  onOpenTutorial: () => void;
   onOpenProfile: () => void;
   onOpenClients?: () => void;
 }
 
 const STEPS = [
-  {
-    id: 'watch',
-    icon: (
-      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M8 5v14l11-7z" />
-      </svg>
-    ),
-    title: 'Watch the Quick Tutorial',
-    description: 'A 3-minute walkthrough of everything you need to know.',
-    buttonLabel: 'Watch Video',
-    action: 'tutorial' as const,
-  },
   {
     id: 'profile',
     icon: (
@@ -39,14 +26,26 @@ const STEPS = [
     action: 'profile' as const,
   },
   {
-    id: 'client',
+    id: 'newClients',
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
       </svg>
     ),
-    title: 'Add Your First Client',
-    description: 'Each client gets a unique code. Hit the Share button to text it to them — they download your branded app instantly.',
+    title: 'Add New Clients',
+    description: "Add one client at a time—typically at the end of an appointment. They'll instantly receive a text with a link to download the app and their unique code.",
+    buttonLabel: 'Next',
+    action: 'next' as const,
+  },
+  {
+    id: 'bookOfBusiness',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+    title: 'Import Your Book of Business',
+    description: "Have an existing client list? Use CSV import to upload your entire book of business in one go.",
     buttonLabel: 'Go to Clients',
     action: 'clients' as const,
   },
@@ -58,7 +57,7 @@ const STEPS = [
       </svg>
     ),
     title: 'Find Your Way Around',
-    description: 'Use the sidebar on the left to switch between sections — Clients, Referrals, Retention, Rewrites, and more. Each section will show a quick tip the first time you visit. If you have questions, use Patch in the bottom-right corner — Patch can answer how-to questions and point you to the right place.',
+    description: 'Use Patch in the bottom-right corner to ask any question about how to use the dashboard. Use the sidebar on the left to switch between sections — Clients, Referrals, Retention, Rewrites, and more. Each section will show a quick tip the first time you visit.',
     buttonLabel: "Let's Go",
     action: 'finish' as const,
   },
@@ -68,7 +67,6 @@ export default function OnboardingOverlay({
   agentUid,
   agentName,
   onComplete,
-  onOpenTutorial,
   onOpenProfile,
   onOpenClients,
 }: OnboardingOverlayProps) {
@@ -84,15 +82,20 @@ export default function OnboardingOverlay({
   const handleStepAction = (step: (typeof STEPS)[number]) => {
     markStepDone(step.id);
 
-    if (step.action === 'tutorial') {
-      onOpenTutorial();
-    } else if (step.action === 'profile') {
+    if (step.action === 'profile') {
       onOpenProfile();
       handleFinish();
       return;
     } else if (step.action === 'clients') {
       onOpenClients?.();
       handleFinish();
+      return;
+    } else if (step.action === 'next') {
+      if (currentStep < STEPS.length - 1) {
+        setCurrentStep(currentStep + 1);
+      } else {
+        handleFinish();
+      }
       return;
     } else if (step.action === 'finish') {
       handleFinish();
