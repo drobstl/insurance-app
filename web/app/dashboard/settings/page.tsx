@@ -936,73 +936,141 @@ export default function SettingsPage() {
         <div className="hidden lg:block w-[280px] shrink-0 sticky top-6">
           <p className="text-xs text-[#707070] font-semibold uppercase tracking-wide text-center mb-3">Client App Preview</p>
           <div className="w-[260px] mx-auto bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl border-4 border-[#2a2a2a]">
-            <div className="w-full h-[480px] bg-[#111] rounded-[2.5rem] overflow-hidden px-4 py-6">
-              <div className="flex items-center gap-3 mb-5">
-                {agentProfile.photoBase64 ? (
-                  <img
-                    src={`data:image/jpeg;base64,${agentProfile.photoBase64}`}
-                    alt="Preview"
-                    className="w-10 h-10 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-[#005851] flex items-center justify-center">
-                    <span className="text-[#3DD6C3] text-xs font-bold">
-                      {agentProfile.name?.charAt(0)?.toUpperCase() || 'A'}
-                    </span>
-                  </div>
-                )}
+            <div className="w-full h-[520px] rounded-[2.5rem] overflow-hidden flex flex-col">
+
+              {/* Header — matches mobile #0D4D4D header */}
+              <div className="bg-[#0D4D4D] px-4 pt-5 pb-3 flex items-center justify-between">
                 <div>
-                  <p className="text-white text-xs font-semibold">{agentProfile.name || 'Your Name'}</p>
-                  <p className="text-white/35 text-[9px]">{agentProfile.agencyName || 'Your Agency'}</p>
+                  <p className="text-white/80 text-[9px] font-medium">Welcome back,</p>
+                  <p className="text-white text-[13px] font-bold">Sarah</p>
+                </div>
+                <div className="px-2 py-1 bg-white/[0.15] rounded-md border border-white/30">
+                  <span className="text-white text-[8px] font-semibold">Sign Out</span>
                 </div>
               </div>
 
-              <div className="text-center mb-4">
-                <p className="text-white/30 text-[8px] uppercase tracking-wider mb-2">Your Insurance Agent</p>
-                {agentProfile.photoBase64 ? (
-                  <img
-                    src={`data:image/jpeg;base64,${agentProfile.photoBase64}`}
-                    alt="Agent"
-                    className="w-16 h-16 rounded-full object-cover mx-auto mb-2 border-2 border-[#3DD6C3]/30"
-                  />
-                ) : (
-                  <div className="w-16 h-16 rounded-full bg-[#005851] flex items-center justify-center mx-auto mb-2">
-                    <span className="text-[#3DD6C3] text-lg font-bold">
-                      {agentProfile.name?.charAt(0)?.toUpperCase() || 'A'}
-                    </span>
-                  </div>
-                )}
-                <p className="text-white text-[11px] font-bold">{agentProfile.name || 'Your Name'}</p>
-                {agentProfile.agencyName && (
-                  <p className="text-white/40 text-[9px]">{agentProfile.agencyName}</p>
-                )}
-                {agentProfile.agencyLogoBase64 && (
-                  <img
-                    src={`data:image/jpeg;base64,${agentProfile.agencyLogoBase64}`}
-                    alt="Logo"
-                    className="h-6 object-contain mx-auto mt-1.5 opacity-60"
-                  />
-                )}
-              </div>
+              {/* Body — off-white #F8F9FA like the real app */}
+              <div className="flex-1 bg-[#F8F9FA] px-3 py-3 overflow-hidden">
 
-              <div className="space-y-2.5">
-                <div className="bg-white/[0.08] rounded-xl p-3 border border-white/5">
-                  <p className="text-white/30 text-[8px] uppercase tracking-wider mb-2">Your Policies</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-white/70 text-[10px]">Auto — State Farm</span>
-                    <span className="text-[#3DD6C3] text-[8px] font-semibold">Active</span>
+                {/* Agent Card — white, rounded-[10px] to match mobile rounded-20 at ~half scale */}
+                <div className="bg-white rounded-[10px] p-3 shadow-sm">
+
+                  {/* YOUR INSURANCE AGENT badge */}
+                  <div className="bg-[#0D4D4D] rounded-md py-1.5 px-3 mx-auto w-fit mb-3">
+                    <p className="text-white text-[7px] font-bold tracking-[0.12em] text-center">YOUR INSURANCE AGENT</p>
                   </div>
-                  <div className="flex items-center justify-between mt-1.5">
-                    <span className="text-white/70 text-[10px]">Life — Mutual of Omaha</span>
-                    <span className="text-[#3DD6C3] text-[8px] font-semibold">Active</span>
+
+                  {/* Agent Avatar */}
+                  <div className="flex justify-center mb-2">
+                    {agentProfile.photoBase64 ? (
+                      <img
+                        src={`data:image/jpeg;base64,${agentProfile.photoBase64}`}
+                        alt="Agent"
+                        className="w-[52px] h-[52px] rounded-full object-cover border-[2.5px] border-[#3DD6C3]"
+                      />
+                    ) : (
+                      <div className="w-[52px] h-[52px] rounded-full bg-[#0D4D4D] border-[2.5px] border-[#3DD6C3] flex items-center justify-center">
+                        <span className="text-white text-lg font-bold">
+                          {agentProfile.name?.charAt(0)?.toUpperCase() || 'A'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Agent Name */}
+                  <p className="text-[#2D3748] text-[13px] font-bold text-center">{agentProfile.name || 'Your Name'}</p>
+
+                  {/* Agency Name */}
+                  {agentProfile.agencyName && (
+                    <p className="text-[#6B7280] text-[9px] font-medium text-center mt-0.5">{agentProfile.agencyName}</p>
+                  )}
+
+                  {/* Agency Logo */}
+                  {agentProfile.agencyLogoBase64 && (
+                    <div className="flex justify-center mt-2 mb-1">
+                      <div className="border border-[#E5E7EB] rounded-md p-1 bg-white">
+                        <img
+                          src={`data:image/jpeg;base64,${agentProfile.agencyLogoBase64}`}
+                          alt="Logo"
+                          className="h-[26px] w-auto object-contain"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Contact Rows */}
+                  <div className="mt-3 space-y-1.5">
+                    {/* Email row */}
+                    <div className="flex items-center gap-2 bg-[#F8F9FA] rounded-lg p-2 border border-[#E5E7EB]">
+                      <div className="w-6 h-6 rounded-[4px] bg-[#0D4D4D] flex items-center justify-center shrink-0">
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <span className="text-[#2D3748] text-[9px] font-semibold flex-1">Email {agentFirstName}</span>
+                      <div className="w-4 h-4 rounded-full bg-[#3DD6C3] flex items-center justify-center shrink-0">
+                        <span className="text-white text-[8px] font-semibold leading-none">&rsaquo;</span>
+                      </div>
+                    </div>
+
+                    {/* Call row */}
+                    <div className="flex items-center gap-2 bg-[#F8F9FA] rounded-lg p-2 border border-[#E5E7EB]">
+                      <div className="w-6 h-6 rounded-[4px] bg-[#fdcc02] flex items-center justify-center shrink-0">
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                      </div>
+                      <span className="text-[#2D3748] text-[9px] font-semibold flex-1">Call {agentFirstName}</span>
+                      <div className="w-4 h-4 rounded-full bg-[#3DD6C3] flex items-center justify-center shrink-0">
+                        <span className="text-white text-[8px] font-semibold leading-none">&rsaquo;</span>
+                      </div>
+                    </div>
+
+                    {/* Book Appointment row */}
+                    {agentProfile.schedulingUrl && (
+                      <div className="flex items-center gap-2 bg-[#F8F9FA] rounded-lg p-2 border border-[#E5E7EB]">
+                        <div className="w-6 h-6 rounded-[4px] bg-[#0D4D4D] flex items-center justify-center shrink-0">
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                        <span className="text-[#2D3748] text-[9px] font-semibold flex-1">Book w/ {agentFirstName}</span>
+                        <div className="w-4 h-4 rounded-full bg-[#3DD6C3] flex items-center justify-center shrink-0">
+                          <span className="text-white text-[8px] font-semibold leading-none">&rsaquo;</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="bg-[#fdcc02] rounded-xl py-2.5 text-center">
-                  <p className="text-[#0D4D4D] text-[10px] font-bold">Refer a Friend</p>
+
+                {/* Refer button — matches red #e31837 referral button */}
+                <div className="mt-2 bg-[#e31837] rounded-[8px] py-2 px-3 flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-[4px] bg-white/20 flex items-center justify-center shrink-0">
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-white text-[9px] font-bold">Refer {agentFirstName}</p>
+                    <p className="text-white/80 text-[7px]">Share with friends &amp; family</p>
+                  </div>
+                  <span className="text-white text-sm font-light">&rsaquo;</span>
                 </div>
-                <div className="bg-[#005851] rounded-xl py-2.5 text-center">
-                  <p className="text-white text-[10px] font-bold">Contact {agentFirstName}</p>
+
+                {/* View Policies button — matches blue #0099FF */}
+                <div className="mt-1.5 bg-[#0099FF] rounded-[8px] py-2 px-3 flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-[4px] bg-white/20 flex items-center justify-center shrink-0">
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-white text-[9px] font-bold">View My Policies</p>
+                    <p className="text-white/80 text-[7px]">See your coverage details</p>
+                  </div>
+                  <span className="text-white text-sm font-light">&rsaquo;</span>
                 </div>
+
               </div>
             </div>
           </div>
