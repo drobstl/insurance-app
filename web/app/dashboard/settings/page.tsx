@@ -238,12 +238,18 @@ export default function SettingsPage() {
     ? detectSchedulingPlatform(agentProfile.schedulingUrl)
     : null;
 
+  const agentFirstName = agentProfile.name?.split(' ')[0] || 'Agent';
+  const showPhonePreview = activeTab === 'profile' || activeTab === 'branding';
+
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className={`mx-auto ${showPhonePreview ? 'max-w-5xl' : 'max-w-2xl'}`}>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#000000]">Settings</h1>
         <p className="text-[#707070] text-sm mt-1">Manage your profile, branding, and account preferences.</p>
       </div>
+
+      <div className={showPhonePreview ? 'flex gap-8 items-start' : ''}>
+      <div className={showPhonePreview ? 'flex-1 min-w-0' : ''}>
 
       {/* Tab Bar */}
       <div className="flex gap-1 mb-6 bg-white rounded-[5px] border border-gray-200 p-1">
@@ -923,6 +929,88 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+
+      </div>
+
+      {showPhonePreview && (
+        <div className="hidden lg:block w-[280px] shrink-0 sticky top-6">
+          <p className="text-xs text-[#707070] font-semibold uppercase tracking-wide text-center mb-3">Client App Preview</p>
+          <div className="w-[260px] mx-auto bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl border-4 border-[#2a2a2a]">
+            <div className="w-full h-[480px] bg-[#111] rounded-[2.5rem] overflow-hidden px-4 py-6">
+              <div className="flex items-center gap-3 mb-5">
+                {agentProfile.photoBase64 ? (
+                  <img
+                    src={`data:image/jpeg;base64,${agentProfile.photoBase64}`}
+                    alt="Preview"
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-[#005851] flex items-center justify-center">
+                    <span className="text-[#3DD6C3] text-xs font-bold">
+                      {agentProfile.name?.charAt(0)?.toUpperCase() || 'A'}
+                    </span>
+                  </div>
+                )}
+                <div>
+                  <p className="text-white text-xs font-semibold">{agentProfile.name || 'Your Name'}</p>
+                  <p className="text-white/35 text-[9px]">{agentProfile.agencyName || 'Your Agency'}</p>
+                </div>
+              </div>
+
+              <div className="text-center mb-4">
+                <p className="text-white/30 text-[8px] uppercase tracking-wider mb-2">Your Insurance Agent</p>
+                {agentProfile.photoBase64 ? (
+                  <img
+                    src={`data:image/jpeg;base64,${agentProfile.photoBase64}`}
+                    alt="Agent"
+                    className="w-16 h-16 rounded-full object-cover mx-auto mb-2 border-2 border-[#3DD6C3]/30"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-[#005851] flex items-center justify-center mx-auto mb-2">
+                    <span className="text-[#3DD6C3] text-lg font-bold">
+                      {agentProfile.name?.charAt(0)?.toUpperCase() || 'A'}
+                    </span>
+                  </div>
+                )}
+                <p className="text-white text-[11px] font-bold">{agentProfile.name || 'Your Name'}</p>
+                {agentProfile.agencyName && (
+                  <p className="text-white/40 text-[9px]">{agentProfile.agencyName}</p>
+                )}
+                {agentProfile.agencyLogoBase64 && (
+                  <img
+                    src={`data:image/jpeg;base64,${agentProfile.agencyLogoBase64}`}
+                    alt="Logo"
+                    className="h-6 object-contain mx-auto mt-1.5 opacity-60"
+                  />
+                )}
+              </div>
+
+              <div className="space-y-2.5">
+                <div className="bg-white/[0.08] rounded-xl p-3 border border-white/5">
+                  <p className="text-white/30 text-[8px] uppercase tracking-wider mb-2">Your Policies</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/70 text-[10px]">Auto — State Farm</span>
+                    <span className="text-[#3DD6C3] text-[8px] font-semibold">Active</span>
+                  </div>
+                  <div className="flex items-center justify-between mt-1.5">
+                    <span className="text-white/70 text-[10px]">Life — Mutual of Omaha</span>
+                    <span className="text-[#3DD6C3] text-[8px] font-semibold">Active</span>
+                  </div>
+                </div>
+                <div className="bg-[#fdcc02] rounded-xl py-2.5 text-center">
+                  <p className="text-[#0D4D4D] text-[10px] font-bold">Refer a Friend</p>
+                </div>
+                <div className="bg-[#005851] rounded-xl py-2.5 text-center">
+                  <p className="text-white text-[10px] font-bold">Contact {agentFirstName}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p className="text-[10px] text-[#9CA3AF] text-center mt-2">Updates live as you edit</p>
+        </div>
+      )}
+
+      </div>
     </div>
   );
 }

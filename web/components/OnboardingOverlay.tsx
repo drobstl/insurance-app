@@ -14,6 +14,18 @@ interface OnboardingOverlayProps {
 
 const STEPS = [
   {
+    id: 'welcome',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+      </svg>
+    ),
+    title: 'Welcome to Your Dashboard',
+    description: 'This is your command center. Everything you do here controls what your clients see in their personal app — your branding, your policies, your touchpoints. A web dashboard for you, a mobile app for your clients, always in sync.',
+    buttonLabel: 'Next',
+    action: 'next' as const,
+  },
+  {
     id: 'profile',
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -21,7 +33,7 @@ const STEPS = [
       </svg>
     ),
     title: 'Set Up Your Profile',
-    description: 'Add your photo, phone number, and agency branding. This is what your clients see in the app.',
+    description: "Head to Settings to add your name, phone number, agency name, and profile photo. This is exactly what your clients will see in their app — you can preview it live on the Settings page.",
     buttonLabel: 'Open Settings',
     action: 'profile' as const,
   },
