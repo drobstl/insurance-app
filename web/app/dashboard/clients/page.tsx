@@ -1009,100 +1009,115 @@ export default function ClientsPage() {
   // ─── CSV Import Handlers ─────────────────────────────────
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     setImportError('');
     setImportSuccess('');
     setImportData([]);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const text = event.target?.result as string;
-        const lines = text.split('\n').filter((l) => l.trim());
-        if (lines.length < 2) {
-          setImportError('CSV must have a header row and at least one data row.');
-          return;
-        }
-
-        // Smart CSV parsing that handles quoted fields with commas
-        const parseCsvLine = (line: string): string[] => {
-          const result: string[] = [];
-          let current = '';
-          let inQuotes = false;
-          for (let i = 0; i < line.length; i++) {
-            const ch = line[i];
-            if (ch === '"') {
-              inQuotes = !inQuotes;
-            } else if (ch === ',' && !inQuotes) {
-              result.push(current.trim());
-              current = '';
-            } else {
-              current += ch;
-            }
-          }
+    const parseCsvLine = (line: string): string[] => {
+      const result: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          inQuotes = !inQuotes;
+        } else if (ch === ',' && !inQuotes) {
           result.push(current.trim());
-          return result;
-        };
-
-        const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim());
-
-        // Smart column matching with multiple aliases
-        const match = (aliases: string[]) =>
-          headers.findIndex((h) => aliases.some((a) => h === a || h.includes(a)));
-
-        const nameIdx = match(['name', 'full name', 'client name', 'client', 'insured name', 'insured']);
-        const emailIdx = match(['email', 'email address', 'e-mail']);
-        const phoneIdx = match(['phone', 'phone number', 'mobile', 'cell', 'telephone']);
-        const dobIdx = match(['dob', 'date of birth', 'birthday', 'birth date', 'birthdate']);
-        const policyNumIdx = match(['policy number', 'policy no', 'policy #', 'policy num', 'policynumber']);
-        const carrierIdx = match(['carrier', 'insurance company', 'company', 'insurer', 'insurance carrier']);
-        const policyTypeIdx = match(['policy type', 'type', 'product', 'product type', 'plan type']);
-        const effectiveDateIdx = match(['effective date', 'issue date', 'start date', 'policy date', 'effectivedate', 'inception date']);
-        const premiumIdx = match(['premium', 'premium amount', 'monthly premium', 'payment']);
-        const coverageIdx = match(['coverage', 'coverage amount', 'death benefit', 'face amount', 'face value', 'benefit amount']);
-        const statusIdx = match(['status', 'policy status']);
-
-        if (nameIdx === -1) {
-          setImportError('CSV must have a "Name" column. Accepted: Name, Full Name, Client Name, Insured Name.');
-          return;
+          current = '';
+        } else {
+          current += ch;
         }
-
-        const rows: ImportRow[] = [];
-        for (let i = 1; i < lines.length; i++) {
-          const cols = parseCsvLine(lines[i]);
-          const name = cols[nameIdx] || '';
-          if (!name) continue;
-          rows.push({
-            name,
-            email: emailIdx !== -1 ? (cols[emailIdx] || '') : '',
-            phone: phoneIdx !== -1 ? (cols[phoneIdx] || '') : '',
-            dateOfBirth: dobIdx !== -1 ? (cols[dobIdx] || '') : '',
-            policyNumber: policyNumIdx !== -1 ? (cols[policyNumIdx] || '') : '',
-            carrier: carrierIdx !== -1 ? (cols[carrierIdx] || '') : '',
-            policyType: policyTypeIdx !== -1 ? (cols[policyTypeIdx] || '') : '',
-            effectiveDate: effectiveDateIdx !== -1 ? (cols[effectiveDateIdx] || '') : '',
-            premium: premiumIdx !== -1 ? (cols[premiumIdx] || '') : '',
-            coverageAmount: coverageIdx !== -1 ? (cols[coverageIdx] || '') : '',
-            status: statusIdx !== -1 ? (cols[statusIdx] || '') : '',
-          });
-        }
-
-        if (rows.length === 0) {
-          setImportError('No valid rows found in CSV.');
-          return;
-        }
-        if (rows.length > MAX_IMPORT_ROWS) {
-          setImportError(`Maximum ${MAX_IMPORT_ROWS} clients per import. Your file has ${rows.length} rows. Split the file or import in multiple runs.`);
-          return;
-        }
-
-        setImportData(rows);
-      } catch {
-        setImportError('Failed to parse CSV file.');
       }
+      result.push(current.trim());
+      return result;
     };
-    reader.readAsText(file);
+
+    const parseSingleCsv = (text: string, fileName: string): { rows: ImportRow[]; error?: string } => {
+      const lines = text.split('\n').filter((l) => l.trim());
+      if (lines.length < 2) {
+        return { rows: [], error: `${fileName}: must have a header row and at least one data row.` };
+      }
+
+      const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim());
+
+      const match = (aliases: string[]) =>
+        headers.findIndex((h) => aliases.some((a) => h === a || h.includes(a)));
+
+      const nameIdx = match(['name', 'full name', 'client name', 'client', 'insured name', 'insured']);
+      const emailIdx = match(['email', 'email address', 'e-mail']);
+      const phoneIdx = match(['phone', 'phone number', 'mobile', 'cell', 'telephone']);
+      const dobIdx = match(['dob', 'date of birth', 'birthday', 'birth date', 'birthdate']);
+      const policyNumIdx = match(['policy number', 'policy no', 'policy #', 'policy num', 'policynumber']);
+      const carrierIdx = match(['carrier', 'insurance company', 'company', 'insurer', 'insurance carrier']);
+      const policyTypeIdx = match(['policy type', 'type', 'product', 'product type', 'plan type']);
+      const effectiveDateIdx = match(['effective date', 'issue date', 'start date', 'policy date', 'effectivedate', 'inception date']);
+      const premiumIdx = match(['premium', 'premium amount', 'monthly premium', 'payment']);
+      const coverageIdx = match(['coverage', 'coverage amount', 'death benefit', 'face amount', 'face value', 'benefit amount']);
+      const statusIdx = match(['status', 'policy status']);
+
+      if (nameIdx === -1) {
+        return { rows: [], error: `${fileName}: no "Name" column found. Accepted: Name, Full Name, Client Name, Insured Name.` };
+      }
+
+      const rows: ImportRow[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseCsvLine(lines[i]);
+        const name = cols[nameIdx] || '';
+        if (!name) continue;
+        rows.push({
+          name,
+          email: emailIdx !== -1 ? (cols[emailIdx] || '') : '',
+          phone: phoneIdx !== -1 ? (cols[phoneIdx] || '') : '',
+          dateOfBirth: dobIdx !== -1 ? (cols[dobIdx] || '') : '',
+          policyNumber: policyNumIdx !== -1 ? (cols[policyNumIdx] || '') : '',
+          carrier: carrierIdx !== -1 ? (cols[carrierIdx] || '') : '',
+          policyType: policyTypeIdx !== -1 ? (cols[policyTypeIdx] || '') : '',
+          effectiveDate: effectiveDateIdx !== -1 ? (cols[effectiveDateIdx] || '') : '',
+          premium: premiumIdx !== -1 ? (cols[premiumIdx] || '') : '',
+          coverageAmount: coverageIdx !== -1 ? (cols[coverageIdx] || '') : '',
+          status: statusIdx !== -1 ? (cols[statusIdx] || '') : '',
+        });
+      }
+      return { rows };
+    };
+
+    const fileArray = Array.from(files);
+    let completed = 0;
+    const allRows: ImportRow[] = [];
+    const errors: string[] = [];
+
+    fileArray.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const text = event.target?.result as string;
+          const { rows, error } = parseSingleCsv(text, file.name);
+          if (error) errors.push(error);
+          allRows.push(...rows);
+        } catch {
+          errors.push(`${file.name}: failed to parse.`);
+        }
+        completed++;
+
+        if (completed === fileArray.length) {
+          if (allRows.length === 0) {
+            setImportError(errors.length > 0 ? errors.join(' ') : 'No valid rows found across CSV files.');
+            return;
+          }
+          if (allRows.length > MAX_IMPORT_ROWS) {
+            setImportError(`Maximum ${MAX_IMPORT_ROWS} clients per import. Your ${fileArray.length > 1 ? `${fileArray.length} files have` : 'file has'} ${allRows.length} rows total. Split the files or import in multiple runs.`);
+            return;
+          }
+          if (errors.length > 0) {
+            setImportError(`Warning: ${errors.join(' ')} — ${allRows.length} valid rows loaded from other files.`);
+          }
+          setImportData(allRows);
+        }
+      };
+      reader.readAsText(file);
+    });
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, []);
 
@@ -1299,7 +1314,7 @@ export default function ClientsPage() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
-            Import CSV
+            Import CSV(s)
           </button>
         </div>
         <div className="flex-1" />
@@ -1836,15 +1851,30 @@ export default function ClientsPage() {
               ) : (
                 <>
                   <div className="bg-[#f8f8f8] border border-[#d0d0d0] rounded-[5px] p-4">
+                    <p className="text-sm font-semibold text-[#000000] mb-1.5">What you&apos;ll need</p>
                     <p className="text-sm text-[#707070] mb-2">
-                      Upload a CSV with your book of business. Required: <span className="font-semibold text-[#000000]">Name</span>. 
-                      Policy columns are optional — if present, policies will be created automatically.
+                      Upload one or more CSV files from your CRM, carrier portal, or a spreadsheet.
+                      The only required column is <span className="font-semibold text-[#000000]">Name</span> — but the more fields you include, the better your experience will be.
+                      Policies will be created automatically for rows that have policy data.
                     </p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {['Name', 'Phone', 'Email', 'DOB', 'Policy Number', 'Carrier', 'Policy Type', 'Effective Date', 'Premium', 'Coverage Amount', 'Status'].map((col) => (
-                        <span key={col} className="px-2 py-0.5 bg-white border border-[#d0d0d0] rounded text-[10px] text-[#707070] font-medium">{col}</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { col: 'Name', required: true },
+                        { col: 'Phone', required: false },
+                        { col: 'Email', required: false },
+                        { col: 'DOB', required: false },
+                        { col: 'Policy Number', required: false },
+                        { col: 'Carrier', required: false },
+                        { col: 'Policy Type', required: false },
+                        { col: 'Effective Date', required: false },
+                        { col: 'Premium', required: false },
+                        { col: 'Coverage Amount', required: false },
+                        { col: 'Status', required: false },
+                      ].map(({ col, required }) => (
+                        <span key={col} className={`px-2 py-0.5 rounded text-[10px] font-medium ${required ? 'bg-[#daf3f0] text-[#005851] border border-[#45bcaa]/30' : 'bg-white border border-[#d0d0d0] text-[#707070]'}`}>{col}{required ? ' *' : ''}</span>
                       ))}
                     </div>
+                    <p className="text-[10px] text-[#999999] mt-1.5">Column names are matched automatically — exact headers aren&apos;t needed.</p>
                   </div>
 
                   <div>
@@ -1852,9 +1882,11 @@ export default function ClientsPage() {
                       ref={fileInputRef}
                       type="file"
                       accept=".csv"
+                      multiple
                       onChange={handleFileUpload}
                       className="block w-full text-sm text-[#707070] file:mr-4 file:py-2 file:px-4 file:rounded-[5px] file:border-0 file:text-sm file:font-semibold file:bg-[#daf3f0] file:text-[#005851] hover:file:bg-[#c0ebe4] cursor-pointer"
                     />
+                    <p className="text-xs text-[#707070] mt-1.5">You can select multiple CSV files at once.</p>
                   </div>
 
                   {importError && (
