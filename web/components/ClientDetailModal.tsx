@@ -16,6 +16,8 @@ interface Client {
   createdAt: Timestamp;
   agentId: string;
   policyReviewOptOut?: boolean;
+  sourceReferralId?: string;
+  sourceReferralName?: string;
 }
 
 interface Policy {
@@ -110,6 +112,10 @@ export default function ClientDetailModal({
   const [flagSubmitting, setFlagSubmitting] = useState(false);
   const [flagResult, setFlagResult] = useState<{ policyId: string; success: boolean; message: string } | null>(null);
 
+  // ── Referral link state ──
+  const [referralName, setReferralName] = useState<string | null>(null);
+  const [clearingReferral, setClearingReferral] = useState(false);
+
   // Animate in on mount
   useEffect(() => {
     if (client) {
@@ -141,6 +147,49 @@ export default function ClientDetailModal({
     if (client) {
       document.addEventListener('keydown', handleKeyDown);
       return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [client]);
+
+  // Fetch referral name when sourceReferralId is set
+  useEffect(() => {
+    if (!client?.sourceReferralId) {
+      setReferralName(null);
+      return;
+    }
+    if (client.sourceReferralName) {
+      setReferralName(client.sourceReferralName);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { getFirestore, doc as fsDoc, getDoc } = await import('firebase/firestore');
+        const { db: clientDb } = await import('../firebase');
+        const refDoc = await getDoc(fsDoc(clientDb, 'agents', client.agentId, 'referrals', client.sourceReferralId!));
+        if (!cancelled && refDoc.exists()) {
+          setReferralName((refDoc.data().referralName as string) || 'Unknown');
+        }
+      } catch {
+        if (!cancelled) setReferralName('Referral');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [client?.sourceReferralId, client?.sourceReferralName, client?.agentId]);
+
+  const handleClearReferralLink = useCallback(async () => {
+    if (!client) return;
+    setClearingReferral(true);
+    try {
+      const { doc: fsDoc, updateDoc } = await import('firebase/firestore');
+      const { db: clientDb } = await import('../firebase');
+      await updateDoc(fsDoc(clientDb, 'agents', client.agentId, 'clients', client.id), {
+        sourceReferralId: null,
+      });
+      setReferralName(null);
+    } catch (err) {
+      console.error('Error clearing referral link:', err);
+    } finally {
+      setClearingReferral(false);
     }
   }, [client]);
 
@@ -539,6 +588,27 @@ export default function ClientDetailModal({
                   }
                 </p>
               </div>
+              {client?.sourceReferralId && (
+                <div className="col-span-2">
+                  <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Referred By</p>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 border border-blue-200 rounded text-sm font-medium text-blue-700">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      {referralName || 'Loading...'}
+                    </span>
+                    <button
+                      onClick={handleClearReferralLink}
+                      disabled={clearingReferral}
+                      className="text-xs text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                      title="Remove referral link"
+                    >
+                      {clearingReferral ? 'Clearing...' : 'Clear'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

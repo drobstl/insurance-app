@@ -54,6 +54,7 @@ interface Client {
   pushToken?: string;
   createdAt: Timestamp;
   agentId: string;
+  sourceReferralId?: string;
 }
 
 interface Policy {
@@ -733,6 +734,18 @@ export default function ClientsPage() {
             });
           } catch (smsErr) {
             console.error('Auto-text failed (non-blocking):', smsErr);
+          }
+
+          // Auto-match referral by phone (non-blocking)
+          try {
+            const matchToken = await user.getIdToken();
+            await fetch('/api/clients/match-referral', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${matchToken}` },
+              body: JSON.stringify({ clientId: docRef.id, clientPhone: formData.phone.trim() }),
+            });
+          } catch (matchErr) {
+            console.error('Referral match failed (non-blocking):', matchErr);
           }
         }
 

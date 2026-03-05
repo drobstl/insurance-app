@@ -27,6 +27,10 @@
     {
       "path": "/api/cron/policy-review-drip",
       "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/cron/stats-aggregates",
+      "schedule": "0 6 * * *"
     }
   ]
 }

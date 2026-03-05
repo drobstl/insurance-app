@@ -3,6 +3,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
+import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 
 export const maxDuration = 60;
 
@@ -132,6 +133,28 @@ export async function POST(request: NextRequest) {
         await db.doc(`clientCodes/${code}`).set({ agentId: uid, clientId: clientRef.id });
       } catch (mirrorErr) {
         console.error('Import-batch mirror failed (non-blocking):', mirrorErr);
+      }
+
+      // Auto-match referral by phone (non-blocking)
+      const rawPhone = (row.phone || '').trim();
+      if (rawPhone) {
+        try {
+          const normalized = normalizePhone(rawPhone);
+          if (isValidE164(normalized)) {
+            const refSnap = await db
+              .collection('agents')
+              .doc(uid)
+              .collection('referrals')
+              .where('referralPhone', '==', normalized)
+              .limit(1)
+              .get();
+            if (!refSnap.empty) {
+              await clientRef.update({ sourceReferralId: refSnap.docs[0].id });
+            }
+          }
+        } catch (matchErr) {
+          console.error('Referral match failed (non-blocking):', matchErr);
+        }
       }
 
       const firstName = name.split(' ')[0] || name;
