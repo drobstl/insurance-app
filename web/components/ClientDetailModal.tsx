@@ -163,9 +163,11 @@ export default function ClientDetailModal({
     let cancelled = false;
     (async () => {
       try {
-        const { getFirestore, doc as fsDoc, getDoc } = await import('firebase/firestore');
-        const { db: clientDb } = await import('../firebase');
-        const refDoc = await getDoc(fsDoc(clientDb, 'agents', client.agentId, 'referrals', client.sourceReferralId!));
+        const firestore = await import('firebase/firestore');
+        const { db } = await import('../firebase');
+        const refDoc = await firestore.getDoc(
+          firestore.doc(db, 'agents', client.agentId, 'referrals', client.sourceReferralId!),
+        );
         if (!cancelled && refDoc.exists()) {
           setReferralName((refDoc.data().referralName as string) || 'Unknown');
         }
@@ -180,11 +182,12 @@ export default function ClientDetailModal({
     if (!client) return;
     setClearingReferral(true);
     try {
-      const { doc: fsDoc, updateDoc } = await import('firebase/firestore');
-      const { db: clientDb } = await import('../firebase');
-      await updateDoc(fsDoc(clientDb, 'agents', client.agentId, 'clients', client.id), {
-        sourceReferralId: null,
-      });
+      const firestore = await import('firebase/firestore');
+      const { db } = await import('../firebase');
+      await firestore.updateDoc(
+        firestore.doc(db, 'agents', client.agentId, 'clients', client.id),
+        { sourceReferralId: null },
+      );
       setReferralName(null);
     } catch (err) {
       console.error('Error clearing referral link:', err);
