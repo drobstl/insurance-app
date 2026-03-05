@@ -995,7 +995,7 @@ export default function SettingsPage() {
       </div>
 
       {showPhonePreview && (
-        <div className="hidden lg:block w-[280px] shrink-0 sticky top-6">
+        <div className="hidden md:block w-[280px] shrink-0 sticky top-6">
           <p className="text-xs text-[#707070] font-semibold uppercase tracking-wide text-center mb-3">Client App Preview</p>
           <div className="w-[260px] mx-auto bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl border-4 border-[#2a2a2a]">
             <div className="w-full h-[520px] rounded-[2.5rem] overflow-hidden flex flex-col">
