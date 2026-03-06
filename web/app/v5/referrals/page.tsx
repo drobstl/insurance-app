@@ -179,10 +179,7 @@ export default function ReferralsDeepDiveDesktop() {
       </section>
 
       {/* ── Real AI Conversation ── */}
-      <section
-        className="relative overflow-hidden"
-        style={{ background: '#070E1B radial-gradient(ellipse 400px 400px at 0% 0%, rgba(61,214,195,0.06), transparent 70%), radial-gradient(ellipse 300px 300px at 100% 100%, rgba(253,204,2,0.04), transparent 70%)' }}
-      >
+      <section className="relative overflow-hidden bg-white">
         <div className="relative max-w-[1440px] mx-auto px-10 lg:px-20 py-24 lg:py-32">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
             <motion.div
@@ -193,10 +190,10 @@ export default function ReferralsDeepDiveDesktop() {
               className="lg:pr-8"
             >
               <p className="text-[#3DD6C3] text-xs uppercase tracking-[0.2em] font-semibold mb-4">Real AI conversation</p>
-              <h2 className="text-3xl lg:text-4xl xl:text-5xl font-extrabold text-white leading-tight mb-6">
+              <h2 className="text-3xl lg:text-4xl xl:text-5xl font-extrabold text-[#0D4D4D] leading-tight mb-6">
                 This is an actual referral being qualified by AI.
               </h2>
-              <p className="text-white/40 text-base lg:text-lg leading-relaxed max-w-md">
+              <p className="text-[#4B5563] text-base lg:text-lg leading-relaxed max-w-md">
                 Real iMessage conversation — AI qualifying a warm referral and booking the appointment.
               </p>
             </motion.div>
@@ -208,7 +205,7 @@ export default function ReferralsDeepDiveDesktop() {
               variants={slideInRight}
               className="flex justify-center lg:justify-end"
             >
-              <div className="w-[340px] rounded-2xl border-2 border-white/10 shadow-2xl overflow-hidden hover:scale-[1.02] transition-transform duration-500">
+              <div className="w-[340px] rounded-2xl border-2 border-gray-200 shadow-2xl overflow-hidden hover:scale-[1.02] transition-transform duration-500">
                 <img src="/screenshot-ai-referral-imessage.png" alt="Real AI referral conversation via iMessage" className="w-full h-auto block" />
               </div>
             </motion.div>
