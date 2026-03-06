@@ -56,7 +56,7 @@ export default function RetentionDeepDiveDesktop() {
             </Link>
             <div className="flex items-center gap-2">
               <img src="/logo.png" alt="AgentForLife" className="w-[36px] h-[20px] object-contain" />
-              <span className="text-[#0D4D4D]/60 brand-title text-sm">AgentForLife</span>
+              <span className="text-[#4B5563] brand-title text-sm">AgentForLife</span>
             </div>
           </div>
           <span className="absolute left-1/2 -translate-x-1/2 text-[#0D4D4D] font-bold text-sm tracking-wide uppercase">
@@ -159,7 +159,7 @@ export default function RetentionDeepDiveDesktop() {
                   <h2 className="text-4xl xl:text-5xl font-extrabold text-[#0D4D4D] leading-tight mb-4">
                     Keep them warm without lifting a finger.
                   </h2>
-                  <p className="text-[#6B7280] text-lg leading-relaxed">
+                  <p className="text-[#4B5563] text-lg leading-relaxed">
                     7+ personalized touchpoints per year, per client — completely automatic. Holidays, birthdays, anniversaries, and custom push notifications.
                   </p>
                 </motion.div>
@@ -179,7 +179,7 @@ export default function RetentionDeepDiveDesktop() {
                         <span className="text-xl flex-shrink-0">{item.emoji}</span>
                         <div>
                           <h3 className="text-[15px] font-bold text-[#0D4D4D] mb-1">{item.title}</h3>
-                          <p className="text-[#6B7280] text-sm leading-relaxed">{item.desc}</p>
+                          <p className="text-[#4B5563] text-sm leading-relaxed">{item.desc}</p>
                         </div>
                       </div>
                     </div>
@@ -236,7 +236,7 @@ export default function RetentionDeepDiveDesktop() {
                       className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-200 ${
                         activeHoliday === key
                           ? 'bg-[#0D4D4D] text-white shadow-lg scale-105'
-                          : 'bg-gray-100 text-[#6B7280] hover:bg-gray-200 hover:scale-[1.03]'
+                          : 'bg-gray-100 text-[#4B5563] hover:bg-gray-200 hover:scale-[1.03]'
                       }`}
                     >
                       {h.emoji} {h.label}
@@ -274,7 +274,7 @@ export default function RetentionDeepDiveDesktop() {
               <h2 className="text-4xl xl:text-5xl font-extrabold text-white leading-tight mb-4">
                 When a policy slips, AI catches it.
               </h2>
-              <p className="text-white/50 text-lg leading-relaxed">
+              <p className="text-white/90 text-lg leading-relaxed">
                 Forward the carrier&apos;s conservation notice. AI handles the rest.
               </p>
             </motion.div>
@@ -313,7 +313,7 @@ export default function RetentionDeepDiveDesktop() {
                     {step.num}
                   </div>
                   <h3 className="text-xl font-bold text-white mb-3">{step.title}</h3>
-                  <p className="text-white/50 text-sm leading-relaxed">{step.body}</p>
+                  <p className="text-white/90 text-sm leading-relaxed">{step.body}</p>
                 </motion.div>
               ))}
             </div>
@@ -326,7 +326,7 @@ export default function RetentionDeepDiveDesktop() {
                   </svg>
                   <span className="text-white/70 text-sm font-semibold">Speed</span>
                 </div>
-                <p className="text-white/40 text-sm leading-relaxed">Auto-outreach in 2 hours for chargeback-risk policies</p>
+                <p className="text-white/90 text-sm leading-relaxed">Auto-outreach in 2 hours for chargeback-risk policies</p>
               </div>
               <div className="bg-white/[0.06] border border-white/10 rounded-xl p-6 hover:bg-white/[0.1] transition-colors duration-200">
                 <div className="flex items-center gap-2 mb-3">
@@ -335,7 +335,7 @@ export default function RetentionDeepDiveDesktop() {
                   </svg>
                   <span className="text-white/70 text-sm font-semibold">Track</span>
                 </div>
-                <p className="text-white/40 text-sm leading-relaxed">Mark policies as &quot;Saved&quot; or &quot;Lost&quot; from your dashboard</p>
+                <p className="text-white/90 text-sm leading-relaxed">Mark policies as &quot;Saved&quot; or &quot;Lost&quot; from your dashboard</p>
               </div>
             </motion.div>
           </motion.div>
@@ -357,7 +357,7 @@ export default function RetentionDeepDiveDesktop() {
               <h3 className="text-3xl xl:text-4xl font-extrabold text-white leading-tight mb-5">
                 This is a real conservation alert being processed.
               </h3>
-              <p className="text-white/40 text-base leading-relaxed">
+              <p className="text-white/90 text-base leading-relaxed">
                 Real alert — AI identified client, matched the policy, and scheduled outreach automatically.
               </p>
             </div>
@@ -392,7 +392,7 @@ export default function RetentionDeepDiveDesktop() {
               <h3 className="text-3xl xl:text-4xl font-extrabold text-white leading-tight mb-5">
                 Every client. Every status. One screen.
               </h3>
-              <p className="text-white/40 text-base leading-relaxed">
+              <p className="text-white/90 text-base leading-relaxed">
                 Real dashboard — client list with policy status, at-risk flags, and instant actions.
               </p>
             </div>
@@ -432,7 +432,7 @@ export default function RetentionDeepDiveDesktop() {
                   <span className="text-4xl font-black block mb-3" style={{ color: item.color }}>
                     {item.stat}
                   </span>
-                  <p className="text-[#6B7280] text-base leading-snug">{item.label}</p>
+                  <p className="text-[#4B5563] text-base leading-snug">{item.label}</p>
                 </motion.div>
               ))}
             </div>
@@ -445,7 +445,7 @@ export default function RetentionDeepDiveDesktop() {
               <p className="text-white font-bold text-xl leading-snug mb-3">
                 Agent For Life keeps you top-of-mind
               </p>
-              <p className="text-white/50 text-lg leading-relaxed">
+              <p className="text-white/90 text-lg leading-relaxed">
                 so when a competitor calls, your client says{' '}
                 <span className="text-[#3DD6C3] font-semibold">&quot;I already have an agent.&quot;</span>
               </p>
@@ -505,7 +505,7 @@ export default function RetentionDeepDiveDesktop() {
               Stop losing clients<br />
               <span className="text-[#3DD6C3]">to silence</span>.
             </h2>
-            <p className="text-white/40 text-xl leading-relaxed max-w-xl mx-auto">
+            <p className="text-white/90 text-xl leading-relaxed max-w-xl mx-auto">
               Other agents let chargebacks eat their income. You forward one email and your AI fights to save every policy.
             </p>
             <div className="pt-2">
@@ -519,7 +519,7 @@ export default function RetentionDeepDiveDesktop() {
                 </svg>
               </Link>
             </div>
-            <p className="text-white/25 text-sm">
+            <p className="text-white/80 text-sm">
               {spotsRemaining !== null ? `${spots} of 50 spots remaining` : 'Limited spots'} &middot; $0 forever
             </p>
           </div>

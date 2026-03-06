@@ -92,7 +92,7 @@ export default function ReferralsDeepDiveDesktop() {
             </Link>
             <div className="flex items-center gap-2">
               <img src="/logo.png" alt="AgentForLife" className="w-[36px] h-[20px] object-contain" />
-              <span className="text-[#0D4D4D]/60 brand-title text-sm">AgentForLife</span>
+              <span className="text-[#4B5563] brand-title text-sm">AgentForLife</span>
             </div>
           </div>
 
@@ -226,7 +226,7 @@ export default function ReferralsDeepDiveDesktop() {
               <h2 className="text-3xl lg:text-4xl xl:text-5xl font-extrabold text-[#0D4D4D] leading-tight mb-4">
                 How it works.
               </h2>
-              <p className="text-[#6B7280] text-lg lg:text-xl">Three steps. Zero phone tag.</p>
+              <p className="text-[#4B5563] text-lg lg:text-xl">Three steps. Zero phone tag.</p>
             </motion.div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
@@ -263,7 +263,7 @@ export default function ReferralsDeepDiveDesktop() {
                     <span className="text-2xl font-black" style={{ color: step.color }}>{step.num}</span>
                   </div>
                   <h3 className="text-xl lg:text-2xl font-extrabold text-[#0D4D4D] mb-4">{step.title}</h3>
-                  <p className="text-[#6B7280] text-base leading-relaxed">{step.body}</p>
+                  <p className="text-[#4B5563] text-base leading-relaxed">{step.body}</p>
                 </motion.div>
               ))}
             </div>
@@ -272,10 +272,7 @@ export default function ReferralsDeepDiveDesktop() {
       </section>
 
       {/* ── iMessage Demo + Why It Works (combined) ── */}
-      <section
-        className="relative overflow-hidden"
-        style={{ background: '#070E1B radial-gradient(ellipse 400px 400px at 100% 0%, rgba(61,214,195,0.07), transparent 70%), radial-gradient(ellipse 300px 300px at 25% 100%, rgba(253,204,2,0.04), transparent 70%)' }}
-      >
+      <section className="relative overflow-hidden bg-white">
         <div className="relative max-w-[1440px] mx-auto px-10 lg:px-20 py-24 lg:py-32">
           <motion.div
             initial={{ opacity: 0, y: 24 }}
@@ -285,7 +282,7 @@ export default function ReferralsDeepDiveDesktop() {
             className="mb-14"
           >
             <p className="text-[#3DD6C3] font-bold text-xs uppercase tracking-[0.2em] mb-4">What the referral sees</p>
-            <h2 className="text-3xl lg:text-4xl xl:text-5xl font-extrabold text-white leading-tight">
+            <h2 className="text-3xl lg:text-4xl xl:text-5xl font-extrabold text-[#0D4D4D] leading-tight">
               The referral thinks they&apos;re texting <span className="text-[#3DD6C3]">you</span>.
             </h2>
           </motion.div>
@@ -376,13 +373,13 @@ export default function ReferralsDeepDiveDesktop() {
                   key={item.title}
                   variants={fadeUp}
                   custom={0.05 + i * 0.1}
-                  className="bg-white/[0.05] rounded-2xl p-6 lg:p-7 border border-white/10 hover:bg-white/[0.08] hover:border-[#3DD6C3]/20 transition-colors duration-300"
+                  className="bg-[#F8F9FA] rounded-2xl p-6 lg:p-7 border border-gray-200 hover:border-[#3DD6C3]/40 hover:shadow-md transition-colors duration-300"
                 >
                   <div className="flex items-start gap-5">
                     <span className="text-2xl flex-shrink-0 mt-0.5">{item.icon}</span>
                     <div>
-                      <h3 className="text-base lg:text-lg font-bold text-white mb-2">{item.title}</h3>
-                      <p className="text-white/50 text-sm lg:text-base leading-relaxed">{item.desc}</p>
+                      <h3 className="text-base lg:text-lg font-bold text-[#0D4D4D] mb-2">{item.title}</h3>
+                      <p className="text-[#4B5563] text-sm lg:text-base leading-relaxed">{item.desc}</p>
                     </div>
                   </div>
                 </motion.div>
@@ -408,7 +405,7 @@ export default function ReferralsDeepDiveDesktop() {
               <h2 className="text-3xl lg:text-4xl xl:text-5xl font-extrabold text-white leading-tight mb-4">
                 And if they don&apos;t reply?
               </h2>
-              <p className="text-white/50 text-lg lg:text-xl">Your AI doesn&apos;t give up.</p>
+              <p className="text-white/90 text-lg lg:text-xl">Your AI doesn&apos;t give up.</p>
             </motion.div>
 
             <motion.div
@@ -440,7 +437,7 @@ export default function ReferralsDeepDiveDesktop() {
                     <div className={`w-px h-8 ${d.active ? 'bg-[#fdcc02]/20' : 'bg-white/10'}`} />
                     <div>
                       <p className={`font-bold ${d.active ? 'text-[#fdcc02]' : 'text-white/70'}`}>{d.label}</p>
-                      <p className={`text-sm mt-0.5 ${d.active ? 'text-[#fdcc02]/60' : 'text-white/30'}`}>{d.desc}</p>
+                      <p className={`text-sm mt-0.5 ${d.active ? 'text-[#fdcc02]/80' : 'text-white/80'}`}>{d.desc}</p>
                     </div>
                   </div>
                   {d.active && (
@@ -467,7 +464,7 @@ export default function ReferralsDeepDiveDesktop() {
                 <h2 className="text-3xl lg:text-4xl xl:text-5xl font-extrabold text-[#0D4D4D] leading-tight mb-6">
                   The math.
                 </h2>
-                <p className="text-[#6B7280] text-base lg:text-lg leading-relaxed max-w-md">
+                <p className="text-[#4B5563] text-base lg:text-lg leading-relaxed max-w-md">
                   Most agents leave 80% of their referral potential on the table because the process is too manual. Agent For Life automates the entire flow.
                 </p>
               </motion.div>
@@ -479,7 +476,7 @@ export default function ReferralsDeepDiveDesktop() {
                   className="bg-[#F8F9FA] rounded-2xl p-8 lg:p-10 text-center border border-gray-200 hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
                 >
                   <p className="text-6xl lg:text-7xl font-black text-[#0D4D4D]">5%</p>
-                  <p className="text-sm lg:text-base text-[#6B7280] mt-3 font-medium">Avg agent referral rate</p>
+                  <p className="text-sm lg:text-base text-[#4B5563] mt-3 font-medium">Avg agent referral rate</p>
                 </motion.div>
                 <motion.div
                   variants={fadeUp}
@@ -487,7 +484,7 @@ export default function ReferralsDeepDiveDesktop() {
                   className="bg-[#fdcc02]/10 rounded-2xl p-8 lg:p-10 text-center border-2 border-[#fdcc02]/25 hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
                 >
                   <p className="text-6xl lg:text-7xl font-black text-[#0D4D4D]">25%</p>
-                  <p className="text-sm lg:text-base text-[#0D4D4D]/60 mt-3 font-medium">What&apos;s actually possible</p>
+                  <p className="text-sm lg:text-base text-[#0D4D4D] mt-3 font-medium">What&apos;s actually possible</p>
                 </motion.div>
               </div>
             </div>
@@ -496,10 +493,7 @@ export default function ReferralsDeepDiveDesktop() {
       </section>
 
       {/* ── Final CTA ── */}
-      <section
-        className="relative overflow-hidden"
-        style={{ background: '#0D4D4D radial-gradient(ellipse 400px 400px at 25% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 300px 300px at 75% 100%, rgba(253,204,2,0.06), transparent 70%)' }}
-      >
+      <section className="relative overflow-hidden bg-[#0D4D4D]">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -512,7 +506,7 @@ export default function ReferralsDeepDiveDesktop() {
               Stop chasing referrals.<br />
               <span className="text-[#fdcc02]">Let them chase you.</span>
             </h2>
-            <p className="text-white/40 text-lg lg:text-xl leading-relaxed max-w-xl mx-auto">
+            <p className="text-white/90 text-lg lg:text-xl leading-relaxed max-w-xl mx-auto">
               Your clients already trust you. Now they can share that trust with one tap. AI handles everything else.
             </p>
             <div className="flex flex-col items-center gap-5">
@@ -525,7 +519,7 @@ export default function ReferralsDeepDiveDesktop() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
               </Link>
-              <p className="text-white/25 text-sm">
+              <p className="text-white/80 text-sm">
                 {spotsRemaining !== null ? `${spots} of 50 spots remaining` : 'Limited spots'} &middot; $0 forever
               </p>
             </div>

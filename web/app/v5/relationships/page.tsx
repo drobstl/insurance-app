@@ -48,7 +48,7 @@ export default function RelationshipsDeepDive() {
             </Link>
             <div className="hidden md:flex items-center gap-2">
               <img src="/logo.png" alt="AgentForLife" className="w-[36px] h-[20px] object-contain" />
-              <span className="text-[#0D4D4D]/60 brand-title text-sm">AgentForLife</span>
+              <span className="text-[#4B5563] brand-title text-sm">AgentForLife</span>
             </div>
           </div>
           <span className="hidden md:block text-[#a158ff] font-bold text-sm uppercase tracking-wide">Relationships</span>
@@ -108,7 +108,7 @@ export default function RelationshipsDeepDive() {
                 <h2 className="text-3xl lg:text-4xl font-extrabold text-[#0D4D4D] leading-tight mb-4">
                   5 holidays. Beautifully designed. Fully automatic.
                 </h2>
-                <p className="text-[#6B7280] text-lg leading-relaxed mb-8">
+                <p className="text-[#4B5563] text-lg leading-relaxed mb-8">
                   Full-screen animated cards for every major holiday &mdash; branded with your photo, your agency, and a link to book. Your clients feel remembered. You didn&apos;t lift a finger.
                 </p>
               </motion.div>
@@ -121,7 +121,7 @@ export default function RelationshipsDeepDive() {
                     className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
                       activeHoliday === key
                         ? 'bg-[#0D4D4D] text-white shadow-md'
-                        : 'bg-gray-100 text-[#6B7280] hover:bg-gray-200'
+                        : 'bg-gray-100 text-[#4B5563] hover:bg-gray-200'
                     }`}
                   >
                     {h.emoji} {h.label}
@@ -177,7 +177,7 @@ export default function RelationshipsDeepDive() {
             <motion.h2 variants={fadeUp} custom={0} className="text-3xl lg:text-4xl font-extrabold text-[#0D4D4D] leading-tight mb-4">
               Every touchpoint, automated.
             </motion.h2>
-            <motion.p variants={fadeUp} custom={0.05} className="text-[#6B7280] text-lg mb-10 max-w-2xl">
+            <motion.p variants={fadeUp} custom={0.05} className="text-[#4B5563] text-lg mb-10 max-w-2xl">
               Your clients hear from you on every holiday, every birthday, and every policy anniversary &mdash; without you doing a thing.
             </motion.p>
 
@@ -195,7 +195,7 @@ export default function RelationshipsDeepDive() {
                     <span className="text-2xl flex-shrink-0">{item.emoji}</span>
                     <div>
                       <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">{item.title}</h3>
-                      <p className="text-[#6B7280] text-sm leading-relaxed">{item.desc}</p>
+                      <p className="text-[#4B5563] text-sm leading-relaxed">{item.desc}</p>
                     </div>
                   </div>
                 </motion.div>
@@ -219,7 +219,7 @@ export default function RelationshipsDeepDive() {
             ].map((item) => (
               <div key={item.stat} className="flex items-center gap-5 bg-[#F8F9FA] rounded-2xl p-7 border border-gray-100">
                 <span className="text-3xl font-black flex-shrink-0" style={{ color: item.color }}>{item.stat}</span>
-                <p className="text-[#6B7280] text-sm leading-snug">{item.label}</p>
+                <p className="text-[#4B5563] text-sm leading-snug">{item.label}</p>
               </div>
             ))}
           </div>
@@ -228,7 +228,7 @@ export default function RelationshipsDeepDive() {
             <p className="text-white font-bold text-lg leading-snug mb-2">
               Agent For Life keeps you top-of-mind
             </p>
-            <p className="text-white/50 text-base leading-relaxed">
+            <p className="text-white/90 text-base leading-relaxed">
               so when a competitor calls, your client says <span className="text-[#3DD6C3] font-semibold">&quot;I already have an agent.&quot;</span>
             </p>
           </div>
@@ -274,7 +274,7 @@ export default function RelationshipsDeepDive() {
             Stop losing clients<br />
             <span className="text-[#a158ff]">to silence</span>.
           </h2>
-          <p className="text-white/40 text-lg leading-relaxed max-w-xl mx-auto">
+          <p className="text-white/90 text-lg leading-relaxed max-w-xl mx-auto">
             68% of clients leave because they feel forgotten. With Agent For Life, every client hears from you — automatically, personally, and on time.
           </p>
           <Link
@@ -284,7 +284,7 @@ export default function RelationshipsDeepDive() {
             Get Started Free
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
           </Link>
-          <p className="text-white/25 text-sm">
+          <p className="text-white/80 text-sm">
             {spotsRemaining !== null ? `${spots} of 50 spots remaining` : 'Limited spots'} &middot; $0 forever
           </p>
         </motion.div>

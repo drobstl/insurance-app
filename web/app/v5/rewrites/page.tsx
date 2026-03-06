@@ -68,7 +68,7 @@ export default function RewritesDeepDiveDesktop() {
             </Link>
             <div className="flex items-center gap-2">
               <img src="/logo.png" alt="AgentForLife" className="w-[36px] h-[20px] object-contain" />
-              <span className="text-[#0D4D4D]/60 brand-title text-sm">AgentForLife</span>
+              <span className="text-[#4B5563] brand-title text-sm">AgentForLife</span>
             </div>
           </div>
 
@@ -199,7 +199,7 @@ export default function RewritesDeepDiveDesktop() {
                 See every conversation.<br />
                 Track every booking.
               </h2>
-              <p className="text-white/40 text-lg leading-relaxed max-w-md">
+              <p className="text-white/90 text-lg leading-relaxed max-w-md">
                 Real dashboard — AI-powered rewrite campaigns with live conversations, booking status,
                 and performance tracking across your entire book of business.
               </p>
@@ -222,7 +222,7 @@ export default function RewritesDeepDiveDesktop() {
               <h2 className="text-4xl lg:text-5xl font-extrabold text-[#0D4D4D] leading-tight mb-4">
                 How it works.
               </h2>
-              <p className="text-[#6B7280] text-xl">
+              <p className="text-[#4B5563] text-xl">
                 Automatic. No spreadsheets. No manual tracking.
               </p>
             </motion.div>
@@ -283,7 +283,7 @@ export default function RewritesDeepDiveDesktop() {
                   <h3 className="text-xl font-extrabold text-[#0D4D4D] mb-4 group-hover:text-[#F4845F] transition-colors">
                     {step.title}
                   </h3>
-                  <p className="text-[#6B7280] text-[15px] leading-relaxed">{step.body}</p>
+                  <p className="text-[#4B5563] text-[15px] leading-relaxed">{step.body}</p>
                 </motion.div>
               ))}
             </div>
@@ -302,14 +302,14 @@ export default function RewritesDeepDiveDesktop() {
           >
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
               <motion.div variants={slideInLeft}>
-                <p className="text-[#6B7280] text-xs uppercase tracking-[0.2em] font-semibold mb-4">
+                <p className="text-[#4B5563] text-xs uppercase tracking-[0.2em] font-semibold mb-4">
                   What your client sees
                 </p>
                 <h2 className="text-4xl lg:text-5xl font-extrabold text-[#0D4D4D] leading-tight mb-6">
                   A friendly heads-up,<br />
                   not a hard sell.
                 </h2>
-                <p className="text-[#6B7280] text-xl leading-relaxed max-w-lg mb-10">
+                <p className="text-[#4B5563] text-xl leading-relaxed max-w-lg mb-10">
                   Your client gets a personalized notification from their trusted agent — you.
                   They tap, they book, they save money. Everyone wins.
                 </p>
@@ -342,7 +342,7 @@ export default function RewritesDeepDiveDesktop() {
                     </div>
                     <div>
                       <p className="text-[#0D4D4D] font-bold text-lg">Daniel Roberts</p>
-                      <p className="text-[#6B7280] text-sm">Your Insurance Agent</p>
+                      <p className="text-[#4B5563] text-sm">Your Insurance Agent</p>
                     </div>
                   </div>
                   <div className="bg-[#F8F9FA] rounded-2xl p-6 border border-gray-100 mb-6">
@@ -380,7 +380,7 @@ export default function RewritesDeepDiveDesktop() {
                     {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
                       <span
                         key={d}
-                        className="text-[#6B7280]/60 text-[11px] font-semibold pb-2 uppercase"
+                        className="text-[#4B5563] text-[11px] font-semibold pb-2 uppercase"
                       >
                         {d}
                       </span>
@@ -394,7 +394,7 @@ export default function RewritesDeepDiveDesktop() {
                         className={`py-2 rounded-lg text-sm font-medium ${
                           d === 15
                             ? 'bg-[#F4845F] text-white font-bold shadow-md shadow-[#F4845F]/30'
-                            : 'text-[#6B7280]/50 hover:bg-gray-50'
+                            : 'text-[#4B5563] hover:bg-gray-50'
                         }`}
                       >
                         {d}
@@ -421,7 +421,7 @@ export default function RewritesDeepDiveDesktop() {
               <h2 className="text-4xl lg:text-5xl font-extrabold text-[#0D4D4D] leading-tight mb-4">
                 Why it matters.
               </h2>
-              <p className="text-[#6B7280] text-xl">
+              <p className="text-[#4B5563] text-xl">
                 Every anniversary is money on the table. Here&apos;s why rewrites are your best move.
               </p>
             </motion.div>
@@ -484,7 +484,7 @@ export default function RewritesDeepDiveDesktop() {
                   <h3 className="text-xl font-extrabold text-[#0D4D4D] mb-3 group-hover:text-[#F4845F] transition-colors">
                     {item.title}
                   </h3>
-                  <p className="text-[#6B7280] text-[15px] leading-relaxed">{item.desc}</p>
+                  <p className="text-[#4B5563] text-[15px] leading-relaxed">{item.desc}</p>
                 </motion.div>
               ))}
             </div>
@@ -516,7 +516,7 @@ export default function RewritesDeepDiveDesktop() {
                 already{' '}
                 <span className="text-[#F4845F]">entitled to</span>.
               </h2>
-              <p className="text-white/40 text-lg leading-relaxed max-w-md">
+              <p className="text-white/90 text-lg leading-relaxed max-w-md">
                 Every policy anniversary is a lay-down sale. Your client wants better rates. You earn
                 commission again. Everyone wins.
               </p>
@@ -531,11 +531,11 @@ export default function RewritesDeepDiveDesktop() {
             >
               <div className="bg-white/[0.06] border border-white/10 rounded-3xl p-10 text-center hover:bg-white/[0.09] transition-colors">
                 <p className="text-6xl font-black text-white mb-3">$1,200</p>
-                <p className="text-sm text-white/40 font-medium">Avg annual policy value</p>
+                <p className="text-sm text-white/90 font-medium">Avg annual policy value</p>
               </div>
               <div className="bg-[#F4845F]/15 border border-[#F4845F]/25 rounded-3xl p-10 text-center hover:bg-[#F4845F]/20 transition-colors">
                 <p className="text-6xl font-black text-[#F4845F] mb-3">2x</p>
-                <p className="text-sm text-white/40 font-medium">Commission on rewrite</p>
+                <p className="text-sm text-white/90 font-medium">Commission on rewrite</p>
               </div>
             </motion.div>
           </div>
@@ -561,7 +561,7 @@ export default function RewritesDeepDiveDesktop() {
             Stop missing money<br />
             <span className="text-[#F4845F]">you&apos;ve already earned</span>.
           </h2>
-          <p className="text-white/40 text-xl leading-relaxed max-w-xl mx-auto mb-12">
+          <p className="text-white/90 text-xl leading-relaxed max-w-xl mx-auto mb-12">
             Every policy anniversary is an opportunity. Agent For Life makes sure you never miss one.
           </p>
           <Link
@@ -573,7 +573,7 @@ export default function RewritesDeepDiveDesktop() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
             </svg>
           </Link>
-          <p className="text-white/25 text-sm mt-6">
+          <p className="text-white/80 text-sm mt-6">
             {spotsRemaining !== null ? `${spots} of 50 spots remaining` : 'Limited spots'} &middot;
             $0 forever
           </p>
