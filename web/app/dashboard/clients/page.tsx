@@ -102,6 +102,7 @@ interface AnniversaryAlert {
 
 interface ImportRow {
   name: string;
+  owner?: string;
   email: string;
   phone: string;
   dateOfBirth: string;
@@ -112,6 +113,7 @@ interface ImportRow {
   premium: string;
   coverageAmount: string;
   status: string;
+  premiumFrequency?: string;
 }
 
 // ─── Helpers ───────────────────────────────────────────────
@@ -1019,89 +1021,222 @@ export default function ClientsPage() {
     }
   }, [user, agentProfile]);
 
-  // ─── CSV Import Handlers ─────────────────────────────────
+  // ─── BOB Import Handlers ─────────────────────────────────
 
-  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const [parsingBob, setParsingBob] = useState(false);
+
+  const parseCsvLine = useCallback((line: string, delimiter: string = ','): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        inQuotes = !inQuotes;
+      } else if (ch === delimiter && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }, []);
+
+  const parseSingleCsv = useCallback((text: string, fileName: string): { rows: ImportRow[]; error?: string } => {
+    const lines = text.split('\n').filter((l) => l.trim());
+    if (lines.length < 2) {
+      return { rows: [], error: `${fileName}: must have a header row and at least one data row.` };
+    }
+
+    const tabCols = lines[0].split('\t').length;
+    const commaCols = lines[0].split(',').length;
+    const delimiter = tabCols > commaCols ? '\t' : ',';
+
+    const headers = parseCsvLine(lines[0], delimiter).map((h) => h.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim());
+
+    const claimed = new Set<number>();
+    const match = (aliases: string[]) => {
+      const sorted = [...aliases].sort((a, b) => b.length - a.length);
+      for (const a of sorted) {
+        const idx = headers.findIndex((h, i) => !claimed.has(i) && h === a);
+        if (idx !== -1) { claimed.add(idx); return idx; }
+      }
+      for (const a of sorted) {
+        const idx = headers.findIndex((h, i) => !claimed.has(i) && h.includes(a));
+        if (idx !== -1) { claimed.add(idx); return idx; }
+      }
+      return -1;
+    };
+
+    const nameIdx = match(['insured nme', 'insured name', 'full name', 'client name', 'name', 'applicant', 'policy holder', 'assured name', 'member name', 'insured']);
+    const ownerIdx = match(['owner nme', 'owner name', 'policy owner', 'owner']);
+    const emailIdx = match(['insured email address', 'email address', 'insured email', 'email', 'e-mail']);
+    const phoneIdx = match(['insured party phone', 'insured phone', 'phone number', 'phone', 'mobile', 'cell', 'telephone']);
+    const dobIdx = match(['insured dob', 'date of birth', 'birth date', 'birthdate', 'dob', 'birthday']);
+    const policyNumIdx = match(['policy number', 'policy no', 'policy num', 'policynumber', 'certificate number']);
+    const carrierIdx = match(['carrier name', 'carrier', 'insurance company', 'company name', 'company', 'insurer', 'insurance carrier']);
+    const policyTypeIdx = match(['product type nme', 'product desc', 'product type', 'policy type', 'product', 'plan type', 'line of business nme', 'line of business']);
+    const effectiveDateIdx = match(['policy effective dte', 'policy issue dte', 'effective date', 'issue date', 'start date', 'policy date', 'effectivedate', 'inception date']);
+    const premiumIdx = match(['monthly premium', 'premium amount', 'premium', 'modal premium', 'payment']);
+    const annualPremiumIdx = match(['annual premium']);
+    const coverageIdx = match(['face amt', 'face amount', 'face value', 'coverage amount', 'death benefit', 'benefit amount', 'coverage', 'specified amount']);
+    const statusIdx = match(['policy status nme', 'policy status', 'status']);
+    const billModeIdx = match(['bill mode', 'billing mode', 'payment mode', 'payment frequency']);
+
+    if (nameIdx === -1) {
+      return { rows: [], error: `${fileName}: no "Name" column found. Accepted: Name, Full Name, Client Name, Insured Name, Insured NME.` };
+    }
+
+    const rows: ImportRow[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseCsvLine(lines[i], delimiter);
+      const name = cols[nameIdx] || '';
+      if (!name) continue;
+
+      let premium = premiumIdx !== -1 ? (cols[premiumIdx] || '') : '';
+      let premiumFrequency = billModeIdx !== -1 ? (cols[billModeIdx] || '').toLowerCase().trim() : '';
+
+      if (!premium && annualPremiumIdx !== -1) {
+        const annual = parseFloat((cols[annualPremiumIdx] || '0').replace(/[,$]/g, ''));
+        if (!isNaN(annual) && annual > 0) {
+          premium = (annual / 12).toFixed(2);
+          premiumFrequency = premiumFrequency || 'monthly';
+        }
+      }
+
+      let freq: string | undefined;
+      if (premiumFrequency.includes('month') || premiumFrequency === 'mon') freq = 'monthly';
+      else if (premiumFrequency.includes('quarter') || premiumFrequency === 'qtr') freq = 'quarterly';
+      else if (premiumFrequency.includes('semi')) freq = 'semi-annual';
+      else if (premiumFrequency.includes('annual') || premiumFrequency === 'ann') freq = 'annual';
+
+      rows.push({
+        name,
+        owner: ownerIdx !== -1 ? (cols[ownerIdx] || '') : '',
+        email: emailIdx !== -1 ? (cols[emailIdx] || '') : '',
+        phone: phoneIdx !== -1 ? (cols[phoneIdx] || '') : '',
+        dateOfBirth: dobIdx !== -1 ? (cols[dobIdx] || '') : '',
+        policyNumber: policyNumIdx !== -1 ? (cols[policyNumIdx] || '') : '',
+        carrier: carrierIdx !== -1 ? (cols[carrierIdx] || '') : '',
+        policyType: policyTypeIdx !== -1 ? (cols[policyTypeIdx] || '') : '',
+        effectiveDate: effectiveDateIdx !== -1 ? (cols[effectiveDateIdx] || '') : '',
+        premium,
+        coverageAmount: coverageIdx !== -1 ? (cols[coverageIdx] || '') : '',
+        status: statusIdx !== -1 ? (cols[statusIdx] || '') : '',
+        premiumFrequency: freq,
+      });
+    }
+    return { rows };
+  }, [parseCsvLine]);
+
+  const handleAiParse = useCallback(async (file: File) => {
+    if (!user) return;
+    setParsingBob(true);
+    setImportError('');
+    try {
+      const token = await user.getIdToken();
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/parse-bob', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setImportError(data.error || 'Failed to parse file. Please try again.');
+        return;
+      }
+      if (data.rows.length > MAX_IMPORT_ROWS) {
+        setImportError(`Maximum ${MAX_IMPORT_ROWS} clients per import. File has ${data.rows.length} rows. Split the file or import in multiple runs.`);
+        return;
+      }
+      if (data.note) {
+        setImportError(`Note: ${data.note}`);
+      }
+      setImportData(data.rows);
+    } catch (err) {
+      console.error('AI parse error:', err);
+      setImportError(err instanceof Error ? err.message : 'Failed to parse file.');
+    } finally {
+      setParsingBob(false);
+    }
+  }, [user]);
+
+  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     setImportError('');
     setImportSuccess('');
     setImportData([]);
 
-    const parseCsvLine = (line: string): string[] => {
-      const result: string[] = [];
-      let current = '';
-      let inQuotes = false;
-      for (let i = 0; i < line.length; i++) {
-        const ch = line[i];
-        if (ch === '"') {
-          inQuotes = !inQuotes;
-        } else if (ch === ',' && !inQuotes) {
-          result.push(current.trim());
-          current = '';
-        } else {
-          current += ch;
-        }
-      }
-      result.push(current.trim());
-      return result;
-    };
-
-    const parseSingleCsv = (text: string, fileName: string): { rows: ImportRow[]; error?: string } => {
-      const lines = text.split('\n').filter((l) => l.trim());
-      if (lines.length < 2) {
-        return { rows: [], error: `${fileName}: must have a header row and at least one data row.` };
-      }
-
-      const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim());
-
-      const match = (aliases: string[]) =>
-        headers.findIndex((h) => aliases.some((a) => h === a || h.includes(a)));
-
-      const nameIdx = match(['name', 'full name', 'client name', 'client', 'insured name', 'insured']);
-      const emailIdx = match(['email', 'email address', 'e-mail']);
-      const phoneIdx = match(['phone', 'phone number', 'mobile', 'cell', 'telephone']);
-      const dobIdx = match(['dob', 'date of birth', 'birthday', 'birth date', 'birthdate']);
-      const policyNumIdx = match(['policy number', 'policy no', 'policy #', 'policy num', 'policynumber']);
-      const carrierIdx = match(['carrier', 'insurance company', 'company', 'insurer', 'insurance carrier']);
-      const policyTypeIdx = match(['policy type', 'type', 'product', 'product type', 'plan type']);
-      const effectiveDateIdx = match(['effective date', 'issue date', 'start date', 'policy date', 'effectivedate', 'inception date']);
-      const premiumIdx = match(['premium', 'premium amount', 'monthly premium', 'payment']);
-      const coverageIdx = match(['coverage', 'coverage amount', 'death benefit', 'face amount', 'face value', 'benefit amount']);
-      const statusIdx = match(['status', 'policy status']);
-
-      if (nameIdx === -1) {
-        return { rows: [], error: `${fileName}: no "Name" column found. Accepted: Name, Full Name, Client Name, Insured Name.` };
-      }
-
-      const rows: ImportRow[] = [];
-      for (let i = 1; i < lines.length; i++) {
-        const cols = parseCsvLine(lines[i]);
-        const name = cols[nameIdx] || '';
-        if (!name) continue;
-        rows.push({
-          name,
-          email: emailIdx !== -1 ? (cols[emailIdx] || '') : '',
-          phone: phoneIdx !== -1 ? (cols[phoneIdx] || '') : '',
-          dateOfBirth: dobIdx !== -1 ? (cols[dobIdx] || '') : '',
-          policyNumber: policyNumIdx !== -1 ? (cols[policyNumIdx] || '') : '',
-          carrier: carrierIdx !== -1 ? (cols[carrierIdx] || '') : '',
-          policyType: policyTypeIdx !== -1 ? (cols[policyTypeIdx] || '') : '',
-          effectiveDate: effectiveDateIdx !== -1 ? (cols[effectiveDateIdx] || '') : '',
-          premium: premiumIdx !== -1 ? (cols[premiumIdx] || '') : '',
-          coverageAmount: coverageIdx !== -1 ? (cols[coverageIdx] || '') : '',
-          status: statusIdx !== -1 ? (cols[statusIdx] || '') : '',
-        });
-      }
-      return { rows };
-    };
-
     const fileArray = Array.from(files);
-    let completed = 0;
+
+    const pdfFiles = fileArray.filter(f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+    const xlsxFiles = fileArray.filter(f => f.name.toLowerCase().endsWith('.xlsx') || f.name.toLowerCase().endsWith('.xls'));
+    const textFiles = fileArray.filter(f => !pdfFiles.includes(f) && !xlsxFiles.includes(f));
+
+    if (pdfFiles.length > 0) {
+      if (pdfFiles.length > 1) {
+        setImportError('Please upload one PDF at a time.');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+      await handleAiParse(pdfFiles[0]);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     const allRows: ImportRow[] = [];
     const errors: string[] = [];
 
-    fileArray.forEach((file) => {
+    for (const file of xlsxFiles) {
+      try {
+        const XLSX = await import('xlsx');
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        const firstSheet = wb.Sheets[wb.SheetNames[0]];
+        const csvText = XLSX.utils.sheet_to_csv(firstSheet);
+        const { rows, error } = parseSingleCsv(csvText, file.name);
+        if (error) errors.push(error);
+        allRows.push(...rows);
+      } catch {
+        errors.push(`${file.name}: failed to parse Excel file.`);
+      }
+    }
+
+    let textCompleted = 0;
+    const textTotal = textFiles.length;
+
+    if (textTotal === 0) {
+      finishParsing(allRows, errors);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    function finishParsing(rows: ImportRow[], errs: string[]) {
+      if (rows.length === 0) {
+        const hasNameError = errs.some(e => e.includes('no "Name" column'));
+        if (hasNameError && fileArray.length === 1) {
+          handleAiParse(fileArray[0]);
+          return;
+        }
+        setImportError(errs.length > 0 ? errs.join(' ') : 'No valid rows found.');
+        return;
+      }
+      if (rows.length > MAX_IMPORT_ROWS) {
+        setImportError(`Maximum ${MAX_IMPORT_ROWS} clients per import. Your ${fileArray.length > 1 ? `${fileArray.length} files have` : 'file has'} ${rows.length} rows total. Split the files or import in multiple runs.`);
+        return;
+      }
+      if (errs.length > 0) {
+        setImportError(`Warning: ${errs.join(' ')} — ${rows.length} valid rows loaded.`);
+      }
+      setImportData(rows);
+    }
+
+    textFiles.forEach((file) => {
       const reader = new FileReader();
       reader.onload = (event) => {
         try {
@@ -1112,27 +1247,15 @@ export default function ClientsPage() {
         } catch {
           errors.push(`${file.name}: failed to parse.`);
         }
-        completed++;
-
-        if (completed === fileArray.length) {
-          if (allRows.length === 0) {
-            setImportError(errors.length > 0 ? errors.join(' ') : 'No valid rows found across CSV files.');
-            return;
-          }
-          if (allRows.length > MAX_IMPORT_ROWS) {
-            setImportError(`Maximum ${MAX_IMPORT_ROWS} clients per import. Your ${fileArray.length > 1 ? `${fileArray.length} files have` : 'file has'} ${allRows.length} rows total. Split the files or import in multiple runs.`);
-            return;
-          }
-          if (errors.length > 0) {
-            setImportError(`Warning: ${errors.join(' ')} — ${allRows.length} valid rows loaded from other files.`);
-          }
-          setImportData(allRows);
+        textCompleted++;
+        if (textCompleted === textTotal) {
+          finishParsing(allRows, errors);
         }
       };
       reader.readAsText(file);
     });
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, []);
+  }, [parseSingleCsv, handleAiParse, user]);
 
   const handleImportClients = useCallback(async () => {
     if (!user || importData.length === 0) return;
@@ -1149,6 +1272,7 @@ export default function ClientsPage() {
 
     const allCreated: { clientId: string; phone: string; firstName: string; clientCode: string }[] = [];
     const chunks: ImportRow[][] = [];
+    let serverPolicyCount = 0;
     for (let i = 0; i < importData.length; i += IMPORT_BATCH_SIZE) {
       chunks.push(importData.slice(i, i + IMPORT_BATCH_SIZE));
     }
@@ -1165,13 +1289,14 @@ export default function ClientsPage() {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || `Import failed (${res.status})`);
         }
-        const { created } = await res.json();
-        if (Array.isArray(created)) allCreated.push(...created);
+        const data = await res.json();
+        if (Array.isArray(data.created)) allCreated.push(...data.created);
+        if (typeof data.totalPolicies === 'number') serverPolicyCount += data.totalPolicies;
         setImportProgress(Math.round(((c + 1) / chunks.length) * 100));
       }
 
       const clientCount = allCreated.length;
-      const policyCount = chunks.reduce((sum, ch) => sum + ch.filter((r) => r.policyNumber || r.carrier || r.policyType || r.premium || r.coverageAmount).length, 0);
+      const policyCount = serverPolicyCount;
       const parts = [`${clientCount} client${clientCount !== 1 ? 's' : ''}`];
       if (policyCount > 0) parts.push(`${policyCount} ${policyCount !== 1 ? 'policies' : 'policy'}`);
       setImportSuccess(`Successfully imported ${parts.join(' and ')}!`);
@@ -1327,7 +1452,7 @@ export default function ClientsPage() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
-            Import CSV(s)
+            Import Book of Business
           </button>
         </div>
         <div className="flex-1" />
@@ -1766,13 +1891,13 @@ export default function ClientsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => !importing && setIsImportModalOpen(false)}
+            onClick={() => !importing && !parsingBob && setIsImportModalOpen(false)}
           />
           <div className="relative w-full max-w-lg bg-white rounded-[5px] border border-gray-200 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
               <h3 className="text-xl font-bold text-[#000000]">Import Book of Business</h3>
               <button
-                onClick={() => !importing && setIsImportModalOpen(false)}
+                onClick={() => !importing && !parsingBob && setIsImportModalOpen(false)}
                 className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#000000] transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1866,13 +1991,14 @@ export default function ClientsPage() {
                   <div className="bg-[#f8f8f8] border border-[#d0d0d0] rounded-[5px] p-4">
                     <p className="text-sm font-semibold text-[#000000] mb-1.5">What you&apos;ll need</p>
                     <p className="text-sm text-[#707070] mb-2">
-                      Upload one or more CSV files from your CRM, carrier portal, or a spreadsheet.
-                      The only required column is <span className="font-semibold text-[#000000]">Name</span> — but the more fields you include, the better your experience will be.
-                      Policies will be created automatically for rows that have policy data.
+                      Upload a file from your carrier portal, CRM, or a spreadsheet. We accept CSV, TSV, Excel, and PDF exports from any carrier.
+                      Column names are matched automatically — the only required field is <span className="font-semibold text-[#000000]">Name</span>.
+                      Clients with multiple policies are automatically grouped. Policies are created for rows that have policy data.
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {[
                         { col: 'Name', required: true },
+                        { col: 'Owner', required: false },
                         { col: 'Phone', required: false },
                         { col: 'Email', required: false },
                         { col: 'DOB', required: false },
@@ -1887,20 +2013,31 @@ export default function ClientsPage() {
                         <span key={col} className={`px-2 py-0.5 rounded text-[10px] font-medium ${required ? 'bg-[#daf3f0] text-[#005851] border border-[#45bcaa]/30' : 'bg-white border border-[#d0d0d0] text-[#707070]'}`}>{col}{required ? ' *' : ''}</span>
                       ))}
                     </div>
-                    <p className="text-[10px] text-[#999999] mt-1.5">Column names are matched automatically — exact headers aren&apos;t needed.</p>
+                    <p className="text-[10px] text-[#999999] mt-1.5">Works with any carrier format — Mutual of Omaha, United of Omaha, and more. Column names are matched automatically.</p>
                   </div>
 
+                  {parsingBob ? (
+                    <div className="flex flex-col items-center gap-3 py-8">
+                      <svg className="animate-spin w-8 h-8 text-[#45bcaa]" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      <p className="text-sm font-medium text-[#005851]">Analyzing your Book of Business...</p>
+                      <p className="text-xs text-[#707070]">This may take 15–30 seconds for large files.</p>
+                    </div>
+                  ) : (
                   <div>
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".csv"
+                      accept=".csv,.tsv,.xlsx,.xls,.pdf,text/csv,text/tab-separated-values,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                       multiple
                       onChange={handleFileUpload}
                       className="block w-full text-sm text-[#707070] file:mr-4 file:py-2 file:px-4 file:rounded-[5px] file:border-0 file:text-sm file:font-semibold file:bg-[#daf3f0] file:text-[#005851] hover:file:bg-[#c0ebe4] cursor-pointer"
                     />
-                    <p className="text-xs text-[#707070] mt-1.5">You can select multiple CSV files at once.</p>
+                    <p className="text-xs text-[#707070] mt-1.5">Accepts CSV, TSV, Excel (.xlsx), and PDF files. You can select multiple CSV/Excel files at once.</p>
                   </div>
+                  )}
 
                   {importError && (
                     <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-[5px] text-xs text-red-600">
