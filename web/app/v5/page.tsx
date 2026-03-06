@@ -128,9 +128,9 @@ export default function DesktopLandingV5() {
                 transition={{ duration: 0.5, delay: 0.55 }}
                 className="flex flex-wrap gap-x-6 gap-y-2 mb-10"
               >
-                <p className="text-[15px]"><span className="text-[#3DD6C3] font-bold">Stopping</span><span className="text-white/35"> chargebacks before they happen.</span></p>
-                <p className="text-[15px]"><span className="text-[#fdcc02] font-bold">Delivering</span><span className="text-white/35"> warm referrals on autopilot.</span></p>
-                <p className="text-[15px]"><span className="text-[#3DD6C3] font-bold">Catching</span><span className="text-white/35"> every rewrite opportunity.</span></p>
+                <p className="text-[15px]"><span className="text-[#3DD6C3] font-bold">Stopping</span><span className="text-white/70"> chargebacks before they happen.</span></p>
+                <p className="text-[15px]"><span className="text-[#fdcc02] font-bold">Delivering</span><span className="text-white/70"> warm referrals on autopilot.</span></p>
+                <p className="text-[15px]"><span className="text-[#3DD6C3] font-bold">Catching</span><span className="text-white/70"> every rewrite opportunity.</span></p>
               </motion.div>
 
               <motion.div
@@ -146,7 +146,7 @@ export default function DesktopLandingV5() {
                   Lock In My Free Spot
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
                 </Link>
-                <p className="text-white/30 text-sm">
+                <p className="text-white/60 text-sm">
                   {spotsRemaining !== null ? `${spots} spots left` : 'Limited spots'} · $0 forever
                 </p>
               </motion.div>
@@ -200,7 +200,7 @@ export default function DesktopLandingV5() {
         </div>
 
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 animate-bounce">
-          <svg className="w-6 h-6 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7" /></svg>
+          <svg className="w-6 h-6 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7" /></svg>
         </div>
       </section>
 
@@ -356,7 +356,7 @@ export default function DesktopLandingV5() {
                     <div className="w-2.5 h-2.5 rounded-full bg-[#FEBC2E]" />
                     <div className="w-2.5 h-2.5 rounded-full bg-[#28C840]" />
                   </div>
-                  <div className="flex-1 mx-3"><div className="bg-white/[0.06] rounded-md px-3 py-1 text-white/25 text-[9px] font-mono text-center">agentforlife.app/dashboard</div></div>
+                  <div className="flex-1 mx-3"><div className="bg-white/[0.06] rounded-md px-3 py-1 text-white/60 text-[9px] font-mono text-center">agentforlife.app/dashboard</div></div>
                 </div>
                 <div className="p-5 space-y-3">
                   <div className="flex items-center justify-between mb-1">
@@ -376,7 +376,7 @@ export default function DesktopLandingV5() {
                       <div key={row.text} className="flex items-center gap-2.5 bg-white/[0.04] rounded-lg px-3 py-2 border border-white/[0.06]">
                         <div className={`w-1.5 h-1.5 rounded-full ${row.dot} flex-shrink-0`} />
                         <span className="text-white/60 text-[10px] flex-1">{row.text}</span>
-                        <span className="text-white/25 text-[9px]">{row.tag}</span>
+                        <span className="text-white/60 text-[9px]">{row.tag}</span>
                       </div>
                     ))}
                   </div>
@@ -388,13 +388,13 @@ export default function DesktopLandingV5() {
                     ].map((s) => (
                       <div key={s.label} className="bg-white/[0.04] rounded-lg border border-white/[0.06] p-2.5 text-center">
                         <p className={`text-lg font-black ${s.color}`}>{s.val}</p>
-                        <p className="text-[8px] text-white/30 uppercase tracking-wide">{s.label}</p>
+                        <p className="text-[8px] text-white/60 uppercase tracking-wide">{s.label}</p>
                       </div>
                     ))}
                   </div>
                 </div>
               </div>
-              <p className="text-center text-white/25 text-xs mt-3 font-medium">You see everything. Control everything.</p>
+              <p className="text-center text-white/60 text-xs mt-3 font-medium">You see everything. Control everything.</p>
             </motion.div>
 
             {/* Sync indicator */}
@@ -420,14 +420,14 @@ export default function DesktopLandingV5() {
                   <div className="w-full h-full bg-[#111] rounded-[2rem] overflow-hidden px-3.5 py-5 relative">
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-8 h-8 rounded-full bg-[#005851] flex items-center justify-center"><span className="text-[#3DD6C3] text-[10px] font-bold">D</span></div>
-                      <div><p className="text-white text-[11px] font-semibold">Daniel Roberts</p><p className="text-white/35 text-[8px]">Your Agent</p></div>
+                      <div><p className="text-white text-[11px] font-semibold">Daniel Roberts</p><p className="text-white/70 text-[8px]">Your Agent</p></div>
                     </div>
                     <div className="space-y-2.5">
                       <div className="bg-white/[0.08] rounded-xl p-2.5 border border-white/5">
-                        <div className="flex items-center gap-2"><span className="text-sm">🎄</span><div><p className="text-white/90 text-[9px] font-bold">Merry Christmas!</p><p className="text-white/40 text-[7px]">Tap to view your card</p></div></div>
+                        <div className="flex items-center gap-2"><span className="text-sm">🎄</span><div><p className="text-white/90 text-[9px] font-bold">Merry Christmas!</p><p className="text-white/70 text-[7px]">Tap to view your card</p></div></div>
                       </div>
                       <div className="bg-white/[0.08] rounded-xl p-2.5 border border-white/5">
-                        <p className="text-white/30 text-[7px] uppercase tracking-wider mb-1.5">Your Policies</p>
+                        <p className="text-white/70 text-[7px] uppercase tracking-wider mb-1.5">Your Policies</p>
                         <div className="flex items-center justify-between"><span className="text-white/70 text-[9px]">Auto — State Farm</span><span className="text-[#3DD6C3] text-[7px] font-semibold">Active</span></div>
                         <div className="flex items-center justify-between mt-1"><span className="text-white/70 text-[9px]">Life — Mutual of Omaha</span><span className="text-[#3DD6C3] text-[7px] font-semibold">Active</span></div>
                       </div>
@@ -436,7 +436,7 @@ export default function DesktopLandingV5() {
                     </div>
                   </div>
                 </div>
-                <p className="text-center text-white/25 text-xs mt-3 font-medium">Your clients see their branded app.</p>
+                <p className="text-center text-white/60 text-xs mt-3 font-medium">Your clients see their branded app.</p>
               </div>
             </motion.div>
           </div>
@@ -454,7 +454,7 @@ export default function DesktopLandingV5() {
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${item.accent}15` }}>
                     <svg className="w-3.5 h-3.5" style={{ color: item.accent }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} /></svg>
                   </div>
-                  <svg className="w-3 h-3 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                  <svg className="w-3 h-3 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                 </div>
                 <p className="text-white/70 text-[11px] font-medium mb-1">{item.dashboard}</p>
                 <p className="text-[11px] font-semibold" style={{ color: item.accent }}>{item.client}</p>
@@ -524,7 +524,7 @@ export default function DesktopLandingV5() {
               <h2 className="text-3xl lg:text-4xl font-extrabold text-white leading-tight mb-3">
                 The math is <span className="text-[#3DD6C3]">undeniable</span>.
               </h2>
-              <p className="text-white/40 text-lg">One saved policy. One referral. That&apos;s all it takes.</p>
+              <p className="text-white/60 text-lg">One saved policy. One referral. That&apos;s all it takes.</p>
             </motion.div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <motion.div variants={fadeUp} custom={0.1} className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center">
@@ -707,16 +707,16 @@ export default function DesktopLandingV5() {
       {/* ═══ FINAL CTA ═══ */}
       <section className="relative px-6 lg:px-8 py-28 overflow-hidden" style={{ background: '#0D4D4D radial-gradient(ellipse 400px 400px at 25% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 300px 300px at 75% 100%, rgba(253,204,2,0.08), transparent 70%)' }}>
         <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="relative text-center max-w-3xl mx-auto space-y-8">
-          <p className="text-white/30 text-xs uppercase tracking-[0.2em] font-medium">Stop leaving money on the table</p>
+          <p className="text-white/60 text-xs uppercase tracking-[0.2em] font-medium">Stop leaving money on the table</p>
           <h2 className="text-4xl lg:text-5xl font-extrabold text-white leading-tight">
             Your competitors aren&apos;t reading this. <span className="text-[#fdcc02]">They&apos;re losing clients.</span>
           </h2>
-          <p className="text-white/40 text-lg leading-relaxed max-w-xl mx-auto">Lock in your free lifetime spot. No credit card. No risk. A system that pays for itself from day one.</p>
+          <p className="text-white/60 text-lg leading-relaxed max-w-xl mx-auto">Lock in your free lifetime spot. No credit card. No risk. A system that pays for itself from day one.</p>
           <Link href="/founding-member" className="inline-flex items-center gap-3 px-10 py-5 bg-[#fdcc02] text-[#0D4D4D] text-lg font-bold rounded-full shadow-2xl shadow-[#fdcc02]/25 hover:shadow-[#fdcc02]/40 hover:scale-[1.02] transition-all">
             Lock In My Free Lifetime Spot
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
           </Link>
-          <p className="text-white/25 text-sm">{spotsRemaining !== null ? `${spots} of 50 spots remaining` : 'Limited spots'} · $0 forever</p>
+          <p className="text-white/60 text-sm">{spotsRemaining !== null ? `${spots} of 50 spots remaining` : 'Limited spots'} · $0 forever</p>
         </motion.div>
       </section>
 
@@ -729,11 +729,11 @@ export default function DesktopLandingV5() {
           </div>
           <nav className="flex items-center gap-8">
             <Link href="/login" className="text-white/70 text-sm hover:text-white transition-colors">Agent Login</Link>
-            <a href="mailto:support@agentforlife.app" className="text-white/40 text-sm hover:text-white/60 transition-colors">Contact</a>
-            <Link href="/privacy" className="text-white/40 text-sm hover:text-white/60 transition-colors">Privacy</Link>
-            <Link href="/terms" className="text-white/40 text-sm hover:text-white/60 transition-colors">Terms</Link>
+            <a href="mailto:support@agentforlife.app" className="text-white/60 text-sm hover:text-white transition-colors">Contact</a>
+            <Link href="/privacy" className="text-white/60 text-sm hover:text-white transition-colors">Privacy</Link>
+            <Link href="/terms" className="text-white/60 text-sm hover:text-white transition-colors">Terms</Link>
           </nav>
-          <p className="text-white/25 text-sm">&copy; 2026 AgentForLife</p>
+          <p className="text-white/60 text-sm">&copy; 2026 AgentForLife</p>
         </div>
       </footer>
     </div>

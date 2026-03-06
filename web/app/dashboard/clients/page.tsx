@@ -353,6 +353,7 @@ export default function ClientsPage() {
   const refreshSummaries = useCallback(() => setSummaryVersion((v) => v + 1), []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importModalScrollRef = useRef<HTMLDivElement>(null);
 
   // ─── Data Fetching ───────────────────────────────────────
 
@@ -1311,6 +1312,12 @@ export default function ClientsPage() {
     }
   }, [user, importData, refreshSummaries]);
 
+  useEffect(() => {
+    if (importSuccess && importModalScrollRef.current) {
+      importModalScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [importSuccess]);
+
   const handleSendBulkIntro = useCallback(async () => {
     const withPhone = justImportedClients.filter((r) => r.phone.trim());
     if (!user || withPhone.length === 0) return;
@@ -1893,7 +1900,10 @@ export default function ClientsPage() {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => !importing && !parsingBob && setIsImportModalOpen(false)}
           />
-          <div className="relative w-full max-w-lg bg-white rounded-[5px] border border-gray-200 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div
+            ref={importModalScrollRef}
+            className="relative w-full max-w-lg bg-white rounded-[5px] border border-gray-200 shadow-2xl max-h-[90vh] overflow-y-auto"
+          >
             <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
               <h3 className="text-xl font-bold text-[#000000]">Import Book of Business</h3>
               <button
