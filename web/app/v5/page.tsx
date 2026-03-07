@@ -79,7 +79,7 @@ export default function DesktopLandingV5() {
       </nav>
 
       {/* ═══ HERO ═══ */}
-      <section ref={heroRef} className="relative min-h-screen flex items-center overflow-hidden pt-20" style={{ background: '#0D4D4D radial-gradient(ellipse 600px 600px at 0% 0%, rgba(61,214,195,0.18), transparent 70%), radial-gradient(ellipse 500px 500px at 100% 80%, rgba(253,204,2,0.07), transparent 70%)' }}>
+      <section ref={heroRef} className="relative min-h-screen flex items-center overflow-hidden pt-20 pb-20 lg:pb-28" style={{ background: '#0D4D4D radial-gradient(ellipse 600px 600px at 0% 0%, rgba(61,214,195,0.18), transparent 70%), radial-gradient(ellipse 500px 500px at 100% 80%, rgba(253,204,2,0.07), transparent 70%)' }}>
         <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
 
         <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8 w-full">
@@ -205,7 +205,7 @@ export default function DesktopLandingV5() {
       </section>
 
       {/* ═══ FEATURE 1: REFERRALS (light bg) ═══ */}
-      <section id="features" className="bg-[#F8F9FA] px-6 lg:px-8 pt-32 lg:pt-40 pb-24 lg:pb-32">
+      <section id="features" className="bg-[#F8F9FA] px-6 lg:px-8 pt-48 lg:pt-56 pb-24 lg:pb-32">
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
             <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
