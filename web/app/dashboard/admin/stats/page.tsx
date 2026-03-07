@@ -109,16 +109,29 @@ export default function AdminStatsPage() {
     fetchStats();
   }, [fetchStats]);
 
-  /* ---- Manual refresh (triggers cron) ---- */
+  /* ---- Manual refresh (authenticated endpoint) ---- */
   const handleRefresh = async () => {
     if (!user) return;
     setRefreshing(true);
     try {
-      const cronSecret = process.env.NEXT_PUBLIC_CRON_SECRET;
-      await fetch('/api/cron/stats-aggregates', {
-        headers: cronSecret ? { authorization: `Bearer ${cronSecret}` } : {},
+      const token = await user.getIdToken();
+      const res = await fetch('/api/stats/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
       });
-      await fetchStats();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Refresh failed');
+      }
+      const data = await res.json();
+      if (data.aggregates) {
+        setStats(data.aggregates as AgentAggregates);
+      } else {
+        await fetchStats();
+      }
     } catch (err) {
       console.error('Error refreshing stats:', err);
     } finally {
