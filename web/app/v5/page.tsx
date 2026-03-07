@@ -205,7 +205,7 @@ export default function DesktopLandingV5() {
       </section>
 
       {/* ═══ FEATURE 1: REFERRALS (light bg) ═══ */}
-      <section id="features" className="bg-[#F8F9FA] px-6 lg:px-8 py-24 lg:py-32">
+      <section id="features" className="bg-[#F8F9FA] px-6 lg:px-8 pt-32 lg:pt-40 pb-24 lg:pb-32">
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
             <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
@@ -216,7 +216,7 @@ export default function DesktopLandingV5() {
               <h2 className="text-3xl lg:text-[2.75rem] font-extrabold text-[#0D4D4D] leading-tight mb-4">
                 Put a referral button in every client&apos;s pocket. AI takes it from there.
               </h2>
-              <p className="text-[#6B7280] text-lg leading-relaxed mb-8 max-w-lg">
+              <p className="text-[#4B5563] text-lg leading-relaxed mb-8 max-w-lg">
                 One tap from your client. AI texts the referral via iMessage, qualifies them, and books the appointment on your calendar. You just show up and close.
               </p>
               <Link href="/v5/referrals" className="inline-flex items-center gap-2 text-[#0D4D4D] font-bold text-base hover:text-[#3DD6C3] transition-colors group">

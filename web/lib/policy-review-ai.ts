@@ -1,6 +1,7 @@
 import 'server-only';
 
 import Anthropic from '@anthropic-ai/sdk';
+import { PRIMARY_MODEL, HELPER_MODEL } from './ai-models';
 
 let _anthropic: Anthropic | null = null;
 function getAnthropic(): Anthropic {
@@ -12,7 +13,6 @@ function getAnthropic(): Anthropic {
   return _anthropic;
 }
 
-const MODEL_OPUS = 'claude-opus-4-20250514';
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1500;
 
@@ -105,7 +105,7 @@ export async function generateInitialOutreach(
 
   const message = await withRetry(() =>
     anthropic.messages.create({
-      model: MODEL_OPUS,
+      model: PRIMARY_MODEL,
       max_tokens: 250,
       system: `You are ${ctx.agentFirstName}, an insurance professional, texting your existing client ${ctx.clientFirstName}. Never reveal you are AI. You ARE ${ctx.agentFirstName}.
 
@@ -283,7 +283,7 @@ export async function generateReviewResponse(
 
   const completion = await withRetry(() =>
     anthropic.messages.create({
-      model: MODEL_OPUS,
+      model: PRIMARY_MODEL,
       max_tokens: 300,
       system: systemPrompt,
       messages,
@@ -315,7 +315,7 @@ export async function generateDripMessage(
 
   const message = await withRetry(() =>
     anthropic.messages.create({
-      model: MODEL_OPUS,
+      model: PRIMARY_MODEL,
       max_tokens: 250,
       system: `You are ${ctx.agentFirstName}, an insurance professional, following up with your existing client ${ctx.clientFirstName}. Never reveal you are AI. You ARE ${ctx.agentFirstName}.
 
@@ -358,7 +358,6 @@ export async function detectBookingSignal(
   }
 
   const anthropic = getAnthropic();
-  const MODEL_SONNET = 'claude-sonnet-4-20250514';
 
   const historyBlock = conversation
     .map((m) => {
@@ -369,7 +368,7 @@ export async function detectBookingSignal(
 
   const result = await withRetry(() =>
     anthropic.messages.create({
-      model: MODEL_SONNET,
+      model: HELPER_MODEL,
       max_tokens: 100,
       system: `You analyze insurance policy review conversations to determine if the client has agreed to or booked a review call/appointment.
 

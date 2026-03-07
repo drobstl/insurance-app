@@ -82,7 +82,7 @@ export default function ReferralsDeepDiveDesktop() {
         <div className="max-w-[1440px] mx-auto px-10 h-16 grid grid-cols-3 items-center">
           <div className="flex items-center gap-5">
             <Link
-              href="/v5"
+              href="/"
               className="flex items-center gap-2 text-[#0D4D4D] hover:text-[#3DD6C3] transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

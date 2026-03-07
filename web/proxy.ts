@@ -31,6 +31,11 @@ export function proxy(request: NextRequest) {
     return NextResponse.rewrite(new URL('/v5', request.url));
   }
 
+  // Desktop: redirect /v5 to / so URL stays clean (agentforlife.app)
+  if (path === '/v5' && !mobile) {
+    return NextResponse.redirect(new URL('/', request.url));
+  }
+
   if (path === '/founding-member') {
     if (mobile) {
       return NextResponse.rewrite(new URL('/founding-member/m', request.url));

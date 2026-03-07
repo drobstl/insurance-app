@@ -42,7 +42,7 @@ export default function RelationshipsDeepDive() {
       <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <Link href="/v5" className="flex items-center gap-2 text-[#0D4D4D] hover:text-[#a158ff] transition-colors">
+            <Link href="/" className="flex items-center gap-2 text-[#0D4D4D] hover:text-[#a158ff] transition-colors">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
               <span className="text-sm font-semibold">Back</span>
             </Link>

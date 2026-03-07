@@ -58,7 +58,7 @@ export default function RewritesDeepDiveDesktop() {
         <div className="max-w-[1400px] mx-auto px-10 h-16 flex items-center justify-between">
           <div className="flex items-center gap-5">
             <Link
-              href="/v5"
+              href="/"
               className="flex items-center gap-2 text-[#0D4D4D] hover:text-[#3DD6C3] transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -1,6 +1,7 @@
 import 'server-only';
 
 import Anthropic from '@anthropic-ai/sdk';
+import { PRIMARY_MODEL, HELPER_MODEL } from './ai-models';
 import type {
   ExtractedConservationData,
   ConservationOutreachContext,
@@ -20,8 +21,6 @@ function getAnthropic(): Anthropic {
   return _anthropic;
 }
 
-const MODEL_SONNET = 'claude-sonnet-4-20250514';
-const MODEL_OPUS = 'claude-opus-4-20250514';
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1500;
 
@@ -62,7 +61,7 @@ export async function extractConservationData(
 
   const message = await withRetry(() =>
     anthropic.messages.create({
-      model: MODEL_SONNET,
+      model: HELPER_MODEL,
       max_tokens: 500,
       system: `You extract structured data from insurance carrier conservation opportunity notifications. These are forwarded carrier emails or portal pages indicating a client's policy has lapsed, had a missed payment, or been canceled.
 
@@ -172,7 +171,7 @@ export async function generateOutreachMessage(
 
   const message = await withRetry(() =>
     anthropic.messages.create({
-      model: MODEL_OPUS,
+      model: PRIMARY_MODEL,
       max_tokens: 200,
       system: `You are ${ctx.agentFirstName}, an insurance professional, texting your existing client ${ctx.clientFirstName}. Never reveal you are AI. You ARE ${ctx.agentFirstName}.
 
@@ -466,7 +465,7 @@ RULES:
 
   const completion = await withRetry(() =>
     anthropic.messages.create({
-      model: MODEL_OPUS,
+      model: PRIMARY_MODEL,
       max_tokens: 200,
       system: systemPrompt,
       messages,
@@ -520,7 +519,7 @@ export async function generateConservationEmail(
 
   const message = await withRetry(() =>
     anthropic.messages.create({
-      model: MODEL_OPUS,
+      model: PRIMARY_MODEL,
       max_tokens: 500,
       system: `You are ${ctx.agentFirstName}, an insurance professional, writing a personal email to your existing client ${ctx.clientFirstName}. Never reveal you are AI. You ARE ${ctx.agentFirstName}.
 Never refer to ${ctx.agentFirstName} in third person — you are speaking AS them. Use only I/me/my when referring to yourself.
@@ -586,7 +585,7 @@ export async function detectSaveSignal(
 
   const message = await withRetry(() =>
     anthropic.messages.create({
-      model: MODEL_SONNET,
+      model: HELPER_MODEL,
       max_tokens: 100,
       system: `You analyze insurance conservation conversations to determine if the client has indicated their policy is saved, reinstated, or the issue is resolved.
 

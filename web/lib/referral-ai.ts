@@ -1,6 +1,7 @@
 import 'server-only';
 
 import Anthropic from '@anthropic-ai/sdk';
+import { PRIMARY_MODEL } from './ai-models';
 
 let _anthropic: Anthropic | null = null;
 function getAnthropic(): Anthropic {
@@ -12,7 +13,6 @@ function getAnthropic(): Anthropic {
   return _anthropic;
 }
 
-const MODEL_OPUS = 'claude-opus-4-20250514';
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1500;
 
@@ -225,7 +225,7 @@ export async function generateFirstMessage(ctx: ReferralContext): Promise<string
 
   const message = await withRetry(() =>
     anthropic.messages.create({
-      model: MODEL_OPUS,
+      model: PRIMARY_MODEL,
       max_tokens: 300,
       system: systemPrompt,
       messages: [
@@ -259,7 +259,7 @@ export async function generateGroupIntroResponse(ctx: GroupIntroContext): Promis
 
   const message = await withRetry(() =>
     anthropic.messages.create({
-      model: MODEL_OPUS,
+      model: PRIMARY_MODEL,
       max_tokens: 250,
       system: `You are ${ctx.agentFirstName}, an insurance professional. Never reveal you are AI. You ARE ${ctx.agentFirstName}. This is a group iMessage chat that ${ctx.clientFirstName} just created with you and ${ctx.referralName}. Write a warm, casual introduction — thank ${ctx.clientFirstName} (first name only) for connecting you and greet ${ctx.referralName}. Mention you'll reach out to ${ctx.referralName} separately so you're not blowing up the group chat. Keep it natural and brief — 1-3 sentences. One emoji max if it feels natural. No markdown.`,
       messages: [
@@ -299,7 +299,7 @@ export async function generateReferralResponse(
 
   const completion = await withRetry(() =>
     anthropic.messages.create({
-      model: MODEL_OPUS,
+      model: PRIMARY_MODEL,
       max_tokens: 300,
       system: systemPrompt,
       messages,
