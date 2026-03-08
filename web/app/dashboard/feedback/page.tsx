@@ -207,21 +207,27 @@ function QuestionRenderer({
                 {question.options.map((option) => {
                   const isChecked = selected.includes(option);
                   return (
-                    <label
+                    <div
                       key={option}
-                      onClick={() => handleToggle(option)}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-all ${
+                      role="checkbox"
+                      tabIndex={0}
+                      aria-checked={isChecked}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleToggle(option);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleToggle(option);
+                        }
+                      }}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-all select-none ${
                         isChecked
                           ? 'border-[#3DD6C3] bg-[#3DD6C3]/5'
                           : 'border-[#d0d0d0] hover:border-[#3DD6C3]/50'
                       }`}
                     >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => handleToggle(option)}
-                        className="sr-only"
-                      />
                       <div
                         className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
                           isChecked
@@ -246,7 +252,7 @@ function QuestionRenderer({
                         )}
                       </div>
                       <span className="text-sm text-[#2D3748]">{option}</span>
-                    </label>
+                    </div>
                   );
                 })}
               </div>
