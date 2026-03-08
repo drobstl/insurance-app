@@ -281,10 +281,41 @@ function QuestionResult({
 
   if (question.type === 'multiple_choice' && question.options) {
     const counts: Record<string, number> = {};
+    const otherTexts: string[] = [];
+    const followUpTexts: string[] = [];
     question.options.forEach((o) => (counts[o] = 0));
+
     answers.forEach((a) => {
-      const s = String(a);
-      if (counts[s] !== undefined) counts[s]++;
+      if (Array.isArray(a)) {
+        (a as string[]).forEach((opt) => {
+          if (counts[opt] !== undefined) counts[opt]++;
+        });
+      } else {
+        const opt =
+          typeof a === 'object' && a && 'option' in a
+            ? (a as { option: string; otherText?: string }).option
+            : String(a);
+        if (counts[opt] !== undefined) counts[opt]++;
+        if (
+          opt === 'Other' &&
+          typeof a === 'object' &&
+          a &&
+          'otherText' in a &&
+          (a as { otherText?: string }).otherText
+        ) {
+          otherTexts.push((a as { otherText: string }).otherText);
+        }
+        if (
+          question.followUpWhen &&
+          opt === question.followUpWhen &&
+          typeof a === 'object' &&
+          a &&
+          'followUpText' in a &&
+          (a as { followUpText?: string }).followUpText
+        ) {
+          followUpTexts.push((a as { followUpText: string }).followUpText);
+        }
+      }
     });
     const sorted = question.options.slice().sort(
       (a, b) => (counts[b] || 0) - (counts[a] || 0),
@@ -309,10 +340,48 @@ function QuestionResult({
             <div key={option} className="flex items-center gap-2 text-xs text-[#707070]">
               <span className="w-2 h-2 bg-[#3DD6C3] rounded-full shrink-0" />
               <span className="flex-1">{option}</span>
-              <span className="font-medium">{counts[option]}</span>
+              <span className="font-medium">
+                {question.multipleSelect && answers.length > 0
+                  ? `${counts[option]} (${Math.round((counts[option] / answers.length) * 100)}%)`
+                  : counts[option]}
+              </span>
             </div>
           ))}
         </div>
+        {otherTexts.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-[#e5e5e5]">
+            <p className="text-xs font-semibold text-[#707070] mb-2">
+              “Other” responses:
+            </p>
+            <div className="space-y-1">
+              {otherTexts.map((t, i) => (
+                <div
+                  key={i}
+                  className="bg-[#F8F9FA] rounded px-3 py-2 text-xs text-[#2D3748]"
+                >
+                  {t}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {followUpTexts.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-[#e5e5e5]">
+            <p className="text-xs font-semibold text-[#707070] mb-2">
+              Follow-up ({question.followUpWhen}) details:
+            </p>
+            <div className="space-y-1">
+              {followUpTexts.map((t, i) => (
+                <div
+                  key={i}
+                  className="bg-[#F8F9FA] rounded px-3 py-2 text-xs text-[#2D3748]"
+                >
+                  {t}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }

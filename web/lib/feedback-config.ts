@@ -21,6 +21,14 @@ export interface SurveyQuestion {
   scale?: number;
   /** For 'multiple_choice' only */
   options?: string[];
+  /** For 'multiple_choice': when true, allows multiple selections (check all that apply) */
+  multipleSelect?: boolean;
+  /** For 'multiple_choice': when true, adds "Other" option with a text input */
+  allowOther?: boolean;
+  /** For 'multiple_choice': when selected value matches, show follow-up text input */
+  followUpWhen?: string;
+  /** Placeholder for follow-up text input when followUpWhen matches */
+  followUpPlaceholder?: string;
 }
 
 export interface Survey {
@@ -113,8 +121,9 @@ export const ACTIVE_SURVEYS: Survey[] = [
       {
         id: 'most-used-feature',
         type: 'multiple_choice',
-        text: 'Which feature did you use the most this week?',
+        text: 'Which features did you use this week? (Check all that apply)',
         required: true,
+        multipleSelect: true,
         options: [
           'Client Management',
           'Policy Tracking',
@@ -136,6 +145,22 @@ export const ACTIVE_SURVEYS: Survey[] = [
         text: 'How would you rate the client mobile app experience?',
         required: true,
         scale: 5,
+      },
+      {
+        id: 'clients-interacted',
+        type: 'multiple_choice',
+        text: 'Did any of your clients interact with your branded app this week?',
+        required: true,
+        options: ['Yes', 'No', 'Not sure'],
+        followUpWhen: 'Yes',
+        followUpPlaceholder:
+          'Nice! What kind of interaction? (e.g., referral, opened the app, responded to a message)',
+      },
+      {
+        id: 'setup-blockers',
+        type: 'text',
+        text: "Is there anything you haven't been able to set up yet?",
+        required: false,
       },
       {
         id: 'biggest-frustration',

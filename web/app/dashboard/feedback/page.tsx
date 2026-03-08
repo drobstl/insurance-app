@@ -158,6 +158,9 @@ function QuestionRenderer({
         <span className="text-[#a0a0a0] mr-2">{index + 1}.</span>
         {question.text}
         {question.required && <span className="text-red-400 ml-1">*</span>}
+        {!question.required && (
+          <span className="text-[#a0a0a0] ml-2 font-normal">(Optional)</span>
+        )}
       </label>
 
       {question.type === 'rating' && (
@@ -175,33 +178,180 @@ function QuestionRenderer({
         />
       )}
 
-      {question.type === 'multiple_choice' && question.options && (
-        <div className="space-y-2">
-          {question.options.map((option) => (
-            <label
-              key={option}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-all ${
-                value === option
-                  ? 'border-[#3DD6C3] bg-[#3DD6C3]/5'
-                  : 'border-[#d0d0d0] hover:border-[#3DD6C3]/50'
-              }`}
-            >
-              <div
-                className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                  value === option
-                    ? 'border-[#3DD6C3]'
-                    : 'border-[#d0d0d0]'
-                }`}
-              >
-                {value === option && (
-                  <div className="w-2 h-2 rounded-full bg-[#3DD6C3]" />
-                )}
+      {question.type === 'multiple_choice' && question.options &&
+        (question.multipleSelect ? (
+          (() => {
+            const selected = Array.isArray(value) ? (value as string[]) : [];
+            const exclusiveOption = "I didn't use it much this week";
+            const handleToggle = (option: string) => {
+              const isChecked = selected.includes(option);
+              if (option === exclusiveOption) {
+                if (isChecked) {
+                  onChange([]);
+                } else {
+                  onChange([option]);
+                }
+              } else {
+                if (isChecked) {
+                  onChange(selected.filter((o) => o !== option));
+                } else {
+                  onChange([
+                    ...selected.filter((o) => o !== exclusiveOption),
+                    option,
+                  ]);
+                }
+              }
+            };
+            return (
+              <div className="space-y-2">
+                {question.options.map((option) => {
+                  const isChecked = selected.includes(option);
+                  return (
+                    <label
+                      key={option}
+                      onClick={() => handleToggle(option)}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-all ${
+                        isChecked
+                          ? 'border-[#3DD6C3] bg-[#3DD6C3]/5'
+                          : 'border-[#d0d0d0] hover:border-[#3DD6C3]/50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => handleToggle(option)}
+                        className="sr-only"
+                      />
+                      <div
+                        className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+                          isChecked
+                            ? 'border-[#3DD6C3] bg-[#3DD6C3]'
+                            : 'border-[#d0d0d0]'
+                        }`}
+                      >
+                        {isChecked && (
+                          <svg
+                            className="w-2.5 h-2.5 text-white"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={3}
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                        )}
+                      </div>
+                      <span className="text-sm text-[#2D3748]">{option}</span>
+                    </label>
+                  );
+                })}
               </div>
-              <span className="text-sm text-[#2D3748]">{option}</span>
-            </label>
-          ))}
-        </div>
-      )}
+            );
+          })()
+        ) : (
+          (() => {
+            const selectedOption =
+              typeof value === 'object' && value && 'option' in value
+                ? (value as { option: string }).option
+                : (value as string);
+            const otherText =
+              typeof value === 'object' && value && 'otherText' in value
+                ? (value as { otherText: string }).otherText || ''
+                : '';
+            const followUpText =
+              typeof value === 'object' && value && 'followUpText' in value
+                ? (value as { followUpText: string }).followUpText || ''
+                : '';
+            return (
+              <div className="space-y-2">
+                {question.options.map((option) => (
+                  <label
+                    key={option}
+                    onClick={() =>
+                      option === 'Other'
+                        ? onChange({ option: 'Other', otherText })
+                        : question.followUpWhen && option === question.followUpWhen
+                          ? onChange({ option, followUpText })
+                          : onChange(option)
+                    }
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-all ${
+                      selectedOption === option
+                        ? 'border-[#3DD6C3] bg-[#3DD6C3]/5'
+                        : 'border-[#d0d0d0] hover:border-[#3DD6C3]/50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name={question.id}
+                      value={option}
+                      checked={selectedOption === option}
+                      onChange={() =>
+                        option === 'Other'
+                          ? onChange({ option: 'Other', otherText })
+                          : question.followUpWhen && option === question.followUpWhen
+                            ? onChange({ option, followUpText })
+                            : onChange(option)
+                      }
+                      className="sr-only"
+                    />
+                    <div
+                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        selectedOption === option
+                          ? 'border-[#3DD6C3]'
+                          : 'border-[#d0d0d0]'
+                      }`}
+                    >
+                      {selectedOption === option && (
+                        <div className="w-2 h-2 rounded-full bg-[#3DD6C3]" />
+                      )}
+                    </div>
+                    <span className="text-sm text-[#2D3748]">{option}</span>
+                  </label>
+                ))}
+                {question.allowOther && selectedOption === 'Other' && (
+                  <div className="mt-3 pl-7">
+                    <input
+                      type="text"
+                      value={otherText}
+                      onChange={(e) =>
+                        onChange({
+                          option: 'Other',
+                          otherText: e.target.value,
+                        })
+                      }
+                      onClick={(e) => e.stopPropagation()}
+                      placeholder="What feature?"
+                      className="w-full border border-[#d0d0d0] rounded-lg px-4 py-3 text-base text-[#2D3748] placeholder:text-[#a0a0a0] focus:outline-none focus:ring-2 focus:ring-[#3DD6C3] focus:border-transparent"
+                    />
+                  </div>
+                )}
+                {question.followUpWhen &&
+                  question.followUpPlaceholder &&
+                  selectedOption === question.followUpWhen && (
+                    <div className="mt-3 pl-7">
+                      <input
+                        type="text"
+                        value={followUpText}
+                        onChange={(e) =>
+                          onChange({
+                            option: selectedOption,
+                            followUpText: e.target.value,
+                          })
+                        }
+                        onClick={(e) => e.stopPropagation()}
+                        placeholder={question.followUpPlaceholder}
+                        className="w-full border border-[#d0d0d0] rounded-lg px-4 py-3 text-base text-[#2D3748] placeholder:text-[#a0a0a0] focus:outline-none focus:ring-2 focus:ring-[#3DD6C3] focus:border-transparent"
+                      />
+                    </div>
+                  )}
+              </div>
+            );
+          })()
+        ))}
 
       {question.type === 'text' && (
         <textarea
@@ -270,6 +420,21 @@ function SurveyCard({
     const a = answers[q.id];
     if (a === undefined || a === null || a === '') return false;
     if (q.type === 'rating' && a === 0) return false;
+    if (
+      q.type === 'multiple_choice' &&
+      q.multipleSelect &&
+      Array.isArray(a)
+    ) {
+      return a.length > 0;
+    }
+    if (
+      q.type === 'multiple_choice' &&
+      typeof a === 'object' &&
+      a &&
+      'option' in a
+    ) {
+      return !!(a as { option: string }).option;
+    }
     return true;
   });
 
