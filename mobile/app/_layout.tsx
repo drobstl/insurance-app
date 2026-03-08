@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { AppState, AppStateStatus, Platform } from 'react-native';
+import { AppState, AppStateStatus, Linking, Platform } from 'react-native';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -69,6 +69,21 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   return tokenData.data;
 }
 
+/** Set up the BOOK_APPOINTMENT category so push notifications can show a Book action button. */
+async function setupBookNotificationCategory() {
+  try {
+    await Notifications.setNotificationCategoryAsync('BOOK_APPOINTMENT', [
+      {
+        identifier: 'book',
+        buttonTitle: 'Book',
+        options: { opensAppToForeground: true },
+      },
+    ]);
+  } catch (e) {
+    console.warn('Could not set up notification category:', e);
+  }
+}
+
 // Custom theme with Quility colors
 const CustomTheme = {
   ...DarkTheme,
@@ -95,6 +110,11 @@ export default function RootLayout() {
       screen_class: pathname,
     });
   }, [pathname]);
+
+  // Set up Book action button for booking-related push notifications
+  useEffect(() => {
+    setupBookNotificationCategory();
+  }, []);
 
   // Re-register push token and clear badge when the app comes back to foreground.
   // Handles token rotation and recovers from failed initial registrations.
@@ -130,12 +150,16 @@ export default function RootLayout() {
       Notifications.setBadgeCountAsync(0).catch(() => {});
     });
 
-    // Listener for when the user taps a notification (from lock screen / notification center).
-    // Clear badge and dismiss all since they're now engaging with the app.
+    // Listener for when the user taps a notification or its Book action button.
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
-      console.log('Notification tapped:', response.notification.request.content.data);
+      const data = response.notification.request.content.data as Record<string, unknown> | undefined;
       Notifications.setBadgeCountAsync(0).catch(() => {});
       Notifications.dismissAllNotificationsAsync().catch(() => {});
+
+      // If they tapped the Book action, open the agent's calendar
+      if (response.actionIdentifier === 'book' && data?.schedulingUrl && typeof data.schedulingUrl === 'string') {
+        Linking.openURL(data.schedulingUrl);
+      }
     });
 
     return () => {

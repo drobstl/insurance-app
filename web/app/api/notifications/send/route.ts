@@ -29,6 +29,7 @@ interface ExpoPushMessage {
   badge?: number;
   priority?: 'default' | 'normal' | 'high';
   data?: Record<string, unknown>;
+  categoryId?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -131,6 +132,7 @@ export async function POST(req: NextRequest) {
       badge: 1,
       priority: 'high',
       data: pushData,
+      ...(shouldIncludeBooking && { categoryId: 'BOOK_APPOINTMENT' }),
     };
 
     // ── Send via Expo Push API ───────────────────────────────────────

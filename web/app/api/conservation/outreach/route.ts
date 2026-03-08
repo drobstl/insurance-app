@@ -122,6 +122,7 @@ export async function POST(req: NextRequest) {
             badge: 1,
             priority: 'high',
             data: pushData,
+            ...(schedulingUrl && { categoryId: 'BOOK_APPOINTMENT' }),
           }),
         });
 

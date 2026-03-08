@@ -161,7 +161,7 @@ export async function generateOutreachMessage(
           : 'This is the FINAL follow-up (day 7). Gracious, leave the door open, no more messages after this.';
 
   const schedulingNote = ctx.schedulingUrl
-    ? `The agent has a scheduling URL: ${ctx.schedulingUrl}. If it feels natural, mention they can book a quick call.`
+    ? 'The agent has a scheduling link. If it feels natural, mention they can book a quick call — but do NOT include the URL in your message. The app shows an actionable Book button.'
     : 'The agent does not have a scheduling link. Offer to chat or take a call instead.';
 
   const carrierNote = ctx.carrierServicePhone && ctx.carrier

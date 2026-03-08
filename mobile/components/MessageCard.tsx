@@ -132,14 +132,19 @@ export default function MessageCard({
     const current = notifications[currentIndex];
     if (!current) return;
 
-    // Mark as read in Firestore — onSnapshot will remove it from the list
-    try {
-      await markNotificationAsRead(agentId, clientId, current.id, clientCode);
-    } catch (err) {
-      console.error('Error marking notification as read:', err);
+    // Optimistically remove from local state so the card disappears immediately
+    const remaining = notifications.filter((n) => n.id !== current.id);
+    setNotifications(remaining);
+    if (remaining.length > 0) {
+      setCurrentIndex(Math.min(currentIndex, remaining.length - 1));
     }
 
-    if (notifications.length <= 1) {
+    // Mark as read on server (fire-and-forget)
+    markNotificationAsRead(agentId, clientId, current.id, clientCode).catch((err) => {
+      console.error('Error marking notification as read:', err);
+    });
+
+    if (remaining.length === 0) {
       Notifications.setBadgeCountAsync(0).catch(() => {});
       cardOpacity.value = withTiming(0, { duration: 200 });
       cardScale.value = withTiming(0.95, { duration: 200 });
@@ -153,12 +158,8 @@ export default function MessageCard({
         withTiming(0, { duration: 150 }),
         withTiming(1, { duration: 150 }),
       );
-      // Clamp index if we're at the end of the list
-      if (currentIndex >= notifications.length - 1) {
-        setCurrentIndex(0);
-      }
     }
-  }, [notifications, currentIndex, agentId, clientId]);
+  }, [notifications, currentIndex, agentId, clientId, clientCode]);
 
   // ── Full-Screen Handlers ────────────────────────────────────────────────
 

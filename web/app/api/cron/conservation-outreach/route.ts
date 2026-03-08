@@ -54,7 +54,7 @@ async function sendPushNotification(
         Accept: 'application/json',
         'Accept-Encoding': 'gzip, deflate',
       },
-      body: JSON.stringify({
+        body: JSON.stringify({
         to: pushToken,
         title: `Message from ${agentName}`,
         body: message,
@@ -62,6 +62,7 @@ async function sendPushNotification(
         badge: 1,
         priority: 'high',
         data,
+        ...(data.includeBookingLink && { categoryId: 'BOOK_APPOINTMENT' }),
       }),
     });
     const result = await res.json();
@@ -341,11 +342,20 @@ export async function GET(req: NextRequest) {
           }
 
           if (pushToken) {
+            const dripPushData: Record<string, unknown> = {
+              type: 'conservation',
+              agentId: agentDoc.id,
+              clientId,
+            };
+            if (schedulingUrl) {
+              dripPushData.schedulingUrl = schedulingUrl;
+              dripPushData.includeBookingLink = true;
+            }
             pushSent = await sendPushNotification(
               pushToken,
               agentName,
               dripMessage,
-              { type: 'conservation', agentId: agentDoc.id, clientId },
+              dripPushData,
             );
             if (pushSent) usedChannels.push('push');
           }
@@ -385,6 +395,7 @@ export async function GET(req: NextRequest) {
                 type: 'conservation',
                 title: `Message from ${agentName}`,
                 body: dripMessage,
+                includeBookingLink: !!schedulingUrl,
                 sentAt: FieldValue.serverTimestamp(),
                 readAt: null,
                 status: pushSent ? 'sent' : smsSent ? 'sent' : emailSent ? 'sent' : 'failed',

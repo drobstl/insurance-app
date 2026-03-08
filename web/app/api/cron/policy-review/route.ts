@@ -222,7 +222,8 @@ export async function GET(req: NextRequest) {
 
             if (isCustom) {
               const policyLabel = `your ${hit.policyType} policy`;
-              const schedulingNote = schedulingUrl ? ` Tap here to grab a time on my calendar: ${schedulingUrl}` : '';
+              // No URL in body — in-app card shows actionable Book button instead
+              const schedulingNote = '';
               outreachMessage = customTemplate
                 .replace(/\{\{firstName\}\}/g, hit.clientFirstName)
                 .replace(/\{\{policyLabel\}\}/g, policyLabel)
@@ -271,7 +272,16 @@ export async function GET(req: NextRequest) {
                     sound: 'default',
                     badge: 1,
                     priority: 'high',
-                    data: { type: 'policy-review', agentId: agentDoc.id, clientId: hit.clientId },
+                    data: {
+                      type: 'anniversary',
+                      agentId: agentDoc.id,
+                      clientId: hit.clientId,
+                      ...(schedulingUrl && {
+                        schedulingUrl,
+                        includeBookingLink: true,
+                      }),
+                    },
+                    ...(schedulingUrl && { categoryId: 'BOOK_APPOINTMENT' }),
                   }),
                 });
               } catch (pushErr) {
@@ -288,6 +298,7 @@ export async function GET(req: NextRequest) {
                 type: 'anniversary',
                 title: pushTitleForHit,
                 body: outreachMessage,
+                includeBookingLink: !!schedulingUrl,
                 sentAt: FieldValue.serverTimestamp(),
                 readAt: null,
                 status: 'sent',

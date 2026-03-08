@@ -232,7 +232,8 @@ export async function GET(req: NextRequest) {
 
         const firstName = hit.clientName.split(' ')[0];
         const schedulingUrl = (agentData.schedulingUrl as string) || '';
-        const schedulingNote = schedulingUrl ? ` Tap here to grab a time on my calendar: ${schedulingUrl}` : '';
+        // No URL in body — in-app card shows actionable Book button instead
+        const schedulingNote = '';
 
         let pushTitle: string;
         let pushBody: string;
@@ -246,10 +247,10 @@ export async function GET(req: NextRequest) {
             .replace(/\{\{schedulingNote\}\}/g, schedulingNote.trim());
         } else if (messageStyle === 'lower_price') {
           pushTitle = 'Rate Review';
-          pushBody = `Hi ${firstName}, your ${policyLabel} anniversary is coming up and I've been seeing some lower rates for the same coverage. Want me to run the numbers? It'll take 10 minutes.${schedulingNote} — ${agentName}`;
+          pushBody = `Hi ${firstName}, your ${policyLabel} anniversary is coming up and I've been seeing some lower rates for the same coverage. Want me to run the numbers? It'll take 10 minutes. — ${agentName}`;
         } else {
           pushTitle = 'Policy Check-In';
-          pushBody = `Hi ${firstName}, it's been almost a year since we set up ${policyLabel}. A lot can change in a year — I'd love to make sure your coverage still fits your life. I'm here whenever you'd like to chat.${schedulingNote} — ${agentName}`;
+          pushBody = `Hi ${firstName}, it's been almost a year since we set up ${policyLabel}. A lot can change in a year — I'd love to make sure your coverage still fits your life. I'm here whenever you'd like to chat. — ${agentName}`;
         }
 
         try {
@@ -273,7 +274,12 @@ export async function GET(req: NextRequest) {
                   type: 'anniversary',
                   agentId: agentDoc.id,
                   clientId: hit.clientId,
+                  ...(schedulingUrl && {
+                    schedulingUrl,
+                    includeBookingLink: true,
+                  }),
                 },
+                ...(schedulingUrl && { categoryId: 'BOOK_APPOINTMENT' }),
               }),
             }
           );
@@ -301,6 +307,7 @@ export async function GET(req: NextRequest) {
             type: 'anniversary',
             title: pushTitle,
             body: pushBody,
+            includeBookingLink: !!schedulingUrl,
             sentAt: FieldValue.serverTimestamp(),
             readAt: null,
             status: pushStatus,
