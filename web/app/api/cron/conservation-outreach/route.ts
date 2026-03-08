@@ -62,7 +62,7 @@ async function sendPushNotification(
         badge: 1,
         priority: 'high',
         data,
-        ...(data.includeBookingLink && { categoryId: 'BOOK_APPOINTMENT' }),
+        ...(data.includeBookingLink ? { categoryId: 'BOOK_APPOINTMENT' } : {}),
       }),
     });
     const result = await res.json();
