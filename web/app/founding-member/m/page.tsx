@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { fireConfetti } from '@/lib/confetti';
+import { useTierCTA } from '@/hooks/useTierCTA';
 
 
 const FAQ_ITEMS = [
@@ -29,7 +30,7 @@ const stagger = {
 };
 
 export default function FoundingMemberMobile() {
-  const [spotsRemaining, setSpotsRemaining] = useState<number | null>(null);
+  const tier = useTierCTA();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -47,14 +48,8 @@ export default function FoundingMemberMobile() {
   const formRef = useRef<HTMLElement>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    fetch('/api/spots-remaining')
-      .then(r => r.json())
-      .then(d => { if (typeof d.spotsRemaining === 'number') setSpotsRemaining(d.spotsRemaining); })
-      .catch(() => {});
-  }, []);
-
-  const spots = spotsRemaining ?? 50;
+  const spotsRemaining = tier.isFoundingOpen ? tier.spotsRemaining : 0;
+  const spots = tier.isFoundingOpen ? (tier.spotsRemaining ?? 50) : 0;
   const filled = 50 - spots;
 
   const scrollToForm = () => {
@@ -93,6 +88,10 @@ export default function FoundingMemberMobile() {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        if (data.error === 'founding_full') {
+          setError('founding_full');
+          return;
+        }
         throw new Error(data.error || 'Failed to submit application');
       }
 
@@ -142,91 +141,151 @@ export default function FoundingMemberMobile() {
 
           {/* Main hero content */}
           <div className="flex-1 flex flex-col justify-center -mt-6">
-            {/* Spots badge */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.15 }}
-              className="mb-5"
-            >
-              <div className="inline-flex items-center gap-2.5 px-4 py-2.5 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute h-full w-full rounded-full bg-[#a158ff] opacity-75" />
-                  <span className="relative rounded-full h-2.5 w-2.5 bg-[#a158ff]" />
-                </span>
-                <span className="text-white font-bold text-sm">
-                  <span className="text-[#a158ff]">{spots}</span> of 50 spots remaining
-                </span>
-              </div>
-            </motion.div>
-
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.25 }}
-              className="text-[2rem] leading-[1.1] font-extrabold text-white mb-4 tracking-tight"
-            >
-              Become a{' '}
-              <span className="text-[#a158ff]">Founding Member</span>
-            </motion.h1>
-
-            <motion.p
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              className="text-white/50 text-[15px] leading-relaxed mb-6 max-w-[320px]"
-            >
-              I&apos;m hand-picking 50 agents to help me shape Agent for Life. You get lifetime free access. I get the honest feedback I need.
-            </motion.p>
-
-            {/* Price callout */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.5 }}
-              className="bg-white/[0.06] backdrop-blur-sm border border-white/10 rounded-2xl p-5 mb-6"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="text-white/40 text-[11px] uppercase tracking-wide mb-0.5">Founding Member Price</p>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-black text-white">FREE</span>
-                    <span className="text-white/30 text-sm line-through">$49/mo</span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-[#a158ff] font-bold text-sm">For Life</p>
-                  <p className="text-white/30 text-[11px]">No credit card</p>
-                </div>
-              </div>
-              {/* Progress bar */}
-              <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden mb-1.5">
-                <div className="h-full bg-[#a158ff] rounded-full transition-all duration-1000" style={{ width: `${(filled / 50) * 100}%` }} />
-              </div>
-              <p className="text-white/30 text-[11px]">{filled} agent{filled !== 1 ? 's' : ''} already locked in</p>
-            </motion.div>
-
-            {/* CTA */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.6 }}
-            >
-              {submitted ? (
-                <div className="w-full flex items-center justify-center gap-2.5 py-4 bg-[#3DD6C3]/20 border border-[#3DD6C3]/30 text-[#3DD6C3] text-base font-bold rounded-2xl">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                  Application Submitted
-                </div>
-              ) : (
-                <button
-                  onClick={scrollToForm}
-                  className="w-full flex items-center justify-center gap-2.5 py-4 bg-[#a158ff] text-white text-base font-bold rounded-2xl shadow-lg shadow-[#a158ff]/25 active:scale-[0.97] transition-transform"
+            {tier.isFoundingOpen ? (
+              <>
+                {/* Spots badge */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, delay: 0.15 }}
+                  className="mb-5"
                 >
-                  Apply Now
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
-                </button>
-              )}
-            </motion.div>
+                  <div className="inline-flex items-center gap-2.5 px-4 py-2.5 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute h-full w-full rounded-full bg-[#a158ff] opacity-75" />
+                      <span className="relative rounded-full h-2.5 w-2.5 bg-[#a158ff]" />
+                    </span>
+                    <span className="text-white font-bold text-sm">
+                      <span className="text-[#a158ff]">{spots}</span> of 50 spots remaining
+                    </span>
+                  </div>
+                </motion.div>
+
+                <motion.h1
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.25 }}
+                  className="text-[2rem] leading-[1.1] font-extrabold text-white mb-4 tracking-tight"
+                >
+                  Become a{' '}
+                  <span className="text-[#a158ff]">Founding Member</span>
+                </motion.h1>
+
+                <motion.p
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.4 }}
+                  className="text-white/50 text-[15px] leading-relaxed mb-6 max-w-[320px]"
+                >
+                  I&apos;m hand-picking 50 agents to help me shape Agent for Life. You get lifetime free access. I get the honest feedback I need.
+                </motion.p>
+
+                {/* Price callout */}
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.5 }}
+                  className="bg-white/[0.06] backdrop-blur-sm border border-white/10 rounded-2xl p-5 mb-6"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-white/40 text-[11px] uppercase tracking-wide mb-0.5">Founding Member Price</p>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-3xl font-black text-white">FREE</span>
+                        <span className="text-white/30 text-sm line-through">$49/mo</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[#a158ff] font-bold text-sm">For Life</p>
+                      <p className="text-white/30 text-[11px]">No credit card</p>
+                    </div>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden mb-1.5">
+                    <div className="h-full bg-[#a158ff] rounded-full transition-all duration-1000" style={{ width: `${(filled / 50) * 100}%` }} />
+                  </div>
+                  <p className="text-white/30 text-[11px]">{filled} agent{filled !== 1 ? 's' : ''} already locked in</p>
+                </motion.div>
+
+                {/* CTA */}
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.6 }}
+                >
+                  {submitted ? (
+                    <div className="w-full flex items-center justify-center gap-2.5 py-4 bg-[#3DD6C3]/20 border border-[#3DD6C3]/30 text-[#3DD6C3] text-base font-bold rounded-2xl">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                      Application Submitted
+                    </div>
+                  ) : (
+                    <button
+                      onClick={scrollToForm}
+                      className="w-full flex items-center justify-center gap-2.5 py-4 bg-[#a158ff] text-white text-base font-bold rounded-2xl shadow-lg shadow-[#a158ff]/25 active:scale-[0.97] transition-transform"
+                    >
+                      Apply Now
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
+                    </button>
+                  )}
+                </motion.div>
+              </>
+            ) : (
+              <>
+                {/* Program Closed badge */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, delay: 0.15 }}
+                  className="mb-5"
+                >
+                  <div className="inline-flex items-center gap-2.5 px-4 py-2.5 bg-red-500/15 backdrop-blur-sm border border-red-500/30 rounded-full">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="relative rounded-full h-2.5 w-2.5 bg-red-500" />
+                    </span>
+                    <span className="text-red-400 font-bold text-sm">Program Closed</span>
+                  </div>
+                </motion.div>
+
+                <motion.h1
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.25 }}
+                  className="text-[2rem] leading-[1.1] font-extrabold text-white mb-4 tracking-tight"
+                >
+                  Founding Member Spots Are{' '}
+                  <span className="text-red-400">Full</span>
+                </motion.h1>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.5 }}
+                  className="bg-white/[0.06] backdrop-blur-sm border border-white/10 rounded-2xl p-5 mb-6"
+                >
+                  <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden mb-2">
+                    <div className="h-full bg-red-500 rounded-full w-full" />
+                  </div>
+                  <p className="text-white/40 text-[12px] font-semibold mb-3">50/50 — FULL</p>
+                  <p className="text-white/30 text-sm line-through mb-3">$0 / Free For Life</p>
+                  <p className="text-white/50 text-[14px] leading-relaxed">
+                    All 50 founding member spots have been claimed. The next tier is now available.
+                  </p>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.6 }}
+                >
+                  <Link
+                    href="/subscribe"
+                    className="w-full flex items-center justify-center gap-2.5 py-4 bg-[#a158ff] text-white text-base font-bold rounded-2xl shadow-lg shadow-[#a158ff]/25 active:scale-[0.97] transition-transform"
+                  >
+                    {tier.ctaText}
+                  </Link>
+                </motion.div>
+              </>
+            )}
           </div>
 
           {/* Scroll hint */}
@@ -330,7 +389,32 @@ export default function FoundingMemberMobile() {
         </div>
 
         <div className="relative">
-          {!submitted ? (
+          {!tier.isFoundingOpen || error === 'founding_full' ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5 }}
+              className="py-8"
+            >
+              <div className="text-center">
+                <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                </div>
+                <h2 className="text-2xl font-extrabold text-white mb-4">
+                  Applications are closed.
+                </h2>
+                <p className="text-white/60 text-[15px] mb-6 leading-relaxed max-w-[280px] mx-auto">
+                  All 50 founding member spots have been claimed.
+                </p>
+                <Link
+                  href="/subscribe"
+                  className="inline-flex items-center justify-center gap-2.5 px-8 py-4 bg-[#a158ff] text-white text-base font-bold rounded-2xl shadow-lg shadow-[#a158ff]/25 active:scale-[0.97] transition-transform"
+                >
+                  {tier.ctaText}
+                </Link>
+              </div>
+            </motion.div>
+          ) : !submitted ? (
             <motion.div
               initial="hidden"
               whileInView="visible"
@@ -521,7 +605,7 @@ export default function FoundingMemberMobile() {
                 </div>
 
                 {/* Error */}
-                {error && (
+                {error && error !== 'founding_full' && (
                   <div className="bg-red-500/15 border border-red-500/25 rounded-xl px-4 py-3 text-red-300 text-[14px]">
                     {error}
                   </div>
@@ -688,12 +772,21 @@ export default function FoundingMemberMobile() {
               <span className="text-[#a158ff]">{spots}</span> free spots left
             </span>
           </div>
-          <button
-            onClick={scrollToForm}
-            className="flex-shrink-0 px-5 py-2.5 bg-[#a158ff] text-white text-[13px] font-bold rounded-full active:scale-[0.97] transition-transform"
-          >
-            Apply Now
-          </button>
+          {tier.isFoundingOpen ? (
+            <button
+              onClick={scrollToForm}
+              className="flex-shrink-0 px-5 py-2.5 bg-[#a158ff] text-white text-[13px] font-bold rounded-full active:scale-[0.97] transition-transform"
+            >
+              Apply Now
+            </button>
+          ) : (
+            <Link
+              href="/subscribe"
+              className="flex-shrink-0 px-5 py-2.5 bg-[#a158ff] text-white text-[13px] font-bold rounded-full active:scale-[0.97] transition-transform"
+            >
+              {tier.ctaText}
+            </Link>
+          )}
         </div>
       </div>
     </div>

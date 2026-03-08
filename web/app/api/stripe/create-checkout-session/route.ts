@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe';
-import { getAdminAuth } from '../../../../lib/firebase-admin';
+import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
 
 // Price IDs from environment variables — keyed by "{tier}_{interval}"
 const PRICE_IDS: Record<string, string> = {
@@ -60,6 +60,22 @@ export async function POST(request: NextRequest) {
 
     const priceId = PRICE_IDS[plan];
     const membershipTier = tierFromPlan(plan);
+
+    // Capacity check for limited tiers (charter: 50, inner_circle: 50)
+    const TIER_LIMITS: Record<string, number> = { charter: 50, inner_circle: 50 };
+    if (TIER_LIMITS[membershipTier]) {
+      const db = getAdminFirestore();
+      const tierSnap = await db
+        .collection('agents')
+        .where('membershipTier', '==', membershipTier)
+        .get();
+      if (tierSnap.size >= TIER_LIMITS[membershipTier]) {
+        return NextResponse.json(
+          { error: `The ${membershipTier.replace('_', ' ')} tier is full. Please refresh and choose an available tier.` },
+          { status: 409 }
+        );
+      }
+    }
 
     if (!priceId) {
       console.error(`Price ID not configured for plan: ${plan}`);

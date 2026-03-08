@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import LeakyBucketCalculator from '@/components/LeakyBucketCalculator';
+import { useTierCTA } from '@/hooks/useTierCTA';
 
 const FAQ_ITEMS = [
   { question: 'What exactly is Agent for Life?', answer: 'A complete client relationship system for insurance agents. You get a branded mobile app for your clients, automated touchpoints (holidays, birthdays, anniversaries), one-tap referrals with an AI assistant that qualifies leads via iMessage and books appointments, conservation alerts that rescue at-risk policies, and anniversary rewrite alerts — normally $49/month, but free for life for founding members.' },
@@ -24,26 +25,18 @@ const fadeUp = {
 const stagger = { visible: { transition: { staggerChildren: 0.1 } } };
 
 export default function DesktopLandingV5() {
-  const [spotsRemaining, setSpotsRemaining] = useState<number | null>(null);
+  const tier = useTierCTA();
+
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const [openPain, setOpenPain] = useState<number | null>(null);
   const heroRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    fetch('/api/spots-remaining')
-      .then(r => r.json())
-      .then(d => { if (typeof d.spotsRemaining === 'number') setSpotsRemaining(d.spotsRemaining); })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
     const h = () => setScrolled(window.scrollY > 40);
     window.addEventListener('scroll', h, { passive: true });
     return () => window.removeEventListener('scroll', h);
   }, []);
-
-  const spots = spotsRemaining ?? 50;
 
   return (
     <div className="min-h-screen bg-[#0D4D4D] overflow-x-hidden">
@@ -69,10 +62,10 @@ export default function DesktopLandingV5() {
               Agent Login
             </Link>
             <Link
-              href="/founding-member"
+              href={tier.ctaHref}
               className="px-5 py-2.5 bg-[#fdcc02] text-[#0D4D4D] text-sm font-bold rounded-full hover:bg-[#fdcc02]/90 transition-colors"
             >
-              Get Started Free
+              {tier.isFoundingOpen ? 'Get Started Free' : tier.ctaText}
             </Link>
           </div>
         </div>
@@ -97,7 +90,7 @@ export default function DesktopLandingV5() {
                     <span className="relative rounded-full h-2.5 w-2.5 bg-[#fdcc02]" />
                   </span>
                   <span className="text-[#fdcc02] font-bold text-sm tracking-wide">
-                    {spotsRemaining !== null ? `${spots} of 50 Free Spots Left` : 'Free Lifetime Spots Open'}
+                    {tier.loaded ? tier.bannerText : 'Free Lifetime Spots Open'}
                   </span>
                 </div>
               </motion.div>
@@ -140,14 +133,14 @@ export default function DesktopLandingV5() {
                 className="flex items-center gap-5"
               >
                 <Link
-                  href="/founding-member"
+                  href={tier.ctaHref}
                   className="inline-flex items-center gap-3 px-8 py-4.5 bg-[#fdcc02] text-[#0D4D4D] text-lg font-bold rounded-full shadow-lg shadow-[#fdcc02]/25 hover:shadow-xl hover:shadow-[#fdcc02]/30 hover:scale-[1.02] transition-all"
                 >
-                  Lock In My Free Spot
+                  {tier.isFoundingOpen ? 'Lock In My Free Spot' : tier.ctaText}
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
                 </Link>
                 <p className="text-white/60 text-sm">
-                  {spotsRemaining !== null ? `${spots} spots left` : 'Limited spots'} · $0 forever
+                  {tier.loaded ? tier.ctaSubtext : 'Limited spots · $0 forever'}
                 </p>
               </motion.div>
             </div>
@@ -507,8 +500,8 @@ export default function DesktopLandingV5() {
                   initialRetentionRate={70}
                   initialReferralRate={5}
                   initialRewriteRate={10}
-                  ctaHref="/founding-member"
-                  ctaText="Stop the Bleeding →"
+                  ctaHref={tier.ctaHref}
+                  ctaText={tier.isFoundingOpen ? 'Stop the Bleeding →' : tier.ctaText}
                 />
               </motion.div>
             </div>
@@ -597,10 +590,10 @@ export default function DesktopLandingV5() {
 
           <div className="flex justify-center pt-12">
             <Link
-              href="/founding-member"
+              href={tier.ctaHref}
               className="inline-flex items-center gap-2.5 px-8 py-4 bg-[#fdcc02] text-[#0D4D4D] text-lg font-bold rounded-full shadow-lg shadow-[#fdcc02]/20 hover:shadow-xl hover:shadow-[#fdcc02]/30 hover:scale-[1.02] transition-all"
             >
-              Get Started Free
+              {tier.isFoundingOpen ? 'Get Started Free' : tier.ctaText}
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
             </Link>
           </div>
@@ -645,36 +638,88 @@ export default function DesktopLandingV5() {
             </motion.div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 items-start">
-              <motion.div variants={fadeUp} custom={0.1} className="relative bg-white rounded-2xl border-2 border-[#a158ff] p-6 text-center shadow-xl shadow-[#a158ff]/10 col-span-2 lg:col-span-1">
-                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                  <span className="px-4 py-1.5 bg-[#a158ff] text-white text-xs font-bold rounded-full">NOW OPEN</span>
-                </div>
-                <p className="text-[#6B7280] font-medium text-sm mt-2 mb-1">Founding Members</p>
-                <p className="text-4xl font-black text-[#0D4D4D] mb-1">FREE</p>
-                <p className="text-[#a158ff] font-semibold text-sm mb-1">For Life</p>
-                <p className="text-[#6B7280] text-xs line-through mb-0.5">$49/mo</p>
-                <p className="text-[#6B7280] text-xs mb-4">50 spots — then gone forever</p>
-                {spotsRemaining !== null && (
-                  <div className="mb-4">
-                    <div className="w-full bg-[#a158ff]/10 rounded-full h-2 overflow-hidden">
-                      <div className="h-full bg-[#a158ff] rounded-full transition-all duration-1000" style={{ width: `${((50 - spots) / 50) * 100}%` }} />
-                    </div>
-                    <p className="text-xs text-[#a158ff] font-bold mt-2">{spots} spots remaining</p>
-                  </div>
-                )}
-                <Link href="/founding-member" className="block w-full py-3.5 bg-[#a158ff] text-white text-sm font-bold rounded-xl hover:bg-[#a158ff]/90 transition-colors">Apply Now</Link>
-              </motion.div>
-              {[
-                { tier: 'Charter', price: '$25', note: 'Next tier', border: 'border-[#3DD6C3]' },
-                { tier: 'Inner Circle', price: '$35', note: 'After Charter', border: 'border-gray-200' },
-                { tier: 'Standard', price: '$49', note: 'Full Price', border: 'border-gray-200' },
-              ].map((t, i) => (
-                <motion.div key={t.tier} variants={fadeUp} custom={0.15 + i * 0.05} className={`rounded-2xl border-2 ${t.border} p-6 text-center`}>
-                  <p className="text-xs text-[#6B7280] font-medium mb-1">{t.tier}</p>
-                  <p className="text-3xl font-black text-[#0D4D4D] mb-0.5">{t.price}</p>
-                  <p className="text-xs text-[#6B7280]">/mo · {t.note}</p>
-                </motion.div>
-              ))}
+              {(() => {
+                const TIER_META: Record<string, { price: string; priceLabel: string; accent: string; note: string }> = {
+                  founding: { price: 'FREE', priceLabel: 'For Life', accent: '#a158ff', note: '50 spots — then gone forever' },
+                  charter: { price: '$25', priceLabel: '/mo · locked for life', accent: '#3DD6C3', note: '50 Charter spots' },
+                  inner_circle: { price: '$35', priceLabel: '/mo · locked for life', accent: '#fdcc02', note: '50 Inner Circle spots' },
+                  standard: { price: '$49', priceLabel: '/mo', accent: '#6B7280', note: 'Full Price' },
+                };
+                const tierOrder = ['founding', 'charter', 'inner_circle', 'standard'];
+                const tierMap = Object.fromEntries(tier.tiers.map((t) => [t.id, t]));
+
+                return tierOrder.map((id, i) => {
+                  const info = tierMap[id];
+                  const meta = TIER_META[id];
+                  const status = info?.status ?? (id === 'founding' ? 'open' : 'upcoming');
+                  const isFull = status === 'full';
+                  const isOpen = status === 'open';
+                  const filled = info?.spotsFilled ?? 0;
+                  const total = info?.total ?? 50;
+                  const remaining = info?.spotsRemaining ?? total;
+
+                  const prevTierName = i > 0 ? (tierMap[tierOrder[i - 1]]?.name ?? TIER_META[tierOrder[i - 1]].note) : '';
+
+                  return (
+                    <motion.div
+                      key={id}
+                      variants={fadeUp}
+                      custom={0.1 + i * 0.05}
+                      className={`relative rounded-2xl border-2 p-6 text-center transition-all ${
+                        isOpen
+                          ? `border-[${meta.accent}] shadow-xl shadow-[${meta.accent}]/10 bg-white`
+                          : isFull
+                            ? 'border-gray-200 bg-gray-50 opacity-50'
+                            : 'border-gray-200 bg-white'
+                      } ${id === 'founding' ? 'col-span-2 lg:col-span-1' : ''}`}
+                      style={isOpen ? { borderColor: meta.accent, boxShadow: `0 10px 30px -5px ${meta.accent}22` } : undefined}
+                    >
+                      {isOpen && (
+                        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                          <span className="px-4 py-1.5 text-white text-xs font-bold rounded-full" style={{ backgroundColor: meta.accent }}>NOW OPEN</span>
+                        </div>
+                      )}
+                      {isFull && (
+                        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                          <span className="px-4 py-1.5 bg-gray-400 text-white text-xs font-bold rounded-full">FULL</span>
+                        </div>
+                      )}
+                      {status === 'upcoming' && (
+                        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                          <span className="px-4 py-1.5 bg-gray-200 text-gray-500 text-xs font-bold rounded-full whitespace-nowrap">Opens After {prevTierName}</span>
+                        </div>
+                      )}
+
+                      <p className="text-[#6B7280] font-medium text-sm mt-2 mb-1">{info?.name ?? meta.note}</p>
+                      <p className={`text-4xl font-black mb-1 ${isFull && id === 'founding' ? 'line-through text-[#6B7280]/50' : 'text-[#0D4D4D]'}`}>
+                        {meta.price}
+                      </p>
+                      <p className="font-semibold text-sm mb-1" style={{ color: isFull ? '#9CA3AF' : meta.accent }}>{meta.priceLabel}</p>
+                      {id === 'founding' && <p className="text-[#6B7280] text-xs line-through mb-0.5">$49/mo</p>}
+                      <p className="text-[#6B7280] text-xs mb-4">{meta.note}</p>
+
+                      {isOpen && tier.loaded && (
+                        <div className="mb-4">
+                          <div className="w-full rounded-full h-2 overflow-hidden" style={{ backgroundColor: `${meta.accent}18` }}>
+                            <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${(filled / total) * 100}%`, backgroundColor: meta.accent }} />
+                          </div>
+                          <p className="text-xs font-bold mt-2" style={{ color: meta.accent }}>{remaining} spots remaining</p>
+                        </div>
+                      )}
+
+                      {isOpen && (
+                        <Link
+                          href={tier.ctaHref}
+                          className="block w-full py-3.5 text-white text-sm font-bold rounded-xl transition-colors"
+                          style={{ backgroundColor: meta.accent }}
+                        >
+                          {id === 'founding' ? 'Apply Now' : tier.ctaText}
+                        </Link>
+                      )}
+                    </motion.div>
+                  );
+                });
+              })()}
             </div>
 
             <motion.p variants={fadeUp} custom={0.3} className="text-center text-[#6B7280] text-sm">
@@ -712,11 +757,11 @@ export default function DesktopLandingV5() {
             Your competitors aren&apos;t reading this. <span className="text-[#fdcc02]">They&apos;re losing clients.</span>
           </h2>
           <p className="text-white/60 text-lg leading-relaxed max-w-xl mx-auto">Lock in your free lifetime spot. No credit card. No risk. A system that pays for itself from day one.</p>
-          <Link href="/founding-member" className="inline-flex items-center gap-3 px-10 py-5 bg-[#fdcc02] text-[#0D4D4D] text-lg font-bold rounded-full shadow-2xl shadow-[#fdcc02]/25 hover:shadow-[#fdcc02]/40 hover:scale-[1.02] transition-all">
-            Lock In My Free Lifetime Spot
+          <Link href={tier.ctaHref} className="inline-flex items-center gap-3 px-10 py-5 bg-[#fdcc02] text-[#0D4D4D] text-lg font-bold rounded-full shadow-2xl shadow-[#fdcc02]/25 hover:shadow-[#fdcc02]/40 hover:scale-[1.02] transition-all">
+            {tier.isFoundingOpen ? 'Lock In My Free Lifetime Spot' : tier.ctaText}
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
           </Link>
-          <p className="text-white/60 text-sm">{spotsRemaining !== null ? `${spots} of 50 spots remaining` : 'Limited spots'} · $0 forever</p>
+          <p className="text-white/60 text-sm">{tier.loaded ? tier.ctaSubtext : 'Limited spots · $0 forever'}</p>
         </motion.div>
       </section>
 

@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useTierCTA } from '@/hooks/useTierCTA';
 
 const HOLIDAYS: Record<string, { gradient: string; emoji: string; label: string; greeting: string; body: string; floatingEmoji: string[]; accent: string }> = {
   christmas: { gradient: 'linear-gradient(135deg, #8B0000, #C41E3A, #A0153E)', emoji: '🎄', label: 'Christmas', greeting: 'Merry Christmas, Sarah!', body: 'Wishing you and your family a season full of warmth, joy, and time together.', floatingEmoji: ['❄️', '🎄', '⭐'], accent: '#D4A843' },
@@ -26,17 +27,11 @@ const stagger = {
 };
 
 export default function RetentionDeepDiveDesktop() {
-  const [spotsRemaining, setSpotsRemaining] = useState<number | null>(null);
+  const tier = useTierCTA();
+  const spotsRemaining = tier.spotsRemaining;
+  const spots = tier.isFoundingOpen ? (tier.spotsRemaining ?? 50) : 0;
+
   const [activeHoliday, setActiveHoliday] = useState('christmas');
-
-  useEffect(() => {
-    fetch('/api/spots-remaining')
-      .then(r => r.json())
-      .then(d => { if (typeof d.spotsRemaining === 'number') setSpotsRemaining(d.spotsRemaining); })
-      .catch(() => {});
-  }, []);
-
-  const spots = spotsRemaining ?? 50;
   const holiday = HOLIDAYS[activeHoliday];
 
   return (
@@ -63,10 +58,10 @@ export default function RetentionDeepDiveDesktop() {
             Automated Retention
           </span>
           <Link
-            href="/founding-member"
+            href={tier.ctaHref}
             className="px-6 py-2.5 bg-[#fdcc02] text-[#0D4D4D] text-sm font-bold rounded-full hover:bg-[#fdcc02]/85 hover:scale-[1.03] transition-all"
           >
-            Get Started Free
+            {tier.isFoundingOpen ? 'Get Started Free' : tier.ctaText}
           </Link>
         </div>
       </nav>
@@ -110,10 +105,10 @@ export default function RetentionDeepDiveDesktop() {
                 First, automated touchpoints prevent churn before it starts. Then, if a policy still slips &mdash; AI catches it and fights to save it.
               </p>
               <Link
-                href="/founding-member"
+                href={tier.ctaHref}
                 className="inline-flex items-center gap-3 px-8 py-4 bg-[#0D4D4D] text-white text-base font-bold rounded-full hover:bg-[#070E1B] hover:scale-[1.02] transition-all shadow-xl"
               >
-                Start Protecting Clients
+                {tier.isFoundingOpen ? 'Start Protecting Clients' : tier.ctaText}
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
@@ -510,17 +505,17 @@ export default function RetentionDeepDiveDesktop() {
             </p>
             <div className="pt-2">
               <Link
-                href="/founding-member"
+                href={tier.ctaHref}
                 className="inline-flex items-center gap-3 px-12 py-5 bg-[#fdcc02] text-[#0D4D4D] text-lg font-bold rounded-full shadow-2xl shadow-[#fdcc02]/25 hover:shadow-[#fdcc02]/40 hover:scale-[1.03] transition-all duration-200"
               >
-                Get Started Free
+                {tier.isFoundingOpen ? 'Get Started Free' : tier.ctaText}
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
               </Link>
             </div>
             <p className="text-white/80 text-sm">
-              {spotsRemaining !== null ? `${spots} of 50 spots remaining` : 'Limited spots'} &middot; $0 forever
+              {tier.ctaSubtext}
             </p>
           </div>
         </motion.div>

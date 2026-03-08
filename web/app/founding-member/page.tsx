@@ -3,13 +3,15 @@
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
 import { fireConfetti } from '@/lib/confetti';
+import { useTierCTA } from '@/hooks/useTierCTA';
 
 export default function FoundingMemberPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [spotsRemaining, setSpotsRemaining] = useState<number | null>(null);
+  const tier = useTierCTA();
+  const spotsRemaining = tier.isFoundingOpen ? tier.spotsRemaining : 0;
 
   // Form state
   const [name, setName] = useState('');
@@ -42,17 +44,6 @@ export default function FoundingMemberPage() {
     });
 
     return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    fetch('/api/spots-remaining')
-      .then((res) => res.json())
-      .then((data) => {
-        if (typeof data.spotsRemaining === 'number') {
-          setSpotsRemaining(data.spotsRemaining);
-        }
-      })
-      .catch(() => {});
   }, []);
 
   const setSectionRef = (index: number) => (el: HTMLElement | null) => {
@@ -88,6 +79,10 @@ export default function FoundingMemberPage() {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        if (data.error === 'founding_full') {
+          setError('founding_full');
+          return;
+        }
         throw new Error(data.error || 'Failed to submit application');
       }
 
@@ -155,7 +150,14 @@ export default function FoundingMemberPage() {
                 AgentForLife
               </span>
             </Link>
-            {submitted ? (
+            {!tier.isFoundingOpen ? (
+              <Link
+                href="/subscribe"
+                className="flex items-center gap-2 px-4 py-1.5 sm:px-5 sm:py-2 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-[#0D4D4D] text-sm sm:text-base font-semibold rounded-full transition-all whitespace-nowrap"
+              >
+                {tier.ctaText}
+              </Link>
+            ) : submitted ? (
               <div className="flex items-center gap-2 px-4 py-1.5 sm:px-5 sm:py-2 bg-[#3DD6C3]/20 border border-[#3DD6C3]/30 text-[#3DD6C3] text-sm sm:text-base font-semibold rounded-full whitespace-nowrap">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
@@ -200,44 +202,94 @@ export default function FoundingMemberPage() {
           ></div>
 
           <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            {/* Beta + invite label */}
-            <div className="flex items-center justify-center gap-3 mb-6">
-              <span className="inline-flex items-center px-3 py-1 bg-[#3DD6C3]/20 border border-[#3DD6C3]/40 rounded-full text-[#3DD6C3] text-xs sm:text-sm font-bold uppercase tracking-wider">
-                Beta
-              </span>
-              <span className="text-[#3DD6C3] text-xs sm:text-sm font-semibold uppercase tracking-[0.25em]">
-                By Invitation Only
-              </span>
-            </div>
+            {tier.isFoundingOpen ? (
+              <>
+                <div className="flex items-center justify-center gap-3 mb-6">
+                  <span className="inline-flex items-center px-3 py-1 bg-[#3DD6C3]/20 border border-[#3DD6C3]/40 rounded-full text-[#3DD6C3] text-xs sm:text-sm font-bold uppercase tracking-wider">
+                    Beta
+                  </span>
+                  <span className="text-[#3DD6C3] text-xs sm:text-sm font-semibold uppercase tracking-[0.25em]">
+                    By Invitation Only
+                  </span>
+                </div>
 
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] mb-4 md:mb-6">
-              Become a Founding Member
-            </h1>
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] mb-4 md:mb-6">
+                  Become a Founding Member
+                </h1>
 
-            {/* Spots remaining badge */}
-            <div className="inline-flex items-center gap-3 px-5 py-2.5 md:px-6 md:py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full mb-5 md:mb-6">
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#3DD6C3] opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-[#3DD6C3]"></span>
-              </span>
-              <span className="text-white font-bold text-base md:text-lg">
-                <span className="text-[#3DD6C3]">{spotsRemaining ?? '—'}</span> of 50 spots remaining
-              </span>
-            </div>
+                <div className="inline-flex items-center gap-3 px-5 py-2.5 md:px-6 md:py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full mb-5 md:mb-6">
+                  <span className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#3DD6C3] opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-[#3DD6C3]"></span>
+                  </span>
+                  <span className="text-white font-bold text-base md:text-lg">
+                    <span className="text-[#3DD6C3]">{spotsRemaining ?? '—'}</span> of 50 spots remaining
+                  </span>
+                </div>
 
-            <p className="text-base md:text-xl text-white/75 mb-6 md:mb-8 max-w-3xl mx-auto leading-relaxed">
-              AgentForLife is in beta — and I&rsquo;m hand-picking 50 agents to help me refine it.
-              You get lifetime free access. I get the feedback I need to build something that makes
-              your job easier and your bank account bigger. Ever wish you could be in two places at
-              once? That&rsquo;s what we&rsquo;re building.
-            </p>
+                <p className="text-base md:text-xl text-white/75 mb-6 md:mb-8 max-w-3xl mx-auto leading-relaxed">
+                  AgentForLife is in beta — and I&rsquo;m hand-picking 50 agents to help me refine it.
+                  You get lifetime free access. I get the feedback I need to build something that makes
+                  your job easier and your bank account bigger. Ever wish you could be in two places at
+                  once? That&rsquo;s what we&rsquo;re building.
+                </p>
 
-            {/* Value snapshot */}
-            <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm md:text-base text-white/60">
-              <span className="flex items-center gap-1.5"><span className="text-[#3DD6C3]">&#10003;</span> <span className="text-white font-semibold">FREE forever</span> <span className="hidden sm:inline">($49/mo value)</span></span>
-              <span className="flex items-center gap-1.5"><span className="text-[#3DD6C3]">&#10003;</span> Branded client app</span>
-              <span className="flex items-center gap-1.5"><span className="text-[#3DD6C3]">&#10003;</span> AI referral assistant</span>
-            </div>
+                <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm md:text-base text-white/60">
+                  <span className="flex items-center gap-1.5"><span className="text-[#3DD6C3]">&#10003;</span> <span className="text-white font-semibold">FREE forever</span> <span className="hidden sm:inline">($49/mo value)</span></span>
+                  <span className="flex items-center gap-1.5"><span className="text-[#3DD6C3]">&#10003;</span> Branded client app</span>
+                  <span className="flex items-center gap-1.5"><span className="text-[#3DD6C3]">&#10003;</span> AI referral assistant</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="inline-flex items-center px-4 py-1.5 bg-red-500/20 border border-red-500/30 rounded-full text-red-300 text-xs sm:text-sm font-bold uppercase tracking-wider mb-6">
+                  Program Closed
+                </div>
+
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] mb-4 md:mb-6">
+                  Founding Member Spots Are Full
+                </h1>
+
+                <div className="max-w-sm mx-auto mb-6">
+                  <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
+                    <div className="h-full bg-[#a158ff] rounded-full w-full" />
+                  </div>
+                  <p className="text-[#a158ff] font-bold text-base mt-2">50/50 Founding Member Spots — FULL</p>
+                </div>
+
+                <div className="inline-block mb-6">
+                  <p className="text-2xl md:text-3xl font-bold text-white/40">
+                    <span className="line-through decoration-red-400 decoration-2">$0 / Free For Life</span>
+                  </p>
+                </div>
+
+                <p className="text-base md:text-xl text-white/75 mb-8 max-w-2xl mx-auto leading-relaxed">
+                  50 agents locked in free lifetime access. That window is closed.
+                  {tier.activeTier !== 'standard' && (
+                    <> But you can still lock in early pricing before it&rsquo;s gone too.</>
+                  )}
+                </p>
+
+                {tier.activeTier !== 'standard' ? (
+                  <Link
+                    href="/subscribe"
+                    className="inline-flex items-center gap-3 px-8 py-4 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-[#0D4D4D] text-lg font-bold rounded-full transition-all shadow-lg"
+                  >
+                    {tier.ctaText}
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+                  </Link>
+                ) : (
+                  <Link
+                    href="/subscribe"
+                    className="inline-flex items-center gap-3 px-8 py-4 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-lg font-bold rounded-full transition-all shadow-lg"
+                  >
+                    Get Started — $49/mo
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+                  </Link>
+                )}
+                <p className="text-white/50 text-sm mt-4">{tier.ctaSubtext}</p>
+              </>
+            )}
           </div>
 
           {/* Wave Divider */}
@@ -442,7 +494,34 @@ export default function FoundingMemberPage() {
           </div>
 
           <div className="relative max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-            {!submitted ? (
+            {!tier.isFoundingOpen || error === 'founding_full' ? (
+              <div className="text-center py-12">
+                <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-8 border-2 border-white/20">
+                  <svg className="w-10 h-10 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                </div>
+                <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4">
+                  {error === 'founding_full'
+                    ? 'These spots just filled up.'
+                    : 'Applications are closed.'}
+                </h2>
+                <p className="text-lg text-white/70 mb-8 max-w-lg mx-auto leading-relaxed">
+                  All 50 founding member spots have been claimed.
+                  {tier.activeTier !== 'standard' && (
+                    <> You can still get in early — {tier.activeTierName} pricing is locked in for life.</>
+                  )}
+                </p>
+                <Link
+                  href="/subscribe"
+                  className="inline-flex items-center gap-3 px-8 py-4 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-[#0D4D4D] text-lg font-bold rounded-full transition-all shadow-lg"
+                >
+                  {tier.ctaText}
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+                </Link>
+                <p className="text-white/40 text-sm mt-4">{tier.ctaSubtext}</p>
+              </div>
+            ) : !submitted ? (
               <>
                 <div className="text-center mb-12">
                   <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4">
@@ -683,8 +762,7 @@ export default function FoundingMemberPage() {
                     />
                   </div>
 
-                  {/* Error message */}
-                  {error && (
+                  {error && error !== 'founding_full' && (
                     <div className="bg-red-500/20 border border-red-500/30 rounded-xl px-5 py-4 text-red-300 text-base">
                       {error}
                     </div>

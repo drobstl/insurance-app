@@ -39,6 +39,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ activated: false, reason: 'no_approved_application' });
     }
 
+    // Capacity check — the tier may have filled since this user was approved
+    const activatedSnap = await db
+      .collection('agents')
+      .where('membershipTier', '==', 'founding')
+      .get();
+    if (activatedSnap.size >= 50) {
+      return NextResponse.json({ activated: false, reason: 'founding_full' });
+    }
+
     // Activate the founding member — no Stripe, no credit card
     await db.collection('agents').doc(userId).set(
       {

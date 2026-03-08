@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useTierCTA } from '@/hooks/useTierCTA';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -36,18 +36,10 @@ const slideInRight = {
 };
 
 export default function RewritesDeepDiveDesktop() {
-  const [spotsRemaining, setSpotsRemaining] = useState<number | null>(null);
+  const tier = useTierCTA();
+  const spotsRemaining = tier.spotsRemaining;
+  const spots = tier.isFoundingOpen ? (tier.spotsRemaining ?? 50) : 0;
 
-  useEffect(() => {
-    fetch('/api/spots-remaining')
-      .then(r => r.json())
-      .then(d => {
-        if (typeof d.spotsRemaining === 'number') setSpotsRemaining(d.spotsRemaining);
-      })
-      .catch(() => {});
-  }, []);
-
-  const spots = spotsRemaining ?? 50;
   const calendarDays = Array.from({ length: 31 }, (_, i) => i + 1);
   const blanksBefore = 6; // Aug 1, 2026 is a Saturday → 6 blanks (Sun-start grid)
 
@@ -77,10 +69,10 @@ export default function RewritesDeepDiveDesktop() {
           </span>
 
           <Link
-            href="/founding-member"
+            href={tier.ctaHref}
             className="px-6 py-2.5 bg-[#fdcc02] text-[#0D4D4D] text-sm font-bold rounded-full hover:bg-[#fdcc02]/85 hover:scale-[1.03] transition-all shadow-sm"
           >
-            Get Started Free
+            {tier.isFoundingOpen ? 'Get Started Free' : tier.ctaText}
           </Link>
         </div>
       </nav>
@@ -119,16 +111,16 @@ export default function RewritesDeepDiveDesktop() {
               </p>
               <div className="flex items-center gap-4">
                 <Link
-                  href="/founding-member"
+                  href={tier.ctaHref}
                   className="inline-flex items-center gap-3 px-8 py-4 bg-[#fdcc02] text-[#0D4D4D] text-base font-bold rounded-full hover:bg-[#fdcc02]/90 hover:scale-[1.02] transition-all shadow-xl shadow-black/10"
                 >
-                  Claim Your Spot
+                  {tier.isFoundingOpen ? 'Claim Your Spot' : tier.ctaText}
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                   </svg>
                 </Link>
                 <span className="text-white/50 text-sm font-medium">
-                  {spotsRemaining !== null ? `${spots} spots left` : 'Limited spots'}
+                  {tier.ctaSubtext}
                 </span>
               </div>
             </motion.div>
@@ -565,17 +557,16 @@ export default function RewritesDeepDiveDesktop() {
             Every policy anniversary is an opportunity. Agent For Life makes sure you never miss one.
           </p>
           <Link
-            href="/founding-member"
+            href={tier.ctaHref}
             className="inline-flex items-center gap-3 px-12 py-5 bg-[#fdcc02] text-[#0D4D4D] text-lg font-bold rounded-full shadow-2xl shadow-[#fdcc02]/25 hover:shadow-[#fdcc02]/40 hover:scale-[1.03] transition-all"
           >
-            Get Started Free
+            {tier.isFoundingOpen ? 'Get Started Free' : tier.ctaText}
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
             </svg>
           </Link>
           <p className="text-white/80 text-sm mt-6">
-            {spotsRemaining !== null ? `${spots} of 50 spots remaining` : 'Limited spots'} &middot;
-            $0 forever
+            {tier.ctaSubtext}
           </p>
         </motion.div>
       </section>

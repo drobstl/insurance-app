@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import LeakyBucketCalculator from '@/components/LeakyBucketCalculator';
+import { useTierCTA } from '@/hooks/useTierCTA';
 
 const IMESSAGE_DELAYS = [900, 1100, 900, 1300, 900, 500, 1100];
 
@@ -95,7 +96,8 @@ function AppPreviewVideo() {
 }
 
 export default function MobileLandingV2() {
-  const [spotsRemaining, setSpotsRemaining] = useState<number | null>(null);
+  const tier = useTierCTA();
+
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [showBottomCta, setShowBottomCta] = useState(false);
   const [msgStep, setMsgStep] = useState(-1);
@@ -106,13 +108,6 @@ export default function MobileLandingV2() {
   const heroRef = useRef<HTMLElement>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const chatTriggered = useRef(false);
-
-  useEffect(() => {
-    fetch('/api/spots-remaining')
-      .then(r => r.json())
-      .then(d => { if (typeof d.spotsRemaining === 'number') setSpotsRemaining(d.spotsRemaining); })
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     const el = heroRef.current;
@@ -157,8 +152,6 @@ export default function MobileLandingV2() {
     transition: 'all 450ms cubic-bezier(0.25, 0.46, 0.45, 0.94)',
   });
 
-  const spots = spotsRemaining ?? 50;
-
   return (
     <div className="min-h-screen bg-[#0D4D4D] overflow-x-hidden">
 
@@ -202,7 +195,7 @@ export default function MobileLandingV2() {
                   <span className="relative rounded-full h-2 w-2 bg-[#fdcc02]" />
                 </span>
                 <span className="text-[#fdcc02] font-bold text-xs tracking-wide">
-                  {spotsRemaining !== null ? `${spots} of 50 Free Spots Left` : 'Free Lifetime Spots Open'}
+                  {tier.loaded ? tier.bannerText : 'Free Lifetime Spots Open'}
                 </span>
               </div>
             </motion.div>
@@ -235,14 +228,14 @@ export default function MobileLandingV2() {
               transition={{ duration: 0.6, delay: 0.6 }}
             >
               <Link
-                href="/founding-member/m"
+                href={tier.ctaMobileHref}
                 className="inline-flex items-center gap-2.5 px-7 py-4 bg-[#fdcc02] text-[#0D4D4D] text-base font-bold rounded-full shadow-lg shadow-[#fdcc02]/25 active:scale-[0.97] transition-transform"
               >
-                Lock In My Free Spot
+                {tier.isFoundingOpen ? 'Lock In My Free Spot' : tier.ctaText}
                 <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
               </Link>
               <p className="text-white/30 mt-4 text-xs">
-                {spotsRemaining !== null ? `${spots} spots left` : 'Limited spots'} · $0 forever · No credit card
+                {tier.loaded ? tier.ctaSubtext : 'Limited spots · No credit card'}
               </p>
             </motion.div>
           </div>
@@ -548,8 +541,8 @@ export default function MobileLandingV2() {
               initialRetentionRate={70}
               initialReferralRate={5}
               initialRewriteRate={10}
-              ctaHref="/founding-member/m"
-              ctaText="Stop the Bleeding →"
+              ctaHref={tier.ctaMobileHref}
+              ctaText={tier.isFoundingOpen ? 'Stop the Bleeding →' : tier.ctaText}
             />
           </motion.div>
         </motion.div>
@@ -748,47 +741,85 @@ export default function MobileLandingV2() {
             <p className="text-[#6B7280] text-[14px]">150 early spots across 3 tiers, then gone forever.</p>
           </motion.div>
 
-          {/* Founding Member card — featured */}
-          <motion.div
-            variants={fadeUp}
-            custom={0.1}
-            className="relative bg-white rounded-2xl border-2 border-[#a158ff] p-6 text-center shadow-lg shadow-[#a158ff]/10"
-          >
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-              <span className="px-3 py-1 bg-[#a158ff] text-white text-[11px] font-bold rounded-full">NOW OPEN</span>
-            </div>
-            <p className="text-[#6B7280] font-medium text-sm mt-1 mb-1">Founding Members</p>
-            <p className="text-4xl font-black text-[#0D4D4D] mb-0.5">FREE</p>
-            <p className="text-[#a158ff] font-semibold text-sm mb-1">For Life</p>
-            <p className="text-[#6B7280] text-xs line-through mb-0.5">$49/mo</p>
-            <p className="text-[#6B7280] text-xs mb-3">50 spots — then gone forever</p>
-            {spotsRemaining !== null && (
-              <div className="mb-4">
-                <div className="w-full bg-[#a158ff]/10 rounded-full h-1.5 overflow-hidden">
-                  <div className="h-full bg-[#a158ff] rounded-full transition-all duration-1000" style={{ width: `${((50 - spots) / 50) * 100}%` }} />
-                </div>
-                <p className="text-[11px] text-[#a158ff] font-bold mt-1.5">{spots} spots remaining</p>
-              </div>
-            )}
-            <Link href="/founding-member/m" className="block w-full py-3.5 bg-[#a158ff] text-white text-sm font-bold rounded-xl active:scale-[0.97] transition-transform">
-              Apply Now
-            </Link>
-          </motion.div>
+          {/* Tier cards — dynamic */}
+          {(() => {
+            const tierMeta: Record<string, { price: string; priceLabel: string; accent: string; originalPrice?: string }> = {
+              founding: { price: 'FREE', priceLabel: 'For Life', accent: '#a158ff', originalPrice: '$49/mo' },
+              charter: { price: '$25', priceLabel: '/mo · For Life', accent: '#3DD6C3', originalPrice: '$49/mo' },
+              inner_circle: { price: '$35', priceLabel: '/mo · For Life', accent: '#fdcc02', originalPrice: '$49/mo' },
+              standard: { price: '$49', priceLabel: '/mo', accent: '#6B7280' },
+            };
+            const allTiers = tier.tiers.length > 0
+              ? tier.tiers
+              : [
+                  { id: 'founding', name: 'Founding Members', total: 50, status: 'open' as const, spotsFilled: 0, spotsRemaining: 50 },
+                  { id: 'charter', name: 'Charter Members', total: 50, status: 'upcoming' as const, spotsFilled: 0, spotsRemaining: 50 },
+                  { id: 'inner_circle', name: 'Inner Circle', total: 50, status: 'upcoming' as const, spotsFilled: 0, spotsRemaining: 50 },
+                  { id: 'standard', name: 'Standard', total: 0, status: 'upcoming' as const, spotsFilled: 0, spotsRemaining: 0 },
+                ];
+            const activeTierObj = allTiers.find(t => t.status === 'open');
+            const prevTierName = (idx: number) => allTiers[idx - 1]?.name ?? 'previous tier';
 
-          {/* Other tiers — compact */}
-          <motion.div variants={fadeUp} custom={0.2} className="grid grid-cols-3 gap-2">
-            {[
-              { tier: 'Charter', price: '$25', note: 'Next', border: 'border-[#3DD6C3]' },
-              { tier: 'Inner Circle', price: '$35', note: 'After', border: 'border-gray-200' },
-              { tier: 'Standard', price: '$49', note: 'Full Price', border: 'border-gray-200' },
-            ].map((t) => (
-              <div key={t.tier} className={`rounded-xl border ${t.border} p-3 text-center`}>
-                <p className="text-[10px] text-[#6B7280] font-medium mb-0.5">{t.tier}</p>
-                <p className="text-lg font-black text-[#0D4D4D]">{t.price}</p>
-                <p className="text-[9px] text-[#6B7280]">/mo · {t.note}</p>
-              </div>
-            ))}
-          </motion.div>
+            return (
+              <>
+                {allTiers.map((t, idx) => {
+                  const meta = tierMeta[t.id] ?? tierMeta.standard;
+                  const isActive = t.status === 'open';
+                  const isFull = t.status === 'full';
+                  const isUpcoming = t.status === 'upcoming';
+                  const href = t.id === 'founding' ? tier.ctaMobileHref : (isActive ? '/subscribe' : undefined);
+
+                  if (isActive) {
+                    return (
+                      <motion.div key={t.id} variants={fadeUp} custom={0.1 + idx * 0.05}
+                        className="relative bg-white rounded-2xl border-2 p-6 text-center shadow-lg"
+                        style={{ borderColor: meta.accent, boxShadow: `0 4px 24px ${meta.accent}18` }}
+                      >
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                          <span className="px-3 py-1 text-white text-[11px] font-bold rounded-full" style={{ backgroundColor: meta.accent }}>NOW OPEN</span>
+                        </div>
+                        <p className="text-[#6B7280] font-medium text-sm mt-1 mb-1">{t.name}</p>
+                        <p className="text-4xl font-black text-[#0D4D4D] mb-0.5">{meta.price}</p>
+                        <p className="font-semibold text-sm mb-1" style={{ color: meta.accent }}>{meta.priceLabel}</p>
+                        {meta.originalPrice && <p className="text-[#6B7280] text-xs line-through mb-0.5">{meta.originalPrice}</p>}
+                        <p className="text-[#6B7280] text-xs mb-3">{t.total > 0 ? `${t.total} spots — then gone forever` : ''}</p>
+                        {t.total > 0 && (
+                          <div className="mb-4">
+                            <div className="w-full rounded-full h-1.5 overflow-hidden" style={{ backgroundColor: `${meta.accent}18` }}>
+                              <div className="h-full rounded-full transition-all duration-1000" style={{ backgroundColor: meta.accent, width: `${((t.total - t.spotsRemaining) / t.total) * 100}%` }} />
+                            </div>
+                            <p className="text-[11px] font-bold mt-1.5" style={{ color: meta.accent }}>{t.spotsRemaining} spots remaining</p>
+                          </div>
+                        )}
+                        <Link href={href!} className="block w-full py-3.5 text-white text-sm font-bold rounded-xl active:scale-[0.97] transition-transform" style={{ backgroundColor: meta.accent }}>
+                          {t.id === 'founding' ? 'Apply Now' : tier.ctaText}
+                        </Link>
+                      </motion.div>
+                    );
+                  }
+
+                  return null;
+                })}
+
+                <motion.div variants={fadeUp} custom={0.2} className="grid grid-cols-3 gap-2">
+                  {allTiers.filter(t => t.status !== 'open').map((t, idx) => {
+                    const meta = tierMeta[t.id] ?? tierMeta.standard;
+                    const isFull = t.status === 'full';
+                    return (
+                      <div key={t.id} className={`rounded-xl border p-3 text-center ${isFull ? 'border-gray-200 opacity-50' : 'border-gray-200'}`}>
+                        {isFull && <span className="inline-block px-2 py-0.5 bg-gray-200 text-gray-500 text-[8px] font-bold rounded-full mb-1">FULL</span>}
+                        <p className="text-[10px] text-[#6B7280] font-medium mb-0.5">{t.name}</p>
+                        <p className={`text-lg font-black ${isFull ? 'line-through text-[#6B7280]' : 'text-[#0D4D4D]'}`}>{meta.price}</p>
+                        <p className="text-[9px] text-[#6B7280]">
+                          {isFull ? 'Filled' : `Opens after ${activeTierObj?.name ?? 'current tier'}`}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </motion.div>
+              </>
+            );
+          })()}
 
           <motion.p variants={fadeUp} custom={0.3} className="text-center text-[#6B7280] text-[12px]">
             No contracts · Lock in your price for life · Cancel anytime
@@ -874,14 +905,14 @@ export default function MobileLandingV2() {
             Lock in your free lifetime spot. No credit card. No risk. A system that pays for itself from day one.
           </p>
           <Link
-            href="/founding-member/m"
+            href={tier.ctaMobileHref}
             className="inline-flex items-center gap-2.5 px-8 py-4 bg-[#fdcc02] text-[#0D4D4D] text-base font-bold rounded-full shadow-2xl shadow-[#fdcc02]/25 active:scale-[0.97] transition-transform"
           >
-            Lock In My Free Lifetime Spot
+            {tier.isFoundingOpen ? 'Lock In My Free Lifetime Spot' : tier.ctaText}
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
           </Link>
           <p className="text-white/25 text-xs">
-            {spotsRemaining !== null ? `${spots} of 50 spots remaining` : 'Limited spots'} · $0 forever
+            {tier.loaded ? tier.ctaSubtext : 'Limited spots'}
           </p>
         </motion.div>
       </section>
@@ -912,16 +943,16 @@ export default function MobileLandingV2() {
               <span className="relative rounded-full h-2 w-2 bg-[#3DD6C3]" />
             </span>
             <span className="text-white text-[13px] font-semibold truncate">
-              {spotsRemaining !== null
-                ? <><span className="text-[#fdcc02]">{spots}</span> free spots left</>
-                : 'Free spots available'}
+              {tier.loaded
+                ? <><span className="text-[#fdcc02]">{tier.spotsRemaining ?? ''}</span> {tier.isFoundingOpen ? 'free spots left' : `${tier.tierName} spots left`}</>
+                : 'Spots available'}
             </span>
           </div>
           <Link
-            href="/founding-member/m"
+            href={tier.ctaMobileHref}
             className="flex-shrink-0 px-5 py-2.5 bg-[#fdcc02] text-[#0D4D4D] text-[13px] font-bold rounded-full active:scale-[0.97] transition-transform"
           >
-            Claim Free Spot
+            {tier.ctaText}
           </Link>
         </div>
       </div>

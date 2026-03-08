@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { fireConfetti } from '@/lib/confetti';
+import { useTierCTA } from '@/hooks/useTierCTA';
 
 
 const FAQ_ITEMS = [
@@ -52,7 +53,8 @@ const cardHover = {
 };
 
 export default function FoundingMemberDesktop() {
-  const [spotsRemaining, setSpotsRemaining] = useState<number | null>(null);
+  const tier = useTierCTA();
+
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -68,14 +70,7 @@ export default function FoundingMemberDesktop() {
 
   const formRef = useRef<HTMLElement>(null);
 
-  useEffect(() => {
-    fetch('/api/spots-remaining')
-      .then(r => r.json())
-      .then(d => { if (typeof d.spotsRemaining === 'number') setSpotsRemaining(d.spotsRemaining); })
-      .catch(() => {});
-  }, []);
-
-  const spots = spotsRemaining ?? 50;
+  const spots = tier.isFoundingOpen ? (tier.spotsRemaining ?? 50) : 0;
   const filled = 50 - spots;
 
   const scrollToForm = () => {
@@ -104,6 +99,10 @@ export default function FoundingMemberDesktop() {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        if (data.error === 'founding_full') {
+          setError('founding_full');
+          return;
+        }
         throw new Error(data.error || 'Failed to submit application');
       }
 
@@ -139,6 +138,13 @@ export default function FoundingMemberDesktop() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                 Applied
               </div>
+            ) : !tier.isFoundingOpen ? (
+              <Link
+                href="/subscribe"
+                className="px-6 py-2.5 bg-[#a158ff] text-white text-sm font-bold rounded-full hover:bg-[#9248ed] active:bg-[#8a3ee8] transition-colors"
+              >
+                {tier.ctaText}
+              </Link>
             ) : (
               <button
                 onClick={scrollToForm}
@@ -171,13 +177,21 @@ export default function FoundingMemberDesktop() {
             transition={{ duration: 0.5, delay: 0.1 }}
             className="flex items-center justify-center gap-3 mb-8"
           >
-            <div className="flex items-center gap-2 px-4 py-2 bg-[#3DD6C3]/10 border border-[#3DD6C3]/25 rounded-full">
-              <span className="text-[#3DD6C3] text-xs font-bold uppercase tracking-wider">Beta</span>
-            </div>
-            <div className="flex items-center gap-2 px-4 py-2 bg-[#a158ff]/10 border border-[#a158ff]/25 rounded-full">
-              <svg className="w-3.5 h-3.5 text-[#a158ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-              <span className="text-[#a158ff] text-xs font-bold uppercase tracking-wider">By Invitation Only</span>
-            </div>
+            {!tier.isFoundingOpen ? (
+              <div className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/25 rounded-full">
+                <span className="text-red-400 text-xs font-bold uppercase tracking-wider">Program Closed</span>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 px-4 py-2 bg-[#3DD6C3]/10 border border-[#3DD6C3]/25 rounded-full">
+                  <span className="text-[#3DD6C3] text-xs font-bold uppercase tracking-wider">Beta</span>
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2 bg-[#a158ff]/10 border border-[#a158ff]/25 rounded-full">
+                  <svg className="w-3.5 h-3.5 text-[#a158ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                  <span className="text-[#a158ff] text-xs font-bold uppercase tracking-wider">By Invitation Only</span>
+                </div>
+              </>
+            )}
           </motion.div>
 
           {/* Headline */}
@@ -187,8 +201,11 @@ export default function FoundingMemberDesktop() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="text-5xl md:text-6xl font-extrabold tracking-tight leading-[1.08] mb-6"
           >
-            Become a{' '}
-            <span className="text-[#a158ff]">Founding Member</span>
+            {!tier.isFoundingOpen ? (
+              <>Founding Member Spots Are <span className="text-red-400">Full</span></>
+            ) : (
+              <>Become a{' '}<span className="text-[#a158ff]">Founding Member</span></>
+            )}
           </motion.h1>
 
           <motion.p
@@ -197,8 +214,9 @@ export default function FoundingMemberDesktop() {
             transition={{ duration: 0.6, delay: 0.35 }}
             className="text-white/50 text-lg md:text-xl leading-relaxed max-w-2xl mx-auto mb-10"
           >
-            I&apos;m hand-picking 50 agents to help me shape Agent for Life.
-            You get lifetime free access. I get the honest feedback I need.
+            {!tier.isFoundingOpen
+              ? 'All 50 founding member spots have been claimed. But you can still join at the next available tier.'
+              : "I'm hand-picking 50 agents to help me shape Agent for Life. You get lifetime free access. I get the honest feedback I need."}
           </motion.p>
 
           {/* Spots remaining */}
@@ -208,24 +226,36 @@ export default function FoundingMemberDesktop() {
             transition={{ duration: 0.5, delay: 0.45 }}
             className="inline-flex flex-col items-center gap-3 bg-white/[0.04] backdrop-blur-sm border border-white/10 rounded-2xl px-8 py-5 mb-10"
           >
-            <div className="flex items-center gap-3">
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute h-full w-full rounded-full bg-[#a158ff] opacity-75" />
-                <span className="relative rounded-full h-3 w-3 bg-[#a158ff]" />
-              </span>
-              <span className="text-white font-bold text-lg">
-                <span className="text-[#a158ff]">{spots}</span> of 50 spots remaining
-              </span>
-            </div>
-            <div className="w-64 bg-white/10 rounded-full h-2 overflow-hidden">
-              <motion.div
-                className="h-full bg-gradient-to-r from-[#a158ff] to-[#c084fc] rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${(filled / 50) * 100}%` }}
-                transition={{ duration: 1.2, delay: 0.6, ease: [0.25, 0.46, 0.45, 0.94] as const }}
-              />
-            </div>
-            <p className="text-white/30 text-sm">{filled} agent{filled !== 1 ? 's' : ''} already locked in</p>
+            {!tier.isFoundingOpen ? (
+              <>
+                <div className="w-64 bg-white/10 rounded-full h-2 overflow-hidden">
+                  <div className="h-full w-full bg-gradient-to-r from-red-500 to-red-400 rounded-full" />
+                </div>
+                <p className="text-red-400 text-sm font-bold">50/50 — FULL</p>
+                <p className="text-white/30 text-sm line-through">$0 / Free For Life</p>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-3">
+                  <span className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute h-full w-full rounded-full bg-[#a158ff] opacity-75" />
+                    <span className="relative rounded-full h-3 w-3 bg-[#a158ff]" />
+                  </span>
+                  <span className="text-white font-bold text-lg">
+                    <span className="text-[#a158ff]">{spots}</span> of 50 spots remaining
+                  </span>
+                </div>
+                <div className="w-64 bg-white/10 rounded-full h-2 overflow-hidden">
+                  <motion.div
+                    className="h-full bg-gradient-to-r from-[#a158ff] to-[#c084fc] rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(filled / 50) * 100}%` }}
+                    transition={{ duration: 1.2, delay: 0.6, ease: [0.25, 0.46, 0.45, 0.94] as const }}
+                  />
+                </div>
+                <p className="text-white/30 text-sm">{filled} agent{filled !== 1 ? 's' : ''} already locked in</p>
+              </>
+            )}
           </motion.div>
 
           {/* Value snapshot badges */}
@@ -235,16 +265,22 @@ export default function FoundingMemberDesktop() {
             transition={{ duration: 0.5, delay: 0.55 }}
             className="flex flex-wrap items-center justify-center gap-4 mb-12"
           >
-            {[
-              { icon: 'M5 13l4 4L19 7', label: 'FREE forever', color: '#3DD6C3' },
-              { icon: 'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z', label: 'Branded app', color: '#fdcc02' },
-              { icon: 'M13 10V3L4 14h7v7l9-11h-7z', label: 'AI referral assistant', color: '#a158ff' },
-            ].map((badge) => (
-              <div key={badge.label} className="flex items-center gap-2 px-5 py-2.5 bg-white/[0.04] border border-white/10 rounded-full">
-                <svg className="w-4 h-4" style={{ color: badge.color }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d={badge.icon} /></svg>
-                <span className="text-white/70 text-sm font-semibold">{badge.label}</span>
-              </div>
-            ))}
+            {!tier.isFoundingOpen ? (
+              <p className="text-white/40 text-base leading-relaxed max-w-md">
+                All 50 spots have been claimed. Join as a <span className="text-[#a158ff] font-semibold">{tier.activeTierName}</span> member — {tier.tierPrice}{tier.activeTier !== 'standard' ? '/mo locked in for life' : '/mo'}.
+              </p>
+            ) : (
+              [
+                { icon: 'M5 13l4 4L19 7', label: 'FREE forever', color: '#3DD6C3' },
+                { icon: 'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z', label: 'Branded app', color: '#fdcc02' },
+                { icon: 'M13 10V3L4 14h7v7l9-11h-7z', label: 'AI referral assistant', color: '#a158ff' },
+              ].map((badge) => (
+                <div key={badge.label} className="flex items-center gap-2 px-5 py-2.5 bg-white/[0.04] border border-white/10 rounded-full">
+                  <svg className="w-4 h-4" style={{ color: badge.color }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d={badge.icon} /></svg>
+                  <span className="text-white/70 text-sm font-semibold">{badge.label}</span>
+                </div>
+              ))
+            )}
           </motion.div>
 
           {/* CTA */}
@@ -258,6 +294,14 @@ export default function FoundingMemberDesktop() {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                 Application Submitted
               </div>
+            ) : !tier.isFoundingOpen ? (
+              <Link
+                href="/subscribe"
+                className="inline-flex items-center gap-3 px-10 py-4 bg-[#a158ff] text-white text-lg font-bold rounded-2xl shadow-lg shadow-[#a158ff]/25 hover:bg-[#9248ed] active:bg-[#8a3ee8] hover:scale-[1.02] active:scale-[0.98] transition-all"
+              >
+                {tier.ctaText}
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+              </Link>
             ) : (
               <button
                 onClick={scrollToForm}
@@ -417,7 +461,31 @@ export default function FoundingMemberDesktop() {
         </div>
 
         <div className="relative max-w-2xl mx-auto px-8">
-          {!submitted ? (
+          {(!tier.isFoundingOpen || error === 'founding_full') ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5 }}
+              className="text-center py-12"
+            >
+              <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-8">
+                <svg className="w-10 h-10 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+              </div>
+              <h2 className="text-3xl font-extrabold text-white mb-5">
+                Applications are closed.
+              </h2>
+              <p className="text-white/50 text-lg mb-8 leading-relaxed max-w-md mx-auto">
+                All 50 founding member spots have been claimed. Join at the next available tier to get started.
+              </p>
+              <Link
+                href="/subscribe"
+                className="inline-flex items-center gap-3 px-10 py-4 bg-[#a158ff] text-white text-lg font-bold rounded-2xl shadow-lg shadow-[#a158ff]/25 hover:bg-[#9248ed] active:bg-[#8a3ee8] hover:scale-[1.02] active:scale-[0.98] transition-all"
+              >
+                {tier.ctaText}
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+              </Link>
+            </motion.div>
+          ) : !submitted ? (
             <motion.div
               initial="hidden"
               whileInView="visible"
@@ -608,7 +676,7 @@ export default function FoundingMemberDesktop() {
                 </div>
 
                 {/* Error */}
-                {error && (
+                {error && error !== 'founding_full' && (
                   <div className="bg-red-500/15 border border-red-500/25 rounded-xl px-5 py-4 text-red-300 text-sm">
                     {error}
                   </div>
@@ -731,6 +799,28 @@ export default function FoundingMemberDesktop() {
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                   Application Submitted
                 </div>
+              </>
+            ) : !tier.isFoundingOpen ? (
+              <>
+                <h2 className="text-3xl md:text-4xl font-extrabold text-white leading-tight">
+                  Founding member spots are{' '}
+                  <span className="text-red-400">full</span>.
+                </h2>
+                <p className="text-white/40 text-lg leading-relaxed max-w-lg mx-auto">
+                  All 50 spots have been claimed. Join as a {tier.activeTierName} member — {tier.tierPrice}{tier.activeTier !== 'standard' ? '/mo locked in for life' : '/mo'}.
+                </p>
+                <div className="pt-2">
+                  <Link
+                    href="/subscribe"
+                    className="inline-flex items-center gap-3 px-10 py-4 bg-[#a158ff] text-white text-lg font-bold rounded-2xl shadow-lg shadow-[#a158ff]/25 hover:bg-[#9248ed] active:bg-[#8a3ee8] hover:scale-[1.02] active:scale-[0.98] transition-all"
+                  >
+                    {tier.ctaText}
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                  </Link>
+                </div>
+                <p className="text-white/25 text-sm">
+                  {tier.ctaSubtext}
+                </p>
               </>
             ) : (
               <>

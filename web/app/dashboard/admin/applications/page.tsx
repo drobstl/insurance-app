@@ -73,6 +73,9 @@ export default function AdminApplicationsPage() {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
+  const [spotsData, setSpotsData] = useState<{ activeTier: string; tiers: { id: string; name: string; total: number; spotsFilled: number; spotsRemaining: number; status: string }[] } | null>(null);
+  const foundingTier = spotsData?.tiers.find(t => t.id === 'founding');
+  const foundingFull = foundingTier ? foundingTier.spotsRemaining <= 0 : false;
 
   /* ---- Toast helper ---- */
   const addToast = useCallback((message: string, type: 'success' | 'error') => {
@@ -99,6 +102,14 @@ export default function AdminApplicationsPage() {
     });
     return () => unsubscribe();
   }, [router]);
+
+  /* ---- Fetch spots remaining ---- */
+  useEffect(() => {
+    fetch('/api/spots-remaining')
+      .then(r => r.json())
+      .then(d => { if (d.tiers) setSpotsData(d); })
+      .catch(() => {});
+  }, []);
 
   /* ---- Fetch applications from API ---- */
   const fetchApplications = useCallback(async () => {
@@ -147,9 +158,18 @@ export default function AdminApplicationsPage() {
           applicantEmail: app.email,
         }),
       });
-      if (!res.ok) throw new Error('Failed to approve');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        if (res.status === 409) {
+          addToast(errData.error || 'Founding tier is full — cannot approve.', 'error');
+          fetch('/api/spots-remaining').then(r => r.json()).then(d => { if (d.tiers) setSpotsData(d); }).catch(() => {});
+          return;
+        }
+        throw new Error('Failed to approve');
+      }
       addToast(`Approved — welcome email sent to ${app.name}`, 'success');
       fetchApplications();
+      fetch('/api/spots-remaining').then(r => r.json()).then(d => { if (d.tiers) setSpotsData(d); }).catch(() => {});
     } catch {
       addToast('Failed to approve application. Try again.', 'error');
     } finally {
@@ -367,12 +387,13 @@ export default function AdminApplicationsPage() {
           {/* ======================================================== */}
           {/*  Stat Cards                                                */}
           {/* ======================================================== */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
             {[
               { label: 'Total Applications', value: counts.total, color: '#0D4D4D' },
               { label: 'Pending', value: counts.pending, color: '#D97706' },
               { label: 'Approved', value: counts.approved, color: '#059669' },
               { label: 'Rejected', value: counts.rejected, color: '#DC2626' },
+              { label: 'Founding Spots', value: foundingTier ? `${foundingTier.spotsFilled}/50` : '—', color: foundingFull ? '#DC2626' : '#a158ff' },
             ].map((stat) => (
               <div
                 key={stat.label}
@@ -490,10 +511,11 @@ export default function AdminApplicationsPage() {
                               <div className="flex items-center gap-2">
                                 <button
                                   onClick={() => handleApprove(app)}
-                                  disabled={processingIds.has(app.id)}
+                                  disabled={processingIds.has(app.id) || foundingFull}
+                                  title={foundingFull ? 'Founding tier is full (50/50)' : undefined}
                                   className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
                                 >
-                                  {processingIds.has(app.id) ? '...' : 'Approve'}
+                                  {processingIds.has(app.id) ? '...' : foundingFull ? 'Full' : 'Approve'}
                                 </button>
                                 <button
                                   onClick={() => {
@@ -568,10 +590,10 @@ export default function AdminApplicationsPage() {
                       <div className="flex gap-3 mt-4 pt-4 border-t border-gray-100">
                         <button
                           onClick={() => handleApprove(app)}
-                          disabled={processingIds.has(app.id)}
+                          disabled={processingIds.has(app.id) || foundingFull}
                           className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 min-h-[44px]"
                         >
-                          {processingIds.has(app.id) ? 'Processing...' : 'Approve'}
+                          {processingIds.has(app.id) ? 'Processing...' : foundingFull ? 'Tier Full' : 'Approve'}
                         </button>
                         <button
                           onClick={() => {

@@ -44,6 +44,19 @@ export async function POST(req: NextRequest) {
     }
 
     const firestore = getAdminFirestore();
+
+    // Capacity check — reject if founding tier is full
+    const approvedSnap = await firestore
+      .collection('foundingMemberApplications')
+      .where('status', '==', 'approved')
+      .get();
+    if (approvedSnap.size >= 50) {
+      return NextResponse.json(
+        { error: 'founding_full', message: 'All 50 founding member spots have been filled.' },
+        { status: 409 }
+      );
+    }
+
     await firestore.collection('foundingMemberApplications').add({
       name,
       email,

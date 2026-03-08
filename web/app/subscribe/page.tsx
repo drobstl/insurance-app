@@ -68,6 +68,7 @@ export default function SubscribePage() {
           router.push('/dashboard');
           return;
         }
+        // founding_full or no_approved_application — fall through to subscribe flow
       } catch {
         // Activation check failed — fall through to normal subscribe flow
       }
@@ -129,6 +130,11 @@ export default function SubscribePage() {
 
       if (!response.ok) {
         console.error('Checkout error:', data);
+        if (response.status === 409) {
+          // Tier filled while they were on this page — refresh spots data
+          fetch('/api/spots-remaining').then(r => r.json()).then(d => { if (d.activeTier) setSpotsData(d); }).catch(() => {});
+          throw new Error('This tier just filled up. The page has been updated with the next available option.');
+        }
         let errorMsg = 'Unable to start checkout. ';
         if (data.error?.includes('Price ID not configured')) {
           errorMsg += 'Payment system is being configured. Please try again in a few minutes or contact support.';
@@ -185,6 +191,25 @@ export default function SubscribePage() {
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto py-12 px-4">
+        {/* Show filled tiers so users see what they missed */}
+        {spotsData && spotsData.tiers.filter(t => t.status === 'full').length > 0 && (
+          <div className="max-w-md mx-auto mb-8">
+            <div className="flex flex-col gap-2">
+              {spotsData.tiers.filter(t => t.status === 'full').map(t => (
+                <div key={t.id} className="flex items-center justify-between px-4 py-3 bg-gray-100 rounded-xl border border-gray-200 opacity-60">
+                  <div className="flex items-center gap-3">
+                    <span className="px-2 py-0.5 bg-gray-300 text-gray-600 text-[10px] font-bold rounded-full uppercase">Full</span>
+                    <span className="text-[#6B7280] font-semibold line-through">{t.name}</span>
+                  </div>
+                  <span className="text-[#9CA3AF] font-bold line-through">
+                    {t.id === 'founding' ? 'FREE' : t.id === 'charter' ? '$25/mo' : '$35/mo'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="text-center mb-10">
           <h2 className="text-3xl font-bold text-[#0D4D4D] mb-4">
             {isFree ? 'Founding Member — Free for Life' : `Choose Your ${spotsData?.activeTierName ?? ''} Plan`}

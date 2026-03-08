@@ -21,15 +21,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Update Firestore status to approved
     const firestore = getAdminFirestore();
-    await firestore
-      .collection('foundingMemberApplications')
-      .doc(applicationId)
-      .update({
-        status: 'approved',
-        approvedAt: new Date(),
-      });
+    const appRef = firestore.collection('foundingMemberApplications').doc(applicationId);
+
+    // Atomic capacity check + approval to prevent last-spot race conditions
+    let capacityReached = false;
+    await firestore.runTransaction(async (tx) => {
+      const approvedSnap = await firestore
+        .collection('foundingMemberApplications')
+        .where('status', '==', 'approved')
+        .get();
+
+      if (approvedSnap.size >= 50) {
+        capacityReached = true;
+        return;
+      }
+
+      tx.update(appRef, { status: 'approved', approvedAt: new Date() });
+    });
+
+    if (capacityReached) {
+      return NextResponse.json(
+        { error: 'Founding tier is full (50/50). Cannot approve more founding members.' },
+        { status: 409 }
+      );
+    }
 
     // If the applicant already has an account, mark them as a founding member
     const agentsSnapshot = await firestore

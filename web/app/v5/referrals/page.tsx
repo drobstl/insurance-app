@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useTierCTA } from '@/hooks/useTierCTA';
 
 const IMESSAGE_DELAYS = [900, 1100, 900, 1300, 900, 500, 1100];
 
@@ -38,17 +39,13 @@ const slideInRight = {
 };
 
 export default function ReferralsDeepDiveDesktop() {
-  const [spotsRemaining, setSpotsRemaining] = useState<number | null>(null);
+  const tier = useTierCTA();
+  const spotsRemaining = tier.spotsRemaining;
+  const spots = tier.isFoundingOpen ? (tier.spotsRemaining ?? 50) : 0;
+
   const [msgStep, setMsgStep] = useState(-1);
   const chatRef = useRef<HTMLDivElement>(null);
   const chatTriggered = useRef(false);
-
-  useEffect(() => {
-    fetch('/api/spots-remaining')
-      .then(r => r.json())
-      .then(d => { if (typeof d.spotsRemaining === 'number') setSpotsRemaining(d.spotsRemaining); })
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     const el = chatRef.current;
@@ -72,8 +69,6 @@ export default function ReferralsDeepDiveDesktop() {
     transform: msgStep >= step ? 'translateY(0)' : 'translateY(10px)',
     transition: 'all 450ms cubic-bezier(0.25, 0.46, 0.45, 0.94)',
   });
-
-  const spots = spotsRemaining ?? 50;
 
   return (
     <div className="min-h-screen bg-white overflow-x-hidden">
@@ -102,10 +97,10 @@ export default function ReferralsDeepDiveDesktop() {
 
           <div className="flex justify-end">
             <Link
-              href="/founding-member"
+              href={tier.ctaHref}
               className="px-6 py-2.5 bg-[#fdcc02] text-[#0D4D4D] text-sm font-bold rounded-full hover:bg-[#e6b800] hover:scale-[1.03] transition-all"
             >
-              Get Started Free
+              {tier.isFoundingOpen ? 'Get Started Free' : tier.ctaText}
             </Link>
           </div>
         </div>
@@ -149,10 +144,10 @@ export default function ReferralsDeepDiveDesktop() {
                 One tap from your client. AI texts the referral via iMessage, qualifies them, and books the appointment on your calendar.
               </p>
               <Link
-                href="/founding-member"
+                href={tier.ctaHref}
                 className="inline-flex items-center gap-3 px-8 py-4 bg-[#0D4D4D] text-[#fdcc02] text-base font-bold rounded-full hover:bg-[#0D4D4D]/90 hover:scale-[1.02] transition-all shadow-lg"
               >
-                Claim Your Spot
+                {tier.isFoundingOpen ? 'Claim Your Spot' : tier.ctaText}
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
@@ -511,16 +506,16 @@ export default function ReferralsDeepDiveDesktop() {
             </p>
             <div className="flex flex-col items-center gap-5">
               <Link
-                href="/founding-member"
+                href={tier.ctaHref}
                 className="inline-flex items-center gap-3 px-12 py-5 bg-[#fdcc02] text-[#0D4D4D] text-lg font-bold rounded-full shadow-2xl shadow-[#fdcc02]/25 hover:shadow-[#fdcc02]/40 hover:scale-[1.03] transition-all duration-300"
               >
-                Get Started Free
+                {tier.isFoundingOpen ? 'Get Started Free' : tier.ctaText}
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
               </Link>
               <p className="text-white/80 text-sm">
-                {spotsRemaining !== null ? `${spots} of 50 spots remaining` : 'Limited spots'} &middot; $0 forever
+                {tier.ctaSubtext}
               </p>
             </div>
           </div>

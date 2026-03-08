@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useTierCTA } from '@/hooks/useTierCTA';
 
 const HOLIDAYS: Record<string, { gradient: string; emoji: string; label: string; greeting: string; body: string; floatingEmoji: string[]; accent: string }> = {
   christmas: { gradient: 'linear-gradient(135deg, #8B0000, #C41E3A, #A0153E)', emoji: '🎄', label: 'Christmas', greeting: 'Merry Christmas, Sarah!', body: 'Wishing you and your family a season full of warmth, joy, and time together.', floatingEmoji: ['❄️', '🎄', '⭐'], accent: '#D4A843' },
@@ -26,17 +27,11 @@ const stagger = {
 };
 
 export default function RelationshipsDeepDive() {
-  const [spotsRemaining, setSpotsRemaining] = useState<number | null>(null);
+  const tier = useTierCTA();
+  const spotsRemaining = tier.spotsRemaining;
+  const spots = tier.isFoundingOpen ? (tier.spotsRemaining ?? 50) : 0;
+
   const [activeHoliday, setActiveHoliday] = useState('christmas');
-
-  useEffect(() => {
-    fetch('/api/spots-remaining')
-      .then(r => r.json())
-      .then(d => { if (typeof d.spotsRemaining === 'number') setSpotsRemaining(d.spotsRemaining); })
-      .catch(() => {});
-  }, []);
-
-  const spots = spotsRemaining ?? 50;
   const holiday = HOLIDAYS[activeHoliday];
 
   return (
@@ -49,10 +44,10 @@ export default function RelationshipsDeepDive() {
             <span className="text-sm font-semibold">Back</span>
           </Link>
           <Link
-            href="/founding-member/m"
+            href={tier.ctaMobileHref}
             className="px-4 py-2 bg-[#fdcc02] text-[#0D4D4D] text-xs font-bold rounded-full"
           >
-            Get Started Free
+            {tier.isFoundingOpen ? 'Get Started Free' : tier.ctaText}
           </Link>
         </div>
       </nav>
@@ -274,14 +269,14 @@ export default function RelationshipsDeepDive() {
             7+ touchpoints per year. Every client. Zero effort from you. Relationships that last.
           </p>
           <Link
-            href="/founding-member/m"
+            href={tier.ctaMobileHref}
             className="inline-flex items-center gap-2.5 px-8 py-4 bg-[#fdcc02] text-[#0D4D4D] text-base font-bold rounded-full shadow-2xl shadow-[#fdcc02]/25 active:scale-[0.97] transition-transform"
           >
-            Get Started Free
+            {tier.isFoundingOpen ? 'Get Started Free' : tier.ctaText}
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
           </Link>
           <p className="text-white/25 text-xs">
-            {spotsRemaining !== null ? `${spots} of 50 spots remaining` : 'Limited spots'} &middot; $0 forever
+            {tier.ctaSubtext}
           </p>
         </motion.div>
       </section>

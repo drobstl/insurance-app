@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useTierCTA } from '@/hooks/useTierCTA';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -18,16 +18,10 @@ const stagger = {
 };
 
 export default function RewritesDeepDive() {
-  const [spotsRemaining, setSpotsRemaining] = useState<number | null>(null);
+  const tier = useTierCTA();
+  const spotsRemaining = tier.spotsRemaining;
+  const spots = tier.isFoundingOpen ? (tier.spotsRemaining ?? 50) : 0;
 
-  useEffect(() => {
-    fetch('/api/spots-remaining')
-      .then(r => r.json())
-      .then(d => { if (typeof d.spotsRemaining === 'number') setSpotsRemaining(d.spotsRemaining); })
-      .catch(() => {});
-  }, []);
-
-  const spots = spotsRemaining ?? 50;
   const days = Array.from({ length: 28 }, (_, i) => i + 1);
 
   return (
@@ -40,10 +34,10 @@ export default function RewritesDeepDive() {
             <span className="text-sm font-semibold">Back</span>
           </Link>
           <Link
-            href="/founding-member/m"
+            href={tier.ctaMobileHref}
             className="px-4 py-2 bg-[#fdcc02] text-[#0D4D4D] text-xs font-bold rounded-full"
           >
-            Get Started Free
+            {tier.isFoundingOpen ? 'Get Started Free' : tier.ctaText}
           </Link>
         </div>
       </nav>
@@ -293,14 +287,14 @@ export default function RewritesDeepDive() {
             Life changes. Rates change. Agent For Life makes sure every client gets a coverage review at the right time &mdash; and you get to be the one who delivers it.
           </p>
           <Link
-            href="/founding-member/m"
+            href={tier.ctaMobileHref}
             className="inline-flex items-center gap-2.5 px-8 py-4 bg-[#fdcc02] text-[#0D4D4D] text-base font-bold rounded-full shadow-2xl shadow-[#fdcc02]/25 active:scale-[0.97] transition-transform"
           >
-            Get Started Free
+            {tier.isFoundingOpen ? 'Get Started Free' : tier.ctaText}
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
           </Link>
           <p className="text-white/25 text-xs">
-            {spotsRemaining !== null ? `${spots} of 50 spots remaining` : 'Limited spots'} &middot; $0 forever
+            {tier.ctaSubtext}
           </p>
         </motion.div>
       </section>
