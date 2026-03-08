@@ -230,8 +230,3 @@ export function buildSharedVoiceBlock(): string {
   ].join('\n\n');
 }
 
-/**
- * Drip principles — imported separately since not all prompts need them.
- * Used by outreach generation and drip message functions.
- */
-export { buildDripPrinciples };
