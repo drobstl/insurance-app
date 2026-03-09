@@ -430,8 +430,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           agentUid={user.uid}
           agentName={agentProfile.name || user.displayName || ''}
           onComplete={() => setShowOnboarding(false)}
-          onOpenProfile={() => router.push('/dashboard/settings')}
-          onOpenClients={() => router.push('/dashboard/clients')}
         />
       )}
 

@@ -8,8 +8,6 @@ interface OnboardingOverlayProps {
   agentUid: string;
   agentName: string;
   onComplete: () => void;
-  onOpenProfile: () => void;
-  onOpenClients?: () => void;
 }
 
 const STEPS = [
@@ -33,9 +31,9 @@ const STEPS = [
       </svg>
     ),
     title: 'Set Up Your Profile',
-    description: "Head to Settings to add your name, phone number, agency name, and profile photo. This is exactly what your clients will see in their app — you can preview it live on the Settings page.",
-    buttonLabel: 'Open Settings',
-    action: 'profile' as const,
+    description: "Head to Settings in the sidebar to add your name, phone number, agency name, and profile photo. This is exactly what your clients will see in their app — you can preview it live on the Settings page.",
+    buttonLabel: 'Next',
+    action: 'next' as const,
   },
   {
     id: 'newClients',
@@ -57,9 +55,9 @@ const STEPS = [
       </svg>
     ),
     title: 'Import Your Book of Business',
-    description: "Have an existing client list? Use CSV import to upload your entire book of business in one go.",
-    buttonLabel: 'Go to Clients',
-    action: 'clients' as const,
+    description: "Have an existing client list? Head to the Clients page in the sidebar and use CSV import to upload your entire book of business in one go.",
+    buttonLabel: 'Next',
+    action: 'next' as const,
   },
   {
     id: 'navigate',
@@ -79,8 +77,6 @@ export default function OnboardingOverlay({
   agentUid,
   agentName,
   onComplete,
-  onOpenProfile,
-  onOpenClients,
 }: OnboardingOverlayProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
@@ -94,22 +90,7 @@ export default function OnboardingOverlay({
   const handleStepAction = (step: (typeof STEPS)[number]) => {
     markStepDone(step.id);
 
-    if (step.action === 'profile') {
-      onOpenProfile();
-      handleFinish();
-      return;
-    } else if (step.action === 'clients') {
-      onOpenClients?.();
-      handleFinish();
-      return;
-    } else if (step.action === 'next') {
-      if (currentStep < STEPS.length - 1) {
-        setCurrentStep(currentStep + 1);
-      } else {
-        handleFinish();
-      }
-      return;
-    } else if (step.action === 'finish') {
+    if (step.action === 'finish') {
       handleFinish();
       return;
     }
@@ -121,11 +102,15 @@ export default function OnboardingOverlay({
     }
   };
 
-  const handleSkip = () => {
+  const handleBack = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleNext = () => {
     if (currentStep < STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
-    } else {
-      handleFinish();
     }
   };
 
@@ -200,14 +185,16 @@ export default function OnboardingOverlay({
 
         <div className="flex justify-center gap-2 px-8 pb-4">
           {STEPS.map((s, i) => (
-            <div
+            <button
               key={s.id}
-              className={`h-2 rounded-full transition-all duration-300 ${
+              type="button"
+              onClick={() => setCurrentStep(i)}
+              className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
                 i === currentStep
                   ? 'w-8 bg-[#3DD6C3]'
                   : i < currentStep || completedSteps.has(s.id)
-                  ? 'w-2 bg-[#3DD6C3]/40'
-                  : 'w-2 bg-gray-200'
+                  ? 'w-2 bg-[#3DD6C3]/40 hover:bg-[#3DD6C3]/60'
+                  : 'w-2 bg-gray-200 hover:bg-gray-300'
               }`}
             />
           ))}
@@ -215,16 +202,36 @@ export default function OnboardingOverlay({
 
         <div className="px-8 pb-8 flex items-center justify-between gap-3">
           <button
-            onClick={handleSkip}
-            className="text-sm text-[#707070] hover:text-[#0D4D4D] font-medium transition-colors"
+            onClick={handleBack}
+            disabled={currentStep === 0}
+            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+              currentStep === 0
+                ? 'text-gray-300 cursor-not-allowed'
+                : 'text-[#0D4D4D] hover:bg-[#0D4D4D]/10'
+            }`}
           >
-            {currentStep < STEPS.length - 1 ? 'Skip' : 'Skip All'}
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
           </button>
           <button
             onClick={() => handleStepAction(step)}
             className="px-6 py-3 bg-[#3DD6C3] hover:bg-[#32c4b2] text-[#0D4D4D] font-semibold rounded-xl transition-all hover:shadow-lg min-h-[44px] text-sm"
           >
             {step.buttonLabel}
+          </button>
+          <button
+            onClick={handleNext}
+            disabled={currentStep === STEPS.length - 1}
+            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+              currentStep === STEPS.length - 1
+                ? 'text-gray-300 cursor-not-allowed'
+                : 'text-[#0D4D4D] hover:bg-[#0D4D4D]/10'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
           </button>
         </div>
       </div>
