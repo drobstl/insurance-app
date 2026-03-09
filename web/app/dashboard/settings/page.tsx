@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
+import Cropper from 'react-easy-crop';
+import type { Area } from 'react-easy-crop';
 import { doc, setDoc } from 'firebase/firestore';
 import {
   updatePassword,
@@ -46,6 +48,46 @@ function resizeImage(file: File, maxSize: number): Promise<string> {
   });
 }
 
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function getCroppedImage(imageSrc: string, pixelCrop: Area, maxSize: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const size = Math.min(pixelCrop.width, pixelCrop.height);
+      const outSize = Math.min(size, maxSize);
+      canvas.width = outSize;
+      canvas.height = outSize;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return reject(new Error('Canvas not supported'));
+      ctx.drawImage(
+        img,
+        pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height,
+        0, 0, outSize, outSize,
+      );
+      resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
+    };
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = imageSrc;
+  });
+}
+
+function formatPhoneNumber(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 10);
+  if (digits.length === 0) return '';
+  if (digits.length <= 3) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
 function detectSchedulingPlatform(url: string): string | null {
   if (/calendly\.com/i.test(url)) return 'Calendly';
   if (/cal\.com/i.test(url)) return 'Cal.com';
@@ -78,6 +120,12 @@ export default function SettingsPage() {
   const [emailSuccess, setEmailSuccess] = useState('');
   const [changingEmail, setChangingEmail] = useState(false);
 
+  // Photo crop modal
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+
   // Stripe portal
   const [portalLoading, setPortalLoading] = useState(false);
   const [showCancelWarning, setShowCancelWarning] = useState(false);
@@ -104,6 +152,25 @@ export default function SettingsPage() {
     },
     [updateField],
   );
+
+  const onCropComplete = useCallback((_croppedArea: Area, pixels: Area) => {
+    setCroppedAreaPixels(pixels);
+  }, []);
+
+  const handleCropSave = useCallback(async () => {
+    if (!cropImageSrc || !croppedAreaPixels) return;
+    try {
+      const base64 = await getCroppedImage(cropImageSrc, croppedAreaPixels, 400);
+      updateField('photoBase64', base64);
+    } catch {
+      setSaveMessage({ type: 'error', text: 'Failed to crop image. Please try a different file.' });
+    } finally {
+      setCropImageSrc(null);
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+      setCroppedAreaPixels(null);
+    }
+  }, [cropImageSrc, croppedAreaPixels, updateField]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -294,9 +361,18 @@ export default function SettingsPage() {
                   type="file"
                   accept="image/*"
                   className="hidden"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const f = e.target.files?.[0];
-                    if (f) handleImageUpload(f, 400, 'photoBase64');
+                    if (!f) return;
+                    try {
+                      const dataUrl = await readFileAsDataUrl(f);
+                      setCropImageSrc(dataUrl);
+                      setCrop({ x: 0, y: 0 });
+                      setZoom(1);
+                    } catch {
+                      setSaveMessage({ type: 'error', text: 'Failed to read image. Please try a different file.' });
+                    }
+                    if (photoInputRef.current) photoInputRef.current.value = '';
                   }}
                 />
                 <button
@@ -305,7 +381,7 @@ export default function SettingsPage() {
                 >
                   {agentProfile.photoBase64 ? 'Change Photo' : 'Upload Photo'}
                 </button>
-                <p className="text-xs text-[#707070] mt-1.5">JPEG, resized to 400px. Stored securely.</p>
+                <p className="text-xs text-[#707070] mt-1.5">Upload a photo and position it to fit. Stored securely.</p>
               </div>
             </div>
           </div>
@@ -345,7 +421,7 @@ export default function SettingsPage() {
                 <input
                   type="tel"
                   value={agentProfile.phoneNumber || ''}
-                  onChange={(e) => updateField('phoneNumber', e.target.value)}
+                  onChange={(e) => updateField('phoneNumber', formatPhoneNumber(e.target.value))}
                   placeholder="(555) 123-4567"
                   className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
                 />
@@ -993,6 +1069,61 @@ export default function SettingsPage() {
       )}
 
       </div>
+
+      {cropImageSrc && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setCropImageSrc(null)} />
+          <div className="relative bg-white rounded-[5px] shadow-2xl w-full max-w-md">
+            <div className="p-4 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-[#005851]">Position Your Photo</h3>
+              <p className="text-xs text-[#707070] mt-0.5">Drag to reposition. Use the slider to zoom.</p>
+            </div>
+            <div className="relative w-full" style={{ height: 320 }}>
+              <Cropper
+                image={cropImageSrc}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                cropShape="round"
+                showGrid={false}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={onCropComplete}
+              />
+            </div>
+            <div className="px-6 py-3 border-t border-gray-100">
+              <div className="flex items-center gap-3">
+                <svg className="w-4 h-4 text-[#707070] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                </svg>
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  step={0.05}
+                  value={zoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  className="flex-1 accent-[#44bbaa]"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 p-4 border-t border-gray-200">
+              <button
+                onClick={() => { setCropImageSrc(null); setCrop({ x: 0, y: 0 }); setZoom(1); }}
+                className="flex-1 py-2.5 px-4 text-sm font-semibold text-[#005851] border border-[#005851] rounded-[5px] hover:bg-[#f0faf8] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCropSave}
+                className="flex-1 py-2.5 px-4 text-sm font-semibold text-white bg-[#44bbaa] rounded-[5px] hover:bg-[#005751] transition-colors"
+              >
+                Save Photo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showPhonePreview && (
         <div className="hidden md:block w-[280px] shrink-0 sticky top-6">
