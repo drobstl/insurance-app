@@ -1,1 +1,43 @@
+# Dependencies
+node_modules/
+
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+
+# Private keys and certificates
+*.pem
+*.key
+*.p12
+*.jks
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Next.js (web)
+web/.next/
+web/out/
+
+# Expo / React Native (mobile)
+mobile/.expo/
+mobile/dist/
+mobile/ios/Pods/
+*.ipa
+
+# Vercel
 .vercel
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.pyc
+.venv/
