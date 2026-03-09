@@ -155,9 +155,9 @@ export async function generateOutreachMessage(
     ctx.dripNumber === 0
       ? 'This is the INITIAL outreach. Be warm, helpful, no pressure.'
       : ctx.dripNumber === 1
-        ? 'This is follow-up #1 (day 2). Slightly more direct, show you care. Take a different angle than the initial message.'
+        ? 'This is follow-up #1 (24 hours later). Slightly more direct, show you care. Take a different angle than the initial message.'
         : ctx.dripNumber === 2
-          ? 'This is follow-up #2 (day 5). Gently remind them what they stand to lose (coverage amount, beneficiary protection). Still respectful.'
+          ? 'This is follow-up #2 (day 3). Gently remind them what they stand to lose (coverage amount, beneficiary protection). Still respectful.'
           : 'This is the FINAL follow-up (day 7). Gracious, leave the door open, no more messages after this.';
 
   const schedulingNote = ctx.schedulingUrl
@@ -438,9 +438,9 @@ export async function generateConservationEmail(
     ctx.dripNumber === 0
       ? 'This is the INITIAL outreach. Be warm, helpful, no pressure.'
       : ctx.dripNumber === 1
-        ? 'This is follow-up #1 (day 2). Slightly more direct, show you care.'
+        ? 'This is follow-up #1 (24 hours later). Slightly more direct, show you care.'
         : ctx.dripNumber === 2
-          ? 'This is follow-up #2 (day 5). Remind them what they stand to lose. Still respectful.'
+          ? 'This is follow-up #2 (day 3). Remind them what they stand to lose. Still respectful.'
           : 'This is the FINAL follow-up (day 7). Gracious, leave the door open.';
 
   const contactInfo = [

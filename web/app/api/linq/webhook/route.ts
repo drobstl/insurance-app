@@ -304,7 +304,10 @@ async function handleDirectMessage(data: LinqWebhookMessageData) {
       return;
     }
 
-    const conservationResult = await findConservationAlertByChatId(db, chatId);
+    let conservationResult = await findConservationAlertByChatId(db, chatId);
+    if (!conservationResult) {
+      conservationResult = await findConservationAlertByPhone(db, senderHandle);
+    }
     if (conservationResult) {
       await handleConservationReply(conservationResult, text, chatId, senderHandle);
     }
@@ -505,6 +508,50 @@ async function findConservationAlertByChatId(
   };
 }
 
+async function findConservationAlertByPhone(
+  db: FirebaseFirestore.Firestore,
+  phone: string,
+): Promise<ConservationAlertResult | null> {
+  const agentsSnap = await db.collection('agents').get();
+
+  for (const agentDoc of agentsSnap.docs) {
+    const clientsSnap = await db
+      .collection('agents')
+      .doc(agentDoc.id)
+      .collection('clients')
+      .where('phone', '==', phone)
+      .limit(1)
+      .get();
+
+    if (clientsSnap.empty) continue;
+
+    const clientDoc = clientsSnap.docs[0];
+    const alertsSnap = await db
+      .collection('agents')
+      .doc(agentDoc.id)
+      .collection('conservationAlerts')
+      .where('clientId', '==', clientDoc.id)
+      .where('status', 'in', ['outreach_sent', 'drip_1', 'drip_2', 'drip_3'])
+      .orderBy('createdAt', 'desc')
+      .limit(1)
+      .get();
+
+    if (alertsSnap.empty) continue;
+
+    const doc = alertsSnap.docs[0];
+    const agentData = agentDoc.data();
+    return {
+      agentId: agentDoc.id,
+      alertId: doc.id,
+      alertData: doc.data() as Record<string, unknown>,
+      agentData: (agentData as Record<string, unknown>) || {},
+      alertRef: doc.ref,
+    };
+  }
+
+  return null;
+}
+
 async function handleConservationReply(
   result: ConservationAlertResult,
   text: string,
@@ -522,9 +569,15 @@ async function handleConservationReply(
     timestamp: new Date().toISOString(),
   };
 
-  await alertRef.update({
+  const replyUpdate: Record<string, unknown> = {
     conversation: FieldValue.arrayUnion(newIncoming),
-  });
+    lastClientReplyAt: new Date().toISOString(),
+    nextTouchAt: null,
+  };
+  if (!alertData.chatId && chatId) {
+    replyUpdate.chatId = chatId;
+  }
+  await alertRef.update(replyUpdate);
 
   if (alertData.aiEnabled === false) return;
 

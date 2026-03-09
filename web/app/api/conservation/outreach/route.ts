@@ -5,12 +5,19 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
 import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
+import {
+  type TouchStage,
+  type ConservationChannel,
+  NEXT_TOUCH_STAGE,
+  TOUCH_STAGE_DELAY,
+  STAGE_FALLBACK_ORDER,
+} from '../../../../lib/conservation-types';
 
 /**
  * POST /api/conservation/outreach
  *
- * Sends push notification + iMessage to the client for a conservation alert.
- * Called manually by the agent, or by the cron job after the grace period.
+ * Sends the initial outreach for a conservation alert using a single channel
+ * (push-first with fallback). Called by the agent manually or by the cron.
  *
  * Body: { alertId: string }
  * Auth: Bearer <Firebase ID token> OR cron secret
@@ -84,71 +91,95 @@ export async function POST(req: NextRequest) {
     const clientData = clientDoc.data()!;
     const pushToken = clientData.pushToken as string | undefined;
     const clientPhone = (clientData.phone as string) || '';
+    const normalizedPhone = normalizePhone(clientPhone);
 
     const agentDoc = await db.collection('agents').doc(agentId).get();
     const agentData = agentDoc.data() || {};
     const agentName = (agentData.name as string) || 'Your Agent';
     const schedulingUrl = (agentData.schedulingUrl as string) || null;
 
-    const now = new Date().toISOString();
-    let pushSent = false;
-    let smsSent = false;
+    const now = new Date();
+    const nowIso = now.toISOString();
 
-    if (pushToken) {
-      try {
+    // Walk the stage-1 fallback order: push -> sms -> email
+    const fallbackOrder = STAGE_FALLBACK_ORDER['initial'];
+    const avail: Record<ConservationChannel, boolean> = {
+      push: !!pushToken,
+      sms: isValidE164(normalizedPhone),
+      email: !!(clientData.email as string),
+    };
+
+    let sentChannel: ConservationChannel | null = null;
+    let chatId: string | null = (alertData.chatId as string) || null;
+
+    for (const ch of fallbackOrder) {
+      if (!avail[ch]) continue;
+
+      if (ch === 'push') {
         const pushData: Record<string, unknown> = {
           type: 'conservation',
           agentId,
           clientId,
         };
-
         if (schedulingUrl) {
           pushData.schedulingUrl = schedulingUrl;
           pushData.includeBookingLink = true;
         }
 
-        const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            'Accept-Encoding': 'gzip, deflate',
-          },
-          body: JSON.stringify({
-            to: pushToken,
-            title: `Message from ${agentName}`,
-            body: message,
-            sound: 'default',
-            badge: 1,
-            priority: 'high',
-            data: pushData,
-            ...(schedulingUrl && { categoryId: 'BOOK_APPOINTMENT' }),
-          }),
-        });
-
-        const expoResult = await expoResponse.json();
-        pushSent = expoResult?.data?.status === 'ok';
-
-        if (!pushSent) {
+        try {
+          const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+              'Accept-Encoding': 'gzip, deflate',
+            },
+            body: JSON.stringify({
+              to: pushToken,
+              title: `Message from ${agentName}`,
+              body: message,
+              sound: 'default',
+              badge: 1,
+              priority: 'high',
+              data: pushData,
+              ...(schedulingUrl ? { categoryId: 'BOOK_APPOINTMENT' } : {}),
+            }),
+          });
+          const expoResult = await expoResponse.json();
+          if (expoResult?.data?.status === 'ok') {
+            sentChannel = 'push';
+            break;
+          }
           console.error('Expo push error for conservation outreach:', expoResult?.data?.message);
+        } catch (pushError) {
+          console.error('Failed to send conservation push:', pushError);
         }
-      } catch (pushError) {
-        console.error('Failed to send conservation push:', pushError);
+      }
+
+      if (ch === 'sms') {
+        try {
+          const result = await sendOrCreateChat({
+            to: normalizedPhone,
+            chatId,
+            text: message,
+          });
+          chatId = result.chatId;
+          sentChannel = 'sms';
+          break;
+        } catch (smsError) {
+          console.error('Failed to send conservation SMS via Linq:', smsError);
+        }
+      }
+
+      if (ch === 'email') {
+        // Email fallback not implemented in manual outreach (would need Resend import)
+        // For now, skip -- the cron handles email follow-ups
+        continue;
       }
     }
 
-    const normalizedPhone = normalizePhone(clientPhone);
-    if (isValidE164(normalizedPhone)) {
-      try {
-        await sendOrCreateChat({
-          to: normalizedPhone,
-          text: message,
-        });
-        smsSent = true;
-      } catch (smsError) {
-        console.error('Failed to send conservation message via Linq:', smsError);
-      }
-    }
+    const nextStage = NEXT_TOUCH_STAGE['initial']!;
+    const nextTouchAt = new Date(now.getTime() + TOUCH_STAGE_DELAY[nextStage]).toISOString();
 
     await clientRef.collection('notifications').add({
       type: 'conservation',
@@ -158,21 +189,24 @@ export async function POST(req: NextRequest) {
       schedulingUrl: schedulingUrl || null,
       sentAt: FieldValue.serverTimestamp(),
       readAt: null,
-      status: pushSent ? 'sent' : smsSent ? 'sent' : 'failed',
+      status: sentChannel ? 'sent' : 'failed',
     });
 
     await alertRef.update({
       status: 'outreach_sent',
-      outreachSentAt: now,
-      pushSentAt: pushSent ? now : null,
-      smsSentAt: smsSent ? now : null,
-      lastDripAt: now,
+      touchStage: 'initial' as TouchStage,
+      nextTouchAt,
+      channelsUsed: sentChannel ? [sentChannel] : [],
+      outreachSentAt: nowIso,
+      pushSentAt: sentChannel === 'push' ? nowIso : null,
+      smsSentAt: sentChannel === 'sms' ? nowIso : null,
+      lastDripAt: nowIso,
+      chatId,
     });
 
     return NextResponse.json({
       success: true,
-      pushSent,
-      smsSent,
+      sentChannel,
     });
   } catch (error) {
     console.error('Error sending conservation outreach:', error);

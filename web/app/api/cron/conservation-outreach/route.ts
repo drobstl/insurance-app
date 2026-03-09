@@ -9,6 +9,15 @@ import { Resend } from 'resend';
 import { generateOutreachMessage, generateConservationEmail } from '../../../../lib/conservation-ai';
 import { getCarrierServicePhone } from '../../../../lib/carriers';
 import type { ConservationOutreachContext, ConservationChannel } from '../../../../lib/conservation-types';
+import {
+  type TouchStage,
+  TOUCH_STAGE_TO_STATUS,
+  STATUS_TO_TOUCH_STAGE,
+  TOUCH_STAGE_DRIP_NUMBER,
+  NEXT_TOUCH_STAGE,
+  TOUCH_STAGE_DELAY,
+  STAGE_FALLBACK_ORDER,
+} from '../../../../lib/conservation-types';
 
 function getResend() {
   const key = process.env.RESEND_API_KEY;
@@ -16,29 +25,9 @@ function getResend() {
   return new Resend(key);
 }
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-const DRIP_STATUSES = ['outreach_sent', 'drip_1', 'drip_2'] as const;
-
-const DRIP_DELAYS: Record<string, number> = {
-  outreach_sent: 2 * MS_PER_DAY,
-  drip_1: 3 * MS_PER_DAY,
-  drip_2: 2 * MS_PER_DAY,
-};
-
-const NEXT_STATUS: Record<string, string> = {
-  outreach_sent: 'drip_1',
-  drip_1: 'drip_2',
-  drip_2: 'drip_3',
-};
-
-const DRIP_NUMBER: Record<string, number> = {
-  outreach_sent: 1,
-  drip_1: 2,
-  drip_2: 3,
-};
-
-const EMAIL_DRIP_NUMBERS = new Set([2, 3]);
+// ---------------------------------------------------------------------------
+// Channel senders
+// ---------------------------------------------------------------------------
 
 async function sendPushNotification(
   pushToken: string,
@@ -54,7 +43,7 @@ async function sendPushNotification(
         Accept: 'application/json',
         'Accept-Encoding': 'gzip, deflate',
       },
-        body: JSON.stringify({
+      body: JSON.stringify({
         to: pushToken,
         title: `Message from ${agentName}`,
         body: message,
@@ -94,16 +83,191 @@ async function sendConservationEmailMessage(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Channel availability checks
+// ---------------------------------------------------------------------------
+
+interface ChannelAvailability {
+  push: boolean;
+  sms: boolean;
+  email: boolean;
+  pushToken: string | undefined;
+  normalizedPhone: string;
+  clientEmail: string;
+}
+
+function getChannelAvailability(clientData: FirebaseFirestore.DocumentData): ChannelAvailability {
+  const pushToken = clientData.pushToken as string | undefined;
+  const clientPhone = (clientData.phone as string) || '';
+  const clientEmail = (clientData.email as string) || '';
+  const normalizedPhone = normalizePhone(clientPhone);
+  return {
+    push: !!pushToken,
+    sms: isValidE164(normalizedPhone),
+    email: !!clientEmail,
+    pushToken,
+    normalizedPhone,
+    clientEmail,
+  };
+}
+
+function isChannelAvailable(channel: ConservationChannel, avail: ChannelAvailability): boolean {
+  return avail[channel];
+}
+
+// ---------------------------------------------------------------------------
+// Send on a single channel, returning the channel used (or null on failure)
+// ---------------------------------------------------------------------------
+
+interface SendResult {
+  channel: ConservationChannel;
+  chatId: string | null;
+}
+
+async function sendOnChannel(
+  channel: ConservationChannel,
+  opts: {
+    message: string;
+    avail: ChannelAvailability;
+    agentName: string;
+    agentFirstName: string;
+    agentEmail: string | null;
+    agentPhone: string | null;
+    schedulingUrl: string | null;
+    agentId: string;
+    clientId: string;
+    existingChatId: string | null;
+    outreachCtx: ConservationOutreachContext;
+    alertData: FirebaseFirestore.DocumentData;
+  },
+): Promise<SendResult | null> {
+  const {
+    message, avail, agentName, schedulingUrl,
+    agentId, clientId, existingChatId,
+  } = opts;
+
+  if (channel === 'push') {
+    if (!avail.pushToken) return null;
+    const pushData: Record<string, unknown> = {
+      type: 'conservation',
+      agentId,
+      clientId,
+    };
+    if (schedulingUrl) {
+      pushData.schedulingUrl = schedulingUrl;
+      pushData.includeBookingLink = true;
+    }
+    const ok = await sendPushNotification(avail.pushToken, agentName, message, pushData);
+    return ok ? { channel: 'push', chatId: existingChatId } : null;
+  }
+
+  if (channel === 'sms') {
+    if (!avail.sms) return null;
+    try {
+      const result = await sendOrCreateChat({
+        to: avail.normalizedPhone,
+        chatId: existingChatId,
+        text: message,
+      });
+      return { channel: 'sms', chatId: result.chatId };
+    } catch (e) {
+      console.error('Conservation Linq error:', e);
+      return null;
+    }
+  }
+
+  if (channel === 'email') {
+    if (!avail.clientEmail) return null;
+    const policyType = (opts.alertData.policyType as string) || 'insurance';
+    const emailBody = await generateConservationEmail({
+      ...opts.outreachCtx,
+      agentEmail: opts.agentEmail,
+      agentPhone: opts.agentPhone,
+      coverageAmount: (opts.alertData.coverageAmount as number) || null,
+    });
+    const ok = await sendConservationEmailMessage(
+      avail.clientEmail,
+      agentName,
+      `${opts.agentFirstName} here -- about your ${policyType} policy`,
+      emailBody,
+    );
+    return ok ? { channel: 'email', chatId: existingChatId } : null;
+  }
+
+  return null;
+}
+
+/**
+ * Try the primary channel for a stage; on failure, walk the fallback list.
+ * Returns the first successful send or null if all fail.
+ */
+async function sendWithFallback(
+  stage: TouchStage,
+  avail: ChannelAvailability,
+  opts: Parameters<typeof sendOnChannel>[1],
+): Promise<SendResult | null> {
+  const order = STAGE_FALLBACK_ORDER[stage];
+  for (const ch of order) {
+    if (!isChannelAvailable(ch, avail)) continue;
+    const result = await sendOnChannel(ch, opts);
+    if (result) return result;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Legacy migration: derive touchStage + nextTouchAt from old status fields
+// ---------------------------------------------------------------------------
+
+interface ResolvedStageInfo {
+  touchStage: TouchStage;
+  nextTouchAt: string | null;
+}
+
+function resolveTouchStage(alertData: FirebaseFirestore.DocumentData): ResolvedStageInfo | null {
+  const explicit = alertData.touchStage as TouchStage | null | undefined;
+  if (explicit) {
+    return {
+      touchStage: explicit,
+      nextTouchAt: (alertData.nextTouchAt as string) || null,
+    };
+  }
+
+  const status = alertData.status as string;
+  const mapped = STATUS_TO_TOUCH_STAGE[status as keyof typeof STATUS_TO_TOUCH_STAGE];
+  if (!mapped) return null;
+
+  const lastDripAt = alertData.lastDripAt as string | null;
+  const outreachSentAt = alertData.outreachSentAt as string | null;
+  const baseTime = lastDripAt || outreachSentAt;
+  const nextStage = NEXT_TOUCH_STAGE[mapped];
+
+  let nextTouchAt: string | null = null;
+  if (nextStage && baseTime) {
+    nextTouchAt = new Date(
+      new Date(baseTime).getTime() + TOUCH_STAGE_DELAY[nextStage],
+    ).toISOString();
+  }
+
+  return { touchStage: mapped, nextTouchAt };
+}
+
+// ---------------------------------------------------------------------------
+// Cron handler
+// ---------------------------------------------------------------------------
+
 /**
  * GET /api/cron/conservation-outreach
  *
  * Vercel Cron -- runs every 30 minutes.
  *
- * A) Fires scheduled outreach for alerts past their 2-hour grace period.
- * B) Sends drip follow-ups on Day 2, Day 5, Day 7 for unresolved alerts.
+ * Staged outreach cadence:
+ *   Stage 1 (initial):       Push (fallback: Text, Email)
+ *   Stage 2 (24h no reply):  Text (fallback: Email, Push)
+ *   Stage 3 (day 3):         Email (fallback: Push, Text)
+ *   Stage 4 (day 7):         Push (fallback: Text) -- final
  *
- * Channels: Linq (iMessage > RCS > SMS) + Push + Email (complement on drips 2-3,
- * sole channel for email-only clients).
+ * Stops when the client replies or the alert is resolved.
  */
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
@@ -115,8 +279,9 @@ export async function GET(req: NextRequest) {
   try {
     const db = getAdminFirestore();
     const now = Date.now();
+    const nowIso = new Date().toISOString();
     let outreachFired = 0;
-    let dripsSent = 0;
+    let followUpsSent = 0;
 
     const agentsSnap = await db.collection('agents').get();
 
@@ -133,7 +298,7 @@ export async function GET(req: NextRequest) {
         .doc(agentDoc.id)
         .collection('conservationAlerts');
 
-      // A) Fire scheduled outreach past grace period
+      // ── A) Fire scheduled initial outreach past grace period ──────────
       const scheduledSnap = await alertsRef
         .where('status', '==', 'outreach_scheduled')
         .get();
@@ -141,7 +306,6 @@ export async function GET(req: NextRequest) {
       for (const alertDoc of scheduledSnap.docs) {
         const alertData = alertDoc.data();
         const scheduledAt = alertData.scheduledOutreachAt as string | null;
-
         if (!scheduledAt || new Date(scheduledAt).getTime() > now) continue;
 
         const clientId = alertData.clientId as string | null;
@@ -153,63 +317,54 @@ export async function GET(req: NextRequest) {
           .collection('clients')
           .doc(clientId)
           .get();
-
         if (!clientDoc.exists) continue;
 
         const clientData = clientDoc.data()!;
-        const pushToken = clientData.pushToken as string | undefined;
-        const clientPhone = (clientData.phone as string) || '';
-        const clientEmail = (clientData.email as string) || '';
         const message = (alertData.initialMessage as string) || '';
-
         if (!message) continue;
 
-        let pushSent = false;
-        let smsSent = false;
-        let emailSent = false;
-        let linqChatId: string | null = (alertData.chatId as string) || null;
-        const nowIso = new Date().toISOString();
-        const usedChannels: ConservationChannel[] = [];
+        const avail = getChannelAvailability(clientData);
+        const carrierName = (alertData.carrier as string) || '';
+        const clientName = (alertData.clientName as string) || 'Client';
+        const clientFirstName = clientName.split(' ')[0];
 
-        if (pushToken) {
-          const pushData: Record<string, unknown> = {
-            type: 'conservation',
-            agentId: agentDoc.id,
-            clientId,
-          };
-          if (schedulingUrl) {
-            pushData.schedulingUrl = schedulingUrl;
-            pushData.includeBookingLink = true;
-          }
-          pushSent = await sendPushNotification(pushToken, agentName, message, pushData);
-          if (pushSent) usedChannels.push('push');
-        }
+        const outreachCtx: ConservationOutreachContext = {
+          clientFirstName,
+          clientName,
+          agentName,
+          agentFirstName,
+          policyType: (alertData.policyType as string) || null,
+          policyAge: (alertData.policyAge as number) || null,
+          reason: (alertData.reason as 'lapsed_payment' | 'cancellation' | 'other') || 'other',
+          schedulingUrl,
+          dripNumber: 0,
+          premiumAmount: (alertData.premiumAmount as number) || null,
+          availableChannels: (alertData.availableChannels as ConservationChannel[]) || [],
+          carrier: carrierName || null,
+          carrierServicePhone: getCarrierServicePhone(carrierName),
+        };
 
-        const normalizedPhone = normalizePhone(clientPhone);
-        if (isValidE164(normalizedPhone)) {
-          try {
-            const result = await sendOrCreateChat({ to: normalizedPhone, text: message });
-            smsSent = true;
-            linqChatId = result.chatId;
-            usedChannels.push('sms');
-          } catch (e) {
-            console.error('Conservation cron Linq error:', e);
-          }
-        }
+        const sendOpts = {
+          message,
+          avail,
+          agentName,
+          agentFirstName,
+          agentEmail,
+          agentPhone,
+          schedulingUrl,
+          agentId: agentDoc.id,
+          clientId,
+          existingChatId: (alertData.chatId as string) || null,
+          outreachCtx,
+          alertData,
+        };
 
-        // Email-only fallback: if no SMS and no push available, send via email
-        if (!smsSent && !pushSent && clientEmail) {
-          const clientFirstName = ((alertData.clientName as string) || 'Client').split(' ')[0];
-          emailSent = await sendConservationEmailMessage(
-            clientEmail,
-            agentName,
-            `${agentFirstName} here -- about your policy`,
-            message,
-          );
-          if (emailSent) usedChannels.push('email');
-        }
+        const result = await sendWithFallback('initial', avail, sendOpts);
 
-        if (pushSent || smsSent || emailSent) {
+        if (result) {
+          const nextStage = NEXT_TOUCH_STAGE['initial']!;
+          const nextTouchAt = new Date(now + TOUCH_STAGE_DELAY[nextStage]).toISOString();
+
           await db
             .collection('agents')
             .doc(agentDoc.id)
@@ -224,49 +379,63 @@ export async function GET(req: NextRequest) {
               schedulingUrl: schedulingUrl || null,
               sentAt: FieldValue.serverTimestamp(),
               readAt: null,
-              status: pushSent ? 'sent' : smsSent ? 'sent' : emailSent ? 'sent' : 'failed',
+              status: 'sent',
             });
+
+          const conversationEntry = {
+            role: 'agent-ai' as const,
+            body: message,
+            timestamp: nowIso,
+            channels: [result.channel],
+          };
+
+          await alertDoc.ref.update({
+            status: 'outreach_sent',
+            touchStage: 'initial' as TouchStage,
+            nextTouchAt,
+            channelsUsed: [result.channel],
+            outreachSentAt: nowIso,
+            pushSentAt: result.channel === 'push' ? nowIso : null,
+            smsSentAt: result.channel === 'sms' ? nowIso : null,
+            lastDripAt: nowIso,
+            chatId: result.chatId,
+            conversation: FieldValue.arrayUnion(conversationEntry),
+          });
+
+          outreachFired++;
         }
-
-        const conversationEntry = {
-          role: 'agent-ai' as const,
-          body: message,
-          timestamp: nowIso,
-          channels: usedChannels,
-        };
-
-        await alertDoc.ref.update({
-          status: 'outreach_sent',
-          outreachSentAt: nowIso,
-          pushSentAt: pushSent ? nowIso : null,
-          smsSentAt: smsSent ? nowIso : null,
-          lastDripAt: nowIso,
-          chatId: linqChatId,
-          conversation: FieldValue.arrayUnion(conversationEntry),
-        });
-
-        outreachFired++;
       }
 
-      // B) Drip follow-ups
-      for (const status of DRIP_STATUSES) {
-        const dripSnap = await alertsRef.where('status', '==', status).get();
+      // ── B) Follow-up stages for alerts that need the next touch ───────
+      // Query all active (non-resolved) alerts that have a nextTouchAt in the past
+      const activeStatuses = ['outreach_sent', 'drip_1', 'drip_2'];
+      for (const statusVal of activeStatuses) {
+        const snap = await alertsRef.where('status', '==', statusVal).get();
 
-        for (const alertDoc of dripSnap.docs) {
+        for (const alertDoc of snap.docs) {
           const alertData = alertDoc.data();
 
-          const lastDripAt = alertData.lastDripAt as string | null;
-          const outreachSentAt = alertData.outreachSentAt as string | null;
-          const lastMs = lastDripAt
-            ? new Date(lastDripAt).getTime()
-            : outreachSentAt
-              ? new Date(outreachSentAt).getTime()
-              : 0;
+          // Skip if client already replied
+          if (alertData.lastClientReplyAt) continue;
 
-          if (!lastMs) continue;
+          // Determine the current stage and when the next touch is due
+          const stageInfo = resolveTouchStage(alertData);
+          if (!stageInfo) continue;
 
-          const delay = DRIP_DELAYS[status];
-          if (now - lastMs < delay) continue;
+          const nextStage = NEXT_TOUCH_STAGE[stageInfo.touchStage];
+          if (!nextStage) continue;
+
+          // Check timing: is the next touch due?
+          let dueAt: number;
+          if (stageInfo.nextTouchAt) {
+            dueAt = new Date(stageInfo.nextTouchAt).getTime();
+          } else {
+            const baseTime = (alertData.lastDripAt as string) || (alertData.outreachSentAt as string);
+            if (!baseTime) continue;
+            dueAt = new Date(baseTime).getTime() + TOUCH_STAGE_DELAY[nextStage];
+          }
+
+          if (now < dueAt) continue;
 
           const clientId = alertData.clientId as string | null;
           if (!clientId) continue;
@@ -277,21 +446,17 @@ export async function GET(req: NextRequest) {
             .collection('clients')
             .doc(clientId)
             .get();
-
           if (!clientDoc.exists) continue;
 
           const clientData = clientDoc.data()!;
-          const clientPhone = (clientData.phone as string) || '';
-          const clientEmail = (clientData.email as string) || '';
-          const pushToken = clientData.pushToken as string | undefined;
+          const avail = getChannelAvailability(clientData);
           const clientName = (alertData.clientName as string) || 'Client';
           const clientFirstName = clientName.split(' ')[0];
+          const carrierName = (alertData.carrier as string) || '';
           const channels = (alertData.availableChannels as ConservationChannel[]) || [];
 
-          const dripNumber = DRIP_NUMBER[status];
+          const dripNumber = TOUCH_STAGE_DRIP_NUMBER[nextStage];
           const reason = (alertData.reason as 'lapsed_payment' | 'cancellation' | 'other') || 'other';
-          const carrierName = (alertData.carrier as string) || '';
-          const carrierServicePhone = getCarrierServicePhone(carrierName);
 
           const outreachCtx: ConservationOutreachContext = {
             clientFirstName,
@@ -306,125 +471,84 @@ export async function GET(req: NextRequest) {
             premiumAmount: (alertData.premiumAmount as number) || null,
             availableChannels: channels,
             carrier: carrierName || null,
-            carrierServicePhone,
+            carrierServicePhone: getCarrierServicePhone(carrierName),
           };
 
-          let dripMessage: string;
+          let followUpMessage: string;
           try {
-            dripMessage = await generateOutreachMessage(outreachCtx);
+            followUpMessage = await generateOutreachMessage(outreachCtx);
           } catch (e) {
-            console.error('Failed to generate drip message:', e);
+            console.error('Failed to generate follow-up message:', e);
             continue;
           }
+          if (!followUpMessage) continue;
 
-          if (!dripMessage) continue;
+          const sendOpts = {
+            message: followUpMessage,
+            avail,
+            agentName,
+            agentFirstName,
+            agentEmail,
+            agentPhone,
+            schedulingUrl,
+            agentId: agentDoc.id,
+            clientId,
+            existingChatId: (alertData.chatId as string) || null,
+            outreachCtx,
+            alertData,
+          };
 
-          let smsSent = false;
-          let pushSent = false;
-          let emailSent = false;
-          let linqChatId: string | null = (alertData.chatId as string) || null;
-          const usedChannels: ConservationChannel[] = [];
+          const sendResult = await sendWithFallback(nextStage, avail, sendOpts);
+          if (!sendResult) continue;
 
-          const normalizedPhone = normalizePhone(clientPhone);
-          if (isValidE164(normalizedPhone)) {
-            try {
-              const result = await sendOrCreateChat({
-                to: normalizedPhone,
-                chatId: linqChatId,
-                text: dripMessage,
-              });
-              smsSent = true;
-              if (!linqChatId) linqChatId = result.chatId;
-              usedChannels.push('sms');
-            } catch (e) {
-              console.error('Conservation drip Linq error:', e);
-            }
-          }
-
-          if (pushToken) {
-            const dripPushData: Record<string, unknown> = {
+          // Write notification record
+          await db
+            .collection('agents')
+            .doc(agentDoc.id)
+            .collection('clients')
+            .doc(clientId)
+            .collection('notifications')
+            .add({
               type: 'conservation',
-              agentId: agentDoc.id,
-              clientId,
-            };
-            if (schedulingUrl) {
-              dripPushData.schedulingUrl = schedulingUrl;
-              dripPushData.includeBookingLink = true;
-            }
-            pushSent = await sendPushNotification(
-              pushToken,
-              agentName,
-              dripMessage,
-              dripPushData,
-            );
-            if (pushSent) usedChannels.push('push');
-          }
-
-          // Email complement on drips 2+3, or email-only fallback at any stage
-          const isEmailOnlyClient = !smsSent && !pushSent && clientEmail;
-          const shouldComplementWithEmail = EMAIL_DRIP_NUMBERS.has(dripNumber) && clientEmail;
-
-          if (isEmailOnlyClient || shouldComplementWithEmail) {
-            try {
-              const emailBody = await generateConservationEmail({
-                ...outreachCtx,
-                agentEmail,
-                agentPhone,
-                coverageAmount: (alertData.coverageAmount as number) || null,
-              });
-              emailSent = await sendConservationEmailMessage(
-                clientEmail,
-                agentName,
-                `${agentFirstName} here -- about your ${(alertData.policyType as string) || 'insurance'} policy`,
-                emailBody,
-              );
-              if (emailSent) usedChannels.push('email');
-            } catch (e) {
-              console.error('Conservation drip email error:', e);
-            }
-          }
-
-          if (smsSent || pushSent || emailSent) {
-            await db
-              .collection('agents')
-              .doc(agentDoc.id)
-              .collection('clients')
-              .doc(clientId)
-              .collection('notifications')
-              .add({
-                type: 'conservation',
-                title: `Message from ${agentName}`,
-                body: dripMessage,
-                includeBookingLink: !!schedulingUrl,
-                sentAt: FieldValue.serverTimestamp(),
-                readAt: null,
-                status: pushSent ? 'sent' : smsSent ? 'sent' : emailSent ? 'sent' : 'failed',
-              });
-          }
+              title: `Message from ${agentName}`,
+              body: followUpMessage,
+              includeBookingLink: !!schedulingUrl,
+              sentAt: FieldValue.serverTimestamp(),
+              readAt: null,
+              status: 'sent',
+            });
 
           const conversationEntry = {
             role: 'agent-ai' as const,
-            body: dripMessage,
-            timestamp: new Date().toISOString(),
-            channels: usedChannels,
+            body: followUpMessage,
+            timestamp: nowIso,
+            channels: [sendResult.channel],
           };
 
           const existingDripMessages = (alertData.dripMessages as string[]) || [];
+          const existingChannelsUsed = (alertData.channelsUsed as ConservationChannel[]) || [];
+          const nextNextStage = NEXT_TOUCH_STAGE[nextStage];
+          const nextNextTouchAt = nextNextStage
+            ? new Date(now + TOUCH_STAGE_DELAY[nextNextStage]).toISOString()
+            : null;
+
           const updateData: Record<string, unknown> = {
-            status: NEXT_STATUS[status],
+            status: TOUCH_STAGE_TO_STATUS[nextStage],
+            touchStage: nextStage,
+            nextTouchAt: nextNextTouchAt,
+            channelsUsed: [...existingChannelsUsed, sendResult.channel],
             dripCount: (alertData.dripCount || 0) + 1,
-            lastDripAt: new Date().toISOString(),
-            dripMessages: [...existingDripMessages, dripMessage],
+            lastDripAt: nowIso,
+            dripMessages: [...existingDripMessages, followUpMessage],
             conversation: FieldValue.arrayUnion(conversationEntry),
           };
 
-          if (linqChatId && !alertData.chatId) {
-            updateData.chatId = linqChatId;
+          if (sendResult.chatId && !alertData.chatId) {
+            updateData.chatId = sendResult.chatId;
           }
 
           await alertDoc.ref.update(updateData);
-
-          dripsSent++;
+          followUpsSent++;
         }
       }
     }
@@ -432,7 +556,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       outreachFired,
-      dripsSent,
+      followUpsSent,
     });
   } catch (error) {
     console.error('Conservation outreach cron error:', error);

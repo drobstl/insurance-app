@@ -11,9 +11,15 @@ import type {
   ConservationOutreachContext,
   ConservationChannel,
   ConservationReason,
+  TouchStage,
 } from './conservation-types';
+import { TOUCH_STAGE_DELAY } from './conservation-types';
 
 const GRACE_PERIOD_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+function computeNextTouchAt(fromMs: number, nextStage: TouchStage): string {
+  return new Date(fromMs + TOUCH_STAGE_DELAY[nextStage]).toISOString();
+}
 
 /**
  * Compute policy age in days. Prefers effectiveDate (YYYY-MM-DD string) over
@@ -292,6 +298,12 @@ export async function createManualConservationAlert(
     noContactMethod,
     saveSuggested: false,
     aiInsight,
+    touchStage: null as TouchStage | null,
+    nextTouchAt: isHighPriority
+      ? scheduledOutreachAt
+      : null,
+    channelsUsed: [] as ConservationChannel[],
+    lastClientReplyAt: null as string | null,
     notes: null,
     createdAt: FieldValue.serverTimestamp(),
     resolvedAt: null,
@@ -435,6 +447,12 @@ export async function createConservationAlert(
     noContactMethod,
     saveSuggested: false,
     aiInsight,
+    touchStage: null as TouchStage | null,
+    nextTouchAt: isHighPriority
+      ? scheduledOutreachAt
+      : null,
+    channelsUsed: [] as ConservationChannel[],
+    lastClientReplyAt: null as string | null,
     notes: null,
     createdAt: FieldValue.serverTimestamp(),
     resolvedAt: null,

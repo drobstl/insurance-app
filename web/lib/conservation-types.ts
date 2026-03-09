@@ -16,6 +16,63 @@ export type ConservationSource = 'email_forward' | 'paste' | 'manual_flag';
 
 export type ConservationChannel = 'sms' | 'push' | 'email';
 
+export type TouchStage =
+  | 'initial'
+  | 'followup_24h'
+  | 'followup_day3'
+  | 'followup_day7';
+
+export const TOUCH_STAGE_TO_STATUS: Record<TouchStage, ConservationStatus> = {
+  initial: 'outreach_sent',
+  followup_24h: 'drip_1',
+  followup_day3: 'drip_2',
+  followup_day7: 'drip_3',
+};
+
+export const STATUS_TO_TOUCH_STAGE: Partial<Record<ConservationStatus, TouchStage>> = {
+  outreach_sent: 'initial',
+  drip_1: 'followup_24h',
+  drip_2: 'followup_day3',
+  drip_3: 'followup_day7',
+};
+
+export const TOUCH_STAGE_DRIP_NUMBER: Record<TouchStage, number> = {
+  initial: 0,
+  followup_24h: 1,
+  followup_day3: 2,
+  followup_day7: 3,
+};
+
+export const NEXT_TOUCH_STAGE: Partial<Record<TouchStage, TouchStage>> = {
+  initial: 'followup_24h',
+  followup_24h: 'followup_day3',
+  followup_day3: 'followup_day7',
+};
+
+const MS_PER_HOUR = 60 * 60 * 1000;
+const MS_PER_DAY = 24 * MS_PER_HOUR;
+
+export const TOUCH_STAGE_DELAY: Record<TouchStage, number> = {
+  initial: 0,
+  followup_24h: 24 * MS_PER_HOUR,
+  followup_day3: 3 * MS_PER_DAY,
+  followup_day7: 7 * MS_PER_DAY,
+};
+
+export const STAGE_PRIMARY_CHANNEL: Record<TouchStage, ConservationChannel> = {
+  initial: 'push',
+  followup_24h: 'sms',
+  followup_day3: 'email',
+  followup_day7: 'push',
+};
+
+export const STAGE_FALLBACK_ORDER: Record<TouchStage, ConservationChannel[]> = {
+  initial: ['push', 'sms', 'email'],
+  followup_24h: ['sms', 'email', 'push'],
+  followup_day3: ['email', 'push', 'sms'],
+  followup_day7: ['push', 'sms'],
+};
+
 export interface ConservationMessage {
   role: 'client' | 'agent-ai' | 'agent-manual';
   body: string;
@@ -62,6 +119,11 @@ export interface ConservationAlert {
   noContactMethod: boolean;
   saveSuggested: boolean;
   aiInsight: string | null;
+
+  touchStage: TouchStage | null;
+  nextTouchAt: string | null;
+  channelsUsed: ConservationChannel[];
+  lastClientReplyAt: string | null;
 
   notes: string | null;
   createdAt: Timestamp;
