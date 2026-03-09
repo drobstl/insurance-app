@@ -706,6 +706,8 @@ async function handlePolicyReviewReply(
 
   const statusUpdate: Record<string, unknown> = {
     conversation: FieldValue.arrayUnion(newIncoming),
+    lastClientReplyAt: new Date().toISOString(),
+    nextTouchAt: null,
     updatedAt: FieldValue.serverTimestamp(),
   };
 

@@ -17,6 +17,7 @@ import {
   NEXT_TOUCH_STAGE,
   TOUCH_STAGE_DELAY,
   STAGE_FALLBACK_ORDER,
+  STAGE_COMPLEMENT_EMAIL,
 } from '../../../../lib/conservation-types';
 
 function getResend() {
@@ -500,6 +501,26 @@ export async function GET(req: NextRequest) {
 
           const sendResult = await sendWithFallback(nextStage, avail, sendOpts);
           if (!sendResult) continue;
+
+          // Email complement on final stage (send in addition to primary channel)
+          if (STAGE_COMPLEMENT_EMAIL[nextStage] && avail.clientEmail) {
+            try {
+              const emailBody = await generateConservationEmail({
+                ...outreachCtx,
+                agentEmail,
+                agentPhone,
+                coverageAmount: (alertData.coverageAmount as number) || null,
+              });
+              await sendConservationEmailMessage(
+                avail.clientEmail,
+                agentName,
+                `${agentFirstName} here — about your ${(alertData.policyType as string) || 'insurance'} policy`,
+                emailBody,
+              );
+            } catch (emailErr) {
+              console.error('Conservation complement email failed:', emailErr);
+            }
+          }
 
           // Write notification record
           await db

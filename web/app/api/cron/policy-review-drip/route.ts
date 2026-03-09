@@ -5,42 +5,95 @@ import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { generateDripMessage, type PolicyReviewDripContext } from '../../../../lib/policy-review-ai';
 import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
+import { Resend } from 'resend';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import {
+  type ConservationChannel,
+  type ReviewTouchStage,
+  REVIEW_STAGE_TO_STATUS,
+  REVIEW_STATUS_TO_STAGE,
+  REVIEW_STAGE_DRIP_NUMBER,
+  NEXT_REVIEW_STAGE,
+  REVIEW_STAGE_DELAY,
+  REVIEW_STAGE_FALLBACK_ORDER,
+  REVIEW_STAGE_COMPLEMENT_EMAIL,
+} from '../../../../lib/conservation-types';
 
 /**
  * Cron: runs every 4 hours.
- * Sends follow-up drip messages for policy review campaigns.
+ * Staged follow-up for policy review campaigns.
  *
- * outreach-sent → 2 days → drip-1 (follow-up #1, different angle)
- * drip-1         → 3 days → drip-2 (final gracious follow-up)
- * drip-2         → auto   → drip-complete
+ * initial (outreach-sent)  → 3 days  → followup_3d  (drip-1)
+ * followup_3d (drip-1)     → 7 days  → followup_7d  (drip-2)
+ * followup_7d (drip-2)     → 14 days → followup_14d (drip-complete) + email complement
  *
- * Only sends drips if the client hasn't replied (no 'client' role in conversation).
+ * Stops when the client replies (lastClientReplyAt is set).
  */
 
-const DRIP_STATUSES = ['outreach-sent', 'drip-1'] as const;
+function getResend() {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) throw new Error('RESEND_API_KEY is not configured');
+  return new Resend(key);
+}
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
+async function sendPush(
+  pushToken: string,
+  title: string,
+  body: string,
+  data: Record<string, unknown>,
+): Promise<boolean> {
+  try {
+    const res = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        to: pushToken,
+        title,
+        body,
+        sound: 'default',
+        badge: 1,
+        priority: 'high',
+        data,
+      }),
+    });
+    const result = await res.json();
+    return result?.data?.status === 'ok';
+  } catch {
+    return false;
+  }
+}
 
-const DRIP_DELAYS: Record<string, number> = {
-  'outreach-sent': 2 * MS_PER_DAY,
-  'drip-1': 3 * MS_PER_DAY,
-};
+function resolveReviewStage(data: FirebaseFirestore.DocumentData): { stage: ReviewTouchStage; nextTouchAt: string | null } | null {
+  const explicit = data.touchStage as ReviewTouchStage | null | undefined;
+  if (explicit) {
+    return { stage: explicit, nextTouchAt: (data.nextTouchAt as string) || null };
+  }
 
-const NEXT_STATUS: Record<string, string> = {
-  'outreach-sent': 'drip-1',
-  'drip-1': 'drip-2',
-};
+  const status = data.status as string;
+  const mapped = REVIEW_STATUS_TO_STAGE[status as keyof typeof REVIEW_STATUS_TO_STAGE];
+  if (!mapped) return null;
 
-const DRIP_NUMBER: Record<string, number> = {
-  'outreach-sent': 1,
-  'drip-1': 2,
-};
+  const lastDripAt = data.lastDripAt as string | Timestamp | null;
+  const baseTime = lastDripAt instanceof Timestamp
+    ? new Date(lastDripAt.toMillis()).toISOString()
+    : (lastDripAt as string | null);
+
+  const nextStage = NEXT_REVIEW_STAGE[mapped];
+  let nextTouchAt: string | null = null;
+  if (nextStage && baseTime) {
+    nextTouchAt = new Date(new Date(baseTime).getTime() + REVIEW_STAGE_DELAY[nextStage]).toISOString();
+  }
+
+  return { stage: mapped, nextTouchAt };
+}
+
+const ACTIVE_STATUSES = ['outreach-sent', 'drip-1', 'drip-2'] as const;
 
 export async function GET() {
   try {
     const db = getAdminFirestore();
     const now = Date.now();
+    const nowIso = new Date().toISOString();
     let sent = 0;
 
     const agentsSnap = await db.collection('agents').get();
@@ -50,38 +103,48 @@ export async function GET() {
       const agentName = (agentData.name as string) || 'Your agent';
       const agentFirstName = agentName.split(' ')[0];
       const schedulingUrl = (agentData.schedulingUrl as string) || null;
+      const agentEmail = (agentData.email as string) || null;
+      const agentPhone = (agentData.phoneNumber as string) || null;
 
-      for (const status of DRIP_STATUSES) {
+      for (const statusVal of ACTIVE_STATUSES) {
         const reviewsSnap = await db
           .collection('agents').doc(agentDoc.id)
           .collection('policyReviews')
-          .where('status', '==', status)
+          .where('status', '==', statusVal)
           .get();
 
         for (const reviewDoc of reviewsSnap.docs) {
           const data = reviewDoc.data();
 
-          // Skip if client has replied (conversation-active should be handled by webhook, not drip)
-          const conversation = (data.conversation as Array<{ role: string }>) || [];
-          const clientReplied = conversation.some((m) => m.role === 'client');
-          if (clientReplied) continue;
-
+          if (data.lastClientReplyAt) continue;
           if (data.aiEnabled === false) continue;
 
-          let lastDripMs: number;
-          if (data.lastDripAt instanceof Timestamp) {
-            lastDripMs = data.lastDripAt.toMillis();
-          } else if (data.createdAt instanceof Timestamp) {
-            lastDripMs = data.createdAt.toMillis();
+          const stageInfo = resolveReviewStage(data);
+          if (!stageInfo) continue;
+
+          const nextStage = NEXT_REVIEW_STAGE[stageInfo.stage];
+          if (!nextStage) continue;
+
+          // Check timing
+          let dueAt: number;
+          if (stageInfo.nextTouchAt) {
+            dueAt = new Date(stageInfo.nextTouchAt).getTime();
           } else {
-            continue;
+            let baseMs: number;
+            if (data.lastDripAt instanceof Timestamp) {
+              baseMs = data.lastDripAt.toMillis();
+            } else if (data.createdAt instanceof Timestamp) {
+              baseMs = data.createdAt.toMillis();
+            } else {
+              continue;
+            }
+            dueAt = baseMs + REVIEW_STAGE_DELAY[nextStage];
           }
 
-          const delay = DRIP_DELAYS[status];
-          if (now - lastDripMs < delay) continue;
+          if (now < dueAt) continue;
 
           const clientPhone = data.clientPhone ? normalizePhone(data.clientPhone as string) : null;
-          if (!clientPhone || !isValidE164(clientPhone)) continue;
+          const hasPhone = clientPhone ? isValidE164(clientPhone) : false;
 
           const dripCtx: PolicyReviewDripContext = {
             agentName,
@@ -91,48 +154,125 @@ export async function GET() {
             policyType: (data.policyType as string) || 'Policy',
             carrier: (data.carrier as string) || '',
             schedulingUrl,
-            dripNumber: DRIP_NUMBER[status],
+            dripNumber: REVIEW_STAGE_DRIP_NUMBER[nextStage],
           };
 
+          let message: string;
           try {
-            const message = await generateDripMessage(dripCtx);
+            message = await generateDripMessage(dripCtx);
             if (!message) continue;
-
-            const chatId = (data.chatId as string) || null;
-            const idempotencyKey = `policy-review-drip-${reviewDoc.id}-${NEXT_STATUS[status]}`;
-
-            const result = await sendOrCreateChat({
-              to: clientPhone,
-              chatId,
-              text: message,
-              idempotencyKey,
-            });
-
-            const dripMessage = {
-              role: 'agent-ai',
-              body: message,
-              timestamp: new Date().toISOString(),
-            };
-
-            const nextStatus = NEXT_STATUS[status];
-
-            const update: Record<string, unknown> = {
-              conversation: FieldValue.arrayUnion(dripMessage),
-              status: nextStatus === 'drip-2' ? 'drip-complete' : nextStatus,
-              dripCount: (data.dripCount || 0) + 1,
-              lastDripAt: FieldValue.serverTimestamp(),
-              updatedAt: FieldValue.serverTimestamp(),
-            };
-
-            if (!chatId) {
-              update.chatId = result.chatId;
-            }
-
-            await reviewDoc.ref.update(update);
-            sent++;
           } catch (err) {
-            console.error(`Policy review drip failed for ${data.clientName}:`, err);
+            console.error(`Failed to generate drip for ${data.clientName}:`, err);
+            continue;
           }
+
+          // Try channels in fallback order
+          let usedChannel: ConservationChannel | null = null;
+          let chatId: string | null = (data.chatId as string) || null;
+          const clientPushToken = (data.clientPushToken as string) || null;
+
+          // If we don't have the push token on the review doc, fetch from client
+          let pushToken = clientPushToken;
+          if (!pushToken && data.clientId) {
+            try {
+              const clientDoc = await db
+                .collection('agents').doc(agentDoc.id)
+                .collection('clients').doc(data.clientId as string)
+                .get();
+              if (clientDoc.exists) {
+                pushToken = (clientDoc.data()!.pushToken as string) || null;
+              }
+            } catch { /* ignore */ }
+          }
+
+          const pushTitle = dripCtx.dripNumber <= 1 ? 'Policy Check-In' : 'Quick Reminder';
+
+          for (const ch of REVIEW_STAGE_FALLBACK_ORDER[nextStage]) {
+            if (ch === 'push' && pushToken) {
+              const ok = await sendPush(pushToken, pushTitle, message, {
+                type: 'policy-review',
+                agentId: agentDoc.id,
+                clientId: data.clientId,
+                ...(schedulingUrl ? { schedulingUrl, includeBookingLink: true } : {}),
+              });
+              if (ok) { usedChannel = 'push'; break; }
+            } else if (ch === 'sms' && hasPhone) {
+              try {
+                const idempotencyKey = `policy-review-drip-${reviewDoc.id}-${nextStage}`;
+                const result = await sendOrCreateChat({
+                  to: clientPhone!,
+                  chatId,
+                  text: message,
+                  idempotencyKey,
+                });
+                chatId = result.chatId;
+                usedChannel = 'sms';
+                break;
+              } catch { /* fall through */ }
+            }
+          }
+
+          if (!usedChannel) continue;
+
+          // Email complement on final stage
+          if (REVIEW_STAGE_COMPLEMENT_EMAIL[nextStage]) {
+            const clientEmail = data.clientEmail as string | undefined;
+            let emailAddr = clientEmail;
+            if (!emailAddr && data.clientId) {
+              try {
+                const clientDoc = await db
+                  .collection('agents').doc(agentDoc.id)
+                  .collection('clients').doc(data.clientId as string)
+                  .get();
+                if (clientDoc.exists) emailAddr = (clientDoc.data()!.email as string) || undefined;
+              } catch { /* ignore */ }
+            }
+            if (emailAddr) {
+              try {
+                const policyType = (data.policyType as string) || 'policy';
+                const resend = getResend();
+                await resend.emails.send({
+                  from: `${agentName} via AgentForLife <support@agentforlife.app>`,
+                  to: emailAddr,
+                  subject: `${agentFirstName} here — your ${policyType} anniversary`,
+                  text: message,
+                });
+              } catch (emailErr) {
+                console.error('Policy review complement email failed:', emailErr);
+              }
+            }
+          }
+
+          const conversationEntry = {
+            role: 'agent-ai',
+            body: message,
+            timestamp: nowIso,
+            channels: [usedChannel],
+          };
+
+          const existingChannelsUsed = (data.channelsUsed as ConservationChannel[]) || [];
+          const nextNextStage = NEXT_REVIEW_STAGE[nextStage];
+          const nextNextTouchAt = nextNextStage
+            ? new Date(now + REVIEW_STAGE_DELAY[nextNextStage]).toISOString()
+            : null;
+
+          const update: Record<string, unknown> = {
+            conversation: FieldValue.arrayUnion(conversationEntry),
+            status: REVIEW_STAGE_TO_STATUS[nextStage],
+            touchStage: nextStage,
+            nextTouchAt: nextNextTouchAt,
+            channelsUsed: [...existingChannelsUsed, usedChannel],
+            dripCount: (data.dripCount || 0) + 1,
+            lastDripAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          };
+
+          if (chatId && !data.chatId) {
+            update.chatId = chatId;
+          }
+
+          await reviewDoc.ref.update(update);
+          sent++;
         }
       }
     }

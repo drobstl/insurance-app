@@ -7,13 +7,21 @@ import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { generateInitialOutreach, type PolicyReviewOutreachContext } from '../../../../lib/policy-review-ai';
 import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
+import {
+  type ConservationChannel,
+  type ReviewTouchStage,
+  NEXT_REVIEW_STAGE,
+  REVIEW_STAGE_DELAY,
+  REVIEW_STAGE_FALLBACK_ORDER,
+} from '../../../../lib/conservation-types';
 
 /**
  * Daily cron: scans all agents' policies for 1-year anniversaries.
  *
  * Job A — Day -3: Send agent an email digest of upcoming anniversaries.
- * Job B — Day +1: Create policy review campaigns and send AI-generated
- *         initial outreach via iMessage + push notification.
+ * Job B — Day +1: Create policy review campaigns and send initial outreach
+ *         via a single channel (push preferred, SMS fallback).
+ *         Follow-up stages are handled by the policy-review-drip cron.
  *
  * Skips ROP and Graded policies (rewrites restart the clock).
  * Skips clients with policyReviewOptOut: true.
@@ -211,7 +219,7 @@ export async function GET(req: NextRequest) {
         await batch.commit();
       }
 
-      // ─── Job B: Day +1 Client Outreach ───
+      // ─── Job B: Day +1 Client Outreach (single channel, staged) ───
       if (outreachHits.length > 0 && policyReviewAIEnabled) {
         const isCustom = messageStyle === 'custom' && customTemplate.trim();
 
@@ -222,13 +230,11 @@ export async function GET(req: NextRequest) {
 
             if (isCustom) {
               const policyLabel = `your ${hit.policyType} policy`;
-              // No URL in body — in-app card shows actionable Book button instead
-              const schedulingNote = '';
               outreachMessage = customTemplate
                 .replace(/\{\{firstName\}\}/g, hit.clientFirstName)
                 .replace(/\{\{policyLabel\}\}/g, policyLabel)
                 .replace(/\{\{agentName\}\}/g, agentName)
-                .replace(/\{\{schedulingNote\}\}/g, schedulingNote.trim());
+                .replace(/\{\{schedulingNote\}\}/g, '');
               pushTitleForHit = customTitle.trim() || 'Policy Review';
             } else {
               const outreachCtx: PolicyReviewOutreachContext = {
@@ -250,44 +256,60 @@ export async function GET(req: NextRequest) {
               pushTitleForHit = messageStyle === 'lower_price' ? 'Rate Review' : 'Policy Check-In';
             }
 
-            let chatId: string | null = null;
+            // Try channels in fallback order (push preferred, then SMS)
             const phone = hit.clientPhone ? normalizePhone(hit.clientPhone) : null;
+            const hasPhone = phone ? isValidE164(phone) : false;
+            let usedChannel: ConservationChannel | null = null;
+            let chatId: string | null = null;
 
-            if (phone && isValidE164(phone)) {
-              const idempotencyKey = `policy-review-${hit.policyId}-initial`;
-              const result = await sendOrCreateChat({ to: phone, text: outreachMessage, idempotencyKey });
-              chatId = result.chatId;
-            }
-
-            // Send push notification
-            if (hit.clientPushToken) {
-              try {
-                await fetch('https://exp.host/--/api/v2/push/send', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-                  body: JSON.stringify({
-                    to: hit.clientPushToken,
-                    title: pushTitleForHit,
-                    body: outreachMessage,
-                    sound: 'default',
-                    badge: 1,
-                    priority: 'high',
-                    data: {
-                      type: 'anniversary',
-                      agentId: agentDoc.id,
-                      clientId: hit.clientId,
-                      ...(schedulingUrl && {
-                        schedulingUrl,
-                        includeBookingLink: true,
-                      }),
-                    },
-                    ...(schedulingUrl && { categoryId: 'BOOK_APPOINTMENT' }),
-                  }),
-                });
-              } catch (pushErr) {
-                console.error(`Push failed for client ${hit.clientId}:`, pushErr);
+            for (const ch of REVIEW_STAGE_FALLBACK_ORDER['initial']) {
+              if (ch === 'push' && hit.clientPushToken) {
+                try {
+                  const res = await fetch('https://exp.host/--/api/v2/push/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                    body: JSON.stringify({
+                      to: hit.clientPushToken,
+                      title: pushTitleForHit,
+                      body: outreachMessage,
+                      sound: 'default',
+                      badge: 1,
+                      priority: 'high',
+                      data: {
+                        type: 'anniversary',
+                        agentId: agentDoc.id,
+                        clientId: hit.clientId,
+                        ...(schedulingUrl ? { schedulingUrl, includeBookingLink: true } : {}),
+                      },
+                      ...(schedulingUrl ? { categoryId: 'BOOK_APPOINTMENT' } : {}),
+                    }),
+                  });
+                  const result = await res.json();
+                  if (result?.data?.status === 'ok') {
+                    usedChannel = 'push';
+                    break;
+                  }
+                } catch (pushErr) {
+                  console.error(`Push failed for client ${hit.clientId}:`, pushErr);
+                }
+              } else if (ch === 'sms' && hasPhone) {
+                try {
+                  const idempotencyKey = `policy-review-${hit.policyId}-initial`;
+                  const result = await sendOrCreateChat({ to: phone!, text: outreachMessage, idempotencyKey });
+                  chatId = result.chatId;
+                  usedChannel = 'sms';
+                  break;
+                } catch (smsErr) {
+                  console.error(`SMS failed for client ${hit.clientId}:`, smsErr);
+                }
               }
             }
+
+            if (!usedChannel) continue;
+
+            // Compute next stage timing
+            const nextStage = NEXT_REVIEW_STAGE['initial'] as ReviewTouchStage;
+            const nextTouchAt = new Date(now.getTime() + REVIEW_STAGE_DELAY[nextStage]).toISOString();
 
             // Write notification record
             await db
@@ -304,7 +326,7 @@ export async function GET(req: NextRequest) {
                 status: 'sent',
               });
 
-            // Create policy review campaign doc
+            // Create policy review campaign doc with stage tracking
             await db
               .collection('agents').doc(agentDoc.id)
               .collection('policyReviews')
@@ -326,11 +348,16 @@ export async function GET(req: NextRequest) {
                   role: isCustom ? 'agent-manual' : 'agent-ai',
                   body: outreachMessage,
                   timestamp: new Date().toISOString(),
+                  channels: [usedChannel],
                 }],
                 chatId,
                 dripCount: 0,
                 lastDripAt: FieldValue.serverTimestamp(),
                 aiEnabled: !isCustom,
+                touchStage: 'initial' as ReviewTouchStage,
+                nextTouchAt,
+                channelsUsed: [usedChannel],
+                lastClientReplyAt: null,
                 createdAt: FieldValue.serverTimestamp(),
                 updatedAt: FieldValue.serverTimestamp(),
               });

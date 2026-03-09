@@ -62,16 +62,86 @@ export const TOUCH_STAGE_DELAY: Record<TouchStage, number> = {
 export const STAGE_PRIMARY_CHANNEL: Record<TouchStage, ConservationChannel> = {
   initial: 'push',
   followup_24h: 'sms',
-  followup_day3: 'email',
-  followup_day7: 'push',
+  followup_day3: 'push',
+  followup_day7: 'sms',
 };
 
 export const STAGE_FALLBACK_ORDER: Record<TouchStage, ConservationChannel[]> = {
-  initial: ['push', 'sms', 'email'],
-  followup_24h: ['sms', 'email', 'push'],
-  followup_day3: ['email', 'push', 'sms'],
-  followup_day7: ['push', 'sms'],
+  initial: ['push', 'sms'],
+  followup_24h: ['sms', 'push'],
+  followup_day3: ['push', 'sms'],
+  followup_day7: ['sms', 'push'],
 };
+
+export const STAGE_COMPLEMENT_EMAIL: Partial<Record<TouchStage, boolean>> = {
+  followup_day7: true,
+};
+
+// ─── Policy Review (Rewrite) Staged Outreach ────────────────────────────────
+
+export type ReviewTouchStage =
+  | 'initial'
+  | 'followup_3d'
+  | 'followup_7d'
+  | 'followup_14d';
+
+export type ReviewStatus =
+  | 'outreach-sent'
+  | 'drip-1'
+  | 'drip-2'
+  | 'drip-complete'
+  | 'conversation-active'
+  | 'booking-sent'
+  | 'booked'
+  | 'closed'
+  | 'opted-out';
+
+export const REVIEW_STAGE_TO_STATUS: Record<ReviewTouchStage, ReviewStatus> = {
+  initial: 'outreach-sent',
+  followup_3d: 'drip-1',
+  followup_7d: 'drip-2',
+  followup_14d: 'drip-complete',
+};
+
+export const REVIEW_STATUS_TO_STAGE: Partial<Record<ReviewStatus, ReviewTouchStage>> = {
+  'outreach-sent': 'initial',
+  'drip-1': 'followup_3d',
+  'drip-2': 'followup_7d',
+  'drip-complete': 'followup_14d',
+};
+
+export const REVIEW_STAGE_DRIP_NUMBER: Record<ReviewTouchStage, number> = {
+  initial: 0,
+  followup_3d: 1,
+  followup_7d: 2,
+  followup_14d: 3,
+};
+
+export const NEXT_REVIEW_STAGE: Partial<Record<ReviewTouchStage, ReviewTouchStage>> = {
+  initial: 'followup_3d',
+  followup_3d: 'followup_7d',
+  followup_7d: 'followup_14d',
+};
+
+export const REVIEW_STAGE_DELAY: Record<ReviewTouchStage, number> = {
+  initial: 0,
+  followup_3d: 3 * MS_PER_DAY,
+  followup_7d: 7 * MS_PER_DAY,
+  followup_14d: 14 * MS_PER_DAY,
+};
+
+export const REVIEW_STAGE_FALLBACK_ORDER: Record<ReviewTouchStage, ConservationChannel[]> = {
+  initial: ['push', 'sms'],
+  followup_3d: ['sms', 'push'],
+  followup_7d: ['push', 'sms'],
+  followup_14d: ['sms', 'push'],
+};
+
+export const REVIEW_STAGE_COMPLEMENT_EMAIL: Partial<Record<ReviewTouchStage, boolean>> = {
+  followup_14d: true,
+};
+
+// ─── Shared Types ────────────────────────────────────────────────────────────
 
 export interface ConservationMessage {
   role: 'client' | 'agent-ai' | 'agent-manual';
