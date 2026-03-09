@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -77,6 +77,9 @@ export default function MessageCard({
   const [isReady, setIsReady] = useState(false);
   const [fullScreenVisible, setFullScreenVisible] = useState(false);
 
+  // IDs the user has dismissed — survives poll overwrites until the server catches up
+  const dismissedIds = useRef(new Set<string>());
+
   // Animation values
   const containerHeight = useSharedValue(0);
   const cardOpacity = useSharedValue(0);
@@ -91,8 +94,16 @@ export default function MessageCard({
       agentId,
       clientId,
       (unread) => {
-        setNotifications(unread);
-        if (unread.length > 0 && !isReady) {
+        const filtered = unread.filter((n) => !dismissedIds.current.has(n.id));
+        // Clean up dismissed IDs that the server has now processed
+        if (dismissedIds.current.size > 0) {
+          const serverIds = new Set(unread.map((n) => n.id));
+          for (const id of dismissedIds.current) {
+            if (!serverIds.has(id)) dismissedIds.current.delete(id);
+          }
+        }
+        setNotifications(filtered);
+        if (filtered.length > 0 && !isReady) {
           setIsReady(true);
         }
       },
@@ -131,6 +142,9 @@ export default function MessageCard({
   const handleDismiss = useCallback(async () => {
     const current = notifications[currentIndex];
     if (!current) return;
+
+    // Track this ID so the poll doesn't re-insert it
+    dismissedIds.current.add(current.id);
 
     // Optimistically remove from local state so the card disappears immediately
     const remaining = notifications.filter((n) => n.id !== current.id);
@@ -185,7 +199,7 @@ export default function MessageCard({
   // ── Animated Styles ──────────────────────────────────────────────────────
 
   const containerStyle = useAnimatedStyle(() => ({
-    maxHeight: containerHeight.value * 300, // expand from 0 to max
+    maxHeight: containerHeight.value * 600,
     marginBottom: containerHeight.value * 16,
     opacity: containerHeight.value > 0.01 ? 1 : 0,
   }));
@@ -213,6 +227,11 @@ export default function MessageCard({
     agentPhotoBase64 !== 'null';
   const showBookingButton =
     current.type !== 'holiday' && current.includeBookingLink && schedulingUrl;
+
+  // Strip URLs from the card body when we show a Book button instead
+  const displayBody = showBookingButton
+    ? current.body.replace(/https?:\/\/\S+/g, '').replace(/\s{2,}/g, ' ').trim()
+    : current.body;
 
   // Determine inline card styling based on type
   const isDefault =
@@ -274,7 +293,7 @@ export default function MessageCard({
       </View>
 
       {/* Message body */}
-      <Text style={styles.messageBody}>{current.body}</Text>
+      <Text style={styles.messageBody}>{displayBody}</Text>
 
       {/* Tap-to-expand hint for expandable cards */}
       {expandable && (
