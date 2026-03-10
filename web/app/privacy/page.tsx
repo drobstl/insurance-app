@@ -139,8 +139,8 @@ export default function PrivacyPolicyPage() {
               <ul className="list-disc list-inside text-[#2D3748] space-y-2">
                 <li><strong>Access:</strong> You can access your personal information through your account settings.</li>
                 <li><strong>Correction:</strong> You can update or correct your information at any time.</li>
-                <li><strong>Deletion:</strong> You can request deletion of your account and associated data by contacting us.</li>
-                <li><strong>Data Portability:</strong> You can request a copy of your data in a portable format.</li>
+                <li><strong>Deletion:</strong> You can request deletion of your account and all associated data at any time by contacting us at support@agentforlife.app. Deletion will be completed within 30 days.</li>
+                <li><strong>Data Portability:</strong> You can request a complete export of your data in a portable format at any time by contacting us at support@agentforlife.app.</li>
               </ul>
             </section>
 

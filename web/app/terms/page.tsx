@@ -101,6 +101,12 @@ export default function TermsOfServicePage() {
               <p className="text-[#2D3748] leading-relaxed mb-4">
                 <strong>Non-Solicitation:</strong> AgentForLife, its owners, employees, and affiliates will not use client data entered by agents to solicit, market to, contact, or attempt to acquire those clients for any insurance-related business. This obligation survives termination of your account.
               </p>
+              <p className="text-[#2D3748] leading-relaxed mb-4">
+                <strong>Deletion:</strong> You may request deletion of your account and all associated data at any time by contacting us at support@agentforlife.app. Upon receiving a deletion request, we will permanently delete your account and all client data associated with it within 30 days, except where retention is required by law.
+              </p>
+              <p className="text-[#2D3748] leading-relaxed mb-4">
+                <strong>Data Export:</strong> You may request a complete export of your data in a portable format at any time by contacting us at support@agentforlife.app.
+              </p>
               <p className="text-[#2D3748] leading-relaxed">
                 <strong>Accuracy:</strong> You are responsible for ensuring that all client and policy information you enter is accurate and up-to-date. AgentForLife is not responsible for errors in data you provide.
               </p>
@@ -147,7 +153,7 @@ export default function TermsOfServicePage() {
             <section className="mb-8">
               <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">12. Governing Law</h2>
               <p className="text-[#2D3748] leading-relaxed">
-                These Terms shall be governed by and construed in accordance with the laws of the United States, without regard to its conflict of law provisions.
+                These Terms shall be governed by and construed in accordance with the laws of the State of Missouri, without regard to its conflict of law provisions.
               </p>
             </section>
 
