@@ -327,6 +327,8 @@ export default function ClientsPage() {
   const [introMessage, setIntroMessage] = useState(DEFAULT_INTRO_TEMPLATE);
   const [sendingIntro, setSendingIntro] = useState(false);
   const [introSentCount, setIntroSentCount] = useState<number | null>(null);
+  const [selectedIntroClients, setSelectedIntroClients] = useState<Set<string>>(new Set());
+  const [showIntroConfirm, setShowIntroConfirm] = useState(false);
 
   // ── Anniversary alerts ──
   const [anniversaryAlerts, setAnniversaryAlerts] = useState<AnniversaryAlert[]>([]);
@@ -1302,6 +1304,8 @@ export default function ClientsPage() {
       if (policyCount > 0) parts.push(`${policyCount} ${policyCount !== 1 ? 'policies' : 'policy'}`);
       setImportSuccess(`Successfully imported ${parts.join(' and ')}!`);
       setJustImportedClients(allCreated);
+      setSelectedIntroClients(new Set(allCreated.filter((r) => r.phone.trim()).map((r) => r.clientId)));
+      setShowIntroConfirm(false);
       setImportData([]);
       if (policyCount > 0) refreshSummaries();
     } catch (err) {
@@ -1319,8 +1323,8 @@ export default function ClientsPage() {
   }, [importSuccess]);
 
   const handleSendBulkIntro = useCallback(async () => {
-    const withPhone = justImportedClients.filter((r) => r.phone.trim());
-    if (!user || withPhone.length === 0) return;
+    const selected = justImportedClients.filter((r) => r.phone.trim() && selectedIntroClients.has(r.clientId));
+    if (!user || selected.length === 0) return;
     setSendingIntro(true);
     const messageToSend = introMessage.trim() || DEFAULT_INTRO_TEMPLATE;
     try {
@@ -1330,7 +1334,7 @@ export default function ClientsPage() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           messageTemplate: messageToSend,
-          recipients: withPhone.map((r) => ({ phone: r.phone, firstName: r.firstName, code: r.clientCode })),
+          recipients: selected.map((r) => ({ phone: r.phone, firstName: r.firstName, code: r.clientCode })),
         }),
       });
       if (!res.ok) {
@@ -1345,7 +1349,7 @@ export default function ClientsPage() {
     } finally {
       setSendingIntro(false);
     }
-  }, [user, justImportedClients, introMessage]);
+  }, [user, justImportedClients, introMessage, selectedIntroClients]);
 
   // ─── Share Code Handler ──────────────────────────────────
 
@@ -1937,6 +1941,8 @@ export default function ClientsPage() {
                           setJustImportedClients([]);
                           setIntroMessage(DEFAULT_INTRO_TEMPLATE);
                           setIntroSentCount(null);
+                          setSelectedIntroClients(new Set());
+                          setShowIntroConfirm(false);
                         }}
                         className="px-6 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors text-sm"
                       >
@@ -1954,11 +1960,52 @@ export default function ClientsPage() {
                             setJustImportedClients([]);
                             setIntroMessage(DEFAULT_INTRO_TEMPLATE);
                             setIntroSentCount(null);
+                            setSelectedIntroClients(new Set());
+                            setShowIntroConfirm(false);
                           }}
                           className="w-full px-6 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors text-sm"
                         >
                           Done
                         </button>
+                      );
+                    }
+                    const selectedCount = withPhone.filter((r) => selectedIntroClients.has(r.clientId)).length;
+                    if (showIntroConfirm) {
+                      return (
+                        <div className="space-y-4">
+                          <div className="bg-amber-50 border border-amber-200 rounded-[5px] p-4 text-center">
+                            <p className="text-sm font-semibold text-amber-800 mb-1">Confirm Send</p>
+                            <p className="text-sm text-amber-700">
+                              This will text <strong>{selectedCount} client{selectedCount !== 1 ? 's' : ''}</strong> the intro message with their app download link and unique code.
+                            </p>
+                          </div>
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => setShowIntroConfirm(false)}
+                              disabled={sendingIntro}
+                              className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-100 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors text-sm"
+                            >
+                              Go back
+                            </button>
+                            <button
+                              onClick={handleSendBulkIntro}
+                              disabled={sendingIntro}
+                              className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] transition-colors flex items-center justify-center gap-2 text-sm"
+                            >
+                              {sendingIntro ? (
+                                <>
+                                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                  </svg>
+                                  Sending...
+                                </>
+                              ) : (
+                                'Yes, send'
+                              )}
+                            </button>
+                          </div>
+                        </div>
                       );
                     }
                     return (
@@ -1974,24 +2021,72 @@ export default function ClientsPage() {
                           placeholder={DEFAULT_INTRO_TEMPLATE}
                         />
                         <p className="text-xs text-[#707070]">If you leave this blank, we&apos;ll send the default message above.</p>
-                        <p className="text-xs text-[#707070]">Will send to {withPhone.length} client{withPhone.length !== 1 ? 's' : ''} (with phone numbers).</p>
-                        <button
-                          onClick={handleSendBulkIntro}
-                          disabled={sendingIntro}
-                          className="w-full py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] transition-colors flex items-center justify-center gap-2 text-sm"
-                        >
-                          {sendingIntro ? (
-                            <>
-                              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                              </svg>
-                              Sending...
-                            </>
-                          ) : (
-                            `Send intro to ${withPhone.length} client${withPhone.length !== 1 ? 's' : ''}`
-                          )}
-                        </button>
+                        <div className="border border-[#d0d0d0] rounded-[5px] overflow-hidden">
+                          <div className="flex items-center justify-between bg-[#f8f8f8] px-3 py-2 border-b border-[#d0d0d0]">
+                            <span className="text-xs font-semibold text-[#707070]">{selectedCount} of {withPhone.length} selected</span>
+                            <button
+                              onClick={() => {
+                                if (selectedCount === withPhone.length) {
+                                  setSelectedIntroClients(new Set());
+                                } else {
+                                  setSelectedIntroClients(new Set(withPhone.map((r) => r.clientId)));
+                                }
+                              }}
+                              className="text-xs font-medium text-[#005851] hover:text-[#003d3d] transition-colors"
+                            >
+                              {selectedCount === withPhone.length ? 'Deselect all' : 'Select all'}
+                            </button>
+                          </div>
+                          <div className="max-h-48 overflow-y-auto divide-y divide-[#f0f0f0]">
+                            {withPhone.map((client) => (
+                              <label key={client.clientId} className="flex items-center gap-3 px-3 py-2 hover:bg-[#f8f8f8] cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedIntroClients.has(client.clientId)}
+                                  onChange={() => {
+                                    setSelectedIntroClients((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(client.clientId)) {
+                                        next.delete(client.clientId);
+                                      } else {
+                                        next.add(client.clientId);
+                                      }
+                                      return next;
+                                    });
+                                  }}
+                                  className="w-4 h-4 rounded border-[#d0d0d0] text-[#44bbaa] focus:ring-[#44bbaa] shrink-0"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-sm text-[#000000] font-medium">{client.firstName || '—'}</span>
+                                  <span className="text-xs text-[#707070] ml-2">{client.phone}</span>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => {
+                              setIsImportModalOpen(false);
+                              setImportSuccess('');
+                              setJustImportedClients([]);
+                              setIntroMessage(DEFAULT_INTRO_TEMPLATE);
+                              setIntroSentCount(null);
+                              setSelectedIntroClients(new Set());
+                              setShowIntroConfirm(false);
+                            }}
+                            className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors text-sm"
+                          >
+                            Skip
+                          </button>
+                          <button
+                            onClick={() => setShowIntroConfirm(true)}
+                            disabled={selectedCount === 0}
+                            className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-[5px] transition-colors text-sm"
+                          >
+                            {`Send intro to ${selectedCount} client${selectedCount !== 1 ? 's' : ''}`}
+                          </button>
+                        </div>
                       </div>
                     );
                   })()}
@@ -2024,6 +2119,7 @@ export default function ClientsPage() {
                       ))}
                     </div>
                     <p className="text-[10px] text-[#999999] mt-1.5">Works with any carrier format — Mutual of Omaha, United of Omaha, and more. Column names are matched automatically.</p>
+                    <p className="text-xs text-[#005851] mt-2.5 font-medium">After import, you&apos;ll be able to have the system text your clients the app download link and their unique code.</p>
                   </div>
 
                   {parsingBob ? (
