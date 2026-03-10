@@ -179,7 +179,7 @@ export default function AgentGuidePage() {
                 <div class="photo-placeholder" id="contactPhoto" onclick="uploadPhoto()">👤</div>
                 <div class="contact-details" id="primaryContactDetails">
                     <div class="contact-name">Daniel Roberts</div>
-                    <div class="contact-info">📞 <a href="tel:314-363-4922">314-363-4922</a><br>✉️ <a href="mailto:RobertsFamilyAgency@gmail.com">RobertsFamilyAgency@gmail.com</a></div>
+                    <div class="contact-info">📞 <a href="tel:314-363-4922">314-363-4922</a><br>✉️ <a href="mailto:daniel@crosswindsfg.com">daniel@crosswindsfg.com</a></div>
                     <div class="contact-cta">Questions about ANYTHING? Text or call Daniel first!</div>
                 </div>
             </div>
@@ -421,7 +421,7 @@ export default function AgentGuidePage() {
 
         function editPrimaryContact() {
             editType = 'primaryContact';
-            const fieldsHTML = '<div class="edit-field"><label>Name</label><input type="text" id="editContactName" value="Daniel Roberts"></div><div class="edit-field"><label>Phone</label><input type="tel" id="editContactPhone" value="314-363-4922"></div><div class="edit-field"><label>Email</label><input type="email" id="editContactEmail" value="RobertsFamilyAgency@gmail.com"></div><div class="edit-field"><label>Call to Action</label><input type="text" id="editContactCTA" value="Questions about ANYTHING? Text or call Daniel first!"></div>';
+            const fieldsHTML = '<div class="edit-field"><label>Name</label><input type="text" id="editContactName" value="Daniel Roberts"></div><div class="edit-field"><label>Phone</label><input type="tel" id="editContactPhone" value="314-363-4922"></div><div class="edit-field"><label>Email</label><input type="email" id="editContactEmail" value="daniel@crosswindsfg.com"></div><div class="edit-field"><label>Call to Action</label><input type="text" id="editContactCTA" value="Questions about ANYTHING? Text or call Daniel first!"></div>';
             document.getElementById('editModalTitle').textContent = '✏️ Edit Primary Contact';
             document.getElementById('editModalFields').innerHTML = fieldsHTML;
             document.getElementById('editModal').classList.add('show');
