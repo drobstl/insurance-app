@@ -12,6 +12,17 @@ interface ContactRow {
   appliedAt: string | null;
 }
 
+function splitName(fullName: string | null): { firstName: string; lastName: string } {
+  const trimmed = (fullName ?? '').trim();
+  if (!trimmed) return { firstName: '', lastName: '' };
+  const lastSpace = trimmed.lastIndexOf(' ');
+  if (lastSpace <= 0) return { firstName: trimmed, lastName: '' };
+  return {
+    firstName: trimmed.slice(0, lastSpace).trim(),
+    lastName: trimmed.slice(lastSpace + 1).trim(),
+  };
+}
+
 export default function AdminAgentEmailsPage() {
   const router = useRouter();
   const { user, loading: authLoading, isAdmin } = useDashboard();
@@ -75,14 +86,16 @@ export default function AdminAgentEmailsPage() {
 
   const handleDownloadCsv = () => {
     if (list.length === 0) return;
-    const header = 'email,name,source,signed_up_at,applied_at\n';
+    const header = 'email,First Name,Last Name,source,signed_up_at,applied_at\n';
     const rows = list.map((r) => {
+      const { firstName, lastName } = splitName(r.name);
       const email = (r.email ?? '').replace(/"/g, '""');
-      const name = (r.name ?? '').replace(/"/g, '""');
+      const first = firstName.replace(/"/g, '""');
+      const last = lastName.replace(/"/g, '""');
       const source = (r.sources ?? []).join('; ').replace(/"/g, '""');
       const signedUp = r.signedUpAt ?? '';
       const applied = r.appliedAt ?? '';
-      return `"${email}","${name}","${source}","${signedUp}","${applied}"`;
+      return `"${email}","${first}","${last}","${source}","${signedUp}","${applied}"`;
     });
     const csv = header + rows.join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -165,21 +178,25 @@ export default function AdminAgentEmailsPage() {
                 <thead className="bg-[#F8F9FA] border-b border-[#d0d0d0] sticky top-0">
                   <tr>
                     <th className="px-4 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider">Email</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider">Name</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider">First Name</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider">Last Name</th>
                     <th className="px-4 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider">Source</th>
                     <th className="px-4 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider">Signed up</th>
                     <th className="px-4 py-3 text-xs font-semibold text-[#707070] uppercase tracking-wider">Applied</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#e5e5e5]">
-                  {list.map((row, i) => (
+                  {list.map((row, i) => {
+                    const { firstName, lastName } = splitName(row.name);
+                    return (
                     <tr key={row.email ?? i} className="hover:bg-[#F8F9FA]">
                       <td className="px-4 py-3 text-sm text-[#0D4D4D]">
                         <a href={`mailto:${row.email}`} className="text-[#3DD6C3] hover:text-[#005851] underline underline-offset-1">
                           {row.email}
                         </a>
                       </td>
-                      <td className="px-4 py-3 text-sm text-[#2D3748]">{row.name ?? '—'}</td>
+                      <td className="px-4 py-3 text-sm text-[#2D3748]">{firstName || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-[#2D3748]">{lastName || '—'}</td>
                       <td className="px-4 py-3 text-sm text-[#707070]">{formatSource(row.sources)}</td>
                       <td className="px-4 py-3 text-sm text-[#707070]">
                         {row.signedUpAt ? new Date(row.signedUpAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
@@ -188,7 +205,8 @@ export default function AdminAgentEmailsPage() {
                         {row.appliedAt ? new Date(row.appliedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
             </div>
