@@ -30,7 +30,7 @@ export default function TermsOfServicePage() {
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="bg-white rounded-2xl shadow-sm p-8 md:p-12">
           <h1 className="text-3xl md:text-4xl font-bold text-[#0D4D4D] mb-2">Terms of Service</h1>
-          <p className="text-[#6B7280] mb-8">Last Updated: January 2026</p>
+          <p className="text-[#6B7280] mb-8">Last Updated: March 2026</p>
 
           <div className="prose prose-lg max-w-none">
             <section className="mb-8">
@@ -96,7 +96,10 @@ export default function TermsOfServicePage() {
             <section className="mb-8">
               <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">6. Data and Content</h2>
               <p className="text-[#2D3748] leading-relaxed mb-4">
-                <strong>Your Data:</strong> You retain ownership of all data you upload to the Service. By using the Service, you grant us a license to store, process, and display your data as necessary to provide the Service.
+                <strong>Your Data:</strong> You retain full ownership of all data you upload to the Service. By using the Service, you grant us a limited license to store, process, and display your data <strong>solely for the purpose of providing and maintaining the Service</strong>. This license does not grant us the right to use your data for any other purpose, including but not limited to marketing, lead generation, client solicitation, or any insurance-related business activity.
+              </p>
+              <p className="text-[#2D3748] leading-relaxed mb-4">
+                <strong>Non-Solicitation:</strong> AgentForLife, its owners, employees, and affiliates will not use client data entered by agents to solicit, market to, contact, or attempt to acquire those clients for any insurance-related business. This obligation survives termination of your account.
               </p>
               <p className="text-[#2D3748] leading-relaxed">
                 <strong>Accuracy:</strong> You are responsible for ensuring that all client and policy information you enter is accurate and up-to-date. AgentForLife is not responsible for errors in data you provide.

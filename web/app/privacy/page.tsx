@@ -30,7 +30,7 @@ export default function PrivacyPolicyPage() {
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="bg-white rounded-2xl shadow-sm p-8 md:p-12">
           <h1 className="text-3xl md:text-4xl font-bold text-[#0D4D4D] mb-2">Privacy Policy</h1>
-          <p className="text-[#6B7280] mb-8">Last Updated: January 2026</p>
+          <p className="text-[#6B7280] mb-8">Last Updated: March 2026</p>
 
           <div className="prose prose-lg max-w-none">
             <section className="mb-8">
@@ -59,8 +59,10 @@ export default function PrivacyPolicyPage() {
               <h3 className="text-lg font-semibold text-[#0D4D4D] mb-2">For Clients:</h3>
               <ul className="list-disc list-inside text-[#2D3748] space-y-2">
                 <li>Name and contact information (email address, phone number)</li>
+                <li>Date of birth</li>
                 <li>Insurance policy information (policy type, coverage amounts, premium amounts, renewal dates, beneficiary information)</li>
                 <li>Client access codes</li>
+                <li>Device push notification tokens (for mobile app notifications)</li>
               </ul>
             </section>
 
@@ -81,31 +83,56 @@ export default function PrivacyPolicyPage() {
             </section>
 
             <section className="mb-8">
-              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">4. Data Storage and Security</h2>
+              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">4. Data Ownership and Non-Solicitation</h2>
+              <p className="text-[#2D3748] leading-relaxed mb-4">
+                For the purposes of client data entered by insurance agents, the agent is the <strong>data controller</strong> and AgentForLife acts as a <strong>data processor</strong>. This means:
+              </p>
+              <ul className="list-disc list-inside text-[#2D3748] space-y-2">
+                <li>You own and control all client data you enter into the Service.</li>
+                <li>We process your client data solely for the purpose of providing and maintaining the Service.</li>
+                <li><strong>AgentForLife, its owners, employees, and affiliates will never use client data entered by agents to solicit, market to, contact, or attempt to acquire those clients for any insurance-related business.</strong></li>
+                <li>We will never sell, license, or provide agent or client data to any third party for the purpose of marketing, lead generation, or client acquisition.</li>
+                <li>Internal access to agent and client data is strictly limited to what is necessary for technical maintenance, support, and operation of the Service.</li>
+              </ul>
+            </section>
+
+            <section className="mb-8">
+              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">5. Data Storage and Security</h2>
               <p className="text-[#2D3748] leading-relaxed mb-4">
                 We use industry-standard security measures to protect your information:
               </p>
               <ul className="list-disc list-inside text-[#2D3748] space-y-2">
-                <li><strong>Firebase (Google Cloud):</strong> Your data is stored securely using Google Firebase, which provides enterprise-grade security including encryption at rest and in transit.</li>
+                <li><strong>Firebase (Google Cloud):</strong> Your data is stored securely using Google Firebase, which provides enterprise-grade security including encryption at rest (AES-256) and in transit (TLS).</li>
                 <li><strong>Stripe:</strong> All payment information is processed securely through Stripe. We do not store your credit card details on our servers.</li>
                 <li><strong>Authentication:</strong> We use Firebase Authentication to secure user accounts with industry-standard practices.</li>
+                <li><strong>Data Isolation:</strong> Each agent's data is stored separately and is not accessible to other agents through the Service.</li>
               </ul>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">5. Information Sharing</h2>
+              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">6. Information Sharing and Service Providers</h2>
               <p className="text-[#2D3748] leading-relaxed mb-4">
                 We do not sell, trade, or rent your personal information to third parties. We may share your information only in the following circumstances:
               </p>
               <ul className="list-disc list-inside text-[#2D3748] space-y-2">
-                <li><strong>With Service Providers:</strong> We share information with Firebase (data storage) and Stripe (payment processing) to operate our Service.</li>
                 <li><strong>Agent-Client Relationship:</strong> Client information is shared with the insurance agent who created the client account, and agent information is shared with their clients through the mobile app.</li>
                 <li><strong>Legal Requirements:</strong> We may disclose information if required by law or to protect our rights, safety, or property.</li>
+              </ul>
+              <p className="text-[#2D3748] leading-relaxed mt-4 mb-4">
+                We use the following third-party service providers to operate the Service. These providers process data on our behalf and are contractually obligated to protect your information:
+              </p>
+              <ul className="list-disc list-inside text-[#2D3748] space-y-2">
+                <li><strong>Firebase / Google Cloud:</strong> Database storage, authentication, and file storage.</li>
+                <li><strong>Stripe:</strong> Payment processing for subscriptions.</li>
+                <li><strong>Vercel:</strong> Application hosting and serverless infrastructure.</li>
+                <li><strong>Resend:</strong> Transactional email delivery.</li>
+                <li><strong>Anthropic and OpenAI:</strong> AI-powered features including document parsing and policy analysis. When you use these features, relevant data may be sent to these providers for processing. These providers do not retain your data for training purposes.</li>
+                <li><strong>Upstash:</strong> Caching infrastructure for non-sensitive application settings.</li>
               </ul>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">6. Your Rights and Choices</h2>
+              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">7. Your Rights and Choices</h2>
               <p className="text-[#2D3748] leading-relaxed mb-4">
                 You have the following rights regarding your personal information:
               </p>
@@ -118,28 +145,42 @@ export default function PrivacyPolicyPage() {
             </section>
 
             <section className="mb-8">
-              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">7. Data Retention</h2>
+              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">8. Data Retention</h2>
               <p className="text-[#2D3748] leading-relaxed">
                 We retain your personal information for as long as your account is active or as needed to provide you with our Service. If you delete your account, we will delete your personal information within 30 days, except where we are required to retain it for legal or regulatory purposes.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">8. Children's Privacy</h2>
+              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">9. Data Breach Notification</h2>
+              <p className="text-[#2D3748] leading-relaxed">
+                In the event of a data breach that compromises the security of your personal information, we will notify affected users within 72 hours of becoming aware of the breach. Notification will be sent via email and will include a description of the breach, the types of data affected, and the steps we are taking to address it.
+              </p>
+            </section>
+
+            <section className="mb-8">
+              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">10. Cookies and Analytics</h2>
+              <p className="text-[#2D3748] leading-relaxed">
+                The Service may use cookies and similar technologies for essential functionality such as authentication and session management. We may also use analytics tools to understand how the Service is used in order to improve it. We do not use cookies or analytics data for advertising purposes.
+              </p>
+            </section>
+
+            <section className="mb-8">
+              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">11. Children's Privacy</h2>
               <p className="text-[#2D3748] leading-relaxed">
                 Our Service is not intended for children under 18 years of age. We do not knowingly collect personal information from children under 18. If we learn that we have collected personal information from a child under 18, we will delete that information promptly.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">9. Changes to This Privacy Policy</h2>
+              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">12. Changes to This Privacy Policy</h2>
               <p className="text-[#2D3748] leading-relaxed">
                 We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the "Last Updated" date. We encourage you to review this Privacy Policy periodically for any changes.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">10. Contact Us</h2>
+              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">13. Contact Us</h2>
               <p className="text-[#2D3748] leading-relaxed">
                 If you have any questions about this Privacy Policy or our data practices, please contact us at:
               </p>
