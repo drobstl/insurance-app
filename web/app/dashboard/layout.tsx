@@ -293,6 +293,27 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                   </div>
                 )}
               </button>
+              <button
+                onClick={() => router.push('/dashboard/admin/agent-emails')}
+                title={!sidebarExpanded ? 'Agent Emails' : undefined}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
+                  pathname.startsWith('/dashboard/admin/agent-emails')
+                    ? 'bg-[#daf3f0] text-[#005851]'
+                    : 'text-white/80 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
+                  Agent Emails
+                </span>
+                {!sidebarExpanded && (
+                  <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-[#0A3D3D] text-white text-xs font-medium rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-[60] shadow-lg">
+                    Agent Emails
+                  </div>
+                )}
+              </button>
             </>
           )}
 
