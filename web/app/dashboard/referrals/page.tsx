@@ -6,6 +6,29 @@ import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
 import SectionTipCard from '../../../components/SectionTipCard';
 
+interface PersonInfo {
+  name?: string;
+  dateOfBirth?: string;
+  healthConditions?: string;
+  medications?: string;
+  smokerStatus?: string;
+}
+
+interface ReferralGatheredInfo {
+  dateOfBirth?: string;
+  healthConditions?: string;
+  medications?: string;
+  smokerStatus?: string;
+  spouseOrPartner?: PersonInfo;
+  homeownerStatus?: string;
+  mortgageBalance?: string;
+  mortgageTimeRemaining?: string;
+  currentCoverage?: string;
+  familySituation?: string;
+  mainConcern?: string;
+  [key: string]: unknown;
+}
+
 interface Referral {
   id: string;
   referralName: string;
@@ -13,7 +36,7 @@ interface Referral {
   clientName: string;
   status: string;
   conversation: { role: string; body: string; timestamp: string }[];
-  gatheredInfo: Record<string, string>;
+  gatheredInfo: ReferralGatheredInfo;
   appointmentBooked: boolean;
   aiEnabled?: boolean;
   createdAt: unknown;
@@ -398,17 +421,66 @@ export default function ReferralsPage() {
                         </>
                       )}
 
-                      {/* Gathered info */}
-                      {referral.gatheredInfo && Object.keys(referral.gatheredInfo).length > 0 && (
-                        <div className="bg-[#f8fffe] border border-[#d0e8e5] rounded-[5px] p-3 mt-2">
-                          <p className="text-xs font-semibold text-[#005851] mb-1">Gathered Info</p>
-                          {Object.entries(referral.gatheredInfo).map(([key, value]) => (
-                            <p key={key} className="text-xs text-[#707070]">
-                              <span className="font-medium text-[#000000]">{key}:</span> {value}
-                            </p>
-                          ))}
-                        </div>
-                      )}
+                      {/* Appointment Prep */}
+                      {referral.gatheredInfo && Object.keys(referral.gatheredInfo).length > 0 && (() => {
+                        const info = referral.gatheredInfo;
+                        const hasPrimary = info.dateOfBirth || info.healthConditions || info.medications || info.smokerStatus;
+                        const hasSpouse = info.spouseOrPartner && Object.keys(info.spouseOrPartner).length > 0;
+                        const hasHousehold = info.homeownerStatus || info.mortgageBalance || info.mortgageTimeRemaining || info.currentCoverage || info.familySituation || info.mainConcern;
+
+                        const InfoRow = ({ label, value }: { label: string; value?: string }) =>
+                          value ? (
+                            <div className="flex gap-2 text-xs">
+                              <span className="font-medium text-[#005851] min-w-[100px] shrink-0">{label}</span>
+                              <span className="text-[#333]">{value}</span>
+                            </div>
+                          ) : null;
+
+                        return (
+                          <div className="bg-[#f8fffe] border border-[#d0e8e5] rounded-[5px] p-3 mt-2 space-y-2.5">
+                            <div className="flex items-center gap-1.5">
+                              <svg className="w-3.5 h-3.5 text-[#005851]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                              </svg>
+                              <p className="text-xs font-semibold text-[#005851]">Appointment Prep</p>
+                            </div>
+
+                            {hasPrimary && (
+                              <div className="space-y-1">
+                                <p className="text-[10px] font-semibold text-[#707070] uppercase tracking-wider">{referral.referralName}</p>
+                                <InfoRow label="Birthday" value={info.dateOfBirth} />
+                                <InfoRow label="Health" value={info.healthConditions} />
+                                <InfoRow label="Medications" value={info.medications} />
+                                <InfoRow label="Smoker" value={info.smokerStatus} />
+                              </div>
+                            )}
+
+                            {hasSpouse && info.spouseOrPartner && (
+                              <div className="space-y-1 pt-1 border-t border-[#d0e8e5]">
+                                <p className="text-[10px] font-semibold text-[#707070] uppercase tracking-wider">
+                                  {info.spouseOrPartner.name || 'Spouse / Partner'}
+                                </p>
+                                <InfoRow label="Birthday" value={info.spouseOrPartner.dateOfBirth} />
+                                <InfoRow label="Health" value={info.spouseOrPartner.healthConditions} />
+                                <InfoRow label="Medications" value={info.spouseOrPartner.medications} />
+                                <InfoRow label="Smoker" value={info.spouseOrPartner.smokerStatus} />
+                              </div>
+                            )}
+
+                            {hasHousehold && (
+                              <div className="space-y-1 pt-1 border-t border-[#d0e8e5]">
+                                <p className="text-[10px] font-semibold text-[#707070] uppercase tracking-wider">Household</p>
+                                <InfoRow label="Homeowner" value={info.homeownerStatus} />
+                                <InfoRow label="Mortgage" value={info.mortgageBalance} />
+                                <InfoRow label="Time left" value={info.mortgageTimeRemaining} />
+                                <InfoRow label="Coverage" value={info.currentCoverage} />
+                                <InfoRow label="Family" value={info.familySituation} />
+                                <InfoRow label="Main concern" value={info.mainConcern} />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* Let AI Continue button — shown when agent has taken over manually */}
                       {referral.aiEnabled === false && (

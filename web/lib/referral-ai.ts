@@ -1,7 +1,7 @@
 import 'server-only';
 
 import Anthropic from '@anthropic-ai/sdk';
-import { PRIMARY_MODEL } from './ai-models';
+import { PRIMARY_MODEL, HELPER_MODEL } from './ai-models';
 import { buildSharedVoiceBlock } from './ai-voice';
 
 let _anthropic: Anthropic | null = null;
@@ -273,4 +273,180 @@ export async function generateReferralResponse(
   }
 
   return response;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Extract Gathered Info from Referral Conversation
+   ═══════════════════════════════════════════════════════ */
+
+export interface PersonInfo {
+  name?: string;
+  dateOfBirth?: string;
+  healthConditions?: string;
+  medications?: string;
+  smokerStatus?: string;
+}
+
+export interface ReferralGatheredInfo {
+  dateOfBirth?: string;
+  healthConditions?: string;
+  medications?: string;
+  smokerStatus?: string;
+
+  spouseOrPartner?: PersonInfo;
+
+  homeownerStatus?: string;
+  mortgageBalance?: string;
+  mortgageTimeRemaining?: string;
+  currentCoverage?: string;
+  familySituation?: string;
+  mainConcern?: string;
+}
+
+export async function extractReferralInfo(
+  conversation: ConversationMessage[],
+): Promise<ReferralGatheredInfo> {
+  if (conversation.length < 2) return {};
+
+  const anthropic = getAnthropic();
+
+  const historyBlock = conversation
+    .map((m) => {
+      const sender = m.role === 'referral' ? 'Referral' : 'Agent';
+      return `${sender}: ${m.body}`;
+    })
+    .join('\n');
+
+  const result = await withRetry(() =>
+    anthropic.messages.create({
+      model: HELPER_MODEL,
+      max_tokens: 500,
+      system: `You extract structured pre-underwriting information from insurance referral conversations.
+
+Scan the conversation and return a JSON object with ONLY fields that were explicitly mentioned. Omit any field the referral did not share. Do not guess or infer.
+
+Fields to look for:
+
+PRIMARY REFERRAL (the person texting):
+- "dateOfBirth": birthday or age
+- "healthConditions": any health issues, surgeries, diagnoses mentioned
+- "medications": current prescriptions or medications
+- "smokerStatus": smoker or non-smoker
+
+SPOUSE / PARTNER (only if mentioned):
+- "spouseOrPartner": { "name", "dateOfBirth", "healthConditions", "medications", "smokerStatus" }
+
+HOUSEHOLD (shared):
+- "homeownerStatus": renter or homeowner
+- "mortgageBalance": amount owed on mortgage
+- "mortgageTimeRemaining": years left on the loan
+- "currentCoverage": any existing insurance coverage
+- "familySituation": kids, dependents, who lives in the home
+- "mainConcern": what motivated them to engage or what they want to protect
+
+Return ONLY a valid JSON object. No explanation, no markdown.`,
+      messages: [
+        { role: 'user', content: `Extract any qualifying information shared in this conversation:\n\n${historyBlock}` },
+      ],
+    }),
+  );
+
+  const block = result.content[0];
+  const text = block.type === 'text' ? block.text.trim() : '';
+
+  try {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return {};
+    const parsed = JSON.parse(jsonMatch[0]) as ReferralGatheredInfo;
+    const cleaned: ReferralGatheredInfo = {};
+    const stringFields = [
+      'dateOfBirth', 'healthConditions', 'medications', 'smokerStatus',
+      'homeownerStatus', 'mortgageBalance', 'mortgageTimeRemaining',
+      'currentCoverage', 'familySituation', 'mainConcern',
+    ] as const;
+    for (const key of stringFields) {
+      if (parsed[key] && typeof parsed[key] === 'string') {
+        cleaned[key] = parsed[key];
+      }
+    }
+    if (parsed.spouseOrPartner && typeof parsed.spouseOrPartner === 'object') {
+      const sp: PersonInfo = {};
+      const spFields = ['name', 'dateOfBirth', 'healthConditions', 'medications', 'smokerStatus'] as const;
+      for (const key of spFields) {
+        if (parsed.spouseOrPartner[key] && typeof parsed.spouseOrPartner[key] === 'string') {
+          sp[key] = parsed.spouseOrPartner[key];
+        }
+      }
+      if (Object.keys(sp).length > 0) {
+        cleaned.spouseOrPartner = sp;
+      }
+    }
+    return Object.keys(cleaned).length > 0 ? cleaned : {};
+  } catch {
+    return {};
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   Detect Booking Signal for Referrals
+   ═══════════════════════════════════════════════════════ */
+
+export async function detectReferralBookingSignal(
+  conversation: ConversationMessage[],
+): Promise<{ booked: boolean; confidence: 'high' | 'medium' | 'low' }> {
+  if (conversation.length === 0) {
+    return { booked: false, confidence: 'low' };
+  }
+
+  const referralMessages = conversation.filter((m) => m.role === 'referral');
+  if (referralMessages.length === 0) {
+    return { booked: false, confidence: 'low' };
+  }
+
+  const anthropic = getAnthropic();
+
+  const historyBlock = conversation
+    .map((m) => {
+      const sender = m.role === 'referral' ? 'Referral' : 'Agent';
+      return `${sender}: ${m.body}`;
+    })
+    .join('\n');
+
+  const result = await withRetry(() =>
+    anthropic.messages.create({
+      model: HELPER_MODEL,
+      max_tokens: 100,
+      system: `You analyze insurance referral conversations to determine if the referral has agreed to or booked a call/appointment.
+
+Look for signals like: "yes let's do it", "I'll book a time", "sounds good", "when are you free", "I booked", "just scheduled", "picked a time", agreed to a call, clicked a scheduling link, etc.
+
+Return ONLY a JSON object:
+{
+  "booked": true/false,
+  "confidence": "high" | "medium" | "low"
+}
+
+- "high": referral explicitly agreed to or completed booking
+- "medium": referral expressed interest but hasn't confirmed
+- "low": unclear or no signal`,
+      messages: [
+        { role: 'user', content: `Does this conversation indicate the referral has booked or agreed to a call?\n\n${historyBlock}` },
+      ],
+    }),
+  );
+
+  const block = result.content[0];
+  const text = block.type === 'text' ? block.text.trim() : '';
+
+  try {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return { booked: false, confidence: 'low' };
+    const parsed = JSON.parse(jsonMatch[0]);
+    return {
+      booked: !!parsed.booked,
+      confidence: parsed.confidence === 'high' || parsed.confidence === 'medium' ? parsed.confidence : 'low',
+    };
+  } catch {
+    return { booked: false, confidence: 'low' };
+  }
 }

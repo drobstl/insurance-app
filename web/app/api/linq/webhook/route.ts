@@ -13,6 +13,8 @@ import {
 } from '../../../../lib/linq';
 import {
   generateReferralResponse,
+  extractReferralInfo,
+  detectReferralBookingSignal,
   type ConversationMessage,
   type ReferralContext,
 } from '../../../../lib/referral-ai';
@@ -27,6 +29,7 @@ import type {
 import {
   generateReviewResponse,
   detectBookingSignal,
+  extractReviewInfo,
   type PolicyReviewMessage,
   type PolicyReviewConversationContext,
 } from '../../../../lib/policy-review-ai';
@@ -414,6 +417,32 @@ async function handleDirectMessage(data: LinqWebhookMessageData) {
 
     await referralRef.update(aiUpdate);
   }
+
+  // Non-blocking: extract qualifying info and detect booking signal
+  const conversationWithIncoming: ConversationMessage[] = [...conversation, newIncoming];
+  try {
+    const [gatheredInfo, bookingResult] = await Promise.all([
+      extractReferralInfo(conversationWithIncoming),
+      detectReferralBookingSignal(conversationWithIncoming),
+    ]);
+
+    const postUpdate: Record<string, unknown> = {};
+
+    if (Object.keys(gatheredInfo).length > 0) {
+      postUpdate.gatheredInfo = gatheredInfo;
+    }
+    if (bookingResult.booked && (bookingResult.confidence === 'high' || bookingResult.confidence === 'medium')) {
+      postUpdate.status = 'booked';
+      postUpdate.appointmentBooked = true;
+    }
+
+    if (Object.keys(postUpdate).length > 0) {
+      postUpdate.updatedAt = FieldValue.serverTimestamp();
+      await referralRef.update(postUpdate);
+    }
+  } catch (e) {
+    console.error('Referral info extraction / booking detection failed:', e);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -773,11 +802,25 @@ async function handlePolicyReviewReply(
 
   const conversationWithIncoming = [...conversation, newIncoming];
   try {
-    const bookingResult = await detectBookingSignal(conversationWithIncoming);
+    const [bookingResult, gatheredInfo] = await Promise.all([
+      detectBookingSignal(conversationWithIncoming),
+      extractReviewInfo(conversationWithIncoming),
+    ]);
+
+    const postUpdate: Record<string, unknown> = {};
+
     if (bookingResult.booked && (bookingResult.confidence === 'high' || bookingResult.confidence === 'medium')) {
-      await reviewRef.update({ status: 'booked', updatedAt: FieldValue.serverTimestamp() });
+      postUpdate.status = 'booked';
+    }
+    if (Object.keys(gatheredInfo).length > 0) {
+      postUpdate.gatheredInfo = gatheredInfo;
+    }
+
+    if (Object.keys(postUpdate).length > 0) {
+      postUpdate.updatedAt = FieldValue.serverTimestamp();
+      await reviewRef.update(postUpdate);
     }
   } catch (e) {
-    console.error('Booking signal detection failed:', e);
+    console.error('Policy review booking detection / info extraction failed:', e);
   }
 }

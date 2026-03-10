@@ -364,3 +364,117 @@ Return ONLY a JSON object:
     return { booked: false, confidence: 'low' };
   }
 }
+
+/* ═══════════════════════════════════════════════════════
+   Extract Gathered Info from Policy Review Conversation
+   ═══════════════════════════════════════════════════════ */
+
+export interface ReviewSpouseInfo {
+  name?: string;
+  relevantDetails?: string;
+}
+
+export interface ReviewGatheredInfo {
+  lifeChanges?: string;
+  incomeChange?: string;
+  newDependents?: string;
+  housingChange?: string;
+
+  additionalPolicies?: string;
+  coverageGaps?: string;
+  satisfactionWithCurrent?: string;
+
+  spouseOrPartner?: ReviewSpouseInfo;
+
+  clientPriority?: string;
+  clientConcerns?: string;
+  urgencyLevel?: string;
+}
+
+export async function extractReviewInfo(
+  conversation: PolicyReviewMessage[],
+): Promise<ReviewGatheredInfo> {
+  if (conversation.length < 2) return {};
+
+  const anthropic = getAnthropic();
+
+  const historyBlock = conversation
+    .map((m) => {
+      const sender = m.role === 'client' ? 'Client' : m.role === 'agent-manual' ? 'Agent (manual)' : 'Agent (AI)';
+      return `${sender}: ${m.body}`;
+    })
+    .join('\n');
+
+  const result = await withRetry(() =>
+    anthropic.messages.create({
+      model: HELPER_MODEL,
+      max_tokens: 500,
+      system: `You extract structured information from insurance policy review conversations to help agents prepare for review calls.
+
+The agent already knows the client's existing policy details (carrier, type, premium, coverage). Extract what's NEW — what the client revealed during the conversation that the agent should know before the call.
+
+Scan the conversation and return a JSON object with ONLY fields that were explicitly mentioned. Omit any field the client did not share. Do not guess or infer.
+
+Fields to look for:
+
+LIFE CHANGES (since the policy was written):
+- "lifeChanges": any major life events mentioned (new home, new car, new job, marriage, etc.)
+- "incomeChange": income went up or down, new job, lost job, etc.
+- "newDependents": new baby, spouse, aging parent moved in, etc.
+- "housingChange": moved, bought a house, refinanced, new mortgage balance or time remaining
+
+COVERAGE SITUATION:
+- "additionalPolicies": any other insurance they've picked up since
+- "coverageGaps": gaps they've noticed or concerns about being under-covered
+- "satisfactionWithCurrent": how they feel about their current coverage (happy, unsure, unhappy)
+
+SPOUSE / PARTNER (only if mentioned):
+- "spouseOrPartner": { "name", "relevantDetails" } — e.g. "wife just went back to work", "husband is self-employed now"
+
+CALL PREP:
+- "clientPriority": what they care about most (lower rate, more coverage, peace of mind, etc.)
+- "clientConcerns": specific worries or questions they raised
+- "urgencyLevel": how urgent it feels — e.g. "baby due in June", "just want to check", "been meaning to do this"
+
+Return ONLY a valid JSON object. No explanation, no markdown.`,
+      messages: [
+        { role: 'user', content: `Extract any relevant information the client shared in this policy review conversation:\n\n${historyBlock}` },
+      ],
+    }),
+  );
+
+  const block = result.content[0];
+  const text = block.type === 'text' ? block.text.trim() : '';
+
+  try {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return {};
+    const parsed = JSON.parse(jsonMatch[0]) as ReviewGatheredInfo;
+    const cleaned: ReviewGatheredInfo = {};
+    const stringFields = [
+      'lifeChanges', 'incomeChange', 'newDependents', 'housingChange',
+      'additionalPolicies', 'coverageGaps', 'satisfactionWithCurrent',
+      'clientPriority', 'clientConcerns', 'urgencyLevel',
+    ] as const;
+    for (const key of stringFields) {
+      if (parsed[key] && typeof parsed[key] === 'string') {
+        cleaned[key] = parsed[key];
+      }
+    }
+    if (parsed.spouseOrPartner && typeof parsed.spouseOrPartner === 'object') {
+      const sp: ReviewSpouseInfo = {};
+      if (parsed.spouseOrPartner.name && typeof parsed.spouseOrPartner.name === 'string') {
+        sp.name = parsed.spouseOrPartner.name;
+      }
+      if (parsed.spouseOrPartner.relevantDetails && typeof parsed.spouseOrPartner.relevantDetails === 'string') {
+        sp.relevantDetails = parsed.spouseOrPartner.relevantDetails;
+      }
+      if (Object.keys(sp).length > 0) {
+        cleaned.spouseOrPartner = sp;
+      }
+    }
+    return Object.keys(cleaned).length > 0 ? cleaned : {};
+  } catch {
+    return {};
+  }
+}
