@@ -121,6 +121,34 @@ const NAV_ITEMS = [
   )},
 ];
 
+const ADMIN_NAV_ITEMS = [
+  { key: 'admin-analytics', path: '/dashboard/admin/feedback', label: 'Analytics', icon: (
+    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+    </svg>
+  )},
+  { key: 'admin-applications', path: '/dashboard/admin/applications', label: 'Applications', icon: (
+    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+    </svg>
+  )},
+  { key: 'admin-stats', path: '/dashboard/admin/stats', label: 'Stats', icon: (
+    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+    </svg>
+  )},
+  { key: 'admin-agent-emails', path: '/dashboard/admin/agent-emails', label: 'Agent Emails', icon: (
+    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+    </svg>
+  )},
+  { key: 'admin-manage-agents', path: '/dashboard/admin/manage-agents', label: 'Manage Agents', icon: (
+    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+    </svg>
+  )},
+];
+
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -134,6 +162,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showWorkflowVideo, setShowWorkflowVideo] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(() => pathname.startsWith('/dashboard/admin'));
 
   const expandTimeout = useRef<NodeJS.Timeout | null>(null);
   const collapseTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -143,6 +172,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       setShowOnboarding(!agentProfile.onboardingComplete);
     }
   }, [agentProfile.onboardingComplete, user]);
+
+  useEffect(() => {
+    if (pathname.startsWith('/dashboard/admin')) {
+      setAdminOpen(true);
+    }
+  }, [pathname]);
 
   const handleSidebarEnter = useCallback(() => {
     if (collapseTimeout.current) clearTimeout(collapseTimeout.current);
@@ -187,6 +222,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     return 'home';
   })();
 
+  const isAdminRoute = pathname.startsWith('/dashboard/admin');
+  const activeAdminKey = ADMIN_NAV_ITEMS.find(item => pathname.startsWith(item.path))?.key ?? null;
+
   return (
     <div className="min-h-screen bg-[#e4e4e4] flex">
       {/* Sidebar */}
@@ -230,111 +268,79 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
           {isAdmin && (
             <>
-              <button
-                onClick={() => router.push('/dashboard/admin/feedback')}
-                title={!sidebarExpanded ? 'Analytics' : undefined}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
-                  pathname.startsWith('/dashboard/admin/feedback')
-                    ? 'bg-[#daf3f0] text-[#005851]'
-                    : 'text-white/80 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
-                  Analytics
-                </span>
-                {!sidebarExpanded && (
-                  <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-[#0A3D3D] text-white text-xs font-medium rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-[60] shadow-lg">
-                    Analytics
+              <div className="my-2 mx-1 border-t border-white/15" />
+
+              <div className="relative group/admin">
+                <button
+                  onClick={() => sidebarExpanded && setAdminOpen(!adminOpen)}
+                  title={!sidebarExpanded ? 'Admin' : undefined}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 relative ${
+                    isAdminRoute
+                      ? 'bg-white/15 text-white'
+                      : 'text-white/80 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <div className="relative shrink-0">
+                    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                  </div>
+                  <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold flex-1 text-left ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
+                    Admin
+                  </span>
+                  {sidebarExpanded && (
+                    <svg className={`w-4 h-4 shrink-0 transition-transform duration-200 ${adminOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  )}
+                </button>
+
+                {sidebarExpanded && (
+                  <div
+                    className="grid transition-[grid-template-rows] duration-200 ease-in-out"
+                    style={{ gridTemplateRows: adminOpen ? '1fr' : '0fr' }}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="pl-3 mt-1 space-y-0.5">
+                        {ADMIN_NAV_ITEMS.map((item) => (
+                          <button
+                            key={item.key}
+                            onClick={() => router.push(item.path)}
+                            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-[5px] transition-all duration-200 ${
+                              activeAdminKey === item.key
+                                ? 'bg-[#daf3f0] text-[#005851]'
+                                : 'text-white/70 hover:bg-white/10 hover:text-white'
+                            }`}
+                          >
+                            {item.icon}
+                            <span className="text-xs font-semibold whitespace-nowrap">{item.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
-              </button>
-              <button
-                onClick={() => router.push('/dashboard/admin/applications')}
-                title={!sidebarExpanded ? 'Applications' : undefined}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
-                  pathname.startsWith('/dashboard/admin/applications')
-                    ? 'bg-[#daf3f0] text-[#005851]'
-                    : 'text-white/80 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                </svg>
-                <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
-                  Applications
-                </span>
+
                 {!sidebarExpanded && (
-                  <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-[#0A3D3D] text-white text-xs font-medium rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-[60] shadow-lg">
-                    Applications
+                  <div className="absolute left-full top-0 ml-2 py-2 bg-[#0A3D3D] rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/admin:opacity-100 group-hover/admin:pointer-events-auto transition-opacity duration-150 z-[60] min-w-[170px]">
+                    <div className="px-3 py-1.5 text-[10px] font-bold text-white/50 uppercase tracking-wider">Admin</div>
+                    {ADMIN_NAV_ITEMS.map((item) => (
+                      <button
+                        key={item.key}
+                        onClick={() => router.push(item.path)}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${
+                          activeAdminKey === item.key
+                            ? 'bg-white/15 text-white'
+                            : 'text-white/80 hover:bg-white/10 hover:text-white'
+                        }`}
+                      >
+                        {item.icon}
+                        <span className="text-xs font-medium whitespace-nowrap">{item.label}</span>
+                      </button>
+                    ))}
                   </div>
                 )}
-              </button>
-              <button
-                onClick={() => router.push('/dashboard/admin/stats')}
-                title={!sidebarExpanded ? 'Stats' : undefined}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
-                  pathname.startsWith('/dashboard/admin/stats')
-                    ? 'bg-[#daf3f0] text-[#005851]'
-                    : 'text-white/80 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
-                  Stats
-                </span>
-                {!sidebarExpanded && (
-                  <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-[#0A3D3D] text-white text-xs font-medium rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-[60] shadow-lg">
-                    Stats
-                  </div>
-                )}
-              </button>
-              <button
-                onClick={() => router.push('/dashboard/admin/agent-emails')}
-                title={!sidebarExpanded ? 'Agent Emails' : undefined}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
-                  pathname.startsWith('/dashboard/admin/agent-emails')
-                    ? 'bg-[#daf3f0] text-[#005851]'
-                    : 'text-white/80 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
-                  Agent Emails
-                </span>
-                {!sidebarExpanded && (
-                  <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-[#0A3D3D] text-white text-xs font-medium rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-[60] shadow-lg">
-                    Agent Emails
-                  </div>
-                )}
-              </button>
-              <button
-                onClick={() => router.push('/dashboard/admin/manage-agents')}
-                title={!sidebarExpanded ? 'Manage Agents' : undefined}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
-                  pathname.startsWith('/dashboard/admin/manage-agents')
-                    ? 'bg-[#daf3f0] text-[#005851]'
-                    : 'text-white/80 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-                <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
-                  Manage Agents
-                </span>
-                {!sidebarExpanded && (
-                  <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-[#0A3D3D] text-white text-xs font-medium rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-[60] shadow-lg">
-                    Manage Agents
-                  </div>
-                )}
-              </button>
+              </div>
             </>
           )}
 
