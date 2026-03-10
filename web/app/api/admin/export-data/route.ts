@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
 
-    const serializeDoc = (doc: FirebaseFirestore.DocumentSnapshot) => ({
+    const serializeDoc = (doc: FirebaseFirestore.DocumentSnapshot): Record<string, unknown> & { id: string } => ({
       id: doc.id,
       ...doc.data(),
     });
