@@ -314,6 +314,27 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                   </div>
                 )}
               </button>
+              <button
+                onClick={() => router.push('/dashboard/admin/manage-agents')}
+                title={!sidebarExpanded ? 'Manage Agents' : undefined}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
+                  pathname.startsWith('/dashboard/admin/manage-agents')
+                    ? 'bg-[#daf3f0] text-[#005851]'
+                    : 'text-white/80 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+                <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
+                  Manage Agents
+                </span>
+                {!sidebarExpanded && (
+                  <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-[#0A3D3D] text-white text-xs font-medium rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-[60] shadow-lg">
+                    Manage Agents
+                  </div>
+                )}
+              </button>
             </>
           )}
 
