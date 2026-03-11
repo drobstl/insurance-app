@@ -1,8 +1,21 @@
 import 'server-only';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { Resend } from 'resend';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
+
+function getResend() {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) throw new Error('RESEND_API_KEY is not configured');
+  return new Resend(key);
+}
+
+interface BirthdayHit {
+  clientName: string;
+  clientId: string;
+  dateOfBirth: string;
+}
 
 /**
  * Daily cron job: sends a push notification to every client whose birthday
@@ -29,6 +42,10 @@ export async function GET(req: NextRequest) {
 
     let totalPushSent = 0;
     let totalSkipped = 0;
+    let totalEmailsSent = 0;
+
+    const resend = getResend();
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://agentforlife.app';
 
     // 1. Iterate all agents
     const agentsSnap = await db.collection('agents').get();
@@ -36,7 +53,10 @@ export async function GET(req: NextRequest) {
     for (const agentDoc of agentsSnap.docs) {
       const agentData = agentDoc.data();
       const agentName = (agentData.name as string) || 'Your Agent';
+      const agentEmail = agentData.email as string | undefined;
       const agencyName = (agentData.agencyName as string) || '';
+
+      const birthdayHits: BirthdayHit[] = [];
 
       // 2. Iterate each agent's clients
       const clientsSnap = await db
@@ -132,13 +152,76 @@ export async function GET(req: NextRequest) {
           // 7. Mark client as notified for this year
           await clientDoc.ref.update({
             birthdayNotifiedAt: currentYear,
+            birthdayCardSentAt: FieldValue.serverTimestamp(),
           });
 
-          if (pushStatus === 'sent') totalPushSent++;
+          if (pushStatus === 'sent') {
+            totalPushSent++;
+            birthdayHits.push({
+              clientName,
+              clientId: clientDoc.id,
+              dateOfBirth: dateOfBirth!,
+            });
+          }
         } catch (pushError) {
           console.error(
             `Failed to send birthday push for client ${clientDoc.id}:`,
             pushError
+          );
+        }
+      }
+
+      // 8. Send agent email digest for today's birthdays
+      if (birthdayHits.length > 0 && agentEmail) {
+        try {
+          const clientRows = birthdayHits
+            .map(
+              (h) =>
+                `<tr>
+                  <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-weight:600;">${h.clientName}</td>
+                  <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;">${h.dateOfBirth}</td>
+                  <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:center;">
+                    <span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;background:#FCE7F3;color:#9D174D;">Today</span>
+                  </td>
+                </tr>`,
+            )
+            .join('');
+
+          await resend.emails.send({
+            from: 'AgentForLife Notifications <support@agentforlife.app>',
+            to: agentEmail,
+            subject: `Birthday Alert: ${birthdayHits.length} client${birthdayHits.length === 1 ? '' : 's'} ${birthdayHits.length === 1 ? 'has a' : 'have'} birthday today`,
+            html: `
+              <div style="font-family:Arial,sans-serif;max-width:600px;color:#2D3748;line-height:1.6;">
+                <h2 style="color:#0D4D4D;margin-bottom:8px;">🎂 Birthday Alert</h2>
+                <p style="font-size:15px;color:#4A5568;">
+                  Hi ${agentName}, the following client${birthdayHits.length === 1 ? ' has a' : 's have'} birthday today.
+                  A push notification was sent automatically — consider a personal follow-up call or text!
+                </p>
+                <table style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px;">
+                  <thead>
+                    <tr style="background:#F7FAFC;">
+                      <th style="padding:8px 12px;text-align:left;font-size:12px;color:#718096;text-transform:uppercase;">Client</th>
+                      <th style="padding:8px 12px;text-align:left;font-size:12px;color:#718096;text-transform:uppercase;">Date of Birth</th>
+                      <th style="padding:8px 12px;text-align:center;font-size:12px;color:#718096;text-transform:uppercase;">Birthday</th>
+                    </tr>
+                  </thead>
+                  <tbody>${clientRows}</tbody>
+                </table>
+                <p style="margin-top:24px;">
+                  <a href="${appUrl}/dashboard" style="display:inline-block;padding:12px 24px;background:#3DD6C3;color:#0D4D4D;text-decoration:none;border-radius:8px;font-weight:600;">
+                    Open Dashboard →
+                  </a>
+                </p>
+              </div>
+            `,
+          });
+
+          totalEmailsSent++;
+        } catch (emailError) {
+          console.error(
+            `Failed to send birthday digest email to agent ${agentDoc.id}:`,
+            emailError,
           );
         }
       }
@@ -147,6 +230,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       pushNotificationsSent: totalPushSent,
+      emailDigestsSent: totalEmailsSent,
       skipped: totalSkipped,
     });
   } catch (error) {
