@@ -39,7 +39,7 @@ export function GET(request: NextRequest) {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Download AgentForLife</title>
+  <title>Download AgentForLife™</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 2rem; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f8f8f8; color: #1a1a1a; text-align: center; }

@@ -185,7 +185,7 @@ export async function GET(req: NextRequest) {
         ).join('');
 
         await resend.emails.send({
-          from: 'AgentForLife Notifications <support@agentforlife.app>',
+          from: 'AgentForLife™ Notifications <support@agentforlife.app>',
           to: agentEmail,
           subject: `Upcoming Policy Reviews: ${headsUpHits.length} ${headsUpHits.length === 1 ? 'anniversary' : 'anniversaries'} in 3 days`,
           html: `

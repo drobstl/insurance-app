@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Revenue Calculator | AgentForLife',
+  title: 'Revenue Calculator | AgentForLife™',
   description:
     "See how much revenue you're leaving on the table. Calculate your losses from churn, missed referrals, and missed rewrites — then stop the leak.",
   openGraph: {

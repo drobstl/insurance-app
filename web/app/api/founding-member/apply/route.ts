@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
       const firstName = name.split(' ')[0];
       try {
         await resend.emails.send({
-          from: 'Daniel Roberts — AgentForLife <support@agentforlife.app>',
+          from: 'Daniel Roberts — AgentForLife™ <support@agentforlife.app>',
           to: email,
           subject: 'We got your application',
           html: `

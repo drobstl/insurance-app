@@ -232,7 +232,7 @@ export async function GET() {
                 const policyType = (data.policyType as string) || 'policy';
                 const resend = getResend();
                 await resend.emails.send({
-                  from: `${agentName} via AgentForLife <support@agentforlife.app>`,
+                  from: `${agentName} via AgentForLife™ <support@agentforlife.app>`,
                   to: emailAddr,
                   subject: `${agentFirstName} here — your ${policyType} anniversary`,
                   text: message,

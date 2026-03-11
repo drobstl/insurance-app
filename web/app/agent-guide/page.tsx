@@ -275,7 +275,7 @@ export default function AgentGuidePage() {
             </div>
         </main>
 
-        <footer class="guide-footer">Resource Guide<br><small>Questions? Contact Daniel Roberts at 314-363-4922</small></footer>
+        <footer class="guide-footer">Resource Guide<br><small>Questions? Contact Daniel Roberts at 314-363-4922</small><br><small>© 2026 Brainstorm Labs LLC. All rights reserved. AgentForLife™ is a trademark of Brainstorm Labs LLC.</small></footer>
     </div>
 
     <script>

@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
         : `This is logged on your dashboard.`;
 
       await resend.emails.send({
-        from: 'AgentForLife <support@agentforlife.app>',
+        from: 'AgentForLife™ <support@agentforlife.app>',
         to: senderEmail,
         subject: `Conservation Alert Received: ${alert.clientName} -- ${priorityLabel}`,
         html: `

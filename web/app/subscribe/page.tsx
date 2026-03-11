@@ -185,7 +185,7 @@ export default function SubscribePage() {
               <circle cx="20" cy="10" r="2" opacity="0.7" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold">AgentForLife</h1>
+          <h1 className="text-2xl font-bold">AgentForLife™</h1>
         </div>
       </header>
 

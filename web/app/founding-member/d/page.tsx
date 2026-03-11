@@ -127,7 +127,7 @@ export default function FoundingMemberDesktop() {
         <div className="max-w-5xl mx-auto px-8 h-[72px] flex items-center justify-between">
           <Link href="/d" className="flex items-center gap-2.5 group">
             <img src="/logo.png" alt="AgentForLife" className="w-[44px] h-[25px] object-contain" />
-            <span className="text-white/90 brand-title text-lg group-hover:text-white transition-colors">AgentForLife</span>
+            <span className="text-white/90 brand-title text-lg group-hover:text-white transition-colors">AgentForLife™</span>
           </Link>
           <div className="flex items-center gap-6">
             <Link href="/d" className="text-white/50 text-sm font-medium hover:text-white/80 transition-colors">
@@ -869,7 +869,7 @@ export default function FoundingMemberDesktop() {
               <Link href="/privacy" className="text-white/30 text-sm hover:text-white/60 transition-colors">Privacy</Link>
               <Link href="/terms" className="text-white/30 text-sm hover:text-white/60 transition-colors">Terms</Link>
             </nav>
-            <p className="text-white/20 text-sm">&copy; 2026 AgentForLife</p>
+            <p className="text-white/20 text-sm">© 2026 AgentForLife. All rights reserved.</p>
           </div>
         </div>
       </footer>

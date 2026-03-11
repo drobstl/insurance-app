@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
     const resend = getResend();
     await resend.emails.send({
-      from: 'AgentForLife Notifications <support@agentforlife.app>',
+      from: 'AgentForLife™ Notifications <support@agentforlife.app>',
       to: 'support@agentforlife.app',
       subject: `New Founding Member Application: ${applicantName}`,
       html: `

@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     const resend = getResend();
     const firstName = applicantName.split(' ')[0];
     await resend.emails.send({
-      from: 'Daniel Roberts — AgentForLife <support@agentforlife.app>',
+      from: 'Daniel Roberts — AgentForLife™ <support@agentforlife.app>',
       to: applicantEmail,
       subject: "You're in — Welcome to AgentForLife Founding Members",
       html: `

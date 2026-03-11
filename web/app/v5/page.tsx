@@ -46,7 +46,7 @@ export default function DesktopLandingV5() {
         <div className="max-w-7xl mx-auto px-6 lg:px-8 h-16 lg:h-20 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <img src="/logo.png" alt="AgentForLife" className="w-[44px] h-[25px] object-contain" />
-            <span className="text-white/80 brand-title text-base">AgentForLife</span>
+            <span className="text-white/80 brand-title text-base">AgentForLife™</span>
           </div>
           <div className="hidden md:flex items-center gap-8">
             <a href="#features" className="text-white/50 hover:text-white/80 text-sm font-medium transition-colors">Features</a>
@@ -778,7 +778,7 @@ export default function DesktopLandingV5() {
             <Link href="/privacy" className="text-white/60 text-sm hover:text-white transition-colors">Privacy</Link>
             <Link href="/terms" className="text-white/60 text-sm hover:text-white transition-colors">Terms</Link>
           </nav>
-          <p className="text-white/60 text-sm">&copy; 2026 AgentForLife</p>
+          <p className="text-white/60 text-sm">© 2026 AgentForLife. All rights reserved.</p>
         </div>
       </footer>
     </div>

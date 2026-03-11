@@ -147,7 +147,7 @@ export default function FoundingMemberPage() {
                 className="w-[50px] h-[28px] sm:w-[70px] sm:h-[40px] md:w-[80px] md:h-[45px] object-contain flex-shrink-0"
               />
               <span className="text-base sm:text-lg md:text-xl text-white brand-title truncate">
-                AgentForLife
+                AgentForLife™
               </span>
             </Link>
             {!tier.isFoundingOpen ? (
@@ -920,7 +920,7 @@ export default function FoundingMemberPage() {
               </Link>
             </nav>
 
-            <p className="text-white/50 text-sm">© 2026 AgentForLife</p>
+            <p className="text-white/50 text-sm">© 2026 AgentForLife. All rights reserved.</p>
           </div>
         </div>
       </footer>

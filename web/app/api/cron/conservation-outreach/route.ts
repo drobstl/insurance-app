@@ -72,7 +72,7 @@ async function sendConservationEmailMessage(
   try {
     const resend = getResend();
     await resend.emails.send({
-      from: `${agentName} via AgentForLife <support@agentforlife.app>`,
+      from: `${agentName} via AgentForLife™ <support@agentforlife.app>`,
       to,
       subject,
       text: body,

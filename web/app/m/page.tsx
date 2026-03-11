@@ -177,7 +177,7 @@ export default function MobileLandingV2() {
             className="flex items-center gap-2 mb-auto"
           >
             <img src="/logo.png" alt="AgentForLife" className="w-[44px] h-[25px] object-contain" />
-            <span className="text-white/80 brand-title text-base">AgentForLife</span>
+            <span className="text-white/80 brand-title text-base">AgentForLife™</span>
           </motion.div>
 
           {/* Main content */}
@@ -930,7 +930,7 @@ export default function MobileLandingV2() {
             <Link href="/privacy" className="text-white/40 text-[12px]">Privacy</Link>
             <Link href="/terms" className="text-white/40 text-[12px]">Terms</Link>
           </nav>
-          <p className="text-white/25 text-[11px]">&copy; 2026 AgentForLife</p>
+          <p className="text-white/25 text-[11px]">© 2026 AgentForLife. All rights reserved.</p>
         </div>
       </footer>
 

@@ -781,7 +781,7 @@ export default function FeedbackPage() {
         <div className="h-14 flex items-center px-4 border-b border-white/10">
           <img
             src="/logo.png"
-            alt="Logo"
+            alt="AgentForLife™"
             className="w-11 h-7 object-contain"
           />
           <span
@@ -789,7 +789,7 @@ export default function FeedbackPage() {
               sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'
             }`}
           >
-            AgentForLife
+            AgentForLife™
           </span>
         </div>
 

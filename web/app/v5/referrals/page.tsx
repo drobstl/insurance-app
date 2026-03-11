@@ -87,7 +87,7 @@ export default function ReferralsDeepDiveDesktop() {
             </Link>
             <div className="flex items-center gap-2">
               <img src="/logo.png" alt="AgentForLife" className="w-[36px] h-[20px] object-contain" />
-              <span className="text-[#4B5563] brand-title text-sm">AgentForLife</span>
+              <span className="text-[#4B5563] brand-title text-sm">AgentForLife™</span>
             </div>
           </div>
 

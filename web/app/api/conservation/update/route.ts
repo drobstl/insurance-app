@@ -128,7 +128,7 @@ export async function PATCH(req: NextRequest) {
 
           const resend = getResend();
           await resend.emails.send({
-            from: 'AgentForLife <support@agentforlife.app>',
+            from: 'AgentForLife™ <support@agentforlife.app>',
             to: agentEmail,
             subject: `Policy Saved: ${clientName} -- ${carrier}`,
             text: `Great news, ${agentFirstName}!\n\n${clientName}'s ${policyType} policy with ${carrier} has been saved${daysToSave}.${premiumLine}\n\nKeep up the great work.\n\n-- AgentForLife`,

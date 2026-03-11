@@ -109,7 +109,7 @@ export default function LandingPage() {
           <div className="flex items-center justify-between h-16 md:h-20">
             <div className="flex items-center gap-2">
               <img src="/logo.png" alt="AgentForLife Logo" className="w-[80px] h-[45px] object-contain" />
-              <span className="text-xl text-white brand-title">AgentForLife</span>
+              <span className="text-xl text-white brand-title">AgentForLife™</span>
             </div>
             <div className="hidden md:flex items-center gap-8">
               <button onClick={() => scrollToSection('benefits')} className="text-white/80 hover:text-white transition-colors">Why It Works</button>
@@ -1042,7 +1042,7 @@ export default function LandingPage() {
             </nav>
 
             <p className="text-white/50 text-sm">
-              © 2026 AgentForLife
+              © 2026 AgentForLife. All rights reserved.
             </p>
           </div>
         </div>

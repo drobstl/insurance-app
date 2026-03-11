@@ -258,13 +258,13 @@ export default function AdminApplicationsPage() {
       >
         {/* Logo */}
         <div className="h-14 flex items-center px-4 border-b border-white/10">
-          <img src="/logo.png" alt="Logo" className="w-11 h-7 object-contain" />
+          <img src="/logo.png" alt="AgentForLife™" className="w-11 h-7 object-contain" />
           <span
             className={`ml-3 text-white text-lg whitespace-nowrap overflow-hidden transition-all duration-300 brand-title ${
               sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'
             }`}
           >
-            AgentForLife
+            AgentForLife™
           </span>
         </div>
 

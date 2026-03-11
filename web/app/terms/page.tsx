@@ -21,7 +21,7 @@ export default function TermsOfServicePage() {
                 <path d="M6 10h3M15 10h3" stroke="currentColor" strokeWidth="1.5" fill="none" opacity="0.7" />
               </svg>
             </div>
-            <span className="text-xl font-bold text-white">AgentForLife</span>
+            <span className="text-xl font-bold text-white">AgentForLife™</span>
           </Link>
         </div>
       </header>
@@ -195,4 +195,3 @@ export default function TermsOfServicePage() {
     </div>
   );
 }
-

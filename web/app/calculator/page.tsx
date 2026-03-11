@@ -69,7 +69,7 @@ function CalculatorPageInner() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <img src="/logo.png" alt="AgentForLife Logo" className="w-10 h-6 object-contain" />
-            <span className="text-lg text-white brand-title">AgentForLife</span>
+            <span className="text-lg text-white brand-title">AgentForLife™</span>
           </Link>
           <a
             href="https://agentforlife.app"
@@ -167,7 +167,7 @@ function CalculatorPageInner() {
             <img src="/logo.png" alt="AgentForLife Logo" className="w-8 h-5 object-contain" />
             <span className="text-sm text-white brand-title">AgentForLife</span>
           </Link>
-          <p className="text-white/40 text-xs">&copy; 2026 AgentForLife</p>
+          <p className="text-white/40 text-xs">© 2026 AgentForLife. All rights reserved.</p>
         </div>
       </footer>
     </div>

@@ -132,7 +132,7 @@ export default function FoundingMemberMobile() {
           >
             <Link href="/m" className="flex items-center gap-2">
               <img src="/logo.png" alt="AgentForLife" className="w-[44px] h-[25px] object-contain" />
-              <span className="text-white/80 brand-title text-base">AgentForLife</span>
+              <span className="text-white/80 brand-title text-base">AgentForLife™</span>
             </Link>
             <div className="flex items-center gap-2 px-3 py-1.5 bg-[#3DD6C3]/15 border border-[#3DD6C3]/25 rounded-full">
               <span className="text-[#3DD6C3] text-[11px] font-bold uppercase tracking-wide">Beta</span>
@@ -756,7 +756,7 @@ export default function FoundingMemberMobile() {
             <Link href="/privacy" className="text-white/30 text-[12px]">Privacy</Link>
             <Link href="/terms" className="text-white/30 text-[12px]">Terms</Link>
           </nav>
-          <p className="text-white/20 text-[11px]">&copy; 2026 AgentForLife</p>
+          <p className="text-white/20 text-[11px]">© 2026 AgentForLife. All rights reserved.</p>
         </div>
       </footer>
 

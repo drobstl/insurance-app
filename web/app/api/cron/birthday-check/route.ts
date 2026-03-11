@@ -188,7 +188,7 @@ export async function GET(req: NextRequest) {
             .join('');
 
           await resend.emails.send({
-            from: 'AgentForLife Notifications <support@agentforlife.app>',
+            from: 'AgentForLife™ Notifications <support@agentforlife.app>',
             to: agentEmail,
             subject: `Birthday Alert: ${birthdayHits.length} client${birthdayHits.length === 1 ? '' : 's'} ${birthdayHits.length === 1 ? 'has a' : 'have'} birthday today`,
             html: `

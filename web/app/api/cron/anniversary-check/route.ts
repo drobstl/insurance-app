@@ -162,7 +162,7 @@ export async function GET(req: NextRequest) {
         .join('');
 
       await resend.emails.send({
-        from: 'AgentForLife Notifications <support@agentforlife.app>',
+        from: 'AgentForLife™ Notifications <support@agentforlife.app>',
         to: agentEmail,
         subject: `Policy Anniversary Alert: ${hits.length} ${hits.length === 1 ? 'policy' : 'policies'} approaching 1 year`,
         html: `
