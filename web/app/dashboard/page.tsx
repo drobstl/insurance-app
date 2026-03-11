@@ -1,174 +1,130 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { collection, onSnapshot, query, orderBy, Timestamp, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useDashboard } from './DashboardContext';
-import { getAnniversaryDate, daysUntilAnniversary, formatCurrency } from '../../lib/policyUtils';
-import { buildActionFeed, type ActionItem, type ActionClient, type ActionPolicy, type ActionConservationAlert, type ActionReferral, type ActionAnniversaryAlert } from '../../lib/action-feed';
+import { getAnniversaryDate } from '../../lib/policyUtils';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
+import { computeBookHealth } from '../../lib/book-health';
+import { getMostRecentBadge, type EarnedBadge, type BadgeIcon } from '../../lib/badges';
 import SectionTipCard from '../../components/SectionTipCard';
 
-interface Client extends ActionClient {
+interface Client {
+  id: string;
+  name: string;
+  dateOfBirth?: string;
+  phone?: string;
+  pushToken?: string;
+  birthdayCardSentAt?: unknown;
   createdAt: Timestamp;
 }
 
-interface Policy extends ActionPolicy {}
-
-interface ConservationAlert extends ActionConservationAlert {}
-
-interface Referral extends ActionReferral {}
-
-interface AnniversaryAlert extends ActionAnniversaryAlert {}
-
-// ── Dismiss helpers (localStorage, keyed by action ID + date) ────────────────
-
-function getDismissKey(actionId: string): string {
-  const today = new Date().toISOString().slice(0, 10);
-  return `dismiss:${actionId}:${today}`;
+interface ConservationAlert {
+  id: string;
+  clientName: string;
+  carrier: string;
+  reason: string;
+  priority: string;
+  status: string;
+  isChargebackRisk: boolean;
+  premiumAmount?: number;
+  createdAt: Timestamp;
 }
 
-function isDismissed(actionId: string): boolean {
-  if (typeof window === 'undefined') return false;
-  return localStorage.getItem(getDismissKey(actionId)) === '1';
+interface Referral {
+  id: string;
+  referralName: string;
+  clientName: string;
+  status: string;
+  appointmentBooked: boolean;
+  createdAt: unknown;
 }
 
-function dismissAction(actionId: string): void {
-  localStorage.setItem(getDismissKey(actionId), '1');
+interface Policy {
+  id: string;
+  policyType: string;
+  premiumAmount: number;
+  effectiveDate?: string;
+  status: 'Active' | 'Pending' | 'Lapsed';
+  createdAt: Timestamp;
 }
 
-// ── Action type config ──────────────────────────────────────────────────────
+function isBirthdayToday(dob: string | undefined): boolean {
+  if (!dob) return false;
+  const now = new Date();
+  const m = now.getMonth();
+  const d = now.getDate();
+  const iso = dob.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (iso) return parseInt(iso[2], 10) - 1 === m && parseInt(iso[3], 10) === d;
+  const us = dob.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (us) return parseInt(us[1], 10) - 1 === m && parseInt(us[2], 10) === d;
+  return false;
+}
 
-const ACTION_CONFIG: Record<string, { color: string; bg: string; icon: React.ReactNode }> = {
-  conservation: {
-    color: 'text-red-600',
-    bg: 'bg-red-100',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-      </svg>
-    ),
-  },
-  'birthday-followup': {
-    color: 'text-pink-600',
-    bg: 'bg-pink-100',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 15.546c-.523 0-1.046.151-1.5.454a2.704 2.704 0 01-3 0 2.704 2.704 0 00-3 0 2.704 2.704 0 01-3 0 2.704 2.704 0 00-3 0 2.704 2.704 0 01-3 0A1.75 1.75 0 003 15.546M12 3v4m-4 4h8m-8 0a4 4 0 004 4m0-4a4 4 0 014 4m-4-4v4" />
-      </svg>
-    ),
-  },
-  'holiday-followup': {
-    color: 'text-green-600',
-    bg: 'bg-green-100',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-      </svg>
-    ),
-  },
-  referral: {
-    color: 'text-blue-600',
-    bg: 'bg-blue-100',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-      </svg>
-    ),
-  },
-  'anniversary-rewrite': {
-    color: 'text-amber-600',
-    bg: 'bg-amber-100',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-      </svg>
-    ),
-  },
-  'warm-list': {
-    color: 'text-[#005851]',
-    bg: 'bg-[#daf3f0]',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-      </svg>
-    ),
-  },
-};
-
-const ACTION_TYPE_LABELS: Record<string, string> = {
-  conservation: 'Retention',
-  'birthday-followup': 'Birthday',
-  'holiday-followup': 'Holiday',
-  referral: 'Referral',
-  'anniversary-rewrite': 'Anniversary',
-  'warm-list': 'Warm List',
-};
+function formatValue(n: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(n);
+}
 
 export default function DashboardHomePage() {
   const router = useRouter();
   const { user, loading, agentProfile, dismissTip } = useDashboard();
 
   const [clients, setClients] = useState<Client[]>([]);
-  const [totalActive, setTotalActive] = useState(0);
-  const [totalPending, setTotalPending] = useState(0);
   const [conservationAlerts, setConservationAlerts] = useState<ConservationAlert[]>([]);
   const [referrals, setReferrals] = useState<Referral[]>([]);
-  const [anniversaryAlerts, setAnniversaryAlerts] = useState<AnniversaryAlert[]>([]);
-  const [allPolicies, setAllPolicies] = useState<Policy[]>([]);
+  const [anniversaryCount, setAnniversaryCount] = useState(0);
   const [stats, setStats] = useState<AgentAggregates | null>(null);
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
-  const [sendingPush, setSendingPush] = useState<string | null>(null);
 
-  // Fetch stats aggregates
   useEffect(() => {
     if (!user) return;
-    const statsRef = doc(db, 'agents', user.uid, 'stats', 'aggregates');
-    getDoc(statsRef)
+    getDoc(doc(db, 'agents', user.uid, 'stats', 'aggregates'))
       .then((snap) => {
         if (snap.exists()) setStats(snap.data() as AgentAggregates);
       })
       .catch(() => {});
   }, [user]);
 
-  // Fetch clients (with extended fields)
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'agents', user.uid, 'clients'), orderBy('createdAt', 'desc'));
-    return onSnapshot(
-      q,
-      (snap) => {
-        setClients(
-          snap.docs.map((d) => ({ id: d.id, ...d.data() } as Client)),
-        );
-      },
-      (error) => {
-        console.error('Error fetching clients:', error);
-      },
-    );
+    return onSnapshot(q, (snap) => {
+      setClients(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Client)));
+    }, () => {});
   }, [user]);
 
-  // Fetch policies across all clients for stats + anniversary detection
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'agents', user.uid, 'conservationAlerts'), orderBy('createdAt', 'desc'));
+    return onSnapshot(q, (snap) => {
+      setConservationAlerts(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ConservationAlert)));
+    }, () => {});
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'agents', user.uid, 'referrals'), orderBy('createdAt', 'desc'));
+    return onSnapshot(q, (snap) => {
+      setReferrals(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Referral)));
+    }, () => {});
+  }, [user]);
+
   useEffect(() => {
     if (!user || clients.length === 0) {
-      setTotalActive(0);
-      setTotalPending(0);
-      setAnniversaryAlerts([]);
-      setAllPolicies([]);
+      setAnniversaryCount(0);
       return;
     }
-
     let cancelled = false;
-
     (async () => {
       try {
         const token = await user.getIdToken();
-        let active = 0;
-        let pending = 0;
-        const allAlerts: AnniversaryAlert[] = [];
-        const policies: Policy[] = [];
-
+        let count = 0;
         await Promise.all(
           clients.map(async (client) => {
             try {
@@ -178,161 +134,42 @@ export default function DashboardHomePage() {
               if (!res.ok) return;
               const { policies: data } = await res.json();
               (data as Policy[]).forEach((p) => {
-                policies.push(p);
-                if (p.status === 'Active') active++;
-                if (p.status === 'Pending') pending++;
-                const annivDate = getAnniversaryDate(p.createdAt, p.effectiveDate);
-                if (annivDate) {
-                  allAlerts.push({
-                    clientName: client.name,
-                    clientId: client.id,
-                    policy: p,
-                    anniversaryDate: annivDate,
-                  });
-                }
+                if (getAnniversaryDate(p.createdAt, p.effectiveDate)) count++;
               });
-            } catch {
-              // skip this client on error
-            }
+            } catch { /* skip */ }
           }),
         );
-
-        if (!cancelled) {
-          setTotalActive(active);
-          setTotalPending(pending);
-          setAllPolicies(policies);
-          setAnniversaryAlerts(
-            allAlerts.sort(
-              (a, b) => a.anniversaryDate.getTime() - b.anniversaryDate.getTime(),
-            ),
-          );
-        }
-      } catch {
-        // ignore
-      }
+        if (!cancelled) setAnniversaryCount(count);
+      } catch { /* ignore */ }
     })();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [user, clients]);
 
-  // Fetch conservation alerts
-  useEffect(() => {
-    if (!user) return;
-    const q = query(
-      collection(db, 'agents', user.uid, 'conservationAlerts'),
-      orderBy('createdAt', 'desc'),
-    );
-    return onSnapshot(
-      q,
-      (snap) => {
-        setConservationAlerts(
-          snap.docs.map((d) => ({ id: d.id, ...d.data() } as ConservationAlert)),
-        );
-      },
-      (error) => {
-        console.error('Error fetching conservation alerts:', error);
-      },
-    );
-  }, [user]);
-
-  // Fetch referrals
-  useEffect(() => {
-    if (!user) return;
-    const q = query(
-      collection(db, 'agents', user.uid, 'referrals'),
-      orderBy('createdAt', 'desc'),
-    );
-    return onSnapshot(
-      q,
-      (snap) => {
-        setReferrals(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Referral)));
-      },
-      (error) => {
-        console.error('Error fetching referrals:', error);
-      },
-    );
-  }, [user]);
-
-  // Build action feed
-  const actionFeed = useMemo(() => {
-    const agentName = agentProfile.name || 'Your Agent';
-    return buildActionFeed(
-      clients,
-      allPolicies,
-      conservationAlerts,
-      referrals,
-      anniversaryAlerts,
-      agentName,
-    ).filter((item) => !dismissedIds.has(item.id) && !isDismissed(item.id));
-  }, [clients, allPolicies, conservationAlerts, referrals, anniversaryAlerts, agentProfile.name, dismissedIds]);
-
-  // Derived counts
   const activeConservation = conservationAlerts.filter(
     (a) => a.status !== 'saved' && a.status !== 'lost',
   );
-  const chargebackCount = activeConservation.filter((a) => a.isChargebackRisk).length;
+  const urgentRevenue = activeConservation.reduce(
+    (sum, a) => sum + (a.premiumAmount || 0), 0,
+  );
   const activeReferrals = referrals.filter(
-    (r) =>
-      r.status === 'active' ||
-      r.status === 'outreach-sent' ||
-      r.status === 'drip-1' ||
-      r.status === 'drip-2',
-  );
-  const bookedReferrals = referrals.filter(
-    (r) => r.status === 'booked' || r.appointmentBooked,
+    (r) => r.status === 'active' || r.status === 'outreach-sent' || r.status === 'drip-1' || r.status === 'drip-2',
   );
 
-  // Quick actions
-  const handleDismiss = useCallback((actionId: string) => {
-    dismissAction(actionId);
-    setDismissedIds((prev) => new Set([...prev, actionId]));
-  }, []);
+  const birthdayToday = useMemo(() => {
+    const currentYear = new Date().getFullYear().toString();
+    return clients.find(
+      (c) => isBirthdayToday(c.dateOfBirth) && c.birthdayCardSentAt !== currentYear,
+    ) || null;
+  }, [clients]);
 
-  const handleSendPush = useCallback(
-    async (item: ActionItem) => {
-      if (!user || !item.pushData) return;
-      setSendingPush(item.id);
-      try {
-        const token = await user.getIdToken();
-        await fetch('/api/notifications/send', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            clientId: item.pushData.clientId,
-            title: item.pushData.title,
-            body: item.pushData.body,
-            type: item.type === 'birthday-followup' ? 'birthday' : 'message',
-          }),
-        });
-        handleDismiss(item.id);
-      } catch (err) {
-        console.error('Failed to send push:', err);
-      } finally {
-        setSendingPush(null);
-      }
-    },
-    [user, handleDismiss],
-  );
+  const totalValue = stats ? stats.savedPolicies.apv + stats.referralApv : 0;
+  const bookHealth = stats ? computeBookHealth(stats, activeConservation.length) : null;
+  const badge = stats ? getMostRecentBadge(stats) : null;
 
   if (loading) return null;
 
-  const urgentCount = actionFeed.filter((a) => a.urgent).length;
-
   return (
-    <div>
-      {/* Welcome / Page Title */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#000000]">Dashboard</h1>
-        <p className="text-[#707070] text-sm mt-1">
-          Here&rsquo;s what needs your attention today.
-        </p>
-      </div>
-
+    <div className="max-w-2xl mx-auto">
       {!agentProfile.tipsSeen?.home && (
         <SectionTipCard onDismiss={() => dismissTip('home')}>
           This is your command center. Stats, action items, and summaries update in
@@ -341,231 +178,155 @@ export default function DashboardHomePage() {
         </SectionTipCard>
       )}
 
-      {/* ── Action Feed ─────────────────────────────────────────────── */}
-      {actionFeed.length > 0 && (
-        <div className="bg-white rounded-[5px] border border-[#d0d0d0] mb-6">
-          <div className="px-5 py-4 border-b border-[#d0d0d0] flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold text-[#000000]">Action Feed</h2>
-              <p className="text-xs text-[#707070] mt-0.5">
-                {actionFeed.length} item{actionFeed.length !== 1 ? 's' : ''} need
-                {actionFeed.length === 1 ? 's' : ''} your attention
-                {urgentCount > 0 && (
-                  <span className="ml-2 inline-flex items-center px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full font-semibold">
-                    {urgentCount} urgent
-                  </span>
-                )}
-              </p>
-            </div>
-          </div>
-          <div className="divide-y divide-[#f0f0f0]">
-            {actionFeed.map((item) => {
-              const cfg = ACTION_CONFIG[item.type] || ACTION_CONFIG['warm-list'];
-              return (
-                <div
-                  key={item.id}
-                  className="flex items-center gap-4 px-5 py-3.5 hover:bg-[#f8f8f8] transition-colors"
-                >
-                  {/* Type badge */}
-                  <div className={`w-10 h-10 rounded-[5px] flex items-center justify-center shrink-0 ${cfg.bg} ${cfg.color}`}>
-                    {cfg.icon}
-                  </div>
+      {/* ── Value Hero ─────────────────────────────────────────── */}
+      <div className="relative mt-2 mb-10">
+        <div className="text-center">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-[#707070] mb-1">
+            This Week
+          </p>
+          <p className="text-5xl font-bold text-[#005851] tracking-tight">
+            {formatValue(totalValue)}
+          </p>
+          <p className="text-sm text-[#707070] mt-1">total value created</p>
+        </div>
 
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-[#000000] truncate">
-                        {item.headline}
-                      </p>
-                      {item.urgent && (
-                        <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] rounded-full font-semibold shrink-0">
-                          Urgent
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-[#707070] truncate">{item.reason}</p>
-                    <div className="flex items-center gap-3 mt-0.5">
-                      <span className="text-[10px] font-medium text-[#707070] uppercase tracking-wider">
-                        {ACTION_TYPE_LABELS[item.type]}
-                      </span>
-                      {item.revenue != null && item.revenue > 0 && (
-                        <span className="text-[10px] font-semibold text-[#005851]">
-                          {formatCurrency(item.revenue)} APV at stake
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Quick actions */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    <ActionButtons
-                      item={item}
-                      router={router}
-                      onDismiss={handleDismiss}
-                      onSendPush={handleSendPush}
-                      sendingPush={sendingPush}
-                    />
-                  </div>
+        {/* Book Health + Badge — top right */}
+        {(bookHealth !== null || badge) && (
+          <div className="absolute top-0 right-0 flex items-center gap-3">
+            {bookHealth !== null && (
+              <div className="text-right">
+                <div className="flex items-center justify-end gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#44bbaa]" />
+                  <span className="text-lg font-bold text-[#005851]">{bookHealth}</span>
                 </div>
-              );
-            })}
+                <p className="text-[10px] text-[#707070]">book health</p>
+              </div>
+            )}
+            {badge && bookHealth !== null && (
+              <div className="w-px h-8 bg-[#e0e0e0]" />
+            )}
+            {badge && (
+              <div className="text-center">
+                <BadgeIconSvg icon={badge.icon} color={badge.color} />
+                <p className="text-[10px] text-[#707070] mt-0.5">{badge.name}</p>
+              </div>
+            )}
           </div>
+        )}
+      </div>
+
+      {/* ── Three Metric Cards ─────────────────────────────────── */}
+      <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="bg-white rounded-[5px] shadow-sm p-5">
+          <div className="flex items-start justify-between mb-1">
+            <span className="text-3xl font-bold text-[#16a34a]">
+              {stats?.savedPolicies.count ?? 0}
+            </span>
+            <svg className="w-5 h-5 text-[#16a34a] mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <p className="text-xs font-medium text-[#000000]">Policies Saved</p>
+          <p className="text-[11px] text-[#707070]">{formatValue(stats?.savedPolicies.apv ?? 0)} APV</p>
+        </div>
+
+        <div className="bg-white rounded-[5px] shadow-sm p-5">
+          <div className="flex items-start justify-between mb-1">
+            <span className="text-3xl font-bold text-[#2563eb]">
+              {stats?.clientsFromReferrals ?? 0}
+            </span>
+            <svg className="w-5 h-5 text-[#2563eb] mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 17l9.2-9.2M17 17V7H7" />
+            </svg>
+          </div>
+          <p className="text-xs font-medium text-[#000000]">Referrals Won</p>
+          <p className="text-[11px] text-[#707070]">{formatValue(stats?.referralApv ?? 0)} APV</p>
+        </div>
+
+        <div className="bg-white rounded-[5px] shadow-sm p-5">
+          <div className="flex items-start justify-between mb-1">
+            <span className="text-3xl font-bold text-[#005851]">
+              {stats?.touchpoints.total ?? 0}
+            </span>
+            <svg className="w-5 h-5 text-[#005851] mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+            </svg>
+          </div>
+          <p className="text-xs font-medium text-[#000000]">Touchpoints Sent</p>
+          <p className="text-[11px] text-[#707070]">auto + manual</p>
+        </div>
+      </div>
+
+      {/* ── Urgent Alerts ──────────────────────────────────────── */}
+      {activeConservation.length > 0 && (
+        <button
+          onClick={() => router.push('/dashboard/conservation')}
+          className="w-full flex items-center gap-3 bg-red-50 rounded-[5px] px-4 py-2.5 mb-2 hover:bg-red-100 transition-colors text-left"
+        >
+          <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+          <span className="text-sm text-[#000000] flex-1">
+            {activeConservation.length} {activeConservation.length === 1 ? 'policy needs' : 'policies need'} you
+            {urgentRevenue > 0 && <span className="text-[#707070]"> — {formatValue(urgentRevenue)}/yr at stake</span>}
+          </span>
+          <span className="text-sm font-medium text-[#005851] shrink-0">View →</span>
+        </button>
+      )}
+
+      {birthdayToday && (
+        <div className="flex items-center gap-3 px-4 py-2.5 mb-2">
+          <span className="w-2 h-2 rounded-full bg-pink-400 shrink-0" />
+          <span className="text-sm text-[#000000] flex-1">
+            {birthdayToday.name} — birthday today
+          </span>
+          {birthdayToday.phone ? (
+            <a
+              href={`sms:${birthdayToday.phone}?body=${encodeURIComponent(`Happy Birthday, ${birthdayToday.name.split(' ')[0]}! Hope you have an amazing day. — ${agentProfile.name || 'Your Agent'}`)}`}
+              className="text-sm font-medium text-[#005851] shrink-0 hover:underline"
+            >
+              Send Text →
+            </a>
+          ) : (
+            <button
+              onClick={() => router.push('/dashboard/clients')}
+              className="text-sm font-medium text-[#005851] shrink-0 hover:underline"
+            >
+              View →
+            </button>
+          )}
         </div>
       )}
 
-      {/* ── Pipeline Health ──────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {/* Referrals Pipeline */}
-        <button
-          onClick={() => router.push('/dashboard/referrals')}
-          className="bg-white rounded-[5px] border border-[#d0d0d0] p-5 hover:border-[#45bcaa] transition-colors text-left"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-[#000000]">Referral Pipeline</h3>
-            <svg className="w-4 h-4 text-[#d0d0d0]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </div>
-          {referrals.length === 0 ? (
-            <p className="text-xs text-[#707070]">
-              No referrals yet. When clients refer someone, they appear here.
-            </p>
-          ) : (
-            <>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="flex-1 text-center">
-                  <p className="text-xl font-bold text-[#000000]">
-                    {referrals.filter((r) => r.status === 'pending' || r.status === 'outreach-sent').length}
-                  </p>
-                  <p className="text-[10px] text-[#707070]">Outreach</p>
-                </div>
-                <div className="w-px h-8 bg-[#d0d0d0]" />
-                <div className="flex-1 text-center">
-                  <p className="text-xl font-bold text-blue-600">{activeReferrals.length}</p>
-                  <p className="text-[10px] text-[#707070]">Active</p>
-                </div>
-                <div className="w-px h-8 bg-[#d0d0d0]" />
-                <div className="flex-1 text-center">
-                  <p className="text-xl font-bold text-green-600">{bookedReferrals.length}</p>
-                  <p className="text-[10px] text-[#707070]">Booked</p>
-                </div>
-              </div>
-              <PipelineBar
-                segments={[
-                  { value: referrals.filter((r) => r.status === 'pending' || r.status === 'outreach-sent').length, color: 'bg-[#d0d0d0]' },
-                  { value: activeReferrals.length, color: 'bg-blue-500' },
-                  { value: bookedReferrals.length, color: 'bg-green-500' },
-                ]}
-              />
-            </>
-          )}
-        </button>
-
-        {/* Retention Status */}
-        <button
+      {/* ── Nav Grid ───────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-x-8 gap-y-3 mt-8">
+        <NavLink
+          color="bg-red-500"
+          label="Retention"
+          count={activeConservation.length}
           onClick={() => router.push('/dashboard/conservation')}
-          className="bg-white rounded-[5px] border border-[#d0d0d0] p-5 hover:border-[#45bcaa] transition-colors text-left"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-[#000000]">Retention Status</h3>
-            <svg className="w-4 h-4 text-[#d0d0d0]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </div>
-          {conservationAlerts.length === 0 ? (
-            <p className="text-xs text-[#707070]">
-              No at-risk policies. Lapse notices you paste in Retention appear here.
-            </p>
-          ) : (
-            <>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="flex-1 text-center">
-                  <p className={`text-xl font-bold ${activeConservation.length > 0 ? 'text-amber-600' : 'text-[#000000]'}`}>
-                    {activeConservation.length}
-                  </p>
-                  <p className="text-[10px] text-[#707070]">Active</p>
-                </div>
-                <div className="w-px h-8 bg-[#d0d0d0]" />
-                <div className="flex-1 text-center">
-                  <p className={`text-xl font-bold ${chargebackCount > 0 ? 'text-red-600' : 'text-[#000000]'}`}>
-                    {chargebackCount}
-                  </p>
-                  <p className="text-[10px] text-[#707070]">Chargeback</p>
-                </div>
-                <div className="w-px h-8 bg-[#d0d0d0]" />
-                <div className="flex-1 text-center">
-                  <p className="text-xl font-bold text-green-600">
-                    {conservationAlerts.filter((a) => a.status === 'saved').length}
-                  </p>
-                  <p className="text-[10px] text-[#707070]">Saved</p>
-                </div>
-              </div>
-              <PipelineBar
-                segments={[
-                  { value: activeConservation.length, color: 'bg-amber-500' },
-                  { value: chargebackCount, color: 'bg-red-500' },
-                  { value: conservationAlerts.filter((a) => a.status === 'saved').length, color: 'bg-green-500' },
-                ]}
-              />
-            </>
-          )}
-        </button>
-
-        {/* Touchpoints */}
-        <button
+        />
+        <NavLink
+          color="bg-[#2563eb]"
+          label="Referrals"
+          count={activeReferrals.length}
+          onClick={() => router.push('/dashboard/referrals')}
+        />
+        <NavLink
+          color="bg-amber-500"
+          label="Anniversaries"
+          count={anniversaryCount}
+          onClick={() => router.push('/dashboard/policy-reviews')}
+        />
+        <NavLink
+          color="bg-[#005851]"
+          label="Warm Leads"
+          count={clients.length}
           onClick={() => router.push('/dashboard/clients')}
-          className="bg-white rounded-[5px] border border-[#d0d0d0] p-5 hover:border-[#45bcaa] transition-colors text-left"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-[#000000]">Touchpoints</h3>
-            <svg className="w-4 h-4 text-[#d0d0d0]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </div>
-          {stats ? (
-            <>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="flex-1 text-center">
-                  <p className="text-xl font-bold text-[#000000]">
-                    {stats.touchpoints.holidayCardsSent}
-                  </p>
-                  <p className="text-[10px] text-[#707070]">Holiday</p>
-                </div>
-                <div className="w-px h-8 bg-[#d0d0d0]" />
-                <div className="flex-1 text-center">
-                  <p className="text-xl font-bold text-pink-600">
-                    {stats.touchpoints.birthdayMessagesSent}
-                  </p>
-                  <p className="text-[10px] text-[#707070]">Birthday</p>
-                </div>
-                <div className="w-px h-8 bg-[#d0d0d0]" />
-                <div className="flex-1 text-center">
-                  <p className="text-xl font-bold text-amber-600">
-                    {stats.touchpoints.anniversarySent}
-                  </p>
-                  <p className="text-[10px] text-[#707070]">Anniversary</p>
-                </div>
-              </div>
-              <PipelineBar
-                segments={[
-                  { value: stats.touchpoints.holidayCardsSent, color: 'bg-green-500' },
-                  { value: stats.touchpoints.birthdayMessagesSent, color: 'bg-pink-500' },
-                  { value: stats.touchpoints.anniversarySent, color: 'bg-amber-500' },
-                ]}
-              />
-            </>
-          ) : (
-            <p className="text-xs text-[#707070]">
-              Touchpoint stats will appear as you send birthday, holiday, and anniversary
-              messages.
-            </p>
-          )}
-        </button>
+        />
       </div>
 
-      {/* Empty state for brand new agents */}
+      {/* ── Empty State ────────────────────────────────────────── */}
       {clients.length === 0 && referrals.length === 0 && conservationAlerts.length === 0 && (
-        <div className="mt-2 bg-white rounded-[5px] border border-[#d0d0d0] p-8 text-center">
+        <div className="mt-12 text-center">
           <div className="w-16 h-16 bg-[#daf3f0] rounded-full flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-[#005851]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -590,138 +351,80 @@ export default function DashboardHomePage() {
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
-function PipelineBar({ segments }: { segments: { value: number; color: string }[] }) {
-  const total = segments.reduce((s, seg) => s + seg.value, 0);
-  if (total === 0) return null;
-
+function NavLink({ color, label, count, onClick }: {
+  color: string;
+  label: string;
+  count: number;
+  onClick: () => void;
+}) {
   return (
-    <div className="flex h-2 rounded-full overflow-hidden bg-[#f0f0f0]">
-      {segments.map((seg, i) =>
-        seg.value > 0 ? (
-          <div
-            key={i}
-            className={`${seg.color} transition-all duration-500`}
-            style={{ width: `${(seg.value / total) * 100}%` }}
-          />
-        ) : null,
-      )}
-    </div>
+    <button
+      onClick={onClick}
+      className="flex items-center gap-3 py-2 text-left group"
+    >
+      <span className={`w-2 h-2 rounded-full ${color} shrink-0`} />
+      <span className="text-sm font-semibold text-[#000000] group-hover:text-[#005851] transition-colors">
+        {label}
+      </span>
+      <span className="text-sm text-[#707070] ml-auto">{count}</span>
+      <span className="text-sm text-[#005851] opacity-0 group-hover:opacity-100 transition-opacity">→</span>
+    </button>
   );
 }
 
-function ActionButtons({
-  item,
-  router,
-  onDismiss,
-  onSendPush,
-  sendingPush,
-}: {
-  item: ActionItem;
-  router: ReturnType<typeof useRouter>;
-  onDismiss: (id: string) => void;
-  onSendPush: (item: ActionItem) => void;
-  sendingPush: string | null;
-}) {
-  const btnBase = 'px-3 py-1.5 text-xs font-semibold rounded-[5px] transition-colors';
-
-  switch (item.type) {
-    case 'conservation':
+function BadgeIconSvg({ icon, color }: { icon: BadgeIcon; color: string }) {
+  const cls = 'w-6 h-6';
+  switch (icon) {
+    case 'shield':
       return (
-        <button
-          onClick={() => router.push('/dashboard/conservation')}
-          className={`${btnBase} bg-[#44bbaa] hover:bg-[#005751] text-white`}
-        >
-          View Details
-        </button>
+        <svg className={cls} fill={color} viewBox="0 0 24 24">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          <path d="M9 12l2 2 4-4" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       );
-
-    case 'birthday-followup':
-    case 'holiday-followup':
+    case 'chat':
       return (
-        <>
-          {item.clientPhone && (
-            <a
-              href={`sms:${item.clientPhone}${item.smsBody ? `?body=${encodeURIComponent(item.smsBody)}` : ''}`}
-              className={`${btnBase} bg-[#44bbaa] hover:bg-[#005751] text-white`}
-            >
-              Send Text
-            </a>
-          )}
-          {item.pushData && (
-            <button
-              onClick={() => onSendPush(item)}
-              disabled={sendingPush === item.id}
-              className={`${btnBase} border border-[#d0d0d0] text-[#000000] hover:bg-[#f1f1f1] disabled:opacity-50`}
-            >
-              {sendingPush === item.id ? 'Sending...' : 'Send Push'}
-            </button>
-          )}
-          <button
-            onClick={() => onDismiss(item.id)}
-            className={`${btnBase} text-[#707070] hover:text-[#000000] hover:bg-[#f1f1f1]`}
-          >
-            Dismiss
-          </button>
-        </>
+        <svg className={cls} fill={color} viewBox="0 0 24 24">
+          <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
+        </svg>
       );
-
-    case 'referral':
+    case 'star':
       return (
-        <button
-          onClick={() => router.push('/dashboard/referrals')}
-          className={`${btnBase} bg-[#44bbaa] hover:bg-[#005751] text-white`}
-        >
-          View Conversation
-        </button>
+        <svg className={cls} fill={color} viewBox="0 0 24 24">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+        </svg>
       );
-
-    case 'anniversary-rewrite':
+    case 'heart':
       return (
-        <button
-          onClick={() => router.push('/dashboard/clients')}
-          className={`${btnBase} bg-[#44bbaa] hover:bg-[#005751] text-white`}
-        >
-          View Policy
-        </button>
+        <svg className={cls} fill={color} viewBox="0 0 24 24">
+          <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
+        </svg>
       );
-
-    case 'warm-list':
+    case 'trophy':
       return (
-        <>
-          {item.clientPhone && (
-            <a
-              href={`tel:${item.clientPhone}`}
-              className={`${btnBase} bg-[#44bbaa] hover:bg-[#005751] text-white`}
-            >
-              Call
-            </a>
-          )}
-          {item.pushData && (
-            <button
-              onClick={() => onSendPush(item)}
-              disabled={sendingPush === item.id}
-              className={`${btnBase} border border-[#d0d0d0] text-[#000000] hover:bg-[#f1f1f1] disabled:opacity-50`}
-            >
-              {sendingPush === item.id ? 'Sending...' : 'Send Push'}
-            </button>
-          )}
-          <button
-            onClick={() => onDismiss(item.id)}
-            className={`${btnBase} text-[#707070] hover:text-[#000000] hover:bg-[#f1f1f1]`}
-          >
-            Dismiss
-          </button>
-        </>
+        <svg className={cls} fill={color} viewBox="0 0 24 24">
+          <path d="M6 9H3a1 1 0 01-1-1V4a1 1 0 011-1h3m12 6h3a1 1 0 001-1V4a1 1 0 00-1-1h-3M6 3h12v7a6 6 0 01-12 0V3zm3 17h6m-3-3v3" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       );
-
-    default:
+    case 'diamond':
       return (
-        <button
-          onClick={() => router.push(item.route)}
-          className={`${btnBase} bg-[#44bbaa] hover:bg-[#005751] text-white`}
-        >
-          View
-        </button>
+        <svg className={cls} fill={color} viewBox="0 0 24 24">
+          <path d="M12 2L2 12l10 10 10-10L12 2z" />
+        </svg>
+      );
+    case 'flame':
+      return (
+        <svg className={cls} fill={color} viewBox="0 0 24 24">
+          <path d="M12 23c-3.6 0-8-2.4-8-7.5C4 12 6.5 9.5 8 8c.5 2.5 2 4 3 5 .5-3 2-7 5-9 0 4 4 7 4 11.5 0 5.1-4.4 7.5-8 7.5z" />
+        </svg>
+      );
+    case 'target':
+      return (
+        <svg className={cls} fill="none" stroke={color} strokeWidth={2} viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" />
+          <circle cx="12" cy="12" r="6" />
+          <circle cx="12" cy="12" r="2" fill={color} />
+        </svg>
       );
   }
 }
