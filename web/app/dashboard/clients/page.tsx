@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { upload } from '@vercel/blob/client';
 import {
   collection,
   addDoc,
@@ -1139,13 +1140,19 @@ export default function ClientsPage() {
     setParsingBob(true);
     setImportError('');
     try {
+      const blob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/upload',
+      });
+
       const token = await user.getIdToken();
-      const formData = new FormData();
-      formData.append('file', file);
       const res = await fetch('/api/parse-bob', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url: blob.url }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {

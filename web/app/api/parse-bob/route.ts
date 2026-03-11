@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { del } from '@vercel/blob';
 import { getAdminAuth } from '../../../lib/firebase-admin';
 import { pdfToBase64 } from '../../../lib/pdf-parser';
 import { extractBobFromPdf, extractBobFromText } from '../../../lib/bob-extractor';
@@ -19,44 +20,56 @@ interface ParseBobResponse {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse<ParseBobResponse>> {
+  let blobUrl: string | undefined;
+
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
-    const token = authHeader.split('Bearer ')[1];
+    const authToken = authHeader.split('Bearer ')[1];
     const adminAuth = getAdminAuth();
-    await adminAuth.verifyIdToken(token);
+    await adminAuth.verifyIdToken(authToken);
 
-    const formData = await req.formData();
-    const file = formData.get('file');
+    const { url } = (await req.json()) as { url?: string };
 
-    if (!file || !(file instanceof File)) {
+    if (!url) {
       return NextResponse.json(
         { success: false, error: 'No file provided.' },
         { status: 400 },
       );
     }
 
-    if (file.size > MAX_FILE_SIZE) {
+    blobUrl = url;
+
+    const fileRes = await fetch(url);
+    if (!fileRes.ok) {
+      return NextResponse.json(
+        { success: false, error: 'Failed to retrieve uploaded file.' },
+        { status: 400 },
+      );
+    }
+
+    const contentType = fileRes.headers.get('content-type') || '';
+    const arrayBuffer = await fileRes.arrayBuffer();
+
+    if (arrayBuffer.byteLength > MAX_FILE_SIZE) {
       return NextResponse.json(
         { success: false, error: 'File is too large. Maximum size is 15MB.' },
         { status: 400 },
       );
     }
 
-    const isPdf =
-      file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isPdf = contentType.includes('application/pdf') || url.toLowerCase().endsWith('.pdf');
 
     let result;
 
     if (isPdf) {
-      const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       const pdfBase64 = pdfToBase64(buffer);
       result = await extractBobFromPdf(pdfBase64);
     } else {
-      const text = await file.text();
+      const text = new TextDecoder().decode(arrayBuffer);
       if (!text.trim()) {
         return NextResponse.json(
           { success: false, error: 'File is empty.' },
@@ -88,5 +101,9 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseBobRespo
     const message =
       error instanceof Error ? error.message : 'Something went wrong. Please try again.';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
+  } finally {
+    if (blobUrl) {
+      del(blobUrl).catch(() => {});
+    }
   }
 }

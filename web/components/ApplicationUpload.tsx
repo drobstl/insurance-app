@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
+import { upload } from '@vercel/blob/client';
 import type { ExtractedApplicationData, ParseApplicationResponse, Beneficiary } from '../lib/types';
 
 interface ApplicationUploadProps {
@@ -52,15 +53,18 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
     setStage('processing');
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      const blob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/upload',
+      });
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 120_000);
 
       const res = await fetch('/api/parse-application', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: blob.url }),
         signal: controller.signal,
       });
 
