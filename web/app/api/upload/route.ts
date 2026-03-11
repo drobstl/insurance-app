@@ -1,4 +1,4 @@
-import { handleUpload, type HandleUploadBody } from '@vercel/blob';
+import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
 import { NextResponse } from 'next/server';
 
 const MAX_SIZE = 16 * 1024 * 1024; // 16MB ceiling (covers 10MB app + 15MB BOB routes)
