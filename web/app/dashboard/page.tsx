@@ -29,12 +29,12 @@ const TYPE_META: Record<ActivityItem['type'], { color: string; href: string }> =
 };
 
 function computeFanArc(count: number) {
-  const maxSpread = 200;
-  const maxX = 42;
+  const maxSpread = 160;
+  const maxX = 32;
   return Array.from({ length: count }, (_, i) => {
     const t = count === 1 ? 0 : (i / (count - 1)) * 2 - 1;
     const y = t * (maxSpread / 2);
-    const x = maxX - Math.abs(t) * 18;
+    const x = maxX - Math.abs(t) * 12;
     const rotate = t * 6;
     return { x, y, rotate };
   });
@@ -511,8 +511,8 @@ function AIActivityFan({
               <motion.p
                 className="fixed z-[71] text-[10px] font-semibold text-[#707070] uppercase tracking-wider"
                 style={{
-                  left: originX + 50,
-                  top: originY + arc[0].y - 32,
+                  left: originX + 40,
+                  top: originY + arc[0].y - 24,
                 }}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -528,7 +528,7 @@ function AIActivityFan({
                 return (
                   <motion.button
                     key={item.id}
-                    className="fixed z-[71] flex items-center gap-2.5 bg-white rounded-[5px] shadow-lg border border-[#e4e4e4] pl-3 pr-4 py-2.5 hover:shadow-xl hover:border-[#005851]/30 transition-shadow cursor-pointer whitespace-nowrap"
+                    className="fixed z-[71] flex items-center gap-2 bg-white rounded-[5px] shadow-lg border border-[#e4e4e4] pl-2.5 pr-3 py-1.5 hover:shadow-xl hover:border-[#005851]/30 transition-shadow cursor-pointer whitespace-nowrap"
                     style={{
                       left: originX + offset.x,
                       top: originY + offset.y - 16,
@@ -563,9 +563,9 @@ function AIActivityFan({
                     }}
                     onClick={() => onNavigate(meta.href)}
                   >
-                    <span className={`w-2 h-2 rounded-full ${meta.color} shrink-0`} />
-                    <span className="text-sm text-[#000000] max-w-[240px] truncate">{item.summary}</span>
-                    <span className="text-[11px] text-[#707070] ml-1 shrink-0">{relativeTime(item.timestamp)}</span>
+                    <span className={`w-1.5 h-1.5 rounded-full ${meta.color} shrink-0`} />
+                    <span className="text-xs text-[#000000] max-w-[200px] truncate">{item.summary}</span>
+                    <span className="text-[10px] text-[#707070] ml-1 shrink-0">{relativeTime(item.timestamp)}</span>
                   </motion.button>
                 );
               })}
