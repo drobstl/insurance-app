@@ -9,8 +9,13 @@ import { useDashboard } from './DashboardContext';
 import { getAnniversaryDate } from '../../lib/policyUtils';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
 import { computeBookHealth } from '../../lib/book-health';
-import { getMostRecentBadge, type EarnedBadge, type BadgeIcon } from '../../lib/badges';
+import { computeBookHealthBreakdown } from '../../lib/book-health';
+import { getMostRecentBadge, computeBadges, type EarnedBadge } from '../../lib/badges';
 import SectionTipCard from '../../components/SectionTipCard';
+import PremiumBadge from '../../components/PremiumBadge';
+import BadgeShelf from '../../components/BadgeShelf';
+import BookHealthPopover from '../../components/BookHealthPopover';
+import BadgeCelebration from '../../components/BadgeCelebration';
 
 interface ActivityItem {
   id: string;
@@ -232,7 +237,20 @@ export default function DashboardHomePage() {
 
   const totalValue = stats ? stats.totalApv : 0;
   const bookHealth = stats ? computeBookHealth(stats, activeConservation.length) : null;
+  const bookHealthBreakdown = stats ? computeBookHealthBreakdown(stats, activeConservation.length) : null;
   const badge = stats ? getMostRecentBadge(stats) : null;
+
+  const [shelfOpen, setShelfOpen] = useState(false);
+  const [healthOpen, setHealthOpen] = useState(false);
+  const [celebrationBadge, setCelebrationBadge] = useState<EarnedBadge | null>(null);
+
+  useEffect(() => {
+    if (!stats || !user || !agentProfile) return;
+    const earned = computeBadges(stats);
+    const celebrated = new Set(agentProfile.celebratedBadgeIds ?? []);
+    const uncelebrated = earned.find((b) => !celebrated.has(b.id));
+    if (uncelebrated) setCelebrationBadge(uncelebrated);
+  }, [stats, user, agentProfile]);
 
   if (loading) return null;
 
@@ -256,23 +274,45 @@ export default function DashboardHomePage() {
         </div>
 
         {(bookHealth !== null || badge) && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             {bookHealth !== null && (
-              <div className="text-right">
-                <div className="flex items-center justify-end gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#44bbaa]" />
-                  <span className="text-lg font-bold text-[#005851]">{bookHealth}</span>
-                </div>
-                <p className="text-[10px] text-[#707070]">book health</p>
+              <div className="relative">
+                <button
+                  onClick={() => setHealthOpen(!healthOpen)}
+                  className="text-right hover:opacity-80 transition-opacity"
+                >
+                  <div className="flex items-center justify-end gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#44bbaa]" />
+                    <span className="text-3xl font-extrabold text-[#005851]">{bookHealth}</span>
+                  </div>
+                  <p className="text-xs text-[#707070]">book health</p>
+                </button>
+                {bookHealthBreakdown && (
+                  <BookHealthPopover
+                    breakdown={bookHealthBreakdown}
+                    open={healthOpen}
+                    onClose={() => setHealthOpen(false)}
+                  />
+                )}
               </div>
             )}
             {badge && bookHealth !== null && (
-              <div className="w-px h-8 bg-[#e0e0e0]" />
+              <div className="w-px h-12 bg-[#d0d0d0]" />
             )}
-            {badge && (
-              <div className="text-center">
-                <BadgeIconSvg icon={badge.icon} color={badge.color} />
-                <p className="text-[10px] text-[#707070] mt-0.5">{badge.name}</p>
+            {badge && stats && (
+              <div className="relative">
+                <button
+                  onClick={() => setShelfOpen(!shelfOpen)}
+                  className="flex flex-col items-center hover:opacity-80 transition-opacity"
+                >
+                  <PremiumBadge icon={badge.icon} color={badge.color} size={44} shimmer glow />
+                  <p className="text-xs text-[#707070] mt-1">{badge.name}</p>
+                </button>
+                <BadgeShelf
+                  stats={stats}
+                  open={shelfOpen}
+                  onClose={() => setShelfOpen(false)}
+                />
               </div>
             )}
           </div>
@@ -425,6 +465,16 @@ export default function DashboardHomePage() {
             Add Your First Client
           </button>
         </div>
+      )}
+
+      {/* ── Badge Celebration Overlay ──────────────────────────── */}
+      {celebrationBadge && user && (
+        <BadgeCelebration
+          badge={celebrationBadge}
+          agentUid={user.uid}
+          agentName={agentProfile.name || 'Agent'}
+          onDismiss={() => setCelebrationBadge(null)}
+        />
       )}
     </div>
   );
@@ -633,59 +683,3 @@ function NavLink({ color, label, count, onClick }: {
   );
 }
 
-function BadgeIconSvg({ icon, color }: { icon: BadgeIcon; color: string }) {
-  const cls = 'w-6 h-6';
-  switch (icon) {
-    case 'shield':
-      return (
-        <svg className={cls} fill={color} viewBox="0 0 24 24">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-          <path d="M9 12l2 2 4-4" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      );
-    case 'chat':
-      return (
-        <svg className={cls} fill={color} viewBox="0 0 24 24">
-          <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
-        </svg>
-      );
-    case 'star':
-      return (
-        <svg className={cls} fill={color} viewBox="0 0 24 24">
-          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-        </svg>
-      );
-    case 'heart':
-      return (
-        <svg className={cls} fill={color} viewBox="0 0 24 24">
-          <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
-        </svg>
-      );
-    case 'trophy':
-      return (
-        <svg className={cls} fill={color} viewBox="0 0 24 24">
-          <path d="M6 9H3a1 1 0 01-1-1V4a1 1 0 011-1h3m12 6h3a1 1 0 001-1V4a1 1 0 00-1-1h-3M6 3h12v7a6 6 0 01-12 0V3zm3 17h6m-3-3v3" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      );
-    case 'diamond':
-      return (
-        <svg className={cls} fill={color} viewBox="0 0 24 24">
-          <path d="M12 2L2 12l10 10 10-10L12 2z" />
-        </svg>
-      );
-    case 'flame':
-      return (
-        <svg className={cls} fill={color} viewBox="0 0 24 24">
-          <path d="M12 23c-3.6 0-8-2.4-8-7.5C4 12 6.5 9.5 8 8c.5 2.5 2 4 3 5 .5-3 2-7 5-9 0 4 4 7 4 11.5 0 5.1-4.4 7.5-8 7.5z" />
-        </svg>
-      );
-    case 'target':
-      return (
-        <svg className={cls} fill="none" stroke={color} strokeWidth={2} viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="10" />
-          <circle cx="12" cy="12" r="6" />
-          <circle cx="12" cy="12" r="2" fill={color} />
-        </svg>
-      );
-  }
-}

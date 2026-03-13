@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -9,11 +9,37 @@ import { auth, db } from '../../firebase';
 
 export default function SignupPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const [refCode, setRefCode] = useState<string | null>(null);
+  const [referrerName, setReferrerName] = useState<string | null>(null);
+  const [referrerId, setReferrerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const code = searchParams.get('ref');
+    if (!code) return;
+    setRefCode(code);
+    fetch('/api/agent-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.valid) {
+          setReferrerName(data.referrerName);
+          setReferrerId(data.referrerId);
+        } else {
+          setRefCode(null);
+        }
+      })
+      .catch(() => setRefCode(null));
+  }, [searchParams]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,16 +47,21 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      // Create user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Store agent profile in Firestore
-      await setDoc(doc(db, 'agents', user.uid), {
+      const profileData: Record<string, unknown> = {
         name,
         email,
         createdAt: serverTimestamp(),
-      });
+      };
+      if (referrerId) profileData.referredByAgent = referrerId;
+
+      await setDoc(doc(db, 'agents', user.uid), profileData);
+
+      if (refCode) {
+        try { sessionStorage.setItem('agentReferralCode', refCode); } catch { /* SSR-safe */ }
+      }
 
       router.push('/subscribe');
     } catch (err: unknown) {
@@ -81,6 +112,17 @@ export default function SignupPage() {
               <h1 className="text-2xl font-bold text-[#005851]">Create Your Account</h1>
               <p className="text-[#707070] mt-2">Start building stronger client relationships</p>
             </div>
+
+            {referrerName && (
+              <div className="flex items-center gap-2 bg-[#f0faf8] rounded-[5px] px-4 py-2.5 mb-4 border border-[#44bbaa]/30">
+                <svg className="w-4 h-4 text-[#005851] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+                </svg>
+                <p className="text-sm text-[#005851]">
+                  Invited by <span className="font-bold">{referrerName}</span> — you both get 1 month free
+                </p>
+              </div>
+            )}
 
             <form onSubmit={handleSignup} className="space-y-5">
               {error && (

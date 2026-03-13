@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import Cropper from 'react-easy-crop';
 import type { Area } from 'react-easy-crop';
 import { doc, setDoc } from 'firebase/firestore';
@@ -818,6 +818,9 @@ export default function SettingsPage() {
       {/* ─── Account Tab ─── */}
       {activeTab === 'account' && (
         <div className="space-y-5">
+          {/* Invite Agents */}
+          <InviteAgentsCard />
+
           {/* Subscription */}
           <div className="bg-white rounded-[5px] border border-gray-200 p-5">
             <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Subscription</h3>
@@ -1272,6 +1275,81 @@ export default function SettingsPage() {
       )}
 
       </div>
+    </div>
+  );
+}
+
+function InviteAgentsCard() {
+  const { user } = useDashboard();
+  const [inviteUrl, setInviteUrl] = useState('');
+  const [agentsReferred, setAgentsReferred] = useState(0);
+  const [rewardsGiven, setRewardsGiven] = useState(0);
+  const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    user.getIdToken().then((token) =>
+      fetch('/api/agent-invite', { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((data) => {
+          setInviteUrl(data.inviteUrl ?? '');
+          setAgentsReferred(data.agentsReferred ?? 0);
+          setRewardsGiven(data.referralRewardsGiven ?? 0);
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false)),
+    );
+  }, [user]);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* fallback */ }
+  };
+
+  return (
+    <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+      <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-3">
+        Invite Agents
+      </h3>
+      <p className="text-sm text-[#707070] mb-4">
+        Share your invite link. When a new agent signs up and subscribes, you both get <span className="font-bold text-[#005851]">1 free month</span>.
+      </p>
+
+      {loading ? (
+        <div className="h-10 bg-[#f8f8f8] rounded-[5px] animate-pulse" />
+      ) : (
+        <>
+          <div className="flex items-center gap-2 mb-4">
+            <input
+              readOnly
+              value={inviteUrl}
+              className="flex-1 text-sm bg-[#f8f8f8] border border-[#a4a4a4bf] rounded-[5px] px-3 py-2.5 text-[#000000] select-all"
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+            />
+            <button
+              onClick={handleCopy}
+              className="shrink-0 px-4 py-2.5 text-sm font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-[5px] transition-colors min-w-[80px]"
+            >
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
+          </div>
+
+          <div className="flex gap-6">
+            <div>
+              <span className="text-2xl font-extrabold text-[#005851]">{agentsReferred}</span>
+              <p className="text-xs text-[#707070]">agents recruited</p>
+            </div>
+            <div>
+              <span className="text-2xl font-extrabold text-[#16a34a]">{rewardsGiven}</span>
+              <p className="text-xs text-[#707070]">free months earned</p>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

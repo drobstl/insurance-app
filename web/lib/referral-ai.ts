@@ -3,6 +3,17 @@ import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { PRIMARY_MODEL, HELPER_MODEL } from './ai-models';
 import { buildSharedVoiceBlock } from './ai-voice';
+import { enrichPrompt, type EnrichmentResult } from './dynamic-prompt';
+import { critiqueMessage } from './message-critic';
+import { analyzeConversation } from './conversation-analyzer';
+import { rewriteFailedConversation } from './counterfactual-rewriter';
+import {
+  storeAnalysis,
+  markSourceDocAnalyzed,
+  getExemplars,
+  recordExperimentOutcome,
+} from './conversation-memory';
+import type { ConversationMessage as LearningMessage } from './learning-types';
 
 let _anthropic: Anthropic | null = null;
 function getAnthropic(): Anthropic {
@@ -243,7 +254,27 @@ export async function generateReferralResponse(
   newMessage: string,
 ): Promise<string | null> {
   const anthropic = getAnthropic();
-  const systemPrompt = buildNEPQSystemPrompt(ctx);
+
+  const learningConversation: LearningMessage[] = ctx.conversation.map((m) => ({
+    role: m.role === 'referral' ? 'client' : 'agent-ai',
+    body: m.body,
+    timestamp: m.timestamp,
+  }));
+
+  let enrichment: EnrichmentResult | null = null;
+  try {
+    enrichment = await enrichPrompt({
+      conversationType: 'referral',
+      conversation: learningConversation,
+    });
+  } catch (error) {
+    console.warn('Learning enrichment failed, using base prompt:', error);
+  }
+
+  const basePrompt = buildNEPQSystemPrompt(ctx);
+  const systemPrompt = enrichment?.enrichedBlock
+    ? `${basePrompt}\n\n${enrichment.enrichedBlock}`
+    : basePrompt;
 
   const messages: Anthropic.MessageParam[] = [];
 
@@ -256,23 +287,167 @@ export async function generateReferralResponse(
 
   messages.push({ role: 'user', content: newMessage });
 
-  const completion = await withRetry(() =>
-    anthropic.messages.create({
-      model: PRIMARY_MODEL,
-      max_tokens: 300,
-      system: systemPrompt,
-      messages,
-    }),
-  );
+  const generateCandidate = async (criticFeedback?: string) => {
+    const system = criticFeedback
+      ? `${systemPrompt}\n\nCRITIC FEEDBACK ON YOUR PREVIOUS ATTEMPT:\n${criticFeedback}\n\nGenerate a new response that addresses this feedback.`
+      : systemPrompt;
 
-  const block = completion.content[0];
-  const response = block.type === 'text' ? block.text.trim() : null;
+    const completion = await withRetry(() =>
+      anthropic.messages.create({
+        model: PRIMARY_MODEL,
+        max_tokens: 300,
+        system,
+        messages,
+      }),
+    );
+    const block = completion.content[0];
+    return block.type === 'text' ? block.text.trim() : null;
+  };
+
+  let response = await generateCandidate();
 
   if (!response || response === '[WAIT]' || response === '[DONE]') {
     return null;
   }
 
+  if (enrichment) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const critique = await critiqueMessage({
+          candidateMessage: response,
+          conversation: learningConversation,
+          persona: enrichment.persona,
+          personaStrategy: enrichment.personaStrategy,
+          antiPatterns: enrichment.antiPatterns,
+        });
+
+        if (critique.approved) break;
+
+        const retry = await generateCandidate(critique.feedback ?? undefined);
+        if (retry && retry !== '[WAIT]' && retry !== '[DONE]') {
+          response = retry;
+        } else {
+          break;
+        }
+      } catch (error) {
+        console.warn('Critic failed, sending original message:', error);
+        break;
+      }
+    }
+  }
+
   return response;
+}
+
+/**
+ * Trigger post-conversation analysis for a completed referral.
+ * Fire-and-forget — does not block the response flow.
+ */
+export function triggerReferralAnalysis(params: {
+  agentId: string;
+  sourceDocPath: string;
+  sourceDocId: string;
+  conversation: ConversationMessage[];
+  outcome: 'success' | 'failure';
+  metadata: Record<string, unknown>;
+}): void {
+  const learningConversation: LearningMessage[] = params.conversation.map((m) => ({
+    role: m.role === 'referral' ? 'client' : 'agent-ai',
+    body: m.body,
+    timestamp: m.timestamp,
+  }));
+
+  (async () => {
+    try {
+      const analysis = await analyzeConversation({
+        conversationType: 'referral',
+        outcome: params.outcome,
+        conversation: learningConversation,
+        metadata: {
+          messageCount: params.conversation.length,
+          durationMinutes: null,
+          reason: null,
+          premiumAmount: null,
+          coverageAmount: null,
+          carrier: null,
+          policyType: null,
+          ...params.metadata,
+        },
+      });
+
+      const analysisId = await storeAnalysis({
+        agentId: params.agentId,
+        conversationType: 'referral',
+        outcome: params.outcome,
+        clientPersona: analysis.clientPersona,
+        analysis,
+        conversation: learningConversation,
+        metadata: {
+          messageCount: params.conversation.length,
+          durationMinutes: null,
+          reason: null,
+          premiumAmount: null,
+          coverageAmount: null,
+          carrier: null,
+          policyType: null,
+          ...params.metadata,
+        },
+        sourceDocPath: params.sourceDocPath,
+        sourceDocId: params.sourceDocId,
+      });
+
+      await markSourceDocAnalyzed(params.sourceDocPath, analysisId);
+
+      if (params.outcome === 'failure') {
+        try {
+          const exemplars = await getExemplars({
+            type: 'referral',
+            persona: analysis.clientPersona,
+            outcome: 'success',
+            limit: 3,
+          });
+
+          const rewrite = await rewriteFailedConversation({
+            conversationType: 'referral',
+            conversation: learningConversation,
+            analysis,
+            persona: analysis.clientPersona,
+            strategyDocument: null,
+            exemplarConversations: exemplars.map((e) => e.conversation),
+          });
+
+          if (rewrite.annotations.length > 0) {
+            await storeAnalysis({
+              agentId: params.agentId,
+              conversationType: 'referral',
+              outcome: 'success',
+              clientPersona: analysis.clientPersona,
+              analysis: { ...analysis, outcome: 'success' },
+              conversation: rewrite.rewrittenConversation,
+              metadata: {
+                messageCount: rewrite.rewrittenConversation.length,
+                durationMinutes: null,
+                reason: null,
+                premiumAmount: null,
+                coverageAmount: null,
+                carrier: null,
+                policyType: null,
+                ...params.metadata,
+              },
+              sourceDocPath: params.sourceDocPath,
+              sourceDocId: params.sourceDocId,
+              isSynthetic: true,
+              syntheticSourceId: analysisId,
+            });
+          }
+        } catch (error) {
+          console.warn('Counterfactual rewrite failed:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Referral analysis failed:', error);
+    }
+  })();
 }
 
 /* ═══════════════════════════════════════════════════════

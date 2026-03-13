@@ -120,7 +120,10 @@ export default function SubscribePage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({
+          plan,
+          referralCode: (() => { try { return sessionStorage.getItem('agentReferralCode'); } catch { return null; } })(),
+        }),
         signal: controller.signal,
       });
 

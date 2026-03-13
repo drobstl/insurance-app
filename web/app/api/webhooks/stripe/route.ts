@@ -91,6 +91,30 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     }
   }
 
+  // ── Credit the referrer with a one-month balance adjustment ──
+  const referrerAgentUid = session.metadata?.referredByAgent;
+  if (referrerAgentUid) {
+    try {
+      const referrerDoc = await db.collection('agents').doc(referrerAgentUid).get();
+      const referrerCustomerId = referrerDoc.data()?.stripeCustomerId as string | undefined;
+      if (referrerCustomerId) {
+        const monthlyPrice = 999; // $9.99 in cents
+        await stripe.customers.createBalanceTransaction(referrerCustomerId, {
+          amount: -monthlyPrice,
+          currency: 'usd',
+          description: 'Referral reward: 1 free month for referring a new agent',
+        });
+        await db.collection('agents').doc(referrerAgentUid).set(
+          { referralRewardsGiven: (referrerDoc.data()?.referralRewardsGiven ?? 0) + 1 },
+          { merge: true },
+        );
+        console.log(`Referral credit applied for referrer ${referrerAgentUid}`);
+      }
+    } catch (e) {
+      console.error('Failed to credit referrer:', e);
+    }
+  }
+
   console.log(`Subscription activated for user ${userId}`);
 }
 

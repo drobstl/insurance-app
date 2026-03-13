@@ -18,6 +18,7 @@ export interface AgentAggregates {
     referralAppointmentRate: number;
     conservationSaveRate: number;
   };
+  agentsReferred?: number;
   updatedAt: string;
 }
 
@@ -154,6 +155,14 @@ export async function computeAgentAggregates(
 
   const totalApv = savedApv + rewriteApv + referralApv;
 
+  // ── Agents referred (agent-to-agent invites) ────────
+  const referredSnap = await db
+    .collection('agents')
+    .where('referredByAgent', '==', agentId)
+    .count()
+    .get();
+  const agentsReferred = referredSnap.data().count;
+
   return {
     referrals: { total: referralsTotal, appointmentsBooked },
     clientsFromReferrals,
@@ -171,6 +180,7 @@ export async function computeAgentAggregates(
       referralAppointmentRate: Math.round(referralAppointmentRate * 1000) / 1000,
       conservationSaveRate: Math.round(conservationSaveRate * 1000) / 1000,
     },
+    agentsReferred,
     updatedAt: new Date().toISOString(),
   };
 }

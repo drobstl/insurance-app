@@ -30,6 +30,9 @@ export interface AgentProfile {
   policyReviewAIEnabled?: boolean;
   onboardingComplete?: boolean;
   tipsSeen?: Record<string, boolean>;
+  celebratedBadgeIds?: string[];
+  inviteCode?: string;
+  referralRewardsGiven?: number;
 }
 
 interface DashboardContextValue {

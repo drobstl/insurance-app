@@ -31,7 +31,7 @@ const getAuthUser = async (request: NextRequest) => {
 
 export async function POST(request: NextRequest) {
   try {
-    const { plan = 'monthly' } = await request.json();
+    const { plan = 'monthly', referralCode } = await request.json();
 
     const authUser = await getAuthUser(request);
     if (!authUser) {
@@ -113,8 +113,17 @@ export async function POST(request: NextRequest) {
           },
         });
 
-    // Create checkout session with all options
-    // allow_promotion_codes lets users enter promo codes at checkout
+    // Resolve referral info if a valid code was provided
+    let referredByAgent: string | undefined;
+    const referralCouponId = process.env.STRIPE_REFERRAL_COUPON_ID;
+    if (referralCode && typeof referralCode === 'string' && referralCouponId) {
+      const db = getAdminFirestore();
+      const codeDoc = await db.collection('agentInviteCodes').doc(referralCode.toUpperCase()).get();
+      if (codeDoc.exists) {
+        referredByAgent = codeDoc.data()!.agentId as string;
+      }
+    }
+
     const session = await stripe.checkout.sessions.create({
       customer: customer.id,
       payment_method_types: ['card'],
@@ -127,11 +136,11 @@ export async function POST(request: NextRequest) {
       mode: 'subscription',
       success_url: `${appUrl}/dashboard?subscription=success`,
       cancel_url: `${appUrl}/subscribe?canceled=true`,
-      allow_promotion_codes: true,
       metadata: {
         firebaseUserId: userId,
         plan: plan,
         membershipTier,
+        ...(referredByAgent ? { referredByAgent } : {}),
       },
       subscription_data: {
         metadata: {
@@ -140,6 +149,9 @@ export async function POST(request: NextRequest) {
           membershipTier,
         },
       },
+      ...(referredByAgent && referralCouponId
+        ? { discounts: [{ coupon: referralCouponId }] }
+        : { allow_promotion_codes: true }),
     });
 
     return NextResponse.json({ sessionId: session.id, url: session.url });

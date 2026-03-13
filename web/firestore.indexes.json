@@ -1,0 +1,64 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "conversationAnalyses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "conversationType", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "conversationAnalyses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "conversationType", "order": "ASCENDING" },
+        { "fieldPath": "outcome", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "conversationAnalyses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "conversationType", "order": "ASCENDING" },
+        { "fieldPath": "outcome", "order": "ASCENDING" },
+        { "fieldPath": "clientPersona", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "conversationAnalyses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sourceDocPath", "order": "ASCENDING" },
+        { "fieldPath": "isSynthetic", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "conversationAnalyses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "strategyVersion", "order": "ASCENDING" },
+        { "fieldPath": "conversationType", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "experiments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "conversationType", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "performanceSnapshots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "conversationType", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

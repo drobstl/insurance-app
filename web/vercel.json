@@ -31,6 +31,22 @@
     {
       "path": "/api/cron/stats-aggregates",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/analyze-conversations",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/strategy-refresh",
+      "schedule": "0 8 * * 0"
+    },
+    {
+      "path": "/api/cron/performance-monitor",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/experiment-check",
+      "schedule": "0 10 * * *"
     }
   ]
 }
