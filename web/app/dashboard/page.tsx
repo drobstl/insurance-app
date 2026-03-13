@@ -181,20 +181,16 @@ export default function DashboardHomePage() {
       )}
 
       {/* ── Value Hero ─────────────────────────────────────────── */}
-      <div className="relative mt-2 mb-10">
-        <div className="text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-[#707070] mb-1">
-            This Week
-          </p>
-          <p className="text-5xl font-bold text-[#005851] tracking-tight">
+      <div className="flex items-start justify-between mt-2 mb-10">
+        <div>
+          <p className="text-6xl font-bold text-[#005851] tracking-tight">
             {formatValue(totalValue)}
           </p>
           <p className="text-sm text-[#707070] mt-1">total value created</p>
         </div>
 
-        {/* Book Health + Badge — top right */}
         {(bookHealth !== null || badge) && (
-          <div className="absolute top-0 right-0 flex items-center gap-3">
+          <div className="flex items-center gap-3">
             {bookHealth !== null && (
               <div className="text-right">
                 <div className="flex items-center justify-end gap-1.5">
@@ -299,31 +295,39 @@ export default function DashboardHomePage() {
       )}
 
       {/* ── Nav Grid ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-x-8 gap-y-3 mt-8">
-        <NavLink
-          color="bg-red-500"
-          label="Retention"
-          count={activeConservation.length}
-          onClick={() => router.push('/dashboard/conservation')}
-        />
-        <NavLink
-          color="bg-[#2563eb]"
-          label="Referrals"
-          count={activeReferrals.length}
-          onClick={() => router.push('/dashboard/referrals')}
-        />
-        <NavLink
-          color="bg-amber-500"
-          label="Anniversaries"
-          count={anniversaryCount}
-          onClick={() => router.push('/dashboard/policy-reviews')}
-        />
-        <NavLink
-          color="bg-[#005851]"
-          label="Clients"
-          count={clients.length}
-          onClick={() => router.push('/dashboard/clients')}
-        />
+      <div className="grid grid-cols-2 mt-8">
+        <div className="border-r border-b border-[#e0e0e0] px-4 py-3">
+          <NavLink
+            color="bg-red-500"
+            label="Retention"
+            count={activeConservation.length}
+            onClick={() => router.push('/dashboard/conservation')}
+          />
+        </div>
+        <div className="border-b border-[#e0e0e0] px-4 py-3">
+          <NavLink
+            color="bg-[#2563eb]"
+            label="Referrals"
+            count={activeReferrals.length}
+            onClick={() => router.push('/dashboard/referrals')}
+          />
+        </div>
+        <div className="border-r border-[#e0e0e0] px-4 py-3">
+          <NavLink
+            color="bg-amber-500"
+            label="Anniversaries"
+            count={anniversaryCount}
+            onClick={() => router.push('/dashboard/policy-reviews')}
+          />
+        </div>
+        <div className="px-4 py-3">
+          <NavLink
+            color="bg-[#005851]"
+            label="AI Activity"
+            count={stats?.touchpoints.total ?? 0}
+            onClick={() => router.push('/dashboard/clients')}
+          />
+        </div>
       </div>
 
       {/* ── Empty State ────────────────────────────────────────── */}

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { doc, getDoc, collection, onSnapshot, query } from 'firebase/firestore';
+import { doc, collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { DashboardProvider, useDashboard } from './DashboardContext';
 import OnboardingOverlay from '../../components/OnboardingOverlay';
@@ -177,14 +177,16 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return;
     const statsRef = doc(db, 'agents', user.uid, 'stats', 'aggregates');
-    getDoc(statsRef).then((snap) => {
+    const unsubStats = onSnapshot(statsRef, (snap) => {
       if (snap.exists()) setTickerStats(snap.data() as AgentAggregates);
-    }).catch(() => {});
+    }, () => {});
 
     const clientsQ = query(collection(db, 'agents', user.uid, 'clients'));
-    return onSnapshot(clientsQ, (snap) => {
+    const unsubClients = onSnapshot(clientsQ, (snap) => {
       setTickerClientCount(snap.size);
     }, () => {});
+
+    return () => { unsubStats(); unsubClients(); };
   }, [user]);
 
   useEffect(() => {
