@@ -512,7 +512,7 @@ function AIActivityFan({
                 className="fixed z-[71] text-[10px] font-semibold text-[#707070] uppercase tracking-wider"
                 style={{
                   left: originX + 40,
-                  top: originY + arc[0].y - 24,
+                  top: originY + arc[0].y - 42,
                 }}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -521,6 +521,39 @@ function AIActivityFan({
               >
                 This Week
               </motion.p>
+
+              <motion.svg
+                className="fixed inset-0 z-[70] pointer-events-none"
+                style={{ width: '100vw', height: '100vh' }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+              >
+                {items.map((item, i) => {
+                  const offset = arc[i];
+                  return (
+                    <motion.line
+                      key={item.id}
+                      x1={originX}
+                      y1={originY}
+                      x2={originX + offset.x}
+                      y2={originY + offset.y}
+                      stroke="#005851"
+                      strokeWidth={1}
+                      initial={{ opacity: 0, pathLength: 0 }}
+                      animate={{ opacity: 0.15, pathLength: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{
+                        type: 'spring',
+                        stiffness: 400,
+                        damping: 28,
+                        delay: i * 0.05,
+                      }}
+                    />
+                  );
+                })}
+              </motion.svg>
 
               {items.map((item, i) => {
                 const meta = TYPE_META[item.type];
