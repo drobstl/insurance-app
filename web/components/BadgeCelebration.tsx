@@ -100,8 +100,11 @@ export default function BadgeCelebration({
       const file = new File([blob], `badge-${badge.id}.png`, { type: 'image/png' });
 
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        const shareText = inviteUrl
+          ? `I just earned the "${badge.name}" badge on AgentForLife — ${formatValue(totalValue)} in value created. Join here: ${inviteUrl}`
+          : `I just earned the "${badge.name}" badge on AgentForLife — ${formatValue(totalValue)} in value created!`;
         await navigator.share({
-          text: `I just earned the "${badge.name}" badge on AgentForLife!`,
+          text: shareText,
           files: [file],
         });
       } else {
@@ -221,18 +224,18 @@ export default function BadgeCelebration({
               </div>
               {/* Value (hero number) + badge (right) */}
               <div className="flex flex-col items-center text-center">
-                <p className="text-[#44bbaa] font-extrabold" style={{ fontSize: 88, lineHeight: 1 }}>
+                <p className="text-white font-extrabold" style={{ fontSize: 96, lineHeight: 1, textShadow: '0 2px 20px rgba(0,0,0,0.4)' }}>
                   {formatValue(totalValue)}
                 </p>
-                <p className="text-white/80 mt-2" style={{ fontSize: 28 }}>in value created</p>
+                <p className="text-[#44bbaa] font-bold mt-2" style={{ fontSize: 28 }}>in value created</p>
                 <div className="flex items-center gap-4 mt-5">
                   <PremiumBadge icon={badge.icon} color={badge.color} size={56} />
                   <p className="text-white font-bold" style={{ fontSize: 30 }}>{badge.name}</p>
                 </div>
               </div>
             </div>
-            <p className="text-white/60 mt-10 text-center" style={{ fontSize: 26 }}>
-              Create value. Nurture your book. On autopilot.
+            <p className="text-white/70 mt-10 text-center" style={{ fontSize: 26 }}>
+              Retention, referrals, and rewrites — handled while you sleep
             </p>
             {qrDataUrl && inviteUrl && (
               <div className="flex flex-col items-center mt-8">

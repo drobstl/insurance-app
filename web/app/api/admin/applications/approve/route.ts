@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
           <p style="font-size: 16px;">Here's how to get started:</p>
 
           <ol style="font-size: 16px; padding-left: 20px;">
-            <li style="margin-bottom: 8px;">Go to <a href="https://agentforlife.app/signup" style="color: #0D4D4D; font-weight: 600;">agentforlife.app/signup</a> and create your account</li>
+            <li style="margin-bottom: 8px;"><strong style="color: #0D4D4D;">Open this on your laptop or desktop.</strong> AgentForLife is a dashboard-first system — your phone won't give you the full experience. Go to <a href="https://agentforlife.app/signup" style="color: #0D4D4D; font-weight: 600;">agentforlife.app/signup</a> and create your account</li>
             <li style="margin-bottom: 8px;"><strong style="color: #0D4D4D;">Important:</strong> Use this same email address (<strong>${applicantEmail}</strong>) when you sign up so we can match your account</li>
             <li style="margin-bottom: 8px;">You'll be automatically activated as a founding member — no credit card, no checkout</li>
             <li style="margin-bottom: 8px;">Watch the tutorial, set up your profile with your photo, contact info, and business card</li>
