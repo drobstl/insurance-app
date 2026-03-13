@@ -183,7 +183,7 @@ export default function DashboardHomePage() {
       {/* ── Value Hero ─────────────────────────────────────────── */}
       <div className="flex items-start justify-between mt-2 mb-10">
         <div>
-          <p className="text-6xl font-bold text-[#005851] tracking-tight">
+          <p className="text-6xl font-extrabold text-[#005851] tracking-tight">
             {formatValue(totalValue)}
           </p>
           <p className="text-sm text-[#707070] mt-1">total value created</p>
@@ -217,7 +217,7 @@ export default function DashboardHomePage() {
       <div className="grid grid-cols-3 gap-4 mb-8">
         <div className="bg-white rounded-[5px] shadow-sm p-5">
           <div className="flex items-start justify-between mb-1">
-            <span className="text-3xl font-bold text-[#16a34a]">
+            <span className="text-4xl font-extrabold text-[#16a34a]">
               {stats?.savedPolicies.count ?? 0}
             </span>
             <svg className="w-5 h-5 text-[#16a34a] mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -230,7 +230,7 @@ export default function DashboardHomePage() {
 
         <div className="bg-white rounded-[5px] shadow-sm p-5">
           <div className="flex items-start justify-between mb-1">
-            <span className="text-3xl font-bold text-[#2563eb]">
+            <span className="text-4xl font-extrabold text-[#2563eb]">
               {stats?.clientsFromReferrals ?? 0}
             </span>
             <svg className="w-5 h-5 text-[#2563eb] mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -243,7 +243,7 @@ export default function DashboardHomePage() {
 
         <div className="bg-white rounded-[5px] shadow-sm p-5">
           <div className="flex items-start justify-between mb-1">
-            <span className="text-3xl font-bold text-[#005851]">
+            <span className="text-4xl font-extrabold text-[#005851]">
               {stats?.touchpoints.total ?? 0}
             </span>
             <svg className="w-5 h-5 text-[#005851] mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -296,7 +296,7 @@ export default function DashboardHomePage() {
 
       {/* ── Nav Grid ───────────────────────────────────────────── */}
       <div className="grid grid-cols-2 mt-8">
-        <div className="border-r border-b border-[#e0e0e0] px-4 py-3">
+        <div className="border-r border-b border-[#c0c0c0] px-4 py-4">
           <NavLink
             color="bg-red-500"
             label="Retention"
@@ -304,7 +304,7 @@ export default function DashboardHomePage() {
             onClick={() => router.push('/dashboard/conservation')}
           />
         </div>
-        <div className="border-b border-[#e0e0e0] px-4 py-3">
+        <div className="border-b border-[#c0c0c0] px-4 py-4">
           <NavLink
             color="bg-[#2563eb]"
             label="Referrals"
@@ -312,7 +312,7 @@ export default function DashboardHomePage() {
             onClick={() => router.push('/dashboard/referrals')}
           />
         </div>
-        <div className="border-r border-[#e0e0e0] px-4 py-3">
+        <div className="border-r border-[#c0c0c0] px-4 py-4">
           <NavLink
             color="bg-amber-500"
             label="Anniversaries"
@@ -320,7 +320,7 @@ export default function DashboardHomePage() {
             onClick={() => router.push('/dashboard/policy-reviews')}
           />
         </div>
-        <div className="px-4 py-3">
+        <div className="px-4 py-4">
           <NavLink
             color="bg-[#005851]"
             label="AI Activity"
@@ -366,14 +366,14 @@ function NavLink({ color, label, count, onClick }: {
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-3 py-2 text-left group"
+      className="w-full flex items-center gap-3 py-2 text-left group"
     >
       <span className={`w-2 h-2 rounded-full ${color} shrink-0`} />
-      <span className="text-sm font-semibold text-[#000000] group-hover:text-[#005851] transition-colors">
+      <span className="text-sm font-bold text-[#000000] group-hover:text-[#005851] transition-colors">
         {label}
       </span>
       <span className="text-sm text-[#707070] ml-auto">{count}</span>
-      <span className="text-sm text-[#005851] opacity-0 group-hover:opacity-100 transition-opacity">→</span>
+      <span className="text-sm text-[#005851]">→</span>
     </button>
   );
 }
