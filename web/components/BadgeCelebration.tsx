@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
+import type { User } from 'firebase/auth';
 import confetti from 'canvas-confetti';
 import { toPng } from 'html-to-image';
+import QRCode from 'qrcode';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { EarnedBadge } from '../lib/badges';
@@ -24,6 +26,7 @@ interface Props {
   agentName: string;
   totalValue: number;
   agentPhotoBase64?: string;
+  user?: User | null;
   onDismiss: () => void;
 }
 
@@ -33,10 +36,14 @@ export default function BadgeCelebration({
   agentName,
   totalValue,
   agentPhotoBase64,
+  user,
   onDismiss,
 }: Props) {
   const shareCardRef = useRef<HTMLDivElement>(null);
   const hasFired = useRef(false);
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [inviteFailed, setInviteFailed] = useState(false);
 
   useEffect(() => {
     if (hasFired.current) return;
@@ -54,6 +61,27 @@ export default function BadgeCelebration({
     const t = setTimeout(burst, 400);
     return () => clearTimeout(t);
   }, [badge.color]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch('/api/agent-invite', { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) throw new Error('Invite fetch failed');
+        const data = await res.json();
+        const url = data.inviteUrl as string | undefined;
+        if (cancelled || !url) return;
+        setInviteUrl(url);
+        const dataUrl = await QRCode.toDataURL(url, { width: 340, margin: 1 });
+        if (!cancelled) setQrDataUrl(dataUrl);
+      } catch {
+        if (!cancelled) setInviteFailed(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
 
   const handleDismiss = useCallback(async () => {
     try {
@@ -139,14 +167,14 @@ export default function BadgeCelebration({
         </div>
       </div>
 
-      {/* Off-screen share card for social media (1080x1080 square) */}
+      {/* Off-screen share card for social media (1080x1080 square) — redesigned with QR + referral */}
       <div className="fixed -left-[9999px] -top-[9999px]">
         <div
           ref={shareCardRef}
           style={{ width: 1080, height: 1080, fontFamily: 'system-ui, sans-serif' }}
-          className="bg-gradient-to-br from-[#005851] to-[#002e2a] flex flex-col items-center relative overflow-hidden"
+          className="bg-gradient-to-br from-[#005851] to-[#002e2a] flex flex-col items-center justify-between relative overflow-hidden"
         >
-          {/* Decorative background rings */}
+          {/* Decorative background */}
           <div
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
             style={{
@@ -156,34 +184,45 @@ export default function BadgeCelebration({
             }}
           />
 
-          {/* Top bar */}
-          <div className="w-full flex items-center justify-between px-16 pt-14">
+          {/* Top: branding + tagline */}
+          <div className="w-full px-16 pt-14 text-center relative z-10">
             <p className="text-[#44bbaa] text-2xl font-bold tracking-widest uppercase">
               AgentForLife
             </p>
-            <p className="text-white/40 text-lg">
-              {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            <p className="text-white/80 text-xl mt-3 max-w-[800px] mx-auto">
+              AI-powered client retention for insurance agents
             </p>
           </div>
 
-          {/* Center content */}
-          <div className="flex-1 flex flex-col items-center justify-center">
-            <PremiumBadge icon={badge.icon} color={badge.color} size={200} />
-            <p className="text-white text-5xl font-extrabold mt-8">{badge.name}</p>
-            {definition && (
-              <p className="text-white/60 text-2xl mt-3 max-w-[700px] text-center">
-                {definition.description}
+          {/* Center: badge, value, QR + link */}
+          <div className="flex-1 flex flex-col items-center justify-center px-12 relative z-10">
+            <PremiumBadge icon={badge.icon} color={badge.color} size={160} />
+            <p className="text-white text-4xl font-extrabold mt-6">{badge.name}</p>
+            {totalValue > 0 && (
+              <p className="text-[#44bbaa] text-3xl font-extrabold mt-4">
+                {formatValue(totalValue)} in value created
               </p>
             )}
-            {totalValue > 0 && (
-              <p className="text-[#44bbaa] text-4xl font-extrabold mt-10">
-                {formatValue(totalValue)} in value created
+            {qrDataUrl && inviteUrl && (
+              <div className="flex flex-col items-center mt-8">
+                <img src={qrDataUrl} alt="" width={280} height={280} style={{ width: 280, height: 280 }} />
+                <p className="text-white/90 text-lg mt-3 font-medium max-w-[520px] text-center break-all">
+                  {inviteUrl}
+                </p>
+                <p className="text-[#44bbaa] text-xl font-bold mt-2">
+                  Scan to join — we both get 1 month free
+                </p>
+              </div>
+            )}
+            {inviteFailed && (
+              <p className="text-white/60 text-xl mt-6 text-center max-w-[520px]">
+                Share your achievement from the dashboard to get your invite link.
               </p>
             )}
           </div>
 
-          {/* Bottom bar with agent info */}
-          <div className="w-full flex items-center gap-5 px-16 pb-14">
+          {/* Bottom: agent photo + name */}
+          <div className="w-full flex items-center gap-5 px-16 pb-14 relative z-10">
             {photoSrc ? (
               <img
                 src={photoSrc}

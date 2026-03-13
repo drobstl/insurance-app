@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Cropper from 'react-easy-crop';
 import type { Area } from 'react-easy-crop';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import {
   updatePassword,
   reauthenticateWithCredential,
@@ -177,7 +177,13 @@ export default function SettingsPage() {
     setSaving(true);
     setSaveMessage(null);
     try {
-      await setDoc(doc(db, 'agents', user.uid), {
+      const newPhone = (agentProfile.phoneNumber || '').trim();
+      const agentRef = doc(db, 'agents', user.uid);
+      const existingSnap = await getDoc(agentRef);
+      const previousPhone = (existingSnap.data()?.phoneNumber as string) ?? '';
+      const isFirstTimePhone = !previousPhone.trim() && !!newPhone;
+
+      await setDoc(agentRef, {
         phoneNumber: agentProfile.phoneNumber || '',
         schedulingUrl: agentProfile.schedulingUrl || '',
         agencyName: agentProfile.agencyName || '',
@@ -192,6 +198,19 @@ export default function SettingsPage() {
         anniversaryMessageCustomTitle: agentProfile.anniversaryMessageCustomTitle || '',
         policyReviewAIEnabled: agentProfile.policyReviewAIEnabled ?? true,
       }, { merge: true });
+
+      if (isFirstTimePhone) {
+        try {
+          const token = await user.getIdToken();
+          await fetch('/api/agent-invite/sms', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        } catch {
+          // non-blocking: settings still saved
+        }
+      }
+
       setSaveMessage({ type: 'success', text: 'Settings saved successfully.' });
       setTimeout(() => setSaveMessage(null), 3000);
     } catch (err) {

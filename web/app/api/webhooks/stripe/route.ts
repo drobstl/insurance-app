@@ -1,7 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Resend } from 'resend';
 import { stripe } from '../../../../lib/stripe';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import Stripe from 'stripe';
+
+function generateInviteCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+async function getOrCreateInviteUrl(
+  db: ReturnType<typeof getAdminFirestore>,
+  agentId: string,
+): Promise<string | null> {
+  const agentRef = db.collection('agents').doc(agentId);
+  const agentSnap = await agentRef.get();
+  if (!agentSnap.exists) return null;
+  const data = agentSnap.data()!;
+  let inviteCode = data.inviteCode as string | undefined;
+  if (!inviteCode) {
+    let attempts = 0;
+    while (attempts < 10) {
+      const candidate = generateInviteCode();
+      const existing = await db.collection('agentInviteCodes').doc(candidate).get();
+      if (!existing.exists) {
+        inviteCode = candidate;
+        break;
+      }
+      attempts++;
+    }
+    if (!inviteCode) return null;
+    await db.collection('agentInviteCodes').doc(inviteCode).set({ agentId });
+    await agentRef.update({ inviteCode });
+  }
+  return `https://agentforlife.app/signup?ref=${inviteCode}`;
+}
 
 // Disable body parsing, need raw body for webhook signature verification
 export const dynamic = 'force-dynamic';
@@ -98,7 +133,8 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       const referrerDoc = await db.collection('agents').doc(referrerAgentUid).get();
       const referrerCustomerId = referrerDoc.data()?.stripeCustomerId as string | undefined;
       if (referrerCustomerId) {
-        const monthlyPrice = 999; // $9.99 in cents
+        const unitAmount = subscription.items?.data?.[0]?.price?.unit_amount;
+        const monthlyPrice = typeof unitAmount === 'number' && unitAmount > 0 ? unitAmount : 999;
         await stripe.customers.createBalanceTransaction(referrerCustomerId, {
           amount: -monthlyPrice,
           currency: 'usd',
@@ -112,6 +148,38 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       }
     } catch (e) {
       console.error('Failed to credit referrer:', e);
+    }
+  }
+
+  // ── Send welcome email with personalized invite link ──
+  const email = agentDoc.data()?.email as string | undefined;
+  const agentName = agentDoc.data()?.name as string | undefined;
+  if (email) {
+    try {
+      const inviteUrl = await getOrCreateInviteUrl(db, userId);
+      const key = process.env.RESEND_API_KEY;
+      if (key && inviteUrl) {
+        const resend = new Resend(key);
+        const firstName = agentName?.split(' ')[0] || 'there';
+        await resend.emails.send({
+          from: 'Daniel Roberts — AgentForLife™ <support@agentforlife.app>',
+          to: email,
+          subject: 'Welcome to AgentForLife',
+          html: `
+            <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; color: #2D3748; line-height: 1.7;">
+              <p style="font-size: 16px;">Hey ${firstName},</p>
+              <p style="font-size: 16px;">Thanks for subscribing. You're all set — start adding clients and let the app handle retention and referrals.</p>
+              <p style="font-size: 16px;">Share your personal invite link and when another agent signs up and subscribes, you both get <strong>1 free month</strong>:</p>
+              <p style="font-size: 16px;"><a href="${inviteUrl}" style="color: #0D4D4D; font-weight: 600;">${inviteUrl}</a></p>
+              <p style="font-size: 16px;">Questions? Just reply to this email.</p>
+              <p style="font-size: 16px;">— Daniel</p>
+            </div>
+          `,
+        });
+        console.log(`Welcome email sent to ${email}`);
+      }
+    } catch (e) {
+      console.error('Failed to send welcome email:', e);
     }
   }
 

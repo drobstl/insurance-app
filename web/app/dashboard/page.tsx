@@ -243,6 +243,8 @@ export default function DashboardHomePage() {
   const [shelfOpen, setShelfOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
   const [celebrationBadge, setCelebrationBadge] = useState<EarnedBadge | null>(null);
+  const shelfContainerRef = useRef<HTMLDivElement>(null);
+  const healthContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!stats || !user || !agentProfile) return;
@@ -276,7 +278,7 @@ export default function DashboardHomePage() {
         {(bookHealth !== null || badge) && (
           <div className="flex items-center gap-4">
             {bookHealth !== null && (
-              <div className="relative">
+              <div className="relative" ref={healthContainerRef}>
                 <button
                   onClick={() => setHealthOpen(!healthOpen)}
                   className="text-right hover:opacity-80 transition-opacity"
@@ -292,6 +294,7 @@ export default function DashboardHomePage() {
                     breakdown={bookHealthBreakdown}
                     open={healthOpen}
                     onClose={() => setHealthOpen(false)}
+                    containerRef={healthContainerRef}
                   />
                 )}
               </div>
@@ -300,7 +303,7 @@ export default function DashboardHomePage() {
               <div className="w-px h-12 bg-[#d0d0d0]" />
             )}
             {badge && stats && (
-              <div className="relative">
+              <div className="relative" ref={shelfContainerRef}>
                 <button
                   onClick={() => setShelfOpen(!shelfOpen)}
                   className="flex flex-col items-center hover:opacity-80 transition-opacity"
@@ -312,6 +315,7 @@ export default function DashboardHomePage() {
                   stats={stats}
                   open={shelfOpen}
                   onClose={() => setShelfOpen(false)}
+                  containerRef={shelfContainerRef}
                 />
               </div>
             )}
@@ -475,6 +479,7 @@ export default function DashboardHomePage() {
           agentName={agentProfile.name || 'Agent'}
           totalValue={totalValue}
           agentPhotoBase64={agentProfile.photoBase64}
+          user={user}
           onDismiss={() => setCelebrationBadge(null)}
         />
       )}

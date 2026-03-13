@@ -8,6 +8,8 @@ interface Props {
   breakdown: BookHealthBreakdown;
   open: boolean;
   onClose: () => void;
+  /** Ref to the element that wraps both the trigger button and this popover. Clicks inside it are not treated as outside. */
+  containerRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 const RING_COLORS = ['#16a34a', '#2563eb', '#ec4899', '#d97706'];
@@ -58,13 +60,16 @@ function Ring({
 
 const spring = { type: 'spring' as const, stiffness: 400, damping: 28 };
 
-export default function BookHealthPopover({ breakdown, open, onClose }: Props) {
+export default function BookHealthPopover({ breakdown, open, onClose, containerRef }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+      const target = e.target as Node;
+      if (containerRef?.current?.contains(target)) return;
+      if (ref.current?.contains(target)) return;
+      onClose();
     }
     function handleEsc(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();

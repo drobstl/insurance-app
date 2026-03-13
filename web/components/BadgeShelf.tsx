@@ -10,6 +10,8 @@ interface Props {
   stats: AgentAggregates;
   open: boolean;
   onClose: () => void;
+  /** Ref to the element that wraps both the trigger button and this dropdown. Clicks inside it are not treated as outside. */
+  containerRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 function ProgressBar({ current, target }: { current: number; target: number }) {
@@ -38,7 +40,7 @@ function formatProgress(current: number, target: number, label: string): string 
 
 const spring = { type: 'spring' as const, stiffness: 400, damping: 28 };
 
-export default function BadgeShelf({ stats, open, onClose }: Props) {
+export default function BadgeShelf({ stats, open, onClose, containerRef }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const earned = useMemo(() => computeBadges(stats), [stats]);
   const earnedIds = useMemo(() => new Set(earned.map((b) => b.id)), [earned]);
@@ -46,7 +48,10 @@ export default function BadgeShelf({ stats, open, onClose }: Props) {
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+      const target = e.target as Node;
+      if (containerRef?.current?.contains(target)) return;
+      if (ref.current?.contains(target)) return;
+      onClose();
     }
     function handleEsc(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();

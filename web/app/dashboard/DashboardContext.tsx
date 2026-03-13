@@ -101,6 +101,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           policyReviewAIEnabled: data.policyReviewAIEnabled,
           onboardingComplete: data.onboardingComplete,
           tipsSeen: data.tipsSeen || {},
+          celebratedBadgeIds: data.celebratedBadgeIds || [],
         });
       }
     } catch (error) {
