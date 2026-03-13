@@ -164,7 +164,7 @@ export default function PremiumBadge({
         <path d={HIGHLIGHT} fill="white" opacity="0.15" />
 
         {/* Center icon */}
-        <g transform="translate(50 53)">
+        <g transform="translate(50 53) scale(1.5)">
           <Icon type={icon} />
         </g>
 

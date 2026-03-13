@@ -267,7 +267,7 @@ export default function DashboardHomePage() {
       {/* ── Value Hero ─────────────────────────────────────────── */}
       <div className="flex items-start justify-between mt-2 mb-10">
         <div>
-          <p className="text-6xl font-extrabold text-[#005851] tracking-tight">
+          <p className="text-8xl font-extrabold text-[#005851] tracking-tight">
             {formatValue(totalValue)}
           </p>
           <p className="text-sm text-[#707070] mt-1">total value created</p>
@@ -473,6 +473,8 @@ export default function DashboardHomePage() {
           badge={celebrationBadge}
           agentUid={user.uid}
           agentName={agentProfile.name || 'Agent'}
+          totalValue={totalValue}
+          agentPhotoBase64={agentProfile.photoBase64}
           onDismiss={() => setCelebrationBadge(null)}
         />
       )}

@@ -9,14 +9,32 @@ import type { EarnedBadge } from '../lib/badges';
 import { BADGE_DEFINITIONS } from '../lib/badges';
 import PremiumBadge from './PremiumBadge';
 
+function formatValue(n: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
 interface Props {
   badge: EarnedBadge;
   agentUid: string;
   agentName: string;
+  totalValue: number;
+  agentPhotoBase64?: string;
   onDismiss: () => void;
 }
 
-export default function BadgeCelebration({ badge, agentUid, agentName, onDismiss }: Props) {
+export default function BadgeCelebration({
+  badge,
+  agentUid,
+  agentName,
+  totalValue,
+  agentPhotoBase64,
+  onDismiss,
+}: Props) {
   const shareCardRef = useRef<HTMLDivElement>(null);
   const hasFired = useRef(false);
 
@@ -68,6 +86,9 @@ export default function BadgeCelebration({ badge, agentUid, agentName, onDismiss
   }, [badge]);
 
   const definition = BADGE_DEFINITIONS.find((d) => d.id === badge.id);
+  const photoSrc = agentPhotoBase64
+    ? `data:image/jpeg;base64,${agentPhotoBase64}`
+    : null;
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
@@ -118,23 +139,73 @@ export default function BadgeCelebration({ badge, agentUid, agentName, onDismiss
         </div>
       </div>
 
-      {/* Off-screen share card for image generation */}
+      {/* Off-screen share card for social media (1080x1080 square) */}
       <div className="fixed -left-[9999px] -top-[9999px]">
         <div
           ref={shareCardRef}
-          className="w-[600px] h-[400px] bg-gradient-to-br from-[#005851] to-[#003d38] flex flex-col items-center justify-center p-10"
+          style={{ width: 1080, height: 1080, fontFamily: 'system-ui, sans-serif' }}
+          className="bg-gradient-to-br from-[#005851] to-[#002e2a] flex flex-col items-center relative overflow-hidden"
         >
-          <PremiumBadge icon={badge.icon} color={badge.color} size={120} />
-          <p className="text-white text-3xl font-extrabold mt-4">{badge.name}</p>
-          {definition && (
-            <p className="text-white/70 text-base mt-1">{definition.description}</p>
-          )}
-          <p className="text-white/50 text-sm mt-4">
-            {agentName} &middot; {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-          </p>
-          <p className="text-[#44bbaa] text-xs font-bold mt-6 tracking-widest uppercase">
-            AgentForLife
-          </p>
+          {/* Decorative background rings */}
+          <div
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+            style={{
+              width: 600,
+              height: 600,
+              background: `radial-gradient(circle, ${badge.color}15 0%, transparent 70%)`,
+            }}
+          />
+
+          {/* Top bar */}
+          <div className="w-full flex items-center justify-between px-16 pt-14">
+            <p className="text-[#44bbaa] text-2xl font-bold tracking-widest uppercase">
+              AgentForLife
+            </p>
+            <p className="text-white/40 text-lg">
+              {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </p>
+          </div>
+
+          {/* Center content */}
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <PremiumBadge icon={badge.icon} color={badge.color} size={200} />
+            <p className="text-white text-5xl font-extrabold mt-8">{badge.name}</p>
+            {definition && (
+              <p className="text-white/60 text-2xl mt-3 max-w-[700px] text-center">
+                {definition.description}
+              </p>
+            )}
+            {totalValue > 0 && (
+              <p className="text-[#44bbaa] text-4xl font-extrabold mt-10">
+                {formatValue(totalValue)} in value created
+              </p>
+            )}
+          </div>
+
+          {/* Bottom bar with agent info */}
+          <div className="w-full flex items-center gap-5 px-16 pb-14">
+            {photoSrc ? (
+              <img
+                src={photoSrc}
+                alt=""
+                width={72}
+                height={72}
+                className="rounded-full object-cover"
+                style={{ width: 72, height: 72 }}
+              />
+            ) : (
+              <div
+                className="rounded-full bg-[#44bbaa]/30 flex items-center justify-center text-white text-2xl font-bold"
+                style={{ width: 72, height: 72 }}
+              >
+                {agentName.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div>
+              <p className="text-white text-2xl font-bold">{agentName}</p>
+              <p className="text-white/40 text-lg">Insurance Professional</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
