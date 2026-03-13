@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, onSnapshot, query, orderBy, Timestamp, doc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, Timestamp, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useDashboard } from './DashboardContext';
 import { getAnniversaryDate } from '../../lib/policyUtils';
@@ -84,11 +84,13 @@ export default function DashboardHomePage() {
 
   useEffect(() => {
     if (!user) return;
-    getDoc(doc(db, 'agents', user.uid, 'stats', 'aggregates'))
-      .then((snap) => {
+    return onSnapshot(
+      doc(db, 'agents', user.uid, 'stats', 'aggregates'),
+      (snap) => {
         if (snap.exists()) setStats(snap.data() as AgentAggregates);
-      })
-      .catch(() => {});
+      },
+      () => {},
+    );
   }, [user]);
 
   useEffect(() => {
@@ -162,7 +164,7 @@ export default function DashboardHomePage() {
     ) || null;
   }, [clients]);
 
-  const totalValue = stats ? stats.savedPolicies.apv + stats.referralApv : 0;
+  const totalValue = stats ? stats.totalApv : 0;
   const bookHealth = stats ? computeBookHealth(stats, activeConservation.length) : null;
   const badge = stats ? getMostRecentBadge(stats) : null;
 
@@ -318,7 +320,7 @@ export default function DashboardHomePage() {
         />
         <NavLink
           color="bg-[#005851]"
-          label="Warm Leads"
+          label="Clients"
           count={clients.length}
           onClick={() => router.push('/dashboard/clients')}
         />

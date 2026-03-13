@@ -5,6 +5,7 @@ import { Resend } from 'resend';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
 import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
+import { computeAgentAggregates } from '../../../../lib/stats-aggregation';
 
 type ResolvableStatus = 'saved' | 'lost';
 
@@ -99,6 +100,16 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
+    // Recompute stats so the dashboard reflects the change immediately
+    if (status === 'saved' || status === 'lost') {
+      try {
+        const aggregates = await computeAgentAggregates(db, agentId);
+        await db.collection('agents').doc(agentId).collection('stats').doc('aggregates').set(aggregates);
+      } catch (statsError) {
+        console.error('Failed to refresh stats (non-blocking):', statsError);
+      }
+    }
+
     // Send celebration to both agent and client when a policy is saved
     if (status === 'saved') {
       const agentDoc = await db.collection('agents').doc(agentId).get();
@@ -138,13 +149,10 @@ export async function PATCH(req: NextRequest) {
         console.error('Failed to send agent celebration email (non-blocking):', emailError);
       }
 
-      // --- Client celebration (SMS / push / email) ---
+      // --- Client celebration: push > text > email (one channel only) ---
       try {
         const clientMessage = `Great news, ${clientFirstName}! Your ${policyType} policy with ${carrier} is all set and your coverage is secure. Thanks for taking care of it -- if you ever need anything, don't hesitate to reach out. - ${agentFirstName}`;
 
-        let clientCelebrationSent = false;
-
-        // SMS via Linq if we have a chatId or valid phone
         if (clientId) {
           const clientDoc = await db
             .collection('agents')
@@ -155,27 +163,14 @@ export async function PATCH(req: NextRequest) {
 
           if (clientDoc.exists) {
             const clientData = clientDoc.data()!;
+            const pushToken = clientData.pushToken as string | undefined;
             const clientPhone = normalizePhone((clientData.phone as string) || '');
             const clientEmailAddr = (clientData.email as string) || '';
-            const pushToken = clientData.pushToken as string | undefined;
             const existingChatId = (alertData.chatId as string) || null;
 
-            // Try SMS
-            if (isValidE164(clientPhone)) {
-              try {
-                await sendOrCreateChat({
-                  to: clientPhone,
-                  chatId: existingChatId,
-                  text: clientMessage,
-                });
-                clientCelebrationSent = true;
-              } catch (e) {
-                console.error('Client celebration SMS failed (non-blocking):', e);
-              }
-            }
+            let sent = false;
 
-            // Push notification
-            if (pushToken) {
+            if (pushToken && !sent) {
               try {
                 await fetch('https://exp.host/--/api/v2/push/send', {
                   method: 'POST',
@@ -190,14 +185,26 @@ export async function PATCH(req: NextRequest) {
                     data: { type: 'conservation_saved', agentId },
                   }),
                 });
-                clientCelebrationSent = true;
+                sent = true;
               } catch (e) {
                 console.error('Client celebration push failed (non-blocking):', e);
               }
             }
 
-            // Email fallback if no SMS or push was sent
-            if (!clientCelebrationSent && clientEmailAddr) {
+            if (isValidE164(clientPhone) && !sent) {
+              try {
+                await sendOrCreateChat({
+                  to: clientPhone,
+                  chatId: existingChatId,
+                  text: clientMessage,
+                });
+                sent = true;
+              } catch (e) {
+                console.error('Client celebration SMS failed (non-blocking):', e);
+              }
+            }
+
+            if (clientEmailAddr && !sent) {
               try {
                 const resend = getResend();
                 await resend.emails.send({
