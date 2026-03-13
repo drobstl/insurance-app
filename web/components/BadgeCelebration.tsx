@@ -125,7 +125,7 @@ export default function BadgeCelebration({
       {/* Visible celebration card */}
       <div className="relative bg-white rounded-[12px] shadow-2xl max-w-sm w-full p-8 text-center animate-in zoom-in-95 duration-300">
         {/* Glow ring behind badge */}
-        <div className="relative mx-auto w-32 h-32 mb-6">
+        <div className="relative mx-auto w-[120px] h-[120px] mb-6">
           <div
             className="absolute inset-0 rounded-full animate-pulse"
             style={{
@@ -136,7 +136,7 @@ export default function BadgeCelebration({
             <PremiumBadge
               icon={badge.icon}
               color={badge.color}
-              size={110}
+              size={120}
               shimmer
               glow
             />
@@ -186,65 +186,74 @@ export default function BadgeCelebration({
 
           {/* Top: branding + tagline */}
           <div className="w-full px-16 pt-14 text-center relative z-10">
-            <p className="text-[#44bbaa] text-2xl font-bold tracking-widest uppercase">
+            <p className="text-[#44bbaa] font-bold tracking-widest uppercase" style={{ fontSize: 28 }}>
               AgentForLife
             </p>
-            <p className="text-white/80 text-xl mt-3 max-w-[800px] mx-auto">
+            <p className="text-white/70 mt-2" style={{ fontSize: 24 }}>
               AI-powered client retention for insurance agents
             </p>
           </div>
 
-          {/* Center: badge, value, QR + link */}
-          <div className="flex-1 flex flex-col items-center justify-center px-12 relative z-10">
-            <PremiumBadge icon={badge.icon} color={badge.color} size={160} />
-            <p className="text-white text-4xl font-extrabold mt-6">{badge.name}</p>
-            {totalValue > 0 && (
-              <p className="text-[#44bbaa] text-3xl font-extrabold mt-4">
-                {formatValue(totalValue)} in value created
-              </p>
-            )}
+          {/* Hero: celebrate this agent — large photo + huge value + badge */}
+          <div className="flex-1 flex flex-col items-center justify-center px-14 relative z-10 w-full">
+            <div className="flex items-center justify-center gap-14 w-full max-w-[920px]">
+              {/* Agent photo + name (left) */}
+              <div className="flex flex-col items-center shrink-0">
+                {photoSrc ? (
+                  <img
+                    src={photoSrc}
+                    alt=""
+                    width={200}
+                    height={200}
+                    className="rounded-full object-cover"
+                    style={{ width: 200, height: 200, border: '5px solid rgba(255,255,255,0.3)' }}
+                  />
+                ) : (
+                  <div
+                    className="rounded-full bg-[#44bbaa]/30 flex items-center justify-center text-white font-bold"
+                    style={{ width: 200, height: 200, fontSize: 72, border: '5px solid rgba(255,255,255,0.3)' }}
+                  >
+                    {agentName.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <p className="text-white font-bold mt-5" style={{ fontSize: 32 }}>{agentName}</p>
+                <p className="text-white/50" style={{ fontSize: 22 }}>Insurance Professional</p>
+              </div>
+              {/* Value (hero number) + badge (right) */}
+              <div className="flex flex-col items-center text-center">
+                <p className="text-[#44bbaa] font-extrabold" style={{ fontSize: 88, lineHeight: 1 }}>
+                  {formatValue(totalValue)}
+                </p>
+                <p className="text-white/80 mt-2" style={{ fontSize: 28 }}>in value created</p>
+                <div className="flex items-center gap-4 mt-5">
+                  <PremiumBadge icon={badge.icon} color={badge.color} size={56} />
+                  <p className="text-white font-bold" style={{ fontSize: 30 }}>{badge.name}</p>
+                </div>
+              </div>
+            </div>
+            <p className="text-white/60 mt-10 text-center" style={{ fontSize: 26 }}>
+              Create value. Nurture your book. On autopilot.
+            </p>
             {qrDataUrl && inviteUrl && (
               <div className="flex flex-col items-center mt-8">
-                <img src={qrDataUrl} alt="" width={280} height={280} style={{ width: 280, height: 280 }} />
-                <p className="text-white/90 text-lg mt-3 font-medium max-w-[520px] text-center break-all">
+                <img src={qrDataUrl} alt="" width={180} height={180} style={{ width: 180, height: 180 }} />
+                <p className="text-white/80 mt-3 font-medium text-center break-all" style={{ fontSize: 20, maxWidth: 500 }}>
                   {inviteUrl}
                 </p>
-                <p className="text-[#44bbaa] text-xl font-bold mt-2">
+                <p className="text-[#44bbaa] font-bold mt-2" style={{ fontSize: 26 }}>
                   Scan to join — we both get 1 month free
                 </p>
               </div>
             )}
             {inviteFailed && (
-              <p className="text-white/60 text-xl mt-6 text-center max-w-[520px]">
+              <p className="text-white/60 mt-8 text-center" style={{ fontSize: 26, maxWidth: 520 }}>
                 Share your achievement from the dashboard to get your invite link.
               </p>
             )}
           </div>
 
-          {/* Bottom: agent photo + name */}
-          <div className="w-full flex items-center gap-5 px-16 pb-14 relative z-10">
-            {photoSrc ? (
-              <img
-                src={photoSrc}
-                alt=""
-                width={72}
-                height={72}
-                className="rounded-full object-cover"
-                style={{ width: 72, height: 72 }}
-              />
-            ) : (
-              <div
-                className="rounded-full bg-[#44bbaa]/30 flex items-center justify-center text-white text-2xl font-bold"
-                style={{ width: 72, height: 72 }}
-              >
-                {agentName.charAt(0).toUpperCase()}
-              </div>
-            )}
-            <div>
-              <p className="text-white text-2xl font-bold">{agentName}</p>
-              <p className="text-white/40 text-lg">Insurance Professional</p>
-            </div>
-          </div>
+          {/* Bottom pad */}
+          <div className="w-full h-6 relative z-10" />
         </div>
       </div>
     </div>
