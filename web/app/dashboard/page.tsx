@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { collection, onSnapshot, query, orderBy, Timestamp, doc } from 'firebase/firestore';
+import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../../firebase';
 import { useDashboard } from './DashboardContext';
 import { getAnniversaryDate } from '../../lib/policyUtils';
@@ -10,6 +11,27 @@ import type { AgentAggregates } from '../../lib/stats-aggregation';
 import { computeBookHealth } from '../../lib/book-health';
 import { getMostRecentBadge, type EarnedBadge, type BadgeIcon } from '../../lib/badges';
 import SectionTipCard from '../../components/SectionTipCard';
+
+interface WeeklyActivity {
+  birthday: number;
+  holiday: number;
+  anniversary: number;
+  retention: number;
+  referral: number;
+}
+
+const FAN_CATEGORIES: {
+  key: keyof WeeklyActivity;
+  label: string;
+  color: string;
+  href: string;
+}[] = [
+  { key: 'referral', label: 'Referral Follow-ups', color: 'bg-[#2563eb]', href: '/dashboard/referrals' },
+  { key: 'retention', label: 'Retention Outreach', color: 'bg-red-500', href: '/dashboard/conservation' },
+  { key: 'birthday', label: 'Birthday Messages', color: 'bg-pink-400', href: '/dashboard/clients' },
+  { key: 'holiday', label: 'Holiday Cards', color: 'bg-emerald-500', href: '/dashboard/clients' },
+  { key: 'anniversary', label: 'Anniversaries', color: 'bg-amber-500', href: '/dashboard/policy-reviews' },
+];
 
 interface Client {
   id: string;
@@ -81,6 +103,35 @@ export default function DashboardHomePage() {
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [anniversaryCount, setAnniversaryCount] = useState(0);
   const [stats, setStats] = useState<AgentAggregates | null>(null);
+
+  const [fanOpen, setFanOpen] = useState(false);
+  const [weeklyData, setWeeklyData] = useState<WeeklyActivity | null>(null);
+  const [fanLoading, setFanLoading] = useState(false);
+  const fanAnchorRef = useRef<HTMLDivElement>(null);
+  const weeklyFetched = useRef(false);
+
+  const fetchWeeklyActivity = useCallback(async () => {
+    if (!user || weeklyFetched.current) return;
+    setFanLoading(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/activity/weekly', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWeeklyData(data);
+        weeklyFetched.current = true;
+      }
+    } catch { /* ignore */ }
+    setFanLoading(false);
+  }, [user]);
+
+  const toggleFan = useCallback(() => {
+    const next = !fanOpen;
+    setFanOpen(next);
+    if (next) fetchWeeklyActivity();
+  }, [fanOpen, fetchWeeklyActivity]);
 
   useEffect(() => {
     if (!user) return;
@@ -320,15 +371,24 @@ export default function DashboardHomePage() {
             onClick={() => router.push('/dashboard/policy-reviews')}
           />
         </div>
-        <div className="px-4 py-4">
+        <div className="px-4 py-4" ref={fanAnchorRef}>
           <NavLink
             color="bg-[#005851]"
             label="AI Activity"
             count={stats?.touchpoints.total ?? 0}
-            onClick={() => router.push('/dashboard/clients')}
+            onClick={toggleFan}
           />
         </div>
       </div>
+
+      <AIActivityFan
+        open={fanOpen}
+        loading={fanLoading}
+        data={weeklyData}
+        anchorRef={fanAnchorRef}
+        onClose={() => setFanOpen(false)}
+        onNavigate={(href) => { setFanOpen(false); router.push(href); }}
+      />
 
       {/* ── Empty State ────────────────────────────────────────── */}
       {clients.length === 0 && referrals.length === 0 && conservationAlerts.length === 0 && (
@@ -352,6 +412,141 @@ export default function DashboardHomePage() {
         </div>
       )}
     </div>
+  );
+}
+
+// ── Fan-out component ────────────────────────────────────────────────────────
+
+const FAN_ARC = [
+  { x: 24, y: -108, rotate: -6 },
+  { x: 36, y: -54, rotate: -3 },
+  { x: 42, y: 0, rotate: 0 },
+  { x: 36, y: 54, rotate: 3 },
+  { x: 24, y: 108, rotate: 6 },
+];
+
+function AIActivityFan({
+  open,
+  loading,
+  data,
+  anchorRef,
+  onClose,
+  onNavigate,
+}: {
+  open: boolean;
+  loading: boolean;
+  data: WeeklyActivity | null;
+  anchorRef: React.RefObject<HTMLDivElement | null>;
+  onClose: () => void;
+  onNavigate: (href: string) => void;
+}) {
+  useEffect(() => {
+    if (!open) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [open, onClose]);
+
+  const anchor = anchorRef.current?.getBoundingClientRect();
+  if (!anchor) return null;
+
+  const originX = anchor.right;
+  const originY = anchor.top + anchor.height / 2;
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            className="fixed inset-0 z-[70]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={onClose}
+          />
+
+          {loading && !data ? (
+            <motion.div
+              className="fixed z-[71] flex items-center gap-2 bg-white rounded-[5px] shadow-lg px-4 py-2.5"
+              style={{ left: originX + 16, top: originY - 16 }}
+              initial={{ opacity: 0, scale: 0.8, x: -20 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
+              exit={{ opacity: 0, scale: 0.8, x: -20 }}
+            >
+              <svg className="animate-spin w-4 h-4 text-[#005851]" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span className="text-xs text-[#707070]">Loading activity...</span>
+            </motion.div>
+          ) : (
+            <>
+              <motion.p
+                className="fixed z-[71] text-[10px] font-semibold text-[#707070] uppercase tracking-wider"
+                style={{ left: originX + 50, top: originY - 130 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ delay: 0.25, duration: 0.2 }}
+              >
+                This Week
+              </motion.p>
+
+              {FAN_CATEGORIES.map((cat, i) => {
+                const count = data?.[cat.key] ?? 0;
+                const offset = FAN_ARC[i];
+                return (
+                  <motion.button
+                    key={cat.key}
+                    className="fixed z-[71] flex items-center gap-2.5 bg-white rounded-[5px] shadow-lg border border-[#e4e4e4] px-4 py-2.5 hover:shadow-xl hover:border-[#005851]/30 transition-shadow cursor-pointer whitespace-nowrap"
+                    style={{
+                      left: originX + offset.x,
+                      top: originY + offset.y - 16,
+                      transformOrigin: 'left center',
+                    }}
+                    initial={{
+                      opacity: 0,
+                      scale: 0.3,
+                      x: -(offset.x),
+                      y: -(offset.y),
+                      rotate: 0,
+                    }}
+                    animate={{
+                      opacity: 1,
+                      scale: 1,
+                      x: 0,
+                      y: 0,
+                      rotate: offset.rotate,
+                    }}
+                    exit={{
+                      opacity: 0,
+                      scale: 0.3,
+                      x: -(offset.x),
+                      y: -(offset.y),
+                      rotate: 0,
+                    }}
+                    transition={{
+                      type: 'spring',
+                      stiffness: 400,
+                      damping: 28,
+                      delay: i * 0.05,
+                    }}
+                    onClick={() => onNavigate(cat.href)}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${cat.color} shrink-0`} />
+                    <span className="text-sm font-semibold text-[#000000]">{cat.label}</span>
+                    <span className="text-sm font-bold text-[#005851] ml-1">{count}</span>
+                  </motion.button>
+                );
+              })}
+            </>
+          )}
+        </>
+      )}
+    </AnimatePresence>
   );
 }
 
