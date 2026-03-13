@@ -146,9 +146,31 @@ export interface BobExtractionResult {
   note?: string;
 }
 
-/**
- * Extract BOB data from a PDF document via Claude.
- */
+const MAX_RETRIES = 3;
+
+function isRetryableError(err: unknown): boolean {
+  if (err instanceof Anthropic.APIError) {
+    return err.status === 429 || err.status === 500 || err.status === 502 || err.status === 503 || err.status === 529;
+  }
+  if (err instanceof Error) {
+    return err.message.includes('No response') || err.message.includes('fetch failed') || err.message.includes('ECONNRESET');
+  }
+  return false;
+}
+
+async function retryDelay(attempt: number): Promise<void> {
+  const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
+  await new Promise((r) => setTimeout(r, delay));
+}
+
+function validateBobResult(parsed: BobExtractionResult): BobExtractionResult {
+  if (parsed.rowCount !== parsed.rows.length) {
+    const msg = `Row count mismatch: expected ${parsed.rowCount}, got ${parsed.rows.length}.`;
+    parsed.note = parsed.note ? `${parsed.note} ${msg}` : msg;
+  }
+  return parsed;
+}
+
 export async function extractBobFromPdf(
   pdfBase64: string,
 ): Promise<BobExtractionResult> {
@@ -158,58 +180,61 @@ export async function extractBobFromPdf(
   }
 
   const anthropic = new Anthropic({ apiKey });
+  let lastError: unknown;
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 16384,
-    system: SYSTEM_PROMPT,
-    output_config: {
-      format: {
-        type: 'json_schema',
-        schema: BOB_EXTRACTION_SCHEMA,
-      },
-    },
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'document',
-            source: {
-              type: 'base64',
-              media_type: 'application/pdf',
-              data: pdfBase64,
-            },
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 16384,
+        system: SYSTEM_PROMPT,
+        output_config: {
+          format: {
+            type: 'json_schema',
+            schema: BOB_EXTRACTION_SCHEMA,
           },
+        },
+        messages: [
           {
-            type: 'text',
-            text: 'Extract all client and policy data from this Book of Business report. Merge data across all panels/pages by row position.',
+            role: 'user',
+            content: [
+              {
+                type: 'document',
+                source: {
+                  type: 'base64',
+                  media_type: 'application/pdf',
+                  data: pdfBase64,
+                },
+              },
+              {
+                type: 'text',
+                text: 'Extract all client and policy data from this Book of Business report. Merge data across all panels/pages by row position.',
+              },
+            ],
           },
         ],
-      },
-    ],
-  });
+      });
 
-  const textContent = response.content.find(
-    (b): b is Anthropic.TextBlock => b.type === 'text',
-  );
-  if (!textContent?.text) {
-    throw new Error('No response received from AI. Please try again.');
+      const textContent = response.content.find(
+        (b): b is Anthropic.TextBlock => b.type === 'text',
+      );
+      if (!textContent?.text) {
+        throw new Error('No response received from AI.');
+      }
+
+      const parsed = JSON.parse(textContent.text) as BobExtractionResult;
+      return validateBobResult(parsed);
+    } catch (err) {
+      lastError = err;
+      console.error(`[bob-extractor-pdf] Attempt ${attempt + 1}/${MAX_RETRIES} failed:`, err);
+      if (!isRetryableError(err) || attempt === MAX_RETRIES - 1) break;
+      await retryDelay(attempt);
+    }
   }
 
-  const parsed = JSON.parse(textContent.text) as BobExtractionResult;
-
-  if (parsed.rowCount !== parsed.rows.length) {
-    const msg = `Row count mismatch: expected ${parsed.rowCount}, got ${parsed.rows.length}.`;
-    parsed.note = parsed.note ? `${parsed.note} ${msg}` : msg;
-  }
-
-  return parsed;
+  throw lastError instanceof Error ? lastError : new Error('AI extraction failed after retries. Please try again.');
 }
 
-/**
- * Extract BOB data from raw text (CSV/TSV that failed structured parsing) via Claude.
- */
 export async function extractBobFromText(
   text: string,
 ): Promise<BobExtractionResult> {
@@ -219,38 +244,44 @@ export async function extractBobFromText(
   }
 
   const anthropic = new Anthropic({ apiKey });
+  let lastError: unknown;
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 16384,
-    system: SYSTEM_PROMPT,
-    output_config: {
-      format: {
-        type: 'json_schema',
-        schema: BOB_EXTRACTION_SCHEMA,
-      },
-    },
-    messages: [
-      {
-        role: 'user',
-        content: `Extract all client and policy data from this Book of Business report:\n\n${text}`,
-      },
-    ],
-  });
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 16384,
+        system: SYSTEM_PROMPT,
+        output_config: {
+          format: {
+            type: 'json_schema',
+            schema: BOB_EXTRACTION_SCHEMA,
+          },
+        },
+        messages: [
+          {
+            role: 'user',
+            content: `Extract all client and policy data from this Book of Business report:\n\n${text}`,
+          },
+        ],
+      });
 
-  const textContent = response.content.find(
-    (b): b is Anthropic.TextBlock => b.type === 'text',
-  );
-  if (!textContent?.text) {
-    throw new Error('No response received from AI. Please try again.');
+      const textContent = response.content.find(
+        (b): b is Anthropic.TextBlock => b.type === 'text',
+      );
+      if (!textContent?.text) {
+        throw new Error('No response received from AI.');
+      }
+
+      const parsed = JSON.parse(textContent.text) as BobExtractionResult;
+      return validateBobResult(parsed);
+    } catch (err) {
+      lastError = err;
+      console.error(`[bob-extractor-text] Attempt ${attempt + 1}/${MAX_RETRIES} failed:`, err);
+      if (!isRetryableError(err) || attempt === MAX_RETRIES - 1) break;
+      await retryDelay(attempt);
+    }
   }
 
-  const parsed = JSON.parse(textContent.text) as BobExtractionResult;
-
-  if (parsed.rowCount !== parsed.rows.length) {
-    const msg = `Row count mismatch: expected ${parsed.rowCount}, got ${parsed.rows.length}.`;
-    parsed.note = parsed.note ? `${parsed.note} ${msg}` : msg;
-  }
-
-  return parsed;
+  throw lastError instanceof Error ? lastError : new Error('AI extraction failed after retries. Please try again.');
 }

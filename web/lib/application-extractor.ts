@@ -127,51 +127,77 @@ export async function extractApplicationFields(
 
   const anthropic = new Anthropic({ apiKey });
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 2048,
-    system: SYSTEM_PROMPT,
-    output_config: {
-      format: {
-        type: 'json_schema',
-        schema: EXTRACTION_SCHEMA,
-      },
-    },
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'document',
-            source: {
-              type: 'base64',
-              media_type: 'application/pdf',
-              data: pdfBase64,
-            },
+  const MAX_RETRIES = 3;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2048,
+        system: SYSTEM_PROMPT,
+        output_config: {
+          format: {
+            type: 'json_schema',
+            schema: EXTRACTION_SCHEMA,
           },
+        },
+        messages: [
           {
-            type: 'text',
-            text: 'Extract all available fields from this insurance application PDF.',
+            role: 'user',
+            content: [
+              {
+                type: 'document',
+                source: {
+                  type: 'base64',
+                  media_type: 'application/pdf',
+                  data: pdfBase64,
+                },
+              },
+              {
+                type: 'text',
+                text: 'Extract all available fields from this insurance application PDF.',
+              },
+            ],
           },
         ],
-      },
-    ],
-  });
+      });
 
-  const textContent = response.content.find(
-    (b): b is Anthropic.TextBlock => b.type === 'text',
-  );
-  if (!textContent?.text) {
-    throw new Error('No response received from AI. Please try again.');
+      const textContent = response.content.find(
+        (b): b is Anthropic.TextBlock => b.type === 'text',
+      );
+      if (!textContent?.text) {
+        throw new Error('No response received from AI.');
+      }
+
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(textContent.text);
+      } catch {
+        throw new Error('Failed to parse AI response.');
+      }
+
+      return buildResult(parsed);
+    } catch (err) {
+      lastError = err;
+      console.error(`[application-extractor] Attempt ${attempt + 1}/${MAX_RETRIES} failed:`, err);
+
+      const isRetryable =
+        err instanceof Anthropic.APIError
+          ? err.status === 429 || err.status === 500 || err.status === 502 || err.status === 503 || err.status === 529
+          : err instanceof Error && (err.message.includes('No response') || err.message.includes('fetch failed') || err.message.includes('ECONNRESET'));
+
+      if (!isRetryable || attempt === MAX_RETRIES - 1) break;
+
+      const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
+      await new Promise((r) => setTimeout(r, delay));
+    }
   }
 
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(textContent.text);
-  } catch {
-    throw new Error('Failed to parse AI response. Please try again.');
-  }
+  throw lastError instanceof Error ? lastError : new Error('AI extraction failed after retries. Please try again.');
+}
 
+function buildResult(parsed: Record<string, unknown>): { data: ExtractedApplicationData; note?: string } {
   const note = typeof parsed.note === 'string' && parsed.note.length > 0
     ? parsed.note
     : undefined;

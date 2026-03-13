@@ -1140,20 +1140,43 @@ export default function ClientsPage() {
     setParsingBob(true);
     setImportError('');
     try {
-      const blob = await upload(file.name, file, {
-        access: 'public',
-        handleUploadUrl: '/api/upload',
-      });
+      // Try Vercel Blob with retry, fall back to direct FormData upload
+      let blobUrl: string | null = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const blob = await upload(file.name, file, {
+            access: 'public',
+            handleUploadUrl: '/api/upload',
+          });
+          blobUrl = blob.url;
+          break;
+        } catch {
+          if (attempt < 1) continue;
+        }
+      }
 
       const token = await user.getIdToken();
-      const res = await fetch('/api/parse-bob', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ url: blob.url }),
-      });
+      let res: Response;
+
+      if (blobUrl) {
+        res = await fetch('/api/parse-bob', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url: blobUrl }),
+        });
+      } else {
+        const formData = new FormData();
+        formData.append('file', file);
+        res = await fetch('/api/parse-bob', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+      }
+
       const data = await res.json();
       if (!res.ok || !data.success) {
         setImportError(data.error || 'Failed to parse file. Please try again.');
@@ -1169,7 +1192,15 @@ export default function ClientsPage() {
       setImportData(data.rows);
     } catch (err) {
       console.error('AI parse error:', err);
-      setImportError(err instanceof Error ? err.message : 'Failed to parse file.');
+      let message = 'Failed to parse file. Please try again.';
+      if (err instanceof Error) {
+        if (err.message.includes('client token') || err.message.includes('Vercel Blob')) {
+          message = 'Upload service temporarily unavailable. Please try again.';
+        } else {
+          message = err.message;
+        }
+      }
+      setImportError(message);
     } finally {
       setParsingBob(false);
     }

@@ -43,8 +43,8 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       setStage('error');
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setErrorMessage('File is too large. Maximum size is 10MB.');
+    if (file.size > 13 * 1024 * 1024) {
+      setErrorMessage('File is too large. Maximum size is 13MB.');
       setStage('error');
       return;
     }
@@ -53,20 +53,42 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
     setStage('processing');
 
     try {
-      const blob = await upload(file.name, file, {
-        access: 'public',
-        handleUploadUrl: '/api/upload',
-      });
+      // Try Vercel Blob upload with retry, fall back to direct FormData upload
+      let blobUrl: string | null = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const blob = await upload(file.name, file, {
+            access: 'public',
+            handleUploadUrl: '/api/upload',
+          });
+          blobUrl = blob.url;
+          break;
+        } catch {
+          if (attempt < 1) continue;
+        }
+      }
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 120_000);
 
-      const res = await fetch('/api/parse-application', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: blob.url }),
-        signal: controller.signal,
-      });
+      let res: Response;
+
+      if (blobUrl) {
+        res = await fetch('/api/parse-application', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: blobUrl }),
+          signal: controller.signal,
+        });
+      } else {
+        const formData = new FormData();
+        formData.append('file', file);
+        res = await fetch('/api/parse-application', {
+          method: 'POST',
+          body: formData,
+          signal: controller.signal,
+        });
+      }
 
       clearTimeout(timeout);
 
@@ -115,7 +137,11 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       } else if (err instanceof TypeError) {
         message = 'Network error. Check your connection and try again.';
       } else if (err instanceof Error) {
-        message = err.message;
+        if (err.message.includes('client token') || err.message.includes('Vercel Blob')) {
+          message = 'Upload service temporarily unavailable. Please try again.';
+        } else {
+          message = err.message;
+        }
       }
       setErrorMessage(message);
       setStage('error');
@@ -225,8 +251,8 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
                   </p>
                   <p className="text-gray-500 text-sm">
                     {isClientAndPolicy
-                      ? 'AI will extract client info and policy details in one step. Max 10MB.'
-                      : 'Drag & drop or click to browse. Max 10MB.'}
+                      ? 'AI will extract client info and policy details in one step. Max 13MB.'
+                      : 'Drag & drop or click to browse. Max 13MB.'}
                   </p>
                 </div>
               </div>
