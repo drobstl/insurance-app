@@ -44,6 +44,7 @@ export default function BadgeCelebration({
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [inviteFailed, setInviteFailed] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (hasFired.current) return;
@@ -108,13 +109,21 @@ export default function BadgeCelebration({
           files: [file],
         });
       } else {
-        const link = document.createElement('a');
-        link.href = dataUrl;
-        link.download = `badge-${badge.id}.png`;
-        link.click();
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob }),
+          ]);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        } catch {
+          const link = document.createElement('a');
+          link.href = dataUrl;
+          link.download = `badge-${badge.id}.png`;
+          link.click();
+        }
       }
     } catch { /* user cancelled or unsupported */ }
-  }, [badge]);
+  }, [badge, inviteUrl, totalValue]);
 
   const definition = BADGE_DEFINITIONS.find((d) => d.id === badge.id);
   const photoSrc = agentPhotoBase64
@@ -159,7 +168,7 @@ export default function BadgeCelebration({
             onClick={handleShare}
             className="flex-1 py-3 px-4 text-sm font-semibold text-[#005851] border border-[#005851] rounded-[5px] hover:bg-[#f0faf8] transition-colors"
           >
-            Share Achievement
+            {copied ? 'Copied!' : 'Share Achievement'}
           </button>
           <button
             onClick={handleDismiss}
@@ -170,93 +179,85 @@ export default function BadgeCelebration({
         </div>
       </div>
 
-      {/* Off-screen share card for social media (1080x1080 square) — redesigned with QR + referral */}
+      {/* Off-screen share card for social media (1080x1080 square) — bold value-first layout */}
       <div className="fixed -left-[9999px] -top-[9999px]">
         <div
           ref={shareCardRef}
           style={{ width: 1080, height: 1080, fontFamily: 'system-ui, sans-serif' }}
-          className="bg-gradient-to-br from-[#005851] to-[#002e2a] flex flex-col items-center justify-between relative overflow-hidden"
+          className="bg-gradient-to-br from-[#005851] to-[#002e2a] flex flex-col items-center relative overflow-hidden"
         >
-          {/* Decorative background */}
-          <div
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
-            style={{
-              width: 600,
-              height: 600,
-              background: `radial-gradient(circle, ${badge.color}15 0%, transparent 70%)`,
-            }}
-          />
-
-          {/* Top: branding + tagline */}
-          <div className="w-full px-16 pt-14 text-center relative z-10">
+          {/* Top strip: logo + brand */}
+          <div className="w-full flex items-center gap-3 px-16 pt-14 relative z-10">
+            <img src="/logo.png" alt="" width={60} height={36} style={{ width: 60, height: 36 }} />
             <p className="text-[#44bbaa] font-bold tracking-widest uppercase" style={{ fontSize: 28 }}>
-              AgentForLife
-            </p>
-            <p className="text-white/70 mt-2" style={{ fontSize: 24 }}>
-              AI-powered client retention for insurance agents
+              AgentForLife™
             </p>
           </div>
 
-          {/* Hero: celebrate this agent — large photo + huge value + badge */}
-          <div className="flex-1 flex flex-col items-center justify-center px-14 relative z-10 w-full">
-            <div className="flex items-center justify-center gap-14 w-full max-w-[920px]">
-              {/* Agent photo + name (left) */}
-              <div className="flex flex-col items-center shrink-0">
-                {photoSrc ? (
-                  <img
-                    src={photoSrc}
-                    alt=""
-                    width={200}
-                    height={200}
-                    className="rounded-full object-cover"
-                    style={{ width: 200, height: 200, border: '5px solid rgba(255,255,255,0.3)' }}
-                  />
-                ) : (
-                  <div
-                    className="rounded-full bg-[#44bbaa]/30 flex items-center justify-center text-white font-bold"
-                    style={{ width: 200, height: 200, fontSize: 72, border: '5px solid rgba(255,255,255,0.3)' }}
-                  >
-                    {agentName.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <p className="text-white font-bold mt-5" style={{ fontSize: 32 }}>{agentName}</p>
-                <p className="text-white/50" style={{ fontSize: 22 }}>Insurance Professional</p>
-              </div>
-              {/* Value (hero number) + badge (right) */}
-              <div className="flex flex-col items-center text-center">
-                <p className="text-white font-extrabold" style={{ fontSize: 96, lineHeight: 1, textShadow: '0 2px 20px rgba(0,0,0,0.4)' }}>
-                  {formatValue(totalValue)}
-                </p>
-                <p className="text-[#44bbaa] font-bold mt-2" style={{ fontSize: 28 }}>in value created</p>
-                <div className="flex items-center gap-4 mt-5">
-                  <PremiumBadge icon={badge.icon} color={badge.color} size={56} />
-                  <p className="text-white font-bold" style={{ fontSize: 30 }}>{badge.name}</p>
+          {/* Hero: giant dollar value */}
+          <div className="flex flex-col items-center justify-center flex-1 relative z-10 w-full px-14">
+            <p
+              className="text-white text-center"
+              style={{
+                fontSize: 140,
+                fontWeight: 900,
+                lineHeight: 1,
+                textShadow: '0 0 80px rgba(68,187,170,0.5), 0 4px 20px rgba(0,0,0,0.5)',
+              }}
+            >
+              {formatValue(totalValue)}
+            </p>
+            <p className="text-[#44bbaa] font-bold mt-3 text-center" style={{ fontSize: 32 }}>
+              generated on autopilot
+            </p>
+
+            {/* Agent photo + name */}
+            <div className="flex flex-col items-center mt-12">
+              {photoSrc ? (
+                <img
+                  src={photoSrc}
+                  alt=""
+                  width={180}
+                  height={180}
+                  className="rounded-full object-cover"
+                  style={{ width: 180, height: 180, border: '4px solid #44bbaa' }}
+                />
+              ) : (
+                <div
+                  className="rounded-full bg-[#44bbaa]/30 flex items-center justify-center text-white font-bold"
+                  style={{ width: 180, height: 180, fontSize: 64, border: '4px solid #44bbaa' }}
+                >
+                  {agentName.charAt(0).toUpperCase()}
                 </div>
+              )}
+              <p className="text-white font-bold mt-5" style={{ fontSize: 34 }}>{agentName}</p>
+              <div className="flex items-center gap-3 mt-4">
+                <PremiumBadge icon={badge.icon} color={badge.color} size={48} />
+                <p className="text-white font-bold" style={{ fontSize: 28 }}>{badge.name}</p>
               </div>
             </div>
-            <p className="text-white/70 mt-10 text-center" style={{ fontSize: 26 }}>
-              Retention, referrals, and rewrites — handled while you sleep
-            </p>
-            {qrDataUrl && inviteUrl && (
-              <div className="flex flex-col items-center mt-8">
-                <img src={qrDataUrl} alt="" width={180} height={180} style={{ width: 180, height: 180 }} />
-                <p className="text-white/80 mt-3 font-medium text-center break-all" style={{ fontSize: 20, maxWidth: 500 }}>
-                  {inviteUrl}
-                </p>
-                <p className="text-[#44bbaa] font-bold mt-2" style={{ fontSize: 26 }}>
-                  Scan to join — give the gift of a smarter book
-                </p>
-              </div>
-            )}
-            {inviteFailed && (
-              <p className="text-white/60 mt-8 text-center" style={{ fontSize: 26, maxWidth: 520 }}>
-                Share your achievement from the dashboard to get your invite link.
-              </p>
-            )}
           </div>
 
-          {/* Bottom pad */}
-          <div className="w-full h-6 relative z-10" />
+          {/* Bottom: QR + CTA */}
+          {qrDataUrl && inviteUrl && (
+            <div className="flex flex-col items-center pb-14 relative z-10">
+              <img src={qrDataUrl} alt="" width={160} height={160} style={{ width: 160, height: 160 }} />
+              <p className="text-[#44bbaa] font-bold mt-4" style={{ fontSize: 28 }}>
+                Scan to join
+              </p>
+              <p className="text-white/60 mt-2 text-center break-all" style={{ fontSize: 18, maxWidth: 500 }}>
+                {inviteUrl}
+              </p>
+            </div>
+          )}
+          {inviteFailed && (
+            <p className="text-white/60 pb-14 text-center relative z-10" style={{ fontSize: 22, maxWidth: 520 }}>
+              Share your achievement from the dashboard to get your invite link.
+            </p>
+          )}
+          {!qrDataUrl && !inviteFailed && (
+            <div className="w-full h-14 relative z-10" />
+          )}
         </div>
       </div>
     </div>

@@ -275,8 +275,9 @@ export default function DashboardHomePage() {
           <p className="text-sm text-[#707070] mt-1">total value created</p>
         </div>
 
-        {(bookHealth !== null || badge) && (
+        {badge && (
           <div className="flex items-center gap-4">
+            {/* bookHealth display hidden — re-enable by uncommenting below and restoring outer condition to (bookHealth !== null || badge)
             {bookHealth !== null && (
               <div className="relative" ref={healthContainerRef}>
                 <button
@@ -302,6 +303,7 @@ export default function DashboardHomePage() {
             {badge && bookHealth !== null && (
               <div className="w-px h-12 bg-[#d0d0d0]" />
             )}
+            */}
             {badge && stats && (
               <div className="relative" ref={shelfContainerRef}>
                 <button
