@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     }
 
     const inviteUrl = `https://agentforlife.app/signup?ref=${inviteCode}`;
-    const message = `Your AgentForLife invite link (share with other agents — you both get 1 month free): ${inviteUrl}`;
+    const message = `Your AgentForLife invite link — share it with agents you want to see succeed: ${inviteUrl}`;
 
     await createChat({ to: normalized, text: message });
 

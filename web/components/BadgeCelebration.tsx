@@ -241,7 +241,7 @@ export default function BadgeCelebration({
                   {inviteUrl}
                 </p>
                 <p className="text-[#44bbaa] font-bold mt-2" style={{ fontSize: 26 }}>
-                  Scan to join — we both get 1 month free
+                  Scan to join — give the gift of a smarter book
                 </p>
               </div>
             )}

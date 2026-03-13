@@ -1335,7 +1335,7 @@ function InviteAgentsCard() {
         Invite Agents
       </h3>
       <p className="text-sm text-[#707070] mb-4">
-        Share your invite link. When a new agent signs up and subscribes, you both get <span className="font-bold text-[#005851]">1 free month</span>.
+        Share your invite link. Help a fellow agent discover smarter client retention — and earn your recruiter badge.
       </p>
 
       {loading ? (
@@ -1357,15 +1357,9 @@ function InviteAgentsCard() {
             </button>
           </div>
 
-          <div className="flex gap-6">
-            <div>
-              <span className="text-2xl font-extrabold text-[#005851]">{agentsReferred}</span>
-              <p className="text-xs text-[#707070]">agents recruited</p>
-            </div>
-            <div>
-              <span className="text-2xl font-extrabold text-[#16a34a]">{rewardsGiven}</span>
-              <p className="text-xs text-[#707070]">free months earned</p>
-            </div>
+          <div>
+            <span className="text-2xl font-extrabold text-[#005851]">{agentsReferred}</span>
+            <p className="text-xs text-[#707070]">agents recruited</p>
           </div>
         </>
       )}

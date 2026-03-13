@@ -127,8 +127,10 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   }
 
   // ── Credit the referrer with a one-month balance adjustment ──
+  // TODO: Re-enable when public $49/mo tier launches
+  const REFERRAL_CREDIT_ENABLED = false;
   const referrerAgentUid = session.metadata?.referredByAgent;
-  if (referrerAgentUid) {
+  if (REFERRAL_CREDIT_ENABLED && referrerAgentUid) {
     try {
       const referrerDoc = await db.collection('agents').doc(referrerAgentUid).get();
       const referrerCustomerId = referrerDoc.data()?.stripeCustomerId as string | undefined;
@@ -169,7 +171,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
             <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; color: #2D3748; line-height: 1.7;">
               <p style="font-size: 16px;">Hey ${firstName},</p>
               <p style="font-size: 16px;">Thanks for subscribing. You're all set — start adding clients and let the app handle retention and referrals.</p>
-              <p style="font-size: 16px;">Share your personal invite link and when another agent signs up and subscribes, you both get <strong>1 free month</strong>:</p>
+              <p style="font-size: 16px;">Share your personal invite link — when another agent signs up, you both earn a referral badge:</p>
               <p style="font-size: 16px;"><a href="${inviteUrl}" style="color: #0D4D4D; font-weight: 600;">${inviteUrl}</a></p>
               <p style="font-size: 16px;">Questions? Just reply to this email.</p>
               <p style="font-size: 16px;">— Daniel</p>
