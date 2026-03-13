@@ -12,26 +12,41 @@ import { computeBookHealth } from '../../lib/book-health';
 import { getMostRecentBadge, type EarnedBadge, type BadgeIcon } from '../../lib/badges';
 import SectionTipCard from '../../components/SectionTipCard';
 
-interface WeeklyActivity {
-  birthday: number;
-  holiday: number;
-  anniversary: number;
-  retention: number;
-  referral: number;
+interface ActivityItem {
+  id: string;
+  type: 'birthday' | 'holiday' | 'anniversary' | 'retention' | 'referral' | 'policy-review';
+  summary: string;
+  timestamp: string;
 }
 
-const FAN_CATEGORIES: {
-  key: keyof WeeklyActivity;
-  label: string;
-  color: string;
-  href: string;
-}[] = [
-  { key: 'referral', label: 'Referral Follow-ups', color: 'bg-[#2563eb]', href: '/dashboard/referrals' },
-  { key: 'retention', label: 'Retention Outreach', color: 'bg-red-500', href: '/dashboard/conservation' },
-  { key: 'birthday', label: 'Birthday Messages', color: 'bg-pink-400', href: '/dashboard/clients' },
-  { key: 'holiday', label: 'Holiday Cards', color: 'bg-emerald-500', href: '/dashboard/clients' },
-  { key: 'anniversary', label: 'Anniversaries', color: 'bg-amber-500', href: '/dashboard/policy-reviews' },
-];
+const TYPE_META: Record<ActivityItem['type'], { color: string; href: string }> = {
+  referral: { color: 'bg-[#2563eb]', href: '/dashboard/referrals' },
+  retention: { color: 'bg-red-500', href: '/dashboard/conservation' },
+  birthday: { color: 'bg-pink-400', href: '/dashboard/clients' },
+  holiday: { color: 'bg-emerald-500', href: '/dashboard/clients' },
+  anniversary: { color: 'bg-amber-500', href: '/dashboard/policy-reviews' },
+  'policy-review': { color: 'bg-[#005851]', href: '/dashboard/policy-reviews' },
+};
+
+function computeFanArc(count: number) {
+  const maxSpread = 200;
+  const maxX = 42;
+  return Array.from({ length: count }, (_, i) => {
+    const t = count === 1 ? 0 : (i / (count - 1)) * 2 - 1;
+    const y = t * (maxSpread / 2);
+    const x = maxX - Math.abs(t) * 18;
+    const rotate = t * 6;
+    return { x, y, rotate };
+  });
+}
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const days = Math.floor(diff / 86_400_000);
+  if (days === 0) return 'today';
+  if (days === 1) return '1d ago';
+  return `${days}d ago`;
+}
 
 interface Client {
   id: string;
@@ -105,7 +120,7 @@ export default function DashboardHomePage() {
   const [stats, setStats] = useState<AgentAggregates | null>(null);
 
   const [fanOpen, setFanOpen] = useState(false);
-  const [weeklyData, setWeeklyData] = useState<WeeklyActivity | null>(null);
+  const [weeklyItems, setWeeklyItems] = useState<ActivityItem[]>([]);
   const [fanLoading, setFanLoading] = useState(false);
   const fanAnchorRef = useRef<HTMLDivElement>(null);
   const weeklyFetched = useRef(false);
@@ -120,7 +135,7 @@ export default function DashboardHomePage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setWeeklyData(data);
+        setWeeklyItems(data.items ?? []);
         weeklyFetched.current = true;
       }
     } catch { /* ignore */ }
@@ -384,7 +399,7 @@ export default function DashboardHomePage() {
       <AIActivityFan
         open={fanOpen}
         loading={fanLoading}
-        data={weeklyData}
+        items={weeklyItems}
         anchorRef={fanAnchorRef}
         onClose={() => setFanOpen(false)}
         onNavigate={(href) => { setFanOpen(false); router.push(href); }}
@@ -417,25 +432,17 @@ export default function DashboardHomePage() {
 
 // ── Fan-out component ────────────────────────────────────────────────────────
 
-const FAN_ARC = [
-  { x: 24, y: -108, rotate: -6 },
-  { x: 36, y: -54, rotate: -3 },
-  { x: 42, y: 0, rotate: 0 },
-  { x: 36, y: 54, rotate: 3 },
-  { x: 24, y: 108, rotate: 6 },
-];
-
 function AIActivityFan({
   open,
   loading,
-  data,
+  items,
   anchorRef,
   onClose,
   onNavigate,
 }: {
   open: boolean;
   loading: boolean;
-  data: WeeklyActivity | null;
+  items: ActivityItem[];
   anchorRef: React.RefObject<HTMLDivElement | null>;
   onClose: () => void;
   onNavigate: (href: string) => void;
@@ -455,6 +462,9 @@ function AIActivityFan({
   const originX = anchor.right;
   const originY = anchor.top + anchor.height / 2;
 
+  const fetched = !loading || items.length > 0;
+  const arc = computeFanArc(Math.max(items.length, 1));
+
   return (
     <AnimatePresence>
       {open && (
@@ -468,7 +478,7 @@ function AIActivityFan({
             onClick={onClose}
           />
 
-          {loading && !data ? (
+          {!fetched ? (
             <motion.div
               className="fixed z-[71] flex items-center gap-2 bg-white rounded-[5px] shadow-lg px-4 py-2.5"
               style={{ left: originX + 16, top: originY - 16 }}
@@ -482,11 +492,28 @@ function AIActivityFan({
               </svg>
               <span className="text-xs text-[#707070]">Loading activity...</span>
             </motion.div>
+          ) : items.length === 0 ? (
+            <motion.div
+              className="fixed z-[71] flex items-center gap-2.5 bg-white rounded-[5px] shadow-lg border border-[#e4e4e4] px-4 py-3"
+              style={{ left: originX + 16, top: originY - 18 }}
+              initial={{ opacity: 0, scale: 0.8, x: -20 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
+              exit={{ opacity: 0, scale: 0.8, x: -20 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+            >
+              <svg className="w-4 h-4 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span className="text-sm text-[#707070]">No AI activity this week</span>
+            </motion.div>
           ) : (
             <>
               <motion.p
                 className="fixed z-[71] text-[10px] font-semibold text-[#707070] uppercase tracking-wider"
-                style={{ left: originX + 50, top: originY - 130 }}
+                style={{
+                  left: originX + 50,
+                  top: originY + arc[0].y - 32,
+                }}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -495,13 +522,13 @@ function AIActivityFan({
                 This Week
               </motion.p>
 
-              {FAN_CATEGORIES.map((cat, i) => {
-                const count = data?.[cat.key] ?? 0;
-                const offset = FAN_ARC[i];
+              {items.map((item, i) => {
+                const meta = TYPE_META[item.type];
+                const offset = arc[i];
                 return (
                   <motion.button
-                    key={cat.key}
-                    className="fixed z-[71] flex items-center gap-2.5 bg-white rounded-[5px] shadow-lg border border-[#e4e4e4] px-4 py-2.5 hover:shadow-xl hover:border-[#005851]/30 transition-shadow cursor-pointer whitespace-nowrap"
+                    key={item.id}
+                    className="fixed z-[71] flex items-center gap-2.5 bg-white rounded-[5px] shadow-lg border border-[#e4e4e4] pl-3 pr-4 py-2.5 hover:shadow-xl hover:border-[#005851]/30 transition-shadow cursor-pointer whitespace-nowrap"
                     style={{
                       left: originX + offset.x,
                       top: originY + offset.y - 16,
@@ -534,11 +561,11 @@ function AIActivityFan({
                       damping: 28,
                       delay: i * 0.05,
                     }}
-                    onClick={() => onNavigate(cat.href)}
+                    onClick={() => onNavigate(meta.href)}
                   >
-                    <span className={`w-2 h-2 rounded-full ${cat.color} shrink-0`} />
-                    <span className="text-sm font-semibold text-[#000000]">{cat.label}</span>
-                    <span className="text-sm font-bold text-[#005851] ml-1">{count}</span>
+                    <span className={`w-2 h-2 rounded-full ${meta.color} shrink-0`} />
+                    <span className="text-sm text-[#000000] max-w-[240px] truncate">{item.summary}</span>
+                    <span className="text-[11px] text-[#707070] ml-1 shrink-0">{relativeTime(item.timestamp)}</span>
                   </motion.button>
                 );
               })}
