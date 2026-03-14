@@ -179,40 +179,85 @@ export default function BadgeCelebration({
         </div>
       </div>
 
-      {/* Off-screen share card for social media (1080x1080 square) — bold value-first layout */}
+      {/* Off-screen share card for social media (1080x1080 square) */}
       <div className="fixed -left-[9999px] -top-[9999px]">
         <div
           ref={shareCardRef}
-          style={{ width: 1080, height: 1080, fontFamily: 'system-ui, sans-serif' }}
-          className="bg-gradient-to-br from-[#005851] to-[#002e2a] flex flex-col items-center relative overflow-hidden"
+          style={{
+            width: 1080,
+            height: 1080,
+            fontFamily: 'system-ui, sans-serif',
+            background: 'linear-gradient(135deg, #005851 0%, #002e2a 60%, #001a18 100%)',
+          }}
+          className="flex flex-col items-center relative overflow-hidden"
         >
-          {/* Top strip: logo + brand */}
-          <div className="w-full flex items-center gap-3 px-16 pt-14 relative z-10">
-            <img src="/logo.png" alt="" width={60} height={36} style={{ width: 60, height: 36 }} />
-            <p className="text-[#44bbaa] font-bold tracking-widest uppercase" style={{ fontSize: 28 }}>
-              AgentForLife™
-            </p>
+          {/* Diagonal texture overlay */}
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundImage: 'repeating-linear-gradient(135deg, rgba(255,255,255,0.02) 0px, rgba(255,255,255,0.02) 1px, transparent 1px, transparent 40px)',
+            }}
+          />
+
+          {/* Radial glow burst behind value */}
+          <div
+            className="absolute"
+            style={{
+              width: 900,
+              height: 900,
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -60%)',
+              background: 'radial-gradient(circle, rgba(68,187,170,0.25) 0%, rgba(68,187,170,0.08) 40%, transparent 70%)',
+            }}
+          />
+
+          {/* Top strip: logo + brand + rule */}
+          <div className="w-full relative z-10">
+            <div className="flex items-center gap-3 px-16 pt-14 pb-5">
+              <img src="/logo.png" alt="" width={60} height={36} style={{ width: 60, height: 36 }} />
+              <p className="text-[#44bbaa] font-bold tracking-widest uppercase" style={{ fontSize: 28 }}>
+                AgentForLife™
+              </p>
+            </div>
+            <div className="w-full" style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
           </div>
 
-          {/* Hero: giant dollar value */}
-          <div className="flex flex-col items-center justify-center flex-1 relative z-10 w-full px-14">
+          {/* Hero: giant dollar value with glow */}
+          <div className="flex flex-col items-center justify-center flex-1 relative z-10 w-full px-10">
             <p
               className="text-white text-center"
               style={{
-                fontSize: 140,
+                fontSize: 180,
                 fontWeight: 900,
                 lineHeight: 1,
-                textShadow: '0 0 80px rgba(68,187,170,0.5), 0 4px 20px rgba(0,0,0,0.5)',
+                WebkitTextStroke: '1px rgba(255,255,255,0.15)',
+                textShadow: '0 0 40px rgba(68,187,170,0.7), 0 0 120px rgba(68,187,170,0.35), 0 4px 20px rgba(0,0,0,0.6)',
               }}
             >
               {formatValue(totalValue)}
             </p>
-            <p className="text-[#44bbaa] font-bold mt-3 text-center" style={{ fontSize: 32 }}>
-              generated on autopilot
-            </p>
 
-            {/* Agent photo + name */}
-            <div className="flex flex-col items-center mt-12">
+            {/* Pill tagline */}
+            <div
+              className="mt-5 text-center"
+              style={{
+                display: 'inline-block',
+                border: '2px solid rgba(68,187,170,0.6)',
+                borderRadius: 999,
+                padding: '8px 32px',
+              }}
+            >
+              <p
+                className="text-[#44bbaa] font-bold uppercase"
+                style={{ fontSize: 26, letterSpacing: 4 }}
+              >
+                generated on autopilot
+              </p>
+            </div>
+
+            {/* Agent photo with double ring + name + badge */}
+            <div className="flex flex-col items-center mt-10">
               {photoSrc ? (
                 <img
                   src={photoSrc}
@@ -220,34 +265,50 @@ export default function BadgeCelebration({
                   width={180}
                   height={180}
                   className="rounded-full object-cover"
-                  style={{ width: 180, height: 180, border: '4px solid #44bbaa' }}
+                  style={{
+                    width: 180,
+                    height: 180,
+                    border: '4px solid #44bbaa',
+                    boxShadow: '0 0 0 8px rgba(255,255,255,0.08), 0 0 40px rgba(68,187,170,0.3)',
+                  }}
                 />
               ) : (
                 <div
                   className="rounded-full bg-[#44bbaa]/30 flex items-center justify-center text-white font-bold"
-                  style={{ width: 180, height: 180, fontSize: 64, border: '4px solid #44bbaa' }}
+                  style={{
+                    width: 180,
+                    height: 180,
+                    fontSize: 64,
+                    border: '4px solid #44bbaa',
+                    boxShadow: '0 0 0 8px rgba(255,255,255,0.08), 0 0 40px rgba(68,187,170,0.3)',
+                  }}
                 >
                   {agentName.charAt(0).toUpperCase()}
                 </div>
               )}
               <p className="text-white font-bold mt-5" style={{ fontSize: 34 }}>{agentName}</p>
-              <div className="flex items-center gap-3 mt-4">
+              <div className="flex items-center gap-3 mt-3">
                 <PremiumBadge icon={badge.icon} color={badge.color} size={48} />
                 <p className="text-white font-bold" style={{ fontSize: 28 }}>{badge.name}</p>
               </div>
             </div>
           </div>
 
-          {/* Bottom: QR + CTA */}
+          {/* Bottom CTA bar */}
           {qrDataUrl && inviteUrl && (
-            <div className="flex flex-col items-center pb-14 relative z-10">
-              <img src={qrDataUrl} alt="" width={160} height={160} style={{ width: 160, height: 160 }} />
-              <p className="text-[#44bbaa] font-bold mt-4" style={{ fontSize: 28 }}>
-                Scan to join
-              </p>
-              <p className="text-white/60 mt-2 text-center break-all" style={{ fontSize: 18, maxWidth: 500 }}>
-                {inviteUrl}
-              </p>
+            <div className="w-full relative z-10">
+              <div className="w-full" style={{ height: 1, background: 'rgba(255,255,255,0.1)' }} />
+              <div className="flex items-center justify-center gap-8 px-16 py-10">
+                <img src={qrDataUrl} alt="" width={140} height={140} style={{ width: 140, height: 140, borderRadius: 12 }} />
+                <div className="flex flex-col">
+                  <p className="text-[#44bbaa] font-bold uppercase" style={{ fontSize: 30, letterSpacing: 2 }}>
+                    Scan to join
+                  </p>
+                  <p className="text-white/50 mt-2 break-all" style={{ fontSize: 18, maxWidth: 440 }}>
+                    {inviteUrl}
+                  </p>
+                </div>
+              </div>
             </div>
           )}
           {inviteFailed && (
