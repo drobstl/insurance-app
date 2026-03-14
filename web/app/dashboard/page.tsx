@@ -243,6 +243,7 @@ export default function DashboardHomePage() {
   const [shelfOpen, setShelfOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
   const [celebrationBadge, setCelebrationBadge] = useState<EarnedBadge | null>(null);
+  const [shareBadge, setShareBadge] = useState<EarnedBadge | null>(null);
   const shelfContainerRef = useRef<HTMLDivElement>(null);
   const healthContainerRef = useRef<HTMLDivElement>(null);
 
@@ -317,6 +318,7 @@ export default function DashboardHomePage() {
                   stats={stats}
                   open={shelfOpen}
                   onClose={() => setShelfOpen(false)}
+                  onShareBadge={(b) => { setShelfOpen(false); setShareBadge(b); }}
                   containerRef={shelfContainerRef}
                 />
               </div>
@@ -483,6 +485,20 @@ export default function DashboardHomePage() {
           agentPhotoBase64={agentProfile.photoBase64}
           user={user}
           onDismiss={() => setCelebrationBadge(null)}
+        />
+      )}
+
+      {/* ── Share-only overlay triggered from badge shelf ───── */}
+      {shareBadge && user && (
+        <BadgeCelebration
+          badge={shareBadge}
+          agentUid={user.uid}
+          agentName={agentProfile.name || 'Agent'}
+          totalValue={totalValue}
+          agentPhotoBase64={agentProfile.photoBase64}
+          user={user}
+          onDismiss={() => setShareBadge(null)}
+          shareOnly
         />
       )}
     </div>

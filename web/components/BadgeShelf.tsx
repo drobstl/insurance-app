@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BADGE_DEFINITIONS, computeBadges, type BadgeDefinition } from '../lib/badges';
+import { BADGE_DEFINITIONS, computeBadges, type BadgeDefinition, type EarnedBadge } from '../lib/badges';
 import type { AgentAggregates } from '../lib/stats-aggregation';
 import PremiumBadge from './PremiumBadge';
 
@@ -10,7 +10,7 @@ interface Props {
   stats: AgentAggregates;
   open: boolean;
   onClose: () => void;
-  /** Ref to the element that wraps both the trigger button and this dropdown. Clicks inside it are not treated as outside. */
+  onShareBadge?: (badge: EarnedBadge) => void;
   containerRef?: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -40,7 +40,7 @@ function formatProgress(current: number, target: number, label: string): string 
 
 const spring = { type: 'spring' as const, stiffness: 400, damping: 28 };
 
-export default function BadgeShelf({ stats, open, onClose, containerRef }: Props) {
+export default function BadgeShelf({ stats, open, onClose, onShareBadge, containerRef }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const earned = useMemo(() => computeBadges(stats), [stats]);
   const earnedIds = useMemo(() => new Set(earned.map((b) => b.id)), [earned]);
@@ -124,6 +124,21 @@ export default function BadgeShelf({ stats, open, onClose, containerRef }: Props
                         <span className="text-[9px] font-bold text-[#005851] bg-[#daf3f0] px-1.5 py-0.5 rounded">
                           NEXT
                         </span>
+                      )}
+                      {isEarned && onShareBadge && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const earnedBadge = earned.find((b) => b.id === def.id);
+                            if (earnedBadge) onShareBadge(earnedBadge);
+                          }}
+                          className="ml-auto p-0.5 text-[#707070] hover:text-[#005851] transition-colors"
+                          title="Share badge"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                          </svg>
+                        </button>
                       )}
                     </div>
                     <p className={`text-[10px] ${isEarned ? 'text-[#707070]' : 'text-[#9ca3af]'}`}>

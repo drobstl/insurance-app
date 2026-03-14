@@ -28,6 +28,7 @@ interface Props {
   agentPhotoBase64?: string;
   user?: User | null;
   onDismiss: () => void;
+  shareOnly?: boolean;
 }
 
 export default function BadgeCelebration({
@@ -38,6 +39,7 @@ export default function BadgeCelebration({
   agentPhotoBase64,
   user,
   onDismiss,
+  shareOnly,
 }: Props) {
   const shareCardRef = useRef<HTMLDivElement>(null);
   const hasFired = useRef(false);
@@ -47,7 +49,7 @@ export default function BadgeCelebration({
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (hasFired.current) return;
+    if (shareOnly || hasFired.current) return;
     hasFired.current = true;
 
     const burst = () => {
@@ -61,7 +63,7 @@ export default function BadgeCelebration({
     burst();
     const t = setTimeout(burst, 400);
     return () => clearTimeout(t);
-  }, [badge.color]);
+  }, [badge.color, shareOnly]);
 
   useEffect(() => {
     if (!user) return;
@@ -85,13 +87,15 @@ export default function BadgeCelebration({
   }, [user]);
 
   const handleDismiss = useCallback(async () => {
-    try {
-      await updateDoc(doc(db, 'agents', agentUid), {
-        celebratedBadgeIds: arrayUnion(badge.id),
-      });
-    } catch { /* non-critical */ }
+    if (!shareOnly) {
+      try {
+        await updateDoc(doc(db, 'agents', agentUid), {
+          celebratedBadgeIds: arrayUnion(badge.id),
+        });
+      } catch { /* non-critical */ }
+    }
     onDismiss();
-  }, [agentUid, badge.id, onDismiss]);
+  }, [agentUid, badge.id, onDismiss, shareOnly]);
 
   const handleShare = useCallback(async () => {
     if (!shareCardRef.current) return;
@@ -156,7 +160,7 @@ export default function BadgeCelebration({
         </div>
 
         <h2 className="text-2xl font-extrabold text-[#005851] mb-1">
-          Badge Earned!
+          {shareOnly ? 'Share Badge' : 'Badge Earned!'}
         </h2>
         <p className="text-lg font-bold text-[#000000] mb-1">{badge.name}</p>
         {definition && (
@@ -174,7 +178,7 @@ export default function BadgeCelebration({
             onClick={handleDismiss}
             className="flex-1 py-3 px-4 text-sm font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-[5px] transition-colors"
           >
-            Continue
+            {shareOnly ? 'Close' : 'Continue'}
           </button>
         </div>
       </div>
