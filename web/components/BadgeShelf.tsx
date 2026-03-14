@@ -103,6 +103,7 @@ export default function BadgeShelf({ stats, open, onClose, onShareBadge, contain
                     icon={def.icon}
                     color={def.color}
                     size={36}
+                    tier={def.tier}
                     shimmer={isEarned}
                     grayscale={!isEarned && !isNext}
                   />

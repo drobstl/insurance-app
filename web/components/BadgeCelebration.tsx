@@ -153,6 +153,7 @@ export default function BadgeCelebration({
               icon={badge.icon}
               color={badge.color}
               size={120}
+              tier={badge.tier}
               shimmer
               glow
             />
@@ -260,8 +261,26 @@ export default function BadgeCelebration({
               </p>
             </div>
 
+            {/* "JUST EARNED" banner — celebration mode only */}
+            {!shareOnly && (
+              <div
+                className="mt-6 text-center"
+                style={{
+                  background: 'linear-gradient(90deg, transparent, rgba(68,187,170,0.2), transparent)',
+                  padding: '10px 48px',
+                }}
+              >
+                <p
+                  className="text-white font-bold uppercase"
+                  style={{ fontSize: 24, letterSpacing: 6 }}
+                >
+                  Just Earned
+                </p>
+              </div>
+            )}
+
             {/* Agent photo with double ring + name + badge */}
-            <div className="flex flex-col items-center mt-10">
+            <div className="flex flex-col items-center mt-8">
               {photoSrc ? (
                 <img
                   src={photoSrc}
@@ -292,7 +311,7 @@ export default function BadgeCelebration({
               )}
               <p className="text-white font-bold mt-5" style={{ fontSize: 34 }}>{agentName}</p>
               <div className="flex items-center gap-3 mt-3">
-                <PremiumBadge icon={badge.icon} color={badge.color} size={48} />
+                <PremiumBadge icon={badge.icon} color={badge.color} size={48} tier={badge.tier} />
                 <p className="text-white font-bold" style={{ fontSize: 28 }}>{badge.name}</p>
               </div>
             </div>

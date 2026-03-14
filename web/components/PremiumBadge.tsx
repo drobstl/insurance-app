@@ -1,7 +1,7 @@
 'use client';
 
 import { useId } from 'react';
-import type { BadgeIcon } from '../lib/badges';
+import type { BadgeIcon, BadgeTier } from '../lib/badges';
 
 interface Props {
   icon: BadgeIcon;
@@ -10,6 +10,7 @@ interface Props {
   shimmer?: boolean;
   glow?: boolean;
   grayscale?: boolean;
+  tier?: BadgeTier;
 }
 
 function adjust(hex: string, amount: number): string {
@@ -20,9 +21,51 @@ function adjust(hex: string, amount: number): string {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
 }
 
-const OUTER = 'M50 3 L93 19 V55 Q93 82 50 97 Q7 82 7 55 V19 Z';
-const INNER = 'M50 9 L87 23 V54 Q87 78 50 91 Q13 78 13 54 V23 Z';
-const HIGHLIGHT = 'M50 9 L87 23 L50 33 L13 23 Z';
+// ── Shape paths per tier ──────────────────────────────────────────────────────
+
+interface ShapePaths {
+  outer: string;
+  inner: string;
+  highlight: string;
+  iconCenter: [number, number];
+}
+
+const SHIELD: ShapePaths = {
+  outer: 'M50 3 L93 19 V55 Q93 82 50 97 Q7 82 7 55 V19 Z',
+  inner: 'M50 9 L87 23 V54 Q87 78 50 91 Q13 78 13 54 V23 Z',
+  highlight: 'M50 9 L87 23 L50 33 L13 23 Z',
+  iconCenter: [50, 53],
+};
+
+const CIRCLE: ShapePaths = {
+  outer: 'M50 3 A47 47 0 1 1 50 97 A47 47 0 1 1 50 3 Z',
+  inner: 'M50 9 A41 41 0 1 1 50 91 A41 41 0 1 1 50 9 Z',
+  highlight: 'M50 9 A41 41 0 0 1 91 50 L50 50 Z',
+  iconCenter: [50, 50],
+};
+
+const HEXAGON: ShapePaths = {
+  outer: 'M50 3 L93 27 V73 L50 97 L7 73 V27 Z',
+  inner: 'M50 10 L87 30 V70 L50 90 L13 70 V30 Z',
+  highlight: 'M50 10 L87 30 L50 40 L13 30 Z',
+  iconCenter: [50, 52],
+};
+
+const STARBURST: ShapePaths = {
+  outer: 'M50 2 L61 28 L90 15 L73 40 L98 50 L73 60 L90 85 L61 72 L50 98 L39 72 L10 85 L27 60 L2 50 L27 40 L10 15 L39 28 Z',
+  inner: 'M50 12 L58 31 L80 22 L69 42 L90 50 L69 58 L80 78 L58 69 L50 88 L42 69 L20 78 L31 58 L10 50 L31 42 L20 22 L42 31 Z',
+  highlight: 'M50 12 L58 31 L80 22 L69 42 L90 50 L50 50 L42 31 L20 22 L50 12 Z',
+  iconCenter: [50, 50],
+};
+
+function getShape(tier: BadgeTier): ShapePaths {
+  switch (tier) {
+    case 'starter': return CIRCLE;
+    case 'mid': return SHIELD;
+    case 'elite': return HEXAGON;
+    case 'legendary': return STARBURST;
+  }
+}
 
 function Icon({ type }: { type: BadgeIcon }) {
   switch (type) {
@@ -113,10 +156,13 @@ export default function PremiumBadge({
   shimmer = false,
   glow = false,
   grayscale = false,
+  tier = 'mid',
 }: Props) {
   const uid = useId().replace(/:/g, '');
   const light = adjust(color, 45);
   const dark = adjust(color, -45);
+  const shape = getShape(tier);
+  const isEliteOrLegendary = tier === 'elite' || tier === 'legendary';
 
   return (
     <div
@@ -143,7 +189,7 @@ export default function PremiumBadge({
             <stop offset="100%" stopColor="#c99a2e" />
           </linearGradient>
           <clipPath id={`c${uid}`}>
-            <path d={INNER} />
+            <path d={shape.inner} />
           </clipPath>
           {shimmer && (
             <linearGradient id={`s${uid}`} x1="0" y1="0" x2="1" y2="0">
@@ -157,14 +203,28 @@ export default function PremiumBadge({
         </defs>
 
         {/* Gold border */}
-        <path d={OUTER} fill={`url(#b${uid})`} />
+        <path d={shape.outer} fill={`url(#b${uid})`} />
         {/* Gradient fill */}
-        <path d={INNER} fill={`url(#f${uid})`} />
+        <path d={shape.inner} fill={`url(#f${uid})`} />
         {/* Top highlight for depth */}
-        <path d={HIGHLIGHT} fill="white" opacity="0.15" />
+        <path d={shape.highlight} fill="white" opacity="0.15" />
+
+        {/* Inner ring for elite/legendary tiers */}
+        {isEliteOrLegendary && (
+          <path d={shape.inner} fill="none" stroke="white" strokeWidth="1.5" opacity="0.12" />
+        )}
+
+        {/* Concentric ring pattern for legendary tier */}
+        {tier === 'legendary' && (
+          <g clipPath={`url(#c${uid})`} opacity="0.06">
+            <circle cx="50" cy="50" r="18" fill="none" stroke="white" strokeWidth="1" />
+            <circle cx="50" cy="50" r="28" fill="none" stroke="white" strokeWidth="1" />
+            <circle cx="50" cy="50" r="38" fill="none" stroke="white" strokeWidth="1" />
+          </g>
+        )}
 
         {/* Center icon */}
-        <g transform="translate(50 53) scale(1.5)">
+        <g transform={`translate(${shape.iconCenter[0]} ${shape.iconCenter[1]}) scale(1.5)`}>
           <Icon type={icon} />
         </g>
 
