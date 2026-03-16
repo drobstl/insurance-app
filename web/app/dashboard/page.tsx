@@ -312,7 +312,7 @@ export default function DashboardHomePage() {
                   className="flex flex-col items-center hover:opacity-80 transition-opacity"
                 >
                   <PremiumBadge badgeId={badge.id} size={100} shimmer glow />
-                  <p className="text-xs text-[#707070] mt-1">{badge.name}</p>
+                  <p className="text-xs text-[#707070] -mt-0.5">{badge.name}</p>
                 </button>
                 <BadgeShelf
                   stats={stats}

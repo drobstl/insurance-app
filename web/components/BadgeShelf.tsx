@@ -100,10 +100,10 @@ export default function BadgeShelf({ stats, open, onClose, onShareBadge, contain
               return (
                 <div
                   key={def.id}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-[5px] ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-[5px] cursor-pointer hover:bg-[#f5f5f5] transition-colors ${
                     isNext ? 'bg-[#f0faf8]' : ''
-                  } ${isEarned ? 'cursor-pointer hover:bg-[#f5f5f5] transition-colors' : ''}`}
-                  onClick={isEarned ? () => setSpotlightId(def.id) : undefined}
+                  }`}
+                  onClick={() => setSpotlightId(def.id)}
                 >
                   <PremiumBadge
                     badgeId={def.id}
@@ -184,22 +184,40 @@ export default function BadgeShelf({ stats, open, onClose, onShareBadge, contain
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
           >
-            <PremiumBadge badgeId={spotlightId} size={300} glow />
+            <PremiumBadge
+              badgeId={spotlightId}
+              size={300}
+              glow={earnedIds.has(spotlightId)}
+              grayscale={!earnedIds.has(spotlightId)}
+            />
             <p className="text-white font-extrabold mt-6 text-2xl">{spotlightDef.name}</p>
             <p className="text-white/60 mt-1 text-sm text-center max-w-xs">{spotlightDef.description}</p>
-            {onShareBadge && earnedIds.has(spotlightId) && (
-              <button
-                onClick={() => {
-                  const earnedBadge = earned.find((b) => b.id === spotlightId);
-                  if (earnedBadge) {
-                    setSpotlightId(null);
-                    onShareBadge(earnedBadge);
-                  }
-                }}
-                className="mt-5 px-6 py-2.5 text-sm font-semibold text-white border border-white/30 rounded-[5px] hover:bg-white/10 transition-colors"
-              >
-                Share Badge
-              </button>
+            {earnedIds.has(spotlightId) ? (
+              onShareBadge && (
+                <button
+                  onClick={() => {
+                    const earnedBadge = earned.find((b) => b.id === spotlightId);
+                    if (earnedBadge) {
+                      setSpotlightId(null);
+                      onShareBadge(earnedBadge);
+                    }
+                  }}
+                  className="mt-5 px-6 py-2.5 text-sm font-semibold text-white border border-white/30 rounded-[5px] hover:bg-white/10 transition-colors"
+                >
+                  Share Badge
+                </button>
+              )
+            ) : (
+              <div className="mt-5 flex flex-col items-center gap-2">
+                <p className="text-white/40 text-xs font-medium uppercase tracking-wide">Not yet earned</p>
+                <ProgressBar
+                  current={spotlightDef.current(stats)}
+                  target={spotlightDef.target}
+                />
+                <p className="text-white/50 text-xs">
+                  {formatProgress(spotlightDef.current(stats), spotlightDef.target, spotlightDef.progressLabel)}
+                </p>
+              </div>
             )}
           </motion.div>
         </motion.div>
