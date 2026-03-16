@@ -100,10 +100,8 @@ export default function BadgeShelf({ stats, open, onClose, onShareBadge, contain
                   }`}
                 >
                   <PremiumBadge
-                    icon={def.icon}
-                    color={def.color}
+                    badgeId={def.id}
                     size={36}
-                    tier={def.tier}
                     shimmer={isEarned}
                     grayscale={!isEarned && !isNext}
                   />
