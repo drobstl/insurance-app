@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useMemo } from 'react';
+import { useRef, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BADGE_DEFINITIONS, computeBadges, type BadgeDefinition, type EarnedBadge } from '../lib/badges';
 import type { AgentAggregates } from '../lib/stats-aggregation';
@@ -44,6 +44,8 @@ export default function BadgeShelf({ stats, open, onClose, onShareBadge, contain
   const ref = useRef<HTMLDivElement>(null);
   const earned = useMemo(() => computeBadges(stats), [stats]);
   const earnedIds = useMemo(() => new Set(earned.map((b) => b.id)), [earned]);
+  const [spotlightId, setSpotlightId] = useState<string | null>(null);
+  const spotlightDef = spotlightId ? BADGE_DEFINITIONS.find((d) => d.id === spotlightId) : null;
 
   useEffect(() => {
     if (!open) return;
@@ -54,7 +56,10 @@ export default function BadgeShelf({ stats, open, onClose, onShareBadge, contain
       onClose();
     }
     function handleEsc(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        if (spotlightId) setSpotlightId(null);
+        else onClose();
+      }
     }
     document.addEventListener('mousedown', handleClick);
     document.addEventListener('keydown', handleEsc);
@@ -97,11 +102,12 @@ export default function BadgeShelf({ stats, open, onClose, onShareBadge, contain
                   key={def.id}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-[5px] ${
                     isNext ? 'bg-[#f0faf8]' : ''
-                  }`}
+                  } ${isEarned ? 'cursor-pointer hover:bg-[#f5f5f5] transition-colors' : ''}`}
+                  onClick={isEarned ? () => setSpotlightId(def.id) : undefined}
                 >
                   <PremiumBadge
                     badgeId={def.id}
-                    size={48}
+                    size={64}
                     shimmer={isEarned}
                     grayscale={!isEarned && !isNext}
                   />
@@ -156,6 +162,46 @@ export default function BadgeShelf({ stats, open, onClose, onShareBadge, contain
               );
             })}
           </div>
+        </motion.div>
+      )}
+
+      {/* Badge spotlight lightbox */}
+      {spotlightId && spotlightDef && (
+        <motion.div
+          className="fixed inset-0 z-[90] flex flex-col items-center justify-center p-6"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setSpotlightId(null)}
+          />
+          <motion.div
+            className="relative flex flex-col items-center"
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+          >
+            <PremiumBadge badgeId={spotlightId} size={300} glow />
+            <p className="text-white font-extrabold mt-6 text-2xl">{spotlightDef.name}</p>
+            <p className="text-white/60 mt-1 text-sm text-center max-w-xs">{spotlightDef.description}</p>
+            {onShareBadge && earnedIds.has(spotlightId) && (
+              <button
+                onClick={() => {
+                  const earnedBadge = earned.find((b) => b.id === spotlightId);
+                  if (earnedBadge) {
+                    setSpotlightId(null);
+                    onShareBadge(earnedBadge);
+                  }
+                }}
+                className="mt-5 px-6 py-2.5 text-sm font-semibold text-white border border-white/30 rounded-[5px] hover:bg-white/10 transition-colors"
+              >
+                Share Badge
+              </button>
+            )}
+          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>

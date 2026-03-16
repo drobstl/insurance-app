@@ -311,7 +311,7 @@ export default function DashboardHomePage() {
                   onClick={() => setShelfOpen(!shelfOpen)}
                   className="flex flex-col items-center hover:opacity-80 transition-opacity"
                 >
-                  <PremiumBadge badgeId={badge.id} size={60} shimmer glow />
+                  <PremiumBadge badgeId={badge.id} size={100} shimmer glow />
                   <p className="text-xs text-[#707070] mt-1">{badge.name}</p>
                 </button>
                 <BadgeShelf
