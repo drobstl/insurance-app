@@ -21,15 +21,13 @@ export default function PremiumBadge({
 
   return (
     <div
-      className={`relative inline-flex shrink-0 ${grayscale ? 'grayscale opacity-40' : ''}`}
+      className={`relative inline-flex items-center justify-center shrink-0 ${grayscale ? 'grayscale opacity-40' : ''}`}
       style={{ width: size, height: size }}
     >
       <img
         src={src}
         alt=""
-        width={size}
-        height={size}
-        className="w-full h-full object-contain"
+        className="max-w-full max-h-full object-contain"
         style={{
           filter: glow ? `drop-shadow(0 0 ${Math.round(size * 0.15)}px rgba(0,0,0,0.3))` : undefined,
         }}

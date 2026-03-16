@@ -75,7 +75,7 @@ export default function BadgeShelf({ stats, open, onClose, onShareBadge, contain
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -8, scale: 0.97 }}
           transition={spring}
-          className="absolute top-full right-0 mt-2 bg-white rounded-[8px] shadow-xl border border-[#d0d0d0] z-50 w-[300px] max-h-[420px] overflow-y-auto origin-top-right"
+          className="absolute top-full right-0 mt-2 bg-white rounded-[8px] shadow-xl border border-[#d0d0d0] z-50 w-[340px] max-h-[480px] overflow-y-auto origin-top-right"
         >
           <div className="sticky top-0 bg-white px-4 pt-4 pb-2 border-b border-[#e5e7eb] z-10">
             <p className="text-sm font-bold text-[#005851]">
@@ -101,7 +101,7 @@ export default function BadgeShelf({ stats, open, onClose, onShareBadge, contain
                 >
                   <PremiumBadge
                     badgeId={def.id}
-                    size={36}
+                    size={48}
                     shimmer={isEarned}
                     grayscale={!isEarned && !isNext}
                   />

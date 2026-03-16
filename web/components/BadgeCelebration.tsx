@@ -309,7 +309,7 @@ export default function BadgeCelebration({
               )}
               <p className="text-white font-bold mt-5" style={{ fontSize: 34 }}>{agentName}</p>
               <div className="flex items-center gap-3 mt-3">
-                <PremiumBadge badgeId={badge.id} size={48} />
+                <PremiumBadge badgeId={badge.id} size={72} />
                 <p className="text-white font-bold" style={{ fontSize: 28 }}>{badge.name}</p>
               </div>
             </div>
