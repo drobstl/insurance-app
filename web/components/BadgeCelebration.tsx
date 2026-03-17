@@ -240,15 +240,17 @@ export default function BadgeCelebration({
             fill="none"
             style={{ position: 'absolute', inset: 0, zIndex: 1 }}
           >
-            {/* Upper-left scrollwork */}
-            <path d="M-20 180 C60 180, 100 80, 180 60 S320 20, 400 80 S480 180, 520 120" stroke="rgba(255,255,255,0.045)" strokeWidth="1.5" />
-            <path d="M-40 280 C80 260, 140 140, 240 100 S400 60, 500 140 S600 260, 680 200" stroke="rgba(255,255,255,0.035)" strokeWidth="1.5" />
-            <path d="M-10 80 C40 60, 80 20, 140 40 S220 100, 280 60 S360 -20, 420 40" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-            {/* Right-side flowing curve */}
-            <path d="M1100 300 C1020 340, 960 420, 980 520 S1040 660, 1000 740 S920 860, 960 940" stroke="rgba(255,255,255,0.03)" strokeWidth="1.5" />
-            <path d="M1080 200 C1000 260, 940 360, 960 460 S1020 580, 980 660" stroke="rgba(255,255,255,0.025)" strokeWidth="1" />
+            {/* Upper-left scrollwork — bold, visible */}
+            <path d="M-30 200 C80 190, 120 80, 220 50 S380 -10, 480 70 S560 200, 640 140 S740 40, 820 100" stroke="rgba(255,255,255,0.09)" strokeWidth="1.5" />
+            <path d="M-50 320 C100 290, 170 150, 290 100 S480 40, 600 140 S720 300, 840 230" stroke="rgba(255,255,255,0.07)" strokeWidth="1.5" />
+            <path d="M-20 100 C50 70, 100 10, 180 30 S280 110, 360 60 S460 -30, 540 40 S620 130, 700 80" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+            <path d="M-40 420 C60 400, 140 320, 240 300 S400 280, 500 340" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+            {/* Right-side flowing curves */}
+            <path d="M1110 280 C1020 330, 950 430, 970 540 S1050 680, 1000 770 S910 890, 960 980" stroke="rgba(255,255,255,0.07)" strokeWidth="1.5" />
+            <path d="M1090 180 C1000 250, 930 370, 960 480 S1030 610, 990 700 S920 800, 960 880" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
             {/* Bottom-left accent */}
-            <path d="M80 1100 C120 1020, 200 980, 300 1000 S440 1060, 520 1020" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+            <path d="M60 1100 C110 1000, 220 960, 340 990 S500 1060, 600 1010 S720 940, 800 980" stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+            <path d="M-20 980 C40 920, 120 900, 200 930 S320 990, 400 950" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
           </svg>
 
           {/* === TOP BAR: logo (left) + agent (right) === */}
@@ -350,9 +352,15 @@ export default function BadgeCelebration({
               <p style={{ fontSize: 30, color: 'rgba(255,255,255,0.6)', fontWeight: 500, fontStyle: 'italic' as const, margin: '8px 0 0' }}>
                 Annual Premium
               </p>
-              <p style={{ fontSize: 18, color: 'rgba(68,187,170,0.7)', fontWeight: 600, fontStyle: 'italic' as const, margin: '10px 0 0' }}>
-                generated on autopilot
-              </p>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 4, marginTop: 6, marginLeft: 80 }}>
+                <svg width="28" height="32" viewBox="0 0 28 32" fill="none" style={{ flexShrink: 0, marginTop: 2 }}>
+                  <path d="M4 2 C4 18, 10 26, 24 28" stroke="rgba(68,187,170,0.6)" strokeWidth="1.5" fill="none" />
+                  <path d="M18 24 L24 28 L17 30" stroke="rgba(68,187,170,0.6)" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <p style={{ fontSize: 18, color: 'rgba(68,187,170,0.7)', fontWeight: 600, fontStyle: 'italic' as const, margin: 0 }}>
+                  generated on autopilot
+                </p>
+              </div>
             </div>
           </div>
 
@@ -371,8 +379,9 @@ export default function BadgeCelebration({
               display: 'flex',
               alignItems: 'flex-end',
               justifyContent: 'space-between',
-              padding: '0 60px 44px',
+              padding: '20px 60px 44px',
               flexShrink: 0,
+              marginTop: 'auto',
             }}
           >
             {qrDataUrl && inviteUrl ? (
