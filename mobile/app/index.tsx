@@ -17,11 +17,26 @@ import * as SecureStore from 'expo-secure-store';
 const API_BASE = __DEV__ ? 'http://192.168.1.210:3000' : 'https://agentforlife.app';
 
 const SESSION_KEY = 'client_session';
+const PROFILE_CACHE_KEY = 'profile_cache';
 
 interface SavedSession {
   clientCode: string;
   agentId: string;
   clientId: string;
+}
+
+type LookupResult = {
+  agentId: string;
+  clientId: string;
+  clientData: Record<string, unknown>;
+  agentData: Record<string, unknown>;
+};
+
+class InvalidCodeError extends Error {
+  constructor() {
+    super('Invalid client code');
+    this.name = 'InvalidCodeError';
+  }
 }
 
 async function saveSession(session: SavedSession) {
@@ -40,23 +55,31 @@ export async function getSession(): Promise<SavedSession | null> {
 
 export async function clearSession() {
   await SecureStore.deleteItemAsync(SESSION_KEY);
+  await SecureStore.deleteItemAsync(PROFILE_CACHE_KEY);
 }
 
-type LookupResult = {
-  agentId: string;
-  clientId: string;
-  clientData: Record<string, unknown>;
-  agentData: Record<string, unknown>;
-};
+async function saveProfileCache(result: LookupResult) {
+  await SecureStore.setItemAsync(PROFILE_CACHE_KEY, JSON.stringify(result));
+}
 
-async function lookupClientCode(clientCode: string): Promise<LookupResult | null> {
+async function getProfileCache(): Promise<LookupResult | null> {
+  const raw = await SecureStore.getItemAsync(PROFILE_CACHE_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as LookupResult;
+  } catch {
+    return null;
+  }
+}
+
+async function lookupClientCode(clientCode: string): Promise<LookupResult> {
   const normalizedCode = clientCode.trim().toUpperCase();
   const res = await fetch(`${API_BASE}/api/mobile/lookup-client-code`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ clientCode: normalizedCode }),
   });
-  if (res.status === 404) return null;
+  if (res.status === 404) throw new InvalidCodeError();
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error || `Lookup failed (${res.status})`);
@@ -148,7 +171,6 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const [checkingSession, setCheckingSession] = useState(true);
 
-  // On mount, check for a saved session and auto-login via API
   useEffect(() => {
     (async () => {
       try {
@@ -158,17 +180,54 @@ export default function LoginScreen() {
           return;
         }
 
-        const result = await lookupClientCode(session.clientCode);
+        let result: LookupResult | null = null;
+        let networkFailed = false;
+
+        try {
+          result = await lookupClientCode(session.clientCode);
+        } catch (err) {
+          if (err instanceof InvalidCodeError) {
+            await clearSession();
+            setCheckingSession(false);
+            return;
+          }
+          networkFailed = true;
+          console.warn('Auto-login API failed, will retry once:', err);
+        }
+
+        if (networkFailed) {
+          await new Promise((r) => setTimeout(r, 1500));
+          try {
+            result = await lookupClientCode(session.clientCode);
+          } catch (retryErr) {
+            if (retryErr instanceof InvalidCodeError) {
+              await clearSession();
+              setCheckingSession(false);
+              return;
+            }
+            console.warn('Auto-login retry failed, falling back to cache');
+          }
+        }
+
         if (!result) {
-          await clearSession();
+          const cached = await getProfileCache();
+          if (cached) {
+            navigateToProfile(cached.agentId, cached.clientId, cached.clientData, cached.agentData);
+            return;
+          }
           setCheckingSession(false);
           return;
         }
 
+        await saveProfileCache(result);
         navigateToProfile(result.agentId, result.clientId, result.clientData, result.agentData);
       } catch (err) {
         console.error('Auto-login error:', err);
-        await clearSession();
+        const cached = await getProfileCache();
+        if (cached) {
+          navigateToProfile(cached.agentId, cached.clientId, cached.clientData, cached.agentData);
+          return;
+        }
         setCheckingSession(false);
       }
     })();
@@ -186,20 +245,21 @@ export default function LoginScreen() {
     try {
       const result = await lookupClientCode(clientCode);
 
-      if (result) {
-        await saveSession({
-          clientCode: clientCode.trim().toUpperCase(),
-          agentId: result.agentId,
-          clientId: result.clientId,
-        });
+      await saveSession({
+        clientCode: clientCode.trim().toUpperCase(),
+        agentId: result.agentId,
+        clientId: result.clientId,
+      });
+      await saveProfileCache(result);
 
-        navigateToProfile(result.agentId, result.clientId, result.clientData, result.agentData);
-      } else {
-        setError('Invalid client code. Please check and try again.');
-      }
+      navigateToProfile(result.agentId, result.clientId, result.clientData, result.agentData);
     } catch (err) {
-      console.error('Login error:', err);
-      setError('Something went wrong. Please try again.');
+      if (err instanceof InvalidCodeError) {
+        setError('Invalid client code. Please check and try again.');
+      } else {
+        console.error('Login error:', err);
+        setError('Something went wrong. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

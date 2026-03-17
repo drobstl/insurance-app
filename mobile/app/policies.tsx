@@ -309,16 +309,6 @@ export default function PoliciesScreen() {
                       </View>
                     )}
 
-                    {/* Amount of Protection for Mortgage Protection */}
-                    {policy.policyType === 'Mortgage Protection' && policy.amountOfProtection && (
-                      <View style={styles.protectionHighlight}>
-                        <Text style={styles.protectionLabel}>Amount of Protection</Text>
-                        <Text style={styles.protectionValue}>
-                          {policy.amountOfProtection} {policy.protectionUnit === 'months' ? 'Months' : 'Years'}
-                        </Text>
-                      </View>
-                    )}
-
                     {/* Renewal Date for Term Life */}
                     {policy.policyType === 'Term Life' && policy.renewalDate && (
                       <View style={styles.detailRow}>
@@ -327,8 +317,31 @@ export default function PoliciesScreen() {
                       </View>
                     )}
 
-                    {/* Accidental & Term Life - Death Benefit Prominent */}
-                    {(policy.policyType === 'Accidental' || policy.policyType === 'Term Life') ? (
+                    {/* Mortgage Protection: time is the hero, dollars secondary */}
+                    {policy.policyType === 'Mortgage Protection' ? (
+                      <View>
+                        {policy.amountOfProtection ? (
+                          <View style={styles.protectionHighlight}>
+                            <Text style={styles.protectionLabel}>Coverage Duration</Text>
+                            <Text style={styles.protectionValue}>
+                              {policy.amountOfProtection} {policy.protectionUnit === 'months' ? 'Months' : 'Years'}
+                            </Text>
+                            <Text style={styles.protectionSubtext}>of mortgage protection</Text>
+                          </View>
+                        ) : null}
+                        <View style={styles.amountGrid}>
+                          <View style={styles.amountItem}>
+                            <Text style={styles.amountLabel}>Death Benefit</Text>
+                            <Text style={styles.amountValue}>{formatCurrency(policy.coverageAmount)}</Text>
+                          </View>
+                          <View style={styles.amountDivider} />
+                          <View style={styles.amountItem}>
+                            <Text style={styles.amountLabel}>Premium</Text>
+                            <Text style={styles.amountValue}>{formatCurrency(policy.premiumAmount)}/mo</Text>
+                          </View>
+                        </View>
+                      </View>
+                    ) : (policy.policyType === 'Accidental' || policy.policyType === 'Term Life') ? (
                       <View>
                         <View style={styles.accidentalDeathBenefit}>
                           <Text style={styles.accidentalDeathLabel}>Death Benefit</Text>
@@ -776,9 +789,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   protectionValue: {
-    fontSize: 26,
+    fontSize: 28,
     color: '#0D4D4D',
     fontWeight: '700',
+  },
+  protectionSubtext: {
+    fontSize: 13,
+    color: '#0D4D4D',
+    fontWeight: '500',
+    marginTop: 2,
+    opacity: 0.7,
   },
   amountGrid: {
     flexDirection: 'row',

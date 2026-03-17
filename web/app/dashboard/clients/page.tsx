@@ -850,6 +850,10 @@ export default function ClientsPage() {
       setPolicyFormError('Policy type is required.');
       return;
     }
+    if (policyFormData.policyType === 'Mortgage Protection' && !policyFormData.amountOfProtection) {
+      setPolicyFormError('Coverage duration is required for Mortgage Protection policies. Your client will see this in their app.');
+      return;
+    }
     setPolicyFormError('');
     setPolicyFormSuccess('');
     setPolicySubmitting(true);
@@ -2576,27 +2580,31 @@ export default function ClientsPage() {
 
               {/* Mortgage Protection fields */}
               {policyFormData.policyType === 'Mortgage Protection' && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-[#000000] mb-1">Amount of Protection</label>
-                    <input
-                      type="number"
-                      value={policyFormData.amountOfProtection}
-                      onChange={(e) => setPolicyFormData((f) => ({ ...f, amountOfProtection: e.target.value }))}
-                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
-                      placeholder="30"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-[#000000] mb-1">Unit</label>
-                    <select
-                      value={policyFormData.protectionUnit}
-                      onChange={(e) => setPolicyFormData((f) => ({ ...f, protectionUnit: e.target.value }))}
-                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
-                    >
-                      <option value="years">Years</option>
-                      <option value="months">Months</option>
-                    </select>
+                <div className="bg-[#44bbaa]/5 border border-[#45bcaa]/30 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-[#005851] mb-1">Coverage Duration <span className="text-red-500">*</span></p>
+                  <p className="text-xs text-[#707070] mb-3">How long is the client covered? This displays prominently in their app.</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-[#000000] mb-1">Amount of Protection</label>
+                      <input
+                        type="number"
+                        value={policyFormData.amountOfProtection}
+                        onChange={(e) => setPolicyFormData((f) => ({ ...f, amountOfProtection: e.target.value }))}
+                        className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                        placeholder="30"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[#000000] mb-1">Unit</label>
+                      <select
+                        value={policyFormData.protectionUnit}
+                        onChange={(e) => setPolicyFormData((f) => ({ ...f, protectionUnit: e.target.value }))}
+                        className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                      >
+                        <option value="years">Years</option>
+                        <option value="months">Months</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               )}

@@ -995,19 +995,31 @@ export default function ClientDetailModal({
                     )}
 
                     <div className="grid grid-cols-2 gap-4">
-                      {policy.policyType === 'Mortgage Protection' && policy.amountOfProtection && (
-                        <div className="col-span-2 bg-[#44bbaa]/10 rounded-lg p-3 border border-[#45bcaa]/30">
-                          <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Amount of Protection</p>
-                          <p className="text-[#005851] text-xl font-bold">{policy.amountOfProtection} {policy.protectionUnit === 'months' ? 'Months' : 'Years'}</p>
-                        </div>
-                      )}
                       {policy.policyType === 'Term Life' && policy.renewalDate && (
                         <div className="col-span-2">
                           <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Renewal Date</p>
                           <p className="text-[#000000]">{formatDate(policy.renewalDate)}</p>
                         </div>
                       )}
-                      {(policy.policyType === 'Accidental' || policy.policyType === 'Term Life') ? (
+                      {policy.policyType === 'Mortgage Protection' ? (
+                        <>
+                          {policy.amountOfProtection ? (
+                            <div className="col-span-2 bg-[#44bbaa]/10 rounded-lg p-4 border border-[#45bcaa]/30 text-center">
+                              <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Coverage Duration</p>
+                              <p className="text-[#005851] text-2xl font-bold">{policy.amountOfProtection} {policy.protectionUnit === 'months' ? 'Months' : 'Years'}</p>
+                              <p className="text-[#005851]/60 text-xs mt-1">of mortgage protection</p>
+                            </div>
+                          ) : null}
+                          <div>
+                            <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Death Benefit</p>
+                            <p className="text-[#000000] font-semibold">{formatCurrency(policy.coverageAmount)}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Premium</p>
+                            <p className="text-[#000000] font-semibold">{formatCurrency(policy.premiumAmount)}{frequencyLabel(policy.premiumFrequency)}</p>
+                          </div>
+                        </>
+                      ) : (policy.policyType === 'Accidental' || policy.policyType === 'Term Life') ? (
                         <>
                           <div className="col-span-2 bg-[#44bbaa]/10 rounded-lg p-3 border border-[#45bcaa]/30">
                             <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Death Benefit</p>
