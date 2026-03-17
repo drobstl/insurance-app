@@ -190,7 +190,7 @@ export default function BadgeCelebration({
             width: 1080,
             height: 1080,
             fontFamily: 'system-ui, sans-serif',
-            background: 'linear-gradient(160deg, #00695c 0%, #004d44 25%, #002e2a 55%, #001a18 100%)',
+            background: 'linear-gradient(160deg, #004d44 0%, #003330 20%, #001f1c 50%, #000f0e 100%)',
             position: 'relative',
             overflow: 'hidden',
           }}
@@ -216,6 +216,20 @@ export default function BadgeCelebration({
               background: 'radial-gradient(circle, rgba(68,187,170,0.15) 0%, rgba(68,187,170,0.06) 35%, transparent 65%)',
             }}
           />
+
+          {/* Decorative concentric arcs */}
+          <svg
+            width="1080"
+            height="1080"
+            viewBox="0 0 1080 1080"
+            fill="none"
+            style={{ position: 'absolute', inset: 0, zIndex: 1 }}
+          >
+            <circle cx="720" cy="480" r="320" stroke="rgba(255,255,255,0.035)" strokeWidth="1" />
+            <circle cx="720" cy="480" r="460" stroke="rgba(255,255,255,0.025)" strokeWidth="1" />
+            <circle cx="720" cy="480" r="600" stroke="rgba(255,255,255,0.018)" strokeWidth="1" />
+            <circle cx="200" cy="900" r="280" stroke="rgba(255,255,255,0.02)" strokeWidth="1" />
+          </svg>
 
           {/* === TOP BAR: logo (left) + agent (right) === */}
           <div style={{ position: 'relative', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '48px 60px 0' }}>
@@ -267,7 +281,7 @@ export default function BadgeCelebration({
           </div>
 
           {/* === HERO TITLE: "{BADGE_NAME} MILESTONE UNLOCKED" === */}
-          <div style={{ position: 'relative', zIndex: 10, padding: '36px 60px 0' }}>
+          <div style={{ position: 'relative', zIndex: 10, padding: '36px 60px 0', textAlign: 'center' as const }}>
             <p
               style={{
                 fontSize: 72,
@@ -276,8 +290,8 @@ export default function BadgeCelebration({
                 textTransform: 'uppercase' as const,
                 color: '#5be0d0',
                 margin: 0,
-                WebkitTextStroke: '1px rgba(255,255,255,0.15)',
-                textShadow: '0 0 60px rgba(68,187,170,0.4), 0 4px 20px rgba(0,0,0,0.5)',
+                WebkitTextStroke: '2px rgba(0,40,35,0.8)',
+                textShadow: '0 2px 4px rgba(0,0,0,0.7), 0 0 80px rgba(68,187,170,0.35), 0 0 30px rgba(91,224,208,0.2)',
               }}
             >
               {badge.name} Milestone<br />Unlocked
@@ -308,12 +322,12 @@ export default function BadgeCelebration({
                   lineHeight: 1,
                   color: '#ffffff',
                   margin: 0,
-                  textShadow: '0 0 40px rgba(68,187,170,0.4), 0 4px 16px rgba(0,0,0,0.5)',
+                  textShadow: '0 0 60px rgba(68,187,170,0.6), 0 0 120px rgba(68,187,170,0.3), 0 4px 16px rgba(0,0,0,0.5)',
                 }}
               >
                 {formatValue(totalValue)}
               </p>
-              <p style={{ fontSize: 30, color: 'rgba(255,255,255,0.6)', fontWeight: 500, margin: '8px 0 0' }}>
+              <p style={{ fontSize: 30, color: 'rgba(255,255,255,0.6)', fontWeight: 500, fontStyle: 'italic' as const, margin: '8px 0 0' }}>
                 Annual Premium
               </p>
             </div>
@@ -353,7 +367,7 @@ export default function BadgeCelebration({
                   <p style={{ color: '#44bbaa', fontWeight: 800, fontSize: 24, letterSpacing: 3, textTransform: 'uppercase' as const, margin: 0 }}>
                     Scan to Join
                   </p>
-                  <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 15, margin: '4px 0 0', maxWidth: 280, wordBreak: 'break-all' as const }}>
+                  <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 15, margin: '4px 0 0', maxWidth: 500, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {inviteUrl}
                   </p>
                 </div>
