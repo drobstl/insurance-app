@@ -238,7 +238,12 @@ export default function DashboardHomePage() {
   const totalValue = stats ? stats.totalApv : 0;
   const bookHealth = stats ? computeBookHealth(stats, activeConservation.length) : null;
   const bookHealthBreakdown = stats ? computeBookHealthBreakdown(stats, activeConservation.length) : null;
-  const badge = stats ? getMostRecentBadge(stats) : null;
+  const badgeStats = useMemo<AgentAggregates | null>(() => {
+    if (!stats) return null;
+    return { ...stats, isFoundingMember: !!agentProfile.isFoundingMember };
+  }, [stats, agentProfile.isFoundingMember]);
+
+  const badge = badgeStats ? getMostRecentBadge(badgeStats) : null;
 
   const [shelfOpen, setShelfOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
@@ -248,12 +253,12 @@ export default function DashboardHomePage() {
   const healthContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!stats || !user || !agentProfile) return;
-    const earned = computeBadges(stats);
+    if (!badgeStats || !user || !agentProfile) return;
+    const earned = computeBadges(badgeStats);
     const celebrated = new Set(agentProfile.celebratedBadgeIds ?? []);
     const uncelebrated = earned.find((b) => !celebrated.has(b.id));
     if (uncelebrated) setCelebrationBadge(uncelebrated);
-  }, [stats, user, agentProfile]);
+  }, [badgeStats, user, agentProfile]);
 
   if (loading) return null;
 
@@ -305,7 +310,7 @@ export default function DashboardHomePage() {
               <div className="w-px h-12 bg-[#d0d0d0]" />
             )}
             */}
-            {badge && stats && (
+            {badge && badgeStats && (
               <div className="relative" ref={shelfContainerRef}>
                 <button
                   onClick={() => setShelfOpen(!shelfOpen)}
@@ -315,7 +320,7 @@ export default function DashboardHomePage() {
                   <p className="text-xs text-[#707070] -mt-0.5">{badge.name}</p>
                 </button>
                 <BadgeShelf
-                  stats={stats}
+                  stats={badgeStats}
                   open={shelfOpen}
                   onClose={() => setShelfOpen(false)}
                   onShareBadge={(b) => { setShelfOpen(false); setShareBadge(b); }}

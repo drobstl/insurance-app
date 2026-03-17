@@ -19,6 +19,7 @@ export interface AgentAggregates {
     conservationSaveRate: number;
   };
   agentsReferred?: number;
+  isFoundingMember?: boolean;
   updatedAt: string;
 }
 

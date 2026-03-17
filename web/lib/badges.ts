@@ -35,6 +35,20 @@ export interface BadgeDefinition extends Badge {
 }
 
 export const BADGE_DEFINITIONS: BadgeDefinition[] = [
+  // ── Founding Member (special) ────────────────────────────────
+  {
+    id: 'founding-member',
+    name: 'Founding Member',
+    icon: 'diamond',
+    color: '#a158ff',
+    tier: 'legendary',
+    check: (s) => s.isFoundingMember === true,
+    description: 'One of the original 50 — free for life',
+    shareText: 'I\'m one of the original 50 founding members of AgentForLife — locked in free for life. This AI-first platform is changing the game for insurance agents, and I got in on the ground floor.',
+    progressLabel: 'founding member',
+    current: (s) => s.isFoundingMember ? 1 : 0,
+    target: 1,
+  },
   // ── Starter tier (circle) ──────────────────────────────────
   {
     id: 'first-save',
