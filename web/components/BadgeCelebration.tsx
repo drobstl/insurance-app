@@ -190,9 +190,11 @@ export default function BadgeCelebration({
             width: 1080,
             height: 1080,
             fontFamily: 'system-ui, sans-serif',
-            background: 'linear-gradient(160deg, #004d44 0%, #003330 20%, #001f1c 50%, #000f0e 100%)',
+            background: 'linear-gradient(160deg, #005545 0%, #003a32 18%, #002420 48%, #000f0e 100%)',
             position: 'relative',
             overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column' as const,
           }}
         >
           {/* Diagonal texture overlay */}
@@ -204,20 +206,33 @@ export default function BadgeCelebration({
             }}
           />
 
-          {/* Radial glow behind badge area */}
+          {/* Radial glow — primary (center-left, behind badge) */}
           <div
             style={{
               position: 'absolute',
-              width: 900,
-              height: 900,
-              top: '35%',
-              left: '30%',
+              width: 1000,
+              height: 1000,
+              top: '38%',
+              left: '32%',
               transform: 'translate(-50%, -50%)',
-              background: 'radial-gradient(circle, rgba(68,187,170,0.15) 0%, rgba(68,187,170,0.06) 35%, transparent 65%)',
+              background: 'radial-gradient(circle, rgba(68,187,170,0.22) 0%, rgba(68,187,170,0.08) 35%, transparent 65%)',
             }}
           />
 
-          {/* Decorative concentric arcs */}
+          {/* Radial glow — secondary (upper area warmth) */}
+          <div
+            style={{
+              position: 'absolute',
+              width: 700,
+              height: 700,
+              top: '8%',
+              left: '50%',
+              transform: 'translate(-50%, 0)',
+              background: 'radial-gradient(circle, rgba(68,187,170,0.10) 0%, transparent 60%)',
+            }}
+          />
+
+          {/* Ornamental swirl flourishes */}
           <svg
             width="1080"
             height="1080"
@@ -225,14 +240,19 @@ export default function BadgeCelebration({
             fill="none"
             style={{ position: 'absolute', inset: 0, zIndex: 1 }}
           >
-            <circle cx="720" cy="480" r="320" stroke="rgba(255,255,255,0.035)" strokeWidth="1" />
-            <circle cx="720" cy="480" r="460" stroke="rgba(255,255,255,0.025)" strokeWidth="1" />
-            <circle cx="720" cy="480" r="600" stroke="rgba(255,255,255,0.018)" strokeWidth="1" />
-            <circle cx="200" cy="900" r="280" stroke="rgba(255,255,255,0.02)" strokeWidth="1" />
+            {/* Upper-left scrollwork */}
+            <path d="M-20 180 C60 180, 100 80, 180 60 S320 20, 400 80 S480 180, 520 120" stroke="rgba(255,255,255,0.045)" strokeWidth="1.5" />
+            <path d="M-40 280 C80 260, 140 140, 240 100 S400 60, 500 140 S600 260, 680 200" stroke="rgba(255,255,255,0.035)" strokeWidth="1.5" />
+            <path d="M-10 80 C40 60, 80 20, 140 40 S220 100, 280 60 S360 -20, 420 40" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+            {/* Right-side flowing curve */}
+            <path d="M1100 300 C1020 340, 960 420, 980 520 S1040 660, 1000 740 S920 860, 960 940" stroke="rgba(255,255,255,0.03)" strokeWidth="1.5" />
+            <path d="M1080 200 C1000 260, 940 360, 960 460 S1020 580, 980 660" stroke="rgba(255,255,255,0.025)" strokeWidth="1" />
+            {/* Bottom-left accent */}
+            <path d="M80 1100 C120 1020, 200 980, 300 1000 S440 1060, 520 1020" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
           </svg>
 
           {/* === TOP BAR: logo (left) + agent (right) === */}
-          <div style={{ position: 'relative', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '48px 60px 0' }}>
+          <div style={{ position: 'relative', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '48px 60px 0', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <img src="/logo.png" alt="" width={56} height={34} style={{ width: 56, height: 34 }} />
               <span style={{ color: '#b2dfdb', fontWeight: 700, fontSize: 24, letterSpacing: 4, textTransform: 'uppercase' as const }}>
@@ -281,7 +301,7 @@ export default function BadgeCelebration({
           </div>
 
           {/* === HERO TITLE: "{BADGE_NAME} MILESTONE UNLOCKED" === */}
-          <div style={{ position: 'relative', zIndex: 10, padding: '36px 60px 0', textAlign: 'center' as const }}>
+          <div style={{ position: 'relative', zIndex: 10, padding: '28px 60px 0', textAlign: 'center' as const, flexShrink: 0 }}>
             <p
               style={{
                 fontSize: 72,
@@ -299,15 +319,15 @@ export default function BadgeCelebration({
           </div>
 
           {/* === MIDDLE: Badge image (left) + Dollar value (right) === */}
-          <div style={{ position: 'relative', zIndex: 10, display: 'flex', alignItems: 'center', padding: '24px 60px 0', gap: 20 }}>
+          <div style={{ position: 'relative', zIndex: 10, display: 'flex', alignItems: 'center', padding: '16px 60px 0', gap: 20, flexShrink: 0 }}>
             <img
               src={`/badges/${badge.id}.png`}
               alt=""
-              width={420}
-              height={420}
+              width={400}
+              height={400}
               style={{
-                width: 420,
-                height: 420,
+                width: 400,
+                height: 400,
                 objectFit: 'contain' as const,
                 transform: 'rotate(-6deg)',
                 filter: 'drop-shadow(0 12px 40px rgba(0,0,0,0.55))',
@@ -330,11 +350,14 @@ export default function BadgeCelebration({
               <p style={{ fontSize: 30, color: 'rgba(255,255,255,0.6)', fontWeight: 500, fontStyle: 'italic' as const, margin: '8px 0 0' }}>
                 Annual Premium
               </p>
+              <p style={{ fontSize: 18, color: 'rgba(68,187,170,0.7)', fontWeight: 600, fontStyle: 'italic' as const, margin: '10px 0 0' }}>
+                generated on autopilot
+              </p>
             </div>
           </div>
 
-          {/* === TESTIMONIAL === */}
-          <div style={{ position: 'relative', zIndex: 10, padding: '32px 60px 0', maxWidth: 960 }}>
+          {/* === TESTIMONIAL (flex-1, fills remaining space) === */}
+          <div style={{ position: 'relative', zIndex: 10, padding: '24px 60px 0', maxWidth: 960, flex: 1, overflow: 'hidden' }}>
             <p style={{ fontSize: 27, lineHeight: 1.5, color: 'rgba(255,255,255,0.85)', fontWeight: 400, margin: 0 }}>
               {definition?.shareText}
             </p>
@@ -343,15 +366,13 @@ export default function BadgeCelebration({
           {/* === BOTTOM BAR: QR + CTA (left) + sparkle (right) === */}
           <div
             style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
+              position: 'relative',
               zIndex: 10,
               display: 'flex',
               alignItems: 'flex-end',
               justifyContent: 'space-between',
-              padding: '0 60px 48px',
+              padding: '0 60px 44px',
+              flexShrink: 0,
             }}
           >
             {qrDataUrl && inviteUrl ? (
