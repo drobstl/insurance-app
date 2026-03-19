@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { upload } from '@vercel/blob/client';
 import type { ExtractedApplicationData, ParseApplicationResponse, Beneficiary } from '../lib/types';
+import { isTimeoutError, withTimeout } from '../lib/timeout';
 
 interface ApplicationUploadProps {
   clientName: string;
@@ -15,6 +16,8 @@ interface ApplicationUploadProps {
 }
 
 type Stage = 'upload' | 'processing' | 'review' | 'error';
+const BLOB_UPLOAD_TIMEOUT_MS = 25_000;
+const PARSE_TIMEOUT_MS = 120_000;
 
 export default function ApplicationUpload({ clientName, onExtracted, onClose, onCreateClientAndPolicy, mode = 'policy-only' }: ApplicationUploadProps) {
   const [stage, setStage] = useState<Stage>('upload');
@@ -57,40 +60,49 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       let blobUrl: string | null = null;
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          const blob = await upload(file.name, file, {
-            access: 'public',
-            handleUploadUrl: '/api/upload',
-          });
+          const blob = await withTimeout(
+            upload(file.name, file, {
+              access: 'public',
+              handleUploadUrl: '/api/upload',
+            }),
+            BLOB_UPLOAD_TIMEOUT_MS,
+            'Upload timed out while sending file.',
+          );
           blobUrl = blob.url;
           break;
-        } catch {
+        } catch (uploadErr) {
+          if (isTimeoutError(uploadErr)) {
+            console.warn('[ApplicationUpload] Blob upload timed out, trying fallback path.');
+          }
           if (attempt < 1) continue;
         }
       }
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 120_000);
+      const timeout = setTimeout(() => controller.abort(), PARSE_TIMEOUT_MS);
 
       let res: Response;
 
-      if (blobUrl) {
-        res = await fetch('/api/parse-application', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: blobUrl }),
-          signal: controller.signal,
-        });
-      } else {
-        const formData = new FormData();
-        formData.append('file', file);
-        res = await fetch('/api/parse-application', {
-          method: 'POST',
-          body: formData,
-          signal: controller.signal,
-        });
+      try {
+        if (blobUrl) {
+          res = await fetch('/api/parse-application', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: blobUrl }),
+            signal: controller.signal,
+          });
+        } else {
+          const formData = new FormData();
+          formData.append('file', file);
+          res = await fetch('/api/parse-application', {
+            method: 'POST',
+            body: formData,
+            signal: controller.signal,
+          });
+        }
+      } finally {
+        clearTimeout(timeout);
       }
-
-      clearTimeout(timeout);
 
       if (!res.ok) {
         let message = `Server error (${res.status})`;
@@ -132,7 +144,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       setStage('review');
     } catch (err) {
       let message = 'Something went wrong. Please try again.';
-      if (err instanceof DOMException && err.name === 'AbortError') {
+      if (isTimeoutError(err)) {
         message = 'Request timed out. If you\u2019re on a slow connection, try again on a stronger network.';
       } else if (err instanceof TypeError) {
         message = 'Network error. Check your connection and try again.';

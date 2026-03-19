@@ -7,6 +7,7 @@ import type { ParseApplicationResponse } from '../../../lib/types';
 export const maxDuration = 60;
 
 const MAX_FILE_SIZE = 13 * 1024 * 1024;
+const BLOB_FETCH_TIMEOUT_MS = 30_000;
 
 export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicationResponse>> {
   let blobUrl: string | undefined;
@@ -55,7 +56,21 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
         blobUrl = body.url;
         console.log(`[parse-application] Blob URL upload: ${body.url}`);
 
-        const fileRes = await fetch(body.url);
+        let fileRes: Response;
+        try {
+          fileRes = await fetch(body.url, { signal: AbortSignal.timeout(BLOB_FETCH_TIMEOUT_MS) });
+        } catch (fetchErr) {
+          const isTimeout =
+            fetchErr instanceof Error &&
+            (fetchErr.name === 'TimeoutError' || fetchErr.name === 'AbortError' || fetchErr.message.toLowerCase().includes('timeout'));
+          if (isTimeout) {
+            return NextResponse.json(
+              { success: false, error: 'Timed out retrieving uploaded file. Please try again.' },
+              { status: 504 },
+            );
+          }
+          throw fetchErr;
+        }
         if (!fileRes.ok) {
           return NextResponse.json(
             { success: false, error: 'Failed to retrieve uploaded file.' },

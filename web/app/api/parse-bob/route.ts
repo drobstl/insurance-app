@@ -10,6 +10,7 @@ import type { BobRow } from '../../../lib/bob-extractor';
 export const maxDuration = 120;
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024;
+const BLOB_FETCH_TIMEOUT_MS = 30_000;
 
 interface ParseBobResponse {
   success: boolean;
@@ -104,7 +105,21 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseBobRespo
         blobUrl = body.url;
         console.log(`[parse-bob] Blob URL upload: ${body.url}`);
 
-        const fileRes = await fetch(body.url);
+        let fileRes: Response;
+        try {
+          fileRes = await fetch(body.url, { signal: AbortSignal.timeout(BLOB_FETCH_TIMEOUT_MS) });
+        } catch (fetchErr) {
+          const isTimeout =
+            fetchErr instanceof Error &&
+            (fetchErr.name === 'TimeoutError' || fetchErr.name === 'AbortError' || fetchErr.message.toLowerCase().includes('timeout'));
+          if (isTimeout) {
+            return NextResponse.json(
+              { success: false, error: 'Timed out retrieving uploaded file. Please try again.' },
+              { status: 504 },
+            );
+          }
+          throw fetchErr;
+        }
         if (!fileRes.ok) {
           return NextResponse.json(
             { success: false, error: 'Failed to retrieve uploaded file.' },

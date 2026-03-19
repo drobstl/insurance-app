@@ -29,6 +29,7 @@ import {
   getAnniversaryDate,
   daysUntilAnniversary,
 } from '../../../lib/policyUtils';
+import { isTimeoutError, withTimeout } from '../../../lib/timeout';
 
 // ─── Constants ─────────────────────────────────────────────
 
@@ -37,6 +38,8 @@ const POLICY_STATUSES = ['Active', 'Pending', 'Lapsed'];
 const CLIENT_APP_URL = 'https://agentforlife.app/app';
 const MAX_IMPORT_ROWS = 400;
 const IMPORT_BATCH_SIZE = 50;
+const BLOB_UPLOAD_TIMEOUT_MS = 25_000;
+const IMPORT_PARSE_TIMEOUT_MS = 120_000;
 const DEFAULT_INTRO_TEMPLATE =
   "Hey {{firstName}}, I wanted to do something for you so I put together a free app showing your policies and also a button to reach me anytime. After you download, your code {{code}} will let you in — also say yes to push notifications so I can keep you in the loop on anything important. Download here: https://agentforlife.app/app Looking forward to talking soon! — {{agentName}}";
 import { KNOWN_CARRIER_NAMES } from '../../../lib/carriers';
@@ -1148,37 +1151,52 @@ export default function ClientsPage() {
       let blobUrl: string | null = null;
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          const blob = await upload(file.name, file, {
-            access: 'public',
-            handleUploadUrl: '/api/upload',
-          });
+          const blob = await withTimeout(
+            upload(file.name, file, {
+              access: 'public',
+              handleUploadUrl: '/api/upload',
+            }),
+            BLOB_UPLOAD_TIMEOUT_MS,
+            'Upload timed out while sending file.',
+          );
           blobUrl = blob.url;
           break;
-        } catch {
+        } catch (uploadErr) {
+          if (isTimeoutError(uploadErr)) {
+            console.warn('[clients/import] Blob upload timed out, trying fallback path.');
+          }
           if (attempt < 1) continue;
         }
       }
 
       const token = await user.getIdToken();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), IMPORT_PARSE_TIMEOUT_MS);
       let res: Response;
 
-      if (blobUrl) {
-        res = await fetch('/api/parse-bob', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ url: blobUrl }),
-        });
-      } else {
-        const formData = new FormData();
-        formData.append('file', file);
-        res = await fetch('/api/parse-bob', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
-        });
+      try {
+        if (blobUrl) {
+          res = await fetch('/api/parse-bob', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ url: blobUrl }),
+            signal: controller.signal,
+          });
+        } else {
+          const formData = new FormData();
+          formData.append('file', file);
+          res = await fetch('/api/parse-bob', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: formData,
+            signal: controller.signal,
+          });
+        }
+      } finally {
+        clearTimeout(timeout);
       }
 
       const data = await res.json();
@@ -1197,7 +1215,9 @@ export default function ClientsPage() {
     } catch (err) {
       console.error('AI parse error:', err);
       let message = 'Failed to parse file. Please try again.';
-      if (err instanceof Error) {
+      if (isTimeoutError(err)) {
+        message = 'Request timed out while parsing this file. Please retry.';
+      } else if (err instanceof Error) {
         if (err.message.includes('client token') || err.message.includes('Vercel Blob')) {
           message = 'Upload service temporarily unavailable. Please try again.';
         } else {
