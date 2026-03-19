@@ -18,6 +18,23 @@ interface ApplicationUploadProps {
 type Stage = 'upload' | 'processing' | 'review' | 'error';
 const BLOB_UPLOAD_TIMEOUT_MS = 25_000;
 const PARSE_TIMEOUT_MS = 120_000;
+const JOB_POLL_INTERVAL_MS = 1500;
+
+interface IngestionJobStatusResponse {
+  success: boolean;
+  job?: {
+    id: string;
+    status: 'queued' | 'processing' | 'succeeded' | 'failed';
+    error?: string;
+    result?: {
+      application?: {
+        data: ExtractedApplicationData;
+        note?: string;
+      };
+    };
+  };
+  error?: string;
+}
 
 export default function ApplicationUpload({ clientName, onExtracted, onClose, onCreateClientAndPolicy, mode = 'policy-only' }: ApplicationUploadProps) {
   const [stage, setStage] = useState<Stage>('upload');
@@ -78,20 +95,76 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
         }
       }
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), PARSE_TIMEOUT_MS);
+      let parsedData: ExtractedApplicationData | null = null;
+      let parsedNote: string | null = null;
+      let parsedPageCount = 0;
 
-      let res: Response;
+      if (blobUrl) {
+        const createRes = await fetch('/api/ingestion/v2/jobs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'application',
+            url: blobUrl,
+            fileName: file.name,
+            fileSize: file.size,
+            idempotencyKey: `application:${file.name}:${file.size}:${file.lastModified}`,
+          }),
+        });
 
-      try {
-        if (blobUrl) {
-          res = await fetch('/api/parse-application', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: blobUrl }),
-            signal: controller.signal,
+        const created = (await createRes.json()) as IngestionJobStatusResponse;
+        if (!createRes.ok || !created.success || !created.job?.id) {
+          throw new Error(created.error || `Failed to start parsing job (${createRes.status}).`);
+        }
+
+        // Kick off server-side processing in a separate request so the UI can poll status.
+        fetch(`/api/ingestion/v2/jobs/${created.job.id}/run`, {
+          method: 'POST',
+          keepalive: true,
+        }).catch(() => {});
+
+        const startedAt = Date.now();
+        let retriggered = false;
+        while (Date.now() - startedAt < PARSE_TIMEOUT_MS) {
+          await new Promise((r) => setTimeout(r, JOB_POLL_INTERVAL_MS));
+
+          const statusRes = await fetch(`/api/ingestion/v2/jobs/${created.job.id}`, {
+            cache: 'no-store',
           });
-        } else {
+          const statusBody = (await statusRes.json()) as IngestionJobStatusResponse;
+
+          if (!statusRes.ok || !statusBody.success || !statusBody.job) {
+            throw new Error(statusBody.error || `Failed to check parsing status (${statusRes.status}).`);
+          }
+
+          if (statusBody.job.status === 'succeeded') {
+            parsedData = statusBody.job.result?.application?.data || null;
+            parsedNote = statusBody.job.result?.application?.note || null;
+            break;
+          }
+
+          if (statusBody.job.status === 'failed') {
+            throw new Error(statusBody.job.error || 'Failed to parse the application.');
+          }
+
+          if (statusBody.job.status === 'queued' && !retriggered) {
+            retriggered = true;
+            fetch(`/api/ingestion/v2/jobs/${created.job.id}/run`, {
+              method: 'POST',
+              keepalive: true,
+            }).catch(() => {});
+          }
+        }
+
+        if (!parsedData) {
+          throw new Error('Ingestion job timed out while parsing this file.');
+        }
+      } else {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), PARSE_TIMEOUT_MS);
+        let res: Response;
+
+        try {
           const formData = new FormData();
           formData.append('file', file);
           res = await fetch('/api/parse-application', {
@@ -99,45 +172,52 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
             body: formData,
             signal: controller.signal,
           });
+        } finally {
+          clearTimeout(timeout);
         }
-      } finally {
-        clearTimeout(timeout);
-      }
 
-      if (!res.ok) {
-        let message = `Server error (${res.status})`;
-        try {
-          const body = await res.json();
-          if (body?.error) message = body.error;
-        } catch {
-          if (res.status === 504) {
-            message = 'Server timed out processing the PDF. Try again on a stronger connection, or try a smaller file.';
+        if (!res.ok) {
+          let message = `Server error (${res.status})`;
+          try {
+            const body = await res.json();
+            if (body?.error) message = body.error;
+          } catch {
+            if (res.status === 504) {
+              message = 'Server timed out processing the PDF. Try again on a stronger connection, or try a smaller file.';
+            }
           }
+          setErrorMessage(message);
+          setStage('error');
+          return;
         }
-        setErrorMessage(message);
-        setStage('error');
-        return;
+
+        const result: ParseApplicationResponse = await res.json();
+        if (!result.success || !result.data) {
+          setErrorMessage(result.error || 'Failed to parse the application.');
+          setStage('error');
+          return;
+        }
+
+        parsedData = result.data;
+        parsedPageCount = result.pageCount || 0;
+        parsedNote = result.note || null;
       }
 
-      const result: ParseApplicationResponse = await res.json();
-
-      if (!result.success || !result.data) {
-        setErrorMessage(result.error || 'Failed to parse the application.');
-        setStage('error');
-        return;
+      if (!parsedData) {
+        throw new Error('Failed to parse application data.');
       }
 
-      setExtractedData(result.data);
-      setPolicyFields(result.data);
-      setPageCount(result.pageCount || 0);
-      setNote(result.note || null);
+      setExtractedData(parsedData);
+      setPolicyFields(parsedData);
+      setPageCount(parsedPageCount);
+      setNote(parsedNote);
 
       if (mode === 'client-and-policy') {
         setClientFields({
-          name: result.data.insuredName || '',
-          email: result.data.insuredEmail || '',
-          phone: result.data.insuredPhone || '',
-          dateOfBirth: result.data.insuredDateOfBirth || '',
+          name: parsedData.insuredName || '',
+          email: parsedData.insuredEmail || '',
+          phone: parsedData.insuredPhone || '',
+          dateOfBirth: parsedData.insuredDateOfBirth || '',
         });
       }
 

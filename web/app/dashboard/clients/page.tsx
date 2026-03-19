@@ -40,6 +40,9 @@ const MAX_IMPORT_ROWS = 400;
 const IMPORT_BATCH_SIZE = 50;
 const BLOB_UPLOAD_TIMEOUT_MS = 25_000;
 const IMPORT_PARSE_TIMEOUT_MS = 120_000;
+const JOB_POLL_INTERVAL_MS = 1500;
+const MIN_IMPORT_ROW_QUALITY_RATIO = 0.65;
+const MIN_APPLICATION_POLICY_SIGNALS = 2;
 const DEFAULT_INTRO_TEMPLATE =
   "Hey {{firstName}}, I wanted to do something for you so I put together a free app showing your policies and also a button to reach me anytime. After you download, your code {{code}} will let you in — also say yes to push notifications so I can keep you in the loop on anything important. Download here: https://agentforlife.app/app Looking forward to talking soon! — {{agentName}}";
 import { KNOWN_CARRIER_NAMES } from '../../../lib/carriers';
@@ -118,6 +121,44 @@ interface ImportRow {
   coverageAmount: string;
   status: string;
   premiumFrequency?: string;
+}
+
+interface IngestionJobStatusResponse {
+  success: boolean;
+  job?: {
+    id: string;
+    status: 'queued' | 'processing' | 'succeeded' | 'failed';
+    error?: string;
+    result?: {
+      bob?: {
+        rows: ImportRow[];
+        rowCount: number;
+        note?: string;
+      };
+    };
+  };
+  error?: string;
+}
+
+function countPolicySignals(row: ImportRow): number {
+  let signals = 0;
+  if (row.policyNumber?.trim()) signals++;
+  if (row.carrier?.trim()) signals++;
+  if (row.policyType?.trim()) signals++;
+  if (row.premium?.toString().trim()) signals++;
+  if (row.coverageAmount?.toString().trim()) signals++;
+  return signals;
+}
+
+function filterHighQualityImportRows(rows: ImportRow[]): { accepted: ImportRow[]; rejected: number; qualityRatio: number } {
+  if (rows.length === 0) return { accepted: [], rejected: 0, qualityRatio: 0 };
+  const accepted = rows.filter((row) => row.name.trim().length > 0 && countPolicySignals(row) >= 2);
+  const rejected = rows.length - accepted.length;
+  return {
+    accepted,
+    rejected,
+    qualityRatio: accepted.length / rows.length,
+  };
 }
 
 // ─── Helpers ───────────────────────────────────────────────
@@ -1002,6 +1043,19 @@ export default function ClientsPage() {
 
       // Create the policy from the extracted data
       const mapped = mapExtractedApplicationToPolicyFormData(appData);
+      const policySignalCount = [
+        mapped.policyType,
+        mapped.policyNumber,
+        mapped.insuranceCompany === 'Other' ? mapped.otherCarrier : mapped.insuranceCompany,
+        mapped.coverageAmount,
+        mapped.premiumAmount,
+      ].filter((v) => !!String(v || '').trim()).length;
+
+      if (policySignalCount < MIN_APPLICATION_POLICY_SIGNALS) {
+        setFormError('Client was created, but extracted policy data looked incomplete. Please review and add the policy manually.');
+        return;
+      }
+
       const policyData: Record<string, unknown> = {
         policyType: mapped.policyType || '',
         policyNumber: mapped.policyNumber || '',
@@ -1014,6 +1068,7 @@ export default function ClientsPage() {
         renewalDate: mapped.renewalDate || '',
         effectiveDate: mapped.effectiveDate || null,
         status: 'Active',
+        ingestionQualityGate: true,
       };
 
       const policyToken = await user.getIdToken();
@@ -1147,45 +1202,110 @@ export default function ClientsPage() {
     setParsingBob(true);
     setImportError('');
     try {
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
       // Try Vercel Blob with retry, fall back to direct FormData upload
       let blobUrl: string | null = null;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          const blob = await withTimeout(
-            upload(file.name, file, {
-              access: 'public',
-              handleUploadUrl: '/api/upload',
-            }),
-            BLOB_UPLOAD_TIMEOUT_MS,
-            'Upload timed out while sending file.',
-          );
-          blobUrl = blob.url;
-          break;
-        } catch (uploadErr) {
-          if (isTimeoutError(uploadErr)) {
-            console.warn('[clients/import] Blob upload timed out, trying fallback path.');
+      let textContent: string | null = null;
+
+      if (isPdf) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const blob = await withTimeout(
+              upload(file.name, file, {
+                access: 'public',
+                handleUploadUrl: '/api/upload',
+              }),
+              BLOB_UPLOAD_TIMEOUT_MS,
+              'Upload timed out while sending file.',
+            );
+            blobUrl = blob.url;
+            break;
+          } catch (uploadErr) {
+            if (isTimeoutError(uploadErr)) {
+              console.warn('[clients/import] Blob upload timed out, trying fallback path.');
+            }
+            if (attempt < 1) continue;
           }
-          if (attempt < 1) continue;
         }
+      } else {
+        textContent = await file.text();
       }
 
       const token = await user.getIdToken();
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), IMPORT_PARSE_TIMEOUT_MS);
-      let res: Response;
+      let parsedRows: ImportRow[] | null = null;
+      let parsedNote: string | undefined;
 
-      try {
-        if (blobUrl) {
-          res = await fetch('/api/parse-bob', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ url: blobUrl }),
-            signal: controller.signal,
-          });
-        } else {
+      if (blobUrl || (textContent && textContent.trim().length > 0)) {
+        const createRes = await fetch('/api/ingestion/v2/jobs', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            mode: 'bob',
+            url: blobUrl,
+            textContent: textContent || undefined,
+            fileName: file.name,
+            fileSize: file.size,
+            idempotencyKey: `bob:${file.name}:${file.size}:${file.lastModified}`,
+          }),
+        });
+        const created = (await createRes.json()) as IngestionJobStatusResponse;
+        if (!createRes.ok || !created.success || !created.job?.id) {
+          setImportError(created.error || `Failed to start parse job (${createRes.status}).`);
+          return;
+        }
+
+        fetch(`/api/ingestion/v2/jobs/${created.job.id}/run`, {
+          method: 'POST',
+          keepalive: true,
+        }).catch(() => {});
+
+        const startedAt = Date.now();
+        let retriggered = false;
+
+        while (Date.now() - startedAt < IMPORT_PARSE_TIMEOUT_MS) {
+          await new Promise((r) => setTimeout(r, JOB_POLL_INTERVAL_MS));
+          const statusRes = await fetch(`/api/ingestion/v2/jobs/${created.job.id}`, { cache: 'no-store' });
+          const statusBody = (await statusRes.json()) as IngestionJobStatusResponse;
+
+          if (!statusRes.ok || !statusBody.success || !statusBody.job) {
+            setImportError(statusBody.error || `Failed to check parse status (${statusRes.status}).`);
+            return;
+          }
+
+          if (statusBody.job.status === 'succeeded') {
+            parsedRows = statusBody.job.result?.bob?.rows || null;
+            parsedNote = statusBody.job.result?.bob?.note;
+            break;
+          }
+
+          if (statusBody.job.status === 'failed') {
+            setImportError(statusBody.job.error || 'Failed to parse file. Please try again.');
+            return;
+          }
+
+          if (statusBody.job.status === 'queued' && !retriggered) {
+            retriggered = true;
+            fetch(`/api/ingestion/v2/jobs/${created.job.id}/run`, {
+              method: 'POST',
+              keepalive: true,
+            }).catch(() => {});
+          }
+        }
+
+        if (!parsedRows) {
+          setImportError('Parsing timed out. Please retry this file.');
+          return;
+        }
+      } else {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), IMPORT_PARSE_TIMEOUT_MS);
+        let res: Response;
+
+        try {
           const formData = new FormData();
           formData.append('file', file);
           res = await fetch('/api/parse-bob', {
@@ -1194,24 +1314,51 @@ export default function ClientsPage() {
             body: formData,
             signal: controller.signal,
           });
+        } finally {
+          clearTimeout(timeout);
         }
-      } finally {
-        clearTimeout(timeout);
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          setImportError(data.error || 'Failed to parse file. Please try again.');
+          return;
+        }
+
+        parsedRows = data.rows as ImportRow[];
+        parsedNote = data.note as string | undefined;
       }
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setImportError(data.error || 'Failed to parse file. Please try again.');
+      if (!parsedRows) {
+        setImportError('No rows were parsed from this file.');
         return;
       }
-      if (data.rows.length > MAX_IMPORT_ROWS) {
-        setImportError(`Maximum ${MAX_IMPORT_ROWS} clients per import. File has ${data.rows.length} rows. Split the file or import in multiple runs.`);
+
+      const quality = filterHighQualityImportRows(parsedRows);
+      if (quality.accepted.length === 0 || quality.qualityRatio < MIN_IMPORT_ROW_QUALITY_RATIO) {
+        setImportError(
+          `Parsing quality too low (${Math.round(quality.qualityRatio * 100)}% usable rows). Please review the source file format or retry.`,
+        );
         return;
       }
-      if (data.note) {
-        setImportError(`Note: ${data.note}`);
+
+      const warnings: string[] = [];
+      if (quality.rejected > 0) {
+        warnings.push(
+          `${quality.rejected} row${quality.rejected !== 1 ? 's were' : ' was'} skipped due to low-confidence policy data.`,
+        );
       }
-      setImportData(data.rows);
+
+      if (parsedRows.length > MAX_IMPORT_ROWS) {
+        setImportError(`Maximum ${MAX_IMPORT_ROWS} clients per import. File has ${parsedRows.length} rows. Split the file or import in multiple runs.`);
+        return;
+      }
+      if (parsedNote) {
+        warnings.push(`Note: ${parsedNote}`);
+      }
+      if (warnings.length > 0) {
+        setImportError(`Warning: ${warnings.join(' ')}`);
+      }
+      setImportData(quality.accepted);
     } catch (err) {
       console.error('AI parse error:', err);
       let message = 'Failed to parse file. Please try again.';
@@ -1295,10 +1442,23 @@ export default function ClientsPage() {
         setImportError(`Maximum ${MAX_IMPORT_ROWS} clients per import. Your ${fileArray.length > 1 ? `${fileArray.length} files have` : 'file has'} ${rows.length} rows total. Split the files or import in multiple runs.`);
         return;
       }
-      if (errs.length > 0) {
-        setImportError(`Warning: ${errs.join(' ')} — ${rows.length} valid rows loaded.`);
+      const quality = filterHighQualityImportRows(rows);
+      if (quality.accepted.length === 0 || quality.qualityRatio < MIN_IMPORT_ROW_QUALITY_RATIO) {
+        setImportError(
+          `Parsing quality too low (${Math.round(quality.qualityRatio * 100)}% usable rows). Please review the source file format or retry.`,
+        );
+        return;
       }
-      setImportData(rows);
+
+      const warnings: string[] = [];
+      if (errs.length > 0) warnings.push(errs.join(' '));
+      if (quality.rejected > 0) {
+        warnings.push(`${quality.rejected} row${quality.rejected !== 1 ? 's were' : ' was'} skipped due to low-confidence policy data.`);
+      }
+      if (warnings.length > 0) {
+        setImportError(`Warning: ${warnings.join(' ')} — ${quality.accepted.length} valid rows loaded.`);
+      }
+      setImportData(quality.accepted);
     }
 
     textFiles.forEach((file) => {
@@ -1326,6 +1486,11 @@ export default function ClientsPage() {
     if (!user || importData.length === 0) return;
     if (importData.length > MAX_IMPORT_ROWS) {
       setImportError(`Maximum ${MAX_IMPORT_ROWS} clients per import. Split your file or import in multiple runs.`);
+      return;
+    }
+    const preflight = filterHighQualityImportRows(importData);
+    if (preflight.accepted.length !== importData.length) {
+      setImportError('Some rows no longer meet quality checks. Please re-upload and review before importing.');
       return;
     }
     setImporting(true);

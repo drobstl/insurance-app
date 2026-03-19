@@ -8,6 +8,7 @@ import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 export const maxDuration = 60;
 
 const BATCH_SIZE = 50;
+const MIN_IMPORT_ROW_QUALITY_RATIO = 0.65;
 
 function normalizePolicyType(raw: string): string {
   const lower = (raw || '').trim().toLowerCase();
@@ -121,6 +122,29 @@ interface ValidationWarning {
   row: number;
   field: string;
   message: string;
+}
+
+function countPolicySignals(row: ImportRow): number {
+  let signals = 0;
+  if ((row.policyNumber || '').trim()) signals++;
+  if ((row.carrier || '').trim()) signals++;
+  if ((row.policyType || '').trim()) signals++;
+  if ((row.premium || '').trim()) signals++;
+  if ((row.coverageAmount || '').trim()) signals++;
+  return signals;
+}
+
+function filterHighQualityRows(rows: ImportRow[]): { acceptedRows: ImportRow[]; rejectedCount: number; qualityRatio: number } {
+  if (rows.length === 0) {
+    return { acceptedRows: [], rejectedCount: 0, qualityRatio: 0 };
+  }
+  const acceptedRows = rows.filter((row) => {
+    const hasName = (row.name || '').trim().length > 0;
+    return hasName && countPolicySignals(row) >= 2;
+  });
+  const rejectedCount = rows.length - acceptedRows.length;
+  const qualityRatio = acceptedRows.length / rows.length;
+  return { acceptedRows, rejectedCount, qualityRatio };
 }
 
 function validateRow(row: ImportRow, index: number): ValidationWarning[] {
@@ -242,12 +266,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const quality = filterHighQualityRows(rows);
+    if (quality.acceptedRows.length === 0 || quality.qualityRatio < MIN_IMPORT_ROW_QUALITY_RATIO) {
+      return NextResponse.json(
+        {
+          error: `Import quality too low (${Math.round(quality.qualityRatio * 100)}% usable rows). Please review and retry.`,
+        },
+        { status: 400 },
+      );
+    }
+
     const allWarnings: ValidationWarning[] = [];
-    rows.forEach((row, i) => {
+    quality.acceptedRows.forEach((row, i) => {
       allWarnings.push(...validateRow(row, i));
     });
+    if (quality.rejectedCount > 0) {
+      allWarnings.push({
+        row: 0,
+        field: 'quality',
+        message: `${quality.rejectedCount} low-confidence row${quality.rejectedCount !== 1 ? 's' : ''} skipped.`,
+      });
+    }
 
-    const clientGroups = groupRowsByClient(rows);
+    const clientGroups = groupRowsByClient(quality.acceptedRows);
     const db = getAdminFirestore();
     const created: CreatedClient[] = [];
     let totalPolicies = 0;

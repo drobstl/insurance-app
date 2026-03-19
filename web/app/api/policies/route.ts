@@ -4,6 +4,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../lib/firebase-admin';
 
+function countPolicySignals(policy: Record<string, unknown>): number {
+  let signals = 0;
+  const textSignalFields = ['policyType', 'policyNumber', 'insuranceCompany'];
+  for (const key of textSignalFields) {
+    const value = policy[key];
+    if (typeof value === 'string' && value.trim().length > 0) signals++;
+  }
+
+  const numericSignalFields = ['coverageAmount', 'premiumAmount'];
+  for (const key of numericSignalFields) {
+    const value = policy[key];
+    const num = typeof value === 'number' ? value : typeof value === 'string' ? parseFloat(value) : NaN;
+    if (!Number.isNaN(num) && num > 0) signals++;
+  }
+
+  return signals;
+}
+
 const getAuthUser = async (request: NextRequest) => {
   const authHeader = request.headers.get('authorization') || '';
   const match = authHeader.match(/^Bearer (.+)$/i);
@@ -71,10 +89,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'clientId is required' }, { status: 400 });
     }
 
+    const ingestionQualityGate = policyData.ingestionQualityGate === true;
+    delete policyData.ingestionQualityGate;
+
     // Strip undefined values that Firestore rejects
     const cleanData: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(policyData)) {
       if (value !== undefined) cleanData[key] = value;
+    }
+
+    const signals = countPolicySignals(cleanData);
+    if (signals === 0) {
+      return NextResponse.json(
+        { error: 'Policy requires at least one key field (type, number, company, coverage, or premium).' },
+        { status: 400 },
+      );
+    }
+    if (ingestionQualityGate && signals < 2) {
+      return NextResponse.json(
+        { error: 'Extracted policy data quality too low. Review and complete fields before saving.' },
+        { status: 400 },
+      );
     }
 
     const docRef = await policiesCol(authUser.uid, clientId).add({
