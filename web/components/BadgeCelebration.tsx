@@ -357,29 +357,16 @@ export default function BadgeCelebration({
                   <path d="M4 2 C4 18, 10 26, 24 28" stroke="rgba(68,187,170,0.6)" strokeWidth="1.5" fill="none" />
                   <path d="M18 24 L24 28 L17 30" stroke="rgba(68,187,170,0.6)" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-                <div style={{ position: 'relative', padding: '2px 10px 4px 8px' }}>
-                  <svg
-                    width="260"
-                    height="52"
-                    viewBox="0 0 260 52"
-                    fill="none"
-                    style={{ position: 'absolute', top: -12, left: -12, opacity: 0.95 }}
-                  >
-                    <path
-                      d="M10 28 C14 7, 236 2, 248 20 C255 31, 248 45, 231 47 C144 52, 50 50, 20 44 C5 41, 7 34, 10 28 Z"
-                      stroke="rgba(68,187,170,0.9)"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M16 29 C19 12, 230 8, 241 22 C245 28, 241 40, 225 42"
-                      stroke="rgba(68,187,170,0.72)"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <p style={{ fontSize: 18, color: 'rgba(68,187,170,0.7)', fontWeight: 600, fontStyle: 'italic' as const, margin: 0, position: 'relative', zIndex: 1 }}>
+                <div
+                  style={{
+                    padding: '4px 16px 5px',
+                    borderRadius: 999,
+                    border: '2px solid rgba(95,240,220,0.72)',
+                    background: 'rgba(12,84,76,0.35)',
+                    boxShadow: '0 0 18px rgba(95,240,220,0.22), inset 0 0 0 1px rgba(95,240,220,0.15)',
+                  }}
+                >
+                  <p style={{ fontSize: 18, color: 'rgba(95,240,220,0.92)', fontWeight: 700, fontStyle: 'italic' as const, margin: 0 }}>
                     generated on autopilot
                   </p>
                 </div>
@@ -389,7 +376,19 @@ export default function BadgeCelebration({
 
           {/* === TESTIMONIAL (flex-1, fills remaining space) === */}
           <div style={{ position: 'relative', zIndex: 10, padding: '24px 60px 0', maxWidth: 960, flex: 1, overflow: 'hidden' }}>
-            <p style={{ fontSize: 27, lineHeight: 1.5, color: 'rgba(255,255,255,0.85)', fontWeight: 400, margin: 0 }}>
+            <p
+              style={{
+                fontSize: 27,
+                lineHeight: 1.5,
+                color: 'rgba(255,255,255,0.85)',
+                fontWeight: 400,
+                margin: 0,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}
+            >
               {definition?.shareText}
             </p>
           </div>
