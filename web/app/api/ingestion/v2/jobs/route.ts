@@ -15,7 +15,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<CreateJobResp
   try {
     const contentType = req.headers.get('content-type') || '';
     let mode: IngestionMode = 'application';
-    let source: { url?: string; base64?: string; textContent?: string; fileName?: string; fileSize?: number } = {};
+    let source: { url?: string; gcsPath?: string; base64?: string; textContent?: string; fileName?: string; fileSize?: number } = {};
     let idempotencyKey: string | undefined;
 
     if (contentType.includes('application/json')) {
