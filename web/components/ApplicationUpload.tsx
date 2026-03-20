@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { upload } from '@vercel/blob/client';
 import type { ExtractedApplicationData, ParseApplicationResponse, Beneficiary } from '../lib/types';
 import { isTimeoutError, withTimeout } from '../lib/timeout';
 
@@ -16,12 +15,11 @@ interface ApplicationUploadProps {
 }
 
 type Stage = 'upload' | 'processing' | 'review' | 'error';
-const BASE_BLOB_UPLOAD_TIMEOUT_MS = 25_000;
 const PARSE_TIMEOUT_MS = 120_000;
 const JOB_POLL_INTERVAL_MS = 1500;
 const DIRECT_PARSE_MAX_BYTES = 4 * 1024 * 1024;
-const LARGE_FILE_THRESHOLD_BYTES = 8 * 1024 * 1024;
-const MAX_RELIABLE_APPLICATION_FILE_BYTES = 8 * 1024 * 1024;
+const MAX_RELIABLE_APPLICATION_FILE_BYTES = 13 * 1024 * 1024;
+const GCS_UPLOAD_TIMEOUT_MS = 120_000;
 
 interface IngestionJobStatusResponse {
   success: boolean;
@@ -69,7 +67,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       return;
     }
     if (file.size > MAX_RELIABLE_APPLICATION_FILE_BYTES) {
-      setErrorMessage('File is too large for reliable instant parsing. Please upload a PDF under 8MB, or split/compress this file.');
+      setErrorMessage('File is too large. Maximum size is 13MB.');
       setStage('error');
       return;
     }
@@ -80,55 +78,69 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
     setProcessingLabel('Preparing file...');
 
     try {
-      // For smaller PDFs, skip Blob roundtrip and parse directly via FormData.
-      let blobUrl: string | null = null;
+      // For smaller PDFs, parse directly via FormData.
+      let gcsPath: string | null = null;
       const useDirectParse = file.size <= DIRECT_PARSE_MAX_BYTES;
-      const uploadConfig = getBlobUploadConfig(file.size);
       if (!useDirectParse) {
-        setProcessingLabel(file.size >= LARGE_FILE_THRESHOLD_BYTES ? 'Uploading large file...' : 'Uploading file...');
+        setProcessingLabel('Uploading file...');
         const stopUploadProgress = startAutoProgress(setProcessingProgress, 10, 30, 2, 700);
-        const uploadStartedAt = Date.now();
-        for (let attempt = 0; attempt < uploadConfig.maxAttempts; attempt++) {
-          const remainingBudgetMs = uploadConfig.totalBudgetMs - (Date.now() - uploadStartedAt);
-          if (remainingBudgetMs <= 0) break;
-          const attemptTimeoutMs = Math.min(uploadConfig.attemptTimeoutMs, remainingBudgetMs);
-          try {
-            const blob = await withTimeout(
-              upload(file.name, file, {
-                access: 'public',
-                handleUploadUrl: '/api/upload',
-              }),
-              attemptTimeoutMs,
-              'Upload timed out while sending file.',
-            );
-            blobUrl = blob.url;
-            break;
-          } catch (uploadErr) {
-            if (isTimeoutError(uploadErr)) {
-              console.warn('[ApplicationUpload] Blob upload timed out.');
-              if (attempt < uploadConfig.maxAttempts - 1) {
-                setProcessingLabel('Retrying upload...');
-              }
-            }
-            if (attempt < uploadConfig.maxAttempts - 1) continue;
+        try {
+          const signedRes = await fetch('/api/storage/upload-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileName: file.name,
+              contentType: file.type || 'application/pdf',
+              fileSize: file.size,
+              purpose: 'application',
+            }),
+          });
+          const signedBody = (await signedRes.json()) as {
+            success: boolean;
+            uploadUrl?: string;
+            gcsPath?: string;
+            error?: string;
+          };
+          if (!signedRes.ok || !signedBody.success || !signedBody.uploadUrl || !signedBody.gcsPath) {
+            throw new Error(signedBody.error || `Failed to start file upload (${signedRes.status}).`);
           }
-        }
-        stopUploadProgress();
-        setProcessingProgress((p) => Math.max(p, 32));
 
-        // Large files should not fall back to direct parse (can trigger 413 body-size errors).
-        if (!blobUrl) {
-          setErrorMessage('Upload service timed out for this large file. Please retry, or split/compress the PDF.');
+          await withTimeout(
+            fetch(signedBody.uploadUrl, {
+              method: 'PUT',
+              headers: { 'Content-Type': file.type || 'application/pdf' },
+              body: file,
+            }).then((res) => {
+              if (!res.ok) {
+                throw new Error(`Upload failed (${res.status}).`);
+              }
+            }),
+            GCS_UPLOAD_TIMEOUT_MS,
+            'Upload timed out while sending file.',
+          );
+
+          gcsPath = signedBody.gcsPath;
+        } catch (uploadErr) {
+          if (isTimeoutError(uploadErr)) {
+            setErrorMessage('Upload timed out for this file. Please retry, or split/compress the PDF.');
+          } else if (uploadErr instanceof Error) {
+            setErrorMessage(uploadErr.message);
+          } else {
+            setErrorMessage('Upload failed. Please retry.');
+          }
           setStage('error');
           return;
+        } finally {
+          stopUploadProgress();
         }
+        setProcessingProgress((p) => Math.max(p, 32));
       }
 
       let parsedData: ExtractedApplicationData | null = null;
       let parsedNote: string | null = null;
       let parsedPageCount = 0;
 
-      if (blobUrl) {
+      if (gcsPath) {
         setProcessingLabel('Queueing parser...');
         setProcessingProgress((p) => Math.max(p, 40));
         const createRes = await fetch('/api/ingestion/v2/jobs', {
@@ -136,7 +148,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             mode: 'application',
-            url: blobUrl,
+            gcsPath,
             fileName: file.name,
             fileSize: file.size,
             idempotencyKey: `application:${file.name}:${file.size}:${file.lastModified}`,
@@ -386,8 +398,8 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
                   </p>
                   <p className="text-gray-500 text-sm">
                     {isClientAndPolicy
-                      ? 'AI will extract client info and policy details in one step. Max 8MB for reliable instant parsing.'
-                      : 'Drag & drop or click to browse. Max 8MB for reliable instant parsing.'}
+                      ? 'AI will extract client info and policy details in one step. Max 13MB.'
+                      : 'Drag & drop or click to browse. Max 13MB.'}
                   </p>
                 </div>
               </div>
@@ -626,31 +638,6 @@ function startAutoProgress(
     });
   }, everyMs);
   return () => clearInterval(id);
-}
-
-function getBlobUploadTimeoutMs(fileSizeBytes: number): number {
-  if (fileSizeBytes >= LARGE_FILE_THRESHOLD_BYTES) return 120_000;
-  if (fileSizeBytes >= 5 * 1024 * 1024) return 35_000;
-  return BASE_BLOB_UPLOAD_TIMEOUT_MS;
-}
-
-function getBlobUploadConfig(fileSizeBytes: number): {
-  attemptTimeoutMs: number;
-  totalBudgetMs: number;
-  maxAttempts: number;
-} {
-  if (fileSizeBytes >= LARGE_FILE_THRESHOLD_BYTES) {
-    return {
-      attemptTimeoutMs: getBlobUploadTimeoutMs(fileSizeBytes),
-      totalBudgetMs: 180_000,
-      maxAttempts: 1,
-    };
-  }
-  return {
-    attemptTimeoutMs: getBlobUploadTimeoutMs(fileSizeBytes),
-    totalBudgetMs: 45_000,
-    maxAttempts: 2,
-  };
 }
 
 function EditableField({ label, value, onChange, placeholder, type = 'text' }: {

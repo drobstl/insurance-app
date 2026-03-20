@@ -22,6 +22,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<CreateJobResp
       const body = (await req.json()) as {
         mode?: IngestionMode;
         url?: string;
+        gcsPath?: string;
         base64?: string;
         textContent?: string;
         fileName?: string;
@@ -31,6 +32,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<CreateJobResp
       if (body.mode === 'bob') mode = 'bob';
       source = {
         url: body.url,
+        gcsPath: body.gcsPath,
         base64: body.base64,
         textContent: body.textContent,
         fileName: body.fileName,
@@ -44,7 +46,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<CreateJobResp
       );
     }
 
-    if (!source.url && !source.base64 && !source.textContent) {
+    if (!source.url && !source.gcsPath && !source.base64 && !source.textContent) {
       return NextResponse.json({ success: false, error: 'No file source provided.' }, { status: 400 });
     }
 

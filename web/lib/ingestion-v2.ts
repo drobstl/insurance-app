@@ -4,7 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { extractApplicationFields } from './application-extractor';
 import { extractBobFromPdf, extractBobFromText, type BobRow } from './bob-extractor';
 import { parseBobDeterministically } from './bob-deterministic-parser';
-import { getAdminFirestore } from './firebase-admin';
+import { getAdminFirestore, getAdminStorage } from './firebase-admin';
 import { pdfToBase64 } from './pdf-parser';
 import type { ExtractedApplicationData } from './types';
 
@@ -37,6 +37,7 @@ export interface IngestionJobDoc {
   status: IngestionJobStatus;
   source: {
     url?: string;
+    gcsPath?: string;
     base64?: string;
     textContent?: string;
     fileName?: string;
@@ -89,6 +90,7 @@ export function toJobResponse(id: string, data: Record<string, unknown>): Ingest
 export async function processIngestionJob(id: string): Promise<void> {
   const db = getAdminFirestore();
   const ref = db.collection(JOBS_COLLECTION).doc(id);
+  let gcsPathToDelete: string | undefined;
 
   const lock = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -129,6 +131,7 @@ export async function processIngestionJob(id: string): Promise<void> {
     const data = snap.data() as Record<string, unknown>;
     const mode = (data.mode as IngestionMode | undefined) ?? 'application';
     const source = (data.source as Record<string, unknown> | undefined) ?? {};
+    gcsPathToDelete = typeof source.gcsPath === 'string' ? source.gcsPath : undefined;
 
     const { result, metrics } = await runExtraction(mode, source);
     console.log('[ingestion-v2] Job succeeded', { jobId: id, mode, metrics });
@@ -150,6 +153,14 @@ export async function processIngestionJob(id: string): Promise<void> {
       updatedAt: FieldValue.serverTimestamp(),
       completedAt: FieldValue.serverTimestamp(),
     });
+  } finally {
+    if (gcsPathToDelete) {
+      try {
+        await getAdminStorage().bucket().file(gcsPathToDelete).delete();
+      } catch {
+        // non-blocking cleanup
+      }
+    }
   }
 }
 
@@ -269,6 +280,18 @@ async function resolveBobSource(
     return { kind: 'text', text: source.textContent, fileName };
   }
 
+  if (typeof source.gcsPath === 'string' && source.gcsPath.trim().length > 0) {
+    const [buffer] = await getAdminStorage().bucket().file(source.gcsPath).download();
+    if (looksLikePdfFileName(fileName)) {
+      return { kind: 'pdf', pdfBase64: pdfToBase64(buffer), fileName };
+    }
+    const text = new TextDecoder().decode(buffer);
+    if (text.trim().length === 0) {
+      throw new Error('File is empty.');
+    }
+    return { kind: 'text', text, fileName };
+  }
+
   if (typeof source.base64 === 'string' && source.base64.trim().length > 0) {
     if (looksLikePdfFileName(fileName)) {
       return { kind: 'pdf', pdfBase64: source.base64, fileName };
@@ -311,6 +334,11 @@ function looksLikePdfFileName(fileName?: string): boolean {
 }
 
 async function resolvePdfBase64(source: Record<string, unknown>): Promise<string> {
+  if (typeof source.gcsPath === 'string' && source.gcsPath.trim().length > 0) {
+    const [buffer] = await getAdminStorage().bucket().file(source.gcsPath).download();
+    return pdfToBase64(buffer);
+  }
+
   if (typeof source.base64 === 'string' && source.base64.trim().length > 0) {
     return source.base64;
   }
