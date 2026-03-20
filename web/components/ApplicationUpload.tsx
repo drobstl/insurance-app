@@ -19,6 +19,7 @@ type Stage = 'upload' | 'processing' | 'review' | 'error';
 const BLOB_UPLOAD_TIMEOUT_MS = 25_000;
 const PARSE_TIMEOUT_MS = 120_000;
 const JOB_POLL_INTERVAL_MS = 1500;
+const DIRECT_BASE64_MAX_BYTES = 4 * 1024 * 1024;
 
 interface IngestionJobStatusResponse {
   success: boolean;
@@ -44,6 +45,8 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
   const [errorMessage, setErrorMessage] = useState('');
   const [extractedData, setExtractedData] = useState<ExtractedApplicationData | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [processingLabel, setProcessingLabel] = useState('Preparing file...');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Editable client fields (only used in client-and-policy mode)
@@ -71,41 +74,60 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
 
     setFileName(file.name);
     setStage('processing');
+    setProcessingProgress(5);
+    setProcessingLabel('Preparing file...');
 
     try {
-      // Try Vercel Blob upload with retry, fall back to direct FormData upload
+      // For smaller PDFs, skip Blob roundtrip and send base64 directly to ingestion job.
+      let base64Source: string | null = null;
+      if (file.size <= DIRECT_BASE64_MAX_BYTES) {
+        setProcessingLabel('Preparing file...');
+        base64Source = await fileToBase64(file);
+        setProcessingProgress(15);
+      }
+
+      // Try Vercel Blob upload with retry for larger files, fall back to direct FormData upload
       let blobUrl: string | null = null;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          const blob = await withTimeout(
-            upload(file.name, file, {
-              access: 'public',
-              handleUploadUrl: '/api/upload',
-            }),
-            BLOB_UPLOAD_TIMEOUT_MS,
-            'Upload timed out while sending file.',
-          );
-          blobUrl = blob.url;
-          break;
-        } catch (uploadErr) {
-          if (isTimeoutError(uploadErr)) {
-            console.warn('[ApplicationUpload] Blob upload timed out, trying fallback path.');
+      if (!base64Source) {
+        setProcessingLabel('Uploading file...');
+        const stopUploadProgress = startAutoProgress(setProcessingProgress, 10, 30, 2, 700);
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const blob = await withTimeout(
+              upload(file.name, file, {
+                access: 'public',
+                handleUploadUrl: '/api/upload',
+              }),
+              BLOB_UPLOAD_TIMEOUT_MS,
+              'Upload timed out while sending file.',
+            );
+            blobUrl = blob.url;
+            break;
+          } catch (uploadErr) {
+            if (isTimeoutError(uploadErr)) {
+              console.warn('[ApplicationUpload] Blob upload timed out, trying fallback path.');
+            }
+            if (attempt < 1) continue;
           }
-          if (attempt < 1) continue;
         }
+        stopUploadProgress();
+        setProcessingProgress((p) => Math.max(p, 32));
       }
 
       let parsedData: ExtractedApplicationData | null = null;
       let parsedNote: string | null = null;
       let parsedPageCount = 0;
 
-      if (blobUrl) {
+      if (blobUrl || base64Source) {
+        setProcessingLabel('Queueing parser...');
+        setProcessingProgress((p) => Math.max(p, 40));
         const createRes = await fetch('/api/ingestion/v2/jobs', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             mode: 'application',
             url: blobUrl,
+            base64: base64Source || undefined,
             fileName: file.name,
             fileSize: file.size,
             idempotencyKey: `application:${file.name}:${file.size}:${file.lastModified}`,
@@ -148,11 +170,18 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
           }
 
           if (statusBody.job.status === 'queued' && !retriggered) {
+            setProcessingLabel('Queued...');
+            setProcessingProgress((p) => Math.max(p, 50));
             retriggered = true;
             fetch(`/api/ingestion/v2/jobs/${created.job.id}/run`, {
               method: 'POST',
               keepalive: true,
             }).catch(() => {});
+          } else if (statusBody.job.status === 'processing') {
+            setProcessingLabel('Extracting data...');
+            const elapsed = Date.now() - startedAt;
+            const estimated = Math.min(92, 58 + Math.floor(elapsed / 1200));
+            setProcessingProgress((p) => Math.max(p, estimated));
           }
         }
 
@@ -160,9 +189,11 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
           throw new Error('Ingestion job timed out while parsing this file.');
         }
       } else {
+        setProcessingLabel('Extracting data...');
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), PARSE_TIMEOUT_MS);
         let res: Response;
+        const stopDirectProgress = startAutoProgress(setProcessingProgress, 45, 90, 1, 1200);
 
         try {
           const formData = new FormData();
@@ -173,6 +204,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
             signal: controller.signal,
           });
         } finally {
+          stopDirectProgress();
           clearTimeout(timeout);
         }
 
@@ -207,6 +239,8 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
         throw new Error('Failed to parse application data.');
       }
 
+      setProcessingLabel('Finalizing...');
+      setProcessingProgress(100);
       setExtractedData(parsedData);
       setPolicyFields(parsedData);
       setPageCount(parsedPageCount);
@@ -370,6 +404,18 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
               <div className="text-center">
                 <p className="text-[#000000] font-semibold mb-1">Reading application...</p>
                 <p className="text-gray-500 text-sm">Extracting data from {fileName}</p>
+              </div>
+              <div className="w-full max-w-sm">
+                <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#0099FF] transition-all duration-500 ease-out"
+                    style={{ width: `${processingProgress}%` }}
+                  />
+                </div>
+                <div className="mt-1.5 flex items-center justify-between text-[11px] text-gray-500">
+                  <span>{processingLabel}</span>
+                  <span>{processingProgress}%</span>
+                </div>
               </div>
               <div className="flex items-center gap-3 mt-2">
                 <div className="flex gap-1">
@@ -554,6 +600,40 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       </div>
     </div>
   );
+}
+
+function startAutoProgress(
+  setProgress: React.Dispatch<React.SetStateAction<number>>,
+  start: number,
+  max: number,
+  step: number,
+  everyMs: number,
+) {
+  setProgress((p) => Math.max(p, start));
+  const id = setInterval(() => {
+    setProgress((prev) => {
+      if (prev >= max) return prev;
+      return Math.min(max, prev + step);
+    });
+  }, everyMs);
+  return () => clearInterval(id);
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== 'string') {
+        reject(new Error('Failed to read file.'));
+        return;
+      }
+      const commaIdx = result.indexOf(',');
+      resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result);
+    };
+    reader.onerror = () => reject(new Error('Failed to read file.'));
+    reader.readAsDataURL(file);
+  });
 }
 
 function EditableField({ label, value, onChange, placeholder, type = 'text' }: {

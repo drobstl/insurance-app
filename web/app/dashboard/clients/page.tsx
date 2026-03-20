@@ -41,6 +41,7 @@ const IMPORT_BATCH_SIZE = 50;
 const BLOB_UPLOAD_TIMEOUT_MS = 25_000;
 const IMPORT_PARSE_TIMEOUT_MS = 120_000;
 const JOB_POLL_INTERVAL_MS = 1500;
+const DIRECT_BASE64_MAX_BYTES = 4 * 1024 * 1024;
 const MIN_IMPORT_ROW_QUALITY_RATIO = 0.65;
 const MIN_APPLICATION_POLICY_SIGNALS = 2;
 const DEFAULT_WELCOME_SMS_TEMPLATE =
@@ -1263,25 +1264,30 @@ export default function ClientsPage() {
       // Try Vercel Blob with retry, fall back to direct FormData upload
       let blobUrl: string | null = null;
       let textContent: string | null = null;
+      let base64Source: string | null = null;
 
       if (isPdf) {
-        for (let attempt = 0; attempt < 2; attempt++) {
-          try {
-            const blob = await withTimeout(
-              upload(file.name, file, {
-                access: 'public',
-                handleUploadUrl: '/api/upload',
-              }),
-              BLOB_UPLOAD_TIMEOUT_MS,
-              'Upload timed out while sending file.',
-            );
-            blobUrl = blob.url;
-            break;
-          } catch (uploadErr) {
-            if (isTimeoutError(uploadErr)) {
-              console.warn('[clients/import] Blob upload timed out, trying fallback path.');
+        if (file.size <= DIRECT_BASE64_MAX_BYTES) {
+          base64Source = await fileToBase64(file);
+        } else {
+          for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+              const blob = await withTimeout(
+                upload(file.name, file, {
+                  access: 'public',
+                  handleUploadUrl: '/api/upload',
+                }),
+                BLOB_UPLOAD_TIMEOUT_MS,
+                'Upload timed out while sending file.',
+              );
+              blobUrl = blob.url;
+              break;
+            } catch (uploadErr) {
+              if (isTimeoutError(uploadErr)) {
+                console.warn('[clients/import] Blob upload timed out, trying fallback path.');
+              }
+              if (attempt < 1) continue;
             }
-            if (attempt < 1) continue;
           }
         }
       } else {
@@ -1292,7 +1298,7 @@ export default function ClientsPage() {
       let parsedRows: ImportRow[] | null = null;
       let parsedNote: string | undefined;
 
-      if (blobUrl || (textContent && textContent.trim().length > 0)) {
+      if (blobUrl || base64Source || (textContent && textContent.trim().length > 0)) {
         const createRes = await fetch('/api/ingestion/v2/jobs', {
           method: 'POST',
           headers: {
@@ -1302,6 +1308,7 @@ export default function ClientsPage() {
           body: JSON.stringify({
             mode: 'bob',
             url: blobUrl,
+            base64: base64Source || undefined,
             textContent: textContent || undefined,
             fileName: file.name,
             fileSize: file.size,
@@ -3273,4 +3280,21 @@ export default function ClientsPage() {
       `}</style>
     </div>
   );
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== 'string') {
+        reject(new Error('Failed to read file.'));
+        return;
+      }
+      const commaIdx = result.indexOf(',');
+      resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result);
+    };
+    reader.onerror = () => reject(new Error('Failed to read file.'));
+    reader.readAsDataURL(file);
+  });
 }
