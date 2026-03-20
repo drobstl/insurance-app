@@ -20,7 +20,7 @@ const BASE_BLOB_UPLOAD_TIMEOUT_MS = 25_000;
 const PARSE_TIMEOUT_MS = 120_000;
 const JOB_POLL_INTERVAL_MS = 1500;
 const DIRECT_PARSE_MAX_BYTES = 4 * 1024 * 1024;
-const MAX_BLOB_UPLOAD_TOTAL_MS = 45_000;
+const LARGE_FILE_THRESHOLD_BYTES = 8 * 1024 * 1024;
 
 interface IngestionJobStatusResponse {
   success: boolean;
@@ -82,15 +82,15 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       // For smaller PDFs, skip Blob roundtrip and parse directly via FormData.
       let blobUrl: string | null = null;
       const useDirectParse = file.size <= DIRECT_PARSE_MAX_BYTES;
-      const blobUploadTimeoutMs = getBlobUploadTimeoutMs(file.size);
+      const uploadConfig = getBlobUploadConfig(file.size);
       if (!useDirectParse) {
-        setProcessingLabel('Uploading file...');
+        setProcessingLabel(file.size >= LARGE_FILE_THRESHOLD_BYTES ? 'Uploading large file...' : 'Uploading file...');
         const stopUploadProgress = startAutoProgress(setProcessingProgress, 10, 30, 2, 700);
         const uploadStartedAt = Date.now();
-        for (let attempt = 0; attempt < 2; attempt++) {
-          const remainingBudgetMs = MAX_BLOB_UPLOAD_TOTAL_MS - (Date.now() - uploadStartedAt);
+        for (let attempt = 0; attempt < uploadConfig.maxAttempts; attempt++) {
+          const remainingBudgetMs = uploadConfig.totalBudgetMs - (Date.now() - uploadStartedAt);
           if (remainingBudgetMs <= 0) break;
-          const attemptTimeoutMs = Math.min(blobUploadTimeoutMs, remainingBudgetMs);
+          const attemptTimeoutMs = Math.min(uploadConfig.attemptTimeoutMs, remainingBudgetMs);
           try {
             const blob = await withTimeout(
               upload(file.name, file, {
@@ -105,11 +105,11 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
           } catch (uploadErr) {
             if (isTimeoutError(uploadErr)) {
               console.warn('[ApplicationUpload] Blob upload timed out.');
-              if (attempt < 1) {
+              if (attempt < uploadConfig.maxAttempts - 1) {
                 setProcessingLabel('Retrying upload...');
               }
             }
-            if (attempt < 1) continue;
+            if (attempt < uploadConfig.maxAttempts - 1) continue;
           }
         }
         stopUploadProgress();
@@ -628,9 +628,28 @@ function startAutoProgress(
 }
 
 function getBlobUploadTimeoutMs(fileSizeBytes: number): number {
-  if (fileSizeBytes >= 10 * 1024 * 1024) return 45_000;
+  if (fileSizeBytes >= LARGE_FILE_THRESHOLD_BYTES) return 120_000;
   if (fileSizeBytes >= 5 * 1024 * 1024) return 35_000;
   return BASE_BLOB_UPLOAD_TIMEOUT_MS;
+}
+
+function getBlobUploadConfig(fileSizeBytes: number): {
+  attemptTimeoutMs: number;
+  totalBudgetMs: number;
+  maxAttempts: number;
+} {
+  if (fileSizeBytes >= LARGE_FILE_THRESHOLD_BYTES) {
+    return {
+      attemptTimeoutMs: getBlobUploadTimeoutMs(fileSizeBytes),
+      totalBudgetMs: 180_000,
+      maxAttempts: 1,
+    };
+  }
+  return {
+    attemptTimeoutMs: getBlobUploadTimeoutMs(fileSizeBytes),
+    totalBudgetMs: 45_000,
+    maxAttempts: 2,
+  };
 }
 
 function EditableField({ label, value, onChange, placeholder, type = 'text' }: {

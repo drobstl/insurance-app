@@ -42,7 +42,7 @@ const BASE_BLOB_UPLOAD_TIMEOUT_MS = 25_000;
 const IMPORT_PARSE_TIMEOUT_MS = 120_000;
 const JOB_POLL_INTERVAL_MS = 1500;
 const DIRECT_PARSE_MAX_BYTES = 4 * 1024 * 1024;
-const MAX_BLOB_UPLOAD_TOTAL_MS = 45_000;
+const LARGE_FILE_THRESHOLD_BYTES = 8 * 1024 * 1024;
 const MIN_IMPORT_ROW_QUALITY_RATIO = 0.65;
 const MIN_APPLICATION_POLICY_SIGNALS = 2;
 const DEFAULT_WELCOME_SMS_TEMPLATE =
@@ -182,9 +182,28 @@ function filterHighQualityImportRows(rows: ImportRow[]): { accepted: ImportRow[]
 }
 
 function getBlobUploadTimeoutMs(fileSizeBytes: number): number {
-  if (fileSizeBytes >= 10 * 1024 * 1024) return 45_000;
+  if (fileSizeBytes >= LARGE_FILE_THRESHOLD_BYTES) return 120_000;
   if (fileSizeBytes >= 5 * 1024 * 1024) return 35_000;
   return BASE_BLOB_UPLOAD_TIMEOUT_MS;
+}
+
+function getBlobUploadConfig(fileSizeBytes: number): {
+  attemptTimeoutMs: number;
+  totalBudgetMs: number;
+  maxAttempts: number;
+} {
+  if (fileSizeBytes >= LARGE_FILE_THRESHOLD_BYTES) {
+    return {
+      attemptTimeoutMs: getBlobUploadTimeoutMs(fileSizeBytes),
+      totalBudgetMs: 180_000,
+      maxAttempts: 1,
+    };
+  }
+  return {
+    attemptTimeoutMs: getBlobUploadTimeoutMs(fileSizeBytes),
+    totalBudgetMs: 45_000,
+    maxAttempts: 2,
+  };
 }
 
 // ─── Helpers ───────────────────────────────────────────────
@@ -1272,15 +1291,15 @@ export default function ClientsPage() {
       let blobUrl: string | null = null;
       let textContent: string | null = null;
       const useDirectParse = isPdf && file.size <= DIRECT_PARSE_MAX_BYTES;
-      const blobUploadTimeoutMs = getBlobUploadTimeoutMs(file.size);
+      const uploadConfig = getBlobUploadConfig(file.size);
 
       if (isPdf) {
         if (!useDirectParse) {
           const uploadStartedAt = Date.now();
-          for (let attempt = 0; attempt < 2; attempt++) {
-            const remainingBudgetMs = MAX_BLOB_UPLOAD_TOTAL_MS - (Date.now() - uploadStartedAt);
+          for (let attempt = 0; attempt < uploadConfig.maxAttempts; attempt++) {
+            const remainingBudgetMs = uploadConfig.totalBudgetMs - (Date.now() - uploadStartedAt);
             if (remainingBudgetMs <= 0) break;
-            const attemptTimeoutMs = Math.min(blobUploadTimeoutMs, remainingBudgetMs);
+            const attemptTimeoutMs = Math.min(uploadConfig.attemptTimeoutMs, remainingBudgetMs);
             try {
               const blob = await withTimeout(
                 upload(file.name, file, {
@@ -1296,7 +1315,7 @@ export default function ClientsPage() {
               if (isTimeoutError(uploadErr)) {
                 console.warn('[clients/import] Blob upload timed out, trying fallback path.');
               }
-              if (attempt < 1) continue;
+              if (attempt < uploadConfig.maxAttempts - 1) continue;
             }
           }
 
