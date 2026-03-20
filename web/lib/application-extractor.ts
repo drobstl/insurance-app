@@ -12,6 +12,7 @@ interface ExtractionRunConfig {
 
 const LARGE_PDF_THRESHOLD_BYTES = 5 * 1024 * 1024;
 const SMALL_PDF_THRESHOLD_BYTES = 2 * 1024 * 1024;
+const FAST_PATH_MAX_BYTES = 4 * 1024 * 1024;
 const MIN_FAST_MODE_SIGNALS = 4;
 
 const SYSTEM_PROMPT = `You are an expert insurance application document parser. You extract structured data from insurance application PDFs by examining the full document directly.
@@ -140,24 +141,34 @@ export async function extractApplicationFields(
   }
 
   const anthropic = new Anthropic({ apiKey });
+  const fileSizeBytes = options.fileSizeBytes;
 
-  const isLargePdf = typeof options.fileSizeBytes === 'number' && options.fileSizeBytes >= LARGE_PDF_THRESHOLD_BYTES;
+  const isLargePdf = typeof fileSizeBytes === 'number' && fileSizeBytes >= LARGE_PDF_THRESHOLD_BYTES;
 
   if (isLargePdf) {
     // Large PDFs: run a faster first pass, then fall back to full-depth only when needed.
     const fastResult = await runExtractionAttempt(anthropic, pdfBase64, { maxTokens: 1200, maxRetries: 1 });
-    if (countExtractionSignals(fastResult.data) >= MIN_FAST_MODE_SIGNALS) {
+    if (isFastPassAcceptable(fastResult.data)) {
       return fastResult;
     }
     return runExtractionAttempt(anthropic, pdfBase64, { maxTokens: 2048, maxRetries: 2 });
   }
 
-  const isSmallPdf = typeof options.fileSizeBytes === 'number' && options.fileSizeBytes <= SMALL_PDF_THRESHOLD_BYTES;
-  if (isSmallPdf) {
-    return runExtractionAttempt(anthropic, pdfBase64, { maxTokens: 1400, maxRetries: 1 });
+  const isFastPathPdf = typeof fileSizeBytes === 'number' && fileSizeBytes <= FAST_PATH_MAX_BYTES;
+  if (isFastPathPdf) {
+    // <= 4MB: strict fast-first pass, then one deeper pass only when quality is weak.
+    const isSmallPdf = fileSizeBytes <= SMALL_PDF_THRESHOLD_BYTES;
+    const fastResult = await runExtractionAttempt(anthropic, pdfBase64, {
+      maxTokens: isSmallPdf ? 950 : 1100,
+      maxRetries: 1,
+    });
+    if (isFastPassAcceptable(fastResult.data)) {
+      return fastResult;
+    }
+    return runExtractionAttempt(anthropic, pdfBase64, { maxTokens: 1550, maxRetries: 1 });
   }
 
-  return runExtractionAttempt(anthropic, pdfBase64, { maxTokens: 1800, maxRetries: 2 });
+  return runExtractionAttempt(anthropic, pdfBase64, { maxTokens: 1700, maxRetries: 1 });
 }
 
 async function runExtractionAttempt(
@@ -326,4 +337,17 @@ function countExtractionSignals(data: ExtractedApplicationData): number {
   if (data.coverageAmount != null) signals++;
   if (data.premiumAmount != null) signals++;
   return signals;
+}
+
+function isFastPassAcceptable(data: ExtractedApplicationData): boolean {
+  const signals = countExtractionSignals(data);
+  if (signals < MIN_FAST_MODE_SIGNALS) {
+    return false;
+  }
+
+  const hasIdentity = !!data.insuredName;
+  const hasPolicyAnchor = !!data.policyType || !!data.policyNumber || !!data.insuranceCompany;
+  const hasFinancialAnchor = data.coverageAmount != null || data.premiumAmount != null;
+
+  return hasIdentity && hasPolicyAnchor && hasFinancialAnchor;
 }
