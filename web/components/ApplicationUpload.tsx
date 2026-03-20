@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { upload } from '@vercel/blob/client';
 import type { ExtractedApplicationData, ParseApplicationResponse, Beneficiary } from '../lib/types';
 import { isTimeoutError, withTimeout } from '../lib/timeout';
@@ -29,6 +29,12 @@ interface IngestionJobStatusResponse {
     id: string;
     status: 'queued' | 'processing' | 'succeeded' | 'failed';
     error?: string;
+    metrics?: {
+      totalMs: number;
+      resolveSourceMs: number;
+      extractMs: number;
+      parserPath?: string;
+    };
     result?: {
       application?: {
         data: ExtractedApplicationData;
@@ -49,6 +55,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
   const [dragActive, setDragActive] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
   const [processingLabel, setProcessingLabel] = useState('Preparing file...');
+  const [timingSummary, setTimingSummary] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Editable client fields (only used in client-and-policy mode)
@@ -61,6 +68,11 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
 
   // Editable policy fields
   const [policyFields, setPolicyFields] = useState<ExtractedApplicationData | null>(null);
+
+  useEffect(() => {
+    // Warm parsing/storage path to reduce first-request cold start.
+    fetch('/api/ingestion/v2/warm', { cache: 'no-store', keepalive: true }).catch(() => {});
+  }, []);
 
   const processFile = useCallback(async (file: File) => {
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
@@ -78,6 +90,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
     setStage('processing');
     setProcessingProgress(5);
     setProcessingLabel('Preparing file...');
+    setTimingSummary(null);
 
     try {
       // For smaller PDFs, parse directly via FormData.
@@ -203,6 +216,13 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
           if (statusBody.job.status === 'succeeded') {
             parsedData = statusBody.job.result?.application?.data || null;
             parsedNote = statusBody.job.result?.application?.note || null;
+            const metrics = statusBody.job.metrics;
+            if (metrics?.totalMs != null) {
+              const totalSec = (metrics.totalMs / 1000).toFixed(1);
+              const sourceSec = (metrics.resolveSourceMs / 1000).toFixed(1);
+              const extractSec = (metrics.extractMs / 1000).toFixed(1);
+              setTimingSummary(`Processed in ${totalSec}s (source ${sourceSec}s, extraction ${extractSec}s).`);
+            }
             break;
           }
 
@@ -274,6 +294,12 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
         parsedData = result.data;
         parsedPageCount = result.pageCount || 0;
         parsedNote = result.note || null;
+        if (result.timings?.totalMs != null) {
+          const totalSec = (result.timings.totalMs / 1000).toFixed(1);
+          const sourceSec = ((result.timings.sourceMs || 0) / 1000).toFixed(1);
+          const extractSec = ((result.timings.extractMs || 0) / 1000).toFixed(1);
+          setTimingSummary(`Processed in ${totalSec}s (source ${sourceSec}s, extraction ${extractSec}s).`);
+        }
       }
 
       if (!parsedData) {
@@ -508,6 +534,9 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
                       ? 'Review and edit the details below, then create the client and policy.'
                       : 'Review below, then confirm to pre-fill the policy form.'}
                   </p>
+                  {timingSummary && (
+                    <p className="text-[#005851]/70 text-[11px] mt-1">{timingSummary}</p>
+                  )}
                 </div>
               </div>
 

@@ -40,4 +40,10 @@ export interface ParseApplicationResponse {
   pageCount?: number;
   /** Confidence note from the LLM (e.g. "some fields could not be found") */
   note?: string;
+  /** Optional timing breakdown for observability */
+  timings?: {
+    totalMs: number;
+    sourceMs?: number;
+    extractMs?: number;
+  };
 }

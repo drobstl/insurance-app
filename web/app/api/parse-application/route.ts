@@ -12,13 +12,16 @@ const BLOB_FETCH_TIMEOUT_MS = 30_000;
 export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicationResponse>> {
   let blobUrl: string | undefined;
   let fileSizeBytes: number | undefined;
+  const startedAt = Date.now();
 
   try {
     const contentType = req.headers.get('content-type') || '';
     let pdfBase64: string | undefined;
+    let sourceMs = 0;
 
     // ── Path 1: Direct file upload via FormData (fallback when Blob is unavailable) ──
     if (contentType.includes('multipart/form-data')) {
+      const sourceStart = Date.now();
       const formData = await req.formData();
       const file = formData.get('file') as File | null;
 
@@ -40,6 +43,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
       fileSizeBytes = file.size;
       const buffer = Buffer.from(await file.arrayBuffer());
       pdfBase64 = pdfToBase64(buffer);
+      sourceMs = Date.now() - sourceStart;
     } else {
       // ── Path 2 & 3: JSON body with url or base64 ──
       const body = (await req.json()) as { url?: string; base64?: string };
@@ -55,7 +59,9 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
         console.log(`[parse-application] Direct base64 upload (${(byteLength / 1024).toFixed(0)}KB)`);
         fileSizeBytes = byteLength;
         pdfBase64 = body.base64;
+        sourceMs = 0;
       } else if (body.url) {
+        const sourceStart = Date.now();
         blobUrl = body.url;
         console.log(`[parse-application] Blob URL upload: ${body.url}`);
 
@@ -91,6 +97,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
 
         fileSizeBytes = arrayBuffer.byteLength;
         pdfBase64 = pdfToBase64(Buffer.from(arrayBuffer));
+        sourceMs = Date.now() - sourceStart;
       }
     }
 
@@ -102,8 +109,11 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
     }
 
     let extraction;
+    let extractMs = 0;
     try {
+      const extractStart = Date.now();
       extraction = await extractApplicationFields(pdfBase64, { fileSizeBytes });
+      extractMs = Date.now() - extractStart;
     } catch (aiError) {
       const message = aiError instanceof Error ? aiError.message : 'AI extraction failed.';
       console.error('[parse-application] AI extraction failed:', aiError);
@@ -118,6 +128,11 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
       success: true,
       data: extraction.data,
       note: extraction.note,
+      timings: {
+        totalMs: Date.now() - startedAt,
+        sourceMs,
+        extractMs,
+      },
     });
   } catch (error) {
     console.error('[parse-application] Unhandled error:', error);
