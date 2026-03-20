@@ -357,9 +357,32 @@ export default function BadgeCelebration({
                   <path d="M4 2 C4 18, 10 26, 24 28" stroke="rgba(68,187,170,0.6)" strokeWidth="1.5" fill="none" />
                   <path d="M18 24 L24 28 L17 30" stroke="rgba(68,187,170,0.6)" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-                <p style={{ fontSize: 18, color: 'rgba(68,187,170,0.7)', fontWeight: 600, fontStyle: 'italic' as const, margin: 0 }}>
-                  generated on autopilot
-                </p>
+                <div style={{ position: 'relative', padding: '2px 10px 4px 8px' }}>
+                  <svg
+                    width="260"
+                    height="52"
+                    viewBox="0 0 260 52"
+                    fill="none"
+                    style={{ position: 'absolute', top: -12, left: -12, opacity: 0.95 }}
+                  >
+                    <path
+                      d="M10 28 C14 7, 236 2, 248 20 C255 31, 248 45, 231 47 C144 52, 50 50, 20 44 C5 41, 7 34, 10 28 Z"
+                      stroke="rgba(68,187,170,0.9)"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M16 29 C19 12, 230 8, 241 22 C245 28, 241 40, 225 42"
+                      stroke="rgba(68,187,170,0.72)"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <p style={{ fontSize: 18, color: 'rgba(68,187,170,0.7)', fontWeight: 600, fontStyle: 'italic' as const, margin: 0, position: 'relative', zIndex: 1 }}>
+                    generated on autopilot
+                  </p>
+                </div>
               </div>
             </div>
           </div>
