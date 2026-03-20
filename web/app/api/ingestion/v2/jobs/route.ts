@@ -67,7 +67,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<CreateJobResp
     await ref.set({
       mode,
       status: 'queued',
-      source,
+      source: compactObject(source),
       attempts: 0,
       maxAttempts: 2,
       agentId: agentId ?? null,
@@ -82,6 +82,16 @@ export async function POST(req: NextRequest): Promise<NextResponse<CreateJobResp
     const message = error instanceof Error ? error.message : 'Failed to create ingestion job.';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
+}
+
+function compactObject<T extends Record<string, unknown>>(obj: T): Partial<T> {
+  const out: Partial<T> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) {
+      out[k as keyof T] = v as T[keyof T];
+    }
+  }
+  return out;
 }
 
 async function getOptionalAgentId(req: NextRequest): Promise<string | undefined> {
