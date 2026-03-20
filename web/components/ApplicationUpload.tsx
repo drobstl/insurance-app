@@ -20,7 +20,7 @@ const BASE_BLOB_UPLOAD_TIMEOUT_MS = 25_000;
 const PARSE_TIMEOUT_MS = 120_000;
 const JOB_POLL_INTERVAL_MS = 1500;
 const DIRECT_PARSE_MAX_BYTES = 4 * 1024 * 1024;
-const MAX_BLOB_UPLOAD_TOTAL_MS = 75_000;
+const MAX_BLOB_UPLOAD_TOTAL_MS = 45_000;
 
 interface IngestionJobStatusResponse {
   success: boolean;
@@ -628,8 +628,8 @@ function startAutoProgress(
 }
 
 function getBlobUploadTimeoutMs(fileSizeBytes: number): number {
-  if (fileSizeBytes >= 10 * 1024 * 1024) return 90_000;
-  if (fileSizeBytes >= 5 * 1024 * 1024) return 60_000;
+  if (fileSizeBytes >= 10 * 1024 * 1024) return 45_000;
+  if (fileSizeBytes >= 5 * 1024 * 1024) return 35_000;
   return BASE_BLOB_UPLOAD_TIMEOUT_MS;
 }
 
