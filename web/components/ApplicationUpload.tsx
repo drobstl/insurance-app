@@ -16,7 +16,7 @@ interface ApplicationUploadProps {
 }
 
 type Stage = 'upload' | 'processing' | 'review' | 'error';
-const BLOB_UPLOAD_TIMEOUT_MS = 25_000;
+const BASE_BLOB_UPLOAD_TIMEOUT_MS = 25_000;
 const PARSE_TIMEOUT_MS = 120_000;
 const JOB_POLL_INTERVAL_MS = 1500;
 const DIRECT_PARSE_MAX_BYTES = 4 * 1024 * 1024;
@@ -81,6 +81,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       // For smaller PDFs, skip Blob roundtrip and parse directly via FormData.
       let blobUrl: string | null = null;
       const useDirectParse = file.size <= DIRECT_PARSE_MAX_BYTES;
+      const blobUploadTimeoutMs = getBlobUploadTimeoutMs(file.size);
       if (!useDirectParse) {
         setProcessingLabel('Uploading file...');
         const stopUploadProgress = startAutoProgress(setProcessingProgress, 10, 30, 2, 700);
@@ -91,7 +92,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
                 access: 'public',
                 handleUploadUrl: '/api/upload',
               }),
-              BLOB_UPLOAD_TIMEOUT_MS,
+              blobUploadTimeoutMs,
               'Upload timed out while sending file.',
             );
             blobUrl = blob.url;
@@ -105,6 +106,13 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
         }
         stopUploadProgress();
         setProcessingProgress((p) => Math.max(p, 32));
+
+        // Large files should not fall back to direct parse (can trigger 413 body-size errors).
+        if (!blobUrl) {
+          setErrorMessage('Upload service timed out for this large file. Please retry, or split/compress the PDF.');
+          setStage('error');
+          return;
+        }
       }
 
       let parsedData: ExtractedApplicationData | null = null;
@@ -609,6 +617,12 @@ function startAutoProgress(
     });
   }, everyMs);
   return () => clearInterval(id);
+}
+
+function getBlobUploadTimeoutMs(fileSizeBytes: number): number {
+  if (fileSizeBytes >= 10 * 1024 * 1024) return 90_000;
+  if (fileSizeBytes >= 5 * 1024 * 1024) return 60_000;
+  return BASE_BLOB_UPLOAD_TIMEOUT_MS;
 }
 
 function EditableField({ label, value, onChange, placeholder, type = 'text' }: {

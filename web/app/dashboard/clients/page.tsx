@@ -38,7 +38,7 @@ const POLICY_STATUSES = ['Active', 'Pending', 'Lapsed'];
 const CLIENT_APP_URL = 'https://agentforlife.app/app';
 const MAX_IMPORT_ROWS = 400;
 const IMPORT_BATCH_SIZE = 50;
-const BLOB_UPLOAD_TIMEOUT_MS = 25_000;
+const BASE_BLOB_UPLOAD_TIMEOUT_MS = 25_000;
 const IMPORT_PARSE_TIMEOUT_MS = 120_000;
 const JOB_POLL_INTERVAL_MS = 1500;
 const DIRECT_PARSE_MAX_BYTES = 4 * 1024 * 1024;
@@ -178,6 +178,12 @@ function filterHighQualityImportRows(rows: ImportRow[]): { accepted: ImportRow[]
     rejected,
     qualityRatio: accepted.length / rows.length,
   };
+}
+
+function getBlobUploadTimeoutMs(fileSizeBytes: number): number {
+  if (fileSizeBytes >= 10 * 1024 * 1024) return 90_000;
+  if (fileSizeBytes >= 5 * 1024 * 1024) return 60_000;
+  return BASE_BLOB_UPLOAD_TIMEOUT_MS;
 }
 
 // ─── Helpers ───────────────────────────────────────────────
@@ -1265,6 +1271,7 @@ export default function ClientsPage() {
       let blobUrl: string | null = null;
       let textContent: string | null = null;
       const useDirectParse = isPdf && file.size <= DIRECT_PARSE_MAX_BYTES;
+      const blobUploadTimeoutMs = getBlobUploadTimeoutMs(file.size);
 
       if (isPdf) {
         if (!useDirectParse) {
@@ -1275,7 +1282,7 @@ export default function ClientsPage() {
                   access: 'public',
                   handleUploadUrl: '/api/upload',
                 }),
-                BLOB_UPLOAD_TIMEOUT_MS,
+                blobUploadTimeoutMs,
                 'Upload timed out while sending file.',
               );
               blobUrl = blob.url;
@@ -1286,6 +1293,12 @@ export default function ClientsPage() {
               }
               if (attempt < 1) continue;
             }
+          }
+
+          // Large PDFs should not fall back to direct parse (payload can exceed platform limits).
+          if (!blobUrl) {
+            setImportError('Upload timed out for this large PDF. Please retry, or split/compress the file.');
+            return;
           }
         }
       } else {
