@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
+import { upload } from '@vercel/blob/client';
 import type { ExtractedApplicationData, ParseApplicationResponse, Beneficiary } from '../lib/types';
 import { isTimeoutError, withTimeout } from '../lib/timeout';
 
@@ -20,6 +21,7 @@ const JOB_POLL_INTERVAL_MS = 1500;
 const DIRECT_PARSE_MAX_BYTES = 4 * 1024 * 1024;
 const MAX_RELIABLE_APPLICATION_FILE_BYTES = 13 * 1024 * 1024;
 const GCS_UPLOAD_TIMEOUT_MS = 120_000;
+const BLOB_UPLOAD_TIMEOUT_MS = 45_000;
 
 interface IngestionJobStatusResponse {
   success: boolean;
@@ -80,6 +82,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
     try {
       // For smaller PDFs, parse directly via FormData.
       let gcsPath: string | null = null;
+      let blobUrl: string | null = null;
       const useDirectParse = file.size <= DIRECT_PARSE_MAX_BYTES;
       if (!useDirectParse) {
         setProcessingLabel('Uploading file...');
@@ -121,15 +124,31 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
 
           gcsPath = signedBody.gcsPath;
         } catch (uploadErr) {
-          if (isTimeoutError(uploadErr)) {
-            setErrorMessage('Upload timed out for this file. Please retry, or split/compress the PDF.');
-          } else if (uploadErr instanceof Error) {
-            setErrorMessage(uploadErr.message);
-          } else {
-            setErrorMessage('Upload failed. Please retry.');
+          // Backup path: if signed GCS upload fails (often CORS/preflight), fall back to Blob upload.
+          setProcessingLabel('Switching to backup uploader...');
+          try {
+            const blob = await withTimeout(
+              upload(file.name, file, {
+                access: 'public',
+                handleUploadUrl: '/api/upload',
+              }),
+              BLOB_UPLOAD_TIMEOUT_MS,
+              'Backup upload timed out.',
+            );
+            blobUrl = blob.url;
+          } catch (backupErr) {
+            if (isTimeoutError(backupErr)) {
+              setErrorMessage('Upload timed out for this file. Please retry.');
+            } else if (backupErr instanceof Error) {
+              setErrorMessage(backupErr.message);
+            } else if (uploadErr instanceof Error) {
+              setErrorMessage(uploadErr.message);
+            } else {
+              setErrorMessage('Upload failed. Please retry.');
+            }
+            setStage('error');
+            return;
           }
-          setStage('error');
-          return;
         } finally {
           stopUploadProgress();
         }
@@ -140,7 +159,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       let parsedNote: string | null = null;
       let parsedPageCount = 0;
 
-      if (gcsPath) {
+      if (gcsPath || blobUrl) {
         setProcessingLabel('Queueing parser...');
         setProcessingProgress((p) => Math.max(p, 40));
         const createRes = await fetch('/api/ingestion/v2/jobs', {
@@ -148,7 +167,8 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             mode: 'application',
-            gcsPath,
+            gcsPath: gcsPath || undefined,
+            url: blobUrl || undefined,
             fileName: file.name,
             fileSize: file.size,
             idempotencyKey: `application:${file.name}:${file.size}:${file.lastModified}`,
