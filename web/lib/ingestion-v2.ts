@@ -165,9 +165,10 @@ async function runExtraction(
     const sourceStart = Date.now();
     const pdfBase64 = await resolvePdfBase64(source);
     resolveSourceMs = Date.now() - sourceStart;
+    const fileSizeBytes = typeof source.fileSize === 'number' ? source.fileSize : undefined;
 
     const extractStart = Date.now();
-    const extraction = await extractApplicationFields(pdfBase64);
+    const extraction = await extractApplicationFields(pdfBase64, { fileSizeBytes });
     extractMs = Date.now() - extractStart;
 
     return {

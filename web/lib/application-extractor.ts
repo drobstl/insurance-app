@@ -1,6 +1,18 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { ExtractedApplicationData, Beneficiary } from './types';
 
+interface ApplicationExtractionOptions {
+  fileSizeBytes?: number;
+}
+
+interface ExtractionRunConfig {
+  maxTokens: number;
+  maxRetries: number;
+}
+
+const LARGE_PDF_THRESHOLD_BYTES = 5 * 1024 * 1024;
+const MIN_FAST_MODE_SIGNALS = 4;
+
 const SYSTEM_PROMPT = `You are an expert insurance application document parser. You extract structured data from insurance application PDFs by examining the full document directly.
 
 You are viewing a complete insurance application PDF. Use the visible form layout, labels, and filled-in values to extract the requested fields. Examine ALL pages including any addendum or supplemental pages.
@@ -119,6 +131,7 @@ const EXTRACTION_SCHEMA = {
  */
 export async function extractApplicationFields(
   pdfBase64: string,
+  options: ApplicationExtractionOptions = {},
 ): Promise<{ data: ExtractedApplicationData; note?: string }> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -127,14 +140,32 @@ export async function extractApplicationFields(
 
   const anthropic = new Anthropic({ apiKey });
 
-  const MAX_RETRIES = 3;
+  const isLargePdf = typeof options.fileSizeBytes === 'number' && options.fileSizeBytes >= LARGE_PDF_THRESHOLD_BYTES;
+
+  if (isLargePdf) {
+    // Large PDFs: run a faster first pass, then fall back to full-depth only when needed.
+    const fastResult = await runExtractionAttempt(anthropic, pdfBase64, { maxTokens: 1200, maxRetries: 1 });
+    if (countExtractionSignals(fastResult.data) >= MIN_FAST_MODE_SIGNALS) {
+      return fastResult;
+    }
+    return runExtractionAttempt(anthropic, pdfBase64, { maxTokens: 2048, maxRetries: 2 });
+  }
+
+  return runExtractionAttempt(anthropic, pdfBase64, { maxTokens: 2048, maxRetries: 3 });
+}
+
+async function runExtractionAttempt(
+  anthropic: Anthropic,
+  pdfBase64: string,
+  config: ExtractionRunConfig,
+): Promise<{ data: ExtractedApplicationData; note?: string }> {
   let lastError: unknown;
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt < config.maxRetries; attempt++) {
     try {
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 2048,
+        max_tokens: config.maxTokens,
         system: SYSTEM_PROMPT,
         output_config: {
           format: {
@@ -180,14 +211,14 @@ export async function extractApplicationFields(
       return buildResult(parsed);
     } catch (err) {
       lastError = err;
-      console.error(`[application-extractor] Attempt ${attempt + 1}/${MAX_RETRIES} failed:`, err);
+      console.error(`[application-extractor] Attempt ${attempt + 1}/${config.maxRetries} failed:`, err);
 
       const isRetryable =
         err instanceof Anthropic.APIError
           ? err.status === 429 || err.status === 500 || err.status === 502 || err.status === 503 || err.status === 529
           : err instanceof Error && (err.message.includes('No response') || err.message.includes('fetch failed') || err.message.includes('ECONNRESET'));
 
-      if (!isRetryable || attempt === MAX_RETRIES - 1) break;
+      if (!isRetryable || attempt === config.maxRetries - 1) break;
 
       const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
       await new Promise((r) => setTimeout(r, delay));
@@ -278,4 +309,15 @@ function parseBeneficiaries(val: unknown): Beneficiary[] | null {
   }
 
   return result.length > 0 ? result : null;
+}
+
+function countExtractionSignals(data: ExtractedApplicationData): number {
+  let signals = 0;
+  if (data.insuredName) signals++;
+  if (data.policyType) signals++;
+  if (data.policyNumber) signals++;
+  if (data.insuranceCompany) signals++;
+  if (data.coverageAmount != null) signals++;
+  if (data.premiumAmount != null) signals++;
+  return signals;
 }

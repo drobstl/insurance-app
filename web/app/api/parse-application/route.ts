@@ -11,6 +11,7 @@ const BLOB_FETCH_TIMEOUT_MS = 30_000;
 
 export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicationResponse>> {
   let blobUrl: string | undefined;
+  let fileSizeBytes: number | undefined;
 
   try {
     const contentType = req.headers.get('content-type') || '';
@@ -36,6 +37,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
       }
 
       console.log(`[parse-application] Direct FormData upload: ${file.name} (${(file.size / 1024).toFixed(0)}KB)`);
+      fileSizeBytes = file.size;
       const buffer = Buffer.from(await file.arrayBuffer());
       pdfBase64 = pdfToBase64(buffer);
     } else {
@@ -51,6 +53,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
           );
         }
         console.log(`[parse-application] Direct base64 upload (${(byteLength / 1024).toFixed(0)}KB)`);
+        fileSizeBytes = byteLength;
         pdfBase64 = body.base64;
       } else if (body.url) {
         blobUrl = body.url;
@@ -86,6 +89,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
           );
         }
 
+        fileSizeBytes = arrayBuffer.byteLength;
         pdfBase64 = pdfToBase64(Buffer.from(arrayBuffer));
       }
     }
@@ -99,7 +103,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
 
     let extraction;
     try {
-      extraction = await extractApplicationFields(pdfBase64);
+      extraction = await extractApplicationFields(pdfBase64, { fileSizeBytes });
     } catch (aiError) {
       const message = aiError instanceof Error ? aiError.message : 'AI extraction failed.';
       console.error('[parse-application] AI extraction failed:', aiError);
