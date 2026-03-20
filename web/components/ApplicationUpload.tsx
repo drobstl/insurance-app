@@ -33,6 +33,7 @@ interface IngestionJobStatusResponse {
       totalMs: number;
       resolveSourceMs: number;
       extractMs: number;
+      textExtractMs?: number;
       parserPath?: string;
     };
     result?: {
@@ -221,7 +222,9 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
               const totalSec = (metrics.totalMs / 1000).toFixed(1);
               const sourceSec = (metrics.resolveSourceMs / 1000).toFixed(1);
               const extractSec = (metrics.extractMs / 1000).toFixed(1);
-              setTimingSummary(`Processed in ${totalSec}s (source ${sourceSec}s, extraction ${extractSec}s).`);
+              const textSec = ((metrics.textExtractMs || 0) / 1000).toFixed(1);
+              const lane = metrics.parserPath || 'ai-pdf';
+              setTimingSummary(`Processed in ${totalSec}s (source ${sourceSec}s, extraction ${extractSec}s, text ${textSec}s, lane ${lane}).`);
             }
             break;
           }
@@ -298,7 +301,9 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
           const totalSec = (result.timings.totalMs / 1000).toFixed(1);
           const sourceSec = ((result.timings.sourceMs || 0) / 1000).toFixed(1);
           const extractSec = ((result.timings.extractMs || 0) / 1000).toFixed(1);
-          setTimingSummary(`Processed in ${totalSec}s (source ${sourceSec}s, extraction ${extractSec}s).`);
+          const textSec = ((result.timings.textExtractMs || 0) / 1000).toFixed(1);
+          const lane = result.timings.parserPath || 'ai-pdf';
+          setTimingSummary(`Processed in ${totalSec}s (source ${sourceSec}s, extraction ${extractSec}s, text ${textSec}s, lane ${lane}).`);
         }
       }
 

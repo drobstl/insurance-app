@@ -45,5 +45,7 @@ export interface ParseApplicationResponse {
     totalMs: number;
     sourceMs?: number;
     extractMs?: number;
+    textExtractMs?: number;
+    parserPath?: 'ai-pdf' | 'ai-text';
   };
 }

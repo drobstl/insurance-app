@@ -71,6 +71,22 @@ STRICT RULES:
 - Parse dates as YYYY-MM-DD
 - "note": brief note flagging anything unusual or uncertain (empty string if nothing to flag)`;
 
+const TEXT_SYSTEM_PROMPT = `You are an expert insurance application document parser.
+
+You are given extracted text from an insurance application PDF. The text may be noisy or partially ordered. Extract structured fields using only values explicitly present in the text.
+
+ROLE DISAMBIGUATION (extremely important):
+- "Proposed Insured" / "Applicant" / "Insured" = the person whose life is being insured.
+- "Owner" / "Policy Owner" = the person who owns the policy.
+- "Primary Beneficiary" / "Contingent Beneficiary" = recipients of death benefit, NOT the insured.
+
+FIELD EXTRACTION RULES:
+- Apply the same extraction rules as the PDF parser.
+- Never invent values.
+- If a field is missing, return null.
+- Keep the output strictly aligned to schema.
+- "note": brief note for uncertainty (empty string if nothing to flag).`;
+
 // ─── JSON Schema for structured output ─────────────────────
 
 const EXTRACTION_SCHEMA = {
@@ -171,6 +187,25 @@ export async function extractApplicationFields(
   return runExtractionAttempt(anthropic, pdfBase64, { maxTokens: 1700, maxRetries: 1 });
 }
 
+export async function extractApplicationFieldsFromText(
+  text: string,
+): Promise<{ data: ExtractedApplicationData; note?: string }> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error('ANTHROPIC_API_KEY is not configured. Add it to your .env.local file.');
+  }
+
+  const anthropic = new Anthropic({ apiKey });
+  const normalizedText = text.trim();
+  if (normalizedText.length === 0) {
+    throw new Error('No extracted text provided.');
+  }
+
+  // Keep text payload bounded to reduce model latency/cost.
+  const truncatedText = normalizedText.length > 18_000 ? normalizedText.slice(0, 18_000) : normalizedText;
+  return runTextExtractionAttempt(anthropic, truncatedText, { maxTokens: 1200, maxRetries: 1 });
+}
+
 async function runExtractionAttempt(
   anthropic: Anthropic,
   pdfBase64: string,
@@ -229,14 +264,65 @@ async function runExtractionAttempt(
     } catch (err) {
       lastError = err;
       console.error(`[application-extractor] Attempt ${attempt + 1}/${config.maxRetries} failed:`, err);
-
-      const isRetryable =
-        err instanceof Anthropic.APIError
-          ? err.status === 429 || err.status === 500 || err.status === 502 || err.status === 503 || err.status === 529
-          : err instanceof Error && (err.message.includes('No response') || err.message.includes('fetch failed') || err.message.includes('ECONNRESET'));
+      const isRetryable = isRetryableError(err);
 
       if (!isRetryable || attempt === config.maxRetries - 1) break;
 
+      const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('AI extraction failed after retries. Please try again.');
+}
+
+async function runTextExtractionAttempt(
+  anthropic: Anthropic,
+  extractedText: string,
+  config: ExtractionRunConfig,
+): Promise<{ data: ExtractedApplicationData; note?: string }> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < config.maxRetries; attempt++) {
+    try {
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: config.maxTokens,
+        system: TEXT_SYSTEM_PROMPT,
+        output_config: {
+          format: {
+            type: 'json_schema',
+            schema: EXTRACTION_SCHEMA,
+          },
+        },
+        messages: [
+          {
+            role: 'user',
+            content: `Extract all available fields from this insurance application text:\n\n${extractedText}`,
+          },
+        ],
+      });
+
+      const textContent = response.content.find(
+        (b): b is Anthropic.TextBlock => b.type === 'text',
+      );
+      if (!textContent?.text) {
+        throw new Error('No response received from AI.');
+      }
+
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(textContent.text);
+      } catch {
+        throw new Error('Failed to parse AI response.');
+      }
+
+      return buildResult(parsed);
+    } catch (err) {
+      lastError = err;
+      console.error(`[application-extractor-text] Attempt ${attempt + 1}/${config.maxRetries} failed:`, err);
+      const isRetryable = isRetryableError(err);
+      if (!isRetryable || attempt === config.maxRetries - 1) break;
       const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
       await new Promise((r) => setTimeout(r, delay));
     }
@@ -350,4 +436,15 @@ function isFastPassAcceptable(data: ExtractedApplicationData): boolean {
   const hasFinancialAnchor = data.coverageAmount != null || data.premiumAmount != null;
 
   return hasIdentity && hasPolicyAnchor && hasFinancialAnchor;
+}
+
+function isRetryableError(err: unknown): boolean {
+  if (err instanceof Anthropic.APIError) {
+    return err.status === 429 || err.status === 500 || err.status === 502 || err.status === 503 || err.status === 529;
+  }
+  return err instanceof Error && (
+    err.message.includes('No response') ||
+    err.message.includes('fetch failed') ||
+    err.message.includes('ECONNRESET')
+  );
 }

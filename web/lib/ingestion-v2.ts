@@ -1,11 +1,12 @@
 import 'server-only';
 
 import { FieldValue } from 'firebase-admin/firestore';
-import { extractApplicationFields } from './application-extractor';
+import { extractApplicationFields, extractApplicationFieldsFromText } from './application-extractor';
 import { extractBobFromPdf, extractBobFromText, type BobRow } from './bob-extractor';
 import { parseBobDeterministically } from './bob-deterministic-parser';
 import { getAdminFirestore, getAdminStorage } from './firebase-admin';
 import { pdfToBase64 } from './pdf-parser';
+import { extractTextFromPdfBase64, isTextExtractionHighConfidence } from './pdf-text-extractor';
 import type { ExtractedApplicationData } from './types';
 
 export type IngestionMode = 'application' | 'bob';
@@ -27,6 +28,7 @@ export interface IngestionJobMetrics {
   totalMs: number;
   resolveSourceMs: number;
   extractMs: number;
+  textExtractMs?: number;
   mode: IngestionMode;
   usedTextSource: boolean;
   parserPath?: 'deterministic' | 'ai-text' | 'ai-pdf';
@@ -171,6 +173,7 @@ async function runExtraction(
   const t0 = Date.now();
   let resolveSourceMs = 0;
   let extractMs = 0;
+  let textExtractMs = 0;
 
   if (mode === 'application') {
     const sourceStart = Date.now();
@@ -179,7 +182,14 @@ async function runExtraction(
     const fileSizeBytes = typeof source.fileSize === 'number' ? source.fileSize : undefined;
 
     const extractStart = Date.now();
-    const extraction = await extractApplicationFields(pdfBase64, { fileSizeBytes });
+    const textStart = Date.now();
+    const extractedText = await extractTextFromPdfBase64(pdfBase64);
+    textExtractMs = Date.now() - textStart;
+
+    const useTextPath = isTextExtractionHighConfidence(extractedText);
+    const extraction = useTextPath
+      ? await extractApplicationFieldsFromText(extractedText!)
+      : await extractApplicationFields(pdfBase64, { fileSizeBytes });
     extractMs = Date.now() - extractStart;
 
     return {
@@ -193,9 +203,10 @@ async function runExtraction(
         totalMs: Date.now() - t0,
         resolveSourceMs,
         extractMs,
+        textExtractMs,
         mode,
         usedTextSource: false,
-        parserPath: 'ai-pdf',
+        parserPath: useTextPath ? 'ai-text' : 'ai-pdf',
       },
     };
   }

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { del } from '@vercel/blob';
 import { pdfToBase64 } from '../../../lib/pdf-parser';
-import { extractApplicationFields } from '../../../lib/application-extractor';
+import { extractApplicationFields, extractApplicationFieldsFromText } from '../../../lib/application-extractor';
+import { extractTextFromPdfBase64, isTextExtractionHighConfidence } from '../../../lib/pdf-text-extractor';
 import type { ParseApplicationResponse } from '../../../lib/types';
 
 export const maxDuration = 60;
@@ -110,9 +111,20 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
 
     let extraction;
     let extractMs = 0;
+    let textExtractMs = 0;
+    let parserPath: 'ai-pdf' | 'ai-text' = 'ai-pdf';
     try {
       const extractStart = Date.now();
-      extraction = await extractApplicationFields(pdfBase64, { fileSizeBytes });
+      const textStart = Date.now();
+      const extractedText = await extractTextFromPdfBase64(pdfBase64);
+      textExtractMs = Date.now() - textStart;
+
+      if (isTextExtractionHighConfidence(extractedText)) {
+        extraction = await extractApplicationFieldsFromText(extractedText!);
+        parserPath = 'ai-text';
+      } else {
+        extraction = await extractApplicationFields(pdfBase64, { fileSizeBytes });
+      }
       extractMs = Date.now() - extractStart;
     } catch (aiError) {
       const message = aiError instanceof Error ? aiError.message : 'AI extraction failed.';
@@ -132,6 +144,8 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
         totalMs: Date.now() - startedAt,
         sourceMs,
         extractMs,
+        textExtractMs,
+        parserPath,
       },
     });
   } catch (error) {
