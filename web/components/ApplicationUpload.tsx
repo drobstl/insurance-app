@@ -21,6 +21,7 @@ const PARSE_TIMEOUT_MS = 120_000;
 const JOB_POLL_INTERVAL_MS = 1500;
 const DIRECT_PARSE_MAX_BYTES = 4 * 1024 * 1024;
 const LARGE_FILE_THRESHOLD_BYTES = 8 * 1024 * 1024;
+const MAX_RELIABLE_APPLICATION_FILE_BYTES = 8 * 1024 * 1024;
 
 interface IngestionJobStatusResponse {
   success: boolean;
@@ -67,8 +68,8 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       setStage('error');
       return;
     }
-    if (file.size > 13 * 1024 * 1024) {
-      setErrorMessage('File is too large. Maximum size is 13MB.');
+    if (file.size > MAX_RELIABLE_APPLICATION_FILE_BYTES) {
+      setErrorMessage('File is too large for reliable instant parsing. Please upload a PDF under 8MB, or split/compress this file.');
       setStage('error');
       return;
     }
@@ -385,8 +386,8 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
                   </p>
                   <p className="text-gray-500 text-sm">
                     {isClientAndPolicy
-                      ? 'AI will extract client info and policy details in one step. Max 13MB.'
-                      : 'Drag & drop or click to browse. Max 13MB.'}
+                      ? 'AI will extract client info and policy details in one step. Max 8MB for reliable instant parsing.'
+                      : 'Drag & drop or click to browse. Max 8MB for reliable instant parsing.'}
                   </p>
                 </div>
               </div>
