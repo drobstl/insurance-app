@@ -19,7 +19,7 @@ type Stage = 'upload' | 'processing' | 'review' | 'error';
 const BLOB_UPLOAD_TIMEOUT_MS = 25_000;
 const PARSE_TIMEOUT_MS = 120_000;
 const JOB_POLL_INTERVAL_MS = 1500;
-const DIRECT_BASE64_MAX_BYTES = 4 * 1024 * 1024;
+const DIRECT_PARSE_MAX_BYTES = 4 * 1024 * 1024;
 
 interface IngestionJobStatusResponse {
   success: boolean;
@@ -78,17 +78,10 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
     setProcessingLabel('Preparing file...');
 
     try {
-      // For smaller PDFs, skip Blob roundtrip and send base64 directly to ingestion job.
-      let base64Source: string | null = null;
-      if (file.size <= DIRECT_BASE64_MAX_BYTES) {
-        setProcessingLabel('Preparing file...');
-        base64Source = await fileToBase64(file);
-        setProcessingProgress(15);
-      }
-
-      // Try Vercel Blob upload with retry for larger files, fall back to direct FormData upload
+      // For smaller PDFs, skip Blob roundtrip and parse directly via FormData.
       let blobUrl: string | null = null;
-      if (!base64Source) {
+      const useDirectParse = file.size <= DIRECT_PARSE_MAX_BYTES;
+      if (!useDirectParse) {
         setProcessingLabel('Uploading file...');
         const stopUploadProgress = startAutoProgress(setProcessingProgress, 10, 30, 2, 700);
         for (let attempt = 0; attempt < 2; attempt++) {
@@ -118,7 +111,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       let parsedNote: string | null = null;
       let parsedPageCount = 0;
 
-      if (blobUrl || base64Source) {
+      if (blobUrl) {
         setProcessingLabel('Queueing parser...');
         setProcessingProgress((p) => Math.max(p, 40));
         const createRes = await fetch('/api/ingestion/v2/jobs', {
@@ -127,7 +120,6 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
           body: JSON.stringify({
             mode: 'application',
             url: blobUrl,
-            base64: base64Source || undefined,
             fileName: file.name,
             fileSize: file.size,
             idempotencyKey: `application:${file.name}:${file.size}:${file.lastModified}`,
@@ -617,23 +609,6 @@ function startAutoProgress(
     });
   }, everyMs);
   return () => clearInterval(id);
-}
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      if (typeof result !== 'string') {
-        reject(new Error('Failed to read file.'));
-        return;
-      }
-      const commaIdx = result.indexOf(',');
-      resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result);
-    };
-    reader.onerror = () => reject(new Error('Failed to read file.'));
-    reader.readAsDataURL(file);
-  });
 }
 
 function EditableField({ label, value, onChange, placeholder, type = 'text' }: {

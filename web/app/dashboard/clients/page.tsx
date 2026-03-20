@@ -41,7 +41,7 @@ const IMPORT_BATCH_SIZE = 50;
 const BLOB_UPLOAD_TIMEOUT_MS = 25_000;
 const IMPORT_PARSE_TIMEOUT_MS = 120_000;
 const JOB_POLL_INTERVAL_MS = 1500;
-const DIRECT_BASE64_MAX_BYTES = 4 * 1024 * 1024;
+const DIRECT_PARSE_MAX_BYTES = 4 * 1024 * 1024;
 const MIN_IMPORT_ROW_QUALITY_RATIO = 0.65;
 const MIN_APPLICATION_POLICY_SIGNALS = 2;
 const DEFAULT_WELCOME_SMS_TEMPLATE =
@@ -1264,12 +1264,10 @@ export default function ClientsPage() {
       // Try Vercel Blob with retry, fall back to direct FormData upload
       let blobUrl: string | null = null;
       let textContent: string | null = null;
-      let base64Source: string | null = null;
+      const useDirectParse = isPdf && file.size <= DIRECT_PARSE_MAX_BYTES;
 
       if (isPdf) {
-        if (file.size <= DIRECT_BASE64_MAX_BYTES) {
-          base64Source = await fileToBase64(file);
-        } else {
+        if (!useDirectParse) {
           for (let attempt = 0; attempt < 2; attempt++) {
             try {
               const blob = await withTimeout(
@@ -1298,7 +1296,7 @@ export default function ClientsPage() {
       let parsedRows: ImportRow[] | null = null;
       let parsedNote: string | undefined;
 
-      if (blobUrl || base64Source || (textContent && textContent.trim().length > 0)) {
+      if (blobUrl || (textContent && textContent.trim().length > 0)) {
         const createRes = await fetch('/api/ingestion/v2/jobs', {
           method: 'POST',
           headers: {
@@ -1308,7 +1306,6 @@ export default function ClientsPage() {
           body: JSON.stringify({
             mode: 'bob',
             url: blobUrl,
-            base64: base64Source || undefined,
             textContent: textContent || undefined,
             fileName: file.name,
             fileSize: file.size,
@@ -3282,19 +3279,3 @@ export default function ClientsPage() {
   );
 }
 
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      if (typeof result !== 'string') {
-        reject(new Error('Failed to read file.'));
-        return;
-      }
-      const commaIdx = result.indexOf(',');
-      resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result);
-    };
-    reader.onerror = () => reject(new Error('Failed to read file.'));
-    reader.readAsDataURL(file);
-  });
-}
