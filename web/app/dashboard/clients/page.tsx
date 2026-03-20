@@ -43,6 +43,8 @@ const IMPORT_PARSE_TIMEOUT_MS = 120_000;
 const JOB_POLL_INTERVAL_MS = 1500;
 const MIN_IMPORT_ROW_QUALITY_RATIO = 0.65;
 const MIN_APPLICATION_POLICY_SIGNALS = 2;
+const DEFAULT_WELCOME_SMS_TEMPLATE =
+  'Hey {{firstName}}! {{agentName}} here. Download the AgentForLife app and use code {{code}} to connect with me. https://agentforlife.app/app';
 const DEFAULT_INTRO_TEMPLATE =
   "Hey {{firstName}}, I wanted to do something for you so I put together a free app showing your policies and also a button to reach me anytime. After you download, your code {{code}} will let you in — also say yes to push notifications so I can keep you in the loop on anything important. Download here: https://agentforlife.app/app Looking forward to talking soon! — {{agentName}}";
 import { KNOWN_CARRIER_NAMES } from '../../../lib/carriers';
@@ -140,6 +142,12 @@ interface IngestionJobStatusResponse {
   error?: string;
 }
 
+interface PendingSinglePdfCreation {
+  clientInfo: { name: string; email: string; phone: string; dateOfBirth: string };
+  appData: ExtractedApplicationData;
+  clientCode: string;
+}
+
 function countPolicySignals(row: ImportRow): number {
   let signals = 0;
   if (row.policyNumber?.trim()) signals++;
@@ -148,6 +156,16 @@ function countPolicySignals(row: ImportRow): number {
   if (row.premium?.toString().trim()) signals++;
   if (row.coverageAmount?.toString().trim()) signals++;
   return signals;
+}
+
+function applyWelcomeTemplate(
+  template: string,
+  params: { firstName: string; code: string; agentName: string }
+): string {
+  return template
+    .replace(/\{\{firstName\}\}/g, params.firstName)
+    .replace(/\{\{code\}\}/g, params.code)
+    .replace(/\{\{agentName\}\}/g, params.agentName);
 }
 
 function filterHighQualityImportRows(rows: ImportRow[]): { accepted: ImportRow[]; rejected: number; qualityRatio: number } {
@@ -360,6 +378,9 @@ export default function ClientsPage() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isClientUploadModalOpen, setIsClientUploadModalOpen] = useState(false);
   const [pendingClientApplicationData, setPendingClientApplicationData] = useState<ExtractedApplicationData | null>(null);
+  const [pendingSinglePdfCreation, setPendingSinglePdfCreation] = useState<PendingSinglePdfCreation | null>(null);
+  const [showSinglePdfSmsConfirm, setShowSinglePdfSmsConfirm] = useState(false);
+  const [singlePdfSmsDraft, setSinglePdfSmsDraft] = useState('');
 
   // ── Import state ──
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -401,6 +422,13 @@ export default function ClientsPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importModalScrollRef = useRef<HTMLDivElement>(null);
+  const welcomeSmsTemplate = (agentProfile.welcomeSmsTemplate || '').trim() || DEFAULT_WELCOME_SMS_TEMPLATE;
+  const shouldPromptBeforeSinglePdfWelcomeSms = !(agentProfile.skipWelcomeSmsConfirmation ?? false);
+
+  const buildWelcomeSms = useCallback((firstName: string, code: string) => {
+    const agentName = (agentProfile.name || 'your agent').trim() || 'your agent';
+    return applyWelcomeTemplate(welcomeSmsTemplate, { firstName, code, agentName });
+  }, [agentProfile.name, welcomeSmsTemplate]);
 
   // ─── Data Fetching ───────────────────────────────────────
 
@@ -770,8 +798,7 @@ export default function ClientsPage() {
         // Auto-send welcome text with code via Linq if client has a phone
         if (formData.phone.trim()) {
           const firstName = formData.name.trim().split(' ')[0];
-          const agentName = agentProfile.name || 'your agent';
-          const welcomeText = `Hey ${firstName}! ${agentName} here. Download the AgentForLife app and use code ${code} to connect with me. ${CLIENT_APP_URL}`;
+          const welcomeText = buildWelcomeSms(firstName, code);
           try {
             const token = await user.getIdToken();
             await fetch('/api/client/welcome-sms', {
@@ -828,7 +855,7 @@ export default function ClientsPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [user, formData, editingClient, selectedClient, pendingClientApplicationData, handleCloseModal, agentProfile]);
+  }, [user, formData, editingClient, selectedClient, pendingClientApplicationData, handleCloseModal, buildWelcomeSms]);
 
   const handleDeleteClient = useCallback(async () => {
     if (!user || !deleteConfirmClient) return;
@@ -984,22 +1011,22 @@ export default function ClientsPage() {
     }));
   }, []);
 
-  const handleCreateClientAndPolicy = useCallback(async (
-    clientInfo: { name: string; email: string; phone: string; dateOfBirth: string },
-    appData: ExtractedApplicationData,
+  const executeCreateClientAndPolicy = useCallback(async (
+    payload: PendingSinglePdfCreation,
+    welcomeMessageOverride?: string,
   ) => {
-    if (!user || !clientInfo.name.trim()) return;
+    if (!user || !payload.clientInfo.name.trim()) return;
+    const { clientInfo, appData, clientCode } = payload;
     setIsClientUploadModalOpen(false);
     setSubmitting(true);
     setFormError('');
 
     try {
-      const code = generateClientCode();
       const newClient: Record<string, unknown> = {
         name: clientInfo.name.trim(),
         email: clientInfo.email.trim(),
         phone: clientInfo.phone.trim(),
-        clientCode: code,
+        clientCode,
         agentId: user.uid,
         createdAt: serverTimestamp(),
       };
@@ -1014,11 +1041,11 @@ export default function ClientsPage() {
             name: clientInfo.name.trim(),
             email: clientInfo.email.trim(),
             phone: clientInfo.phone.trim(),
-            clientCode: code,
+            clientCode,
             agentId: user.uid,
             createdAt: serverTimestamp(),
           }),
-          setDoc(doc(db, 'clientCodes', code), { agentId: user.uid, clientId: docRef.id }),
+          setDoc(doc(db, 'clientCodes', clientCode), { agentId: user.uid, clientId: docRef.id }),
         ]);
       } catch (mirrorErr) {
         console.error('Top-level client mirror failed (non-blocking):', mirrorErr);
@@ -1027,8 +1054,7 @@ export default function ClientsPage() {
       // Auto-send welcome text with code if client has a phone
       if (clientInfo.phone.trim()) {
         const firstName = clientInfo.name.trim().split(' ')[0];
-        const agentNameStr = agentProfile.name || 'your agent';
-        const welcomeText = `Hey ${firstName}! ${agentNameStr} here. Download the AgentForLife app and use code ${code} to connect with me. ${CLIENT_APP_URL}`;
+        const welcomeText = (welcomeMessageOverride || '').trim() || buildWelcomeSms(firstName, clientCode);
         try {
           const token = await user.getIdToken();
           await fetch('/api/client/welcome-sms', {
@@ -1084,8 +1110,38 @@ export default function ClientsPage() {
       setFormError('Client was created, but the policy could not be saved. Open the client and add the policy manually.');
     } finally {
       setSubmitting(false);
+      setPendingSinglePdfCreation(null);
+      setShowSinglePdfSmsConfirm(false);
     }
-  }, [user, agentProfile]);
+  }, [user, refreshSummaries, buildWelcomeSms]);
+
+  const handleCreateClientAndPolicy = useCallback(async (
+    clientInfo: { name: string; email: string; phone: string; dateOfBirth: string },
+    appData: ExtractedApplicationData,
+  ) => {
+    if (!user || !clientInfo.name.trim()) return;
+
+    const payload: PendingSinglePdfCreation = {
+      clientInfo,
+      appData,
+      clientCode: generateClientCode(),
+    };
+
+    if (clientInfo.phone.trim() && shouldPromptBeforeSinglePdfWelcomeSms) {
+      const firstName = clientInfo.name.trim().split(' ')[0];
+      setSinglePdfSmsDraft(buildWelcomeSms(firstName, payload.clientCode));
+      setPendingSinglePdfCreation(payload);
+      setShowSinglePdfSmsConfirm(true);
+      return;
+    }
+
+    await executeCreateClientAndPolicy(payload);
+  }, [user, shouldPromptBeforeSinglePdfWelcomeSms, buildWelcomeSms, executeCreateClientAndPolicy]);
+
+  const handleConfirmSinglePdfCreate = useCallback(async () => {
+    if (!pendingSinglePdfCreation) return;
+    await executeCreateClientAndPolicy(pendingSinglePdfCreation, singlePdfSmsDraft);
+  }, [pendingSinglePdfCreation, singlePdfSmsDraft, executeCreateClientAndPolicy]);
 
   // ─── BOB Import Handlers ─────────────────────────────────
 
@@ -3019,6 +3075,51 @@ export default function ClientsPage() {
           onCreateClientAndPolicy={handleCreateClientAndPolicy}
           mode="client-and-policy"
         />
+      )}
+
+      {/* ── Single PDF Welcome SMS Confirmation ── */}
+      {showSinglePdfSmsConfirm && pendingSinglePdfCreation && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowSinglePdfSmsConfirm(false)}
+          />
+          <div className="relative bg-white rounded-[5px] shadow-2xl w-full max-w-xl border border-gray-200">
+            <div className="p-5 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-[#000000]">Confirm Welcome Text</h3>
+              <p className="text-sm text-[#707070] mt-1">
+                Creating this client will send the following text message.
+              </p>
+            </div>
+            <div className="p-5 space-y-3">
+              <textarea
+                value={singlePdfSmsDraft}
+                onChange={(e) => setSinglePdfSmsDraft(e.target.value)}
+                rows={5}
+                className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa] resize-y"
+              />
+              <p className="text-xs text-[#707070]">
+                You can edit this before sending. This template can also be changed in Settings.
+              </p>
+            </div>
+            <div className="p-5 pt-0 flex gap-3">
+              <button
+                onClick={() => setShowSinglePdfSmsConfirm(false)}
+                disabled={submitting}
+                className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors disabled:opacity-60"
+              >
+                Back
+              </button>
+              <button
+                onClick={handleConfirmSinglePdfCreate}
+                disabled={submitting}
+                className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors disabled:opacity-60"
+              >
+                {submitting ? 'Creating...' : 'Create Client & Send Text'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Flag At Risk Modal ── */}

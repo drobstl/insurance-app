@@ -28,6 +28,8 @@ export interface AgentProfile {
   anniversaryMessageCustom?: string;
   anniversaryMessageCustomTitle?: string;
   policyReviewAIEnabled?: boolean;
+  welcomeSmsTemplate?: string;
+  skipWelcomeSmsConfirmation?: boolean;
   onboardingComplete?: boolean;
   tipsSeen?: Record<string, boolean>;
   celebratedBadgeIds?: string[];
@@ -99,6 +101,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           anniversaryMessageCustom: data.anniversaryMessageCustom,
           anniversaryMessageCustomTitle: data.anniversaryMessageCustomTitle,
           policyReviewAIEnabled: data.policyReviewAIEnabled,
+          welcomeSmsTemplate: data.welcomeSmsTemplate,
+          skipWelcomeSmsConfirmation: data.skipWelcomeSmsConfirmation,
           onboardingComplete: data.onboardingComplete,
           tipsSeen: data.tipsSeen || {},
           celebratedBadgeIds: data.celebratedBadgeIds || [],

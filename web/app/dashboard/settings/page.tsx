@@ -197,6 +197,8 @@ export default function SettingsPage() {
         anniversaryMessageCustom: agentProfile.anniversaryMessageCustom || '',
         anniversaryMessageCustomTitle: agentProfile.anniversaryMessageCustomTitle || '',
         policyReviewAIEnabled: agentProfile.policyReviewAIEnabled ?? true,
+        welcomeSmsTemplate: agentProfile.welcomeSmsTemplate || '',
+        skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
       }, { merge: true });
 
       if (isFirstTimePhone) {
@@ -660,6 +662,58 @@ export default function SettingsPage() {
               ))}
             </div>
             <p className="text-xs text-[#707070] mt-1.5">Unless you change it, this is the default message clients send when they refer someone. Use the placeholders above; they&rsquo;re replaced with real names when sent.</p>
+          </div>
+
+          {/* Client Welcome Text */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Client Welcome Text</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[#000000] mb-1.5">Message Template</label>
+                <textarea
+                  value={agentProfile.welcomeSmsTemplate || ''}
+                  onChange={(e) => updateField('welcomeSmsTemplate', e.target.value)}
+                  placeholder="Hey {{firstName}}! {{agentName}} here. Download the AgentForLife app and use code {{code}} to connect with me. https://agentforlife.app/app"
+                  rows={4}
+                  className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa] resize-y"
+                />
+                <p className="text-xs text-[#707070] mt-1.5">
+                  Used for client welcome texts when you add a client (including single-PDF create).
+                  Leave blank to use the default message.
+                </p>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {['{{firstName}}', '{{code}}', '{{agentName}}'].map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center px-2 py-0.5 rounded bg-[#daf3f0] text-[#005851] text-xs font-medium"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-[#000000]">Skip Warning on Single-PDF Create</p>
+                  <p className="text-xs text-[#707070] mt-1">
+                    When on, creating a client from a single PDF auto-sends the welcome text immediately (no confirmation step).
+                  </p>
+                </div>
+                <button
+                  onClick={() => updateField('skipWelcomeSmsConfirmation', !(agentProfile.skipWelcomeSmsConfirmation ?? false))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
+                    (agentProfile.skipWelcomeSmsConfirmation ?? false) ? 'bg-[#44bbaa]' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
+                      (agentProfile.skipWelcomeSmsConfirmation ?? false) ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Holiday Cards */}
