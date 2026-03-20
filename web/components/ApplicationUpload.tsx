@@ -20,6 +20,7 @@ const BASE_BLOB_UPLOAD_TIMEOUT_MS = 25_000;
 const PARSE_TIMEOUT_MS = 120_000;
 const JOB_POLL_INTERVAL_MS = 1500;
 const DIRECT_PARSE_MAX_BYTES = 4 * 1024 * 1024;
+const MAX_BLOB_UPLOAD_TOTAL_MS = 75_000;
 
 interface IngestionJobStatusResponse {
   success: boolean;
@@ -85,21 +86,28 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       if (!useDirectParse) {
         setProcessingLabel('Uploading file...');
         const stopUploadProgress = startAutoProgress(setProcessingProgress, 10, 30, 2, 700);
+        const uploadStartedAt = Date.now();
         for (let attempt = 0; attempt < 2; attempt++) {
+          const remainingBudgetMs = MAX_BLOB_UPLOAD_TOTAL_MS - (Date.now() - uploadStartedAt);
+          if (remainingBudgetMs <= 0) break;
+          const attemptTimeoutMs = Math.min(blobUploadTimeoutMs, remainingBudgetMs);
           try {
             const blob = await withTimeout(
               upload(file.name, file, {
                 access: 'public',
                 handleUploadUrl: '/api/upload',
               }),
-              blobUploadTimeoutMs,
+              attemptTimeoutMs,
               'Upload timed out while sending file.',
             );
             blobUrl = blob.url;
             break;
           } catch (uploadErr) {
             if (isTimeoutError(uploadErr)) {
-              console.warn('[ApplicationUpload] Blob upload timed out, trying fallback path.');
+              console.warn('[ApplicationUpload] Blob upload timed out.');
+              if (attempt < 1) {
+                setProcessingLabel('Retrying upload...');
+              }
             }
             if (attempt < 1) continue;
           }
