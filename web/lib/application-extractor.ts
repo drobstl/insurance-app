@@ -11,6 +11,7 @@ interface ExtractionRunConfig {
 }
 
 const LARGE_PDF_THRESHOLD_BYTES = 5 * 1024 * 1024;
+const SMALL_PDF_THRESHOLD_BYTES = 2 * 1024 * 1024;
 const MIN_FAST_MODE_SIGNALS = 4;
 
 const SYSTEM_PROMPT = `You are an expert insurance application document parser. You extract structured data from insurance application PDFs by examining the full document directly.
@@ -151,7 +152,12 @@ export async function extractApplicationFields(
     return runExtractionAttempt(anthropic, pdfBase64, { maxTokens: 2048, maxRetries: 2 });
   }
 
-  return runExtractionAttempt(anthropic, pdfBase64, { maxTokens: 2048, maxRetries: 3 });
+  const isSmallPdf = typeof options.fileSizeBytes === 'number' && options.fileSizeBytes <= SMALL_PDF_THRESHOLD_BYTES;
+  if (isSmallPdf) {
+    return runExtractionAttempt(anthropic, pdfBase64, { maxTokens: 1400, maxRetries: 1 });
+  }
+
+  return runExtractionAttempt(anthropic, pdfBase64, { maxTokens: 1800, maxRetries: 2 });
 }
 
 async function runExtractionAttempt(
