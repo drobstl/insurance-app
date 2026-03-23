@@ -10,6 +10,9 @@ import 'server-only';
  * policy-review-ai.ts) import from here. When the voice needs to
  * change, change it here — nowhere else.
  *
+ * TODO(posthog): wire ai_voice_call_started / ai_voice_call_completed
+ * once a concrete AI voice runtime emits call lifecycle hooks.
+ *
  * Reference: AFL Voice Identity Document v2.0
  */
 

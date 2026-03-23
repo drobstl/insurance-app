@@ -1,7 +1,7 @@
 # CONTEXT.md — AgentForLife (AFL)
 
 > Drop this in the repo root. Read it before any strategic or architectural decision.
-> Last updated: March 16, 2026
+> Last updated: March 23, 2026
 
 ## What This Is
 
@@ -99,6 +99,7 @@ Standalone pricing remains for agents who come directly. Founding member migrati
 | Messaging | Linq (iMessage/SMS delivery) |
 | Billing | Stripe |
 | Auth | Currently Firebase Auth — migrating to Clerk for Closr AI unification |
+| Analytics | Firebase Analytics + PostHog (web dashboard product analytics/session replay/heatmaps) |
 
 ## AI Architecture
 
@@ -113,6 +114,7 @@ Standalone pricing remains for agents who come directly. Founding member migrati
 **Known Challenge:** Low activation among signups. Agents who signed up are not consistently using the platform. Root cause unknown — likely onboarding friction and/or the effort required to get client data into the system (which the Closr AI integration solves).
 
 **Recent fixes (March 2026, founding member feedback):**
+- Added: PostHog web dashboard instrumentation (client SDK + provider + App Router pageview tracking + auth identify/reset) with event coverage for client add/remove, conservation interactions, rewrite flow milestones, onboarding step completion, settings updates, and Patch usage. Client PII is explicitly excluded from event properties; unresolved server-side events are marked with TODO hooks.
 - Fixed: Client app session was lost on network errors, forcing code re-entry. Now retries and falls back to cached profile data; session only clears when the code itself is revoked.
 - Fixed: Mortgage Protection policies now prominently display coverage duration (e.g., "30 Years") as the hero metric in both the client app and dashboard, with dollar amounts secondary. The agent form now requires this field and explains it will appear in the client's app.
 - In progress: Ingestion v2 rebuild for PDF/CSV uploads using async job-based parsing (`/api/ingestion/v2/jobs`) to eliminate long blocking upload waits. Added stage timing metrics, deterministic-first parsing for delimited BOB files with AI fallback only when confidence is low, quality gates on client + server import/write paths (including API-level policy creation checks for ingestion-derived writes), a small-file direct parse fast-path, an estimated stage-based progress bar in the application upload modal, adaptive large-PDF extraction (fast first pass with automatic deeper fallback when signals are weak), and migration of large application uploads to signed URL uploads against the Firebase/GCS bucket to improve reliability over Blob. Added automatic best-effort CORS configuration for signed upload endpoints, an ingestion warm route to reduce first-request cold start, surfaced timing breakdowns in the upload UI for debugging latency by stage, tuned application extraction to use a strict <=4MB fast-first pass with single-pass fallback and stronger early-accept heuristics, and added a text-first application parser lane (`pdf-parse` -> AI text extraction) with automatic fallback to full PDF vision when text quality is low.

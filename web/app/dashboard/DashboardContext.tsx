@@ -6,6 +6,7 @@ import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import { isAdminEmail } from '../../lib/admin';
+import { identifyAgent, resetPostHog } from '../../lib/posthog';
 
 export interface AgentProfile {
   name?: string;
@@ -68,6 +69,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         setUser(currentUser);
         setLoading(false);
       } else {
+        resetPostHog();
         router.push('/login');
       }
     });
@@ -117,9 +119,29 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     fetchProfile();
   }, [fetchProfile]);
 
+  useEffect(() => {
+    if (!user) return;
+
+    identifyAgent(user.uid, {
+      email: user.email || undefined,
+      displayName: user.displayName || undefined,
+      agencyName: agentProfile.agencyName || undefined,
+      subscriptionStatus: agentProfile.subscriptionStatus || undefined,
+      onboardingComplete: agentProfile.onboardingComplete,
+      isFoundingMember: agentProfile.isFoundingMember,
+    });
+  }, [
+    user,
+    agentProfile.agencyName,
+    agentProfile.subscriptionStatus,
+    agentProfile.onboardingComplete,
+    agentProfile.isFoundingMember,
+  ]);
+
   const handleLogout = useCallback(async () => {
     try {
       await signOut(auth);
+      resetPostHog();
       router.push('/login');
     } catch (error) {
       console.error('Error signing out:', error);

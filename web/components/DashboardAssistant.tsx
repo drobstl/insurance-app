@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../app/dashboard/DashboardContext';
+import { captureEvent } from '../lib/posthog';
+import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 
 const MotionDiv = motion.div;
 
@@ -194,6 +196,7 @@ export default function DashboardAssistant() {
       if (!user || !text.trim() || streaming) return;
 
       const userMsg: Message = { role: 'user', content: text.trim() };
+      captureEvent(ANALYTICS_EVENTS.PATCH_MESSAGE_SENT, { message_length: text.trim().length });
       const newMessages = [...messages, userMsg];
       setMessages(newMessages);
       setInput('');
@@ -285,7 +288,15 @@ export default function DashboardAssistant() {
     <>
       {/* Floating mascot button */}
       <motion.button
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() =>
+          setOpen((prev) => {
+            const next = !prev;
+            if (next && messages.length === 0) {
+              captureEvent(ANALYTICS_EVENTS.PATCH_CONVERSATION_STARTED, { entry: 'floating_button' });
+            }
+            return next;
+          })
+        }
         className="fixed bottom-5 right-5 z-50 w-11 h-11 rounded-full flex items-center justify-center bg-transparent border border-gray-200/80 shadow-[0_4px_12px_rgba(0,0,0,0.12)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.15)] p-0 transition-shadow"
         animate={{ rotate: open ? 0 : tiltDeg }}
         transition={{ rotate: { duration: 0.35, ease: 'easeInOut' } }}
