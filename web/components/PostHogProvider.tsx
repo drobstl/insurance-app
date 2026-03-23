@@ -4,7 +4,8 @@ import { Suspense, useEffect } from 'react';
 import posthog from 'posthog-js';
 import { PostHogProvider as PostHogReactProvider } from 'posthog-js/react';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { initPostHog } from '../lib/posthog';
+import { captureEvent, initPostHog } from '../lib/posthog';
+import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 
 function PostHogPageView() {
   const pathname = usePathname();
@@ -28,6 +29,9 @@ function PostHogPageView() {
 export default function PostHogProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     initPostHog();
+    captureEvent(ANALYTICS_EVENTS.POSTHOG_CLIENT_BOOT, {
+      path: window.location.pathname,
+    });
   }, []);
 
   return (

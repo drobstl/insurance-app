@@ -14,6 +14,7 @@ export const ANALYTICS_EVENTS = {
   SETTINGS_UPDATED: 'settings_updated',
   PATCH_CONVERSATION_STARTED: 'patch_conversation_started',
   PATCH_MESSAGE_SENT: 'patch_message_sent',
+  POSTHOG_CLIENT_BOOT: 'posthog_client_boot',
 } as const;
 
 export type AnalyticsEventName =
@@ -65,6 +66,9 @@ export type AnalyticsEventPropertiesMap = {
   } & GenericEventProperties;
   patch_message_sent: {
     message_length?: number;
+  } & GenericEventProperties;
+  posthog_client_boot: {
+    path?: string;
   } & GenericEventProperties;
 };
 
