@@ -77,6 +77,9 @@ export async function POST(req: NextRequest) {
       .collection('referrals')
       .add(referralData);
 
+    // TODO(posthog): fire "referral_created" from this backend path once
+    // server-side PostHog capture is wired for API routes.
+
     return NextResponse.json({
       success: true,
       referralId: referralRef.id,

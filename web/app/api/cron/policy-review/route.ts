@@ -362,6 +362,9 @@ export async function GET(req: NextRequest) {
                 updatedAt: FieldValue.serverTimestamp(),
               });
 
+            // TODO(posthog): fire "anniversary_rewrite_initiated" here when
+            // server-side PostHog capture is available for cron handlers.
+
             // Mark policy as notified
             await db.doc(hit.policyPath).update({ policyReviewNotifiedAt: now.toISOString() });
 

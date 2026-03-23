@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { captureEvent } from '../lib/posthog';
+import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 
 interface OnboardingOverlayProps {
   agentUid: string;
@@ -88,6 +90,7 @@ export default function OnboardingOverlay({
   };
 
   const handleStepAction = (step: (typeof STEPS)[number]) => {
+    captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_COMPLETED, { step_name: step.id });
     markStepDone(step.id);
 
     if (step.action === 'finish') {

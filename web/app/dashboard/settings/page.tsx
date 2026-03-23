@@ -11,6 +11,8 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
+import { captureEvent } from '../../../lib/posthog';
+import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 
 type Tab = 'profile' | 'branding' | 'referral-ai' | 'account';
 
@@ -212,6 +214,10 @@ export default function SettingsPage() {
           // non-blocking: settings still saved
         }
       }
+
+      captureEvent(ANALYTICS_EVENTS.SETTINGS_UPDATED, {
+        setting_changed: activeTab,
+      });
 
       setSaveMessage({ type: 'success', text: 'Settings saved successfully.' });
       setTimeout(() => setSaveMessage(null), 3000);
@@ -1378,6 +1384,7 @@ function InviteAgentsCard() {
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(inviteUrl);
+      captureEvent(ANALYTICS_EVENTS.REFERRAL_LINK_SHARED, { channel: 'copy_invite_link' });
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch { /* fallback */ }

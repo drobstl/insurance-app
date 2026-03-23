@@ -30,6 +30,8 @@ import {
   daysUntilAnniversary,
 } from '../../../lib/policyUtils';
 import { isTimeoutError, withTimeout } from '../../../lib/timeout';
+import { captureEvent } from '../../../lib/posthog';
+import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 
 // ─── Constants ─────────────────────────────────────────────
 
@@ -802,6 +804,7 @@ export default function ClientsPage() {
         };
         if (formData.dateOfBirth) newClient.dateOfBirth = formData.dateOfBirth;
         const docRef = await addDoc(collection(db, 'agents', user.uid, 'clients'), newClient);
+        captureEvent(ANALYTICS_EVENTS.CLIENT_ADDED, { method: 'manual' });
 
         setFormSuccess('Client added!');
 
@@ -892,6 +895,7 @@ export default function ClientsPage() {
       const token = await user.getIdToken();
       await apiDeletePolicy(token, deleteConfirmClient.id);
       await deleteDoc(doc(db, 'agents', user.uid, 'clients', deleteConfirmClient.id));
+      captureEvent(ANALYTICS_EVENTS.CLIENT_REMOVED, {});
       // Also delete top-level client doc and client code index
       try {
         const deletes: Promise<void>[] = [deleteDoc(doc(db, 'clients', deleteConfirmClient.id))];
@@ -1060,6 +1064,7 @@ export default function ClientsPage() {
       if (clientInfo.dateOfBirth) newClient.dateOfBirth = clientInfo.dateOfBirth;
 
       const docRef = await addDoc(collection(db, 'agents', user.uid, 'clients'), newClient);
+      captureEvent(ANALYTICS_EVENTS.CLIENT_ADDED, { method: 'pdf_parse' });
 
       // Mirror to top-level collections for the mobile app (non-blocking)
       try {
@@ -1624,6 +1629,11 @@ export default function ClientsPage() {
 
       const clientCount = allCreated.length;
       const policyCount = serverPolicyCount;
+      if (clientCount > 0) {
+        captureEvent(ANALYTICS_EVENTS.CLIENT_ADDED, { method: 'csv_import', imported_count: clientCount });
+        // TODO(posthog): when BOB imports are explicitly differentiated in UI/API,
+        // fire client_added with method: "book_of_business".
+      }
       const parts = [`${clientCount} client${clientCount !== 1 ? 's' : ''}`];
       if (policyCount > 0) parts.push(`${policyCount} ${policyCount !== 1 ? 'policies' : 'policy'}`);
       setImportSuccess(`Successfully imported ${parts.join(' and ')}!`);
@@ -1682,6 +1692,7 @@ export default function ClientsPage() {
     const message = `Hey ${firstName}! Download the AgentForLife app and use code ${client.clientCode} to connect with me. ${CLIENT_APP_URL}`;
     try {
       await navigator.clipboard.writeText(message);
+      captureEvent(ANALYTICS_EVENTS.REFERRAL_LINK_SHARED, { channel: 'client_code_copy' });
       setCopiedClientId(client.id);
       setTimeout(() => setCopiedClientId(null), 2000);
     } catch {
@@ -1691,6 +1702,7 @@ export default function ClientsPage() {
       textArea.select();
       document.execCommand('copy');
       document.body.removeChild(textArea);
+      captureEvent(ANALYTICS_EVENTS.REFERRAL_LINK_SHARED, { channel: 'client_code_copy' });
       setCopiedClientId(client.id);
       setTimeout(() => setCopiedClientId(null), 2000);
     }

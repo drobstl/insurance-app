@@ -5,6 +5,8 @@ import { collection, doc, onSnapshot, query, orderBy, updateDoc, Timestamp } fro
 import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
 import SectionTipCard from '../../../components/SectionTipCard';
+import { captureEvent } from '../../../lib/posthog';
+import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 
 interface ConservationMessageUI {
   role: 'client' | 'agent-ai' | 'agent-manual';
@@ -121,6 +123,7 @@ export default function ConservationPage() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ alertId }),
       });
+      captureEvent(ANALYTICS_EVENTS.CONSERVATION_CALL_INITIATED, { source: 'manual_outreach' });
     } catch (err) {
       console.error('Error sending outreach:', err);
     }
@@ -161,7 +164,10 @@ export default function ConservationPage() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ alertId, body: manualMessage.trim() }),
       });
-      if (res.ok) setManualMessage('');
+      if (res.ok) {
+        setManualMessage('');
+        captureEvent(ANALYTICS_EVENTS.CONSERVATION_CALL_INITIATED, { source: 'manual_message' });
+      }
     } catch (err) {
       console.error('Error sending message:', err);
     } finally {
@@ -460,7 +466,17 @@ export default function ConservationPage() {
 
                     <div
                       className="p-4 cursor-pointer"
-                      onClick={() => { setExpandedAlert(isExpanded ? null : alert.id); setManualMessage(''); }}
+                      onClick={() => {
+                        if (!isExpanded) {
+                          captureEvent(ANALYTICS_EVENTS.CONSERVATION_ALERT_VIEWED, {
+                            status: alert.status,
+                            priority: alert.priority,
+                            source: alert.source,
+                          });
+                        }
+                        setExpandedAlert(isExpanded ? null : alert.id);
+                        setManualMessage('');
+                      }}
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">

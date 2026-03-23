@@ -5,6 +5,8 @@ import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase
 import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
 import SectionTipCard from '../../../components/SectionTipCard';
+import { captureEvent } from '../../../lib/posthog';
+import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 
 interface ReviewMessage {
   role: 'client' | 'agent-ai' | 'agent-manual';
@@ -120,6 +122,7 @@ export default function PolicyReviewsPage() {
       await updateDoc(doc(db, 'agents', user.uid, 'policyReviews', reviewId), {
         status: 'booked',
       });
+      captureEvent(ANALYTICS_EVENTS.POLICY_REVIEW_COMPLETED, { completion_status: 'booked' });
     } catch (err) {
       console.error('Error marking as booked:', err);
     }
@@ -131,6 +134,7 @@ export default function PolicyReviewsPage() {
       await updateDoc(doc(db, 'agents', user.uid, 'policyReviews', reviewId), {
         status: 'closed',
       });
+      captureEvent(ANALYTICS_EVENTS.POLICY_REVIEW_COMPLETED, { completion_status: 'closed' });
     } catch (err) {
       console.error('Error marking as closed:', err);
     }
@@ -245,7 +249,13 @@ export default function PolicyReviewsPage() {
           {filteredReviews.map((review) => (
             <div key={review.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <button
-                onClick={() => setExpandedReview(expandedReview === review.id ? null : review.id)}
+                onClick={() => {
+                  const opening = expandedReview !== review.id;
+                  if (opening) {
+                    captureEvent(ANALYTICS_EVENTS.POLICY_REVIEW_STARTED, { current_status: review.status });
+                  }
+                  setExpandedReview(opening ? review.id : null);
+                }}
                 className="w-full p-4 flex items-center justify-between gap-3 hover:bg-gray-50 transition-colors text-left"
               >
                 <div className="flex items-center gap-3 min-w-0">
