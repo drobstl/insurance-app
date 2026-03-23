@@ -28,9 +28,14 @@ export function initPostHog(): void {
 
   const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
   if (!apiKey) return;
+  const configuredHost = process.env.NEXT_PUBLIC_POSTHOG_HOST;
+  const resolvedApiHost =
+    !configuredHost || configuredHost.includes('posthog.com')
+      ? '/ingest'
+      : configuredHost;
 
   const config = {
-    api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
+    api_host: resolvedApiHost,
     capture_pageview: false,
     capture_pageleave: true,
     enable_recording: true,
