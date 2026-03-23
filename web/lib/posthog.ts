@@ -29,13 +29,15 @@ export function initPostHog(): void {
   const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
   if (!apiKey) return;
 
-  posthog.init(apiKey, {
+  const config = {
     api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
     capture_pageview: false,
     capture_pageleave: true,
     enable_recording: true,
     enable_heatmaps: true,
-  });
+  } as unknown as Parameters<typeof posthog.init>[1];
+
+  posthog.init(apiKey, config);
 
   hasInitialized = true;
 }
