@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useId } from 'react';
 import { upload } from '@vercel/blob/client';
 import type { ExtractedApplicationData, ParseApplicationResponse, Beneficiary } from '../lib/types';
 import { isTimeoutError, withTimeout } from '../lib/timeout';
@@ -18,6 +18,9 @@ interface ApplicationUploadProps {
 type Stage = 'upload' | 'processing' | 'review' | 'error';
 const PARSE_TIMEOUT_MS = 120_000;
 const JOB_POLL_INTERVAL_MS = 1500;
+const JOB_STATUS_TIMEOUT_MS = 8_000;
+const JOB_RUN_TRIGGER_TIMEOUT_MS = 10_000;
+const MAX_JOB_RUN_TRIGGERS = 3;
 const DIRECT_PARSE_MAX_BYTES = 4 * 1024 * 1024;
 const MAX_RELIABLE_APPLICATION_FILE_BYTES = 13 * 1024 * 1024;
 const GCS_UPLOAD_TIMEOUT_MS = 120_000;
@@ -58,6 +61,8 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
   const [processingLabel, setProcessingLabel] = useState('Preparing file...');
   const [timingSummary, setTimingSummary] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isProcessingRef = useRef(false);
+  const fileInputId = useId();
 
   // Editable client fields (only used in client-and-policy mode)
   const [clientFields, setClientFields] = useState({
@@ -75,15 +80,41 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
     fetch('/api/ingestion/v2/warm', { cache: 'no-store', keepalive: true }).catch(() => {});
   }, []);
 
+  const triggerIngestionRun = useCallback(async (jobId: string): Promise<boolean> => {
+    for (let attempt = 0; attempt < MAX_JOB_RUN_TRIGGERS; attempt++) {
+      try {
+        const res = await fetch(`/api/ingestion/v2/jobs/${jobId}/run`, {
+          method: 'POST',
+          keepalive: true,
+          signal: AbortSignal.timeout(JOB_RUN_TRIGGER_TIMEOUT_MS),
+        });
+        if (res.ok) return true;
+      } catch {
+        // Retry below on network/timeout errors.
+      }
+
+      if (attempt < MAX_JOB_RUN_TRIGGERS - 1) {
+        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+      }
+    }
+
+    return false;
+  }, []);
+
   const processFile = useCallback(async (file: File) => {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
       setErrorMessage('Please upload a PDF file.');
       setStage('error');
+      isProcessingRef.current = false;
       return;
     }
     if (file.size > MAX_RELIABLE_APPLICATION_FILE_BYTES) {
       setErrorMessage('File is too large. Maximum size is 13MB.');
       setStage('error');
+      isProcessingRef.current = false;
       return;
     }
 
@@ -194,19 +225,20 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
           throw new Error(created.error || `Failed to start parsing job (${createRes.status}).`);
         }
 
-        // Kick off server-side processing in a separate request so the UI can poll status.
-        fetch(`/api/ingestion/v2/jobs/${created.job.id}/run`, {
-          method: 'POST',
-          keepalive: true,
-        }).catch(() => {});
+        // Kick off server-side processing and fail fast if we cannot trigger execution.
+        const runStarted = await triggerIngestionRun(created.job.id);
+        if (!runStarted) {
+          throw new Error('Unable to start parsing job. Please retry.');
+        }
 
         const startedAt = Date.now();
-        let retriggered = false;
+        let retriggerCount = 0;
         while (Date.now() - startedAt < PARSE_TIMEOUT_MS) {
           await new Promise((r) => setTimeout(r, JOB_POLL_INTERVAL_MS));
 
           const statusRes = await fetch(`/api/ingestion/v2/jobs/${created.job.id}`, {
             cache: 'no-store',
+            signal: AbortSignal.timeout(JOB_STATUS_TIMEOUT_MS),
           });
           const statusBody = (await statusRes.json()) as IngestionJobStatusResponse;
 
@@ -233,14 +265,14 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
             throw new Error(statusBody.job.error || 'Failed to parse the application.');
           }
 
-          if (statusBody.job.status === 'queued' && !retriggered) {
+          if (statusBody.job.status === 'queued' && retriggerCount < MAX_JOB_RUN_TRIGGERS) {
             setProcessingLabel('Queued...');
             setProcessingProgress((p) => Math.max(p, 50));
-            retriggered = true;
-            fetch(`/api/ingestion/v2/jobs/${created.job.id}/run`, {
-              method: 'POST',
-              keepalive: true,
-            }).catch(() => {});
+            retriggerCount += 1;
+            const retriggered = await triggerIngestionRun(created.job.id);
+            if (!retriggered) {
+              throw new Error('Parser queue retry failed. Please retry.');
+            }
           } else if (statusBody.job.status === 'processing') {
             setProcessingLabel('Extracting data...');
             const elapsed = Date.now() - startedAt;
@@ -343,8 +375,10 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       }
       setErrorMessage(message);
       setStage('error');
+    } finally {
+      isProcessingRef.current = false;
     }
-  }, [mode]);
+  }, [mode, triggerIngestionRun]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -430,14 +464,13 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
               onDrop={handleDrop}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
-              onClick={() => fileInputRef.current?.click()}
               className={`border-2 border-dashed rounded-[5px] p-10 text-center cursor-pointer transition-all duration-200 ${
                 dragActive
                   ? 'border-[#0099FF] bg-[#0099FF]/5'
                   : 'border-gray-300 hover:border-[#0099FF] hover:bg-gray-50'
               }`}
             >
-              <div className="flex flex-col items-center gap-3">
+              <label htmlFor={fileInputId} className="flex flex-col items-center gap-3 cursor-pointer">
                 <div className="w-14 h-14 bg-[#0099FF]/10 rounded-[5px] flex items-center justify-center">
                   <svg className="w-7 h-7 text-[#0099FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -453,8 +486,9 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
                       : 'Drag & drop or click to browse. Max 13MB.'}
                   </p>
                 </div>
-              </div>
+              </label>
               <input
+                id={fileInputId}
                 ref={fileInputRef}
                 type="file"
                 accept=".pdf,application/pdf"

@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
     const activatedSnap = await db
       .collection('agents')
       .where('membershipTier', '==', 'founding')
+      .limit(51)
       .get();
     if (activatedSnap.size >= 50) {
       return NextResponse.json({ activated: false, reason: 'founding_full' });

@@ -11,6 +11,8 @@ import DashboardAssistant from '../../components/DashboardAssistant';
 import DashboardTicker from '../../components/DashboardTicker';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
 
+const FOUNDING_ACTIVATION_TIMEOUT_MS = 12000;
+
 function SubscriptionGate({ children }: { children: React.ReactNode }) {
   const { user, loading, agentProfile, handleLogout, refreshProfile } = useDashboard();
   const router = useRouter();
@@ -24,22 +26,34 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
 
     activationAttemptedForUserRef.current = user.uid;
     let cancelled = false;
+    const failSafeTimeout = window.setTimeout(() => {
+      if (!cancelled) {
+        console.warn('Founding activation check timed out (UI fail-safe).');
+        setActivatingFounding(false);
+      }
+    }, FOUNDING_ACTIVATION_TIMEOUT_MS + 1000);
 
     const tryFoundingActivation = async () => {
       setActivatingFounding(true);
+      let requestTimeout: ReturnType<typeof setTimeout> | null = null;
       try {
         const token = await user.getIdToken();
+        const controller = new AbortController();
+        requestTimeout = setTimeout(() => controller.abort(), FOUNDING_ACTIVATION_TIMEOUT_MS);
         const res = await fetch('/api/founding-member/activate', {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         });
         const result = await res.json().catch(() => ({}));
         if (res.ok && result?.activated) {
           await refreshProfile();
         }
-      } catch {
-        // No-op: if activation fails, normal subscribe flow remains available.
+      } catch (error) {
+        console.error('Founding activation check failed:', error);
       } finally {
+        if (requestTimeout) clearTimeout(requestTimeout);
+        clearTimeout(failSafeTimeout);
         if (!cancelled) setActivatingFounding(false);
       }
     };
@@ -47,6 +61,7 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
     tryFoundingActivation();
     return () => {
       cancelled = true;
+      clearTimeout(failSafeTimeout);
     };
   }, [user, loading, agentProfile.subscriptionStatus, refreshProfile]);
 
