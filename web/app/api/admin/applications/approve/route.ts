@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const normalizedEmail = applicantEmail.trim().toLowerCase();
     const firestore = getAdminFirestore();
     const appRef = firestore.collection('foundingMemberApplications').doc(applicationId);
 
@@ -48,14 +49,33 @@ export async function POST(req: NextRequest) {
     }
 
     // If the applicant already has an account, mark them as a founding member
-    const agentsSnapshot = await firestore
+    let agentsSnapshot = await firestore
       .collection('agents')
-      .where('email', '==', applicantEmail)
+      .where('emailLower', '==', normalizedEmail)
       .limit(1)
       .get();
 
+    if (agentsSnapshot.empty) {
+      agentsSnapshot = await firestore
+        .collection('agents')
+        .where('email', '==', normalizedEmail)
+        .limit(1)
+        .get();
+    }
+
+    if (agentsSnapshot.empty) {
+      agentsSnapshot = await firestore
+        .collection('agents')
+        .where('email', '==', applicantEmail)
+        .limit(1)
+        .get();
+    }
+
     if (!agentsSnapshot.empty) {
       await agentsSnapshot.docs[0].ref.update({
+        emailLower: normalizedEmail,
+        subscriptionStatus: 'active',
+        membershipTier: 'founding',
         isFoundingMember: true,
         foundingMemberApprovedAt: new Date(),
       });
@@ -66,7 +86,7 @@ export async function POST(req: NextRequest) {
     const firstName = applicantName.split(' ')[0];
     await resend.emails.send({
       from: 'Daniel Roberts — AgentForLife™ <support@agentforlife.app>',
-      to: applicantEmail,
+      to: normalizedEmail,
       subject: "You're in — Welcome to AgentForLife Founding Members",
       html: `
         <div style="font-family: 'Montserrat', Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #2D3748; line-height: 1.7;">
@@ -78,7 +98,7 @@ export async function POST(req: NextRequest) {
 
           <ol style="font-size: 16px; padding-left: 20px;">
             <li style="margin-bottom: 8px;"><strong style="color: #0D4D4D;">Open this on your laptop or desktop.</strong> AgentForLife is a dashboard-first system — your phone won't give you the full experience. Go to <a href="https://agentforlife.app/signup" style="color: #0D4D4D; font-weight: 600;">agentforlife.app/signup</a> and create your account</li>
-            <li style="margin-bottom: 8px;"><strong style="color: #0D4D4D;">Important:</strong> Use this same email address (<strong>${applicantEmail}</strong>) when you sign up so we can match your account</li>
+            <li style="margin-bottom: 8px;"><strong style="color: #0D4D4D;">Important:</strong> Use this same email address (<strong>${normalizedEmail}</strong>) when you sign up so we can match your account</li>
             <li style="margin-bottom: 8px;">You'll be automatically activated as a founding member — no credit card, no checkout</li>
             <li style="margin-bottom: 8px;">Watch the tutorial, set up your profile with your photo, contact info, and business card</li>
             <li style="margin-bottom: 8px;">Add a few real clients and have them download the app</li>

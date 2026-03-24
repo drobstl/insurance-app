@@ -24,7 +24,7 @@ export default function ManageAgentsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
-  const [actionResult, setActionResult] = useState<{ agentId: string; type: 'export' | 'delete'; message: string } | null>(null);
+  const [actionResult, setActionResult] = useState<{ agentId: string; type: 'export' | 'delete' | 'founding'; message: string } | null>(null);
 
   const fetchAgents = useCallback(async () => {
     if (!user) return;
@@ -134,6 +134,39 @@ export default function ManageAgentsPage() {
     }
   };
 
+  const handleForceFounding = async (agentEmail: string, actionKey: string) => {
+    if (!user || !agentEmail) return;
+    setActionLoading(actionKey);
+    setActionResult(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/admin/founding/force-activate', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: agentEmail }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Force activation failed');
+      setActionResult({
+        agentId: actionKey,
+        type: 'founding',
+        message: data.message || 'Founding access activated.',
+      });
+      await fetchAgents();
+    } catch (e) {
+      setActionResult({
+        agentId: actionKey,
+        type: 'founding',
+        message: e instanceof Error ? e.message : 'Force activation failed',
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const filtered = agents.filter((a) => {
     const q = search.toLowerCase();
     return a.name.toLowerCase().includes(q) || a.email.toLowerCase().includes(q);
@@ -192,7 +225,7 @@ export default function ManageAgentsPage() {
                 </thead>
                 <tbody className="divide-y divide-[#e5e5e5]">
                   {filtered.map((agent) => (
-                    <tr key={agent.id} className="hover:bg-[#F8F9FA]">
+                    <tr key={agent.id || agent.email} className="hover:bg-[#F8F9FA]">
                       <td className="px-4 py-3">
                         <div className="text-sm font-medium text-[#0D4D4D]">{agent.name}</div>
                         <div className="text-xs text-[#707070]">{agent.email}</div>
@@ -212,8 +245,19 @@ export default function ManageAgentsPage() {
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
+                            onClick={() => handleForceFounding(agent.email, agent.id || agent.email)}
+                            disabled={actionLoading === (agent.id || agent.email)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#a158ff] hover:bg-[#f4ecff] disabled:opacity-50 text-[#7b3aed] text-xs font-semibold rounded-[5px] transition-colors"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            Force Founding
+                          </button>
+
+                          <button
                             onClick={() => handleExport(agent.id)}
-                            disabled={actionLoading === agent.id}
+                            disabled={actionLoading === (agent.id || agent.email)}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#d0d0d0] hover:bg-[#f8f8f8] disabled:opacity-50 text-[#0D4D4D] text-xs font-semibold rounded-[5px] transition-colors"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -233,10 +277,10 @@ export default function ManageAgentsPage() {
                               />
                               <button
                                 onClick={() => handleDelete(agent.id)}
-                                disabled={deleteConfirmText !== 'DELETE' || actionLoading === agent.id}
+                                disabled={deleteConfirmText !== 'DELETE' || actionLoading === (agent.id || agent.email)}
                                 className="px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-[5px] transition-colors"
                               >
-                                {actionLoading === agent.id ? 'Deleting...' : 'Confirm'}
+                                {actionLoading === (agent.id || agent.email) ? 'Deleting...' : 'Confirm'}
                               </button>
                               <button
                                 onClick={() => { setConfirmDelete(null); setDeleteConfirmText(''); }}
@@ -248,7 +292,7 @@ export default function ManageAgentsPage() {
                           ) : (
                             <button
                               onClick={() => setConfirmDelete(agent.id)}
-                              disabled={actionLoading === agent.id}
+                              disabled={actionLoading === (agent.id || agent.email)}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 hover:bg-red-50 disabled:opacity-50 text-red-600 text-xs font-semibold rounded-[5px] transition-colors"
                             >
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -258,8 +302,8 @@ export default function ManageAgentsPage() {
                             </button>
                           )}
                         </div>
-                        {actionResult?.agentId === agent.id && (
-                          <p className={`text-xs mt-1.5 ${actionResult.type === 'delete' ? 'text-red-600' : 'text-green-600'}`}>
+                        {actionResult?.agentId === (agent.id || agent.email) && (
+                          <p className={`text-xs mt-1.5 ${actionResult.type === 'delete' ? 'text-red-600' : actionResult.type === 'founding' ? 'text-[#7b3aed]' : 'text-green-600'}`}>
                             {actionResult.message}
                           </p>
                         )}

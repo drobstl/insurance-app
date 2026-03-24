@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
     if (!email) {
       return NextResponse.json({ activated: false, reason: 'no_email' }, { status: 400 });
     }
+    const normalizedEmail = email.trim().toLowerCase();
 
     const db = getAdminFirestore();
 
@@ -27,15 +28,51 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ activated: true, alreadyActive: true });
     }
 
-    // Look for an approved founding member application with this email
-    const fmSnapshot = await db
+    // Look for an approved founding member application with this email.
+    // We check both normalized and legacy fields for backward compatibility.
+    let hasApprovedApplication = false;
+
+    let fmSnapshot = await db
       .collection('foundingMemberApplications')
-      .where('email', '==', email)
+      .where('emailLower', '==', normalizedEmail)
       .where('status', '==', 'approved')
       .limit(1)
       .get();
+    hasApprovedApplication = !fmSnapshot.empty;
 
-    if (fmSnapshot.empty) {
+    if (!hasApprovedApplication) {
+      fmSnapshot = await db
+        .collection('foundingMemberApplications')
+        .where('email', '==', normalizedEmail)
+        .where('status', '==', 'approved')
+        .limit(1)
+        .get();
+      hasApprovedApplication = !fmSnapshot.empty;
+    }
+
+    if (!hasApprovedApplication) {
+      fmSnapshot = await db
+        .collection('foundingMemberApplications')
+        .where('email', '==', email)
+        .where('status', '==', 'approved')
+        .limit(1)
+        .get();
+      hasApprovedApplication = !fmSnapshot.empty;
+    }
+
+    if (!hasApprovedApplication) {
+      const approvedSnapshot = await db
+        .collection('foundingMemberApplications')
+        .where('status', '==', 'approved')
+        .limit(100)
+        .get();
+      hasApprovedApplication = approvedSnapshot.docs.some((doc) => {
+        const value = doc.data().email;
+        return typeof value === 'string' && value.trim().toLowerCase() === normalizedEmail;
+      });
+    }
+
+    if (!hasApprovedApplication) {
       return NextResponse.json({ activated: false, reason: 'no_approved_application' });
     }
 
@@ -51,6 +88,7 @@ export async function POST(req: NextRequest) {
     // Activate the founding member — no Stripe, no credit card
     await db.collection('agents').doc(userId).set(
       {
+        emailLower: normalizedEmail,
         subscriptionStatus: 'active',
         isFoundingMember: true,
         foundingMemberApprovedAt: new Date(),

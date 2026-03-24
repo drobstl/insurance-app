@@ -15,6 +15,13 @@ export const ANALYTICS_EVENTS = {
   PATCH_CONVERSATION_STARTED: 'patch_conversation_started',
   PATCH_MESSAGE_SENT: 'patch_message_sent',
   POSTHOG_CLIENT_BOOT: 'posthog_client_boot',
+  DASHBOARD_LOAD_SLOW: 'dashboard_load_slow',
+  API_REQUEST_FAILED: 'api_request_failed',
+  EMPTY_STATE_SEEN: 'empty_state_seen',
+  ACTION_FAILED: 'action_failed',
+  DASHBOARD_EXIT_AFTER_ERROR: 'dashboard_exit_after_error',
+  DASHBOARD_EXIT_AFTER_EMPTY_STATE: 'dashboard_exit_after_empty_state',
+  CHURN_RISK_FLAGGED: 'churn_risk_flagged',
 } as const;
 
 export type AnalyticsEventName =
@@ -69,6 +76,39 @@ export type AnalyticsEventPropertiesMap = {
   } & GenericEventProperties;
   posthog_client_boot: {
     path?: string;
+  } & GenericEventProperties;
+  dashboard_load_slow: {
+    path?: string;
+    load_time_ms?: number;
+    threshold_ms?: number;
+  } & GenericEventProperties;
+  api_request_failed: {
+    endpoint?: string;
+    status_code?: number;
+    duration_ms?: number;
+    method?: string;
+  } & GenericEventProperties;
+  empty_state_seen: {
+    area?: string;
+    context?: string;
+  } & GenericEventProperties;
+  action_failed: {
+    action?: string;
+    surface?: string;
+    reason?: string;
+  } & GenericEventProperties;
+  dashboard_exit_after_error: {
+    path?: string;
+    session_duration_ms?: number;
+  } & GenericEventProperties;
+  dashboard_exit_after_empty_state: {
+    path?: string;
+    session_duration_ms?: number;
+  } & GenericEventProperties;
+  churn_risk_flagged: {
+    path?: string;
+    risk_reason?: string;
+    session_duration_ms?: number;
   } & GenericEventProperties;
 };
 

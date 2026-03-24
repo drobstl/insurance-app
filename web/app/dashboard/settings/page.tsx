@@ -223,6 +223,11 @@ export default function SettingsPage() {
       setTimeout(() => setSaveMessage(null), 3000);
     } catch (err) {
       console.error('Save error:', err);
+      captureEvent(ANALYTICS_EVENTS.ACTION_FAILED, {
+        action: 'save_settings',
+        surface: 'settings',
+        reason: 'save_failed',
+      });
       setSaveMessage({ type: 'error', text: 'Failed to save settings. Please try again.' });
     } finally {
       setSaving(false);

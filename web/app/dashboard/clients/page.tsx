@@ -451,6 +451,8 @@ export default function ClientsPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importModalScrollRef = useRef<HTMLDivElement>(null);
+  const emptyClientsStateTrackedRef = useRef(false);
+  const emptyClientSearchTrackedRef = useRef<string | null>(null);
   const welcomeSmsTemplate = (agentProfile.welcomeSmsTemplate || '').trim() || DEFAULT_WELCOME_SMS_TEMPLATE;
   const shouldPromptBeforeSinglePdfWelcomeSms = !(agentProfile.skipWelcomeSmsConfirmation ?? false);
 
@@ -711,6 +713,40 @@ export default function ClientsPage() {
     return filteredClients.slice(start, start + PAGE_SIZE);
   }, [filteredClients, currentPage]);
 
+  useEffect(() => {
+    if (clientsLoading) return;
+    if (clients.length === 0 && !emptyClientsStateTrackedRef.current) {
+      captureEvent(ANALYTICS_EVENTS.EMPTY_STATE_SEEN, {
+        area: 'clients_list',
+      });
+      emptyClientsStateTrackedRef.current = true;
+      return;
+    }
+    if (clients.length > 0) {
+      emptyClientsStateTrackedRef.current = false;
+    }
+  }, [clientsLoading, clients.length]);
+
+  useEffect(() => {
+    if (clientsLoading) return;
+    const normalizedSearch = searchQuery.trim().toLowerCase();
+    if (
+      normalizedSearch &&
+      filteredClients.length === 0 &&
+      emptyClientSearchTrackedRef.current !== normalizedSearch
+    ) {
+      captureEvent(ANALYTICS_EVENTS.EMPTY_STATE_SEEN, {
+        area: 'clients_search',
+        context: 'no_results',
+      });
+      emptyClientSearchTrackedRef.current = normalizedSearch;
+      return;
+    }
+    if (!normalizedSearch || filteredClients.length > 0) {
+      emptyClientSearchTrackedRef.current = null;
+    }
+  }, [clientsLoading, filteredClients.length, searchQuery]);
+
   useEffect(() => { setCurrentPage(1); }, [searchQuery, sortKey, sortDir]);
 
   const handleSort = (key: SortKey) => {
@@ -881,6 +917,11 @@ export default function ClientsPage() {
       }
     } catch (err) {
       console.error('Error saving client:', err);
+      captureEvent(ANALYTICS_EVENTS.ACTION_FAILED, {
+        action: editingClient ? 'update_client' : 'create_client',
+        surface: 'clients',
+        reason: 'save_failed',
+      });
       setFormError('Failed to save client. Please try again.');
     } finally {
       setSubmitting(false);
@@ -911,6 +952,11 @@ export default function ClientsPage() {
       setDeleteConfirmClient(null);
     } catch (err) {
       console.error('Error deleting client:', err);
+      captureEvent(ANALYTICS_EVENTS.ACTION_FAILED, {
+        action: 'delete_client',
+        surface: 'clients',
+        reason: 'delete_failed',
+      });
     } finally {
       setDeletingClient(false);
     }
@@ -3327,4 +3373,3 @@ export default function ClientsPage() {
     </div>
   );
 }
-

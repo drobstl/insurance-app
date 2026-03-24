@@ -1,7 +1,11 @@
 'use client';
 
 import posthog from 'posthog-js';
-import type { AnalyticsEventName, AnalyticsEventProperties } from './analytics-events';
+import {
+  ANALYTICS_EVENTS,
+  type AnalyticsEventName,
+  type AnalyticsEventProperties,
+} from './analytics-events';
 
 const clientPiiKeyPattern = /(client.*(name|email|phone)|policy.*number|ssn)/i;
 
@@ -23,6 +27,30 @@ function sanitizeEventProperties(props?: EventProperties): EventProperties | und
   return safe;
 }
 
+function markSessionRiskSignal(eventName: AnalyticsEventName): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (
+      eventName === ANALYTICS_EVENTS.API_REQUEST_FAILED ||
+      eventName === ANALYTICS_EVENTS.ACTION_FAILED
+    ) {
+      window.sessionStorage.setItem('afl_session_had_error', '1');
+    }
+    if (eventName === ANALYTICS_EVENTS.EMPTY_STATE_SEEN) {
+      window.sessionStorage.setItem('afl_session_saw_empty_state', '1');
+    }
+    if (
+      eventName === ANALYTICS_EVENTS.API_REQUEST_FAILED ||
+      eventName === ANALYTICS_EVENTS.ACTION_FAILED ||
+      eventName === ANALYTICS_EVENTS.EMPTY_STATE_SEEN
+    ) {
+      window.sessionStorage.setItem('afl_session_last_risk_signal_at', String(Date.now()));
+    }
+  } catch {
+    // no-op if sessionStorage is unavailable
+  }
+}
+
 export function initPostHog(): void {
   if (typeof window === 'undefined' || hasInitialized) return;
 
@@ -36,8 +64,10 @@ export function initPostHog(): void {
 
   const config = {
     api_host: resolvedApiHost,
+    autocapture: true,
     capture_pageview: false,
     capture_pageleave: true,
+    capture_dead_clicks: true,
     enable_recording: true,
     enable_heatmaps: true,
   } as unknown as Parameters<typeof posthog.init>[1];
@@ -53,6 +83,7 @@ export function captureEvent<T extends AnalyticsEventName>(
 ): void {
   if (typeof window === 'undefined') return;
   initPostHog();
+  markSessionRiskSignal(eventName);
   posthog.capture(eventName, sanitizeEventProperties(properties as EventProperties | undefined));
 }
 

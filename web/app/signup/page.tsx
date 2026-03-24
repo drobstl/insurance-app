@@ -55,12 +55,14 @@ function SignupPageInner() {
     setLoading(true);
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const normalizedEmail = email.trim().toLowerCase();
+      const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
       const user = userCredential.user;
 
       const profileData: Record<string, unknown> = {
         name,
-        email,
+        email: normalizedEmail,
+        emailLower: normalizedEmail,
         createdAt: serverTimestamp(),
       };
       if (referrerId) profileData.referredByAgent = referrerId;

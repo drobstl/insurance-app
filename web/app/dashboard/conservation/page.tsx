@@ -62,6 +62,7 @@ export default function ConservationPage() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [celebrationAlert, setCelebrationAlert] = useState<string | null>(null);
   const prevAlertsRef = useRef<Map<string, string>>(new Map());
+  const emptyStateTrackedRef = useRef(false);
 
   useEffect(() => {
     if (!user) return;
@@ -126,6 +127,11 @@ export default function ConservationPage() {
       captureEvent(ANALYTICS_EVENTS.CONSERVATION_CALL_INITIATED, { source: 'manual_outreach' });
     } catch (err) {
       console.error('Error sending outreach:', err);
+      captureEvent(ANALYTICS_EVENTS.ACTION_FAILED, {
+        action: 'manual_outreach',
+        surface: 'conservation',
+        reason: 'outreach_failed',
+      });
     }
   };
 
@@ -170,6 +176,11 @@ export default function ConservationPage() {
       }
     } catch (err) {
       console.error('Error sending message:', err);
+      captureEvent(ANALYTICS_EVENTS.ACTION_FAILED, {
+        action: 'manual_message',
+        surface: 'conservation',
+        reason: 'message_send_failed',
+      });
     } finally {
       setSendingMessage(false);
     }
@@ -206,6 +217,20 @@ export default function ConservationPage() {
     weekAgo.setDate(weekAgo.getDate() - 7);
     return resolved >= weekAgo;
   }).length;
+
+  useEffect(() => {
+    if (alertsLoading) return;
+    if (alerts.length === 0 && !emptyStateTrackedRef.current) {
+      captureEvent(ANALYTICS_EVENTS.EMPTY_STATE_SEEN, {
+        area: 'conservation_alerts',
+      });
+      emptyStateTrackedRef.current = true;
+      return;
+    }
+    if (alerts.length > 0) {
+      emptyStateTrackedRef.current = false;
+    }
+  }, [alertsLoading, alerts.length]);
 
   if (loading) {
     return (

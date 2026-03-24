@@ -108,16 +108,43 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   // they signed up after being approved, so the approval route couldn't find them)
   const agentDoc = await db.collection('agents').doc(userId).get();
   const agentEmail = agentDoc.data()?.email;
+  const normalizedAgentEmail =
+    typeof agentEmail === 'string' ? agentEmail.trim().toLowerCase() : null;
 
-  if (agentEmail) {
-    const fmSnapshot = await db
+  if (normalizedAgentEmail) {
+    let hasApprovedApplication = false;
+
+    let fmSnapshot = await db
       .collection('foundingMemberApplications')
-      .where('email', '==', agentEmail)
+      .where('emailLower', '==', normalizedAgentEmail)
       .where('status', '==', 'approved')
       .limit(1)
       .get();
+    hasApprovedApplication = !fmSnapshot.empty;
 
-    if (!fmSnapshot.empty) {
+    if (!hasApprovedApplication) {
+      fmSnapshot = await db
+        .collection('foundingMemberApplications')
+        .where('email', '==', normalizedAgentEmail)
+        .where('status', '==', 'approved')
+        .limit(1)
+        .get();
+      hasApprovedApplication = !fmSnapshot.empty;
+    }
+
+    if (!hasApprovedApplication) {
+      const approvedSnapshot = await db
+        .collection('foundingMemberApplications')
+        .where('status', '==', 'approved')
+        .limit(100)
+        .get();
+      hasApprovedApplication = approvedSnapshot.docs.some((doc) => {
+        const value = doc.data().email;
+        return typeof value === 'string' && value.trim().toLowerCase() === normalizedAgentEmail;
+      });
+    }
+
+    if (hasApprovedApplication) {
       await db.collection('agents').doc(userId).set(
         { isFoundingMember: true, foundingMemberApprovedAt: new Date() },
         { merge: true }

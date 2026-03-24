@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
@@ -81,6 +81,7 @@ export default function PolicyReviewsPage() {
   const [expandedReview, setExpandedReview] = useState<string | null>(null);
   const [manualMessage, setManualMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const emptyStateTrackedRef = useRef(false);
   const [filter, setFilter] = useState<'active' | 'booked' | 'all'>('active');
 
   useEffect(() => {
@@ -125,6 +126,11 @@ export default function PolicyReviewsPage() {
       captureEvent(ANALYTICS_EVENTS.POLICY_REVIEW_COMPLETED, { completion_status: 'booked' });
     } catch (err) {
       console.error('Error marking as booked:', err);
+      captureEvent(ANALYTICS_EVENTS.ACTION_FAILED, {
+        action: 'policy_review_mark_booked',
+        surface: 'policy_reviews',
+        reason: 'update_failed',
+      });
     }
   };
 
@@ -137,6 +143,11 @@ export default function PolicyReviewsPage() {
       captureEvent(ANALYTICS_EVENTS.POLICY_REVIEW_COMPLETED, { completion_status: 'closed' });
     } catch (err) {
       console.error('Error marking as closed:', err);
+      captureEvent(ANALYTICS_EVENTS.ACTION_FAILED, {
+        action: 'policy_review_mark_closed',
+        surface: 'policy_reviews',
+        reason: 'update_failed',
+      });
     }
   };
 
@@ -162,6 +173,11 @@ export default function PolicyReviewsPage() {
       if (res.ok) setManualMessage('');
     } catch (err) {
       console.error('Error sending message:', err);
+      captureEvent(ANALYTICS_EVENTS.ACTION_FAILED, {
+        action: 'policy_review_manual_message',
+        surface: 'policy_reviews',
+        reason: 'message_send_failed',
+      });
     } finally {
       setSendingMessage(false);
     }
@@ -178,6 +194,20 @@ export default function PolicyReviewsPage() {
     : filter === 'booked'
       ? bookedReviews
       : reviews;
+
+  useEffect(() => {
+    if (reviewsLoading) return;
+    if (reviews.length === 0 && !emptyStateTrackedRef.current) {
+      captureEvent(ANALYTICS_EVENTS.EMPTY_STATE_SEEN, {
+        area: 'policy_reviews',
+      });
+      emptyStateTrackedRef.current = true;
+      return;
+    }
+    if (reviews.length > 0) {
+      emptyStateTrackedRef.current = false;
+    }
+  }, [reviewsLoading, reviews.length]);
 
   if (loading) {
     return (

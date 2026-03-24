@@ -4,11 +4,52 @@ import { pdfToBase64 } from '../../../lib/pdf-parser';
 import { extractApplicationFields, extractApplicationFieldsFromText } from '../../../lib/application-extractor';
 import { extractTextFromPdfBase64, isTextExtractionHighConfidence } from '../../../lib/pdf-text-extractor';
 import type { ParseApplicationResponse } from '../../../lib/types';
+import type { ExtractedApplicationData } from '../../../lib/types';
 
 export const maxDuration = 60;
 
 const MAX_FILE_SIZE = 13 * 1024 * 1024;
 const BLOB_FETCH_TIMEOUT_MS = 30_000;
+
+function emptyExtractedApplicationData(): ExtractedApplicationData {
+  return {
+    policyType: null,
+    policyNumber: null,
+    insuranceCompany: null,
+    policyOwner: null,
+    insuredName: null,
+    beneficiaries: null,
+    coverageAmount: null,
+    premiumAmount: null,
+    premiumFrequency: null,
+    renewalDate: null,
+    insuredEmail: null,
+    insuredPhone: null,
+    insuredDateOfBirth: null,
+    effectiveDate: null,
+  };
+}
+
+function shouldGracefullyDegradeApplicationExtraction(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('anthropic') ||
+    normalized.includes('api key') ||
+    normalized.includes('rate limit') ||
+    normalized.includes('429') ||
+    normalized.includes('500') ||
+    normalized.includes('502') ||
+    normalized.includes('503') ||
+    normalized.includes('529') ||
+    normalized.includes('overloaded') ||
+    normalized.includes('timeout') ||
+    normalized.includes('timed out') ||
+    normalized.includes('fetch failed') ||
+    normalized.includes('econnreset') ||
+    normalized.includes('no response received from ai') ||
+    normalized.includes('failed to parse ai response')
+  );
+}
 
 export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicationResponse>> {
   let blobUrl: string | undefined;
@@ -129,10 +170,19 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
     } catch (aiError) {
       const message = aiError instanceof Error ? aiError.message : 'AI extraction failed.';
       console.error('[parse-application] AI extraction failed:', aiError);
-      return NextResponse.json(
-        { success: false, error: message },
-        { status: 500 },
-      );
+
+      if (!shouldGracefullyDegradeApplicationExtraction(message)) {
+        return NextResponse.json(
+          { success: false, error: message },
+          { status: 500 },
+        );
+      }
+
+      // Degrade gracefully so agents can continue manually instead of getting blocked.
+      extraction = {
+        data: emptyExtractedApplicationData(),
+        note: 'Automatic extraction is temporarily unavailable. Please review and fill in fields manually.',
+      };
     }
 
     console.log('[parse-application] Extraction successful');

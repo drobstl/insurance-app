@@ -43,6 +43,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const normalizedEmail = String(email).trim().toLowerCase();
+
     const firestore = getAdminFirestore();
 
     // Capacity check — reject if founding tier is full
@@ -59,7 +61,8 @@ export async function POST(req: NextRequest) {
 
     await firestore.collection('foundingMemberApplications').add({
       name,
-      email,
+      email: normalizedEmail,
+      emailLower: normalizedEmail,
       clientCount,
       biggestDifference,
       policiesLast12Months,
@@ -73,7 +76,7 @@ export async function POST(req: NextRequest) {
     fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'https://agentforlife.app'}/api/admin/applications/notify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ applicantName: name, applicantEmail: email }),
+      body: JSON.stringify({ applicantName: name, applicantEmail: normalizedEmail }),
     }).catch(() => {});
 
     // Send confirmation email to applicant
@@ -83,7 +86,7 @@ export async function POST(req: NextRequest) {
       try {
         await resend.emails.send({
           from: 'Daniel Roberts — AgentForLife™ <support@agentforlife.app>',
-          to: email,
+          to: normalizedEmail,
           subject: 'We got your application',
           html: `
             <div style="font-family: 'Montserrat', Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #2D3748; line-height: 1.7;">

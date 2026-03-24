@@ -72,6 +72,46 @@ export interface IngestionJobResponse {
 const JOBS_COLLECTION = 'ingestionJobsV2';
 const BLOB_FETCH_TIMEOUT_MS = 30_000;
 
+function emptyExtractedApplicationData(): ExtractedApplicationData {
+  return {
+    policyType: null,
+    policyNumber: null,
+    insuranceCompany: null,
+    policyOwner: null,
+    insuredName: null,
+    beneficiaries: null,
+    coverageAmount: null,
+    premiumAmount: null,
+    premiumFrequency: null,
+    renewalDate: null,
+    insuredEmail: null,
+    insuredPhone: null,
+    insuredDateOfBirth: null,
+    effectiveDate: null,
+  };
+}
+
+function shouldGracefullyDegradeApplicationExtraction(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('anthropic') ||
+    normalized.includes('api key') ||
+    normalized.includes('rate limit') ||
+    normalized.includes('429') ||
+    normalized.includes('500') ||
+    normalized.includes('502') ||
+    normalized.includes('503') ||
+    normalized.includes('529') ||
+    normalized.includes('overloaded') ||
+    normalized.includes('timeout') ||
+    normalized.includes('timed out') ||
+    normalized.includes('fetch failed') ||
+    normalized.includes('econnreset') ||
+    normalized.includes('no response received from ai') ||
+    normalized.includes('failed to parse ai response')
+  );
+}
+
 export function getIngestionJobsCollection() {
   return getAdminFirestore().collection(JOBS_COLLECTION);
 }
@@ -187,9 +227,21 @@ async function runExtraction(
     textExtractMs = Date.now() - textStart;
 
     const useTextPath = isTextExtractionHighConfidence(extractedText);
-    const extraction = useTextPath
-      ? await extractApplicationFieldsFromText(extractedText!)
-      : await extractApplicationFields(pdfBase64, { fileSizeBytes });
+    let extraction: { data: ExtractedApplicationData; note?: string };
+    try {
+      extraction = useTextPath
+        ? await extractApplicationFieldsFromText(extractedText!)
+        : await extractApplicationFields(pdfBase64, { fileSizeBytes });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'AI extraction failed.';
+      if (!shouldGracefullyDegradeApplicationExtraction(message)) {
+        throw error;
+      }
+      extraction = {
+        data: emptyExtractedApplicationData(),
+        note: 'Automatic extraction is temporarily unavailable. Please review and fill in fields manually.',
+      };
+    }
     extractMs = Date.now() - extractStart;
 
     return {
