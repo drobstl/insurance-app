@@ -47,6 +47,8 @@ const DIRECT_PARSE_MAX_BYTES = 4 * 1024 * 1024;
 const LARGE_FILE_THRESHOLD_BYTES = 8 * 1024 * 1024;
 const MIN_IMPORT_ROW_QUALITY_RATIO = 0.65;
 const MIN_APPLICATION_POLICY_SIGNALS = 2;
+const DEFAULT_BULK_PDF_CONCURRENCY = 3;
+const MAX_BULK_PDF_CONCURRENCY = 6;
 const DEFAULT_WELCOME_SMS_TEMPLATE =
   'Hey {{firstName}}! {{agentName}} here. Download the AgentForLife app and use code {{code}} to connect with me. https://agentforlife.app/app';
 const DEFAULT_INTRO_TEMPLATE =
@@ -54,6 +56,15 @@ const DEFAULT_INTRO_TEMPLATE =
 import { KNOWN_CARRIER_NAMES } from '../../../lib/carriers';
 
 const KNOWN_CARRIERS = KNOWN_CARRIER_NAMES;
+
+function getBulkPdfConcurrencyLimit(): number {
+  const raw = process.env.NEXT_PUBLIC_IMPORT_PDF_CONCURRENCY;
+  const parsed = Number.parseInt(raw || '', 10);
+  if (!Number.isFinite(parsed)) return DEFAULT_BULK_PDF_CONCURRENCY;
+  if (parsed < 1) return 1;
+  if (parsed > MAX_BULK_PDF_CONCURRENCY) return MAX_BULK_PDF_CONCURRENCY;
+  return parsed;
+}
 
 // ─── Interfaces ────────────────────────────────────────────
 
@@ -150,6 +161,27 @@ interface PendingSinglePdfCreation {
   clientInfo: { name: string; email: string; phone: string; dateOfBirth: string };
   appData: ExtractedApplicationData;
   clientCode: string;
+}
+
+type ImportSourceType = 'local';
+type ImportFileType = 'pdf' | 'spreadsheet' | 'text' | 'unknown';
+type ImportFileState = 'queued' | 'parsing' | 'succeeded' | 'failed';
+
+interface ImportSourceFile {
+  sourceType: ImportSourceType;
+  sourceFileId: string;
+  file: File;
+  fileType: ImportFileType;
+}
+
+interface ImportFileStatus {
+  sourceFileId: string;
+  name: string;
+  fileType: ImportFileType;
+  state: ImportFileState;
+  loadedRows: number;
+  rejectedRows: number;
+  error?: string;
 }
 
 function countPolicySignals(row: ImportRow): number {
@@ -415,9 +447,13 @@ export default function ClientsPage() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importData, setImportData] = useState<ImportRow[]>([]);
   const [importError, setImportError] = useState('');
+  const [importWarning, setImportWarning] = useState('');
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [importSuccess, setImportSuccess] = useState('');
+  const [importFileStatuses, setImportFileStatuses] = useState<ImportFileStatus[]>([]);
+  const [importSessionStartedAt, setImportSessionStartedAt] = useState<number | null>(null);
+  const [importDragActive, setImportDragActive] = useState(false);
   const [justImportedClients, setJustImportedClients] = useState<{ clientId: string; phone: string; firstName: string; clientCode: string }[]>([]);
   const [introMessage, setIntroMessage] = useState(DEFAULT_INTRO_TEMPLATE);
   const [sendingIntro, setSendingIntro] = useState(false);
@@ -1224,6 +1260,7 @@ export default function ClientsPage() {
   // ─── BOB Import Handlers ─────────────────────────────────
 
   const [parsingBob, setParsingBob] = useState(false);
+  const bulkPdfConcurrencyLimit = getBulkPdfConcurrencyLimit();
 
   const parseCsvLine = useCallback((line: string, delimiter: string = ','): string[] => {
     const result: string[] = [];
@@ -1331,304 +1368,375 @@ export default function ClientsPage() {
     return { rows };
   }, [parseCsvLine]);
 
-  const handleAiParse = useCallback(async (file: File) => {
-    if (!user) return;
-    setParsingBob(true);
-    setImportError('');
-    try {
-      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  const parseBobSourceFile = useCallback(async (file: File): Promise<{ rows: ImportRow[]; note?: string }> => {
+    if (!user) {
+      throw new Error('You must be signed in to import files.');
+    }
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
 
-      // Try Vercel Blob with retry, fall back to direct FormData upload
-      let blobUrl: string | null = null;
-      let textContent: string | null = null;
-      const useDirectParse = isPdf && file.size <= DIRECT_PARSE_MAX_BYTES;
-      const uploadConfig = getBlobUploadConfig(file.size);
+    // Try Vercel Blob with retry, fall back to direct FormData upload
+    let blobUrl: string | null = null;
+    let textContent: string | null = null;
+    const useDirectParse = isPdf && file.size <= DIRECT_PARSE_MAX_BYTES;
+    const uploadConfig = getBlobUploadConfig(file.size);
 
-      if (isPdf) {
-        if (!useDirectParse) {
-          const uploadStartedAt = Date.now();
-          for (let attempt = 0; attempt < uploadConfig.maxAttempts; attempt++) {
-            const remainingBudgetMs = uploadConfig.totalBudgetMs - (Date.now() - uploadStartedAt);
-            if (remainingBudgetMs <= 0) break;
-            const attemptTimeoutMs = Math.min(uploadConfig.attemptTimeoutMs, remainingBudgetMs);
-            try {
-              const blob = await withTimeout(
-                upload(file.name, file, {
-                  access: 'public',
-                  handleUploadUrl: '/api/upload',
-                }),
-                attemptTimeoutMs,
-                'Upload timed out while sending file.',
-              );
-              blobUrl = blob.url;
-              break;
-            } catch (uploadErr) {
-              if (isTimeoutError(uploadErr)) {
-                console.warn('[clients/import] Blob upload timed out, trying fallback path.');
-              }
-              if (attempt < uploadConfig.maxAttempts - 1) continue;
+    if (isPdf) {
+      if (!useDirectParse) {
+        const uploadStartedAt = Date.now();
+        for (let attempt = 0; attempt < uploadConfig.maxAttempts; attempt++) {
+          const remainingBudgetMs = uploadConfig.totalBudgetMs - (Date.now() - uploadStartedAt);
+          if (remainingBudgetMs <= 0) break;
+          const attemptTimeoutMs = Math.min(uploadConfig.attemptTimeoutMs, remainingBudgetMs);
+          try {
+            const blob = await withTimeout(
+              upload(file.name, file, {
+                access: 'public',
+                handleUploadUrl: '/api/upload',
+              }),
+              attemptTimeoutMs,
+              'Upload timed out while sending file.',
+            );
+            blobUrl = blob.url;
+            break;
+          } catch (uploadErr) {
+            if (isTimeoutError(uploadErr)) {
+              console.warn('[clients/import] Blob upload timed out, trying fallback path.');
             }
-          }
-
-          // Large PDFs should not fall back to direct parse (payload can exceed platform limits).
-          if (!blobUrl) {
-            setImportError('Upload timed out for this large PDF. Please retry, or split/compress the file.');
-            return;
+            if (attempt < uploadConfig.maxAttempts - 1) continue;
           }
         }
-      } else {
-        textContent = await file.text();
+
+        // Large PDFs should not fall back to direct parse (payload can exceed platform limits).
+        if (!blobUrl) {
+          throw new Error('Upload timed out for this large PDF. Please retry, or split/compress the file.');
+        }
+      }
+    } else {
+      textContent = await file.text();
+    }
+
+    const token = await user.getIdToken();
+    let parsedRows: ImportRow[] | null = null;
+    let parsedNote: string | undefined;
+
+    if (blobUrl || (textContent && textContent.trim().length > 0)) {
+      const createRes = await fetch('/api/ingestion/v2/jobs', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mode: 'bob',
+          url: blobUrl,
+          textContent: textContent || undefined,
+          fileName: file.name,
+          fileSize: file.size,
+          idempotencyKey: `bob:${file.name}:${file.size}:${file.lastModified}`,
+        }),
+      });
+      const created = (await createRes.json()) as IngestionJobStatusResponse;
+      if (!createRes.ok || !created.success || !created.job?.id) {
+        throw new Error(created.error || `Failed to start parse job (${createRes.status}).`);
       }
 
-      const token = await user.getIdToken();
-      let parsedRows: ImportRow[] | null = null;
-      let parsedNote: string | undefined;
+      fetch(`/api/ingestion/v2/jobs/${created.job.id}/run`, {
+        method: 'POST',
+        keepalive: true,
+      }).catch(() => {});
 
-      if (blobUrl || (textContent && textContent.trim().length > 0)) {
-        const createRes = await fetch('/api/ingestion/v2/jobs', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            mode: 'bob',
-            url: blobUrl,
-            textContent: textContent || undefined,
-            fileName: file.name,
-            fileSize: file.size,
-            idempotencyKey: `bob:${file.name}:${file.size}:${file.lastModified}`,
-          }),
-        });
-        const created = (await createRes.json()) as IngestionJobStatusResponse;
-        if (!createRes.ok || !created.success || !created.job?.id) {
-          setImportError(created.error || `Failed to start parse job (${createRes.status}).`);
-          return;
+      const startedAt = Date.now();
+      let retriggered = false;
+
+      while (Date.now() - startedAt < IMPORT_PARSE_TIMEOUT_MS) {
+        await new Promise((r) => setTimeout(r, JOB_POLL_INTERVAL_MS));
+        const statusRes = await fetch(`/api/ingestion/v2/jobs/${created.job.id}`, { cache: 'no-store' });
+        const statusBody = (await statusRes.json()) as IngestionJobStatusResponse;
+
+        if (!statusRes.ok || !statusBody.success || !statusBody.job) {
+          throw new Error(statusBody.error || `Failed to check parse status (${statusRes.status}).`);
         }
 
-        fetch(`/api/ingestion/v2/jobs/${created.job.id}/run`, {
-          method: 'POST',
-          keepalive: true,
-        }).catch(() => {});
-
-        const startedAt = Date.now();
-        let retriggered = false;
-
-        while (Date.now() - startedAt < IMPORT_PARSE_TIMEOUT_MS) {
-          await new Promise((r) => setTimeout(r, JOB_POLL_INTERVAL_MS));
-          const statusRes = await fetch(`/api/ingestion/v2/jobs/${created.job.id}`, { cache: 'no-store' });
-          const statusBody = (await statusRes.json()) as IngestionJobStatusResponse;
-
-          if (!statusRes.ok || !statusBody.success || !statusBody.job) {
-            setImportError(statusBody.error || `Failed to check parse status (${statusRes.status}).`);
-            return;
-          }
-
-          if (statusBody.job.status === 'succeeded') {
-            parsedRows = statusBody.job.result?.bob?.rows || null;
-            parsedNote = statusBody.job.result?.bob?.note;
-            break;
-          }
-
-          if (statusBody.job.status === 'failed') {
-            setImportError(statusBody.job.error || 'Failed to parse file. Please try again.');
-            return;
-          }
-
-          if (statusBody.job.status === 'queued' && !retriggered) {
-            retriggered = true;
-            fetch(`/api/ingestion/v2/jobs/${created.job.id}/run`, {
-              method: 'POST',
-              keepalive: true,
-            }).catch(() => {});
-          }
+        if (statusBody.job.status === 'succeeded') {
+          parsedRows = statusBody.job.result?.bob?.rows || null;
+          parsedNote = statusBody.job.result?.bob?.note;
+          break;
         }
 
-        if (!parsedRows) {
-          setImportError('Parsing timed out. Please retry this file.');
-          return;
+        if (statusBody.job.status === 'failed') {
+          throw new Error(statusBody.job.error || 'Failed to parse file. Please try again.');
         }
-      } else {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), IMPORT_PARSE_TIMEOUT_MS);
-        let res: Response;
 
-        try {
-          const formData = new FormData();
-          formData.append('file', file);
-          res = await fetch('/api/parse-bob', {
+        if (statusBody.job.status === 'queued' && !retriggered) {
+          retriggered = true;
+          fetch(`/api/ingestion/v2/jobs/${created.job.id}/run`, {
             method: 'POST',
-            headers: { Authorization: `Bearer ${token}` },
-            body: formData,
-            signal: controller.signal,
-          });
-        } finally {
-          clearTimeout(timeout);
+            keepalive: true,
+          }).catch(() => {});
         }
-
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          setImportError(data.error || 'Failed to parse file. Please try again.');
-          return;
-        }
-
-        parsedRows = data.rows as ImportRow[];
-        parsedNote = data.note as string | undefined;
       }
 
       if (!parsedRows) {
-        setImportError('No rows were parsed from this file.');
-        return;
+        throw new Error('Parsing timed out. Please retry this file.');
+      }
+    } else {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), IMPORT_PARSE_TIMEOUT_MS);
+      let res: Response;
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        res = await fetch('/api/parse-bob', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
       }
 
-      const quality = filterHighQualityImportRows(parsedRows);
-      if (quality.accepted.length === 0 || quality.qualityRatio < MIN_IMPORT_ROW_QUALITY_RATIO) {
-        setImportError(
-          `Parsing quality too low (${Math.round(quality.qualityRatio * 100)}% usable rows). Please review the source file format or retry.`,
-        );
-        return;
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to parse file. Please try again.');
       }
 
-      const warnings: string[] = [];
-      if (quality.rejected > 0) {
-        warnings.push(
-          `${quality.rejected} row${quality.rejected !== 1 ? 's were' : ' was'} skipped due to low-confidence policy data.`,
-        );
-      }
-
-      if (parsedRows.length > MAX_IMPORT_ROWS) {
-        setImportError(`Maximum ${MAX_IMPORT_ROWS} clients per import. File has ${parsedRows.length} rows. Split the file or import in multiple runs.`);
-        return;
-      }
-      if (parsedNote) {
-        warnings.push(`Note: ${parsedNote}`);
-      }
-      if (warnings.length > 0) {
-        setImportError(`Warning: ${warnings.join(' ')}`);
-      }
-      setImportData(quality.accepted);
-    } catch (err) {
-      console.error('AI parse error:', err);
-      let message = 'Failed to parse file. Please try again.';
-      if (isTimeoutError(err)) {
-        message = 'Request timed out while parsing this file. Please retry.';
-      } else if (err instanceof Error) {
-        if (err.message.includes('client token') || err.message.includes('Vercel Blob')) {
-          message = 'Upload service temporarily unavailable. Please try again.';
-        } else {
-          message = err.message;
-        }
-      }
-      setImportError(message);
-    } finally {
-      setParsingBob(false);
+      parsedRows = data.rows as ImportRow[];
+      parsedNote = data.note as string | undefined;
     }
+
+    if (!parsedRows) {
+      throw new Error('No rows were parsed from this file.');
+    }
+
+    return { rows: parsedRows, note: parsedNote };
   }, [user]);
+
+  const getImportFileType = useCallback((file: File): ImportFileType => {
+    const name = file.name.toLowerCase();
+    if (file.type === 'application/pdf' || name.endsWith('.pdf')) return 'pdf';
+    if (name.endsWith('.xlsx') || name.endsWith('.xls')) return 'spreadsheet';
+    if (name.endsWith('.csv') || name.endsWith('.tsv') || file.type.startsWith('text/')) return 'text';
+    return 'unknown';
+  }, []);
+
+  const updateImportFileStatus = useCallback((sourceFileId: string, patch: Partial<ImportFileStatus>) => {
+    setImportFileStatuses((prev) =>
+      prev.map((status) => (status.sourceFileId === sourceFileId ? { ...status, ...patch } : status)),
+    );
+  }, []);
+
+  const processImportSources = useCallback(async (sources: ImportSourceFile[]) => {
+    if (!user || sources.length === 0) return;
+
+    const startedAt = Date.now();
+    setParsingBob(true);
+    setImportError('');
+    setImportWarning('');
+    setImportSuccess('');
+    setImportData([]);
+    setImportProgress(0);
+    setImportSessionStartedAt(startedAt);
+    setImportFileStatuses(
+      sources.map((source) => ({
+        sourceFileId: source.sourceFileId,
+        name: source.file.name,
+        fileType: source.fileType,
+        state: 'queued',
+        loadedRows: 0,
+        rejectedRows: 0,
+      })),
+    );
+
+    const fileTypeCounts = {
+      pdf: sources.filter((s) => s.fileType === 'pdf').length,
+      spreadsheet: sources.filter((s) => s.fileType === 'spreadsheet').length,
+      text: sources.filter((s) => s.fileType === 'text').length,
+      unknown: sources.filter((s) => s.fileType === 'unknown').length,
+    };
+
+    captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_SESSION_STARTED, {
+      source: 'local_bulk',
+      total_files: sources.length,
+      pdf_files: fileTypeCounts.pdf,
+      spreadsheet_files: fileTypeCounts.spreadsheet,
+      text_files: fileTypeCounts.text + fileTypeCounts.unknown,
+    });
+
+    let completed = 0;
+    let parsedFiles = 0;
+    let failedFiles = 0;
+    let loadedRows = 0;
+    const warnings: string[] = [];
+
+    const bumpProgress = () => {
+      completed += 1;
+      setImportProgress(Math.round((completed / sources.length) * 100));
+    };
+
+    const processSingleSource = async (source: ImportSourceFile) => {
+      updateImportFileStatus(source.sourceFileId, { state: 'parsing', error: undefined });
+      try {
+        let parsedRows: ImportRow[] = [];
+        let parsedNote: string | undefined;
+
+        if (source.fileType === 'pdf') {
+          const result = await parseBobSourceFile(source.file);
+          parsedRows = result.rows;
+          parsedNote = result.note;
+        } else {
+          let csvText = '';
+          if (source.fileType === 'spreadsheet') {
+            const XLSX = await import('xlsx');
+            const buf = await source.file.arrayBuffer();
+            const wb = XLSX.read(buf, { type: 'array' });
+            const firstSheet = wb.Sheets[wb.SheetNames[0]];
+            csvText = XLSX.utils.sheet_to_csv(firstSheet);
+          } else {
+            csvText = await source.file.text();
+          }
+
+          const parsed = parseSingleCsv(csvText, source.file.name);
+          if (parsed.error) {
+            throw new Error(parsed.error);
+          }
+          parsedRows = parsed.rows;
+        }
+
+        if (parsedRows.length === 0) {
+          throw new Error('No valid rows found.');
+        }
+
+        const quality = filterHighQualityImportRows(parsedRows);
+        if (quality.accepted.length === 0 || quality.qualityRatio < MIN_IMPORT_ROW_QUALITY_RATIO) {
+          throw new Error(
+            `Parsing quality too low (${Math.round(quality.qualityRatio * 100)}% usable rows). Please review this source file.`,
+          );
+        }
+
+        if (quality.rejected > 0) {
+          warnings.push(
+            `${source.file.name}: ${quality.rejected} row${quality.rejected !== 1 ? 's were' : ' was'} skipped due to low-confidence policy data.`,
+          );
+        }
+        if (parsedNote) {
+          warnings.push(`${source.file.name}: ${parsedNote}`);
+        }
+
+        setImportData((prev) => [...prev, ...quality.accepted]);
+        loadedRows += quality.accepted.length;
+        parsedFiles += 1;
+        updateImportFileStatus(source.sourceFileId, {
+          state: 'succeeded',
+          loadedRows: quality.accepted.length,
+          rejectedRows: quality.rejected,
+        });
+        captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_FILE_PARSED, {
+          source: 'local_bulk',
+          file_type: source.fileType,
+          file_size_bytes: source.file.size,
+          success: true,
+          rows_loaded: quality.accepted.length,
+          rejected_rows: quality.rejected,
+        });
+      } catch (err) {
+        failedFiles += 1;
+        let message = 'Failed to parse file. Please try again.';
+        if (isTimeoutError(err)) {
+          message = 'Request timed out while parsing this file. Please retry.';
+        } else if (err instanceof Error) {
+          if (err.message.includes('client token') || err.message.includes('Vercel Blob')) {
+            message = 'Upload service temporarily unavailable. Please try again.';
+          } else {
+            message = err.message;
+          }
+        }
+        updateImportFileStatus(source.sourceFileId, { state: 'failed', error: message });
+        captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_FILE_PARSED, {
+          source: 'local_bulk',
+          file_type: source.fileType,
+          file_size_bytes: source.file.size,
+          success: false,
+          error: message,
+        });
+      } finally {
+        bumpProgress();
+      }
+    };
+
+    const nonPdfSources = sources.filter((source) => source.fileType !== 'pdf');
+    for (const source of nonPdfSources) {
+      await processSingleSource(source);
+    }
+
+    const pdfSources = sources.filter((source) => source.fileType === 'pdf');
+    if (pdfSources.length > 0) {
+      let nextIndex = 0;
+      const workers = Array.from(
+        { length: Math.min(bulkPdfConcurrencyLimit, pdfSources.length) },
+        async () => {
+          while (nextIndex < pdfSources.length) {
+            const current = pdfSources[nextIndex];
+            nextIndex += 1;
+            await processSingleSource(current);
+          }
+        },
+      );
+      await Promise.all(workers);
+    }
+
+    if (warnings.length > 0) {
+      setImportWarning(`Warning: ${warnings.join(' ')}`);
+    }
+
+    if (parsedFiles === 0) {
+      setImportError('No valid rows found. Please review your files and try again.');
+    } else if (failedFiles > 0) {
+      setImportError(`${parsedFiles} of ${sources.length} file${sources.length !== 1 ? 's parsed' : ' parsed'} successfully. Review failed files below and retry them.`);
+    }
+
+    captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_SESSION_COMPLETED, {
+      source: 'local_bulk',
+      total_files: sources.length,
+      parsed_files: parsedFiles,
+      failed_files: failedFiles,
+      loaded_rows: loadedRows,
+      elapsed_ms: Date.now() - startedAt,
+    });
+
+    setParsingBob(false);
+  }, [bulkPdfConcurrencyLimit, parseBobSourceFile, parseSingleCsv, updateImportFileStatus, user]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    setImportError('');
-    setImportSuccess('');
-    setImportData([]);
 
-    const fileArray = Array.from(files);
+    const sources: ImportSourceFile[] = Array.from(files).map((file, idx) => ({
+      sourceType: 'local',
+      sourceFileId: `local:${file.name}:${file.size}:${file.lastModified}:${idx}`,
+      file,
+      fileType: getImportFileType(file),
+    }));
+    await processImportSources(sources);
 
-    const pdfFiles = fileArray.filter(f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
-    const xlsxFiles = fileArray.filter(f => f.name.toLowerCase().endsWith('.xlsx') || f.name.toLowerCase().endsWith('.xls'));
-    const textFiles = fileArray.filter(f => !pdfFiles.includes(f) && !xlsxFiles.includes(f));
-
-    if (pdfFiles.length > 0) {
-      if (pdfFiles.length > 1) {
-        setImportError('Please upload one PDF at a time.');
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        return;
-      }
-      await handleAiParse(pdfFiles[0]);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
-
-    const allRows: ImportRow[] = [];
-    const errors: string[] = [];
-
-    for (const file of xlsxFiles) {
-      try {
-        const XLSX = await import('xlsx');
-        const buf = await file.arrayBuffer();
-        const wb = XLSX.read(buf, { type: 'array' });
-        const firstSheet = wb.Sheets[wb.SheetNames[0]];
-        const csvText = XLSX.utils.sheet_to_csv(firstSheet);
-        const { rows, error } = parseSingleCsv(csvText, file.name);
-        if (error) errors.push(error);
-        allRows.push(...rows);
-      } catch {
-        errors.push(`${file.name}: failed to parse Excel file.`);
-      }
-    }
-
-    let textCompleted = 0;
-    const textTotal = textFiles.length;
-
-    if (textTotal === 0) {
-      finishParsing(allRows, errors);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
-
-    function finishParsing(rows: ImportRow[], errs: string[]) {
-      if (rows.length === 0) {
-        const hasNameError = errs.some(e => e.includes('no "Name" column'));
-        if (hasNameError && fileArray.length === 1) {
-          handleAiParse(fileArray[0]);
-          return;
-        }
-        setImportError(errs.length > 0 ? errs.join(' ') : 'No valid rows found.');
-        return;
-      }
-      if (rows.length > MAX_IMPORT_ROWS) {
-        setImportError(`Maximum ${MAX_IMPORT_ROWS} clients per import. Your ${fileArray.length > 1 ? `${fileArray.length} files have` : 'file has'} ${rows.length} rows total. Split the files or import in multiple runs.`);
-        return;
-      }
-      const quality = filterHighQualityImportRows(rows);
-      if (quality.accepted.length === 0 || quality.qualityRatio < MIN_IMPORT_ROW_QUALITY_RATIO) {
-        setImportError(
-          `Parsing quality too low (${Math.round(quality.qualityRatio * 100)}% usable rows). Please review the source file format or retry.`,
-        );
-        return;
-      }
-
-      const warnings: string[] = [];
-      if (errs.length > 0) warnings.push(errs.join(' '));
-      if (quality.rejected > 0) {
-        warnings.push(`${quality.rejected} row${quality.rejected !== 1 ? 's were' : ' was'} skipped due to low-confidence policy data.`);
-      }
-      if (warnings.length > 0) {
-        setImportError(`Warning: ${warnings.join(' ')} — ${quality.accepted.length} valid rows loaded.`);
-      }
-      setImportData(quality.accepted);
-    }
-
-    textFiles.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        try {
-          const text = event.target?.result as string;
-          const { rows, error } = parseSingleCsv(text, file.name);
-          if (error) errors.push(error);
-          allRows.push(...rows);
-        } catch {
-          errors.push(`${file.name}: failed to parse.`);
-        }
-        textCompleted++;
-        if (textCompleted === textTotal) {
-          finishParsing(allRows, errors);
-        }
-      };
-      reader.readAsText(file);
-    });
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [parseSingleCsv, handleAiParse, user]);
+  }, [getImportFileType, processImportSources]);
+
+  const handleImportDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setImportDragActive(false);
+    const droppedFiles = Array.from(e.dataTransfer.files || []);
+    if (droppedFiles.length === 0) return;
+
+    const sources: ImportSourceFile[] = droppedFiles.map((file, idx) => ({
+      sourceType: 'local',
+      sourceFileId: `local:${file.name}:${file.size}:${file.lastModified}:${idx}`,
+      file,
+      fileType: getImportFileType(file),
+    }));
+    await processImportSources(sources);
+  }, [getImportFileType, processImportSources]);
 
   const handleImportClients = useCallback(async () => {
     if (!user || importData.length === 0) return;
@@ -1644,6 +1752,7 @@ export default function ClientsPage() {
     setImporting(true);
     setImportProgress(0);
     setImportError('');
+    setImportWarning('');
     setImportSuccess('');
     setJustImportedClients([]);
     setIntroSentCount(null);
@@ -1676,9 +1785,19 @@ export default function ClientsPage() {
       const clientCount = allCreated.length;
       const policyCount = serverPolicyCount;
       if (clientCount > 0) {
-        captureEvent(ANALYTICS_EVENTS.CLIENT_ADDED, { method: 'csv_import', imported_count: clientCount });
-        // TODO(posthog): when BOB imports are explicitly differentiated in UI/API,
-        // fire client_added with method: "book_of_business".
+        captureEvent(ANALYTICS_EVENTS.CLIENT_ADDED, {
+          method: 'book_of_business',
+          imported_count: clientCount,
+          import_source: 'local_bulk',
+        });
+        if (importSessionStartedAt) {
+          captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_ACTIVATED, {
+            source: 'local_bulk',
+            time_to_first_client_created_ms: Date.now() - importSessionStartedAt,
+            imported_count: clientCount,
+            policy_count: policyCount,
+          });
+        }
       }
       const parts = [`${clientCount} client${clientCount !== 1 ? 's' : ''}`];
       if (policyCount > 0) parts.push(`${policyCount} ${policyCount !== 1 ? 'policies' : 'policy'}`);
@@ -1687,6 +1806,8 @@ export default function ClientsPage() {
       setSelectedIntroClients(new Set(allCreated.filter((r) => r.phone.trim()).map((r) => r.clientId)));
       setShowIntroConfirm(false);
       setImportData([]);
+      setImportFileStatuses([]);
+      setImportWarning('');
       if (policyCount > 0) refreshSummaries();
     } catch (err) {
       console.error('Error importing clients:', err);
@@ -1694,7 +1815,7 @@ export default function ClientsPage() {
     } finally {
       setImporting(false);
     }
-  }, [user, importData, refreshSummaries]);
+  }, [user, importData, importSessionStartedAt, refreshSummaries]);
 
   useEffect(() => {
     if (importSuccess && importModalScrollRef.current) {
@@ -1834,8 +1955,11 @@ export default function ClientsPage() {
               setIsImportModalOpen(true);
               setImportData([]);
               setImportError('');
+              setImportWarning('');
               setImportSuccess('');
               setImportProgress(0);
+              setImportFileStatuses([]);
+              setImportSessionStartedAt(null);
               setJustImportedClients([]);
               setIntroMessage(DEFAULT_INTRO_TEMPLATE);
               setIntroSentCount(null);
@@ -2504,17 +2628,19 @@ export default function ClientsPage() {
                     <p className="text-xs text-[#005851] mt-2.5 font-medium">After import, you&apos;ll be able to have the system text your clients the app download link and their unique code.</p>
                   </div>
 
-                  {parsingBob ? (
-                    <div className="flex flex-col items-center gap-3 py-8">
-                      <svg className="animate-spin w-8 h-8 text-[#45bcaa]" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      <p className="text-sm font-medium text-[#005851]">Analyzing your Book of Business...</p>
-                      <p className="text-xs text-[#707070]">This may take 15–30 seconds for large files.</p>
-                    </div>
-                  ) : (
-                  <div>
+                  <div
+                    onDrop={handleImportDrop}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setImportDragActive(true);
+                    }}
+                    onDragLeave={() => setImportDragActive(false)}
+                    className={`rounded-[5px] border-2 border-dashed p-4 transition-colors ${
+                      importDragActive
+                        ? 'border-[#45bcaa] bg-[#daf3f0]/40'
+                        : 'border-[#d0d0d0] bg-white'
+                    }`}
+                  >
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -2523,8 +2649,58 @@ export default function ClientsPage() {
                       onChange={handleFileUpload}
                       className="block w-full text-sm text-[#707070] file:mr-4 file:py-2 file:px-4 file:rounded-[5px] file:border-0 file:text-sm file:font-semibold file:bg-[#daf3f0] file:text-[#005851] hover:file:bg-[#c0ebe4] cursor-pointer"
                     />
-                    <p className="text-xs text-[#707070] mt-1.5">Accepts CSV, TSV, Excel (.xlsx), and PDF files. You can select multiple CSV/Excel files at once.</p>
+                    <p className="text-xs text-[#707070] mt-1.5">Accepts CSV, TSV, Excel (.xlsx), and PDF files. Select or drop 20-30 files at once.</p>
                   </div>
+
+                  {importFileStatuses.length > 0 && (
+                    <div className="border border-[#d0d0d0] rounded-[5px] overflow-hidden">
+                      <div className="bg-[#f8f8f8] px-4 py-2 border-b border-[#d0d0d0] flex items-center justify-between">
+                        <p className="text-xs font-semibold text-[#707070]">File Processing</p>
+                        <p className="text-[11px] text-[#707070]">
+                          {importFileStatuses.filter((s) => s.state === 'succeeded').length} succeeded · {importFileStatuses.filter((s) => s.state === 'failed').length} failed · {importFileStatuses.filter((s) => s.state === 'parsing').length} parsing
+                        </p>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto divide-y divide-[#f0f0f0]">
+                        {importFileStatuses.map((status) => (
+                          <div key={status.sourceFileId} className="px-4 py-2 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium text-[#000000] truncate">{status.name}</p>
+                              {status.error ? (
+                                <p className="text-[11px] text-red-600 truncate">{status.error}</p>
+                              ) : (
+                                <p className="text-[11px] text-[#707070]">
+                                  {status.loadedRows > 0 ? `${status.loadedRows} rows loaded` : 'Awaiting parse'}
+                                  {status.rejectedRows > 0 ? ` · ${status.rejectedRows} skipped` : ''}
+                                </p>
+                              )}
+                            </div>
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
+                              status.state === 'succeeded'
+                                ? 'bg-green-50 text-green-700'
+                                : status.state === 'failed'
+                                  ? 'bg-red-50 text-red-700'
+                                  : status.state === 'parsing'
+                                    ? 'bg-blue-50 text-blue-700'
+                                    : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {status.state}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {parsingBob && (
+                    <div className="space-y-2">
+                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#45bcaa] rounded-full transition-all duration-300"
+                          style={{ width: `${importProgress}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-[#707070] text-center">{importProgress}% processing files</p>
+                    </div>
                   )}
 
                   {importError && (
@@ -2533,6 +2709,14 @@ export default function ClientsPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                       {importError}
+                    </div>
+                  )}
+                  {importWarning && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-[5px] text-xs text-amber-700">
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {importWarning}
                     </div>
                   )}
 
@@ -2623,15 +2807,17 @@ export default function ClientsPage() {
                           onClick={() => {
                             setImportData([]);
                             setImportError('');
+                            setImportWarning('');
+                            setImportFileStatuses([]);
                           }}
-                          disabled={importing}
+                          disabled={importing || parsingBob}
                           className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-100 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors text-sm"
                         >
                           Clear
                         </button>
                         <button
                           onClick={handleImportClients}
-                          disabled={importing || importData.length > MAX_IMPORT_ROWS}
+                          disabled={importing || parsingBob || importData.length > MAX_IMPORT_ROWS}
                           className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] transition-colors flex items-center justify-center gap-2 text-sm"
                         >
                           {importing ? (
