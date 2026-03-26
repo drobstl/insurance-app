@@ -114,6 +114,17 @@ Standalone pricing remains for agents who come directly. Founding member migrati
 **Known Challenge:** Low activation among signups. Agents who signed up are not consistently using the platform. Root cause unknown — likely onboarding friction and/or the effort required to get client data into the system (which the Closr AI integration solves).
 
 **Recent fixes (March 2026, founding member feedback):**
+- Added (March 25, 2026): Cloud Tasks and v3 pipeline production deployment.
+  - Cloud Tasks API enabled in GCP project `insurance-agent-app-6f613`, queue `pdf-ingestion-v3` in `us-central1` (max 5 concurrent, 3 max attempts, 10s-120s backoff, logging enabled).
+  - Service account `cloud-tasks-invoker@insurance-agent-app-6f613.iam.gserviceaccount.com` created for OIDC tokens.
+  - Firebase admin service account granted Cloud Tasks Enqueuer role.
+  - Firebase service account key rotated (old key `fe14d00e` compromised and deleted, new key `eea3ae17843e` active).
+  - Six Cloud Tasks env vars set in Vercel production: `CLOUD_TASKS_PROJECT_ID`, `CLOUD_TASKS_LOCATION`, `CLOUD_TASKS_QUEUE`, `CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL`, `INGESTION_V3_PROCESSOR_BASE_URL`, `INGESTION_V3_PROCESSOR_AUDIENCE`.
+  - v3 ingestion pipeline confirmed working end-to-end in production (single upload ~15s and bulk upload functional).
+  - Bulk import reliability tuning shipped: auto-retry up to 2 attempts for transient/timeout errors, `DEFAULT_BULK_PDF_CONCURRENCY` increased from 3 to 5, processor route `maxDuration` increased from 60s to 120s.
+  - Retry telemetry (`retry_attempt_count`) added to `BULK_IMPORT_FILE_PARSED` PostHog event.
+  - Git repo restored after `.git` directory loss (fresh clone from GitHub, local changes synced and pushed, working repo at `~/Desktop/insurance-app` with clean history).
+  - Duplicate files removed (`analytics-events 2.ts`, `posthog 2.ts`) and v3 TypeScript build errors fixed.
 - Added: PostHog web dashboard instrumentation (client SDK + provider + App Router pageview tracking + auth identify/reset) with event coverage for client add/remove, conservation interactions, rewrite flow milestones, onboarding step completion, settings updates, and Patch usage. Client PII is explicitly excluded from event properties; unresolved server-side events are marked with TODO hooks.
 - Fixed: Client app session was lost on network errors, forcing code re-entry. Now retries and falls back to cached profile data; session only clears when the code itself is revoked.
 - Fixed: Mortgage Protection policies now prominently display coverage duration (e.g., "30 Years") as the hero metric in both the client app and dashboard, with dollar amounts secondary. The agent form now requires this field and explains it will appear in the client's app.
@@ -123,6 +134,13 @@ Standalone pricing remains for agents who come directly. Founding member migrati
 - Important operational note: corpus fixture PDFs in `web/tests/ingestion-corpus/fixtures` are currently placeholders. Before production rollout, replace them with real redacted insurance application samples or the deploy gate is not a valid regression blocker.
 - Added (March 2026): Phase 0 bulk local import hardening in the Clients BOB modal. Local import now supports mixed multi-file batches (CSV/TSV/XLSX/PDF) with incremental preview updates as each file finishes, per-file status/error tracking, partial-failure handling, and a source-agnostic queue abstraction designed so Google Drive ingestion can plug into the same pipeline in Phase 1. PDF parsing now runs through a configurable per-agent concurrency cap (`NEXT_PUBLIC_IMPORT_PDF_CONCURRENCY`, bounded) to protect extraction throughput under burst uploads. Added PostHog instrumentation for bulk import session start/file parse outcomes/session completion plus activation timing from first file drop to first successful client creation.
 - Decision (March 2026): PDF ingestion hardening is now a four-phase delivery plan. Phase 1 is reliability-only (source retention on failures, durable run triggering, server-driven transient retries, and shared retry utility extraction) with no new user-facing features. Phase 2 adds the runtime extraction mode selector (`fast` vs `best_accuracy`) and backup LLM circuit-breaker fallback behind a feature flag. Phase 3 introduces typed error taxonomy and moderate hardening cleanups. Phase 4 adds observability dashboards and SLO alerting.
+- Known issues / next session:
+  - "0 pages" metadata bug in extraction summary.
+  - Bulk import intelligence notes are concatenated into an unreadable wall of text (needs per-file collapsible notes).
+  - "Import Book of Business" naming is confusing for agents uploading a few PDFs (not a CSV dump).
+  - Single-file Upload Application modal does not support multi-select.
+  - Dashboard auth "Checking account access" spinner hangs on load.
+  - PostHog instrumentation files for Closr AI are still uncommitted.
 
 **Founding Member Program:** First 50 agents free for life. This commitment needs a migration path as AFL becomes a Closr AI module.
 
