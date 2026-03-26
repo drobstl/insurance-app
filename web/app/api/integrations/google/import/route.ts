@@ -1,15 +1,15 @@
 import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { enqueueIngestionV3ProcessJob } from '../../../../../../lib/cloud-tasks';
-import { getAdminAuth, getAdminStorage } from '../../../../../../lib/firebase-admin';
-import { getGoogleDriveIntegration, updateGoogleDriveTokens } from '../../../../../../lib/google-drive-store';
-import { refreshGoogleAccessToken } from '../../../../../../lib/google-oauth';
+import { enqueueIngestionV3ProcessJob } from '../../../../../lib/cloud-tasks';
+import { getAdminAuth, getAdminStorage } from '../../../../../lib/firebase-admin';
+import { getGoogleDriveIntegration, updateGoogleDriveTokens } from '../../../../../lib/google-drive-store';
+import { refreshGoogleAccessToken } from '../../../../../lib/google-oauth';
 import {
   createIngestionV3Job,
   findExistingIngestionV3JobByIdempotency,
   setIngestionV3JobError,
-} from '../../../../../../lib/ingestion-v3-store';
-import type { IngestionV3UploadPurpose } from '../../../../../../lib/ingestion-v3-types';
+} from '../../../../../lib/ingestion-v3-store';
+import type { IngestionV3UploadPurpose } from '../../../../../lib/ingestion-v3-types';
 
 export const maxDuration = 60;
 
