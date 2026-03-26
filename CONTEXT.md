@@ -1,7 +1,7 @@
 # CONTEXT.md — AgentForLife (AFL)
 
 > Drop this in the repo root. Read it before any strategic or architectural decision.
-> Last updated: March 25, 2026
+> Last updated: March 26, 2026
 
 ## What This Is
 
@@ -135,6 +135,7 @@ Standalone pricing remains for agents who come directly. Founding member migrati
 - Added (March 2026): Phase 0 bulk local import hardening in the Clients BOB modal. Local import now supports mixed multi-file batches (CSV/TSV/XLSX/PDF) with incremental preview updates as each file finishes, per-file status/error tracking, partial-failure handling, and a source-agnostic queue abstraction designed so Google Drive ingestion can plug into the same pipeline in Phase 1. PDF parsing now runs through a configurable per-agent concurrency cap (`NEXT_PUBLIC_IMPORT_PDF_CONCURRENCY`, bounded) to protect extraction throughput under burst uploads. Added PostHog instrumentation for bulk import session start/file parse outcomes/session completion plus activation timing from first file drop to first successful client creation.
 - Added (March 2026): Google Drive integration Task 1 backend foundation. Introduced server-side OAuth helpers and token persistence for `drive.readonly`, with Firestore integration storage at `integrations/{agentId}/google/drive`, OAuth state handling, and new API endpoints under `/api/integrations/google/*` (`auth`, `callback`, `disconnect`, `token`, `status`). Callback now redirects to `/dashboard` with success/error query params for UI handling.
 - Added (March 2026): Google Drive connect/disconnect controls in Dashboard Settings. The account settings tab now checks Google integration status on load, supports connect (OAuth start + redirect), supports disconnect, and surfaces callback success/error state using dashboard query params.
+- Added (March 2026): Google Drive Phase 1 is complete. Delivered Google Picker file selection in the Clients import flow, a new `/api/integrations/google/import` route that downloads Drive PDFs and stages them in GCS with idempotent ingestion-v3 job creation (`drive:{fileId}:{modifiedTime}:{sizeBytes}`), and dashboard UI support across both Settings (connect/disconnect state) and Clients (Connect Google Drive + Import from Google Drive actions). Drive imports now feed the same existing ingestion-v3 queue/process pipeline with no parser behavior changes from local uploads.
 - Decision (March 2026): PDF ingestion hardening is now a four-phase delivery plan. Phase 1 is reliability-only (source retention on failures, durable run triggering, server-driven transient retries, and shared retry utility extraction) with no new user-facing features. Phase 2 adds the runtime extraction mode selector (`fast` vs `best_accuracy`) and backup LLM circuit-breaker fallback behind a feature flag. Phase 3 introduces typed error taxonomy and moderate hardening cleanups. Phase 4 adds observability dashboards and SLO alerting.
 - Known issues / next session:
   - "0 pages" metadata bug in extraction summary.
