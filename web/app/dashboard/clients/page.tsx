@@ -1457,12 +1457,28 @@ export default function ClientsPage() {
     }));
   }, []);
 
-  const waitForBobIngestionRows = useCallback(async (jobId: string): Promise<{ rows: ImportRow[]; note?: string }> => {
+  const waitForBobIngestionRows = useCallback(async (
+    jobId: string,
+    firebaseIdToken: string,
+  ): Promise<{ rows: ImportRow[]; note?: string }> => {
     const startedAt = Date.now();
 
     while (Date.now() - startedAt < IMPORT_PARSE_TIMEOUT_MS) {
       await new Promise((r) => setTimeout(r, JOB_POLL_INTERVAL_MS));
-      const statusRes = await fetch(`/api/ingestion/v3/jobs/${jobId}`, { cache: 'no-store' });
+      const statusRes = await fetch(`/api/ingestion/v3/jobs/${encodeURIComponent(jobId)}`, {
+        cache: 'no-store',
+        headers: {
+          Authorization: `Bearer ${firebaseIdToken}`,
+          Accept: 'application/json',
+        },
+      });
+      const contentType = statusRes.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new BulkImportRetryableError('Unexpected response while checking parse status. Please retry.', {
+          retryable: true,
+          terminal: false,
+        });
+      }
       const statusBody = (await statusRes.json()) as IngestionV3JobStatusResponse;
 
       if (!statusRes.ok || !statusBody.success || !statusBody.job) {
@@ -1562,7 +1578,7 @@ export default function ClientsPage() {
       throw new Error(created.error?.message || `Failed to start parse job (${createRes.status}).`);
     }
 
-    return waitForBobIngestionRows(created.jobId);
+    return waitForBobIngestionRows(created.jobId, token);
   }, [user, waitForBobIngestionRows]);
 
   const getImportFileType = useCallback((file: File): ImportFileType => {
@@ -1896,7 +1912,7 @@ export default function ClientsPage() {
 
         updateImportFileStatus(sourceFileId, { state: 'parsing', error: undefined });
         try {
-          const parsed = await waitForBobIngestionRows(fileResult.jobId);
+          const parsed = await waitForBobIngestionRows(fileResult.jobId, token);
           if (parsed.rows.length === 0) {
             throw new Error('No valid rows found.');
           }
