@@ -1,7 +1,5 @@
 import 'server-only';
 
-import { CloudTasksClient } from '@google-cloud/tasks';
-
 interface IngestionV3TaskConfig {
   projectId: string;
   location: string;
@@ -11,7 +9,14 @@ interface IngestionV3TaskConfig {
   processorBaseUrl: string;
 }
 
-const cloudTasksClient = new CloudTasksClient();
+let cloudTasksClientPromise: Promise<any> | null = null;
+
+async function getCloudTasksClient(): Promise<any> {
+  if (!cloudTasksClientPromise) {
+    cloudTasksClientPromise = import('@google-cloud/tasks').then(({ CloudTasksClient }) => new CloudTasksClient());
+  }
+  return cloudTasksClientPromise;
+}
 
 export function getIngestionV3TaskConfigFromEnv(): IngestionV3TaskConfig {
   const projectId = process.env.CLOUD_TASKS_PROJECT_ID?.trim() || process.env.GCP_PROJECT_ID?.trim() || '';
@@ -42,6 +47,7 @@ export async function enqueueIngestionV3ProcessJob(
   jobId: string,
   options?: { delaySeconds?: number },
 ): Promise<{ taskName: string }> {
+  const cloudTasksClient = await getCloudTasksClient();
   const cfg = getIngestionV3TaskConfigFromEnv();
   const parent = cloudTasksClient.queuePath(cfg.projectId, cfg.location, cfg.queue);
   const url = `${cfg.processorBaseUrl}/api/ingestion/v3/jobs/${encodeURIComponent(jobId)}/process`;

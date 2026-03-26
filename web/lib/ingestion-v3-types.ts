@@ -85,6 +85,7 @@ export interface IngestionV3JobRecord {
     code: string;
     message: string;
     retryable: boolean;
+    terminal?: boolean;
   };
   result?: IngestionV3ResultPayload;
   metrics?: IngestionV3Metrics;

@@ -30,7 +30,7 @@ import type { IngestionV3JobRecord, IngestionV3Metrics, IngestionV3ResultPayload
 
 interface ProcessIngestionV3JobResult {
   status: 'processed' | 'skipped';
-  reason?: LockIngestionV3JobResult extends { ok: false; reason: infer R } ? R : never;
+  reason?: Extract<LockIngestionV3JobResult, { ok: false }>['reason'];
 }
 
 const RETRY_SCHEDULE_SECONDS = [5, 20, 60] as const;
@@ -60,7 +60,7 @@ export async function processIngestionV3Job(jobId: string): Promise<ProcessInges
     const extractionMs = Date.now() - extractStart;
 
     const validateStart = Date.now();
-    validateIngestionV3Result(result, lock.job.mode);
+    validateIngestionV3Result(result.payload, lock.job.mode);
     const validationMs = Date.now() - validateStart;
 
     const metrics: IngestionV3Metrics = {
@@ -74,7 +74,7 @@ export async function processIngestionV3Job(jobId: string): Promise<ProcessInges
     await completeIngestionV3Job(jobId, processingToken, {
       status: 'review_ready',
       result: result.payload,
-      metrics,
+      metrics: metrics as unknown as Record<string, unknown>,
     });
     trackIngestionV3ProcessSucceeded({
       jobId,

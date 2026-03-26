@@ -98,7 +98,7 @@ function normalizeBeneficiaries(beneficiaries: Beneficiary[] | null): Beneficiar
     relationship: b.relationship,
     percentage: b.percentage ?? undefined,
     irrevocable: b.irrevocable,
-    type: b.type,
+    type: b.type as 'primary' | 'contingent',
   }));
 }
 

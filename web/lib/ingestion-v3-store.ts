@@ -280,9 +280,9 @@ export function toIngestionV3JobRecord(id: string, data: Record<string, unknown>
   };
 }
 
-function compactObject<T extends Record<string, unknown>>(obj: T): Partial<T> {
+function compactObject<T extends object>(obj: T): Partial<T> {
   const out: Partial<T> = {};
-  for (const [k, v] of Object.entries(obj)) {
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
     if (v !== undefined) {
       out[k as keyof T] = v as T[keyof T];
     }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getIngestionV3Job } from '../../../../../../../lib/ingestion-v3-store';
-import type { IngestionV3JobStatusResponse } from '../../../../../../../lib/types';
+import { getIngestionV3Job } from '../../../../../../lib/ingestion-v3-store';
+import type { IngestionV3JobStatusResponse } from '../../../../../../lib/types';
 
 export async function GET(
   _req: NextRequest,

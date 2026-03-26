@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { enqueueIngestionV3ProcessJob } from '../../../../../../lib/cloud-tasks';
-import { getAdminAuth, getAdminStorage } from '../../../../../../lib/firebase-admin';
+import { enqueueIngestionV3ProcessJob } from '../../../../../lib/cloud-tasks';
+import { getAdminAuth, getAdminStorage } from '../../../../../lib/firebase-admin';
 import {
   createIngestionV3Job,
   findExistingIngestionV3JobByIdempotency,
   setIngestionV3JobError,
-} from '../../../../../../lib/ingestion-v3-store';
+} from '../../../../../lib/ingestion-v3-store';
 import {
   trackIngestionV3JobCreated,
   trackIngestionV3TaskEnqueued,
   trackIngestionV3TaskEnqueueFailed,
-} from '../../../../../../lib/ingestion-v3-telemetry';
-import type { IngestionV3Mode } from '../../../../../../lib/ingestion-v3-types';
-import type { IngestionV3SubmitJobResponse } from '../../../../../../lib/types';
+} from '../../../../../lib/ingestion-v3-telemetry';
+import type { IngestionV3Mode } from '../../../../../lib/ingestion-v3-types';
+import type { IngestionV3SubmitJobResponse } from '../../../../../lib/types';
 
 export const maxDuration = 60;
 

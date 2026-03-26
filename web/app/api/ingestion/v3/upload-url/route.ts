@@ -1,8 +1,8 @@
 import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminStorage } from '../../../../../../lib/firebase-admin';
-import type { IngestionV3UploadPurpose } from '../../../../../../lib/ingestion-v3-types';
-import type { IngestionV3ErrorDetails } from '../../../../../../lib/types';
+import { getAdminStorage } from '../../../../../lib/firebase-admin';
+import type { IngestionV3UploadPurpose } from '../../../../../lib/ingestion-v3-types';
+import type { IngestionV3ErrorDetails } from '../../../../../lib/types';
 
 export const maxDuration = 60;
 
@@ -97,7 +97,7 @@ function sanitizeFileName(fileName: string): string {
   return fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
-async function ensureBucketCors(bucket: { setCorsConfiguration: (rules: unknown[]) => Promise<unknown> }) {
+async function ensureBucketCors(bucket: any) {
   if (corsConfigured) return;
   try {
     await bucket.setCorsConfiguration([
