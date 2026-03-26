@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "requiredCaseIds": [
+    "tiny",
+    "large",
+    "multi_page",
+    "scanned_image",
+    "malformed"
+  ],
+  "cases": [
+    {
+      "id": "tiny",
+      "fixture": "tiny_application.pdf",
+      "mode": "application",
+      "purpose": "application",
+      "expectedStatus": "review_ready"
+    },
+    {
+      "id": "large",
+      "fixture": "large_application.pdf",
+      "mode": "application",
+      "purpose": "application",
+      "expectedStatus": "review_ready"
+    },
+    {
+      "id": "multi_page",
+      "fixture": "multi_page_application.pdf",
+      "mode": "application",
+      "purpose": "application",
+      "expectedStatus": "review_ready"
+    },
+    {
+      "id": "scanned_image",
+      "fixture": "scanned_application.pdf",
+      "mode": "application",
+      "purpose": "application",
+      "expectedStatus": "review_ready"
+    },
+    {
+      "id": "malformed",
+      "fixture": "malformed_application.pdf",
+      "mode": "application",
+      "purpose": "application",
+      "expectedStatus": "failed",
+      "expectedErrorCode": "VALIDATION_FAILED"
+    }
+  ]
+}

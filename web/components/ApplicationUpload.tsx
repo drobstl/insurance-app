@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { upload } from '@vercel/blob/client';
-import type { ExtractedApplicationData, ParseApplicationResponse, Beneficiary } from '../lib/types';
+import { useState, useRef, useCallback, useId } from 'react';
+import type {
+  ExtractedApplicationData,
+  IngestionV3JobStatusResponse,
+  IngestionV3SubmitJobResponse,
+} from '../lib/types';
 import { isTimeoutError, withTimeout } from '../lib/timeout';
 
 interface ApplicationUploadProps {
@@ -18,33 +21,9 @@ interface ApplicationUploadProps {
 type Stage = 'upload' | 'processing' | 'review' | 'error';
 const PARSE_TIMEOUT_MS = 120_000;
 const JOB_POLL_INTERVAL_MS = 1500;
-const DIRECT_PARSE_MAX_BYTES = 4 * 1024 * 1024;
+const JOB_STATUS_TIMEOUT_MS = 8_000;
 const MAX_RELIABLE_APPLICATION_FILE_BYTES = 13 * 1024 * 1024;
 const GCS_UPLOAD_TIMEOUT_MS = 120_000;
-const BLOB_UPLOAD_TIMEOUT_MS = 45_000;
-
-interface IngestionJobStatusResponse {
-  success: boolean;
-  job?: {
-    id: string;
-    status: 'queued' | 'processing' | 'succeeded' | 'failed';
-    error?: string;
-    metrics?: {
-      totalMs: number;
-      resolveSourceMs: number;
-      extractMs: number;
-      textExtractMs?: number;
-      parserPath?: string;
-    };
-    result?: {
-      application?: {
-        data: ExtractedApplicationData;
-        note?: string;
-      };
-    };
-  };
-  error?: string;
-}
 
 export default function ApplicationUpload({ clientName, onExtracted, onClose, onCreateClientAndPolicy, mode = 'policy-only' }: ApplicationUploadProps) {
   const [stage, setStage] = useState<Stage>('upload');
@@ -58,6 +37,8 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
   const [processingLabel, setProcessingLabel] = useState('Preparing file...');
   const [timingSummary, setTimingSummary] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isProcessingRef = useRef(false);
+  const fileInputId = useId();
 
   // Editable client fields (only used in client-and-policy mode)
   const [clientFields, setClientFields] = useState({
@@ -70,20 +51,20 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
   // Editable policy fields
   const [policyFields, setPolicyFields] = useState<ExtractedApplicationData | null>(null);
 
-  useEffect(() => {
-    // Warm parsing/storage path to reduce first-request cold start.
-    fetch('/api/ingestion/v2/warm', { cache: 'no-store', keepalive: true }).catch(() => {});
-  }, []);
-
   const processFile = useCallback(async (file: File) => {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
       setErrorMessage('Please upload a PDF file.');
       setStage('error');
+      isProcessingRef.current = false;
       return;
     }
     if (file.size > MAX_RELIABLE_APPLICATION_FILE_BYTES) {
       setErrorMessage('File is too large. Maximum size is 13MB.');
       setStage('error');
+      isProcessingRef.current = false;
       return;
     }
 
@@ -94,228 +75,123 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
     setTimingSummary(null);
 
     try {
-      // For smaller PDFs, parse directly via FormData.
-      let gcsPath: string | null = null;
-      let blobUrl: string | null = null;
-      const useDirectParse = file.size <= DIRECT_PARSE_MAX_BYTES;
-      if (!useDirectParse) {
-        setProcessingLabel('Uploading file...');
-        const stopUploadProgress = startAutoProgress(setProcessingProgress, 10, 30, 2, 700);
-        try {
-          const signedRes = await fetch('/api/storage/upload-url', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              fileName: file.name,
-              contentType: file.type || 'application/pdf',
-              fileSize: file.size,
-              purpose: 'application',
-            }),
-          });
-          const signedBody = (await signedRes.json()) as {
-            success: boolean;
-            uploadUrl?: string;
-            gcsPath?: string;
-            error?: string;
-          };
-          if (!signedRes.ok || !signedBody.success || !signedBody.uploadUrl || !signedBody.gcsPath) {
-            throw new Error(signedBody.error || `Failed to start file upload (${signedRes.status}).`);
-          }
-
-          await withTimeout(
-            fetch(signedBody.uploadUrl, {
-              method: 'PUT',
-              headers: { 'Content-Type': file.type || 'application/pdf' },
-              body: file,
-            }).then((res) => {
-              if (!res.ok) {
-                throw new Error(`Upload failed (${res.status}).`);
-              }
-            }),
-            GCS_UPLOAD_TIMEOUT_MS,
-            'Upload timed out while sending file.',
-          );
-
-          gcsPath = signedBody.gcsPath;
-        } catch (uploadErr) {
-          // Backup path: if signed GCS upload fails (often CORS/preflight), fall back to Blob upload.
-          setProcessingLabel('Switching to backup uploader...');
-          try {
-            const blob = await withTimeout(
-              upload(file.name, file, {
-                access: 'public',
-                handleUploadUrl: '/api/upload',
-              }),
-              BLOB_UPLOAD_TIMEOUT_MS,
-              'Backup upload timed out.',
-            );
-            blobUrl = blob.url;
-          } catch (backupErr) {
-            if (isTimeoutError(backupErr)) {
-              setErrorMessage('Upload timed out for this file. Please retry.');
-            } else if (backupErr instanceof Error) {
-              setErrorMessage(backupErr.message);
-            } else if (uploadErr instanceof Error) {
-              setErrorMessage(uploadErr.message);
-            } else {
-              setErrorMessage('Upload failed. Please retry.');
-            }
-            setStage('error');
-            return;
-          }
-        } finally {
-          stopUploadProgress();
-        }
-        setProcessingProgress((p) => Math.max(p, 32));
-      }
-
-      let parsedData: ExtractedApplicationData | null = null;
-      let parsedNote: string | null = null;
-      let parsedPageCount = 0;
-
-      if (gcsPath || blobUrl) {
-        setProcessingLabel('Queueing parser...');
-        setProcessingProgress((p) => Math.max(p, 40));
-        const createRes = await fetch('/api/ingestion/v2/jobs', {
+      setProcessingLabel('Uploading file...');
+      const stopUploadProgress = startAutoProgress(setProcessingProgress, 10, 35, 2, 700);
+      let gcsPath: string;
+      try {
+        const signedRes = await fetch('/api/ingestion/v3/upload-url', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            mode: 'application',
-            gcsPath: gcsPath || undefined,
-            url: blobUrl || undefined,
             fileName: file.name,
+            contentType: file.type || 'application/pdf',
             fileSize: file.size,
-            idempotencyKey: `application:${file.name}:${file.size}:${file.lastModified}`,
+            purpose: 'application',
           }),
         });
-
-        const created = (await createRes.json()) as IngestionJobStatusResponse;
-        if (!createRes.ok || !created.success || !created.job?.id) {
-          throw new Error(created.error || `Failed to start parsing job (${createRes.status}).`);
+        const signedBody = (await signedRes.json()) as {
+          success: boolean;
+          uploadUrl?: string;
+          gcsPath?: string;
+          error?: { message?: string };
+        };
+        if (!signedRes.ok || !signedBody.success || !signedBody.uploadUrl || !signedBody.gcsPath) {
+          throw new Error(signedBody.error?.message || `Failed to start file upload (${signedRes.status}).`);
         }
 
-        // Kick off server-side processing in a separate request so the UI can poll status.
-        fetch(`/api/ingestion/v2/jobs/${created.job.id}/run`, {
-          method: 'POST',
-          keepalive: true,
-        }).catch(() => {});
-
-        const startedAt = Date.now();
-        let retriggered = false;
-        while (Date.now() - startedAt < PARSE_TIMEOUT_MS) {
-          await new Promise((r) => setTimeout(r, JOB_POLL_INTERVAL_MS));
-
-          const statusRes = await fetch(`/api/ingestion/v2/jobs/${created.job.id}`, {
-            cache: 'no-store',
-          });
-          const statusBody = (await statusRes.json()) as IngestionJobStatusResponse;
-
-          if (!statusRes.ok || !statusBody.success || !statusBody.job) {
-            throw new Error(statusBody.error || `Failed to check parsing status (${statusRes.status}).`);
-          }
-
-          if (statusBody.job.status === 'succeeded') {
-            parsedData = statusBody.job.result?.application?.data || null;
-            parsedNote = statusBody.job.result?.application?.note || null;
-            const metrics = statusBody.job.metrics;
-            if (metrics?.totalMs != null) {
-              const totalSec = (metrics.totalMs / 1000).toFixed(1);
-              const sourceSec = (metrics.resolveSourceMs / 1000).toFixed(1);
-              const extractSec = (metrics.extractMs / 1000).toFixed(1);
-              const textSec = ((metrics.textExtractMs || 0) / 1000).toFixed(1);
-              const lane = metrics.parserPath || 'ai-pdf';
-              setTimingSummary(`Processed in ${totalSec}s (source ${sourceSec}s, extraction ${extractSec}s, text ${textSec}s, lane ${lane}).`);
+        await withTimeout(
+          fetch(signedBody.uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': file.type || 'application/pdf' },
+            body: file,
+          }).then((res) => {
+            if (!res.ok) {
+              throw new Error(`Upload failed (${res.status}).`);
             }
-            break;
+          }),
+          GCS_UPLOAD_TIMEOUT_MS,
+          'Upload timed out while sending file.',
+        );
+
+        gcsPath = signedBody.gcsPath;
+      } finally {
+        stopUploadProgress();
+      }
+
+      setProcessingLabel('Queueing parser...');
+      setProcessingProgress((p) => Math.max(p, 40));
+      const createRes = await fetch('/api/ingestion/v3/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'application',
+          gcsPath,
+          fileName: file.name,
+          contentType: file.type || 'application/pdf',
+          idempotencyKey: `application-v3:${file.name}:${file.size}:${file.lastModified}`,
+        }),
+      });
+      const created = (await createRes.json()) as IngestionV3SubmitJobResponse;
+      if (!createRes.ok || !created.success || !created.jobId) {
+        throw new Error(created.error?.message || `Failed to start parsing job (${createRes.status}).`);
+      }
+
+      const startedAt = Date.now();
+      let parsedData: ExtractedApplicationData | null = null;
+      let parsedNote: string | null = null;
+      while (Date.now() - startedAt < PARSE_TIMEOUT_MS) {
+        await new Promise((r) => setTimeout(r, JOB_POLL_INTERVAL_MS));
+
+        const statusRes = await fetch(`/api/ingestion/v3/jobs/${created.jobId}`, {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(JOB_STATUS_TIMEOUT_MS),
+        });
+        const statusBody = (await statusRes.json()) as IngestionV3JobStatusResponse;
+        if (!statusRes.ok || !statusBody.success || !statusBody.job) {
+          throw new Error(statusBody.error?.message || `Failed to check parsing status (${statusRes.status}).`);
+        }
+
+        if (statusBody.job.status === 'review_ready' || statusBody.job.status === 'saved') {
+          parsedData = statusBody.job.result?.application?.data || null;
+          parsedNote = statusBody.job.result?.application?.note || null;
+          const metrics = statusBody.job.metrics;
+          if (metrics?.totalMs != null) {
+            const totalSec = (metrics.totalMs / 1000).toFixed(1);
+            const sourceSec = ((metrics.sourceFetchMs || 0) / 1000).toFixed(1);
+            const extractSec = ((metrics.extractionMs || 0) / 1000).toFixed(1);
+            const validateSec = ((metrics.validationMs || 0) / 1000).toFixed(1);
+            const lane = metrics.parserPath || 'ai-pdf';
+            setTimingSummary(
+              `Processed in ${totalSec}s (source ${sourceSec}s, extraction ${extractSec}s, validation ${validateSec}s, lane ${lane}).`,
+            );
           }
-
-          if (statusBody.job.status === 'failed') {
-            throw new Error(statusBody.job.error || 'Failed to parse the application.');
-          }
-
-          if (statusBody.job.status === 'queued' && !retriggered) {
-            setProcessingLabel('Queued...');
-            setProcessingProgress((p) => Math.max(p, 50));
-            retriggered = true;
-            fetch(`/api/ingestion/v2/jobs/${created.job.id}/run`, {
-              method: 'POST',
-              keepalive: true,
-            }).catch(() => {});
-          } else if (statusBody.job.status === 'processing') {
-            setProcessingLabel('Extracting data...');
-            const elapsed = Date.now() - startedAt;
-            const estimated = Math.min(92, 58 + Math.floor(elapsed / 1200));
-            setProcessingProgress((p) => Math.max(p, estimated));
-          }
+          break;
         }
 
-        if (!parsedData) {
-          throw new Error('Ingestion job timed out while parsing this file.');
-        }
-      } else {
-        setProcessingLabel('Extracting data...');
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), PARSE_TIMEOUT_MS);
-        let res: Response;
-        const stopDirectProgress = startAutoProgress(setProcessingProgress, 45, 90, 1, 1200);
-
-        try {
-          const formData = new FormData();
-          formData.append('file', file);
-          res = await fetch('/api/parse-application', {
-            method: 'POST',
-            body: formData,
-            signal: controller.signal,
-          });
-        } finally {
-          stopDirectProgress();
-          clearTimeout(timeout);
+        if (statusBody.job.status === 'failed') {
+          throw new Error(statusBody.job.error?.message || 'Failed to parse the application.');
         }
 
-        if (!res.ok) {
-          let message = `Server error (${res.status})`;
-          try {
-            const body = await res.json();
-            if (body?.error) message = body.error;
-          } catch {
-            if (res.status === 504) {
-              message = 'Server timed out processing the PDF. Try again on a stronger connection, or try a smaller file.';
-            }
-          }
-          setErrorMessage(message);
-          setStage('error');
-          return;
-        }
-
-        const result: ParseApplicationResponse = await res.json();
-        if (!result.success || !result.data) {
-          setErrorMessage(result.error || 'Failed to parse the application.');
-          setStage('error');
-          return;
-        }
-
-        parsedData = result.data;
-        parsedPageCount = result.pageCount || 0;
-        parsedNote = result.note || null;
-        if (result.timings?.totalMs != null) {
-          const totalSec = (result.timings.totalMs / 1000).toFixed(1);
-          const sourceSec = ((result.timings.sourceMs || 0) / 1000).toFixed(1);
-          const extractSec = ((result.timings.extractMs || 0) / 1000).toFixed(1);
-          const textSec = ((result.timings.textExtractMs || 0) / 1000).toFixed(1);
-          const lane = result.timings.parserPath || 'ai-pdf';
-          setTimingSummary(`Processed in ${totalSec}s (source ${sourceSec}s, extraction ${extractSec}s, text ${textSec}s, lane ${lane}).`);
+        if (statusBody.job.status === 'queued' || statusBody.job.status === 'uploading') {
+          setProcessingLabel('Queued...');
+          setProcessingProgress((p) => Math.max(p, 50));
+        } else if (statusBody.job.status === 'processing') {
+          setProcessingLabel('Extracting data...');
+          const elapsed = Date.now() - startedAt;
+          const estimated = Math.min(92, 58 + Math.floor(elapsed / 1200));
+          setProcessingProgress((p) => Math.max(p, estimated));
         }
       }
 
       if (!parsedData) {
-        throw new Error('Failed to parse application data.');
+        throw new Error('Ingestion job timed out while parsing this file.');
       }
 
       setProcessingLabel('Finalizing...');
       setProcessingProgress(100);
       setExtractedData(parsedData);
       setPolicyFields(parsedData);
-      setPageCount(parsedPageCount);
+      setPageCount(0);
       setNote(parsedNote);
 
       if (mode === 'client-and-policy') {
@@ -343,6 +219,8 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       }
       setErrorMessage(message);
       setStage('error');
+    } finally {
+      isProcessingRef.current = false;
     }
   }, [mode]);
 
@@ -394,7 +272,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
   const filledFields = extractedData
     ? Object.entries(extractedData).filter(([, v]) => v !== null && v !== undefined).length
     : 0;
-  const totalFields = 14;
+  const totalFields = 15;
 
   const isClientAndPolicy = mode === 'client-and-policy';
   const missingContact = isClientAndPolicy && !clientFields.phone.trim() && !clientFields.email.trim();
@@ -430,14 +308,13 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
               onDrop={handleDrop}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
-              onClick={() => fileInputRef.current?.click()}
               className={`border-2 border-dashed rounded-[5px] p-10 text-center cursor-pointer transition-all duration-200 ${
                 dragActive
                   ? 'border-[#0099FF] bg-[#0099FF]/5'
                   : 'border-gray-300 hover:border-[#0099FF] hover:bg-gray-50'
               }`}
             >
-              <div className="flex flex-col items-center gap-3">
+              <label htmlFor={fileInputId} className="flex flex-col items-center gap-3 cursor-pointer">
                 <div className="w-14 h-14 bg-[#0099FF]/10 rounded-[5px] flex items-center justify-center">
                   <svg className="w-7 h-7 text-[#0099FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -453,8 +330,9 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
                       : 'Drag & drop or click to browse. Max 13MB.'}
                   </p>
                 </div>
-              </div>
+              </label>
               <input
+                id={fileInputId}
                 ref={fileInputRef}
                 type="file"
                 accept=".pdf,application/pdf"

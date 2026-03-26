@@ -1,12 +1,15 @@
 import 'server-only';
 
 import { FieldValue } from 'firebase-admin/firestore';
-import { extractApplicationFields, extractApplicationFieldsFromText } from './application-extractor';
+import { extractApplicationFields } from './application-extractor';
 import { extractBobFromPdf, extractBobFromText, type BobRow } from './bob-extractor';
 import { parseBobDeterministically } from './bob-deterministic-parser';
 import { getAdminFirestore, getAdminStorage } from './firebase-admin';
 import { pdfToBase64 } from './pdf-parser';
-import { extractTextFromPdfBase64, isTextExtractionHighConfidence } from './pdf-text-extractor';
+import {
+  isRetryableExtractionError,
+  shouldGracefullyDegradeApplicationExtraction,
+} from './extraction-errors';
 import type { ExtractedApplicationData } from './types';
 
 export type IngestionMode = 'application' | 'bob';
@@ -56,6 +59,7 @@ export interface IngestionJobDoc {
   updatedAt: FirebaseFirestore.FieldValue;
   startedAt?: FirebaseFirestore.FieldValue;
   completedAt?: FirebaseFirestore.FieldValue;
+  retryAfter?: number;
 }
 
 export interface IngestionJobResponse {
@@ -71,6 +75,7 @@ export interface IngestionJobResponse {
 
 const JOBS_COLLECTION = 'ingestionJobsV2';
 const BLOB_FETCH_TIMEOUT_MS = 30_000;
+const RETRY_BACKOFF_BASE_MS = 4_000;
 
 function emptyExtractedApplicationData(): ExtractedApplicationData {
   return {
@@ -87,29 +92,9 @@ function emptyExtractedApplicationData(): ExtractedApplicationData {
     insuredEmail: null,
     insuredPhone: null,
     insuredDateOfBirth: null,
+    insuredState: null,
     effectiveDate: null,
   };
-}
-
-function shouldGracefullyDegradeApplicationExtraction(message: string): boolean {
-  const normalized = message.toLowerCase();
-  return (
-    normalized.includes('anthropic') ||
-    normalized.includes('api key') ||
-    normalized.includes('rate limit') ||
-    normalized.includes('429') ||
-    normalized.includes('500') ||
-    normalized.includes('502') ||
-    normalized.includes('503') ||
-    normalized.includes('529') ||
-    normalized.includes('overloaded') ||
-    normalized.includes('timeout') ||
-    normalized.includes('timed out') ||
-    normalized.includes('fetch failed') ||
-    normalized.includes('econnreset') ||
-    normalized.includes('no response received from ai') ||
-    normalized.includes('failed to parse ai response')
-  );
 }
 
 export function getIngestionJobsCollection() {
@@ -141,9 +126,13 @@ export async function processIngestionJob(id: string): Promise<void> {
     const status = data.status as IngestionJobStatus | undefined;
     const attempts = typeof data.attempts === 'number' ? data.attempts : 0;
     const maxAttempts = typeof data.maxAttempts === 'number' ? data.maxAttempts : 1;
+    const retryAfter = typeof data.retryAfter === 'number' ? data.retryAfter : undefined;
 
     if (status === 'processing' || status === 'succeeded') {
       return { ok: false, reason: 'already_running_or_done' as const };
+    }
+    if (retryAfter && Date.now() < retryAfter) {
+      return { ok: false, reason: 'retry_backoff_not_elapsed' as const };
     }
     if (attempts >= maxAttempts) {
       tx.update(ref, {
@@ -151,6 +140,7 @@ export async function processIngestionJob(id: string): Promise<void> {
         error: 'Maximum retry attempts reached.',
         updatedAt: FieldValue.serverTimestamp(),
         completedAt: FieldValue.serverTimestamp(),
+        retryAfter: FieldValue.delete(),
       });
       return { ok: false, reason: 'max_attempts' as const };
     }
@@ -161,6 +151,7 @@ export async function processIngestionJob(id: string): Promise<void> {
       startedAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
       error: FieldValue.delete(),
+      retryAfter: FieldValue.delete(),
     });
     return { ok: true, reason: 'locked' as const };
   });
@@ -175,7 +166,8 @@ export async function processIngestionJob(id: string): Promise<void> {
     const source = (data.source as Record<string, unknown> | undefined) ?? {};
     gcsPathToDelete = typeof source.gcsPath === 'string' ? source.gcsPath : undefined;
 
-    const { result, metrics } = await runExtraction(mode, source);
+    const attempt = typeof data.attempts === 'number' ? data.attempts : 1;
+    const { result, metrics } = await runExtraction(mode, source, { attempt });
     console.log('[ingestion-v2] Job succeeded', { jobId: id, mode, metrics });
 
     await ref.update({
@@ -185,17 +177,8 @@ export async function processIngestionJob(id: string): Promise<void> {
       updatedAt: FieldValue.serverTimestamp(),
       completedAt: FieldValue.serverTimestamp(),
       error: FieldValue.delete(),
+      retryAfter: FieldValue.delete(),
     });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to process ingestion job.';
-    console.error('[ingestion-v2] Job failed', { jobId: id, error: message });
-    await ref.update({
-      status: 'failed',
-      error: message,
-      updatedAt: FieldValue.serverTimestamp(),
-      completedAt: FieldValue.serverTimestamp(),
-    });
-  } finally {
     if (gcsPathToDelete) {
       try {
         await getAdminStorage().bucket().file(gcsPathToDelete).delete();
@@ -203,17 +186,61 @@ export async function processIngestionJob(id: string): Promise<void> {
         // non-blocking cleanup
       }
     }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to process ingestion job.';
+    const snap = await ref.get();
+    const data = snap.data() as Record<string, unknown> | undefined;
+    const attempts = typeof data?.attempts === 'number' ? data.attempts : 1;
+    const maxAttempts = typeof data?.maxAttempts === 'number' ? data.maxAttempts : 1;
+    const isRetryable = isRetryableExtractionError(err);
+
+    if (isRetryable && attempts < maxAttempts) {
+      const nextDelayMs = Math.min(RETRY_BACKOFF_BASE_MS * Math.pow(2, Math.max(0, attempts - 1)), 30_000);
+      console.warn('[ingestion-v2] Job transient failure, re-queueing', {
+        jobId: id,
+        error: message,
+        attempts,
+        maxAttempts,
+        nextDelayMs,
+      });
+      await ref.update({
+        status: 'queued',
+        error: message,
+        updatedAt: FieldValue.serverTimestamp(),
+        retryAfter: Date.now() + nextDelayMs,
+      });
+      return;
+    }
+
+    console.error('[ingestion-v2] Job failed', { jobId: id, error: message, attempts, maxAttempts });
+    await ref.update({
+      status: 'failed',
+      error: message,
+      updatedAt: FieldValue.serverTimestamp(),
+      completedAt: FieldValue.serverTimestamp(),
+      retryAfter: FieldValue.delete(),
+    });
   }
 }
 
 async function runExtraction(
   mode: IngestionMode,
   source: Record<string, unknown>,
+  options: { attempt: number },
 ): Promise<{ result: IngestionJobResult; metrics: IngestionJobMetrics }> {
+  if (
+    process.env.NODE_ENV !== 'production' &&
+    process.env.INGESTION_FAULT_MODE === 'retryable_once' &&
+    options.attempt <= 1
+  ) {
+    throw Object.assign(new Error('Synthetic 503: fault injection for retry testing'), {
+      status: 503,
+    });
+  }
+
   const t0 = Date.now();
   let resolveSourceMs = 0;
   let extractMs = 0;
-  let textExtractMs = 0;
 
   if (mode === 'application') {
     const sourceStart = Date.now();
@@ -222,21 +249,19 @@ async function runExtraction(
     const fileSizeBytes = typeof source.fileSize === 'number' ? source.fileSize : undefined;
 
     const extractStart = Date.now();
-    const textStart = Date.now();
-    const extractedText = await extractTextFromPdfBase64(pdfBase64);
-    textExtractMs = Date.now() - textStart;
-
-    const useTextPath = isTextExtractionHighConfidence(extractedText);
     let extraction: { data: ExtractedApplicationData; note?: string };
     try {
-      extraction = useTextPath
-        ? await extractApplicationFieldsFromText(extractedText!)
-        : await extractApplicationFields(pdfBase64, { fileSizeBytes });
+      extraction = await extractApplicationFields(pdfBase64, { fileSizeBytes });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'AI extraction failed.';
+      if (isRetryableExtractionError(error)) {
+        throw error;
+      }
+
       if (!shouldGracefullyDegradeApplicationExtraction(message)) {
         throw error;
       }
+
       extraction = {
         data: emptyExtractedApplicationData(),
         note: 'Automatic extraction is temporarily unavailable. Please review and fill in fields manually.',
@@ -255,10 +280,9 @@ async function runExtraction(
         totalMs: Date.now() - t0,
         resolveSourceMs,
         extractMs,
-        textExtractMs,
         mode,
         usedTextSource: false,
-        parserPath: useTextPath ? 'ai-text' : 'ai-pdf',
+        parserPath: 'ai-pdf',
       },
     };
   }

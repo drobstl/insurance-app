@@ -71,7 +71,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<CreateJobResp
       status: 'queued',
       source: compactObject(source),
       attempts: 0,
-      maxAttempts: 2,
+      maxAttempts: 3,
       agentId: agentId ?? null,
       idempotencyKey: idempotencyKey ?? null,
       createdAt: FieldValue.serverTimestamp(),

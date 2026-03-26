@@ -1,0 +1,26 @@
+# AgentForLife (AFL) — Cursor Project Rules
+
+## Before responding to any question about product strategy, architecture, business logic, pricing, or integration with Closr AI:
+Read `CONTEXT.md` in the repo root. It contains the current product vision, business model, technical architecture, development status, and open strategic questions. Do not guess at these — consult the file.
+
+## When making changes that affect product strategy or architecture:
+After implementing the change, update `CONTEXT.md` to reflect the new state. This includes:
+- Features shipped or removed
+- Pricing or tier changes
+- Architecture decisions
+- Open questions resolved
+- Status changes (e.g., moving from "known issue" to "fixed")
+
+## Technical conventions
+- React Native for the client mobile app
+- Firebase backend (migrating to Clerk for auth unification with Closr AI)
+- Single-source `ai-voice.ts` for all AI conversation logic (NEPQ framework)
+- Linq for iMessage/SMS delivery
+- Stripe for billing
+
+## Domain knowledge
+- This product serves independent life insurance agents
+- AFL is becoming a paid add-on module within the Closr AI platform while retaining standalone access
+- NEPQ = Neuro-Emotional Persuasion Questioning (the sales methodology underpinning all AI messaging)
+- The call-to-client pipeline receives structured JSON from Closr AI when a sale closes — any changes to the client creation endpoint or data model must stay compatible with Closr AI's entity extraction output
+- Founding members have a free-for-life commitment that must be honored through any migration

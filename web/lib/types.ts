@@ -5,6 +5,7 @@ export interface Beneficiary {
   name: string;
   relationship?: string;  // e.g. "Spouse", "Child" -- optional
   percentage?: number;     // e.g. 25 -- optional
+  irrevocable?: boolean | null;
   type: 'primary' | 'contingent';
 }
 
@@ -26,6 +27,7 @@ export interface ExtractedApplicationData {
   insuredEmail: string | null;
   insuredPhone: string | null;
   insuredDateOfBirth: string | null;
+  insuredState: string | null;
   effectiveDate: string | null;
 }
 
@@ -48,4 +50,24 @@ export interface ParseApplicationResponse {
     textExtractMs?: number;
     parserPath?: 'ai-pdf' | 'ai-text';
   };
+}
+
+/**
+ * v3 ingestion API response contracts.
+ * These are additive so existing v2 consumers remain unchanged.
+ */
+export type { IngestionV3FieldEvidence, IngestionV3FieldEvidenceMap, IngestionV3JobRecord, IngestionV3Metrics, IngestionV3Mode, IngestionV3ResultPayload, IngestionV3Status } from './ingestion-v3-types';
+export type { IngestionV3ErrorCode, IngestionV3ErrorDetails } from './ingestion-v3-errors';
+
+export interface IngestionV3SubmitJobResponse {
+  success: boolean;
+  jobId?: string;
+  status?: import('./ingestion-v3-types').IngestionV3Status;
+  error?: import('./ingestion-v3-errors').IngestionV3ErrorDetails;
+}
+
+export interface IngestionV3JobStatusResponse {
+  success: boolean;
+  job?: import('./ingestion-v3-types').IngestionV3JobRecord;
+  error?: import('./ingestion-v3-errors').IngestionV3ErrorDetails;
 }

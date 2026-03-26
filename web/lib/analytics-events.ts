@@ -22,6 +22,10 @@ export const ANALYTICS_EVENTS = {
   DASHBOARD_EXIT_AFTER_ERROR: 'dashboard_exit_after_error',
   DASHBOARD_EXIT_AFTER_EMPTY_STATE: 'dashboard_exit_after_empty_state',
   CHURN_RISK_FLAGGED: 'churn_risk_flagged',
+  BULK_IMPORT_SESSION_STARTED: 'bulk_import_session_started',
+  BULK_IMPORT_FILE_PARSED: 'bulk_import_file_parsed',
+  BULK_IMPORT_SESSION_COMPLETED: 'bulk_import_session_completed',
+  BULK_IMPORT_ACTIVATED: 'bulk_import_activated',
 } as const;
 
 export type AnalyticsEventName =
@@ -109,6 +113,37 @@ export type AnalyticsEventPropertiesMap = {
     path?: string;
     risk_reason?: string;
     session_duration_ms?: number;
+  } & GenericEventProperties;
+  bulk_import_session_started: {
+    source?: 'local_bulk' | 'drive';
+    total_files?: number;
+    pdf_files?: number;
+    spreadsheet_files?: number;
+    text_files?: number;
+  } & GenericEventProperties;
+  bulk_import_file_parsed: {
+    source?: 'local_bulk' | 'drive';
+    file_type?: 'pdf' | 'spreadsheet' | 'text' | 'unknown';
+    file_size_bytes?: number;
+    success?: boolean;
+    retry_attempt_count?: number;
+    rows_loaded?: number;
+    rejected_rows?: number;
+    error?: string;
+  } & GenericEventProperties;
+  bulk_import_session_completed: {
+    source?: 'local_bulk' | 'drive';
+    total_files?: number;
+    parsed_files?: number;
+    failed_files?: number;
+    loaded_rows?: number;
+    elapsed_ms?: number;
+  } & GenericEventProperties;
+  bulk_import_activated: {
+    source?: 'local_bulk' | 'drive';
+    time_to_first_client_created_ms?: number;
+    imported_count?: number;
+    policy_count?: number;
   } & GenericEventProperties;
 };
 

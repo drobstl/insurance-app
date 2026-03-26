@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { ExtractedApplicationData, Beneficiary } from './types';
+import { isRetryableExtractionError } from './extraction-errors';
 
 interface ApplicationExtractionOptions {
   fileSizeBytes?: number;
@@ -110,9 +111,10 @@ const EXTRACTION_SCHEMA = {
           name: { type: 'string' as const },
           relationship: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
           percentage: { anyOf: [{ type: 'number' as const }, { type: 'null' as const }] },
+          irrevocable: { anyOf: [{ type: 'boolean' as const }, { type: 'null' as const }] },
           type: { type: 'string' as const, enum: ['primary', 'contingent'] },
         },
-        required: ['name', 'type', 'relationship', 'percentage'],
+        required: ['name', 'type', 'relationship', 'percentage', 'irrevocable'],
         additionalProperties: false,
       },
     },
@@ -128,6 +130,7 @@ const EXTRACTION_SCHEMA = {
     insuredEmail: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
     insuredPhone: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
     insuredDateOfBirth: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    insuredState: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
     effectiveDate: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
     note: { type: 'string' as const },
   },
@@ -135,7 +138,7 @@ const EXTRACTION_SCHEMA = {
     'policyType', 'policyNumber', 'insuranceCompany', 'policyOwner',
     'insuredName', 'beneficiaries', 'coverageAmount', 'premiumAmount',
     'premiumFrequency', 'renewalDate', 'insuredEmail', 'insuredPhone',
-    'insuredDateOfBirth', 'effectiveDate', 'note',
+    'insuredDateOfBirth', 'insuredState', 'effectiveDate', 'note',
   ],
   additionalProperties: false,
 };
@@ -264,7 +267,7 @@ async function runExtractionAttempt(
     } catch (err) {
       lastError = err;
       console.error(`[application-extractor] Attempt ${attempt + 1}/${config.maxRetries} failed:`, err);
-      const isRetryable = isRetryableError(err);
+      const isRetryable = isRetryableExtractionError(err);
 
       if (!isRetryable || attempt === config.maxRetries - 1) break;
 
@@ -321,7 +324,7 @@ async function runTextExtractionAttempt(
     } catch (err) {
       lastError = err;
       console.error(`[application-extractor-text] Attempt ${attempt + 1}/${config.maxRetries} failed:`, err);
-      const isRetryable = isRetryableError(err);
+      const isRetryable = isRetryableExtractionError(err);
       if (!isRetryable || attempt === config.maxRetries - 1) break;
       const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
       await new Promise((r) => setTimeout(r, delay));
@@ -354,6 +357,7 @@ function buildResult(parsed: Record<string, unknown>): { data: ExtractedApplicat
     insuredEmail: toStringOrNull(parsed.insuredEmail),
     insuredPhone: toStringOrNull(parsed.insuredPhone),
     insuredDateOfBirth: toStringOrNull(parsed.insuredDateOfBirth),
+    insuredState: toStateAbbreviationOrNull(parsed.insuredState),
     effectiveDate: toStringOrNull(parsed.effectiveDate),
   };
 
@@ -407,8 +411,9 @@ function parseBeneficiaries(val: unknown): Beneficiary[] | null {
     const benefType = obj.type === 'contingent' ? 'contingent' : 'primary';
     const relationship = toStringOrNull(obj.relationship) || undefined;
     const percentage = toNumberOrNull(obj.percentage) ?? undefined;
+    const irrevocable = toBooleanOrNull(obj.irrevocable);
 
-    result.push({ name, type: benefType, relationship, percentage });
+    result.push({ name, type: benefType, relationship, percentage, irrevocable });
   }
 
   return result.length > 0 ? result : null;
@@ -438,13 +443,54 @@ function isFastPassAcceptable(data: ExtractedApplicationData): boolean {
   return hasIdentity && hasPolicyAnchor && hasFinancialAnchor;
 }
 
-function isRetryableError(err: unknown): boolean {
-  if (err instanceof Anthropic.APIError) {
-    return err.status === 429 || err.status === 500 || err.status === 502 || err.status === 503 || err.status === 529;
+function toBooleanOrNull(val: unknown): boolean | null {
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'string') {
+    const normalized = val.trim().toLowerCase();
+    if (normalized === 'true') return true;
+    if (normalized === 'false') return false;
   }
-  return err instanceof Error && (
-    err.message.includes('No response') ||
-    err.message.includes('fetch failed') ||
-    err.message.includes('ECONNRESET')
-  );
+  return null;
 }
+
+function toStateAbbreviationOrNull(val: unknown): string | null {
+  if (typeof val !== 'string') return null;
+  const state = val.trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(state) ? state : null;
+}
+
+export interface ApplicationFieldEvidence {
+  page: number | null;
+  snippet: string | null;
+  confidence: number | null;
+}
+
+export type ApplicationFieldEvidenceMap = Partial<
+  Record<keyof ExtractedApplicationData | 'applicantName' | 'faceAmount' | 'annualPremium' | 'modalPremium', ApplicationFieldEvidence>
+>;
+
+/**
+ * v3-safe helper: normalize unknown evidence payloads into the expected
+ * page/snippet/confidence shape without affecting v2 extraction behavior.
+ */
+export function normalizeApplicationEvidence(raw: unknown): ApplicationFieldEvidenceMap {
+  if (!raw || typeof raw !== 'object') return {};
+  const entries = Object.entries(raw as Record<string, unknown>);
+  const out: ApplicationFieldEvidenceMap = {};
+
+  for (const [key, value] of entries) {
+    if (!value || typeof value !== 'object') continue;
+    const record = value as Record<string, unknown>;
+    out[key as keyof ApplicationFieldEvidenceMap] = {
+      page: typeof record.page === 'number' && record.page > 0 ? Math.floor(record.page) : null,
+      snippet: typeof record.snippet === 'string' && record.snippet.trim().length > 0 ? record.snippet.trim() : null,
+      confidence:
+        typeof record.confidence === 'number' && Number.isFinite(record.confidence)
+          ? Math.max(0, Math.min(1, record.confidence))
+          : null,
+    };
+  }
+
+  return out;
+}
+

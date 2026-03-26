@@ -4,12 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run test:ingestion-corpus && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:ingestion-corpus": "node --import tsx ./tests/ingestion-corpus/run-corpus.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.77.0",
+    "@google-cloud/tasks": "^6.2.1",
     "@stripe/stripe-js": "^8.6.0",
     "@vercel/blob": "^2.3.1",
     "@vercel/kv": "^3.0.0",
@@ -17,6 +19,7 @@
     "firebase": "^12.7.0",
     "firebase-admin": "^12.5.0",
     "framer-motion": "^12.34.3",
+    "google-auth-library": "^10.6.2",
     "html-to-image": "^1.11.13",
     "next": "16.1.1",
     "openai": "^6.18.0",
@@ -42,6 +45,7 @@
     "eslint-config-next": "16.1.1",
     "playwright": "^1.58.2",
     "tailwindcss": "^4",
+    "tsx": "^4.20.6",
     "typescript": "^5"
   }
 }

@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AFL Web Dashboard
 
-## Getting Started
+AgentForLife web dashboard built with Next.js (App Router), Firebase, and Claude-powered ingestion/parsing.
 
-First, run the development server:
+## Local Development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-See [LANDING_PAGES.md](LANDING_PAGES.md) for routing details. Desktop landing lives at `app/v5/page.tsx`, mobile at `app/m/page.tsx`.
+## Ingestion v3 (Shipped)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The active ingestion pipeline is v3 and uses:
 
-## Learn More
+- `POST /api/ingestion/v3/upload-url` for signed GCS upload URLs
+- `POST /api/ingestion/v3/jobs` to create a typed processing job
+- `POST /api/ingestion/v3/jobs/[jobId]/process` as Cloud Tasks target (OIDC required)
+- `GET /api/ingestion/v3/jobs/[jobId]` for polling status/results
 
-To learn more about Next.js, take a look at the following resources:
+Cloud Tasks and processor auth config:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `CLOUD_TASKS_PROJECT_ID` (or `GCP_PROJECT_ID`)
+- `CLOUD_TASKS_LOCATION`
+- `CLOUD_TASKS_QUEUE`
+- `CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL`
+- `INGESTION_V3_PROCESSOR_BASE_URL`
+- `INGESTION_V3_PROCESSOR_AUDIENCE` (optional; defaults to base URL)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deployment Gate (Corpus)
 
-## Deploy on Vercel
+Deploys are gated by:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run test:ingestion-corpus
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`npm run build` runs the corpus gate before Next build.
+
+Corpus files live under `tests/ingestion-corpus/fixtures`.
+
+**Important:** current fixture PDFs are placeholders for scaffolding.  
+Before production rollout, replace them with real redacted insurance application samples, or the gate is not a real regression signal.
+
+## Rollout Sequence
+
+Recommended rollout:
+
+1. Internal-only traffic
+2. 20% of ingestion traffic
+3. 100% traffic
+4. Continue telemetry monitoring and typed failure review
