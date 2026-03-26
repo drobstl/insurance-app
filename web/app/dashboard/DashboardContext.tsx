@@ -41,6 +41,7 @@ export interface AgentProfile {
 interface DashboardContextValue {
   user: User | null;
   loading: boolean;
+  profileLoading: boolean;
   agentProfile: AgentProfile;
   setAgentProfile: React.Dispatch<React.SetStateAction<AgentProfile>>;
   isAdmin: boolean;
@@ -61,6 +62,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [agentProfile, setAgentProfile] = useState<AgentProfile>({});
 
   useEffect(() => {
@@ -68,7 +70,12 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       if (currentUser) {
         setUser(currentUser);
         setLoading(false);
+        setProfileLoading(true);
       } else {
+        setUser(null);
+        setAgentProfile({});
+        setLoading(false);
+        setProfileLoading(false);
         resetPostHog();
         router.push('/login');
       }
@@ -77,7 +84,11 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   const fetchProfile = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setProfileLoading(false);
+      return;
+    }
+    setProfileLoading(true);
     try {
       const agentDoc = await getDoc(doc(db, 'agents', user.uid));
       if (agentDoc.exists()) {
@@ -109,9 +120,13 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           tipsSeen: data.tipsSeen || {},
           celebratedBadgeIds: data.celebratedBadgeIds || [],
         });
+      } else {
+        setAgentProfile({});
       }
     } catch (error) {
       console.error('Error fetching agent profile:', error);
+    } finally {
+      setProfileLoading(false);
     }
   }, [user]);
 
@@ -168,6 +183,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         loading,
+        profileLoading,
         agentProfile,
         setAgentProfile,
         isAdmin,

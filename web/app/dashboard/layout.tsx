@@ -10,18 +10,23 @@ import LoomVideoModal from '../../components/LoomVideoModal';
 import DashboardAssistant from '../../components/DashboardAssistant';
 import DashboardTicker from '../../components/DashboardTicker';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
+import { ANALYTICS_EVENTS } from '../../lib/analytics-events';
+import { captureEvent } from '../../lib/posthog';
 
 const FOUNDING_ACTIVATION_TIMEOUT_MS = 12000;
 
 function SubscriptionGate({ children }: { children: React.ReactNode }) {
-  const { user, loading, agentProfile, handleLogout, refreshProfile } = useDashboard();
+  const { user, loading, profileLoading, agentProfile, handleLogout, refreshProfile } = useDashboard();
   const router = useRouter();
   const [activatingFounding, setActivatingFounding] = useState(false);
   const activationAttemptedForUserRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!user || loading) return;
-    if (agentProfile.subscriptionStatus === 'active') return;
+    if (!user || loading || profileLoading) return;
+    const status = agentProfile.subscriptionStatus;
+    if (status === 'active') return;
+    // Only auto-check founding activation for unknown/new account states.
+    if (status && status !== 'inactive' && status !== 'none') return;
     if (activationAttemptedForUserRef.current === user.uid) return;
 
     activationAttemptedForUserRef.current = user.uid;
@@ -35,11 +40,28 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
 
     const tryFoundingActivation = async () => {
       setActivatingFounding(true);
+      const startedAt = performance.now();
+      let timedOut = false;
       let requestTimeout: ReturnType<typeof setTimeout> | null = null;
+      const statusBefore = status || 'unknown';
+
+      captureEvent(ANALYTICS_EVENTS.DASHBOARD_ACCESS_GATE_CHECK, {
+        stage: 'start',
+        status_before: statusBefore,
+      });
+
       try {
         const token = await user.getIdToken();
         const controller = new AbortController();
-        requestTimeout = setTimeout(() => controller.abort(), FOUNDING_ACTIVATION_TIMEOUT_MS);
+        requestTimeout = setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+          captureEvent(ANALYTICS_EVENTS.DASHBOARD_ACCESS_GATE_CHECK, {
+            stage: 'timeout',
+            status_before: statusBefore,
+            duration_ms: Math.round(performance.now() - startedAt),
+          });
+        }, FOUNDING_ACTIVATION_TIMEOUT_MS);
         const res = await fetch('/api/founding-member/activate', {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
@@ -47,9 +69,33 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
         });
         const result = await res.json().catch(() => ({}));
         if (res.ok && result?.activated) {
+          captureEvent(ANALYTICS_EVENTS.DASHBOARD_ACCESS_GATE_CHECK, {
+            stage: 'success',
+            status_before: statusBefore,
+            activated: true,
+            http_status: res.status,
+            duration_ms: Math.round(performance.now() - startedAt),
+          });
           await refreshProfile();
+        } else {
+          captureEvent(ANALYTICS_EVENTS.DASHBOARD_ACCESS_GATE_CHECK, {
+            stage: 'not_activated',
+            status_before: statusBefore,
+            activated: false,
+            reason: typeof result?.reason === 'string' ? result.reason : undefined,
+            http_status: res.status,
+            duration_ms: Math.round(performance.now() - startedAt),
+          });
         }
       } catch (error) {
+        if (!timedOut) {
+          captureEvent(ANALYTICS_EVENTS.DASHBOARD_ACCESS_GATE_CHECK, {
+            stage: 'error',
+            status_before: statusBefore,
+            reason: error instanceof Error ? error.name : 'unknown_error',
+            duration_ms: Math.round(performance.now() - startedAt),
+          });
+        }
         console.error('Founding activation check failed:', error);
       } finally {
         if (requestTimeout) clearTimeout(requestTimeout);
@@ -63,9 +109,9 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
       cancelled = true;
       clearTimeout(failSafeTimeout);
     };
-  }, [user, loading, agentProfile.subscriptionStatus, refreshProfile]);
+  }, [user, loading, profileLoading, agentProfile.subscriptionStatus, refreshProfile]);
 
-  if (loading) {
+  if (loading || profileLoading) {
     return (
       <div className="min-h-screen bg-[#e4e4e4] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -73,7 +119,7 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
-          <p className="text-[#000000]">Loading...</p>
+          <p className="text-[#000000]">Loading account...</p>
         </div>
       </div>
     );

@@ -22,6 +22,7 @@ export const ANALYTICS_EVENTS = {
   DASHBOARD_EXIT_AFTER_ERROR: 'dashboard_exit_after_error',
   DASHBOARD_EXIT_AFTER_EMPTY_STATE: 'dashboard_exit_after_empty_state',
   CHURN_RISK_FLAGGED: 'churn_risk_flagged',
+  DASHBOARD_ACCESS_GATE_CHECK: 'dashboard_access_gate_check',
   BULK_IMPORT_SESSION_STARTED: 'bulk_import_session_started',
   BULK_IMPORT_FILE_PARSED: 'bulk_import_file_parsed',
   BULK_IMPORT_SESSION_COMPLETED: 'bulk_import_session_completed',
@@ -113,6 +114,14 @@ export type AnalyticsEventPropertiesMap = {
     path?: string;
     risk_reason?: string;
     session_duration_ms?: number;
+  } & GenericEventProperties;
+  dashboard_access_gate_check: {
+    stage?: 'start' | 'success' | 'not_activated' | 'timeout' | 'error';
+    status_before?: string;
+    activated?: boolean;
+    reason?: string;
+    http_status?: number;
+    duration_ms?: number;
   } & GenericEventProperties;
   bulk_import_session_started: {
     source?: 'local_bulk' | 'drive';
