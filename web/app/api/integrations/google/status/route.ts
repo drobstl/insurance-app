@@ -6,6 +6,7 @@ interface StatusRouteResponse {
   success: boolean;
   connected: boolean;
   data?: {
+    googleEmail?: string;
     connectedAt?: string;
     updatedAt?: string;
     scope?: string;
@@ -36,6 +37,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<StatusRouteRes
       success: true,
       connected: true,
       data: {
+        googleEmail: integration.googleEmail,
         connectedAt: integration.connectedAt,
         updatedAt: integration.updatedAt,
         scope: integration.scope,

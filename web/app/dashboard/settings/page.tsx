@@ -9,6 +9,7 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider,
 } from 'firebase/auth';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { auth, db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
 import { captureEvent } from '../../../lib/posthog';
@@ -22,6 +23,19 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'referral-ai', label: 'Referral & AI' },
   { key: 'account', label: 'Account' },
 ];
+
+interface GoogleDriveStatusResponse {
+  success: boolean;
+  connected: boolean;
+  data?: {
+    googleEmail?: string;
+    connectedAt?: string;
+    updatedAt?: string;
+    scope?: string;
+    hasRefreshToken: boolean;
+  };
+  error?: string;
+}
 
 function resizeImage(file: File, maxSize: number): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -100,6 +114,9 @@ function detectSchedulingPlatform(url: string): string | null {
 
 export default function SettingsPage() {
   const { user, agentProfile, setAgentProfile, loading } = useDashboard();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [activeTab, setActiveTab] = useState<Tab>('profile');
   const [saving, setSaving] = useState(false);
@@ -131,6 +148,11 @@ export default function SettingsPage() {
   // Stripe portal
   const [portalLoading, setPortalLoading] = useState(false);
   const [showCancelWarning, setShowCancelWarning] = useState(false);
+  const [googleDriveLoading, setGoogleDriveLoading] = useState(false);
+  const [googleDriveConnecting, setGoogleDriveConnecting] = useState(false);
+  const [googleDriveDisconnecting, setGoogleDriveDisconnecting] = useState(false);
+  const [googleDriveStatus, setGoogleDriveStatus] = useState<GoogleDriveStatusResponse['data'] | null>(null);
+  const [googleDriveError, setGoogleDriveError] = useState<string | null>(null);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -142,6 +164,103 @@ export default function SettingsPage() {
     },
     [setAgentProfile],
   );
+
+  const loadGoogleDriveStatus = useCallback(async () => {
+    if (!user) return;
+    setGoogleDriveLoading(true);
+    setGoogleDriveError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/integrations/google/status', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json()) as GoogleDriveStatusResponse;
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to load Google Drive status.');
+      }
+      setGoogleDriveStatus(data.connected ? (data.data || null) : null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load Google Drive status.';
+      setGoogleDriveError(message);
+      setGoogleDriveStatus(null);
+    } finally {
+      setGoogleDriveLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    loadGoogleDriveStatus();
+  }, [loadGoogleDriveStatus]);
+
+  useEffect(() => {
+    const status = searchParams.get('google_drive');
+    if (!status) return;
+
+    if (status === 'success') {
+      setSaveMessage({ type: 'success', text: 'Google Drive connected successfully.' });
+      loadGoogleDriveStatus();
+    } else if (status === 'error') {
+      const reason = searchParams.get('reason');
+      setSaveMessage({
+        type: 'error',
+        text: reason ? `Google Drive connection failed: ${reason}` : 'Google Drive connection failed.',
+      });
+    }
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('google_drive');
+    params.delete('reason');
+    const next = params.toString();
+    router.replace(next ? `${pathname}?${next}` : pathname);
+  }, [searchParams, pathname, router, loadGoogleDriveStatus]);
+
+  const handleGoogleDriveConnect = useCallback(async () => {
+    if (!user) return;
+    setGoogleDriveConnecting(true);
+    setGoogleDriveError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/integrations/google/auth', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json()) as { success: boolean; authUrl?: string; error?: string };
+      if (!res.ok || !data.success || !data.authUrl) {
+        throw new Error(data.error || 'Failed to start Google OAuth.');
+      }
+      window.location.assign(data.authUrl);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to connect Google Drive.';
+      setGoogleDriveError(message);
+      setSaveMessage({ type: 'error', text: message });
+      setGoogleDriveConnecting(false);
+    }
+  }, [user]);
+
+  const handleGoogleDriveDisconnect = useCallback(async () => {
+    if (!user) return;
+    setGoogleDriveDisconnecting(true);
+    setGoogleDriveError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/integrations/google/disconnect', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json()) as { success: boolean; error?: string };
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to disconnect Google Drive.');
+      }
+      setGoogleDriveStatus(null);
+      setSaveMessage({ type: 'success', text: 'Google Drive disconnected.' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to disconnect Google Drive.';
+      setGoogleDriveError(message);
+      setSaveMessage({ type: 'error', text: message });
+    } finally {
+      setGoogleDriveDisconnecting(false);
+    }
+  }, [user]);
 
   const handleImageUpload = useCallback(
     async (file: File, maxSize: number, field: 'photoBase64' | 'agencyLogoBase64' | 'businessCardBase64') => {
@@ -936,6 +1055,46 @@ export default function SettingsPage() {
                 </button>
               )}
             </div>
+          </div>
+
+          {/* Google Drive */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Google Drive</h3>
+            {googleDriveLoading ? (
+              <p className="text-sm text-[#707070]">Checking connection...</p>
+            ) : googleDriveStatus ? (
+              <div className="space-y-3">
+                <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/40 px-3 py-2">
+                  <p className="text-sm font-medium text-[#005851]">Connected</p>
+                  <p className="text-xs text-[#005851]/80 mt-0.5">
+                    {googleDriveStatus.googleEmail || 'Google account connected'}
+                  </p>
+                </div>
+                <button
+                  onClick={handleGoogleDriveDisconnect}
+                  disabled={googleDriveDisconnecting}
+                  className="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-[5px] hover:bg-red-50 transition-colors disabled:opacity-50"
+                >
+                  {googleDriveDisconnecting ? 'Disconnecting...' : 'Disconnect'}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-[#707070]">
+                  Connect Google Drive to browse and import application PDFs without downloading files first.
+                </p>
+                <button
+                  onClick={handleGoogleDriveConnect}
+                  disabled={googleDriveConnecting}
+                  className="px-4 py-2 text-sm font-medium text-white bg-[#005851] rounded-[5px] hover:bg-[#004440] transition-colors disabled:opacity-50"
+                >
+                  {googleDriveConnecting ? 'Redirecting...' : 'Connect Google Drive'}
+                </button>
+              </div>
+            )}
+            {googleDriveError && (
+              <p className="text-xs text-red-600 mt-3">{googleDriveError}</p>
+            )}
           </div>
 
           {/* Email */}

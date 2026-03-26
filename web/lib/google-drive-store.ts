@@ -12,6 +12,7 @@ const OAUTH_STATE_TTL_MS = 15 * 60 * 1000;
 interface GoogleDriveDocShape {
   provider: 'google_drive';
   connected: boolean;
+  googleEmail?: string | null;
   accessToken?: string | null;
   refreshToken?: string | null;
   expiryDateMs?: number | null;
@@ -29,6 +30,7 @@ interface GoogleOAuthStateDocShape {
 
 export interface GoogleDriveIntegrationRecord {
   connected: boolean;
+  googleEmail?: string;
   accessToken?: string;
   refreshToken?: string;
   expiryDateMs?: number;
@@ -59,6 +61,7 @@ export function getGoogleOAuthStateDocRef(agentId: string, stateId: string) {
 export async function upsertGoogleDriveTokens(
   agentId: string,
   tokens: {
+    googleEmail?: string;
     accessToken?: string;
     refreshToken?: string;
     expiryDateMs?: number;
@@ -70,6 +73,7 @@ export async function upsertGoogleDriveTokens(
   const payload: GoogleDriveDocShape = {
     provider: 'google_drive',
     connected: true,
+    googleEmail: tokens.googleEmail ?? null,
     accessToken: tokens.accessToken ?? null,
     refreshToken: tokens.refreshToken ?? null,
     expiryDateMs: tokens.expiryDateMs ?? null,
@@ -85,6 +89,7 @@ export async function upsertGoogleDriveTokens(
 export async function updateGoogleDriveTokens(
   agentId: string,
   tokens: {
+    googleEmail?: string;
     accessToken?: string;
     refreshToken?: string;
     expiryDateMs?: number;
@@ -96,6 +101,7 @@ export async function updateGoogleDriveTokens(
   const payload: Record<string, unknown> = {
     updatedAt: FieldValue.serverTimestamp(),
   };
+  if (tokens.googleEmail !== undefined) payload.googleEmail = tokens.googleEmail;
   if (tokens.accessToken !== undefined) payload.accessToken = tokens.accessToken;
   if (tokens.refreshToken !== undefined) payload.refreshToken = tokens.refreshToken;
   if (tokens.expiryDateMs !== undefined) payload.expiryDateMs = tokens.expiryDateMs;
@@ -111,6 +117,7 @@ export async function getGoogleDriveIntegration(agentId: string): Promise<Google
   const data = snap.data() as Record<string, unknown>;
   return {
     connected: data.connected === true,
+    googleEmail: typeof data.googleEmail === 'string' ? data.googleEmail : undefined,
     accessToken: typeof data.accessToken === 'string' ? data.accessToken : undefined,
     refreshToken: typeof data.refreshToken === 'string' ? data.refreshToken : undefined,
     expiryDateMs: typeof data.expiryDateMs === 'number' ? data.expiryDateMs : undefined,

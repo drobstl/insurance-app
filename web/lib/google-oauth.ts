@@ -45,6 +45,7 @@ export async function exchangeGoogleCodeForTokens(params: {
   expiryDateMs?: number;
   scope?: string;
   tokenType?: string;
+  idToken?: string;
 }> {
   const client = createGoogleOAuthClient(params.redirectUri);
   const { tokens } = await client.getToken(params.code);
@@ -54,6 +55,7 @@ export async function exchangeGoogleCodeForTokens(params: {
     expiryDateMs: typeof tokens.expiry_date === 'number' ? tokens.expiry_date : undefined,
     scope: tokens.scope ?? undefined,
     tokenType: tokens.token_type ?? undefined,
+    idToken: tokens.id_token ?? undefined,
   };
 }
 

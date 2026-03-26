@@ -16,6 +16,18 @@ function getCallbackUrl(req: NextRequest): string {
   return `${url.origin}/api/integrations/google/callback`;
 }
 
+function readGoogleEmailFromIdToken(idToken?: string): string | undefined {
+  if (!idToken) return undefined;
+  try {
+    const parts = idToken.split('.');
+    if (parts.length !== 3) return undefined;
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')) as Record<string, unknown>;
+    return typeof payload.email === 'string' ? payload.email : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const url = new URL(req.url);
   const code = url.searchParams.get('code');
@@ -56,8 +68,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       code,
       redirectUri: getCallbackUrl(req),
     });
+    const googleEmail = readGoogleEmailFromIdToken(exchanged.idToken);
 
     await upsertGoogleDriveTokens(consumed.agentId, {
+      googleEmail,
       accessToken: exchanged.accessToken,
       refreshToken: exchanged.refreshToken || prior?.refreshToken,
       expiryDateMs: exchanged.expiryDateMs,

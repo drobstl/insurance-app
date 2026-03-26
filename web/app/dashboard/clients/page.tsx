@@ -36,6 +36,8 @@ import {
 import { isTimeoutError, withTimeout } from '../../../lib/timeout';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
+import { useGooglePicker } from '../../../hooks/useGooglePicker';
+import type { GooglePickerSelectedFile } from '../../../hooks/useGooglePicker';
 
 // ─── Constants ─────────────────────────────────────────────
 
@@ -187,6 +189,33 @@ interface ImportFileStatus {
   state: ImportFileState;
   loadedRows: number;
   rejectedRows: number;
+  error?: string;
+}
+
+interface GoogleDriveStatusResponse {
+  success: boolean;
+  connected: boolean;
+  data?: {
+    googleEmail?: string;
+    connectedAt?: string;
+    updatedAt?: string;
+    scope?: string;
+    hasRefreshToken: boolean;
+  };
+  error?: string;
+}
+
+interface GoogleDriveImportRouteResponse {
+  success: boolean;
+  purpose?: 'bob' | 'application';
+  results?: Array<{
+    fileId: string;
+    name: string;
+    status: 'created' | 'reused' | 'failed';
+    jobId?: string;
+    jobStatus?: string;
+    error?: string;
+  }>;
   error?: string;
 }
 
@@ -441,6 +470,16 @@ export default function ClientsPage() {
   const [introSentCount, setIntroSentCount] = useState<number | null>(null);
   const [selectedIntroClients, setSelectedIntroClients] = useState<Set<string>>(new Set());
   const [showIntroConfirm, setShowIntroConfirm] = useState(false);
+  const [googleDriveLoading, setGoogleDriveLoading] = useState(false);
+  const [googleDriveConnected, setGoogleDriveConnected] = useState(false);
+  const [googleDriveEmail, setGoogleDriveEmail] = useState<string | null>(null);
+  const [googleDriveActionLoading, setGoogleDriveActionLoading] = useState(false);
+  const {
+    pickFiles: pickGoogleDriveFiles,
+    loading: googlePickerLoading,
+    error: googlePickerError,
+    clearError: clearGooglePickerError,
+  } = useGooglePicker();
 
   // ── Anniversary alerts ──
   const [anniversaryAlerts, setAnniversaryAlerts] = useState<AnniversaryAlert[]>([]);
@@ -1243,6 +1282,57 @@ export default function ClientsPage() {
   const [parsingBob, setParsingBob] = useState(false);
   const bulkPdfConcurrencyLimit = getBulkPdfConcurrencyLimit();
 
+  const loadGoogleDriveStatus = useCallback(async () => {
+    if (!user) return;
+    setGoogleDriveLoading(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/integrations/google/status', {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      });
+      const body = (await res.json()) as GoogleDriveStatusResponse;
+      if (!res.ok || !body.success) {
+        throw new Error(body.error || 'Failed to load Google Drive status.');
+      }
+      setGoogleDriveConnected(body.connected);
+      setGoogleDriveEmail(body.connected ? body.data?.googleEmail || null : null);
+    } catch (err) {
+      setGoogleDriveConnected(false);
+      setGoogleDriveEmail(null);
+      setImportError(err instanceof Error ? err.message : 'Failed to load Google Drive status.');
+    } finally {
+      setGoogleDriveLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!isImportModalOpen || !user) return;
+    void loadGoogleDriveStatus();
+  }, [isImportModalOpen, loadGoogleDriveStatus, user]);
+
+  const handleConnectGoogleDrive = useCallback(async () => {
+    if (!user) return;
+    setGoogleDriveActionLoading(true);
+    setImportError('');
+    clearGooglePickerError();
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/integrations/google/auth', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = (await res.json()) as { success: boolean; authUrl?: string; error?: string };
+      if (!res.ok || !body.success || !body.authUrl) {
+        throw new Error(body.error || 'Failed to connect Google Drive.');
+      }
+      window.location.href = body.authUrl;
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Failed to connect Google Drive.');
+      setGoogleDriveActionLoading(false);
+    }
+  }, [clearGooglePickerError, user]);
+
   const parseCsvLine = useCallback((line: string, delimiter: string = ','): string[] => {
     const result: string[] = [];
     let current = '';
@@ -1349,6 +1439,67 @@ export default function ClientsPage() {
     return { rows };
   }, [parseCsvLine]);
 
+  const mapBobRowsToImportRows = useCallback((rows: any[]): ImportRow[] => {
+    return (rows || []).map((row) => ({
+      name: [row.firstName, row.lastName].filter(Boolean).join(' ').trim() || row.firstName || row.lastName || '',
+      owner: '',
+      email: row.email || '',
+      phone: row.phone || '',
+      dateOfBirth: row.dateOfBirth || '',
+      policyNumber: row.policyNumber || '',
+      carrier: row.carrier || '',
+      policyType: row.policyType || '',
+      effectiveDate: '',
+      premium: row.premiumAmount != null ? String(row.premiumAmount) : '',
+      coverageAmount: row.coverageAmount != null ? String(row.coverageAmount) : '',
+      status: 'Active',
+      premiumFrequency: undefined,
+    }));
+  }, []);
+
+  const waitForBobIngestionRows = useCallback(async (jobId: string): Promise<{ rows: ImportRow[]; note?: string }> => {
+    const startedAt = Date.now();
+
+    while (Date.now() - startedAt < IMPORT_PARSE_TIMEOUT_MS) {
+      await new Promise((r) => setTimeout(r, JOB_POLL_INTERVAL_MS));
+      const statusRes = await fetch(`/api/ingestion/v3/jobs/${jobId}`, { cache: 'no-store' });
+      const statusBody = (await statusRes.json()) as IngestionV3JobStatusResponse;
+
+      if (!statusRes.ok || !statusBody.success || !statusBody.job) {
+        throw new BulkImportRetryableError(
+          statusBody.error?.message || `Failed to check parse status (${statusRes.status}).`,
+          {
+            retryable: statusBody.error?.retryable === true,
+            terminal: statusBody.error?.terminal === true,
+          },
+        );
+      }
+
+      if (statusBody.job.status === 'review_ready' || statusBody.job.status === 'saved') {
+        const v3Rows = statusBody.job.result?.bob?.rows || [];
+        return {
+          rows: mapBobRowsToImportRows(v3Rows as any[]),
+          note: statusBody.job.result?.bob?.note,
+        };
+      }
+
+      if (statusBody.job.status === 'failed') {
+        throw new BulkImportRetryableError(
+          statusBody.job.error?.message || 'Failed to parse file. Please try again.',
+          {
+            retryable: statusBody.job.error?.retryable === true,
+            terminal: statusBody.job.error?.terminal === true,
+          },
+        );
+      }
+    }
+
+    throw new BulkImportRetryableError('Parsing timed out. Please retry this file.', {
+      retryable: true,
+      terminal: false,
+    });
+  }, [mapBobRowsToImportRows]);
+
   const parseBobSourceFile = useCallback(async (file: File): Promise<{ rows: ImportRow[]; note?: string }> => {
     if (!user) {
       throw new Error('You must be signed in to import files.');
@@ -1411,66 +1562,8 @@ export default function ClientsPage() {
       throw new Error(created.error?.message || `Failed to start parse job (${createRes.status}).`);
     }
 
-    let parsedRows: ImportRow[] | null = null;
-    let parsedNote: string | undefined;
-    const startedAt = Date.now();
-
-    while (Date.now() - startedAt < IMPORT_PARSE_TIMEOUT_MS) {
-      await new Promise((r) => setTimeout(r, JOB_POLL_INTERVAL_MS));
-      const statusRes = await fetch(`/api/ingestion/v3/jobs/${created.jobId}`, { cache: 'no-store' });
-      const statusBody = (await statusRes.json()) as IngestionV3JobStatusResponse;
-
-      if (!statusRes.ok || !statusBody.success || !statusBody.job) {
-        throw new BulkImportRetryableError(
-          statusBody.error?.message || `Failed to check parse status (${statusRes.status}).`,
-          {
-            retryable: statusBody.error?.retryable === true,
-            terminal: statusBody.error?.terminal === true,
-          },
-        );
-      }
-
-      if (statusBody.job.status === 'review_ready' || statusBody.job.status === 'saved') {
-        const v3Rows = statusBody.job.result?.bob?.rows || [];
-        parsedRows = v3Rows.map((row) => ({
-          name: [row.firstName, row.lastName].filter(Boolean).join(' ').trim() || row.firstName || row.lastName || '',
-          owner: '',
-          email: row.email || '',
-          phone: row.phone || '',
-          dateOfBirth: row.dateOfBirth || '',
-          policyNumber: row.policyNumber || '',
-          carrier: row.carrier || '',
-          policyType: row.policyType || '',
-          effectiveDate: '',
-          premium: row.premiumAmount != null ? String(row.premiumAmount) : '',
-          coverageAmount: row.coverageAmount != null ? String(row.coverageAmount) : '',
-          status: 'Active',
-          premiumFrequency: undefined,
-        }));
-        parsedNote = statusBody.job.result?.bob?.note;
-        break;
-      }
-
-      if (statusBody.job.status === 'failed') {
-        throw new BulkImportRetryableError(
-          statusBody.job.error?.message || 'Failed to parse file. Please try again.',
-          {
-            retryable: statusBody.job.error?.retryable === true,
-            terminal: statusBody.job.error?.terminal === true,
-          },
-        );
-      }
-    }
-
-    if (!parsedRows) {
-      throw new BulkImportRetryableError('Parsing timed out. Please retry this file.', {
-        retryable: true,
-        terminal: false,
-      });
-    }
-
-    return { rows: parsedRows, note: parsedNote };
-  }, [user]);
+    return waitForBobIngestionRows(created.jobId);
+  }, [user, waitForBobIngestionRows]);
 
   const getImportFileType = useCallback((file: File): ImportFileType => {
     const name = file.name.toLowerCase();
@@ -1701,6 +1794,205 @@ export default function ClientsPage() {
     }));
     await processImportSources(sources);
   }, [getImportFileType, processImportSources]);
+
+  const handleImportFromGoogleDrive = useCallback(async () => {
+    if (!user) return;
+    setImportError('');
+    setImportWarning('');
+    setImportSuccess('');
+    clearGooglePickerError();
+
+    try {
+      const token = await user.getIdToken();
+      const selectedFiles = await pickGoogleDriveFiles(token);
+      if (selectedFiles.length === 0) return;
+
+      const startedAt = Date.now();
+      setParsingBob(true);
+      setImportData([]);
+      setImportProgress(0);
+      setImportSessionStartedAt(startedAt);
+      setImportFileStatuses(
+        selectedFiles.map((file) => ({
+          sourceFileId: `drive:${file.id}:${file.modifiedTime || 'unknown'}:${file.sizeBytes}`,
+          name: file.name,
+          fileType: 'pdf',
+          state: 'queued',
+          loadedRows: 0,
+          rejectedRows: 0,
+        })),
+      );
+
+      captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_SESSION_STARTED, {
+        source: 'drive',
+        total_files: selectedFiles.length,
+        pdf_files: selectedFiles.length,
+        spreadsheet_files: 0,
+        text_files: 0,
+      });
+
+      const importRes = await fetch('/api/integrations/google/import', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          purpose: 'bob',
+          files: selectedFiles,
+        }),
+      });
+      const importBody = (await importRes.json()) as GoogleDriveImportRouteResponse;
+      if (!importRes.ok || !importBody.success || !importBody.results) {
+        throw new Error(importBody.error || 'Failed to import files from Google Drive.');
+      }
+
+      const resultByFileId = new Map(importBody.results.map((r) => [r.fileId, r]));
+      let completed = 0;
+      let parsedFiles = 0;
+      let failedFiles = 0;
+      let loadedRows = 0;
+      const warnings: string[] = [];
+
+      const bumpProgress = () => {
+        completed += 1;
+        setImportProgress(Math.round((completed / selectedFiles.length) * 100));
+      };
+
+      const processDriveFile = async (file: GooglePickerSelectedFile) => {
+        const sourceFileId = `drive:${file.id}:${file.modifiedTime || 'unknown'}:${file.sizeBytes}`;
+        const fileResult = resultByFileId.get(file.id);
+        if (!fileResult) {
+          failedFiles += 1;
+          const message = 'Import response missing for this file.';
+          updateImportFileStatus(sourceFileId, { state: 'failed', error: message });
+          captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_FILE_PARSED, {
+            source: 'drive',
+            file_type: 'pdf',
+            file_size_bytes: file.sizeBytes,
+            success: false,
+            retry_attempt_count: 0,
+            error: message,
+          });
+          bumpProgress();
+          return;
+        }
+
+        if (fileResult.status === 'failed' || !fileResult.jobId) {
+          failedFiles += 1;
+          const message = fileResult.error || 'Failed to queue Google Drive file for parsing.';
+          updateImportFileStatus(sourceFileId, { state: 'failed', error: message });
+          captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_FILE_PARSED, {
+            source: 'drive',
+            file_type: 'pdf',
+            file_size_bytes: file.sizeBytes,
+            success: false,
+            retry_attempt_count: 0,
+            error: message,
+          });
+          bumpProgress();
+          return;
+        }
+
+        updateImportFileStatus(sourceFileId, { state: 'parsing', error: undefined });
+        try {
+          const parsed = await waitForBobIngestionRows(fileResult.jobId);
+          if (parsed.rows.length === 0) {
+            throw new Error('No valid rows found.');
+          }
+          const quality = filterHighQualityImportRows(parsed.rows);
+          if (quality.accepted.length === 0 || quality.qualityRatio < MIN_IMPORT_ROW_QUALITY_RATIO) {
+            throw new Error(
+              `Parsing quality too low (${Math.round(quality.qualityRatio * 100)}% usable rows). Please review this source file.`,
+            );
+          }
+
+          if (quality.rejected > 0) {
+            warnings.push(
+              `${file.name}: ${quality.rejected} row${quality.rejected !== 1 ? 's were' : ' was'} skipped due to low-confidence policy data.`,
+            );
+          }
+          if (parsed.note) {
+            warnings.push(`${file.name}: ${parsed.note}`);
+          }
+
+          setImportData((prev) => [...prev, ...quality.accepted]);
+          loadedRows += quality.accepted.length;
+          parsedFiles += 1;
+          updateImportFileStatus(sourceFileId, {
+            state: 'succeeded',
+            loadedRows: quality.accepted.length,
+            rejectedRows: quality.rejected,
+          });
+          captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_FILE_PARSED, {
+            source: 'drive',
+            file_type: 'pdf',
+            file_size_bytes: file.sizeBytes,
+            success: true,
+            retry_attempt_count: 0,
+            rows_loaded: quality.accepted.length,
+            rejected_rows: quality.rejected,
+          });
+        } catch (err) {
+          failedFiles += 1;
+          const message = err instanceof Error ? err.message : 'Failed to parse file. Please try again.';
+          updateImportFileStatus(sourceFileId, { state: 'failed', error: message });
+          captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_FILE_PARSED, {
+            source: 'drive',
+            file_type: 'pdf',
+            file_size_bytes: file.sizeBytes,
+            success: false,
+            retry_attempt_count: 0,
+            error: message,
+          });
+        } finally {
+          bumpProgress();
+        }
+      };
+
+      let nextIndex = 0;
+      const workers = Array.from(
+        { length: Math.min(bulkPdfConcurrencyLimit, selectedFiles.length) },
+        async () => {
+          while (nextIndex < selectedFiles.length) {
+            const current = selectedFiles[nextIndex];
+            nextIndex += 1;
+            await processDriveFile(current);
+          }
+        },
+      );
+      await Promise.all(workers);
+
+      if (warnings.length > 0) {
+        setImportWarning(`Warning: ${warnings.join(' ')}`);
+      }
+      if (parsedFiles === 0) {
+        setImportError('No valid rows found. Please review your files and try again.');
+      } else if (failedFiles > 0) {
+        setImportError(`${parsedFiles} of ${selectedFiles.length} file${selectedFiles.length !== 1 ? 's parsed' : ' parsed'} successfully. Review failed files below and retry them.`);
+      }
+
+      captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_SESSION_COMPLETED, {
+        source: 'drive',
+        total_files: selectedFiles.length,
+        parsed_files: parsedFiles,
+        failed_files: failedFiles,
+        loaded_rows: loadedRows,
+        elapsed_ms: Date.now() - startedAt,
+      });
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Failed to import from Google Drive.');
+    } finally {
+      setParsingBob(false);
+    }
+  }, [
+    bulkPdfConcurrencyLimit,
+    clearGooglePickerError,
+    pickGoogleDriveFiles,
+    updateImportFileStatus,
+    user,
+    waitForBobIngestionRows,
+  ]);
 
   const handleImportClients = useCallback(async () => {
     if (!user || importData.length === 0) return;
@@ -2590,6 +2882,61 @@ export default function ClientsPage() {
                     </div>
                     <p className="text-[10px] text-[#999999] mt-1.5">Works with any carrier format — Mutual of Omaha, United of Omaha, and more. Column names are matched automatically.</p>
                     <p className="text-xs text-[#005851] mt-2.5 font-medium">After import, you&apos;ll be able to have the system text your clients the app download link and their unique code.</p>
+                  </div>
+
+                  <div className="border border-[#d0d0d0] rounded-[5px] bg-white p-3 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleConnectGoogleDrive}
+                        disabled={googleDriveActionLoading || parsingBob || importing}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-[5px] border border-[#d0d0d0] bg-white hover:bg-[#f8f8f8] disabled:opacity-60 disabled:cursor-not-allowed text-xs font-semibold text-[#005851] transition-colors"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 87.3 78" width="20" height="18" aria-hidden>
+                          <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                          <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0-1.2 4.5h27.5z" fill="#00ac47"/>
+                          <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.95 10.3z" fill="#ea4335"/>
+                          <path d="M43.65 25 57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                          <path d="M59.8 53H27.5L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h32.6c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                          <path d="M73.4 26.5 60.65 4.5c-.8-1.4-1.95-2.5-3.3-3.3L43.6 25l16.15 28h27.5c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+                        </svg>
+                        {googleDriveActionLoading ? 'Redirecting...' : 'Connect Google Drive'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleImportFromGoogleDrive}
+                        disabled={
+                          !googleDriveConnected ||
+                          googleDriveLoading ||
+                          googlePickerLoading ||
+                          googleDriveActionLoading ||
+                          parsingBob ||
+                          importing
+                        }
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-[5px] bg-[#daf3f0] hover:bg-[#c0ebe4] disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed text-xs font-semibold text-[#005851] transition-colors"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 87.3 78" width="20" height="18" aria-hidden>
+                          <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                          <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0-1.2 4.5h27.5z" fill="#00ac47"/>
+                          <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.95 10.3z" fill="#ea4335"/>
+                          <path d="M43.65 25 57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                          <path d="M59.8 53H27.5L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h32.6c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                          <path d="M73.4 26.5 60.65 4.5c-.8-1.4-1.95-2.5-3.3-3.3L43.6 25l16.15 28h27.5c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+                        </svg>
+                        {googlePickerLoading ? 'Opening Picker...' : 'Import from Google Drive'}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-[#707070]">
+                      {googleDriveLoading
+                        ? 'Checking Google Drive connection...'
+                        : googleDriveConnected
+                          ? `Connected${googleDriveEmail ? ` as ${googleDriveEmail}` : ''}.`
+                          : 'Google Drive not connected. Connect first to import PDFs directly from Drive.'}
+                    </p>
+                    {googlePickerError && (
+                      <p className="text-[11px] text-red-600">{googlePickerError}</p>
+                    )}
                   </div>
 
                   <div
