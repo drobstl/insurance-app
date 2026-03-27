@@ -111,7 +111,7 @@ const EXTRACTION_SCHEMA = {
           name: { type: 'string' as const },
           relationship: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
           percentage: { anyOf: [{ type: 'number' as const }, { type: 'null' as const }] },
-          irrevocable: { anyOf: [{ type: 'boolean' as const }, { type: 'null' as const }] },
+          irrevocable: { type: 'boolean' as const },
           type: { type: 'string' as const, enum: ['primary', 'contingent'] },
         },
         required: ['name', 'type', 'relationship', 'percentage', 'irrevocable'],
