@@ -59,9 +59,6 @@ NORMALIZATION
 - Preserve middle initials/suffixes in names.
 - Strip checkbox artifacts (e.g., trailing X used as marks).
 
-EVIDENCE REQUIREMENT
-For every non-null extracted field, include an "evidence" object mapping field names to { "page": number, "snippet": string, "confidence": number (0-1) }.
-
 STRICTNESS
 - Never fabricate values.
 - If unreadable/uncertain/contradictory, return null.
@@ -69,7 +66,8 @@ STRICTNESS
 
 // Flat schema modeled after application-extractor.ts (proven working in production).
 // 14 top-level anyOf + 3 in beneficiary items = 17 total (under API limit).
-// Evidence is an untyped object (0 anyOf budget).
+// Evidence omitted from schema (API requires additionalProperties:false on all objects,
+// which prevents dynamic field-name keys). normalizeApplicationEvidence handles missing evidence.
 const APPLICATION_V3_SCHEMA = {
   type: 'object' as const,
   properties: {
@@ -112,14 +110,13 @@ const APPLICATION_V3_SCHEMA = {
     insuredDateOfBirth: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
     insuredState: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
     effectiveDate: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    evidence: { type: 'object' as const },
     note: { type: 'string' as const },
   },
   required: [
     'policyType', 'policyNumber', 'insuranceCompany', 'policyOwner',
     'insuredName', 'beneficiaries', 'coverageAmount', 'premiumAmount',
     'premiumFrequency', 'renewalDate', 'insuredEmail', 'insuredPhone',
-    'insuredDateOfBirth', 'insuredState', 'effectiveDate', 'evidence', 'note',
+    'insuredDateOfBirth', 'insuredState', 'effectiveDate', 'note',
   ],
   additionalProperties: false,
 };
