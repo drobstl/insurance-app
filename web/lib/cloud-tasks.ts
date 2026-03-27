@@ -1,19 +1,19 @@
 import 'server-only';
 
+import { createHmac } from 'crypto';
 import { GoogleAuth } from 'google-auth-library';
 
 interface IngestionV3TaskConfig {
   projectId: string;
   location: string;
   queue: string;
-  processorAudience: string;
   processorBaseUrl: string;
 }
 
 let authClient: GoogleAuth | null = null;
-let cachedCredentials: { client_email: string } | null = null;
+let cachedCredentials: Record<string, unknown> | null = null;
 
-function loadCredentials(): { client_email: string; [key: string]: unknown } {
+function loadCredentials(): Record<string, unknown> {
   if (!cachedCredentials) {
     const base64Key = process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_BASE64;
     if (!base64Key) {
@@ -35,24 +35,34 @@ function getAuthClient(): GoogleAuth {
   return authClient;
 }
 
+/**
+ * Derives a webhook verification token from the service account's private_key_id.
+ * Both cloud-tasks.ts (sender) and the process route (receiver) compute the same value.
+ */
+export function deriveWebhookSecret(): string {
+  const creds = loadCredentials();
+  const keyId = creds.private_key_id;
+  if (typeof keyId !== 'string' || !keyId) {
+    throw new Error('Service account credentials missing private_key_id.');
+  }
+  return createHmac('sha256', keyId).update('cloud-tasks-webhook-v1').digest('hex');
+}
+
 export function getIngestionV3TaskConfigFromEnv(): IngestionV3TaskConfig {
   const projectId = process.env.CLOUD_TASKS_PROJECT_ID?.trim() || process.env.GCP_PROJECT_ID?.trim() || '';
   const location = process.env.CLOUD_TASKS_LOCATION?.trim() || '';
   const queue = process.env.CLOUD_TASKS_QUEUE?.trim() || '';
   const processorBaseUrl = (process.env.INGESTION_V3_PROCESSOR_BASE_URL || '').trim().replace(/\/+$/, '');
-  const processorAudience = (process.env.INGESTION_V3_PROCESSOR_AUDIENCE || processorBaseUrl).trim();
 
   if (!projectId) throw new Error('Missing CLOUD_TASKS_PROJECT_ID (or GCP_PROJECT_ID).');
   if (!location) throw new Error('Missing CLOUD_TASKS_LOCATION.');
   if (!queue) throw new Error('Missing CLOUD_TASKS_QUEUE.');
   if (!processorBaseUrl) throw new Error('Missing INGESTION_V3_PROCESSOR_BASE_URL.');
-  if (!processorAudience) throw new Error('Missing INGESTION_V3_PROCESSOR_AUDIENCE.');
 
   return {
     projectId,
     location,
     queue,
-    processorAudience,
     processorBaseUrl,
   };
 }
@@ -72,12 +82,9 @@ export async function enqueueIngestionV3ProcessJob(
       url,
       headers: {
         'Content-Type': 'application/json',
+        'X-CloudTasks-Webhook-Secret': deriveWebhookSecret(),
       },
       body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
-      oidcToken: {
-        serviceAccountEmail: loadCredentials().client_email,
-        audience: cfg.processorAudience,
-      },
     },
   };
 

@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { OAuth2Client } from 'google-auth-library';
+import { deriveWebhookSecret } from '../../../../../../../lib/cloud-tasks';
 import { processIngestionV3Job } from '../../../../../../../lib/ingestion-v3-processor';
 import { getIngestionV3Job } from '../../../../../../../lib/ingestion-v3-store';
 import { trackIngestionV3ProcessAuthFailed } from '../../../../../../../lib/ingestion-v3-telemetry';
 
 export const maxDuration = 120;
-
-const oidcClient = new OAuth2Client();
 
 interface ProcessJobResponse {
   success: boolean;
@@ -24,7 +22,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ jobId: string }> },
 ): Promise<NextResponse<ProcessJobResponse>> {
-  const authResult = await verifyCloudTaskOidc(req);
+  const authResult = verifyWebhookSecret(req);
   if (!authResult.ok) {
     trackIngestionV3ProcessAuthFailed({ message: authResult.message });
     return NextResponse.json(
@@ -97,53 +95,19 @@ export async function POST(
   }
 }
 
-async function verifyCloudTaskOidc(req: NextRequest): Promise<{ ok: true } | { ok: false; message: string }> {
-  const authHeader = req.headers.get('authorization') || req.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return { ok: false, message: 'Missing Bearer token.' };
-  }
-
-  const idToken = authHeader.slice('Bearer '.length).trim();
-  if (!idToken) {
-    return { ok: false, message: 'Missing OIDC token.' };
-  }
-
-  const expectedAudience = (
-    process.env.INGESTION_V3_PROCESSOR_AUDIENCE || process.env.INGESTION_V3_PROCESSOR_BASE_URL || ''
-  ).trim();
-  if (!expectedAudience) {
-    return { ok: false, message: 'Processor audience is not configured.' };
-  }
-
-  const expectedServiceAccount = (process.env.CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL || '').trim().toLowerCase();
-  if (!expectedServiceAccount) {
-    return { ok: false, message: 'Cloud Tasks service account is not configured.' };
+function verifyWebhookSecret(req: NextRequest): { ok: true } | { ok: false; message: string } {
+  const secret = req.headers.get('x-cloudtasks-webhook-secret');
+  if (!secret) {
+    return { ok: false, message: 'Missing webhook secret header.' };
   }
 
   try {
-    const ticket = await oidcClient.verifyIdToken({
-      idToken,
-      audience: expectedAudience,
-    });
-    const payload = ticket.getPayload();
-    if (!payload) return { ok: false, message: 'OIDC payload is missing.' };
-
-    const issuer = payload.iss || '';
-    if (issuer !== 'https://accounts.google.com' && issuer !== 'accounts.google.com') {
-      return { ok: false, message: 'OIDC issuer is invalid.' };
+    const expected = deriveWebhookSecret();
+    if (secret !== expected) {
+      return { ok: false, message: 'Webhook secret mismatch.' };
     }
-
-    const email = (payload.email || '').toLowerCase();
-    if (!email || email !== expectedServiceAccount) {
-      return { ok: false, message: 'OIDC token service account is not allowed.' };
-    }
-
-    if (payload.email_verified !== true) {
-      return { ok: false, message: 'OIDC token email is not verified.' };
-    }
-
     return { ok: true };
   } catch {
-    return { ok: false, message: 'OIDC token verification failed.' };
+    return { ok: false, message: 'Failed to derive webhook secret for verification.' };
   }
 }
