@@ -7,7 +7,7 @@ import { validateAndNormalizeV3ApplicationResult } from './ingestion-v3-validate
 import type { IngestionV3ApplicationResult } from './ingestion-v3-types';
 import type { Beneficiary, ExtractedApplicationData } from './types';
 
-const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
+const CLAUDE_MODEL = 'claude-sonnet-4-6';
 
 const APPLICATION_V3_PROMPT = `You are an expert insurance application extractor for life insurance forms. Extract only information explicitly present in the PDF. Do not guess.
 
