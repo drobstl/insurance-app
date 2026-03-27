@@ -1,279 +1,38 @@
 import 'server-only';
 
-import Anthropic from '@anthropic-ai/sdk';
-import { normalizeApplicationEvidence } from './application-extractor';
+import { extractApplicationFields } from './application-extractor';
 import { IngestionV3Error } from './ingestion-v3-errors';
 import { validateAndNormalizeV3ApplicationResult } from './ingestion-v3-validate';
 import type { IngestionV3ApplicationResult } from './ingestion-v3-types';
-import type { Beneficiary, ExtractedApplicationData } from './types';
 
-const CLAUDE_MODEL = 'claude-sonnet-4-6';
-
-const APPLICATION_V3_PROMPT = `You are an expert insurance application extractor for life insurance forms. Extract only information explicitly present in the PDF. Do not guess.
-
-You must resolve role ambiguity with strict precedence:
-
-ROLE RESOLUTION
-1) INSURED = "Proposed Insured", "Insured", "Person Insured", or "Applicant" when applicant is the life being insured.
-2) APPLICANT = person applying/signing the application. If applicant is clearly different from insured, keep them distinct.
-3) OWNER = "Owner", "Policy Owner", "Application Owner", "Payor Owner". Owner may be same as insured or applicant.
-4) BENEFICIARY = "Primary Beneficiary" / "Contingent Beneficiary". Never map beneficiary to insured unless the form explicitly states self-beneficiary.
-
-If two roles conflict, return null for the ambiguous field and explain in note.
-
-FIELD RULES
-- insuredName: full legal name for insured role.
-- applicantName: full legal name for applicant role (null if not explicitly distinct).
-- policyOwner: full legal name for owner role (null if absent).
-- insuredState: U.S. state abbreviation from insured's address (e.g., MO, CA). Null if no address visible.
-- beneficiaries: list each beneficiary with:
-  - name
-  - type: primary | contingent
-  - relationship
-  - percentage
-  - designation: individual | trust | estate | other (if visible)
-  - irrevocable: true | false | null (only if form explicitly marks irrevocable designation)
-- riders: list all riders exactly as shown (e.g., Child Rider, Waiver of Premium, Accidental Death Rider), with rider amount if visible.
-- replacementPolicy:
-  - isReplacement: true/false/null
-  - replacedCarrier
-  - replacedPolicyNumber
-  - replacementType (internal | external | unknown)
-- premium:
-  - modalPremium: payment amount for selected billing mode (monthly/quarterly/semi-annual/annual)
-  - annualPremium: annualized premium when explicitly shown
-  - premiumFrequency: monthly | quarterly | semi-annual | annual | null
-  - Never infer annual from modal unless annual is explicitly printed.
-- coverage:
-  - faceAmount: policy face amount / specified amount / death benefit
-  - coverageAmount: if a separate "coverage amount" field is present; otherwise null
-  - If only one amount exists, put it in faceAmount and keep coverageAmount null.
-- policyNumber: policy/application/case number (not SSN, not agent number, not form number).
-- insuranceCompany: carrier short name.
-- insuredDateOfBirth, insuredPhone, insuredEmail, effectiveDate: extract if explicitly present, else null.
-
-NORMALIZATION
-- Dates: YYYY-MM-DD when unambiguous; else null.
-- Currency: numeric values only, no $ or commas.
-- Percentages: numeric (e.g., 50 for 50%).
-- Preserve middle initials/suffixes in names.
-- Strip checkbox artifacts (e.g., trailing X used as marks).
-
-STRICTNESS
-- Never fabricate values.
-- If unreadable/uncertain/contradictory, return null.
-- If multiple candidate values exist and cannot be disambiguated, return null and explain in note.`;
-
-// Flat schema modeled after application-extractor.ts (proven working in production).
-// 14 top-level anyOf + 3 in beneficiary items = 17 total (under API limit).
-// Evidence omitted from schema (API requires additionalProperties:false on all objects,
-// which prevents dynamic field-name keys). normalizeApplicationEvidence handles missing evidence.
-const APPLICATION_V3_SCHEMA = {
-  type: 'object' as const,
-  properties: {
-    policyType: {
-      anyOf: [
-        { type: 'string' as const, enum: ['IUL', 'Term Life', 'Whole Life', 'Mortgage Protection', 'Accidental', 'Other'] },
-        { type: 'null' as const },
-      ],
-    },
-    policyNumber: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    insuranceCompany: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    policyOwner: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    insuredName: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    beneficiaries: {
-      type: 'array' as const,
-      items: {
-        type: 'object' as const,
-        properties: {
-          name: { type: 'string' as const },
-          relationship: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-          percentage: { anyOf: [{ type: 'number' as const }, { type: 'null' as const }] },
-          irrevocable: { anyOf: [{ type: 'boolean' as const }, { type: 'null' as const }] },
-          type: { type: 'string' as const, enum: ['primary', 'contingent'] },
-        },
-        required: ['name', 'type', 'relationship', 'percentage', 'irrevocable'],
-        additionalProperties: false,
-      },
-    },
-    coverageAmount: { anyOf: [{ type: 'number' as const }, { type: 'null' as const }] },
-    premiumAmount: { anyOf: [{ type: 'number' as const }, { type: 'null' as const }] },
-    premiumFrequency: {
-      anyOf: [
-        { type: 'string' as const, enum: ['monthly', 'quarterly', 'semi-annual', 'annual'] },
-        { type: 'null' as const },
-      ],
-    },
-    renewalDate: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    insuredEmail: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    insuredPhone: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    insuredDateOfBirth: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    insuredState: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    effectiveDate: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    note: { type: 'string' as const },
-  },
-  required: [
-    'policyType', 'policyNumber', 'insuranceCompany', 'policyOwner',
-    'insuredName', 'beneficiaries', 'coverageAmount', 'premiumAmount',
-    'premiumFrequency', 'renewalDate', 'insuredEmail', 'insuredPhone',
-    'insuredDateOfBirth', 'insuredState', 'effectiveDate', 'note',
-  ],
-  additionalProperties: false,
-};
-
+/**
+ * V3 ingestion wrapper around the proven extractApplicationFields function.
+ * Delegates all PDF extraction to application-extractor.ts which is already
+ * working in production with the correct model, schema, and output_config.
+ */
 export async function extractApplicationPdfV3(pdfBase64: string): Promise<IngestionV3ApplicationResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new IngestionV3Error('CLAUDE_REQUEST_FAILED', 'ANTHROPIC_API_KEY is not configured.', {
-      retryable: false,
-      terminal: true,
-    });
-  }
-
-  const anthropic = new Anthropic({ apiKey });
-
   try {
-    const response = await anthropic.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 2200,
-      system: APPLICATION_V3_PROMPT,
-      output_config: {
-        format: {
-          type: 'json_schema',
-          schema: APPLICATION_V3_SCHEMA,
-        },
-      },
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'document',
-              source: {
-                type: 'base64',
-                media_type: 'application/pdf',
-                data: pdfBase64,
-              },
-            },
-            {
-              type: 'text',
-              text: 'Extract application fields and evidence for each non-null value.',
-            },
-          ],
-        },
-      ],
-    });
-
-    const textContent = response.content.find((block): block is Anthropic.TextBlock => block.type === 'text');
-    if (!textContent?.text) {
-      throw new IngestionV3Error('CLAUDE_REQUEST_FAILED', 'No response received from Claude.', {
-        retryable: true,
-        terminal: false,
-      });
-    }
-
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(textContent.text) as Record<string, unknown>;
-    } catch {
-      throw new IngestionV3Error('CLAUDE_SCHEMA_INVALID', 'Claude response was not valid JSON.', {
-        retryable: false,
-        terminal: true,
-      });
-    }
-
-    // Flat schema — fields are at top level, not nested under "data"
-    const rawBeneficiaries = Array.isArray(parsed.beneficiaries) ? parsed.beneficiaries : null;
-    const data: ExtractedApplicationData = {
-      policyType: coercePolicyType(parsed.policyType),
-      policyNumber: toNullableString(parsed.policyNumber),
-      insuranceCompany: toNullableString(parsed.insuranceCompany),
-      policyOwner: toNullableString(parsed.policyOwner),
-      insuredName: toNullableString(parsed.insuredName),
-      beneficiaries: coerceBeneficiaries(rawBeneficiaries),
-      coverageAmount: toNullableNumber(parsed.coverageAmount),
-      premiumAmount: toNullableNumber(parsed.premiumAmount),
-      premiumFrequency: coercePremiumFrequency(parsed.premiumFrequency),
-      renewalDate: toNullableString(parsed.renewalDate),
-      insuredEmail: toNullableString(parsed.insuredEmail),
-      insuredPhone: toNullableString(parsed.insuredPhone),
-      insuredDateOfBirth: toNullableString(parsed.insuredDateOfBirth),
-      insuredState: toStateAbbreviationOrNull(parsed.insuredState),
-      effectiveDate: toNullableString(parsed.effectiveDate),
-    };
+    const result = await extractApplicationFields(pdfBase64);
 
     return validateAndNormalizeV3ApplicationResult({
-      data,
-      evidence: normalizeApplicationEvidence(parsed.evidence),
-      note: typeof parsed.note === 'string' && parsed.note.trim().length > 0 ? parsed.note.trim() : undefined,
+      data: result.data,
+      evidence: {},
+      note: result.note,
     });
   } catch (error) {
     if (error instanceof IngestionV3Error) {
       throw error;
     }
-    throw new IngestionV3Error('CLAUDE_REQUEST_FAILED', error instanceof Error ? error.message : 'Claude request failed.', {
-      retryable: true,
-      terminal: false,
-    });
+    const message = error instanceof Error ? error.message : 'Claude request failed.';
+    const lower = message.toLowerCase();
+    const isRetryable = lower.includes('timeout') || lower.includes('timed out') ||
+      lower.includes('rate') || lower.includes('overloaded') || lower.includes('529');
+    throw new IngestionV3Error(
+      isRetryable ? 'CLAUDE_REQUEST_FAILED' : 'CLAUDE_SCHEMA_INVALID',
+      message,
+      { retryable: isRetryable, terminal: !isRetryable },
+    );
   }
 }
 
-function toNullableString(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function toNullableNumber(value: unknown): number | null {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-  if (typeof value === 'string') {
-    const normalized = value.replace(/[,$]/g, '').trim();
-    if (!normalized) return null;
-    const parsed = Number(normalized);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-function coercePolicyType(value: unknown): ExtractedApplicationData['policyType'] {
-  const allowed = new Set(['IUL', 'Term Life', 'Whole Life', 'Mortgage Protection', 'Accidental', 'Other']);
-  if (typeof value === 'string' && allowed.has(value)) {
-    return value as ExtractedApplicationData['policyType'];
-  }
-  return null;
-}
-
-function coercePremiumFrequency(value: unknown): ExtractedApplicationData['premiumFrequency'] {
-  const allowed = new Set(['monthly', 'quarterly', 'semi-annual', 'annual']);
-  if (typeof value === 'string' && allowed.has(value)) {
-    return value as ExtractedApplicationData['premiumFrequency'];
-  }
-  return null;
-}
-
-function toStateAbbreviationOrNull(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const state = value.trim().toUpperCase();
-  return /^[A-Z]{2}$/.test(state) ? state : null;
-}
-
-function coerceBeneficiaries(value: unknown): Beneficiary[] | null {
-  if (!Array.isArray(value)) return null;
-  const rows: Beneficiary[] = [];
-  for (const item of value) {
-    if (!item || typeof item !== 'object') continue;
-    const record = item as Record<string, unknown>;
-    const name = toNullableString(record.name);
-    if (!name) continue;
-    rows.push({
-      name,
-      relationship: toNullableString(record.relationship) ?? undefined,
-      percentage: toNullableNumber(record.percentage) ?? undefined,
-      irrevocable: typeof record.irrevocable === 'boolean' ? record.irrevocable : null,
-      type: record.type === 'contingent' ? 'contingent' : 'primary',
-    });
-  }
-  return rows.length > 0 ? rows : null;
-}
-
-export { APPLICATION_V3_PROMPT, CLAUDE_MODEL as INGESTION_V3_PDF_MODEL };
+export const INGESTION_V3_PDF_MODEL = 'claude-sonnet-4-6';
