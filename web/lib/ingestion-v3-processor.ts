@@ -87,6 +87,7 @@ export async function processIngestionV3Job(jobId: string): Promise<ProcessInges
 
     return { status: 'processed' };
   } catch (error) {
+    console.error('[ingestion-v3-processor] Raw extraction error:', error instanceof Error ? { message: error.message, stack: error.stack } : error);
     const classified = classifyProcessorError(error);
     if (classified.retryable && lock.job.attempts < lock.job.maxAttempts) {
       const delaySeconds = getRetryDelaySeconds(lock.job.attempts);
