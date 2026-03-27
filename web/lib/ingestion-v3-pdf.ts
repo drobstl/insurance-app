@@ -60,40 +60,69 @@ NORMALIZATION
 - Strip checkbox artifacts (e.g., trailing X used as marks).
 
 EVIDENCE REQUIREMENT
-For every non-null extracted field, provide evidence:
-- page (1-indexed)
-- snippet (exact nearby text)
-- confidence (0 to 1)
+For every non-null extracted field, include an "evidence" object mapping field names to { "page": number, "snippet": string, "confidence": number (0-1) }.
 
 STRICTNESS
 - Never fabricate values.
 - If unreadable/uncertain/contradictory, return null.
-- If multiple candidate values exist and cannot be disambiguated, return null and explain in note.
+- If multiple candidate values exist and cannot be disambiguated, return null and explain in note.`;
 
-Respond with ONLY a valid JSON object (no markdown, no commentary) matching this structure:
-{
-  "data": {
-    "policyType": "IUL" | "Term Life" | "Whole Life" | "Mortgage Protection" | "Accidental" | "Other" | null,
-    "policyNumber": string | null,
-    "insuranceCompany": string | null,
-    "policyOwner": string | null,
-    "insuredName": string | null,
-    "beneficiaries": [{ "name": string, "relationship": string | null, "percentage": number | null, "irrevocable": boolean | null, "type": "primary" | "contingent" }] | null,
-    "coverageAmount": number | null,
-    "premiumAmount": number | null,
-    "premiumFrequency": "monthly" | "quarterly" | "semi-annual" | "annual" | null,
-    "renewalDate": string | null,
-    "insuredEmail": string | null,
-    "insuredPhone": string | null,
-    "insuredDateOfBirth": string | null,
-    "insuredState": string | null,
-    "effectiveDate": string | null
+// Flat schema modeled after application-extractor.ts (proven working in production).
+// 14 top-level anyOf + 3 in beneficiary items = 17 total (under API limit).
+// Evidence is an untyped object (0 anyOf budget).
+const APPLICATION_V3_SCHEMA = {
+  type: 'object' as const,
+  properties: {
+    policyType: {
+      anyOf: [
+        { type: 'string' as const, enum: ['IUL', 'Term Life', 'Whole Life', 'Mortgage Protection', 'Accidental', 'Other'] },
+        { type: 'null' as const },
+      ],
+    },
+    policyNumber: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    insuranceCompany: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    policyOwner: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    insuredName: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    beneficiaries: {
+      type: 'array' as const,
+      items: {
+        type: 'object' as const,
+        properties: {
+          name: { type: 'string' as const },
+          relationship: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+          percentage: { anyOf: [{ type: 'number' as const }, { type: 'null' as const }] },
+          irrevocable: { anyOf: [{ type: 'boolean' as const }, { type: 'null' as const }] },
+          type: { type: 'string' as const, enum: ['primary', 'contingent'] },
+        },
+        required: ['name', 'type', 'relationship', 'percentage', 'irrevocable'],
+        additionalProperties: false,
+      },
+    },
+    coverageAmount: { anyOf: [{ type: 'number' as const }, { type: 'null' as const }] },
+    premiumAmount: { anyOf: [{ type: 'number' as const }, { type: 'null' as const }] },
+    premiumFrequency: {
+      anyOf: [
+        { type: 'string' as const, enum: ['monthly', 'quarterly', 'semi-annual', 'annual'] },
+        { type: 'null' as const },
+      ],
+    },
+    renewalDate: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    insuredEmail: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    insuredPhone: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    insuredDateOfBirth: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    insuredState: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    effectiveDate: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    evidence: { type: 'object' as const },
+    note: { type: 'string' as const },
   },
-  "evidence": {
-    "<fieldName>": { "page": number | null, "snippet": string | null, "confidence": number | null }
-  },
-  "note": string | null
-}`;
+  required: [
+    'policyType', 'policyNumber', 'insuranceCompany', 'policyOwner',
+    'insuredName', 'beneficiaries', 'coverageAmount', 'premiumAmount',
+    'premiumFrequency', 'renewalDate', 'insuredEmail', 'insuredPhone',
+    'insuredDateOfBirth', 'insuredState', 'effectiveDate', 'evidence', 'note',
+  ],
+  additionalProperties: false,
+};
 
 export async function extractApplicationPdfV3(pdfBase64: string): Promise<IngestionV3ApplicationResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -111,6 +140,12 @@ export async function extractApplicationPdfV3(pdfBase64: string): Promise<Ingest
       model: CLAUDE_MODEL,
       max_tokens: 2200,
       system: APPLICATION_V3_PROMPT,
+      output_config: {
+        format: {
+          type: 'json_schema',
+          schema: APPLICATION_V3_SCHEMA,
+        },
+      },
       messages: [
         {
           role: 'user',
@@ -150,24 +185,24 @@ export async function extractApplicationPdfV3(pdfBase64: string): Promise<Ingest
       });
     }
 
-    const rawData = ((parsed.data as Record<string, unknown> | undefined) || {}) as Record<string, unknown>;
-    const rawBeneficiaries = Array.isArray(rawData.beneficiaries) ? rawData.beneficiaries : null;
+    // Flat schema — fields are at top level, not nested under "data"
+    const rawBeneficiaries = Array.isArray(parsed.beneficiaries) ? parsed.beneficiaries : null;
     const data: ExtractedApplicationData = {
-      policyType: coercePolicyType(rawData.policyType),
-      policyNumber: toNullableString(rawData.policyNumber),
-      insuranceCompany: toNullableString(rawData.insuranceCompany),
-      policyOwner: toNullableString(rawData.policyOwner),
-      insuredName: toNullableString(rawData.insuredName),
+      policyType: coercePolicyType(parsed.policyType),
+      policyNumber: toNullableString(parsed.policyNumber),
+      insuranceCompany: toNullableString(parsed.insuranceCompany),
+      policyOwner: toNullableString(parsed.policyOwner),
+      insuredName: toNullableString(parsed.insuredName),
       beneficiaries: coerceBeneficiaries(rawBeneficiaries),
-      coverageAmount: toNullableNumber(rawData.coverageAmount),
-      premiumAmount: toNullableNumber(rawData.premiumAmount),
-      premiumFrequency: coercePremiumFrequency(rawData.premiumFrequency),
-      renewalDate: toNullableString(rawData.renewalDate),
-      insuredEmail: toNullableString(rawData.insuredEmail),
-      insuredPhone: toNullableString(rawData.insuredPhone),
-      insuredDateOfBirth: toNullableString(rawData.insuredDateOfBirth),
-      insuredState: toStateAbbreviationOrNull(rawData.insuredState),
-      effectiveDate: toNullableString(rawData.effectiveDate),
+      coverageAmount: toNullableNumber(parsed.coverageAmount),
+      premiumAmount: toNullableNumber(parsed.premiumAmount),
+      premiumFrequency: coercePremiumFrequency(parsed.premiumFrequency),
+      renewalDate: toNullableString(parsed.renewalDate),
+      insuredEmail: toNullableString(parsed.insuredEmail),
+      insuredPhone: toNullableString(parsed.insuredPhone),
+      insuredDateOfBirth: toNullableString(parsed.insuredDateOfBirth),
+      insuredState: toStateAbbreviationOrNull(parsed.insuredState),
+      effectiveDate: toNullableString(parsed.effectiveDate),
     };
 
     return validateAndNormalizeV3ApplicationResult({
