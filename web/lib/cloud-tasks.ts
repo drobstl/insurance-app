@@ -15,7 +15,13 @@ let authClient: GoogleAuth | null = null;
 
 function getAuthClient(): GoogleAuth {
   if (!authClient) {
+    const base64Key = process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_BASE64;
+    if (!base64Key) {
+      throw new Error('Missing FIREBASE_ADMIN_SERVICE_ACCOUNT_BASE64 env var for GCP credentials.');
+    }
+    const credentials = JSON.parse(Buffer.from(base64Key, 'base64').toString('utf-8'));
     authClient = new GoogleAuth({
+      credentials,
       scopes: ['https://www.googleapis.com/auth/cloud-tasks'],
     });
   }
