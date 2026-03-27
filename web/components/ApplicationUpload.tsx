@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useId } from 'react';
+import { useState, useRef, useCallback, useId, useEffect } from 'react';
 import type {
   ExtractedApplicationData,
   IngestionV3JobStatusResponse,
@@ -38,7 +38,18 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
   const [timingSummary, setTimingSummary] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isProcessingRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
   const fileInputId = useId();
+
+  // Reset state on mount; abort in-flight requests on unmount
+  useEffect(() => {
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    return () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+      isProcessingRef.current = false;
+    };
+  }, []);
 
   // Editable client fields (only used in client-and-policy mode)
   const [clientFields, setClientFields] = useState({
@@ -54,6 +65,11 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
   const processFile = useCallback(async (file: File) => {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
+
+    // Abort any leftover requests from a previous run
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
       setErrorMessage('Please upload a PDF file.');
@@ -82,6 +98,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
         const signedRes = await fetch('/api/ingestion/v3/upload-url', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
           body: JSON.stringify({
             fileName: file.name,
             contentType: file.type || 'application/pdf',
@@ -103,6 +120,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
           fetch(signedBody.uploadUrl, {
             method: 'PUT',
             headers: { 'Content-Type': file.type || 'application/pdf' },
+            signal: controller.signal,
             body: file,
           }).then((res) => {
             if (!res.ok) {
@@ -123,6 +141,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       const createRes = await fetch('/api/ingestion/v3/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           mode: 'application',
           gcsPath,
@@ -144,7 +163,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
 
         const statusRes = await fetch(`/api/ingestion/v3/jobs/${created.jobId}`, {
           cache: 'no-store',
-          signal: AbortSignal.timeout(JOB_STATUS_TIMEOUT_MS),
+          signal: controller.signal,
         });
         const statusBody = (await statusRes.json()) as IngestionV3JobStatusResponse;
         if (!statusRes.ok || !statusBody.success || !statusBody.job) {
@@ -205,6 +224,11 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
 
       setStage('review');
     } catch (err) {
+      // If aborted (modal closed or new upload started), silently bail
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        isProcessingRef.current = false;
+        return;
+      }
       let message = 'Something went wrong. Please try again.';
       if (isTimeoutError(err)) {
         message = 'Request timed out. If you\u2019re on a slow connection, try again on a stronger network.';
