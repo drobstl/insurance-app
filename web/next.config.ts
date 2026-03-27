@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["@google-cloud/tasks", "google-gax"],
+  serverExternalPackages: [
+    "google-auth-library",
+  ],
   async rewrites() {
     return [
       {

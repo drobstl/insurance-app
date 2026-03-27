@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { GoogleAuth } from 'google-auth-library';
+
 interface IngestionV3TaskConfig {
   projectId: string;
   location: string;
@@ -9,13 +11,15 @@ interface IngestionV3TaskConfig {
   processorBaseUrl: string;
 }
 
-let cloudTasksClientPromise: Promise<any> | null = null;
+let authClient: GoogleAuth | null = null;
 
-async function getCloudTasksClient(): Promise<any> {
-  if (!cloudTasksClientPromise) {
-    cloudTasksClientPromise = import('@google-cloud/tasks').then(({ CloudTasksClient }) => new CloudTasksClient());
+function getAuthClient(): GoogleAuth {
+  if (!authClient) {
+    authClient = new GoogleAuth({
+      scopes: ['https://www.googleapis.com/auth/cloud-tasks'],
+    });
   }
-  return cloudTasksClientPromise;
+  return authClient;
 }
 
 export function getIngestionV3TaskConfigFromEnv(): IngestionV3TaskConfig {
@@ -47,36 +51,49 @@ export async function enqueueIngestionV3ProcessJob(
   jobId: string,
   options?: { delaySeconds?: number },
 ): Promise<{ taskName: string }> {
-  const cloudTasksClient = await getCloudTasksClient();
   const cfg = getIngestionV3TaskConfigFromEnv();
-  const parent = cloudTasksClient.queuePath(cfg.projectId, cfg.location, cfg.queue);
+  const parent = `projects/${cfg.projectId}/locations/${cfg.location}/queues/${cfg.queue}`;
   const url = `${cfg.processorBaseUrl}/api/ingestion/v3/jobs/${encodeURIComponent(jobId)}/process`;
   const delaySeconds = Math.max(0, Math.floor(options?.delaySeconds ?? 0));
 
-  const [task] = await cloudTasksClient.createTask({
-    parent,
-    task: {
-      ...(delaySeconds > 0
-        ? {
-            scheduleTime: {
-              seconds: Math.floor(Date.now() / 1000) + delaySeconds,
-            },
-          }
-        : {}),
-      httpRequest: {
-        httpMethod: 'POST',
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
-        oidcToken: {
-          serviceAccountEmail: cfg.serviceAccountEmail,
-          audience: cfg.processorAudience,
-        },
+  const taskBody: Record<string, unknown> = {
+    httpRequest: {
+      httpMethod: 'POST',
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
+      oidcToken: {
+        serviceAccountEmail: cfg.serviceAccountEmail,
+        audience: cfg.processorAudience,
       },
     },
+  };
+
+  if (delaySeconds > 0) {
+    taskBody.scheduleTime = new Date(Date.now() + delaySeconds * 1000).toISOString();
+  }
+
+  const auth = getAuthClient();
+  const client = await auth.getClient();
+  const accessToken = await client.getAccessToken();
+
+  const apiUrl = `https://cloudtasks.googleapis.com/v2/${parent}/tasks`;
+  const res = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken.token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ task: taskBody }),
   });
 
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(`Cloud Tasks API error (${res.status}): ${errorBody}`);
+  }
+
+  const task = await res.json();
   return { taskName: task.name || '' };
 }
