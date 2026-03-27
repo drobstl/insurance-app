@@ -6,20 +6,27 @@ interface IngestionV3TaskConfig {
   projectId: string;
   location: string;
   queue: string;
-  serviceAccountEmail: string;
   processorAudience: string;
   processorBaseUrl: string;
 }
 
 let authClient: GoogleAuth | null = null;
+let cachedCredentials: { client_email: string } | null = null;
 
-function getAuthClient(): GoogleAuth {
-  if (!authClient) {
+function loadCredentials(): { client_email: string; [key: string]: unknown } {
+  if (!cachedCredentials) {
     const base64Key = process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_BASE64;
     if (!base64Key) {
       throw new Error('Missing FIREBASE_ADMIN_SERVICE_ACCOUNT_BASE64 env var for GCP credentials.');
     }
-    const credentials = JSON.parse(Buffer.from(base64Key, 'base64').toString('utf-8'));
+    cachedCredentials = JSON.parse(Buffer.from(base64Key, 'base64').toString('utf-8'));
+  }
+  return cachedCredentials!;
+}
+
+function getAuthClient(): GoogleAuth {
+  if (!authClient) {
+    const credentials = loadCredentials();
     authClient = new GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/cloud-tasks'],
@@ -32,14 +39,12 @@ export function getIngestionV3TaskConfigFromEnv(): IngestionV3TaskConfig {
   const projectId = process.env.CLOUD_TASKS_PROJECT_ID?.trim() || process.env.GCP_PROJECT_ID?.trim() || '';
   const location = process.env.CLOUD_TASKS_LOCATION?.trim() || '';
   const queue = process.env.CLOUD_TASKS_QUEUE?.trim() || '';
-  const serviceAccountEmail = process.env.CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL?.trim() || '';
   const processorBaseUrl = (process.env.INGESTION_V3_PROCESSOR_BASE_URL || '').trim().replace(/\/+$/, '');
   const processorAudience = (process.env.INGESTION_V3_PROCESSOR_AUDIENCE || processorBaseUrl).trim();
 
   if (!projectId) throw new Error('Missing CLOUD_TASKS_PROJECT_ID (or GCP_PROJECT_ID).');
   if (!location) throw new Error('Missing CLOUD_TASKS_LOCATION.');
   if (!queue) throw new Error('Missing CLOUD_TASKS_QUEUE.');
-  if (!serviceAccountEmail) throw new Error('Missing CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL.');
   if (!processorBaseUrl) throw new Error('Missing INGESTION_V3_PROCESSOR_BASE_URL.');
   if (!processorAudience) throw new Error('Missing INGESTION_V3_PROCESSOR_AUDIENCE.');
 
@@ -47,7 +52,6 @@ export function getIngestionV3TaskConfigFromEnv(): IngestionV3TaskConfig {
     projectId,
     location,
     queue,
-    serviceAccountEmail,
     processorAudience,
     processorBaseUrl,
   };
@@ -71,7 +75,7 @@ export async function enqueueIngestionV3ProcessJob(
       },
       body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
       oidcToken: {
-        serviceAccountEmail: cfg.serviceAccountEmail,
+        serviceAccountEmail: loadCredentials().client_email,
         audience: cfg.processorAudience,
       },
     },
