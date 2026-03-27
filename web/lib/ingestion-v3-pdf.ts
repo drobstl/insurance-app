@@ -69,122 +69,31 @@ STRICTNESS
 - Never fabricate values.
 - If unreadable/uncertain/contradictory, return null.
 - If multiple candidate values exist and cannot be disambiguated, return null and explain in note.
-- Keep output strictly valid to the provided JSON schema.`;
 
-const APPLICATION_V3_SCHEMA = {
-  type: 'object' as const,
-  properties: {
-    data: {
-      type: 'object' as const,
-      properties: {
-        policyType: {
-          anyOf: [
-            { type: 'string' as const, enum: ['IUL', 'Term Life', 'Whole Life', 'Mortgage Protection', 'Accidental', 'Other'] },
-            { type: 'null' as const },
-          ],
-        },
-        policyNumber: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-        insuranceCompany: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-        policyOwner: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-        insuredName: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-        beneficiaries: {
-          anyOf: [
-            {
-              type: 'array' as const,
-              items: {
-                type: 'object' as const,
-                properties: {
-                  name: { type: 'string' as const },
-                  relationship: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-                  percentage: { anyOf: [{ type: 'number' as const }, { type: 'null' as const }] },
-                  irrevocable: { anyOf: [{ type: 'boolean' as const }, { type: 'null' as const }] },
-                  type: { type: 'string' as const, enum: ['primary', 'contingent'] },
-                },
-                required: ['name', 'relationship', 'percentage', 'irrevocable', 'type'],
-                additionalProperties: false,
-              },
-            },
-            { type: 'null' as const },
-          ],
-        },
-        coverageAmount: { anyOf: [{ type: 'number' as const }, { type: 'null' as const }] },
-        premiumAmount: { anyOf: [{ type: 'number' as const }, { type: 'null' as const }] },
-        premiumFrequency: {
-          anyOf: [
-            { type: 'string' as const, enum: ['monthly', 'quarterly', 'semi-annual', 'annual'] },
-            { type: 'null' as const },
-          ],
-        },
-        renewalDate: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-        insuredEmail: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-        insuredPhone: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-        insuredDateOfBirth: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-        insuredState: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-        effectiveDate: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-      },
-      required: [
-        'policyType',
-        'policyNumber',
-        'insuranceCompany',
-        'policyOwner',
-        'insuredName',
-        'beneficiaries',
-        'coverageAmount',
-        'premiumAmount',
-        'premiumFrequency',
-        'renewalDate',
-        'insuredEmail',
-        'insuredPhone',
-        'insuredDateOfBirth',
-        'insuredState',
-        'effectiveDate',
-      ],
-      additionalProperties: false,
-    },
-    evidence: {
-      type: 'object' as const,
-      properties: {
-        policyType: evidenceItemSchema(),
-        policyNumber: evidenceItemSchema(),
-        insuranceCompany: evidenceItemSchema(),
-        policyOwner: evidenceItemSchema(),
-        insuredName: evidenceItemSchema(),
-        beneficiaries: evidenceItemSchema(),
-        coverageAmount: evidenceItemSchema(),
-        premiumAmount: evidenceItemSchema(),
-        premiumFrequency: evidenceItemSchema(),
-        renewalDate: evidenceItemSchema(),
-        insuredEmail: evidenceItemSchema(),
-        insuredPhone: evidenceItemSchema(),
-        insuredDateOfBirth: evidenceItemSchema(),
-        insuredState: evidenceItemSchema(),
-        effectiveDate: evidenceItemSchema(),
-        applicantName: evidenceItemSchema(),
-        faceAmount: evidenceItemSchema(),
-        annualPremium: evidenceItemSchema(),
-        modalPremium: evidenceItemSchema(),
-      },
-      required: [],
-      additionalProperties: false,
-    },
-    note: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+Respond with ONLY a valid JSON object (no markdown, no commentary) matching this structure:
+{
+  "data": {
+    "policyType": "IUL" | "Term Life" | "Whole Life" | "Mortgage Protection" | "Accidental" | "Other" | null,
+    "policyNumber": string | null,
+    "insuranceCompany": string | null,
+    "policyOwner": string | null,
+    "insuredName": string | null,
+    "beneficiaries": [{ "name": string, "relationship": string | null, "percentage": number | null, "irrevocable": boolean | null, "type": "primary" | "contingent" }] | null,
+    "coverageAmount": number | null,
+    "premiumAmount": number | null,
+    "premiumFrequency": "monthly" | "quarterly" | "semi-annual" | "annual" | null,
+    "renewalDate": string | null,
+    "insuredEmail": string | null,
+    "insuredPhone": string | null,
+    "insuredDateOfBirth": string | null,
+    "insuredState": string | null,
+    "effectiveDate": string | null
   },
-  required: ['data', 'evidence', 'note'],
-  additionalProperties: false,
-};
-
-function evidenceItemSchema() {
-  return {
-    type: 'object' as const,
-    properties: {
-      page: { anyOf: [{ type: 'number' as const }, { type: 'null' as const }] },
-      snippet: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-      confidence: { anyOf: [{ type: 'number' as const }, { type: 'null' as const }] },
-    },
-    required: ['page', 'snippet', 'confidence'],
-    additionalProperties: false,
-  };
-}
+  "evidence": {
+    "<fieldName>": { "page": number | null, "snippet": string | null, "confidence": number | null }
+  },
+  "note": string | null
+}`;
 
 export async function extractApplicationPdfV3(pdfBase64: string): Promise<IngestionV3ApplicationResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -202,12 +111,6 @@ export async function extractApplicationPdfV3(pdfBase64: string): Promise<Ingest
       model: CLAUDE_MODEL,
       max_tokens: 2200,
       system: APPLICATION_V3_PROMPT,
-      output_config: {
-        format: {
-          type: 'json_schema',
-          schema: APPLICATION_V3_SCHEMA,
-        },
-      },
       messages: [
         {
           role: 'user',
