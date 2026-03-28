@@ -2207,12 +2207,23 @@ export default function ClientsPage() {
                 : ` \u2014 ${batchNotification.completedFiles} file${batchNotification.completedFiles !== 1 ? 's' : ''} processed successfully.`}
             </p>
           </div>
-          <button
-            onClick={handleReviewBatchResults}
-            className="px-4 py-1.5 bg-[#45bcaa] hover:bg-[#005751] text-white text-sm font-semibold rounded-[5px] transition-colors shrink-0"
-          >
-            Review
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleReviewBatchResults}
+              className="px-4 py-1.5 bg-[#45bcaa] hover:bg-[#005751] text-white text-sm font-semibold rounded-[5px] transition-colors"
+            >
+              Review
+            </button>
+            <button
+              onClick={() => setBatchNotification(null)}
+              className="p-1 rounded hover:bg-[#45bcaa]/20 text-[#005851] transition-colors"
+              aria-label="Dismiss"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 
