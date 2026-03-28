@@ -9,6 +9,7 @@ import {
   onSnapshot,
   query,
   orderBy,
+  where,
   serverTimestamp,
   Timestamp,
   updateDoc,
@@ -175,19 +176,8 @@ type ImportSourceType = 'local';
 type ImportFileType = 'pdf' | 'spreadsheet' | 'text' | 'unknown';
 type ImportFileState = 'queued' | 'parsing' | 'succeeded' | 'failed';
 
-const BATCH_STALE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const BATCH_RESULT_FETCH_CONCURRENCY = 5;
 
-function driveMimeToImportFileType(mimeType: string): ImportFileType {
-  if (mimeType === 'application/pdf') return 'pdf';
-  if (
-    mimeType === 'application/vnd.google-apps.spreadsheet' ||
-    mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-    mimeType === 'application/vnd.ms-excel'
-  ) return 'spreadsheet';
-  if (mimeType === 'text/csv' || mimeType === 'text/tab-separated-values') return 'text';
-  return 'unknown';
-}
 
 interface ImportSourceFile {
   sourceType: ImportSourceType;
@@ -484,11 +474,19 @@ export default function ClientsPage() {
   const [importSuccess, setImportSuccess] = useState('');
   const [importFileStatuses, setImportFileStatuses] = useState<ImportFileStatus[]>([]);
   const [importSessionStartedAt, setImportSessionStartedAt] = useState<number | null>(null);
-  const [batchCompletedFiles, setBatchCompletedFiles] = useState(0);
-  const [batchFailedFiles, setBatchFailedFiles] = useState(0);
-  const [batchTotalFiles, setBatchTotalFiles] = useState(0);
-  const [batchRetryMessage, setBatchRetryMessage] = useState<string | null>(null);
   const [importDragActive, setImportDragActive] = useState(false);
+
+  // ── Background batch tracking (persists across modal open/close) ──
+  const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
+  const [batchNotification, setBatchNotification] = useState<{
+    batchId: string;
+    totalFiles: number;
+    completedFiles: number;
+    failedFiles: number;
+    totalRows: number;
+    status: 'completed' | 'partial';
+    succeededJobIds: string[];
+  } | null>(null);
   const [justImportedClients, setJustImportedClients] = useState<{ clientId: string; phone: string; firstName: string; clientCode: string }[]>([]);
   const [introMessage, setIntroMessage] = useState(DEFAULT_INTRO_TEMPLATE);
   const [sendingIntro, setSendingIntro] = useState(false);
@@ -541,6 +539,64 @@ export default function ClientsPage() {
     const agentName = (agentProfile.name || 'your agent').trim() || 'your agent';
     return applyWelcomeTemplate(welcomeSmsTemplate, { firstName, code, agentName });
   }, [agentProfile.name, welcomeSmsTemplate]);
+
+  // ─── Background Batch Listeners ──────────────────────────
+
+  // Listen to active batch doc for completion
+  useEffect(() => {
+    if (!user || !activeBatchId) return;
+
+    const unsubscribe = onSnapshot(
+      doc(db, 'agents', user.uid, 'batchJobs', activeBatchId),
+      (snap) => {
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const status = data.status as string;
+
+        if (status === 'completed' || status === 'partial') {
+          const filesMap = (data.files || {}) as Record<string, Record<string, unknown>>;
+          const succeededJobIds = Object.entries(filesMap)
+            .filter(([, f]) => f.status === 'succeeded' && typeof f.jobId === 'string')
+            .map(([, f]) => f.jobId as string);
+
+          setBatchNotification({
+            batchId: activeBatchId,
+            totalFiles: typeof data.totalFiles === 'number' ? data.totalFiles : 0,
+            completedFiles: typeof data.completedFiles === 'number' ? data.completedFiles : 0,
+            failedFiles: typeof data.failedFiles === 'number' ? data.failedFiles : 0,
+            totalRows: typeof data.totalRows === 'number' ? data.totalRows : 0,
+            status: status as 'completed' | 'partial',
+            succeededJobIds,
+          });
+          setActiveBatchId(null);
+        }
+      },
+    );
+
+    return () => unsubscribe();
+  }, [user, activeBatchId]);
+
+  // Detect in-progress batches on page load (covers browser refresh)
+  useEffect(() => {
+    if (!user || activeBatchId) return;
+
+    const q = query(
+      collection(db, 'agents', user.uid, 'batchJobs'),
+      where('status', '==', 'processing'),
+    );
+
+    // One-time check, not persistent listener
+    const unsubscribe = onSnapshot(q, (snap) => {
+      if (!snap.empty) {
+        const latest = snap.docs[0];
+        setActiveBatchId(latest.id);
+      }
+      // Unsubscribe after first result — the active batch listener takes over
+      unsubscribe();
+    });
+
+    return () => unsubscribe();
+  }, [user, activeBatchId]);
 
   // ─── Data Fetching ───────────────────────────────────────
 
@@ -1848,279 +1904,92 @@ export default function ClientsPage() {
       const selectedFiles = await pickGoogleDriveFiles(token);
       if (selectedFiles.length === 0) return;
 
-      const startedAt = Date.now();
-      setParsingBob(true);
-      setImportData([]);
-      setImportProgress(0);
-      setBatchCompletedFiles(0);
-      setBatchFailedFiles(0);
-      setBatchTotalFiles(0);
-      setBatchRetryMessage(null);
-      setImportSessionStartedAt(startedAt);
+      setParsingBob(true); // Show spinner while POST is in flight
 
-      // Initial file statuses from picker selection
-      setImportFileStatuses(
-        selectedFiles.map((file) => ({
-          sourceFileId: `drive:${file.id}`,
-          name: file.name,
-          fileType: driveMimeToImportFileType(file.mimeType),
-          state: 'queued' as ImportFileState,
-          loadedRows: 0,
-          rejectedRows: 0,
-        })),
-      );
-
-      const fileTypeCounts = {
-        pdf: selectedFiles.filter((f) => f.mimeType === 'application/pdf').length,
-        spreadsheet: selectedFiles.filter((f) =>
-          f.mimeType === 'application/vnd.google-apps.spreadsheet' ||
-          f.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-          f.mimeType === 'application/vnd.ms-excel'
-        ).length,
-        text: selectedFiles.filter((f) =>
-          f.mimeType === 'text/csv' || f.mimeType === 'text/tab-separated-values'
-        ).length,
-        folder: selectedFiles.filter((f) => f.mimeType === 'application/vnd.google-apps.folder').length,
-      };
-
-      captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_SESSION_STARTED, {
-        source: 'drive',
-        total_files: selectedFiles.length,
-        pdf_files: fileTypeCounts.pdf,
-        spreadsheet_files: fileTypeCounts.spreadsheet,
-        text_files: fileTypeCounts.text,
-        folder_count: fileTypeCounts.folder,
-      });
-
-      // POST to import route — downloads files, creates ingestion jobs, returns batchId
       const importRes = await fetch('/api/integrations/google/import', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          purpose: 'bob',
-          files: selectedFiles,
-        }),
+        body: JSON.stringify({ purpose: 'bob', files: selectedFiles }),
       });
       const importBody = (await importRes.json()) as GoogleDriveImportRouteResponse;
       if (!importRes.ok || !importBody.success || !importBody.batchId) {
         throw new Error(importBody.error || 'Failed to import files from Google Drive.');
       }
 
-      const batchId = importBody.batchId;
+      // Start background listener — the component-level useEffect picks this up
+      setActiveBatchId(importBody.batchId);
 
-      // Update file statuses with resolved files (folders expanded into their contents)
-      if (importBody.resolvedFiles) {
-        setImportFileStatuses(
-          importBody.resolvedFiles.map((rf) => ({
-            sourceFileId: `drive:${rf.id}`,
-            name: rf.fromFolder ? `${rf.name} (from ${rf.fromFolder})` : rf.name,
-            fileType: driveMimeToImportFileType(rf.mimeType),
-            state: 'parsing' as ImportFileState,
-            loadedRows: 0,
-            rejectedRows: 0,
-          })),
-        );
-      }
+      // Show confirmation — agent can close the modal whenever they want
+      const fileCount = importBody.resolvedFiles?.length || selectedFiles.length;
+      setImportSuccess(
+        `${fileCount} file${fileCount !== 1 ? 's' : ''} received. We'll process them in the background \u2014 this usually takes about 1 minute per file. You can close this and keep working. We'll notify you when your import is ready for review.`,
+      );
 
-      // Mark any files that failed during the import route (download/enqueue failures)
-      if (importBody.results) {
-        for (const result of importBody.results) {
-          if (result.status === 'failed') {
-            updateImportFileStatus(`drive:${result.fileId}`, {
-              state: 'failed',
-              error: result.error || 'Failed to queue file for processing.',
-            });
-          }
-        }
-      }
-
-      // ── Real-time batch tracking via onSnapshot ──
-      // Listen to agents/{uid}/batchJobs/{batchId} for progress updates
-      await new Promise<void>((resolve, reject) => {
-        let lastUpdateAt = Date.now();
-        let staleTimer: ReturnType<typeof setTimeout> | null = null;
-
-        const resetStaleTimer = () => {
-          if (staleTimer) clearTimeout(staleTimer);
-          lastUpdateAt = Date.now();
-          staleTimer = setTimeout(() => {
-            unsubscribe();
-            // Don't reject — the files are still processing, just inform the agent
-            setImportWarning('This import is taking longer than expected. You can close this and your files will continue processing in the background.');
-            resolve();
-          }, BATCH_STALE_TIMEOUT_MS);
-        };
-
-        const unsubscribe = onSnapshot(
-          doc(db, 'agents', user.uid, 'batchJobs', batchId),
-          (snap) => {
-            if (!snap.exists()) return;
-            const data = snap.data();
-            resetStaleTimer();
-
-            const totalFiles = typeof data.totalFiles === 'number' ? data.totalFiles : 0;
-            const completedFiles = typeof data.completedFiles === 'number' ? data.completedFiles : 0;
-            const failedFiles = typeof data.failedFiles === 'number' ? data.failedFiles : 0;
-            const totalRows = typeof data.totalRows === 'number' ? data.totalRows : 0;
-            const retryRound = typeof data.retryRound === 'number' ? data.retryRound : 0;
-            const batchStatus = data.status as string;
-            const filesMap = (data.files || {}) as Record<string, {
-              jobId?: string;
-              fileName?: string;
-              mimeType?: string;
-              status?: string;
-              loadedRows?: number;
-              error?: string;
-              driveFileId?: string;
-            }>;
-
-            // Pipe batch counters into state for the progress UI
-            setBatchCompletedFiles(completedFiles);
-            setBatchFailedFiles(failedFiles);
-            setBatchTotalFiles(totalFiles);
-
-            // Update per-file statuses from batch doc
-            for (const [, entry] of Object.entries(filesMap)) {
-              if (!entry.driveFileId) continue;
-              const sourceFileId = `drive:${entry.driveFileId}`;
-              if (entry.status === 'succeeded') {
-                updateImportFileStatus(sourceFileId, {
-                  state: 'succeeded',
-                  loadedRows: entry.loadedRows || 0,
-                });
-              } else if (entry.status === 'failed') {
-                updateImportFileStatus(sourceFileId, {
-                  state: 'failed',
-                  error: entry.error || 'Processing failed.',
-                });
-              } else if (entry.status === 'processing' || entry.status === 'queued') {
-                updateImportFileStatus(sourceFileId, { state: 'parsing' });
-              }
-            }
-
-            // Update overall progress
-            if (totalFiles > 0) {
-              if (retryRound === 1) {
-                // During retry round, base progress only on completed files —
-                // don't count retrying files as "done" so the bar doesn't go backwards
-                setImportProgress(Math.round((completedFiles / totalFiles) * 100));
-              } else {
-                setImportProgress(Math.round(((completedFiles + failedFiles) / totalFiles) * 100));
-              }
-            }
-
-            // Retry round messaging
-            if (retryRound === 1 && batchStatus === 'processing') {
-              const retryingCount = Object.values(filesMap).filter(e => e.status === 'queued').length;
-              if (retryingCount > 0) {
-                setBatchRetryMessage(`Retrying ${retryingCount} file${retryingCount !== 1 ? 's' : ''}...`);
-              }
-            }
-
-            // Batch complete — transition to row loading
-            if (batchStatus === 'completed' || batchStatus === 'partial') {
-              setImportProgress(100);
-              setBatchRetryMessage(null);
-
-              // Show specific loading message using totalRows from batch doc
-              const succeededCount = completedFiles;
-              if (totalRows > 0 && succeededCount > 0) {
-                setImportWarning(`Loading ${totalRows} row${totalRows !== 1 ? 's' : ''} from ${succeededCount} file${succeededCount !== 1 ? 's' : ''}...`);
-              }
-
-              if (staleTimer) clearTimeout(staleTimer);
-              unsubscribe();
-              resolve();
-            }
-          },
-          (err) => {
-            if (staleTimer) clearTimeout(staleTimer);
-            console.error('[Drive import] onSnapshot error:', err);
-            reject(new Error('Lost connection to import progress. Your files are still processing.'));
-          },
-        );
-
-        resetStaleTimer();
+      captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_SESSION_STARTED, {
+        source: 'drive',
+        total_files: fileCount,
       });
-
-      // ── Fetch extracted rows from succeeded jobs ──
-      const succeededJobIds: string[] = [];
-      if (importBody.results) {
-        for (const result of importBody.results) {
-          if (result.jobId && result.status !== 'failed') {
-            succeededJobIds.push(result.jobId);
-          }
-        }
-      }
-
-      if (succeededJobIds.length > 0) {
-        const allRows: ImportRow[] = [];
-        const warnings: string[] = [];
-        let fetchNextIndex = 0;
-        const fetchToken = await user.getIdToken();
-
-        const fetchWorkers = Array.from(
-          { length: Math.min(BATCH_RESULT_FETCH_CONCURRENCY, succeededJobIds.length) },
-          async () => {
-            while (fetchNextIndex < succeededJobIds.length) {
-              const jobId = succeededJobIds[fetchNextIndex];
-              fetchNextIndex += 1;
-              try {
-                const parsed = await waitForBobIngestionRows(jobId, fetchToken);
-                if (parsed.rows.length === 0) continue;
-                const quality = filterHighQualityImportRows(parsed.rows);
-                if (quality.accepted.length > 0) {
-                  allRows.push(...quality.accepted);
-                }
-                if (quality.rejected > 0) {
-                  warnings.push(`${quality.rejected} row${quality.rejected !== 1 ? 's' : ''} skipped from a file due to low-confidence data.`);
-                }
-                if (parsed.note) {
-                  warnings.push(parsed.note);
-                }
-              } catch (err) {
-                console.error(`[Drive import] Failed to fetch rows for job ${jobId}:`, err);
-              }
-            }
-          },
-        );
-        await Promise.all(fetchWorkers);
-
-        setImportData(allRows);
-        if (warnings.length > 0) {
-          setImportWarning(`Warning: ${warnings.join(' ')}`);
-        }
-
-        captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_SESSION_COMPLETED, {
-          source: 'drive',
-          total_files: importBody.resolvedFiles?.length || selectedFiles.length,
-          parsed_files: succeededJobIds.length,
-          failed_files: (importBody.results || []).filter((r) => r.status === 'failed').length,
-          loaded_rows: allRows.length,
-          elapsed_ms: Date.now() - startedAt,
-        });
-
-        if (allRows.length === 0) {
-          setImportError('No valid rows found. Please review your files and try again.');
-        }
-      } else {
-        setImportError('All files failed to process. Please review your files and try again.');
-      }
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Failed to import from Google Drive.');
     } finally {
       setParsingBob(false);
     }
-  }, [
-    clearGooglePickerError,
-    pickGoogleDriveFiles,
-    updateImportFileStatus,
-    user,
-    waitForBobIngestionRows,
-  ]);
+  }, [clearGooglePickerError, pickGoogleDriveFiles, user]);
+
+  const handleReviewBatchResults = useCallback(async () => {
+    if (!batchNotification || !user) return;
+
+    setIsImportModalOpen(true);
+    setParsingBob(true);
+    setImportError('');
+    setImportWarning(`Loading ${batchNotification.totalRows} row${batchNotification.totalRows !== 1 ? 's' : ''} from ${batchNotification.completedFiles} file${batchNotification.completedFiles !== 1 ? 's' : ''}...`);
+    setImportData([]);
+
+    try {
+      const token = await user.getIdToken();
+      const allRows: ImportRow[] = [];
+      const warnings: string[] = [];
+      let fetchNextIndex = 0;
+      const jobIds = batchNotification.succeededJobIds;
+
+      const fetchWorkers = Array.from(
+        { length: Math.min(BATCH_RESULT_FETCH_CONCURRENCY, jobIds.length) },
+        async () => {
+          while (fetchNextIndex < jobIds.length) {
+            const jobId = jobIds[fetchNextIndex];
+            fetchNextIndex += 1;
+            try {
+              const parsed = await waitForBobIngestionRows(jobId, token);
+              if (parsed.rows.length > 0) {
+                const quality = filterHighQualityImportRows(parsed.rows);
+                if (quality.accepted.length > 0) allRows.push(...quality.accepted);
+                if (quality.rejected > 0) warnings.push(`${quality.rejected} rows skipped.`);
+                if (parsed.note) warnings.push(parsed.note);
+              }
+            } catch (err) {
+              console.error(`[Drive import] Failed to fetch rows for job ${jobId}:`, err);
+            }
+          }
+        },
+      );
+      await Promise.all(fetchWorkers);
+
+      setImportData(allRows);
+      setImportWarning(warnings.length > 0 ? `Warning: ${warnings.join(' ')}` : '');
+      setBatchNotification(null);
+
+      if (allRows.length === 0) {
+        setImportError('No valid rows found. Please review your files and try again.');
+      }
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Failed to load import results.');
+    } finally {
+      setParsingBob(false);
+    }
+  }, [batchNotification, user, waitForBobIngestionRows]);
 
   const handleImportClients = useCallback(async () => {
     if (!user || importData.length === 0) return;
@@ -2277,6 +2146,29 @@ export default function ClientsPage() {
         <SectionTipCard onDismiss={() => dismissTip('clients')}>
           Add clients here &mdash; each gets a unique code. Use the Share button to text them the download link for your branded app.
         </SectionTipCard>
+      )}
+
+      {/* Batch Import Ready Banner */}
+      {batchNotification && (
+        <div className="mb-4 flex items-center justify-between px-4 py-3 bg-[#daf3f0] border border-[#45bcaa]/30 rounded-[5px]">
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 text-[#45bcaa] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-sm text-[#005851]">
+              Your import is ready for review
+              {batchNotification.failedFiles > 0
+                ? ` (${batchNotification.completedFiles} succeeded, ${batchNotification.failedFiles} failed).`
+                : ` \u2014 ${batchNotification.completedFiles} file${batchNotification.completedFiles !== 1 ? 's' : ''} processed successfully.`}
+            </p>
+          </div>
+          <button
+            onClick={handleReviewBatchResults}
+            className="px-4 py-1.5 bg-[#45bcaa] hover:bg-[#005751] text-white text-sm font-semibold rounded-[5px] transition-colors shrink-0"
+          >
+            Review
+          </button>
+        </div>
       )}
 
       {/* Anniversary Alert Banner */}
@@ -2811,7 +2703,26 @@ export default function ClientsPage() {
             </div>
 
             <div className="p-6 space-y-4">
-              {importSuccess ? (
+              {importSuccess && activeBatchId ? (
+                /* Background processing confirmation — agent can close and go */
+                <div className="text-center space-y-4 py-4">
+                  <div className="w-14 h-14 bg-[#daf3f0] rounded-full flex items-center justify-center mx-auto">
+                    <svg className="w-7 h-7 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-[#707070] max-w-sm mx-auto">{importSuccess}</p>
+                  <button
+                    onClick={() => {
+                      setIsImportModalOpen(false);
+                      setImportSuccess('');
+                    }}
+                    className="px-6 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors text-sm"
+                  >
+                    Got it
+                  </button>
+                </div>
+              ) : importSuccess ? (
                 <div className="space-y-4">
                   <div className="text-center">
                     <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -3138,20 +3049,7 @@ export default function ClientsPage() {
                           style={{ width: `${importProgress}%` }}
                         />
                       </div>
-                      <p className="text-xs text-[#707070] text-center">
-                        {batchTotalFiles > 0
-                          ? `Processing file ${batchCompletedFiles + batchFailedFiles} of ${batchTotalFiles}...`
-                          : `${importProgress}% processing files`}
-                      </p>
-                      {batchRetryMessage && (
-                        <p className="text-xs text-amber-600 text-center">{batchRetryMessage}</p>
-                      )}
-                      <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-[5px]">
-                        <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <p className="text-xs text-blue-700">Please don&apos;t navigate away while your import is in progress.</p>
-                      </div>
+                      <p className="text-xs text-[#707070] text-center">{importProgress}% processing files</p>
                     </div>
                   )}
 
