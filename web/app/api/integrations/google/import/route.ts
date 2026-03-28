@@ -353,24 +353,30 @@ async function processOneFile(params: {
       const existingJob = await getIngestionV3Job(existingRef.id);
       const jobStatus = existingJob?.status || existingRef.status;
 
-      // Compute row count from existing results if available
-      let reusedRowCount = 0;
-      if (existingJob?.result?.bob?.rows) {
-        reusedRowCount = existingJob.result.bob.rows.length;
-      } else if (existingJob?.result?.application) {
-        reusedRowCount = 1;
+      // Previously failed jobs should not block a new import attempt —
+      // skip the idempotency match and fall through to create a fresh job.
+      if (jobStatus === 'failed') {
+        console.log(`[drive-import] Ignoring failed existing job ${existingRef.id} (file: ${file.name}) — will reprocess from scratch`);
+      } else {
+        // Compute row count from existing results if available
+        let reusedRowCount = 0;
+        if (existingJob?.result?.bob?.rows) {
+          reusedRowCount = existingJob.result.bob.rows.length;
+        } else if (existingJob?.result?.application) {
+          reusedRowCount = 1;
+        }
+
+        console.log(`[drive-import] Reusing existing job ${existingRef.id} (file: ${file.name}, status: ${jobStatus}, rows: ${reusedRowCount})`);
+
+        return {
+          fileId: file.id,
+          name: file.name,
+          status: 'reused',
+          jobId: existingRef.id,
+          jobStatus,
+          reusedRowCount,
+        };
       }
-
-      console.log(`[drive-import] Reusing existing job ${existingRef.id} (file: ${file.name}, status: ${jobStatus}, rows: ${reusedRowCount})`);
-
-      return {
-        fileId: file.id,
-        name: file.name,
-        status: 'reused',
-        jobId: existingRef.id,
-        jobStatus,
-        reusedRowCount,
-      };
     }
 
     const downloaded = await downloadDriveFile(accessToken, file);
@@ -549,18 +555,14 @@ export async function POST(req: NextRequest): Promise<NextResponse<GoogleDriveIm
           if (result.status === 'created') {
             // New job, Cloud Task enqueued — processor will update batch doc on completion
           } else if (result.status === 'reused') {
-            // Existing job found — register its actual status so counters are correct
+            // Existing job found — register its actual status so counters are correct.
+            // Note: failed jobs are never reused (the idempotency check skips them),
+            // so we only handle succeeded and still-processing states here.
             const jobStatus = result.jobStatus || '';
             if (jobStatus === 'review_ready' || jobStatus === 'saved') {
               await updateBatchFileStatus(agentId, batchId, regKey, {
                 status: 'succeeded',
                 loadedRows: result.reusedRowCount || 0,
-              });
-            } else if (jobStatus === 'failed') {
-              await updateBatchFileStatus(agentId, batchId, regKey, {
-                status: 'failed',
-                error: 'Previously failed — re-select file after modifying it to retry.',
-                retryable: false,
               });
             } else {
               // Still processing (queued/uploading/processing) — reassign the job's
