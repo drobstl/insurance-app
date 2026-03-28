@@ -488,6 +488,7 @@ export default function ClientsPage() {
     status: 'completed' | 'partial';
     succeededJobIds: string[];
   } | null>(null);
+  const batchDismissedRef = useRef(false);
   const [justImportedClients, setJustImportedClients] = useState<{ clientId: string; phone: string; firstName: string; clientCode: string }[]>([]);
   const [introMessage, setIntroMessage] = useState(DEFAULT_INTRO_TEMPLATE);
   const [sendingIntro, setSendingIntro] = useState(false);
@@ -582,7 +583,7 @@ export default function ClientsPage() {
   // resume the in-progress indicator. If it recently completed/partial, show the
   // notification banner so the user doesn't miss it.
   useEffect(() => {
-    if (!user || activeBatchId || batchNotification) return;
+    if (!user || activeBatchId || batchNotification || batchDismissedRef.current) return;
 
     const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -2215,7 +2216,7 @@ export default function ClientsPage() {
               Review
             </button>
             <button
-              onClick={() => setBatchNotification(null)}
+              onClick={() => { batchDismissedRef.current = true; setBatchNotification(null); }}
               className="p-1 rounded hover:bg-[#45bcaa]/20 text-[#005851] transition-colors"
               aria-label="Dismiss"
             >
