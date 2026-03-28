@@ -4,7 +4,14 @@ import { enqueueIngestionV3ProcessJob } from '../../../../../lib/cloud-tasks';
 import { getAdminAuth, getAdminStorage } from '../../../../../lib/firebase-admin';
 import { getGoogleDriveIntegration, updateGoogleDriveTokens } from '../../../../../lib/google-drive-store';
 import { refreshGoogleAccessToken } from '../../../../../lib/google-oauth';
-import { createBatchJob, registerBatchFile, updateBatchFileStatus } from '../../../../../lib/ingestion-v3-batch-store';
+import {
+  checkBatchCompletion,
+  createBatchJob,
+  finalizeBatch,
+  registerBatchFile,
+  triggerRetryRound,
+  updateBatchFileStatus,
+} from '../../../../../lib/ingestion-v3-batch-store';
 import {
   createIngestionV3Job,
   findExistingIngestionV3JobByIdempotency,
@@ -580,6 +587,33 @@ export async function POST(req: NextRequest): Promise<NextResponse<GoogleDriveIm
     });
 
     await Promise.all(workers);
+
+    // ── Check if batch is already complete (all files reused/failed at import level) ──
+    // When no Cloud Tasks were enqueued, no processor runs, so batch finalization
+    // must happen here. This mirrors the logic in reportToBatchDoc in the processor.
+    const hasEnqueuedTask = results.some((r) => r.status === 'created');
+    if (!hasEnqueuedTask) {
+      try {
+        const state = await checkBatchCompletion(agentId, batchId);
+        if (state?.isComplete) {
+          if (state.retryRound === 0 && state.retryableJobIds.length > 0) {
+            const retriedJobIds = await triggerRetryRound(agentId, batchId);
+            for (const retryJobId of retriedJobIds) {
+              try {
+                await enqueueIngestionV3ProcessJob(retryJobId, { delaySeconds: 30 });
+              } catch (enqueueErr) {
+                console.error(`[drive-import] Failed to re-enqueue job ${retryJobId} for batch retry:`, enqueueErr);
+              }
+            }
+          } else {
+            const finalStatus = await finalizeBatch(agentId, batchId);
+            console.log(`[drive-import] Batch ${batchId} finalized from import route with status: ${finalStatus}`);
+          }
+        }
+      } catch (err) {
+        console.error(`[drive-import] Batch finalization check failed (non-blocking):`, err);
+      }
+    }
 
     const resolvedFileInfos: ResolvedFileInfo[] = resolvedFiles.map((f) => ({
       id: f.id,
