@@ -484,6 +484,10 @@ export default function ClientsPage() {
   const [importSuccess, setImportSuccess] = useState('');
   const [importFileStatuses, setImportFileStatuses] = useState<ImportFileStatus[]>([]);
   const [importSessionStartedAt, setImportSessionStartedAt] = useState<number | null>(null);
+  const [batchCompletedFiles, setBatchCompletedFiles] = useState(0);
+  const [batchFailedFiles, setBatchFailedFiles] = useState(0);
+  const [batchTotalFiles, setBatchTotalFiles] = useState(0);
+  const [batchRetryMessage, setBatchRetryMessage] = useState<string | null>(null);
   const [importDragActive, setImportDragActive] = useState(false);
   const [justImportedClients, setJustImportedClients] = useState<{ clientId: string; phone: string; firstName: string; clientCode: string }[]>([]);
   const [introMessage, setIntroMessage] = useState(DEFAULT_INTRO_TEMPLATE);
@@ -1848,6 +1852,10 @@ export default function ClientsPage() {
       setParsingBob(true);
       setImportData([]);
       setImportProgress(0);
+      setBatchCompletedFiles(0);
+      setBatchFailedFiles(0);
+      setBatchTotalFiles(0);
+      setBatchRetryMessage(null);
       setImportSessionStartedAt(startedAt);
 
       // Initial file statuses from picker selection
@@ -1957,6 +1965,7 @@ export default function ClientsPage() {
             const completedFiles = typeof data.completedFiles === 'number' ? data.completedFiles : 0;
             const failedFiles = typeof data.failedFiles === 'number' ? data.failedFiles : 0;
             const totalRows = typeof data.totalRows === 'number' ? data.totalRows : 0;
+            const retryRound = typeof data.retryRound === 'number' ? data.retryRound : 0;
             const batchStatus = data.status as string;
             const filesMap = (data.files || {}) as Record<string, {
               jobId?: string;
@@ -1967,6 +1976,11 @@ export default function ClientsPage() {
               error?: string;
               driveFileId?: string;
             }>;
+
+            // Pipe batch counters into state for the progress UI
+            setBatchCompletedFiles(completedFiles);
+            setBatchFailedFiles(failedFiles);
+            setBatchTotalFiles(totalFiles);
 
             // Update per-file statuses from batch doc
             for (const [, entry] of Object.entries(filesMap)) {
@@ -1989,12 +2003,27 @@ export default function ClientsPage() {
 
             // Update overall progress
             if (totalFiles > 0) {
-              setImportProgress(Math.round(((completedFiles + failedFiles) / totalFiles) * 100));
+              if (retryRound === 1) {
+                // During retry round, base progress only on completed files —
+                // don't count retrying files as "done" so the bar doesn't go backwards
+                setImportProgress(Math.round((completedFiles / totalFiles) * 100));
+              } else {
+                setImportProgress(Math.round(((completedFiles + failedFiles) / totalFiles) * 100));
+              }
             }
 
-            // Update processing label to show specific counts
+            // Retry round messaging
+            if (retryRound === 1 && batchStatus === 'processing') {
+              const retryingCount = Object.values(filesMap).filter(e => e.status === 'queued').length;
+              if (retryingCount > 0) {
+                setBatchRetryMessage(`Retrying ${retryingCount} file${retryingCount !== 1 ? 's' : ''}...`);
+              }
+            }
+
+            // Batch complete — transition to row loading
             if (batchStatus === 'completed' || batchStatus === 'partial') {
               setImportProgress(100);
+              setBatchRetryMessage(null);
 
               // Show specific loading message using totalRows from batch doc
               const succeededCount = completedFiles;
@@ -3109,7 +3138,14 @@ export default function ClientsPage() {
                           style={{ width: `${importProgress}%` }}
                         />
                       </div>
-                      <p className="text-xs text-[#707070] text-center">{importProgress}% processing files</p>
+                      <p className="text-xs text-[#707070] text-center">
+                        {batchTotalFiles > 0
+                          ? `Processing file ${batchCompletedFiles + batchFailedFiles} of ${batchTotalFiles}...`
+                          : `${importProgress}% processing files`}
+                      </p>
+                      {batchRetryMessage && (
+                        <p className="text-xs text-amber-600 text-center">{batchRetryMessage}</p>
+                      )}
                       <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-[5px]">
                         <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
