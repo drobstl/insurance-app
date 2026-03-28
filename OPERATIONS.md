@@ -43,10 +43,15 @@
 - `STRIPE_SECRET_KEY` - Stripe API secret key
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` - Stripe publishable key
 - `STRIPE_PRICE_ID_MONTHLY` - Monthly subscription price ID
-- `STRIPE_PRICE_ID_ANNUAL` - Annual subscription price ID  
+- `STRIPE_PRICE_ID_ANNUAL` - Annual subscription price ID
 - `STRIPE_WEBHOOK_SECRET` - Stripe webhook signing secret
 - `NEXT_PUBLIC_APP_URL` - https://agentforlife.app
-- `FIREBASE_ADMIN_SERVICE_ACCOUNT_BASE64` - Firebase Admin service account (base64 JSON)
+- `FIREBASE_ADMIN_SERVICE_ACCOUNT_BASE64` - Firebase Admin service account (base64 JSON). Also used for Cloud Tasks auth and webhook secret derivation.
+- `ANTHROPIC_API_KEY` - Anthropic API key for Claude (PDF extraction, AI conversations)
+- `CLOUD_TASKS_PROJECT_ID` - GCP project ID (`insurance-agent-app-6f613`)
+- `CLOUD_TASKS_LOCATION` - Cloud Tasks queue region (`us-central1`)
+- `CLOUD_TASKS_QUEUE` - Cloud Tasks queue name (`pdf-ingestion-v3`)
+- `INGESTION_V3_PROCESSOR_BASE_URL` - Base URL for task callbacks (`https://agentforlife.app`)
 
 ### Stripe
 - **Webhook Endpoint**: https://agentforlife.app/api/webhooks/stripe
@@ -73,8 +78,11 @@ Set these as recurring calendar reminders:
 |-----------|------|
 | Monthly | Check Vercel deployment logs for errors |
 | Monthly | Review Stripe webhook logs |
+| Monthly | Check Anthropic API usage/billing (PDF extraction costs) |
 | Quarterly | Test full user flow (signup → subscribe → add client → client app) |
+| Quarterly | Test PDF upload flow (upload → extraction → client created) |
 | Quarterly | Review Firebase security rules |
+| Annually | Rotate Firebase service account key (update `FIREBASE_ADMIN_SERVICE_ACCOUNT_BASE64` in Vercel — this also changes the webhook secret automatically) |
 | Annually | Rotate Stripe webhook secret |
 | Annually | Review and update environment variables |
 
@@ -116,6 +124,45 @@ Set these as recurring calendar reminders:
 2. Primary account: deardanielroberts@gmail.com
 3. Check email for any Firebase notifications
 
+## PDF Ingestion Pipeline (v3)
+
+**Architecture:** Browser → signed GCS upload → Firestore job → Cloud Tasks dispatch → Vercel process route → Claude extraction → Firestore result → browser polling picks up result.
+
+**Key files:**
+- `web/lib/cloud-tasks.ts` — Cloud Tasks REST API client + webhook secret derivation
+- `web/lib/application-extractor.ts` — Claude structured output extraction (schema + prompt)
+- `web/lib/ingestion-v3-processor.ts` — Orchestrates extraction, validation, retry, Firestore writes
+- `web/lib/ingestion-v3-store.ts` — Firestore CRUD for ingestion jobs
+- `web/app/api/ingestion/v3/jobs/[jobId]/process/route.ts` — Cloud Tasks callback endpoint
+- `web/components/ApplicationUpload.tsx` — Frontend upload + polling UI
+
+**Auth flow:** Cloud Tasks sends `X-CloudTasks-Webhook-Secret` header (HMAC derived from the service account's `private_key_id`). The process route computes the same HMAC and compares. No OIDC tokens, no `actAs` permissions needed.
+
+**GCP resources:**
+- Queue: `projects/insurance-agent-app-6f613/locations/us-central1/queues/pdf-ingestion-v3`
+- GCS bucket: `insurance-agent-app-6f613.firebasestorage.app` (signed upload URLs)
+- Service account: `firebase-adminsdk-fbsvc@insurance-agent-app-6f613.iam.gserviceaccount.com` (Cloud Tasks Enqueuer + Service Account Token Creator)
+
+### Troubleshooting PDF Uploads
+
+**"Network error" on upload:**
+- Browser is failing the cross-origin PUT to GCS. Current code retries 3 times automatically.
+- If persistent: check GCS bucket CORS config allows PUT from `https://agentforlife.app`.
+
+**"Couldn't read the application" / extraction failures:**
+- Check Vercel function logs for the `/api/ingestion/v3/jobs/*/process` route.
+- Common causes:
+  - **Anthropic schema error** ("too many union types"): The extraction schema in `application-extractor.ts` must have ≤16 `anyOf` unions total (including nested objects). Count them before adding nullable fields.
+  - **Model doesn't support output format**: Ensure the model in `application-extractor.ts` supports `output_config.format.schema`. Claude Sonnet 4.6 (`claude-sonnet-4-6-20250214`) works.
+  - **Cloud Tasks 403**: Check that the Firebase SA has Cloud Tasks Enqueuer role. The webhook secret approach eliminates `actAs` issues.
+
+**"Processing failed after maximum retry attempts":**
+- The processor retries up to 4 times with 5s/20s/60s backoff. Check logs for the underlying error on each attempt.
+- Terminal errors (schema invalid, auth failed) are NOT retried.
+
+**Testing locally:**
+- Cloud Tasks cannot call localhost. For local testing, use `INGESTION_V3_PROCESSOR_BASE_URL` pointing to an ngrok tunnel, or bypass Cloud Tasks entirely by calling the process route directly.
+
 ## Emergency Contacts
 
 - **Firebase Support**: https://firebase.google.com/support
@@ -134,4 +181,4 @@ Recommended: Set up scheduled exports (requires Blaze plan)
 
 ---
 
-*Last Updated: 2026-02-01*
+*Last Updated: 2026-03-28*

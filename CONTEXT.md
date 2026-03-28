@@ -1,7 +1,7 @@
 # CONTEXT.md — AgentForLife (AFL)
 
 > Drop this in the repo root. Read it before any strategic or architectural decision.
-> Last updated: March 26, 2026
+> Last updated: March 28, 2026
 
 ## What This Is
 
@@ -116,15 +116,22 @@ Standalone pricing remains for agents who come directly. Founding member migrati
 **Recent fixes (March 2026, founding member feedback):**
 - Added (March 25, 2026): Cloud Tasks and v3 pipeline production deployment.
   - Cloud Tasks API enabled in GCP project `insurance-agent-app-6f613`, queue `pdf-ingestion-v3` in `us-central1` (max 5 concurrent, 3 max attempts, 10s-120s backoff, logging enabled).
-  - Service account `cloud-tasks-invoker@insurance-agent-app-6f613.iam.gserviceaccount.com` created for OIDC tokens.
-  - Firebase admin service account granted Cloud Tasks Enqueuer role.
+  - Firebase admin service account granted Cloud Tasks Enqueuer + Service Account Token Creator roles.
   - Firebase service account key rotated (old key `fe14d00e` compromised and deleted, new key `eea3ae17843e` active).
-  - Six Cloud Tasks env vars set in Vercel production: `CLOUD_TASKS_PROJECT_ID`, `CLOUD_TASKS_LOCATION`, `CLOUD_TASKS_QUEUE`, `CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL`, `INGESTION_V3_PROCESSOR_BASE_URL`, `INGESTION_V3_PROCESSOR_AUDIENCE`.
+  - Four Cloud Tasks env vars set in Vercel production: `CLOUD_TASKS_PROJECT_ID`, `CLOUD_TASKS_LOCATION`, `CLOUD_TASKS_QUEUE`, `INGESTION_V3_PROCESSOR_BASE_URL`.
   - v3 ingestion pipeline confirmed working end-to-end in production (single upload ~15s and bulk upload functional).
   - Bulk import reliability tuning shipped: auto-retry up to 2 attempts for transient/timeout errors, `DEFAULT_BULK_PDF_CONCURRENCY` increased from 3 to 5, processor route `maxDuration` increased from 60s to 120s.
   - Retry telemetry (`retry_attempt_count`) added to `BULK_IMPORT_FILE_PARSED` PostHog event.
   - Git repo restored after `.git` directory loss (fresh clone from GitHub, local changes synced and pushed, working repo at `~/Desktop/insurance-app` with clean history).
   - Duplicate files removed (`analytics-events 2.ts`, `posthog 2.ts`) and v3 TypeScript build errors fixed.
+- Fixed (March 27-28, 2026): Critical v3 ingestion pipeline stabilization — four production-blocking issues resolved:
+  1. **`@google-cloud/tasks` protobuf bundling failure on Vercel**: The gRPC client library's `protos.json` wasn't bundled by Vercel's serverless builder. Replaced with direct REST API calls to `cloudtasks.googleapis.com/v2` using `google-auth-library` for token minting. This avoids all native/protobuf bundling issues.
+  2. **OIDC token `iam.serviceAccounts.actAs` 403 error**: Cloud Tasks requires `actAs` permission to mint OIDC tokens on behalf of a service account. Replaced OIDC token auth with HMAC-based webhook secret (`X-CloudTasks-Webhook-Secret` header). Secret is derived from the service account's `private_key_id` via `deriveWebhookSecret()` in `cloud-tasks.ts` — both the sender and the process route compute the same value with zero additional env vars.
+  3. **Anthropic API 16 union-type limit on structured output schemas**: The `application-extractor.ts` schema had 17 `anyOf` unions (every nullable field counts). Reduced to exactly 16 by making `irrevocable` a plain `boolean` in the beneficiary sub-schema.
+  4. **GCS signed URL PUT transient failures in browser**: The cross-origin PUT to `storage.googleapis.com` occasionally fails with `TypeError: Failed to fetch`. Added retry logic (up to 3 attempts with 500ms/1000ms backoff) in `ApplicationUpload.tsx`. PUT to a signed URL is idempotent so retries are safe.
+  - **Env vars removed from Vercel**: `CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL`, `INGESTION_V3_PROCESSOR_AUDIENCE` (no longer needed — OIDC tokens replaced with webhook secret).
+  - **Dependency changes**: Removed `@google-cloud/tasks`, added `google-auth-library`.
+  - **Architecture note**: The `cloud-tasks-invoker` service account is no longer used. All Cloud Tasks API calls authenticate as the Firebase admin service account directly.
 - Added: PostHog web dashboard instrumentation (client SDK + provider + App Router pageview tracking + auth identify/reset) with event coverage for client add/remove, conservation interactions, rewrite flow milestones, onboarding step completion, settings updates, and Patch usage. Client PII is explicitly excluded from event properties; unresolved server-side events are marked with TODO hooks.
 - Fixed: Client app session was lost on network errors, forcing code re-entry. Now retries and falls back to cached profile data; session only clears when the code itself is revoked.
 - Fixed: Mortgage Protection policies now prominently display coverage duration (e.g., "30 Years") as the hero metric in both the client app and dashboard, with dollar amounts secondary. The agent form now requires this field and explains it will appear in the client's app.

@@ -1,68 +1,48 @@
 import 'server-only';
 
-import { createHmac } from 'crypto';
 import { GoogleAuth } from 'google-auth-library';
 
 interface IngestionV3TaskConfig {
   projectId: string;
   location: string;
   queue: string;
+  serviceAccountEmail: string;
+  processorAudience: string;
   processorBaseUrl: string;
 }
 
 let authClient: GoogleAuth | null = null;
-let cachedCredentials: Record<string, unknown> | null = null;
-
-function loadCredentials(): Record<string, unknown> {
-  if (!cachedCredentials) {
-    const base64Key = process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_BASE64;
-    if (!base64Key) {
-      throw new Error('Missing FIREBASE_ADMIN_SERVICE_ACCOUNT_BASE64 env var for GCP credentials.');
-    }
-    cachedCredentials = JSON.parse(Buffer.from(base64Key, 'base64').toString('utf-8'));
-  }
-  return cachedCredentials!;
-}
 
 function getAuthClient(): GoogleAuth {
   if (!authClient) {
-    const credentials = loadCredentials();
     authClient = new GoogleAuth({
-      credentials,
       scopes: ['https://www.googleapis.com/auth/cloud-tasks'],
     });
   }
   return authClient;
 }
 
-/**
- * Derives a webhook verification token from the service account's private_key_id.
- * Both cloud-tasks.ts (sender) and the process route (receiver) compute the same value.
- */
-export function deriveWebhookSecret(): string {
-  const creds = loadCredentials();
-  const keyId = creds.private_key_id;
-  if (typeof keyId !== 'string' || !keyId) {
-    throw new Error('Service account credentials missing private_key_id.');
-  }
-  return createHmac('sha256', keyId).update('cloud-tasks-webhook-v1').digest('hex');
-}
-
 export function getIngestionV3TaskConfigFromEnv(): IngestionV3TaskConfig {
   const projectId = process.env.CLOUD_TASKS_PROJECT_ID?.trim() || process.env.GCP_PROJECT_ID?.trim() || '';
   const location = process.env.CLOUD_TASKS_LOCATION?.trim() || '';
   const queue = process.env.CLOUD_TASKS_QUEUE?.trim() || '';
+  const serviceAccountEmail = process.env.CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL?.trim() || '';
   const processorBaseUrl = (process.env.INGESTION_V3_PROCESSOR_BASE_URL || '').trim().replace(/\/+$/, '');
+  const processorAudience = (process.env.INGESTION_V3_PROCESSOR_AUDIENCE || processorBaseUrl).trim();
 
   if (!projectId) throw new Error('Missing CLOUD_TASKS_PROJECT_ID (or GCP_PROJECT_ID).');
   if (!location) throw new Error('Missing CLOUD_TASKS_LOCATION.');
   if (!queue) throw new Error('Missing CLOUD_TASKS_QUEUE.');
+  if (!serviceAccountEmail) throw new Error('Missing CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL.');
   if (!processorBaseUrl) throw new Error('Missing INGESTION_V3_PROCESSOR_BASE_URL.');
+  if (!processorAudience) throw new Error('Missing INGESTION_V3_PROCESSOR_AUDIENCE.');
 
   return {
     projectId,
     location,
     queue,
+    serviceAccountEmail,
+    processorAudience,
     processorBaseUrl,
   };
 }
@@ -82,9 +62,12 @@ export async function enqueueIngestionV3ProcessJob(
       url,
       headers: {
         'Content-Type': 'application/json',
-        'X-CloudTasks-Webhook-Secret': deriveWebhookSecret(),
       },
       body: Buffer.from(JSON.stringify({ jobId })).toString('base64'),
+      oidcToken: {
+        serviceAccountEmail: cfg.serviceAccountEmail,
+        audience: cfg.processorAudience,
+      },
     },
   };
 
