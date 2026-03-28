@@ -76,6 +76,16 @@ export async function enqueueIngestionV3ProcessJob(
   const url = `${cfg.processorBaseUrl}/api/ingestion/v3/jobs/${encodeURIComponent(jobId)}/process`;
   const delaySeconds = Math.max(0, Math.floor(options?.delaySeconds ?? 0));
 
+  console.log(`[cloud-tasks] Enqueuing job ${jobId}`, {
+    parent,
+    targetUrl: url,
+    delaySeconds,
+    projectId: cfg.projectId,
+    location: cfg.location,
+    queue: cfg.queue,
+    processorBaseUrl: cfg.processorBaseUrl,
+  });
+
   const taskBody: Record<string, unknown> = {
     httpRequest: {
       httpMethod: 'POST',
@@ -92,25 +102,52 @@ export async function enqueueIngestionV3ProcessJob(
     taskBody.scheduleTime = new Date(Date.now() + delaySeconds * 1000).toISOString();
   }
 
-  const auth = getAuthClient();
-  const client = await auth.getClient();
-  const accessToken = await client.getAccessToken();
+  let accessTokenValue: string | null | undefined;
+  try {
+    const auth = getAuthClient();
+    const client = await auth.getClient();
+    const accessToken = await client.getAccessToken();
+    accessTokenValue = accessToken.token;
+    if (!accessTokenValue) {
+      throw new Error('GCP auth returned empty access token');
+    }
+  } catch (authErr) {
+    console.error(`[cloud-tasks] Auth failed for job ${jobId}:`, authErr);
+    throw authErr;
+  }
 
   const apiUrl = `https://cloudtasks.googleapis.com/v2/${parent}/tasks`;
-  const res = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${accessToken.token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ task: taskBody }),
-  });
+
+  let res: Response;
+  try {
+    res = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessTokenValue}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ task: taskBody }),
+    });
+  } catch (fetchErr) {
+    console.error(`[cloud-tasks] Fetch to Cloud Tasks API failed for job ${jobId}:`, fetchErr);
+    throw fetchErr;
+  }
 
   if (!res.ok) {
     const errorBody = await res.text();
+    console.error(`[cloud-tasks] Cloud Tasks API error for job ${jobId}:`, {
+      status: res.status,
+      statusText: res.statusText,
+      body: errorBody,
+      apiUrl,
+    });
     throw new Error(`Cloud Tasks API error (${res.status}): ${errorBody}`);
   }
 
   const task = await res.json();
+  console.log(`[cloud-tasks] Successfully enqueued job ${jobId}:`, {
+    taskName: task.name,
+    scheduleTime: task.scheduleTime,
+  });
   return { taskName: task.name || '' };
 }

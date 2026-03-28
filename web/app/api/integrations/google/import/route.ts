@@ -383,8 +383,11 @@ async function processOneFile(params: {
     });
 
     try {
+      console.log(`[drive-import] Enqueuing Cloud Task for job ${created.id} (file: ${file.name})`);
       await enqueueIngestionV3ProcessJob(created.id);
+      console.log(`[drive-import] Successfully enqueued job ${created.id} (file: ${file.name})`);
     } catch (enqueueError) {
+      console.error(`[drive-import] ENQUEUE FAILED for job ${created.id} (file: ${file.name}):`, enqueueError);
       const enqueueMessage =
         enqueueError instanceof Error ? enqueueError.message : 'Failed to dispatch processing task.';
       await setIngestionV3JobError(
