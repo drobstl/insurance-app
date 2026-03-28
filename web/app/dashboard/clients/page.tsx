@@ -6,6 +6,7 @@ import {
   addDoc,
   deleteDoc,
   doc,
+  limit as firestoreLimit,
   onSnapshot,
   query,
   orderBy,
@@ -576,27 +577,57 @@ export default function ClientsPage() {
     return () => unsubscribe();
   }, [user, activeBatchId]);
 
-  // Detect in-progress batches on page load (covers browser refresh)
+  // Detect recent batches on page load (covers browser refresh)
+  // Fetches the most recent batch doc. If it's still processing and < 30 min old,
+  // resume the in-progress indicator. If it recently completed/partial, show the
+  // notification banner so the user doesn't miss it.
   useEffect(() => {
-    if (!user || activeBatchId) return;
+    if (!user || activeBatchId || batchNotification) return;
+
+    const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
     const q = query(
       collection(db, 'agents', user.uid, 'batchJobs'),
-      where('status', '==', 'processing'),
+      orderBy('createdAt', 'desc'),
+      firestoreLimit(1),
     );
 
     // One-time check, not persistent listener
     const unsubscribe = onSnapshot(q, (snap) => {
       if (!snap.empty) {
-        const latest = snap.docs[0];
-        setActiveBatchId(latest.id);
+        const latestDoc = snap.docs[0];
+        const data = latestDoc.data();
+        const status = data.status as string;
+        const createdAt = data.createdAt?.toDate?.() ?? (typeof data.createdAt?.seconds === 'number' ? new Date(data.createdAt.seconds * 1000) : null);
+        const ageMs = createdAt ? Date.now() - createdAt.getTime() : Infinity;
+
+        if (status === 'processing' && ageMs < STALE_THRESHOLD_MS) {
+          // Still processing and recent — resume in-progress indicator
+          setActiveBatchId(latestDoc.id);
+        } else if ((status === 'completed' || status === 'partial') && ageMs < STALE_THRESHOLD_MS) {
+          // Recently finished — show the notification banner
+          const filesMap = (data.files || {}) as Record<string, Record<string, unknown>>;
+          const succeededJobIds = Object.entries(filesMap)
+            .filter(([, f]) => f.status === 'succeeded' && typeof f.jobId === 'string')
+            .map(([, f]) => f.jobId as string);
+
+          setBatchNotification({
+            batchId: latestDoc.id,
+            totalFiles: typeof data.totalFiles === 'number' ? data.totalFiles : 0,
+            completedFiles: typeof data.completedFiles === 'number' ? data.completedFiles : 0,
+            failedFiles: typeof data.failedFiles === 'number' ? data.failedFiles : 0,
+            totalRows: typeof data.totalRows === 'number' ? data.totalRows : 0,
+            status: status as 'completed' | 'partial',
+            succeededJobIds,
+          });
+        }
       }
       // Unsubscribe after first result — the active batch listener takes over
       unsubscribe();
     });
 
     return () => unsubscribe();
-  }, [user, activeBatchId]);
+  }, [user, activeBatchId, batchNotification]);
 
   // ─── Data Fetching ───────────────────────────────────────
 
