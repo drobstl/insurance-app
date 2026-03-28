@@ -116,20 +116,38 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
           throw new Error(signedBody.error?.message || `Failed to start file upload (${signedRes.status}).`);
         }
 
-        await withTimeout(
-          fetch(signedBody.uploadUrl, {
-            method: 'PUT',
-            headers: { 'Content-Type': file.type || 'application/pdf' },
-            signal: controller.signal,
-            body: file,
-          }).then((res) => {
-            if (!res.ok) {
-              throw new Error(`Upload failed (${res.status}).`);
+        // GCS PUT can fail transiently (TypeError: Failed to fetch).
+        // Retry up to 2 times since PUT to a signed URL is idempotent.
+        let lastPutError: unknown;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            await withTimeout(
+              fetch(signedBody.uploadUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': file.type || 'application/pdf' },
+                signal: controller.signal,
+                body: file,
+              }).then((res) => {
+                if (!res.ok) {
+                  throw new Error(`Upload failed (${res.status}).`);
+                }
+              }),
+              GCS_UPLOAD_TIMEOUT_MS,
+              'Upload timed out while sending file.',
+            );
+            lastPutError = null;
+            break;
+          } catch (err) {
+            lastPutError = err;
+            // Don't retry if aborted or timed out
+            if (err instanceof DOMException && err.name === 'AbortError') throw err;
+            if (isTimeoutError(err)) throw err;
+            if (attempt < 2) {
+              await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
             }
-          }),
-          GCS_UPLOAD_TIMEOUT_MS,
-          'Upload timed out while sending file.',
-        );
+          }
+        }
+        if (lastPutError) throw lastPutError;
 
         gcsPath = signedBody.gcsPath;
       } finally {
