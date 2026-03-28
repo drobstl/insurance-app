@@ -76,6 +76,7 @@ export interface IngestionV3JobRecord {
   mode: IngestionV3Mode;
   status: IngestionV3Status;
   agentId?: string;
+  batchId?: string;
   gcsPath: string;
   fileName?: string;
   contentType?: string;

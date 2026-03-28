@@ -5,6 +5,12 @@ import { extractBobFromPdf } from './bob-extractor';
 import { enqueueIngestionV3ProcessJob } from './cloud-tasks';
 import { isRetryableExtractionError } from './extraction-errors';
 import { getAdminStorage } from './firebase-admin';
+import {
+  updateBatchFileStatus,
+  checkBatchCompletion,
+  triggerRetryRound,
+  finalizeBatch,
+} from './ingestion-v3-batch-store';
 import { extractBobStructuredV3 } from './ingestion-v3-csv';
 import { IngestionV3Error } from './ingestion-v3-errors';
 import { extractApplicationPdfV3 } from './ingestion-v3-pdf';
@@ -27,6 +33,14 @@ import {
 } from './ingestion-v3-store';
 import type { IngestionV3ErrorDetails } from './ingestion-v3-errors';
 import type { IngestionV3JobRecord, IngestionV3Metrics, IngestionV3ResultPayload } from './ingestion-v3-types';
+
+// ── TEST FLAG: remove after verifying automatic retry ──
+// Set to a filename substring to force a transient failure on the first
+// attempt for any file whose name contains this string. The processor's
+// retry logic will classify it as retryable, and the batch retry round
+// should re-enqueue it after 30s. Leave empty to disable.
+const TEST_FORCE_TRANSIENT_FAILURE_PATTERN = ''; // e.g. 'test-retry'
+// ── END TEST FLAG ──
 
 interface ProcessIngestionV3JobResult {
   status: 'processed' | 'skipped';
@@ -54,6 +68,24 @@ export async function processIngestionV3Job(jobId: string): Promise<ProcessInges
     const sourceStart = Date.now();
     const source = await downloadSource(lock.job.gcsPath);
     const sourceFetchMs = Date.now() - sourceStart;
+
+    // ── TEST FLAG: force terminal failure to test batch-level retry ──
+    // Throws a non-retryable error so the processor doesn't retry internally.
+    // The batch-level retry (retryRound 1) will re-enqueue the job after 30s.
+    // On the second processing attempt, the flag fires again but the batch
+    // retry only runs once (retryRound is already 1), so the file either
+    // succeeds on its own retry or fails permanently.
+    if (
+      TEST_FORCE_TRANSIENT_FAILURE_PATTERN &&
+      lock.job.attempts === 1 &&
+      (lock.job.fileName || '').includes(TEST_FORCE_TRANSIENT_FAILURE_PATTERN)
+    ) {
+      throw new IngestionV3Error('INTERNAL_ERROR', `[TEST] Simulated failure for "${lock.job.fileName}"`, {
+        retryable: false,
+        terminal: true,
+      });
+    }
+    // ── END TEST FLAG ──
 
     const extractStart = Date.now();
     const result = await runExtractionBranch(lock.job, source);
@@ -83,6 +115,13 @@ export async function processIngestionV3Job(jobId: string): Promise<ProcessInges
       metrics,
       attempts: lock.job.attempts,
       maxAttempts: lock.job.maxAttempts,
+    });
+
+    // Fire-and-forget: update batch progress doc if this job belongs to a batch
+    const loadedRows = result.payload.bob?.rows?.length ?? (result.payload.application ? 1 : 0);
+    await reportToBatchDoc(lock.job.agentId, lock.job.batchId, jobId, {
+      status: 'succeeded',
+      loadedRows,
     });
 
     return { status: 'processed' };
@@ -149,6 +188,19 @@ export async function processIngestionV3Job(jobId: string): Promise<ProcessInges
       maxAttempts: lock.job.maxAttempts,
       error: terminalError,
     });
+
+    // Fire-and-forget: update batch progress doc if this job belongs to a batch.
+    // For batch-level retry: mark as retryable if the original error was transient
+    // (classified.retryable) or a catch-all internal error, even though the
+    // processor exhausted its own retries. Non-retryable at batch level: bad file
+    // format, unsupported type, validation failures — these won't succeed on retry.
+    const batchRetryable = classified.retryable || classified.code === 'INTERNAL_ERROR';
+    await reportToBatchDoc(lock.job.agentId, lock.job.batchId, jobId, {
+      status: 'failed',
+      error: terminalError.message,
+      retryable: batchRetryable,
+    });
+
     return { status: 'processed' };
   }
 }
@@ -329,6 +381,52 @@ function toUserSafeError(error: IngestionV3ErrorDetails): IngestionV3ErrorDetail
     ...error,
     message: messageByCode[error.code] || error.message || 'Processing failed.',
   };
+}
+
+/**
+ * Fire-and-forget batch doc update. Logs errors but never throws.
+ *
+ * After updating the file status, checks whether the batch is now complete.
+ * If complete on round 0 with retryable failures, triggers automatic retry.
+ * If complete on round 1 (or no retryable failures), finalizes the batch.
+ *
+ * Race condition guard: triggerRetryRound and finalizeBatch both use Firestore
+ * transactions. When two processors finish at nearly the same time, both will
+ * attempt the transaction — the second will re-read the batch doc, see that
+ * the state has already changed, and return without double-triggering.
+ */
+async function reportToBatchDoc(
+  agentId: string | undefined,
+  batchId: string | undefined,
+  jobId: string,
+  patch: { status: 'succeeded'; loadedRows: number } | { status: 'failed'; error: string; retryable: boolean },
+): Promise<void> {
+  if (!agentId || !batchId) return;
+
+  try {
+    await updateBatchFileStatus(agentId, batchId, jobId, patch);
+
+    // Check if the batch is now complete and handle retry/finalization
+    const state = await checkBatchCompletion(agentId, batchId);
+    if (!state || !state.isComplete) return;
+
+    if (state.retryRound === 0 && state.retryableJobIds.length > 0) {
+      // Automatic retry: reset retryable failures and re-enqueue with 30s delay
+      const retriedJobIds = await triggerRetryRound(agentId, batchId);
+      for (const retryJobId of retriedJobIds) {
+        try {
+          await enqueueIngestionV3ProcessJob(retryJobId, { delaySeconds: 30 });
+        } catch (enqueueErr) {
+          console.error(`[ingestion-v3-processor] Failed to re-enqueue job ${retryJobId} for batch retry:`, enqueueErr);
+        }
+      }
+    } else {
+      // No retryable failures or already on round 1 — finalize
+      await finalizeBatch(agentId, batchId);
+    }
+  } catch (err) {
+    console.error('[ingestion-v3-processor] Batch doc update failed (non-blocking):', err);
+  }
 }
 
 function toNullableString(value: string | null | undefined): string | null {

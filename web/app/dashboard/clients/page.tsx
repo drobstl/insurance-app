@@ -175,6 +175,20 @@ type ImportSourceType = 'local';
 type ImportFileType = 'pdf' | 'spreadsheet' | 'text' | 'unknown';
 type ImportFileState = 'queued' | 'parsing' | 'succeeded' | 'failed';
 
+const BATCH_STALE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const BATCH_RESULT_FETCH_CONCURRENCY = 5;
+
+function driveMimeToImportFileType(mimeType: string): ImportFileType {
+  if (mimeType === 'application/pdf') return 'pdf';
+  if (
+    mimeType === 'application/vnd.google-apps.spreadsheet' ||
+    mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    mimeType === 'application/vnd.ms-excel'
+  ) return 'spreadsheet';
+  if (mimeType === 'text/csv' || mimeType === 'text/tab-separated-values') return 'text';
+  return 'unknown';
+}
+
 interface ImportSourceFile {
   sourceType: ImportSourceType;
   sourceFileId: string;
@@ -207,7 +221,14 @@ interface GoogleDriveStatusResponse {
 
 interface GoogleDriveImportRouteResponse {
   success: boolean;
+  batchId?: string;
   purpose?: 'bob' | 'application';
+  resolvedFiles?: Array<{
+    id: string;
+    name: string;
+    mimeType: string;
+    fromFolder?: string;
+  }>;
   results?: Array<{
     fileId: string;
     name: string;
@@ -1828,25 +1849,42 @@ export default function ClientsPage() {
       setImportData([]);
       setImportProgress(0);
       setImportSessionStartedAt(startedAt);
+
+      // Initial file statuses from picker selection
       setImportFileStatuses(
         selectedFiles.map((file) => ({
-          sourceFileId: `drive:${file.id}:${file.modifiedTime || 'unknown'}:${file.sizeBytes}`,
+          sourceFileId: `drive:${file.id}`,
           name: file.name,
-          fileType: 'pdf',
-          state: 'queued',
+          fileType: driveMimeToImportFileType(file.mimeType),
+          state: 'queued' as ImportFileState,
           loadedRows: 0,
           rejectedRows: 0,
         })),
       );
 
+      const fileTypeCounts = {
+        pdf: selectedFiles.filter((f) => f.mimeType === 'application/pdf').length,
+        spreadsheet: selectedFiles.filter((f) =>
+          f.mimeType === 'application/vnd.google-apps.spreadsheet' ||
+          f.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+          f.mimeType === 'application/vnd.ms-excel'
+        ).length,
+        text: selectedFiles.filter((f) =>
+          f.mimeType === 'text/csv' || f.mimeType === 'text/tab-separated-values'
+        ).length,
+        folder: selectedFiles.filter((f) => f.mimeType === 'application/vnd.google-apps.folder').length,
+      };
+
       captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_SESSION_STARTED, {
         source: 'drive',
         total_files: selectedFiles.length,
-        pdf_files: selectedFiles.length,
-        spreadsheet_files: 0,
-        text_files: 0,
+        pdf_files: fileTypeCounts.pdf,
+        spreadsheet_files: fileTypeCounts.spreadsheet,
+        text_files: fileTypeCounts.text,
+        folder_count: fileTypeCounts.folder,
       });
 
+      // POST to import route — downloads files, creates ingestion jobs, returns batchId
       const importRes = await fetch('/api/integrations/google/import', {
         method: 'POST',
         headers: {
@@ -1859,150 +1897,195 @@ export default function ClientsPage() {
         }),
       });
       const importBody = (await importRes.json()) as GoogleDriveImportRouteResponse;
-      if (!importRes.ok || !importBody.success || !importBody.results) {
+      if (!importRes.ok || !importBody.success || !importBody.batchId) {
         throw new Error(importBody.error || 'Failed to import files from Google Drive.');
       }
 
-      const resultByFileId = new Map(importBody.results.map((r) => [r.fileId, r]));
-      let completed = 0;
-      let parsedFiles = 0;
-      let failedFiles = 0;
-      let loadedRows = 0;
-      const warnings: string[] = [];
+      const batchId = importBody.batchId;
 
-      const bumpProgress = () => {
-        completed += 1;
-        setImportProgress(Math.round((completed / selectedFiles.length) * 100));
-      };
-
-      const processDriveFile = async (file: GooglePickerSelectedFile) => {
-        const sourceFileId = `drive:${file.id}:${file.modifiedTime || 'unknown'}:${file.sizeBytes}`;
-        const fileResult = resultByFileId.get(file.id);
-        if (!fileResult) {
-          failedFiles += 1;
-          const message = 'Import response missing for this file.';
-          updateImportFileStatus(sourceFileId, { state: 'failed', error: message });
-          captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_FILE_PARSED, {
-            source: 'drive',
-            file_type: 'pdf',
-            file_size_bytes: file.sizeBytes,
-            success: false,
-            retry_attempt_count: 0,
-            error: message,
-          });
-          bumpProgress();
-          return;
-        }
-
-        if (fileResult.status === 'failed' || !fileResult.jobId) {
-          failedFiles += 1;
-          const message = fileResult.error || 'Failed to queue Google Drive file for parsing.';
-          updateImportFileStatus(sourceFileId, { state: 'failed', error: message });
-          captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_FILE_PARSED, {
-            source: 'drive',
-            file_type: 'pdf',
-            file_size_bytes: file.sizeBytes,
-            success: false,
-            retry_attempt_count: 0,
-            error: message,
-          });
-          bumpProgress();
-          return;
-        }
-
-        updateImportFileStatus(sourceFileId, { state: 'parsing', error: undefined });
-        try {
-          const parsed = await waitForBobIngestionRows(fileResult.jobId, token);
-          if (parsed.rows.length === 0) {
-            throw new Error('No valid rows found.');
-          }
-          const quality = filterHighQualityImportRows(parsed.rows);
-          if (quality.accepted.length === 0 || quality.qualityRatio < MIN_IMPORT_ROW_QUALITY_RATIO) {
-            throw new Error(
-              `Parsing quality too low (${Math.round(quality.qualityRatio * 100)}% usable rows). Please review this source file.`,
-            );
-          }
-
-          if (quality.rejected > 0) {
-            warnings.push(
-              `${file.name}: ${quality.rejected} row${quality.rejected !== 1 ? 's were' : ' was'} skipped due to low-confidence policy data.`,
-            );
-          }
-          if (parsed.note) {
-            warnings.push(`${file.name}: ${parsed.note}`);
-          }
-
-          setImportData((prev) => [...prev, ...quality.accepted]);
-          loadedRows += quality.accepted.length;
-          parsedFiles += 1;
-          updateImportFileStatus(sourceFileId, {
-            state: 'succeeded',
-            loadedRows: quality.accepted.length,
-            rejectedRows: quality.rejected,
-          });
-          captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_FILE_PARSED, {
-            source: 'drive',
-            file_type: 'pdf',
-            file_size_bytes: file.sizeBytes,
-            success: true,
-            retry_attempt_count: 0,
-            rows_loaded: quality.accepted.length,
-            rejected_rows: quality.rejected,
-          });
-        } catch (err) {
-          failedFiles += 1;
-          const message = err instanceof Error ? err.message : 'Failed to parse file. Please try again.';
-          updateImportFileStatus(sourceFileId, { state: 'failed', error: message });
-          captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_FILE_PARSED, {
-            source: 'drive',
-            file_type: 'pdf',
-            file_size_bytes: file.sizeBytes,
-            success: false,
-            retry_attempt_count: 0,
-            error: message,
-          });
-        } finally {
-          bumpProgress();
-        }
-      };
-
-      let nextIndex = 0;
-      const workers = Array.from(
-        { length: Math.min(bulkPdfConcurrencyLimit, selectedFiles.length) },
-        async () => {
-          while (nextIndex < selectedFiles.length) {
-            const current = selectedFiles[nextIndex];
-            nextIndex += 1;
-            await processDriveFile(current);
-          }
-        },
-      );
-      await Promise.all(workers);
-
-      if (warnings.length > 0) {
-        setImportWarning(`Warning: ${warnings.join(' ')}`);
-      }
-      if (parsedFiles === 0) {
-        setImportError('No valid rows found. Please review your files and try again.');
-      } else if (failedFiles > 0) {
-        setImportError(`${parsedFiles} of ${selectedFiles.length} file${selectedFiles.length !== 1 ? 's parsed' : ' parsed'} successfully. Review failed files below and retry them.`);
+      // Update file statuses with resolved files (folders expanded into their contents)
+      if (importBody.resolvedFiles) {
+        setImportFileStatuses(
+          importBody.resolvedFiles.map((rf) => ({
+            sourceFileId: `drive:${rf.id}`,
+            name: rf.fromFolder ? `${rf.name} (from ${rf.fromFolder})` : rf.name,
+            fileType: driveMimeToImportFileType(rf.mimeType),
+            state: 'parsing' as ImportFileState,
+            loadedRows: 0,
+            rejectedRows: 0,
+          })),
+        );
       }
 
-      captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_SESSION_COMPLETED, {
-        source: 'drive',
-        total_files: selectedFiles.length,
-        parsed_files: parsedFiles,
-        failed_files: failedFiles,
-        loaded_rows: loadedRows,
-        elapsed_ms: Date.now() - startedAt,
+      // Mark any files that failed during the import route (download/enqueue failures)
+      if (importBody.results) {
+        for (const result of importBody.results) {
+          if (result.status === 'failed') {
+            updateImportFileStatus(`drive:${result.fileId}`, {
+              state: 'failed',
+              error: result.error || 'Failed to queue file for processing.',
+            });
+          }
+        }
+      }
+
+      // ── Real-time batch tracking via onSnapshot ──
+      // Listen to agents/{uid}/batchJobs/{batchId} for progress updates
+      await new Promise<void>((resolve, reject) => {
+        let lastUpdateAt = Date.now();
+        let staleTimer: ReturnType<typeof setTimeout> | null = null;
+
+        const resetStaleTimer = () => {
+          if (staleTimer) clearTimeout(staleTimer);
+          lastUpdateAt = Date.now();
+          staleTimer = setTimeout(() => {
+            unsubscribe();
+            // Don't reject — the files are still processing, just inform the agent
+            setImportWarning('This import is taking longer than expected. You can close this and your files will continue processing in the background.');
+            resolve();
+          }, BATCH_STALE_TIMEOUT_MS);
+        };
+
+        const unsubscribe = onSnapshot(
+          doc(db, 'agents', user.uid, 'batchJobs', batchId),
+          (snap) => {
+            if (!snap.exists()) return;
+            const data = snap.data();
+            resetStaleTimer();
+
+            const totalFiles = typeof data.totalFiles === 'number' ? data.totalFiles : 0;
+            const completedFiles = typeof data.completedFiles === 'number' ? data.completedFiles : 0;
+            const failedFiles = typeof data.failedFiles === 'number' ? data.failedFiles : 0;
+            const totalRows = typeof data.totalRows === 'number' ? data.totalRows : 0;
+            const batchStatus = data.status as string;
+            const filesMap = (data.files || {}) as Record<string, {
+              jobId?: string;
+              fileName?: string;
+              mimeType?: string;
+              status?: string;
+              loadedRows?: number;
+              error?: string;
+              driveFileId?: string;
+            }>;
+
+            // Update per-file statuses from batch doc
+            for (const [, entry] of Object.entries(filesMap)) {
+              if (!entry.driveFileId) continue;
+              const sourceFileId = `drive:${entry.driveFileId}`;
+              if (entry.status === 'succeeded') {
+                updateImportFileStatus(sourceFileId, {
+                  state: 'succeeded',
+                  loadedRows: entry.loadedRows || 0,
+                });
+              } else if (entry.status === 'failed') {
+                updateImportFileStatus(sourceFileId, {
+                  state: 'failed',
+                  error: entry.error || 'Processing failed.',
+                });
+              } else if (entry.status === 'processing' || entry.status === 'queued') {
+                updateImportFileStatus(sourceFileId, { state: 'parsing' });
+              }
+            }
+
+            // Update overall progress
+            if (totalFiles > 0) {
+              setImportProgress(Math.round(((completedFiles + failedFiles) / totalFiles) * 100));
+            }
+
+            // Update processing label to show specific counts
+            if (batchStatus === 'completed' || batchStatus === 'partial') {
+              setImportProgress(100);
+
+              // Show specific loading message using totalRows from batch doc
+              const succeededCount = completedFiles;
+              if (totalRows > 0 && succeededCount > 0) {
+                setImportWarning(`Loading ${totalRows} row${totalRows !== 1 ? 's' : ''} from ${succeededCount} file${succeededCount !== 1 ? 's' : ''}...`);
+              }
+
+              if (staleTimer) clearTimeout(staleTimer);
+              unsubscribe();
+              resolve();
+            }
+          },
+          (err) => {
+            if (staleTimer) clearTimeout(staleTimer);
+            console.error('[Drive import] onSnapshot error:', err);
+            reject(new Error('Lost connection to import progress. Your files are still processing.'));
+          },
+        );
+
+        resetStaleTimer();
       });
+
+      // ── Fetch extracted rows from succeeded jobs ──
+      const succeededJobIds: string[] = [];
+      if (importBody.results) {
+        for (const result of importBody.results) {
+          if (result.jobId && result.status !== 'failed') {
+            succeededJobIds.push(result.jobId);
+          }
+        }
+      }
+
+      if (succeededJobIds.length > 0) {
+        const allRows: ImportRow[] = [];
+        const warnings: string[] = [];
+        let fetchNextIndex = 0;
+        const fetchToken = await user.getIdToken();
+
+        const fetchWorkers = Array.from(
+          { length: Math.min(BATCH_RESULT_FETCH_CONCURRENCY, succeededJobIds.length) },
+          async () => {
+            while (fetchNextIndex < succeededJobIds.length) {
+              const jobId = succeededJobIds[fetchNextIndex];
+              fetchNextIndex += 1;
+              try {
+                const parsed = await waitForBobIngestionRows(jobId, fetchToken);
+                if (parsed.rows.length === 0) continue;
+                const quality = filterHighQualityImportRows(parsed.rows);
+                if (quality.accepted.length > 0) {
+                  allRows.push(...quality.accepted);
+                }
+                if (quality.rejected > 0) {
+                  warnings.push(`${quality.rejected} row${quality.rejected !== 1 ? 's' : ''} skipped from a file due to low-confidence data.`);
+                }
+                if (parsed.note) {
+                  warnings.push(parsed.note);
+                }
+              } catch (err) {
+                console.error(`[Drive import] Failed to fetch rows for job ${jobId}:`, err);
+              }
+            }
+          },
+        );
+        await Promise.all(fetchWorkers);
+
+        setImportData(allRows);
+        if (warnings.length > 0) {
+          setImportWarning(`Warning: ${warnings.join(' ')}`);
+        }
+
+        captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_SESSION_COMPLETED, {
+          source: 'drive',
+          total_files: importBody.resolvedFiles?.length || selectedFiles.length,
+          parsed_files: succeededJobIds.length,
+          failed_files: (importBody.results || []).filter((r) => r.status === 'failed').length,
+          loaded_rows: allRows.length,
+          elapsed_ms: Date.now() - startedAt,
+        });
+
+        if (allRows.length === 0) {
+          setImportError('No valid rows found. Please review your files and try again.');
+        }
+      } else {
+        setImportError('All files failed to process. Please review your files and try again.');
+      }
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Failed to import from Google Drive.');
     } finally {
       setParsingBob(false);
     }
   }, [
-    bulkPdfConcurrencyLimit,
     clearGooglePickerError,
     pickGoogleDriveFiles,
     updateImportFileStatus,
@@ -2948,7 +3031,7 @@ export default function ClientsPage() {
                         ? 'Checking Google Drive connection...'
                         : googleDriveConnected
                           ? `Connected${googleDriveEmail ? ` as ${googleDriveEmail}` : ''}.`
-                          : 'Google Drive not connected. Connect first to import PDFs directly from Drive.'}
+                          : 'Google Drive not connected. Connect first to import files directly from Drive.'}
                     </p>
                     {googlePickerError && (
                       <p className="text-[11px] text-red-600">{googlePickerError}</p>
@@ -2976,7 +3059,7 @@ export default function ClientsPage() {
                       onChange={handleFileUpload}
                       className="block w-full text-sm text-[#707070] file:mr-4 file:py-2 file:px-4 file:rounded-[5px] file:border-0 file:text-sm file:font-semibold file:bg-[#daf3f0] file:text-[#005851] hover:file:bg-[#c0ebe4] cursor-pointer"
                     />
-                    <p className="text-xs text-[#707070] mt-1.5">Accepts CSV, TSV, Excel (.xlsx), and PDF files. Select or drop 20-30 files at once.</p>
+                    <p className="text-xs text-[#707070] mt-1.5">Accepts CSV, TSV, Excel (.xlsx), and PDF files. Select or drop up to 50 files at once. Google Sheets can be imported via Google Drive above.</p>
                   </div>
 
                   {importFileStatuses.length > 0 && (
@@ -3027,6 +3110,12 @@ export default function ClientsPage() {
                         />
                       </div>
                       <p className="text-xs text-[#707070] text-center">{importProgress}% processing files</p>
+                      <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-[5px]">
+                        <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p className="text-xs text-blue-700">Please don&apos;t navigate away while your import is in progress.</p>
+                      </div>
                     </div>
                   )}
 

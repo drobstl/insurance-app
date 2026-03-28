@@ -17,6 +17,7 @@ interface IngestionV3JobDoc {
   maxAttempts: number;
   agentId?: string | null;
   idempotencyKey?: string | null;
+  batchId?: string | null;
   error?: IngestionV3ErrorDetails | null;
   result?: IngestionV3ResultPayload | null;
   metrics?: Record<string, unknown> | null;
@@ -36,6 +37,7 @@ export interface CreateIngestionV3JobInput {
   maxAttempts?: number;
   agentId?: string;
   idempotencyKey?: string;
+  batchId?: string;
 }
 
 export function getIngestionV3JobsCollection() {
@@ -71,6 +73,7 @@ export async function createIngestionV3Job(input: CreateIngestionV3JobInput): Pr
     maxAttempts,
     agentId: input.agentId ?? null,
     idempotencyKey: input.idempotencyKey ?? null,
+    batchId: input.batchId ?? null,
     error: null,
     result: null,
     metrics: null,
@@ -264,6 +267,7 @@ export function toIngestionV3JobRecord(id: string, data: Record<string, unknown>
     mode: (data.mode as IngestionV3Mode) ?? 'application',
     status: (data.status as IngestionV3Status) ?? 'failed',
     agentId: typeof data.agentId === 'string' ? data.agentId : undefined,
+    batchId: typeof data.batchId === 'string' ? data.batchId : undefined,
     gcsPath: typeof data.gcsPath === 'string' ? data.gcsPath : '',
     fileName: typeof data.fileName === 'string' ? data.fileName : undefined,
     contentType: typeof data.contentType === 'string' ? data.contentType : undefined,

@@ -3,7 +3,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const GOOGLE_API_SCRIPT_SRC = 'https://apis.google.com/js/api.js';
-const PICKER_SCOPE_MIME = 'application/pdf';
+
+const PICKER_SUPPORTED_MIMES = [
+  'application/pdf',
+  'text/csv',
+  'text/tab-separated-values',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'application/vnd.google-apps.spreadsheet',
+].join(',');
+
+const PICKER_SUPPORTED_MIMES_WITH_FOLDERS =
+  PICKER_SUPPORTED_MIMES + ',application/vnd.google-apps.folder';
 
 let pickerScriptPromise: Promise<void> | null = null;
 let pickerLibraryPromise: Promise<void> | null = null;
@@ -104,7 +115,7 @@ function normalizeSelectedDocs(docs: any[] | undefined): GooglePickerSelectedFil
       return {
         id,
         name,
-        mimeType: mimeType || PICKER_SCOPE_MIME,
+        mimeType: mimeType || 'application/octet-stream',
         modifiedTime,
         sizeBytes: Number.isFinite(sizeBytes) ? sizeBytes : 0,
       };
@@ -168,15 +179,15 @@ export function useGooglePicker() {
           }
 
           const docsView = new pickerApi.DocsView(pickerApi.ViewId.DOCS)
-            .setIncludeFolders(false)
-            .setSelectFolderEnabled(false)
-            .setMimeTypes(PICKER_SCOPE_MIME);
+            .setIncludeFolders(true)
+            .setSelectFolderEnabled(true)
+            .setMimeTypes(PICKER_SUPPORTED_MIMES_WITH_FOLDERS);
 
           const picker = new pickerApi.PickerBuilder()
             .setAppId(appId)
             .setOAuthToken(tokenBody.accessToken)
             .setOrigin(window.location.origin)
-            .setSelectableMimeTypes(PICKER_SCOPE_MIME)
+            .setSelectableMimeTypes(PICKER_SUPPORTED_MIMES_WITH_FOLDERS)
             .enableFeature(pickerApi.Feature.MULTISELECT_ENABLED)
             .addView(docsView)
             .setCallback((data: any) => {
