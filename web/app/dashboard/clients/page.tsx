@@ -1361,6 +1361,7 @@ export default function ClientsPage() {
   // ─── BOB Import Handlers ─────────────────────────────────
 
   const [parsingBob, setParsingBob] = useState(false);
+  const [driveImportInFlight, setDriveImportInFlight] = useState(false);
   const bulkPdfConcurrencyLimit = getBulkPdfConcurrencyLimit();
 
   const loadGoogleDriveStatus = useCallback(async () => {
@@ -1904,6 +1905,7 @@ export default function ClientsPage() {
       const selectedFiles = await pickGoogleDriveFiles(token);
       if (selectedFiles.length === 0) return;
 
+      setDriveImportInFlight(true);
       setParsingBob(true); // Show spinner while POST is in flight
 
       const importRes = await fetch('/api/integrations/google/import', {
@@ -1936,6 +1938,7 @@ export default function ClientsPage() {
       setImportError(err instanceof Error ? err.message : 'Failed to import from Google Drive.');
     } finally {
       setParsingBob(false);
+      setDriveImportInFlight(false);
     }
   }, [clearGooglePickerError, pickGoogleDriveFiles, user]);
 
@@ -2146,6 +2149,17 @@ export default function ClientsPage() {
         <SectionTipCard onDismiss={() => dismissTip('clients')}>
           Add clients here &mdash; each gets a unique code. Use the Share button to text them the download link for your branded app.
         </SectionTipCard>
+      )}
+
+      {/* Batch Processing In-Progress Banner */}
+      {activeBatchId && !batchNotification && (
+        <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-[5px]">
+          <svg className="w-5 h-5 text-blue-500 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <p className="text-sm text-blue-800">Processing your import&hellip; we&apos;ll notify you when it&apos;s ready.</p>
+        </div>
       )}
 
       {/* Batch Import Ready Banner */}
@@ -2891,6 +2905,17 @@ export default function ClientsPage() {
                       </div>
                     );
                   })()}
+                </div>
+              ) : driveImportInFlight ? (
+                /* Google Drive import POST in flight — show loading instead of the form */
+                <div className="text-center space-y-4 py-8">
+                  <div className="w-14 h-14 bg-[#daf3f0] rounded-full flex items-center justify-center mx-auto">
+                    <svg className="w-7 h-7 text-[#45bcaa] animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-[#707070]">Uploading your files&hellip;</p>
                 </div>
               ) : (
                 <>

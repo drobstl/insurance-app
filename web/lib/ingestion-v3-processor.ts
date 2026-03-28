@@ -34,14 +34,6 @@ import {
 import type { IngestionV3ErrorDetails } from './ingestion-v3-errors';
 import type { IngestionV3JobRecord, IngestionV3Metrics, IngestionV3ResultPayload } from './ingestion-v3-types';
 
-// ── TEST FLAG: remove after verifying automatic retry ──
-// Set to a filename substring to force a transient failure on the first
-// attempt for any file whose name contains this string. The processor's
-// retry logic will classify it as retryable, and the batch retry round
-// should re-enqueue it after 30s. Leave empty to disable.
-const TEST_FORCE_TRANSIENT_FAILURE_PATTERN = ''; // e.g. 'test-retry'
-// ── END TEST FLAG ──
-
 interface ProcessIngestionV3JobResult {
   status: 'processed' | 'skipped';
   reason?: Extract<LockIngestionV3JobResult, { ok: false }>['reason'];
@@ -68,24 +60,6 @@ export async function processIngestionV3Job(jobId: string): Promise<ProcessInges
     const sourceStart = Date.now();
     const source = await downloadSource(lock.job.gcsPath);
     const sourceFetchMs = Date.now() - sourceStart;
-
-    // ── TEST FLAG: force terminal failure to test batch-level retry ──
-    // Throws a non-retryable error so the processor doesn't retry internally.
-    // The batch-level retry (retryRound 1) will re-enqueue the job after 30s.
-    // On the second processing attempt, the flag fires again but the batch
-    // retry only runs once (retryRound is already 1), so the file either
-    // succeeds on its own retry or fails permanently.
-    if (
-      TEST_FORCE_TRANSIENT_FAILURE_PATTERN &&
-      lock.job.attempts === 1 &&
-      (lock.job.fileName || '').includes(TEST_FORCE_TRANSIENT_FAILURE_PATTERN)
-    ) {
-      throw new IngestionV3Error('INTERNAL_ERROR', `[TEST] Simulated failure for "${lock.job.fileName}"`, {
-        retryable: false,
-        terminal: true,
-      });
-    }
-    // ── END TEST FLAG ──
 
     const extractStart = Date.now();
     const result = await runExtractionBranch(lock.job, source);
