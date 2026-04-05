@@ -96,6 +96,10 @@ export default function ClosrStylePage() {
           font-weight: 700 !important;
         }
 
+        .closr-style-route section:first-of-type h1 {
+          font-family: var(--font-serif), 'EB Garamond', Georgia, 'Times New Roman', serif !important;
+        }
+
         .closr-style-route section:first-of-type {
           background: var(--closr-cream) !important;
           min-height: auto !important;
@@ -105,6 +109,15 @@ export default function ClosrStylePage() {
 
         .closr-style-route section:first-of-type p {
           color: var(--closr-muted) !important;
+        }
+
+        .closr-style-route section:first-of-type .flex.flex-wrap p,
+        .closr-style-route section:first-of-type .flex.flex-wrap p span {
+          color: #1a1a1a !important;
+        }
+
+        .closr-style-route nav .brand-title {
+          color: #1a1a1a !important;
         }
 
         /* Nav CTA = bordered pill */
@@ -126,23 +139,24 @@ export default function ClosrStylePage() {
           background: #f0d7ff !important;
           color: #1a1a1a !important;
           border-radius: 9999px !important;
-          border: none !important;
+          border: 2px solid #1a1a1a !important;
           font-family: var(--font-sans), Figtree, -apple-system, BlinkMacSystemFont, 'Segoe UI',
             Roboto, sans-serif !important;
           font-weight: 600 !important;
-          box-shadow: none !important;
+          box-shadow: 3px 3px 0 #1a1a1a !important;
         }
 
         /* Hero CTA = lavender pill, no arrow */
         .closr-style-route section:first-of-type a[class*='bg-[#fdcc02]'] {
           background: #f0d7ff !important;
           color: #1a1a1a !important;
-          border: none !important;
+          border: 2px solid #1a1a1a !important;
           border-radius: 9999px !important;
           padding: 0.75rem 1.5rem !important;
           font-family: var(--font-sans), Figtree, -apple-system, BlinkMacSystemFont, 'Segoe UI',
             Roboto, sans-serif !important;
           font-weight: 600 !important;
+          box-shadow: 3px 3px 0 #1a1a1a !important;
         }
 
         .closr-style-route section:first-of-type a[class*='bg-[#fdcc02]'] svg {
@@ -150,7 +164,7 @@ export default function ClosrStylePage() {
         }
 
         /* Badge / pill style */
-        .closr-style-route .inline-flex.rounded-full {
+        .closr-style-route section .inline-flex.rounded-full {
           background: rgba(240, 215, 255, 0.3) !important;
           border: 1px solid rgba(240, 215, 255, 0.55) !important;
           color: #1a1a1a !important;
@@ -158,6 +172,11 @@ export default function ClosrStylePage() {
             Roboto, sans-serif !important;
           text-transform: uppercase;
           letter-spacing: 0.08em;
+        }
+
+        .closr-style-route section .inline-flex.rounded-full span,
+        .closr-style-route section .inline-flex.rounded-full svg {
+          color: #1a1a1a !important;
         }
 
         /* Section-level feature links use teal with arrow char */
@@ -188,7 +207,6 @@ export default function ClosrStylePage() {
         /* Kill saturated accent fills */
         .closr-style-route [class*='bg-[#a158ff]'],
         .closr-style-route [class*='bg-[#F4845F]'],
-        .closr-style-route [class*='bg-red-'],
         .closr-style-route [class*='bg-[#fdcc02]/'],
         .closr-style-route [class*='bg-[#3DD6C3]/'] {
           background-color: rgba(26, 58, 42, 0.06) !important;
@@ -302,6 +320,8 @@ export default function ClosrStylePage() {
         .closr-style-route section:nth-of-type(11) a.block.w-full.py-3\\.5 {
           background: #f0d7ff !important;
           color: #1a1a1a !important;
+          border: 2px solid #1a1a1a !important;
+          box-shadow: 3px 3px 0 #1a1a1a !important;
         }
 
         .closr-style-route section:nth-of-type(11) .line-through {
@@ -313,9 +333,14 @@ export default function ClosrStylePage() {
           color: #f0d7ff !important;
         }
 
+        .closr-style-route section:nth-of-type(11) .w-full.rounded-full.h-2.overflow-hidden > div.h-full {
+          background: #f0d7ff !important;
+        }
+
         /* FAQ clean cards */
         .closr-style-route section:nth-of-type(12) {
           background: var(--closr-cream) !important;
+          border-top: 1px solid rgba(26, 26, 26, 0.1) !important;
         }
 
         .closr-style-route section:nth-of-type(12) [class*='rounded-xl'] {
@@ -332,6 +357,20 @@ export default function ClosrStylePage() {
         .closr-style-route section:nth-of-type(13) p,
         .closr-style-route section:nth-of-type(13) h2 {
           color: var(--closr-ink) !important;
+        }
+
+        .closr-style-route section:nth-of-type(13) h2 span[class*='text-[#fdcc02]'] {
+          color: #f0d7ff !important;
+        }
+
+        .closr-style-route section:nth-of-type(9) .w-14.h-14 {
+          background: #f5f0e8 !important;
+          border: 2px solid #1a1a1a !important;
+          box-shadow: 2px 2px 0 #1a1a1a !important;
+        }
+
+        .closr-style-route section:nth-of-type(9) .w-14.h-14 span {
+          color: #1a1a1a !important;
         }
 
         /* Footer */

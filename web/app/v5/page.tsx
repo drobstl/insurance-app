@@ -103,7 +103,7 @@ export default function DesktopLandingV5() {
               >
                 Chargebacks happen<br />
                 when clients forget{' '}
-                <span className="text-[#3DD6C3]">you exist.</span>
+                <span className="text-[#3DD6C3]">you</span> exist.
               </motion.h1>
 
               <motion.p
