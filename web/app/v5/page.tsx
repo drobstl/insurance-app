@@ -326,16 +326,16 @@ export default function DesktopLandingV5() {
       </section>
 
       {/* ═══ ALWAYS IN SYNC — Two Surfaces, One System ═══ */}
-      <section className="px-6 lg:px-8 py-24 lg:py-32 relative overflow-hidden" style={{ background: '#070E1B radial-gradient(ellipse 500px 500px at 25% 33%, rgba(61,214,195,0.05), transparent 70%), radial-gradient(ellipse 400px 400px at 75% 75%, rgba(253,204,2,0.03), transparent 70%)' }}>
-        <div className="absolute inset-0 opacity-[0.02] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+      <section className="px-6 lg:px-8 py-24 lg:py-32 relative overflow-hidden" style={{ background: '#070E1B radial-gradient(ellipse 500px 500px at 25% 33%, rgba(26,122,106,0.05), transparent 70%), radial-gradient(ellipse 400px 400px at 75% 75%, rgba(253,204,2,0.03), transparent 70%)' }}>
+        <div className="absolute inset-0 opacity-[0.02] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#1A7A6A 1px, transparent 1px), linear-gradient(90deg, #1A7A6A 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
 
         <div className="relative max-w-6xl mx-auto">
           <motion.div className="text-center mb-16" initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/[0.06] border border-white/10 rounded-full mb-6">
-              <svg className="w-3.5 h-3.5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-              <span className="text-[#3DD6C3] font-bold text-sm uppercase tracking-wide">Always in Sync</span>
+              <svg className="w-3.5 h-3.5 text-[#1A7A6A]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+              <span className="text-[#1A7A6A] font-bold text-sm uppercase tracking-wide">Always in Sync</span>
             </div>
-            <h2 className="text-3xl lg:text-5xl font-extrabold text-white mb-4">Two Surfaces. <span className="text-[#3DD6C3]">One System.</span></h2>
+            <h2 className="text-3xl lg:text-5xl font-extrabold text-white mb-4">Two Surfaces. <span className="text-[#1A7A6A]">One System.</span></h2>
             <p className="text-lg text-white/50 max-w-2xl mx-auto">Your dashboard and your client&apos;s app are the same system. Every action, every touchpoint, every alert — synced in real time.</p>
           </motion.div>
 
@@ -354,17 +354,17 @@ export default function DesktopLandingV5() {
                 <div className="p-5 space-y-3">
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 bg-[#0D4D4D] rounded-lg flex items-center justify-center"><span className="text-[#3DD6C3] text-[10px] font-bold">D</span></div>
+                      <div className="w-7 h-7 bg-[#0D4D4D] rounded-lg flex items-center justify-center"><span className="text-[#1A7A6A] text-[10px] font-bold">D</span></div>
                       <span className="text-white/70 font-semibold text-[11px]">Agent Dashboard</span>
                     </div>
-                    <span className="px-2 py-0.5 bg-[#3DD6C3]/10 text-[#3DD6C3] text-[8px] font-bold rounded-full uppercase">Live</span>
+                    <span className="px-2 py-0.5 bg-[#1A7A6A]/10 text-[#1A7A6A] text-[8px] font-bold rounded-full uppercase">Live</span>
                   </div>
                   <div className="space-y-2">
                     {[
-                      { dot: 'bg-[#3DD6C3]', text: 'Holiday card sent to 47 clients', tag: 'Auto' },
+                      { dot: 'bg-[#1A7A6A]', text: 'Holiday card sent to 47 clients', tag: 'Auto' },
                       { dot: 'bg-[#fdcc02]', text: 'New referral: Mike J. — AI qualifying', tag: 'Live' },
                       { dot: 'bg-red-400', text: 'Conservation alert: Sarah J.', tag: 'Action' },
-                      { dot: 'bg-[#3DD6C3]', text: 'Policy review: Lisa M. — booked', tag: 'Win' },
+                      { dot: 'bg-[#1A7A6A]', text: 'Policy review: Lisa M. — booked', tag: 'Win' },
                     ].map((row) => (
                       <div key={row.text} className="flex items-center gap-2.5 bg-white/[0.04] rounded-lg px-3 py-2 border border-white/[0.06]">
                         <div className={`w-1.5 h-1.5 rounded-full ${row.dot} flex-shrink-0`} />
@@ -376,7 +376,7 @@ export default function DesktopLandingV5() {
                   <div className="grid grid-cols-3 gap-2 pt-1">
                     {[
                       { val: '127', label: 'Clients', color: 'text-white' },
-                      { val: '12', label: 'Referrals', color: 'text-[#3DD6C3]' },
+                      { val: '12', label: 'Referrals', color: 'text-[#1A7A6A]' },
                       { val: '5', label: 'Saved', color: 'text-[#fdcc02]' },
                     ].map((s) => (
                       <div key={s.label} className="bg-white/[0.04] rounded-lg border border-white/[0.06] p-2.5 text-center">
@@ -394,25 +394,25 @@ export default function DesktopLandingV5() {
             {/* Sync indicator — CSS animation */}
             <div className="hidden md:flex flex-col items-center gap-3 px-2">
               <div className="animate-pulse-fade">
-                <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                <svg className="w-5 h-5 text-[#1A7A6A]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
               </div>
               <div className="flex flex-col items-center">
-                <div className="w-px h-8 bg-gradient-to-b from-transparent via-[#3DD6C3]/40 to-transparent" />
-                <span className="text-[#3DD6C3] text-[9px] font-bold uppercase tracking-widest [writing-mode:vertical-rl] py-2">Syncs Live</span>
-                <div className="w-px h-8 bg-gradient-to-b from-transparent via-[#3DD6C3]/40 to-transparent" />
+                <div className="w-px h-8 bg-gradient-to-b from-transparent via-[#1A7A6A]/40 to-transparent" />
+                <span className="text-[#1A7A6A] text-[9px] font-bold uppercase tracking-widest [writing-mode:vertical-rl] py-2">Syncs Live</span>
+                <div className="w-px h-8 bg-gradient-to-b from-transparent via-[#1A7A6A]/40 to-transparent" />
               </div>
               <div className="animate-pulse-fade-delay">
-                <svg className="w-5 h-5 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                <svg className="w-5 h-5 text-[#1A7A6A]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
               </div>
             </div>
 
             {/* Phone mockup */}
             <motion.div initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="flex justify-center">
               <div>
-                <div className="w-[220px] h-[420px] bg-[#1a1a1a] rounded-[2.5rem] p-2.5 shadow-2xl shadow-[#3DD6C3]/10 border-4 border-[#2a2a2a] relative">
+                <div className="w-[220px] h-[420px] bg-[#1a1a1a] rounded-[2.5rem] p-2.5 shadow-2xl shadow-[#1A7A6A]/10 border-4 border-[#2a2a2a] relative">
                   <div className="w-full h-full bg-[#111] rounded-[2rem] overflow-hidden px-3.5 py-5 relative">
                     <div className="flex items-center gap-2 mb-4">
-                      <div className="w-8 h-8 rounded-full bg-[#005851] flex items-center justify-center"><span className="text-[#3DD6C3] text-[10px] font-bold">D</span></div>
+                      <div className="w-8 h-8 rounded-full bg-[#005851] flex items-center justify-center"><span className="text-[#1A7A6A] text-[10px] font-bold">D</span></div>
                       <div><p className="text-white text-[11px] font-semibold">Daniel Roberts</p><p className="text-white/70 text-[8px]">Your Agent</p></div>
                     </div>
                     <div className="space-y-2.5">
@@ -421,8 +421,8 @@ export default function DesktopLandingV5() {
                       </div>
                       <div className="bg-white/[0.08] rounded-xl p-2.5 border border-white/5">
                         <p className="text-white/70 text-[7px] uppercase tracking-wider mb-1.5">Your Policies</p>
-                        <div className="flex items-center justify-between"><span className="text-white/70 text-[9px]">Auto — State Farm</span><span className="text-[#3DD6C3] text-[7px] font-semibold">Active</span></div>
-                        <div className="flex items-center justify-between mt-1"><span className="text-white/70 text-[9px]">Life — Mutual of Omaha</span><span className="text-[#3DD6C3] text-[7px] font-semibold">Active</span></div>
+                        <div className="flex items-center justify-between"><span className="text-white/70 text-[9px]">Auto — State Farm</span><span className="text-[#1A7A6A] text-[7px] font-semibold">Active</span></div>
+                        <div className="flex items-center justify-between mt-1"><span className="text-white/70 text-[9px]">Life — Mutual of Omaha</span><span className="text-[#1A7A6A] text-[7px] font-semibold">Active</span></div>
                       </div>
                       <div className="bg-[#fdcc02] rounded-xl py-2.5 text-center"><p className="text-[#0D4D4D] text-[10px] font-bold">Refer a Friend</p></div>
                       <div className="bg-[#005851] rounded-xl py-2.5 text-center"><p className="text-white text-[10px] font-bold">Contact Daniel</p></div>
@@ -437,10 +437,10 @@ export default function DesktopLandingV5() {
           {/* Sync feed */}
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {[
-              { dashboard: 'You upload Sarah\'s policy', client: 'Sarah sees it in her app instantly', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', accent: '#3DD6C3' },
+              { dashboard: 'You upload Sarah\'s policy', client: 'Sarah sees it in her app instantly', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', accent: '#1A7A6A' },
               { dashboard: 'AI sends holiday card', client: 'Full-screen card on their phone', icon: 'M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7', accent: '#fdcc02' },
               { dashboard: 'Referral comes in', client: 'AI texts referral via iMessage', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z', accent: '#fdcc02' },
-              { dashboard: 'Conservation alert fires', client: 'Client gets outreach in hours', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z', accent: '#3DD6C3' },
+              { dashboard: 'Conservation alert fires', client: 'Client gets outreach in hours', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z', accent: '#1A7A6A' },
             ].map((item, i) => (
               <div key={i} className="bg-white/[0.04] rounded-xl p-4 border border-white/[0.06] hover:bg-white/[0.07] hover:border-white/[0.12] transition-all">
                 <div className="flex items-center gap-2 mb-3">

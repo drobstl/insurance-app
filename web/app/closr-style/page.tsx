@@ -109,9 +109,9 @@ export default function ClosrStylePage() {
 
         /* Nav CTA = bordered pill */
         .closr-style-route nav a[class*='bg-[#fdcc02]'] {
-          background: transparent !important;
-          color: hsl(var(--primary)) !important;
-          border: 2px solid hsl(var(--primary)) !important;
+          background: #f0d7ff !important;
+          color: #1a1a1a !important;
+          border: 2px solid #1a1a1a !important;
           border-radius: 9999px !important;
           padding: 0.5rem 1.25rem !important;
           font-family: var(--font-sans), Figtree, -apple-system, BlinkMacSystemFont, 'Segoe UI',
@@ -123,8 +123,8 @@ export default function ClosrStylePage() {
         /* Global CTA styling (except nav override above) */
         .closr-style-route a[class*='bg-[#fdcc02]'],
         .closr-style-route a[class*='bg-red-500'] {
-          background: hsl(var(--primary)) !important;
-          color: #ffffff !important;
+          background: #f0d7ff !important;
+          color: #1a1a1a !important;
           border-radius: 9999px !important;
           border: none !important;
           font-family: var(--font-sans), Figtree, -apple-system, BlinkMacSystemFont, 'Segoe UI',
@@ -133,10 +133,10 @@ export default function ClosrStylePage() {
           box-shadow: none !important;
         }
 
-        /* Hero CTA = teal pill, no arrow */
+        /* Hero CTA = lavender pill, no arrow */
         .closr-style-route section:first-of-type a[class*='bg-[#fdcc02]'] {
-          background: hsl(var(--primary)) !important;
-          color: hsl(var(--primary-foreground)) !important;
+          background: #f0d7ff !important;
+          color: #1a1a1a !important;
           border: none !important;
           border-radius: 9999px !important;
           padding: 0.75rem 1.5rem !important;
@@ -151,9 +151,9 @@ export default function ClosrStylePage() {
 
         /* Badge / pill style */
         .closr-style-route .inline-flex.rounded-full {
-          background: rgba(2, 79, 70, 0.08) !important;
-          border: 1px solid rgba(2, 79, 70, 0.18) !important;
-          color: hsl(var(--primary)) !important;
+          background: rgba(240, 215, 255, 0.3) !important;
+          border: 1px solid rgba(240, 215, 255, 0.55) !important;
+          color: #1a1a1a !important;
           font-family: var(--font-sans), Figtree, -apple-system, BlinkMacSystemFont, 'Segoe UI',
             Roboto, sans-serif !important;
           text-transform: uppercase;
@@ -191,8 +191,8 @@ export default function ClosrStylePage() {
         .closr-style-route [class*='bg-red-'],
         .closr-style-route [class*='bg-[#fdcc02]/'],
         .closr-style-route [class*='bg-[#3DD6C3]/'] {
-          background-color: rgba(2, 79, 70, 0.08) !important;
-          border-color: rgba(2, 79, 70, 0.18) !important;
+          background-color: rgba(26, 58, 42, 0.06) !important;
+          border-color: rgba(26, 58, 42, 0.08) !important;
         }
 
         .closr-style-route [class*='text-[#fdcc02]'],
@@ -262,24 +262,55 @@ export default function ClosrStylePage() {
           border: 1px solid rgba(26, 26, 26, 0.12) !important;
         }
 
-        /* How-it-works gets soft sage background */
+        /* How-it-works gets cream background */
         .closr-style-route section:nth-of-type(9) {
-          background: rgb(233, 244, 240) !important;
+          background: #f5f0e8 !important;
         }
 
         .closr-style-route section:nth-of-type(9) [class*='bg-[#0D4D4D]'] {
-          background: rgba(2, 79, 70, 0.12) !important;
+          background: rgba(26, 58, 42, 0.08) !important;
         }
 
-        /* Pricing section soft sage */
+        /* Pricing section dark treatment */
         .closr-style-route section:nth-of-type(11) {
-          background: rgb(233, 244, 240) !important;
+          background: #0f5f56 !important;
+          color: #f5f0e8 !important;
         }
 
-        .closr-style-route section:nth-of-type(11) [class*='rounded-2xl'] {
-          background: #ffffff !important;
-          border: 2px solid hsl(var(--card-border)) !important;
-          box-shadow: var(--card-shadow) !important;
+        .closr-style-route section:nth-of-type(11) h2,
+        .closr-style-route section:nth-of-type(11) h3,
+        .closr-style-route section:nth-of-type(11) p,
+        .closr-style-route section:nth-of-type(11) span,
+        .closr-style-route section:nth-of-type(11) li {
+          color: #f5f0e8 !important;
+        }
+
+        .closr-style-route section:nth-of-type(11) .text-\\[\\#6B7280\\],
+        .closr-style-route section:nth-of-type(11) .text-\\[\\#6B7280\\]\\/50,
+        .closr-style-route section:nth-of-type(11) .text-\\[\\#6B7280\\]\\/80,
+        .closr-style-route section:nth-of-type(11) .text-gray-500,
+        .closr-style-route section:nth-of-type(11) .text-gray-400 {
+          color: rgba(245, 240, 232, 0.8) !important;
+        }
+
+        .closr-style-route section:nth-of-type(11) [class*='rounded-2xl'][class*='border-2'] {
+          background: rgba(245, 240, 232, 0.08) !important;
+          border: 1px solid rgba(245, 240, 232, 0.15) !important;
+          box-shadow: none !important;
+        }
+
+        .closr-style-route section:nth-of-type(11) a.block.w-full.py-3\\.5 {
+          background: #f0d7ff !important;
+          color: #1a1a1a !important;
+        }
+
+        .closr-style-route section:nth-of-type(11) .line-through {
+          color: rgba(245, 240, 232, 0.5) !important;
+        }
+
+        .closr-style-route section:nth-of-type(11) .absolute.-top-3\\.5 span {
+          background: rgba(240, 215, 255, 0.15) !important;
+          color: #f0d7ff !important;
         }
 
         /* FAQ clean cards */

@@ -184,7 +184,7 @@ export default function LeakyBucketCalculator({
                 <span className="font-semibold text-[#0D4D4D]">-${formatNumber(missedRewriteRevenue)}</span>
               </div>
             </div>
-            <div className={`bg-[#D1FAE5] rounded-lg p-3 border border-[#3DD6C3] ${isH ? 'mt-4' : 'mt-6 pt-4'}`}>
+            <div className={`bg-[#EDE8DC] rounded-lg p-3 border border-[#3DD6C3] ${isH ? 'mt-4' : 'mt-6 pt-4'}`}>
               <p className="text-center text-[#0D4D4D] text-sm"><span className="font-bold text-[#3DD6C3]">Agent For Life</span> helps you capture this revenue with <span className="font-bold">automated retention</span>, one-tap referrals, and anniversary rewrites.</p>
             </div>
           </>

@@ -20,7 +20,11 @@ const scopedVars: React.CSSProperties & Record<string, string> = {
   backgroundColor: "#F5F0E8",
   "--card-border": "0 0% 10%",
   "--card-shadow": "4px 4px 0 0 hsl(0 0% 10%)",
+  "--lavender": "#F0D7FF",
   "--lavender-light": "277 100% 95%",
+  "--dark-surface": "#0F5F56",
+  "--cream": "#F5F0E8",
+  "--cream-muted": "rgba(245, 240, 232, 0.8)",
   "--primary": "172 96% 16%",
   "--primary-foreground": "0 0% 100%",
 };
