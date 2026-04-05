@@ -100,8 +100,141 @@ function ClientAppProofCard() {
   );
 }
 
+function ReferralVisualCard() {
+  return (
+    <div className="rounded-2xl border-2 border-[#1A1A1A] bg-[#FFFDF3] p-5 shadow-[4px_4px_0_0_#1A1A1A]">
+      <div className="rounded-xl border border-[#1A1A1A]/15 bg-white p-4">
+        <p className="text-[11px] uppercase tracking-[0.1em] text-[#1A1A1A]/60" style={{ fontFamily: sans }}>
+          Referral iMessage Flow
+        </p>
+        <div className="mt-3 space-y-2">
+          <div className="max-w-[80%] rounded-2xl bg-[#E8E8EC] px-3 py-2 text-[12px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
+            Hey, I wanted to connect you with my insurance agent Daniel.
+          </div>
+          <div className="ml-auto max-w-[78%] rounded-2xl bg-[#3B9BFF] px-3 py-2 text-[12px] text-white" style={{ fontFamily: sans }}>
+            We own and need protection.
+          </div>
+          <div className="max-w-[92%] rounded-2xl bg-[#E8E8EC] px-3 py-2 text-[12px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
+            Perfect. Grab a time here and I&apos;ll walk you through options.
+          </div>
+          <div className="inline-flex rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[11px] text-[#1A1A1A]" style={{ fontFamily: sans }}>
+            calendar link sent
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RetentionVisualCard() {
+  return (
+    <div className="rounded-2xl border-2 border-[#1A1A1A] bg-[#FFFDF3] p-5 shadow-[4px_4px_0_0_#1A1A1A]">
+      <div className="rounded-xl border border-[#1A1A1A]/15 bg-white p-4">
+        <p className="text-[11px] uppercase tracking-[0.1em] text-[#1A1A1A]/60" style={{ fontFamily: sans }}>
+          Conservation Alert
+        </p>
+        <div className="mt-3 rounded-lg border border-[#1A1A1A]/10 bg-[#F8F6EF] p-3">
+          <p className="text-[12px] text-[#0F5F56] font-semibold" style={{ fontFamily: sans }}>
+            HIGH PRIORITY -- chargeback risk
+          </p>
+          <p className="mt-1 text-[11px] text-[#1A1A1A]/75" style={{ fontFamily: sans }}>
+            Matched client + policy. Outreach queued in 2 hours.
+          </p>
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          {['Day 2', 'Day 5', 'Day 7'].map((day) => (
+            <div key={day} className="rounded-md border border-[#1A1A1A]/10 bg-white px-2 py-1.5 text-center text-[10px] text-[#1A1A1A]/70" style={{ fontFamily: sans }}>
+              {day}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RewriteVisualCard() {
+  return (
+    <div className="rounded-2xl border-2 border-[#1A1A1A] bg-[#FFFDF3] p-5 shadow-[4px_4px_0_0_#1A1A1A]">
+      <div className="rounded-xl border border-[#1A1A1A]/15 bg-white p-4">
+        <p className="text-[11px] uppercase tracking-[0.1em] text-[#1A1A1A]/60" style={{ fontFamily: sans }}>
+          Anniversary Rewrite
+        </p>
+        <div className="mt-3 space-y-2">
+          <div className="ml-auto max-w-[85%] rounded-2xl bg-[#3B9BFF] px-3 py-2 text-[12px] text-white" style={{ fontFamily: sans }}>
+            Your policy just hit the one-year mark -- want me to compare rates?
+          </div>
+          <div className="max-w-[78%] rounded-2xl bg-[#E8E8EC] px-3 py-2 text-[12px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
+            Yes, that would be great.
+          </div>
+          <div className="inline-flex rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[11px] text-[#1A1A1A]" style={{ fontFamily: sans }}>
+            appointment booked
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RelationshipVisualCard() {
+  return (
+    <div className="rounded-2xl border-2 border-[#1A1A1A] bg-[#FFFDF3] p-5 shadow-[4px_4px_0_0_#1A1A1A]">
+      <div className="rounded-xl border border-[#1A1A1A]/15 bg-white p-4">
+        <p className="text-[11px] uppercase tracking-[0.1em] text-[#1A1A1A]/60" style={{ fontFamily: sans }}>
+          Touchpoints on Autopilot
+        </p>
+        <div className="mt-3 space-y-2">
+          <div className="rounded-lg border border-[#1A1A1A]/10 bg-[#F8F6EF] px-3 py-2 text-[11px] text-[#1A1A1A]/80" style={{ fontFamily: sans }}>
+            Thanksgiving greeting delivered
+          </div>
+          <div className="rounded-lg border border-[#1A1A1A]/10 bg-[#F8F6EF] px-3 py-2 text-[11px] text-[#1A1A1A]/80" style={{ fontFamily: sans }}>
+            Birthday message scheduled
+          </div>
+          <div className="rounded-lg border border-[#1A1A1A]/10 bg-[#F8F6EF] px-3 py-2 text-[11px] text-[#1A1A1A]/80" style={{ fontFamily: sans }}>
+            Anniversary reminder queued
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ClosrStyleLandingB() {
   const tier = useTierCTA();
+  const features = [
+    {
+      id: 'referrals',
+      title: 'One-Tap Referrals',
+      subtitle: "Put a referral button in every client's pocket. AI takes it from there.",
+      body: 'One tap from your client. AI texts the referral via iMessage, qualifies them, and books the appointment on your calendar. You just show up and close.',
+      href: '/v5/referrals',
+      visual: <ReferralVisualCard />,
+    },
+    {
+      id: 'retention',
+      title: 'Automated Retention',
+      subtitle: "You move forward, AI's got your back.",
+      body: 'When a policy slips, forward the carrier\'s conservation notice. AI extracts the client info, matches your records, and sends personalized outreach within hours. Then follows up on Day 2, 5, and 7.',
+      href: '/v5/retention',
+      visual: <RetentionVisualCard />,
+    },
+    {
+      id: 'rewrites',
+      title: 'Automated Rewrites',
+      subtitle: 'Every anniversary is a booked appointment.',
+      body: 'When a policy hits its one-year mark, your client hears from you -- not the carrier. AI sends a notification, they book on your calendar. The rewrite comes to you.',
+      href: '/v5/rewrites',
+      visual: <RewriteVisualCard />,
+    },
+    {
+      id: 'relationships',
+      title: 'Relationships on Autopilot',
+      subtitle: "People don't refer agents, they refer relationships.",
+      body: '7+ personalized touchpoints per year, per client -- completely automatic. Holiday cards for 5 major holidays, birthday messages, anniversary alerts, and custom push notifications.',
+      href: '/v5/relationships',
+      visual: <RelationshipVisualCard />,
+    },
+  ] as const;
 
   return (
     <div className="min-h-screen bg-[#F5F0E8] text-[#1A1A1A]">
@@ -201,30 +334,31 @@ export default function ClosrStyleLandingB() {
 
       <section className="px-6 py-24">
         <div className="mx-auto grid max-w-5xl gap-16">
-          <div className="grid items-center gap-10 md:grid-cols-2">
-            <div>
-              <h3 className="text-4xl leading-[1.08] text-[#1A1A1A] md:text-[48px]" style={{ fontFamily: serif }}>
-                Your numbers, one glance
-              </h3>
-              <p className="mt-4 text-[16px] leading-relaxed text-[#1A1A1A]/72" style={{ fontFamily: sans }}>
-                Retention, referrals, rewrites, and touchpoint activity in one dashboard so you can
-                coach from signal instead of guessing.
-              </p>
+          {features.map((feature, index) => (
+            <div key={feature.id} className="grid items-center gap-10 md:grid-cols-2">
+              <div className={index % 2 === 0 ? '' : 'md:order-2'}>
+                <h3 className="text-4xl leading-[1.08] text-[#1A1A1A] md:text-[48px]" style={{ fontFamily: serif }}>
+                  {feature.title}
+                </h3>
+                <p className="mt-3 text-[18px] leading-[1.45] text-[#1A1A1A]/78" style={{ fontFamily: sans }}>
+                  {feature.subtitle}
+                </p>
+                <p className="mt-4 text-[16px] leading-relaxed text-[#1A1A1A]/72" style={{ fontFamily: sans }}>
+                  {feature.body}
+                </p>
+                <Link
+                  href={feature.href}
+                  className="mt-5 inline-flex items-center text-[15px] font-semibold text-[#1A1A1A] underline decoration-[#1A1A1A]/35 underline-offset-4"
+                  style={{ fontFamily: sans }}
+                >
+                  See how it works
+                </Link>
+              </div>
+              <div className={index % 2 === 0 ? 'md:translate-y-3' : 'md:order-1 md:-translate-y-3'}>
+                {feature.visual}
+              </div>
             </div>
-            <DashboardProofCard />
-          </div>
-          <div className="grid items-center gap-10 md:grid-cols-2">
-            <ClientAppProofCard />
-            <div>
-              <h3 className="text-4xl leading-[1.08] text-[#1A1A1A] md:text-[48px]" style={{ fontFamily: serif }}>
-                Know who needs coaching, and why
-              </h3>
-              <p className="mt-4 text-[16px] leading-relaxed text-[#1A1A1A]/72" style={{ fontFamily: sans }}>
-                When activity drops or policy risk rises, AgentForLife surfaces what changed so you can
-                intervene before revenue leaks.
-              </p>
-            </div>
-          </div>
+          ))}
         </div>
       </section>
 
