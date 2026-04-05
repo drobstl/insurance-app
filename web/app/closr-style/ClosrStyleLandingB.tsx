@@ -7,6 +7,8 @@ const serif =
   "var(--font-serif), 'EB Garamond', Georgia, 'Times New Roman', serif";
 const sans =
   "var(--font-sans), Figtree, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+const stampCard = 'rounded-2xl border-2 border-[#1A1A1A] bg-[#FFFDF3] shadow-[4px_4px_0_0_#1A1A1A]';
+const miniStamp = 'inline-flex items-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[11px] text-[#1A1A1A]';
 
 function StampButton({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -22,7 +24,7 @@ function StampButton({ href, children }: { href: string; children: React.ReactNo
 
 function DashboardProofCard() {
   return (
-    <div className="rounded-2xl border-2 border-[#1A1A1A] bg-[#FFFDF3] p-5 shadow-[4px_4px_0_0_#1A1A1A]">
+    <div className={`${stampCard} p-5`}>
       <div className="rounded-xl border border-[#1A1A1A]/15 bg-white p-4">
         <div className="mb-4 flex items-center justify-between">
           <p className="text-[11px] uppercase tracking-[0.1em] text-[#1A1A1A]/60" style={{ fontFamily: sans }}>
@@ -70,7 +72,7 @@ function DashboardProofCard() {
 
 function ClientAppProofCard() {
   return (
-    <div className="rounded-2xl border-2 border-[#1A1A1A] bg-[#FFFDF3] p-5 shadow-[4px_4px_0_0_#1A1A1A]">
+    <div className={`${stampCard} p-5`}>
       <div className="rounded-xl border border-[#1A1A1A]/15 bg-white p-4">
         <div className="mb-4 flex items-center justify-between">
           <p className="text-[11px] uppercase tracking-[0.1em] text-[#1A1A1A]/60" style={{ fontFamily: sans }}>
@@ -102,22 +104,22 @@ function ClientAppProofCard() {
 
 function ReferralVisualCard() {
   return (
-    <div className="rounded-2xl border-2 border-[#1A1A1A] bg-[#FFFDF3] p-5 shadow-[4px_4px_0_0_#1A1A1A]">
+    <div className={`${stampCard} p-5`}>
       <div className="rounded-xl border border-[#1A1A1A]/15 bg-white p-4">
         <p className="text-[11px] uppercase tracking-[0.1em] text-[#1A1A1A]/60" style={{ fontFamily: sans }}>
           Referral iMessage Flow
         </p>
         <div className="mt-3 space-y-2">
-          <div className="max-w-[80%] rounded-2xl bg-[#E8E8EC] px-3 py-2 text-[12px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
+          <div className="max-w-[80%] rounded-2xl border border-[#1A1A1A]/10 bg-[#F5F0E8] px-3 py-2 text-[12px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
             Hey, I wanted to connect you with my insurance agent Daniel.
           </div>
-          <div className="ml-auto max-w-[78%] rounded-2xl bg-[#3B9BFF] px-3 py-2 text-[12px] text-white" style={{ fontFamily: sans }}>
+          <div className="ml-auto max-w-[78%] rounded-2xl border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-2 text-[12px] text-[#1A1A1A]" style={{ fontFamily: sans }}>
             We own and need protection.
           </div>
-          <div className="max-w-[92%] rounded-2xl bg-[#E8E8EC] px-3 py-2 text-[12px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
+          <div className="max-w-[92%] rounded-2xl border border-[#1A1A1A]/10 bg-[#F5F0E8] px-3 py-2 text-[12px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
             Perfect. Grab a time here and I&apos;ll walk you through options.
           </div>
-          <div className="inline-flex rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[11px] text-[#1A1A1A]" style={{ fontFamily: sans }}>
+          <div className={miniStamp} style={{ fontFamily: sans }}>
             calendar link sent
           </div>
         </div>
@@ -128,7 +130,7 @@ function ReferralVisualCard() {
 
 function RetentionVisualCard() {
   return (
-    <div className="rounded-2xl border-2 border-[#1A1A1A] bg-[#FFFDF3] p-5 shadow-[4px_4px_0_0_#1A1A1A]">
+    <div className={`${stampCard} p-5`}>
       <div className="rounded-xl border border-[#1A1A1A]/15 bg-white p-4">
         <p className="text-[11px] uppercase tracking-[0.1em] text-[#1A1A1A]/60" style={{ fontFamily: sans }}>
           Conservation Alert
@@ -155,19 +157,19 @@ function RetentionVisualCard() {
 
 function RewriteVisualCard() {
   return (
-    <div className="rounded-2xl border-2 border-[#1A1A1A] bg-[#FFFDF3] p-5 shadow-[4px_4px_0_0_#1A1A1A]">
+    <div className={`${stampCard} p-5`}>
       <div className="rounded-xl border border-[#1A1A1A]/15 bg-white p-4">
         <p className="text-[11px] uppercase tracking-[0.1em] text-[#1A1A1A]/60" style={{ fontFamily: sans }}>
           Anniversary Rewrite
         </p>
         <div className="mt-3 space-y-2">
-          <div className="ml-auto max-w-[85%] rounded-2xl bg-[#3B9BFF] px-3 py-2 text-[12px] text-white" style={{ fontFamily: sans }}>
+          <div className="ml-auto max-w-[85%] rounded-2xl border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-2 text-[12px] text-[#1A1A1A]" style={{ fontFamily: sans }}>
             Your policy just hit the one-year mark -- want me to compare rates?
           </div>
-          <div className="max-w-[78%] rounded-2xl bg-[#E8E8EC] px-3 py-2 text-[12px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
+          <div className="max-w-[78%] rounded-2xl border border-[#1A1A1A]/10 bg-[#F5F0E8] px-3 py-2 text-[12px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
             Yes, that would be great.
           </div>
-          <div className="inline-flex rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[11px] text-[#1A1A1A]" style={{ fontFamily: sans }}>
+          <div className={miniStamp} style={{ fontFamily: sans }}>
             appointment booked
           </div>
         </div>
@@ -178,7 +180,7 @@ function RewriteVisualCard() {
 
 function RelationshipVisualCard() {
   return (
-    <div className="rounded-2xl border-2 border-[#1A1A1A] bg-[#FFFDF3] p-5 shadow-[4px_4px_0_0_#1A1A1A]">
+    <div className={`${stampCard} p-5`}>
       <div className="rounded-xl border border-[#1A1A1A]/15 bg-white p-4">
         <p className="text-[11px] uppercase tracking-[0.1em] text-[#1A1A1A]/60" style={{ fontFamily: sans }}>
           Touchpoints on Autopilot
@@ -261,7 +263,7 @@ export default function ClosrStyleLandingB() {
         </div>
       </nav>
 
-      <section className="px-6 pb-24 pt-20 text-center">
+      <section className="px-6 pb-24 pt-20 text-center md:pb-28 md:pt-24">
         <div className="mx-auto max-w-5xl">
           <h1
             className="text-[3.35rem] leading-[0.93] tracking-[-0.02em] md:text-[6.2rem]"
@@ -273,7 +275,7 @@ export default function ClosrStyleLandingB() {
             <span className="font-bold text-[#1A1A1A]">you</span>
             <span className="text-[#1A1A1A]"> exist.</span>
           </h1>
-          <p className="mx-auto mt-7 max-w-2xl text-[19px] leading-[1.55] text-[#1A1A1A]/72" style={{ fontFamily: sans }}>
+          <p className="mx-auto mt-7 max-w-2xl text-[18px] leading-[1.6] text-[#1A1A1A]/72 md:text-[19px]" style={{ fontFamily: sans }}>
             We built a system that makes sure they never do. A branded app on their phone. Automated
             touchpoints, one-tap referrals, and conservation outreach running in the background.
           </p>
@@ -332,15 +334,25 @@ export default function ClosrStyleLandingB() {
         </div>
       </section>
 
-      <section className="px-6 py-24">
+      <section className="px-6 py-24 md:py-28">
+        <div className="mx-auto max-w-5xl">
+          <div className="mb-12 text-center">
+            <p className="text-xs uppercase tracking-[0.14em] text-[#1A1A1A]/58" style={{ fontFamily: sans }}>
+              Product Proof
+            </p>
+            <h2 className="mt-3 text-4xl leading-[1.06] text-[#1A1A1A] md:text-[56px]" style={{ fontFamily: serif }}>
+              Four systems working while you sell
+            </h2>
+          </div>
+        </div>
         <div className="mx-auto grid max-w-5xl gap-16">
           {features.map((feature, index) => (
-            <div key={feature.id} className="grid items-center gap-10 md:grid-cols-2">
-              <div className={index % 2 === 0 ? '' : 'md:order-2'}>
-                <h3 className="text-4xl leading-[1.08] text-[#1A1A1A] md:text-[48px]" style={{ fontFamily: serif }}>
+            <div key={feature.id} className="grid items-center gap-9 md:grid-cols-[1.06fr_0.94fr] md:gap-12">
+              <div className={index % 2 === 0 ? 'md:pr-4' : 'md:order-2 md:pl-4'}>
+                <h3 className="text-[2.15rem] leading-[1.08] text-[#1A1A1A] md:text-[48px]" style={{ fontFamily: serif }}>
                   {feature.title}
                 </h3>
-                <p className="mt-3 text-[18px] leading-[1.45] text-[#1A1A1A]/78" style={{ fontFamily: sans }}>
+                <p className="mt-3 text-[17px] leading-[1.5] text-[#1A1A1A]/78 md:text-[18px]" style={{ fontFamily: sans }}>
                   {feature.subtitle}
                 </p>
                 <p className="mt-4 text-[16px] leading-relaxed text-[#1A1A1A]/72" style={{ fontFamily: sans }}>
@@ -348,7 +360,7 @@ export default function ClosrStyleLandingB() {
                 </p>
                 <Link
                   href={feature.href}
-                  className="mt-5 inline-flex items-center text-[15px] font-semibold text-[#1A1A1A] underline decoration-[#1A1A1A]/35 underline-offset-4"
+                  className="mt-5 inline-flex items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-4 py-2 text-[13px] font-semibold text-[#1A1A1A] shadow-[2px_2px_0_0_#1A1A1A] transition-transform hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_0_#1A1A1A]"
                   style={{ fontFamily: sans }}
                 >
                   See how it works
@@ -397,28 +409,28 @@ export default function ClosrStyleLandingB() {
             Founding access is free for life while spots remain. Standard access begins at $49/month.
           </p>
           <div className="mx-auto mt-10 grid max-w-3xl gap-5 md:grid-cols-2">
-            <article className="rounded-2xl border border-[rgba(245,240,232,0.2)] bg-[rgba(245,240,232,0.1)] p-6">
-              <p className="text-sm uppercase tracking-[0.1em] text-[#FFFDEB]/75" style={{ fontFamily: sans }}>
+            <article className={`${stampCard} p-6 text-[#1A1A1A]`}>
+              <p className="text-sm uppercase tracking-[0.1em] text-[#1A1A1A]/75" style={{ fontFamily: sans }}>
                 Founding Members
               </p>
-              <p className="mt-3 text-5xl leading-none text-[#FFFDEB]" style={{ fontFamily: serif }}>
+              <p className="mt-3 text-5xl leading-none text-[#1A1A1A]" style={{ fontFamily: serif }}>
                 $0
               </p>
-              <p className="mt-2 text-sm text-[#FFFDEB]/78" style={{ fontFamily: sans }}>
+              <p className="mt-2 text-sm text-[#1A1A1A]/72" style={{ fontFamily: sans }}>
                 Free for life while 50 founding spots are open.
               </p>
               <div className="mt-6">
                 <StampButton href={tier.ctaHref}>Apply now</StampButton>
               </div>
             </article>
-            <article className="rounded-2xl border border-[rgba(245,240,232,0.2)] bg-[rgba(245,240,232,0.1)] p-6">
-              <p className="text-sm uppercase tracking-[0.1em] text-[#FFFDEB]/75" style={{ fontFamily: sans }}>
+            <article className={`${stampCard} p-6 text-[#1A1A1A]`}>
+              <p className="text-sm uppercase tracking-[0.1em] text-[#1A1A1A]/75" style={{ fontFamily: sans }}>
                 Standard
               </p>
-              <p className="mt-3 text-5xl leading-none text-[#FFFDEB]" style={{ fontFamily: serif }}>
+              <p className="mt-3 text-5xl leading-none text-[#1A1A1A]" style={{ fontFamily: serif }}>
                 $49
               </p>
-              <p className="mt-2 text-sm text-[#FFFDEB]/78" style={{ fontFamily: sans }}>
+              <p className="mt-2 text-sm text-[#1A1A1A]/72" style={{ fontFamily: sans }}>
                 $49/month. Cancel anytime.
               </p>
               <div className="mt-6">
