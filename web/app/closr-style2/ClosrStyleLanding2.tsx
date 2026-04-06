@@ -220,30 +220,35 @@ export default function ClosrStyleLanding2() {
           {features.map((feature, index) => (
             <div
               key={feature.id}
-              className={`grid items-center gap-10 md:grid-cols-[0.84fr_1.16fr] md:gap-14 ${
+              className={`${
                 index > 0 ? 'border-t border-[#1A1A1A]/12 pt-12 md:pt-16' : ''
               }`}
             >
-              <div className={index % 2 === 0 ? 'md:pr-4' : 'md:order-2 md:pl-4'}>
-                <h3 className="text-[2.15rem] leading-[1.08] text-[#1A1A1A] md:text-[48px]" style={{ fontFamily: serif }}>
-                  {feature.title}
-                </h3>
-                <p className="mt-3 text-[17px] leading-[1.5] text-[#1A1A1A]/78 md:text-[18px]" style={{ fontFamily: sans }}>
-                  {feature.subtitle}
-                </p>
-                <p className="mt-4 text-[16px] leading-relaxed text-[#1A1A1A]/72" style={{ fontFamily: sans }}>
-                  {feature.body}
-                </p>
-                <Link
-                  href={feature.href}
-                  className="mt-5 inline-flex items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-4 py-2 text-[13px] font-semibold text-[#1A1A1A] shadow-[2px_2px_0_0_#1A1A1A] transition-transform hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_0_#1A1A1A]"
-                  style={{ fontFamily: sans }}
-                >
-                  {closrStyle2Content.proof.featureCtaLabel}
-                </Link>
-              </div>
-              <div className={index % 2 === 0 ? 'md:translate-y-3' : 'md:order-1 md:-translate-y-3'}>
-                {featureVisualById(feature.id)}
+              <p
+                className="mx-auto max-w-[36ch] text-center text-[24px] leading-[1.2] text-[#1A1A1A]/88 md:text-[32px]"
+                style={{ fontFamily: serif, fontStyle: 'italic' }}
+              >
+                {feature.subtitle}
+              </p>
+              <div className="mt-8 grid items-center gap-10 md:grid-cols-[0.84fr_1.16fr] md:gap-14">
+                <div className={index % 2 === 0 ? 'md:pr-4' : 'md:order-2 md:pl-4'}>
+                  <h3 className="text-[2.15rem] leading-[1.08] text-[#1A1A1A] md:text-[48px]" style={{ fontFamily: serif }}>
+                    {feature.title}
+                  </h3>
+                  <p className="mt-4 text-[16px] leading-relaxed text-[#1A1A1A]/72" style={{ fontFamily: sans }}>
+                    {feature.body}
+                  </p>
+                  <Link
+                    href={feature.href}
+                    className="mt-5 inline-flex items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-4 py-2 text-[13px] font-semibold text-[#1A1A1A] shadow-[2px_2px_0_0_#1A1A1A] transition-transform hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_0_#1A1A1A]"
+                    style={{ fontFamily: sans }}
+                  >
+                    {closrStyle2Content.proof.featureCtaLabel}
+                  </Link>
+                </div>
+                <div className={index % 2 === 0 ? 'md:translate-y-3' : 'md:order-1 md:-translate-y-3'}>
+                  {featureVisualById(feature.id)}
+                </div>
               </div>
             </div>
           ))}
