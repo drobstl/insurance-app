@@ -13,7 +13,7 @@ const sans =
 const stampCard = 'rounded-2xl border-2 border-[#1A1A1A] bg-[#FFFDF3] shadow-[4px_4px_0_0_#1A1A1A]';
 
 const proofScreenshotCard =
-  'w-[220px] md:w-[250px] rounded-2xl border-2 border-[#1A1A1A] border-r-[6px] border-b-[6px] bg-white overflow-hidden shadow-[4px_5px_0_0_rgba(26,26,26,0.18)] transition-transform duration-500';
+  'w-[275px] md:w-[312px] rounded-2xl border-2 border-[#1A1A1A] border-r-[6px] border-b-[6px] bg-white overflow-hidden shadow-[4px_5px_0_0_rgba(26,26,26,0.18)] transition-transform duration-500';
 
 function StampButton({ href, children }: { href: string; children: React.ReactNode }) {
   return (

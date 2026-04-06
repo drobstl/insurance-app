@@ -7,12 +7,12 @@ export const closrStyle2Content = {
     primaryCtaWhenFoundingOpen: 'Get Started Free',
   },
   hero: {
-    headlineTop: 'Kill chargebacks',
-    headlineLeadIn: 'explode your referrals ',
+    headlineTop: 'Kill chargebacks.',
+    headlineLeadIn: 'Explode your referrals. ',
     headlineEmphasis: '3x',
     headlineTail: ' your income.',
     body:
-      'We protect your book and leverage it while you sleep. A branded app for your clients. Automated touchpoints, one-tap referrals, and policy retention running in the background.',
+      'AgentForLife protects your book and leverages it while you sleep. Your clients get your own branded app, automated touchpoints, one-tap referrals, and policy retention on autopilot. You get peace of mind and a business that compounds.',
     primaryCtaWhenFoundingOpen: 'Lock In My Free Spot',
   },
   stats: [
@@ -48,7 +48,7 @@ export const closrStyle2Content = {
         id: 'retention',
         title: 'Automated Retention',
         subtitle: "You move forward, AgentForLife has your back.",
-        body: "When a policy slips, forward the carrier's conservation notice. AgentForLife springs into action with personalized outreach. Then follows up on Day 2, 5, and 7. You sell it, we save it.",
+        body: "When a policy slips, forward the email notice and AgentForLife springs into action with personalized outreach. Then follows up on Day 2, 5, and 7. You sell it, we save it.",
         href: '/v5/retention',
       },
       {
