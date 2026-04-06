@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useTierCTA } from '@/hooks/useTierCTA';
+import PhoneFrame from '@/components/PhoneFrame';
 
 const serif =
   "var(--font-serif), 'EB Garamond', Georgia, 'Times New Roman', serif";
@@ -105,29 +106,16 @@ function ClientAppProofCard() {
 function ReferralVisualCard() {
   return (
     <div className="flex justify-center py-2">
-      <div className="w-[210px]">
+      <div className="w-[245px]">
         <div className="mb-2 inline-flex w-full items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1A1A1A]" style={{ fontFamily: sans }}>
           AFL AI Assistant • Running on Autopilot
         </div>
-        <div className="rounded-[36px] border-2 border-[#1A1A1A] bg-[#F8F6EF] p-2.5 shadow-[7px_7px_0_0_#1A1A1A]">
-          <div className="mx-auto mb-2 h-1.5 w-16 rounded-full bg-[#1A1A1A]/20" />
-          <div className="rounded-[26px] bg-white px-2.5 pb-3 pt-2.5">
-            <p className="text-[9px] uppercase tracking-[0.12em] text-[#0F5F56]" style={{ fontFamily: sans }}>
-              Sent automatically by AFL AI
-            </p>
-            <div className="mt-2 space-y-2">
-              <div className="max-w-[84%] rounded-2xl bg-[#E8E8EC] px-2.5 py-2 text-[11px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
-                Hey, I wanted to connect you with my insurance agent Daniel.
-              </div>
-              <div className="ml-auto max-w-[80%] rounded-2xl bg-[#3B9BFF] px-2.5 py-2 text-[11px] text-white" style={{ fontFamily: sans }}>
-                We own and need protection.
-              </div>
-              <div className="max-w-[94%] rounded-2xl bg-[#E8E8EC] px-2.5 py-2 text-[11px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
-                Perfect. Grab a time here and I&apos;ll walk you through options.
-              </div>
-            </div>
-          </div>
-        </div>
+        <PhoneFrame
+          frame="handLeft"
+          src="/screenshot-ai-referral-imessage.png"
+          alt="AFL AI referral iMessage conversation"
+          className="w-full"
+        />
         <div className="mt-2 flex justify-center">
           <div className={miniStamp} style={{ fontFamily: sans }}>
             calendar link sent
@@ -168,26 +156,16 @@ function RetentionVisualCard() {
 function RewriteVisualCard() {
   return (
     <div className="flex justify-center py-2">
-      <div className="w-[210px]">
+      <div className="w-[245px]">
         <div className="mb-2 inline-flex w-full items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1A1A1A]" style={{ fontFamily: sans }}>
           AFL AI Assistant • Running on Autopilot
         </div>
-        <div className="rounded-[36px] border-2 border-[#1A1A1A] bg-[#F8F6EF] p-2.5 shadow-[7px_7px_0_0_#1A1A1A]">
-          <div className="mx-auto mb-2 h-1.5 w-16 rounded-full bg-[#1A1A1A]/20" />
-          <div className="rounded-[26px] bg-white px-2.5 pb-3 pt-2.5">
-            <p className="text-[9px] uppercase tracking-[0.12em] text-[#0F5F56]" style={{ fontFamily: sans }}>
-              Sent automatically by AFL AI
-            </p>
-            <div className="mt-2 space-y-2">
-              <div className="ml-auto max-w-[87%] rounded-2xl bg-[#3B9BFF] px-2.5 py-2 text-[11px] text-white" style={{ fontFamily: sans }}>
-                Your policy just hit the one-year mark -- want me to compare rates?
-              </div>
-              <div className="max-w-[80%] rounded-2xl bg-[#E8E8EC] px-2.5 py-2 text-[11px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
-                Yes, that would be great.
-              </div>
-            </div>
-          </div>
-        </div>
+        <PhoneFrame
+          frame="angledRight"
+          src="/screenshot-rewrite-convo.png"
+          alt="AFL AI rewrite follow-up conversation"
+          className="w-full"
+        />
         <div className="mt-2 flex justify-center">
           <div className={miniStamp} style={{ fontFamily: sans }}>
             appointment booked
@@ -201,41 +179,16 @@ function RewriteVisualCard() {
 function RelationshipVisualCard() {
   return (
     <div className="flex justify-center py-2">
-      <div className="w-[228px]">
+      <div className="w-[250px]">
         <div className="mb-2 inline-flex w-full items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1A1A1A]" style={{ fontFamily: sans }}>
           AFL AI Assistant • Holiday Message on Autopilot
         </div>
-        <div className="relative h-[392px] w-[220px] overflow-hidden rounded-[40px] border-2 border-[#1A1A1A] bg-gradient-to-b from-[#ff6c4d] to-[#ffa946] p-3 shadow-[8px_8px_0_0_#1A1A1A]">
-          <div className="mx-auto mb-5 h-1.5 w-16 rounded-full bg-white/45" />
-          <div className="mx-auto h-16 w-16 rounded-full border-2 border-white/75 bg-white/35" />
-          <p className="mt-3 text-center text-[12px] font-semibold text-white" style={{ fontFamily: sans }}>
-            Daniel Roberts
-          </p>
-          <p className="text-center text-[10px] text-white/90" style={{ fontFamily: sans }}>
-            Crosswinds Financial Group
-          </p>
-          <p className="mt-3 text-center text-[36px] leading-[1.03] font-bold text-white" style={{ fontFamily: sans }}>
-            Happy Thanksgiving,
-            <br />
-            John!
-          </p>
-          <p className="mx-auto mt-3 max-w-[176px] text-center text-[10px] leading-[1.45] text-white/95" style={{ fontFamily: sans }}>
-            I&apos;m grateful for the trust you place in me to protect what matters most to your family.
-            Enjoy every bite.
-          </p>
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_15%,rgba(255,255,255,0.2),transparent_55%)]" />
-
-          <span className="leaf-fall absolute left-[16px] top-[12px] h-3 w-5 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '0s', animationDuration: '7.4s' }} />
-          <span className="leaf-fall absolute left-[148px] top-[20px] h-2.5 w-4.5 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '1.1s', animationDuration: '6.4s' }} />
-          <span className="leaf-fall absolute left-[70px] top-[48px] h-3 w-5 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '0.8s', animationDuration: '7.8s' }} />
-          <span className="leaf-fall absolute left-[174px] top-[62px] h-3 w-5 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '2.2s', animationDuration: '6.9s' }} />
-          <span className="leaf-fall absolute left-[38px] top-[92px] h-2.5 w-4.5 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '2.8s', animationDuration: '7s' }} />
-          <span className="leaf-fall absolute left-[124px] top-[104px] h-3 w-5 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '3.3s', animationDuration: '6.2s' }} />
-          <span className="leaf-fall-slow absolute left-[26px] top-[144px] h-3 w-5 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '1.7s', animationDuration: '9.6s' }} />
-          <span className="leaf-fall-slow absolute left-[166px] top-[152px] h-2.5 w-4.5 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '2.7s', animationDuration: '10.2s' }} />
-          <span className="leaf-fall-slow absolute left-[96px] top-[182px] h-3 w-5 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '3.5s', animationDuration: '9.2s' }} />
-          <span className="leaf-fall-slow absolute left-[52px] top-[222px] h-2.5 w-4.5 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '4.2s', animationDuration: '10.5s' }} />
-        </div>
+        <PhoneFrame
+          frame="straight"
+          src="/screenshot-thanksgiving-card.png"
+          alt="AFL Thanksgiving client holiday card"
+          className="w-full"
+        />
       </div>
     </div>
   );
@@ -513,51 +466,6 @@ export default function ClosrStyleLandingB() {
           </div>
         </div>
       </footer>
-      <style jsx>{`
-        .leaf-fall {
-          opacity: 0;
-          animation-name: leaf-fall;
-          animation-timing-function: linear;
-          animation-iteration-count: infinite;
-          will-change: transform, opacity;
-        }
-
-        @keyframes leaf-fall {
-          0% {
-            transform: translate3d(0, -10px, 0) rotate(0deg);
-            opacity: 0;
-          }
-          10% {
-            opacity: 0.95;
-          }
-          100% {
-            transform: translate3d(22px, 280px, 0) rotate(260deg);
-            opacity: 0;
-          }
-        }
-
-        .leaf-fall-slow {
-          opacity: 0;
-          animation-name: leaf-fall-slow;
-          animation-timing-function: linear;
-          animation-iteration-count: infinite;
-          will-change: transform, opacity;
-        }
-
-        @keyframes leaf-fall-slow {
-          0% {
-            transform: translate3d(0, -12px, 0) rotate(30deg);
-            opacity: 0;
-          }
-          12% {
-            opacity: 0.85;
-          }
-          100% {
-            transform: translate3d(-20px, 296px, 0) rotate(-220deg);
-            opacity: 0;
-          }
-        }
-      `}</style>
     </div>
   );
 }
