@@ -109,7 +109,7 @@ function ClientAppProofCard() {
 function ReferralVisualCard() {
   return (
     <div className="flex justify-center py-2">
-      <div className="w-[380px]">
+      <div className="w-full max-w-[640px]">
         <div className="mb-2 inline-flex w-full items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1A1A1A]" style={{ fontFamily: sans }}>
           AFL AI Assistant • Running on Autopilot
         </div>
@@ -125,8 +125,8 @@ function ReferralVisualCard() {
             alt: 'AFL AI referral iMessage conversation',
           }}
           front="right"
-          overlapPx={48}
-          phoneClassName="w-[220px]"
+          overlapPx={78}
+          phoneClassName="w-[290px] md:w-[330px]"
           className="w-full"
         />
         <div className="mt-2 flex justify-center">
@@ -169,7 +169,7 @@ function RetentionVisualCard() {
 function RewriteVisualCard() {
   return (
     <div className="flex justify-center py-2">
-      <div className="w-[380px]">
+      <div className="w-full max-w-[640px]">
         <div className="mb-2 inline-flex w-full items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1A1A1A]" style={{ fontFamily: sans }}>
           AFL AI Assistant • Running on Autopilot
         </div>
@@ -185,8 +185,8 @@ function RewriteVisualCard() {
             alt: 'AFL AI rewrite follow-up conversation',
           }}
           front="right"
-          overlapPx={44}
-          phoneClassName="w-[220px]"
+          overlapPx={74}
+          phoneClassName="w-[290px] md:w-[330px]"
           className="w-full"
         />
         <div className="mt-2 flex justify-center">
@@ -202,7 +202,7 @@ function RewriteVisualCard() {
 function RelationshipVisualCard() {
   return (
     <div className="flex justify-center py-2">
-      <div className="w-[250px]">
+      <div className="w-full max-w-[420px]">
         <div className="mb-2 inline-flex w-full items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1A1A1A]" style={{ fontFamily: sans }}>
           AFL AI Assistant • Holiday Message on Autopilot
         </div>
@@ -210,7 +210,7 @@ function RelationshipVisualCard() {
           frame="straight"
           src="/screenshot-thanksgiving-card.png"
           alt="AFL Thanksgiving client holiday card"
-          className="w-full"
+          className="mx-auto w-[340px] md:w-[380px]"
         />
       </div>
     </div>
@@ -222,20 +222,20 @@ export default function ClosrStyleLandingB() {
   const [openPain, setOpenPain] = useState<number | null>(0);
   const features = [
     {
-      id: 'referrals',
-      title: 'One-Tap Referrals',
-      subtitle: "Put a referral button in every client's pocket. AI takes it from there.",
-      body: 'One tap from your client. AI texts the referral via iMessage, qualifies them, and books the appointment on your calendar. You just show up and close.',
-      href: '/v5/referrals',
-      visual: <ReferralVisualCard />,
-    },
-    {
       id: 'retention',
       title: 'Automated Retention',
       subtitle: "You move forward, AI's got your back.",
       body: 'When a policy slips, forward the carrier\'s conservation notice. AI extracts the client info, matches your records, and sends personalized outreach within hours. Then follows up on Day 2, 5, and 7.',
       href: '/v5/retention',
       visual: <RetentionVisualCard />,
+    },
+    {
+      id: 'referrals',
+      title: 'One-Tap Referrals',
+      subtitle: "Put a referral button in every client's pocket. AI takes it from there.",
+      body: 'One tap from your client. AI texts the referral via iMessage, qualifies them, and books the appointment on your calendar. You just show up and close.',
+      href: '/v5/referrals',
+      visual: <ReferralVisualCard />,
     },
     {
       id: 'rewrites',
@@ -366,7 +366,7 @@ export default function ClosrStyleLandingB() {
           {features.map((feature, index) => (
             <div
               key={feature.id}
-              className={`grid items-center gap-10 md:grid-cols-[1.06fr_0.94fr] md:gap-14 ${
+              className={`grid items-center gap-10 md:grid-cols-[0.84fr_1.16fr] md:gap-14 ${
                 index > 0 ? 'border-t border-[#1A1A1A]/12 pt-12 md:pt-16' : ''
               }`}
             >
