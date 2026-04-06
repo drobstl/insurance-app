@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useTierCTA } from '@/hooks/useTierCTA';
 import PhoneFrame from '@/components/PhoneFrame';
+import PhoneFramePair from '@/components/PhoneFramePair';
 
 const serif =
   "var(--font-serif), 'EB Garamond', Georgia, 'Times New Roman', serif";
@@ -106,14 +107,24 @@ function ClientAppProofCard() {
 function ReferralVisualCard() {
   return (
     <div className="flex justify-center py-2">
-      <div className="w-[245px]">
+      <div className="w-[380px]">
         <div className="mb-2 inline-flex w-full items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1A1A1A]" style={{ fontFamily: sans }}>
           AFL AI Assistant • Running on Autopilot
         </div>
-        <PhoneFrame
-          frame="handLeft"
-          src="/screenshot-ai-referral-imessage.png"
-          alt="AFL AI referral iMessage conversation"
+        <PhoneFramePair
+          left={{
+            frame: 'handStraight',
+            src: '/screenshot-referral-sent.png',
+            alt: 'Client app referral screen',
+          }}
+          right={{
+            frame: 'angledRight',
+            src: '/screenshot-ai-referral-imessage.png',
+            alt: 'AFL AI referral iMessage conversation',
+          }}
+          front="right"
+          overlapPx={48}
+          phoneClassName="w-[220px]"
           className="w-full"
         />
         <div className="mt-2 flex justify-center">
@@ -156,14 +167,24 @@ function RetentionVisualCard() {
 function RewriteVisualCard() {
   return (
     <div className="flex justify-center py-2">
-      <div className="w-[245px]">
+      <div className="w-[380px]">
         <div className="mb-2 inline-flex w-full items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1A1A1A]" style={{ fontFamily: sans }}>
           AFL AI Assistant • Running on Autopilot
         </div>
-        <PhoneFrame
-          frame="angledRight"
-          src="/screenshot-rewrite-convo.png"
-          alt="AFL AI rewrite follow-up conversation"
+        <PhoneFramePair
+          left={{
+            frame: 'tiltedUp1',
+            src: '/screenshot-rewrite-app.png',
+            alt: 'Policy anniversary prompt in app',
+          }}
+          right={{
+            frame: 'angled',
+            src: '/screenshot-rewrite-convo.png',
+            alt: 'AFL AI rewrite follow-up conversation',
+          }}
+          front="right"
+          overlapPx={44}
+          phoneClassName="w-[220px]"
           className="w-full"
         />
         <div className="mt-2 flex justify-center">

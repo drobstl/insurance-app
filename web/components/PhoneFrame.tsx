@@ -5,18 +5,29 @@ import type { CSSProperties } from 'react';
 const FRAME_CANVAS_WIDTH = 768;
 const FRAME_CANVAS_HEIGHT = 1376;
 
-type ScreenWindowConfig = {
+export type TransformControls = {
+  perspective?: number;
+  rotateXDeg?: number;
+  rotateYDeg?: number;
+  rotateDeg?: number;
+  skewXDeg?: number;
+  skewYDeg?: number;
+  scale?: number;
+};
+
+export type ScreenWindowConfig = {
   leftPct: number;
   topPct: number;
   widthPct: number;
   heightPct: number;
   borderRadiusPct?: number;
   objectPosition?: string;
+  transformControls?: TransformControls;
   transform?: string;
   transformOrigin?: string;
 };
 
-type FrameConfig = {
+export type FrameConfig = {
   src: string;
   screen: ScreenWindowConfig;
 };
@@ -34,7 +45,11 @@ export const PHONE_FRAME_CONFIGS = {
       widthPct: 58.2,
       heightPct: 61.3,
       borderRadiusPct: 9,
-      transform: 'perspective(1200px) rotate(-5deg) skewX(-1deg)',
+      transformControls: {
+        perspective: 1200,
+        rotateDeg: -5,
+        skewXDeg: -1,
+      },
       transformOrigin: '50% 52%',
     },
   },
@@ -56,7 +71,11 @@ export const PHONE_FRAME_CONFIGS = {
       widthPct: 51.2,
       heightPct: 79.5,
       borderRadiusPct: 7,
-      transform: 'perspective(1200px) rotate(-8deg) skewY(1.5deg)',
+      transformControls: {
+        perspective: 1200,
+        rotateDeg: -8,
+        skewYDeg: 1.5,
+      },
       transformOrigin: '50% 50%',
     },
   },
@@ -68,7 +87,11 @@ export const PHONE_FRAME_CONFIGS = {
       widthPct: 47.7,
       heightPct: 71.1,
       borderRadiusPct: 7,
-      transform: 'perspective(1200px) rotate(8deg) skewY(-1deg)',
+      transformControls: {
+        perspective: 1200,
+        rotateDeg: 8,
+        skewYDeg: -1,
+      },
       transformOrigin: '50% 50%',
     },
   },
@@ -80,7 +103,11 @@ export const PHONE_FRAME_CONFIGS = {
       widthPct: 47.7,
       heightPct: 71.1,
       borderRadiusPct: 7,
-      transform: 'perspective(1200px) rotate(8deg) skewY(-1deg)',
+      transformControls: {
+        perspective: 1200,
+        rotateDeg: 8,
+        skewYDeg: -1,
+      },
       transformOrigin: '50% 50%',
     },
   },
@@ -102,7 +129,10 @@ export const PHONE_FRAME_CONFIGS = {
       widthPct: 66.4,
       heightPct: 70.3,
       borderRadiusPct: 6,
-      transform: 'perspective(1200px) rotateX(9deg)',
+      transformControls: {
+        perspective: 1200,
+        rotateXDeg: 9,
+      },
       transformOrigin: '50% 80%',
     },
   },
@@ -114,7 +144,10 @@ export const PHONE_FRAME_CONFIGS = {
       widthPct: 63.8,
       heightPct: 71.8,
       borderRadiusPct: 6,
-      transform: 'perspective(1200px) rotateX(11deg)',
+      transformControls: {
+        perspective: 1200,
+        rotateXDeg: 11,
+      },
       transformOrigin: '50% 82%',
     },
   },
@@ -133,10 +166,26 @@ type PhoneFrameProps = {
    * Useful for nudging a specific screenshot without changing global frame config.
    */
   screenStyle?: CSSProperties;
+  transformOverride?: TransformControls;
 };
 
 function cx(...parts: Array<string | undefined>): string {
   return parts.filter(Boolean).join(' ');
+}
+
+export function buildScreenTransform(controls?: TransformControls): string | undefined {
+  if (!controls) return undefined;
+
+  const parts: string[] = [];
+  if (typeof controls.perspective === 'number') parts.push(`perspective(${controls.perspective}px)`);
+  if (typeof controls.rotateXDeg === 'number') parts.push(`rotateX(${controls.rotateXDeg}deg)`);
+  if (typeof controls.rotateYDeg === 'number') parts.push(`rotateY(${controls.rotateYDeg}deg)`);
+  if (typeof controls.rotateDeg === 'number') parts.push(`rotate(${controls.rotateDeg}deg)`);
+  if (typeof controls.skewXDeg === 'number') parts.push(`skewX(${controls.skewXDeg}deg)`);
+  if (typeof controls.skewYDeg === 'number') parts.push(`skewY(${controls.skewYDeg}deg)`);
+  if (typeof controls.scale === 'number') parts.push(`scale(${controls.scale})`);
+
+  return parts.length > 0 ? parts.join(' ') : undefined;
 }
 
 export default function PhoneFrame({
@@ -146,10 +195,13 @@ export default function PhoneFrame({
   className,
   screenshotClassName,
   screenStyle,
+  transformOverride,
 }: PhoneFrameProps) {
   const config = PHONE_FRAME_CONFIGS[frame];
   // Widen from literal union so optional fields are safely addressable.
   const screen: ScreenWindowConfig = config.screen;
+  const computedTransform =
+    buildScreenTransform(transformOverride ?? screen.transformControls) ?? screen.transform;
 
   const screenWindowStyle: CSSProperties = {
     left: `${screen.leftPct}%`,
@@ -157,7 +209,7 @@ export default function PhoneFrame({
     width: `${screen.widthPct}%`,
     height: `${screen.heightPct}%`,
     borderRadius: `${screen.borderRadiusPct ?? 6}%`,
-    transform: screen.transform,
+    transform: computedTransform,
     transformOrigin: screen.transformOrigin,
     ...screenStyle,
   };
