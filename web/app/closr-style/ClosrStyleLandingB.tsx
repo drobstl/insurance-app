@@ -120,12 +120,12 @@ function ReferralVisualCard() {
             alt: 'Client app referral screen',
           }}
           right={{
-            frame: 'angledRight',
-            src: '/screenshot-ai-referral-imessage.png',
+            frame: 'straight',
+            src: '/screenshot-referral-message.png',
             alt: 'AFL AI referral iMessage conversation',
           }}
           front="right"
-          overlapPx={78}
+          overlapPx={66}
           phoneClassName="w-[290px] md:w-[330px]"
           className="w-full"
         />
@@ -141,25 +141,31 @@ function ReferralVisualCard() {
 
 function RetentionVisualCard() {
   return (
-    <div className={`${stampCard} p-5`}>
-      <div className="rounded-xl border border-[#1A1A1A]/15 bg-white p-4">
-        <p className="text-[11px] uppercase tracking-[0.1em] text-[#1A1A1A]/60" style={{ fontFamily: sans }}>
-          Conservation Alert
-        </p>
-        <div className="mt-3 rounded-lg border border-[#1A1A1A]/10 bg-[#F8F6EF] p-3">
-          <p className="text-[12px] font-semibold text-[#7f1c34]" style={{ fontFamily: sans }}>
-            HIGH PRIORITY -- chargeback risk
-          </p>
-          <p className="mt-1 text-[11px] text-[#1A1A1A]/75" style={{ fontFamily: sans }}>
-            Matched client + policy. Outreach queued in 2 hours.
-          </p>
+    <div className="flex justify-center py-2">
+      <div className="w-full max-w-[640px]">
+        <div className="mb-2 inline-flex w-full items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1A1A1A]" style={{ fontFamily: sans }}>
+          Conservation Sequence • AI Autopilot
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {['Day 2', 'Day 5', 'Day 7'].map((day) => (
-            <div key={day} className="rounded-md border border-[#1A1A1A]/10 bg-white px-2 py-1.5 text-center text-[10px] text-[#1A1A1A]/70" style={{ fontFamily: sans }}>
-              {day}
-            </div>
-          ))}
+        <PhoneFramePair
+          left={{
+            frame: 'handLeft',
+            src: '/screenshot-retention-message.png',
+            alt: 'Retention outreach message from agent',
+          }}
+          right={{
+            frame: 'tiltedUp2',
+            src: '/screenshot-retention-booking.png',
+            alt: 'Retention booking calendar screen',
+          }}
+          front="left"
+          overlapPx={70}
+          phoneClassName="w-[290px] md:w-[330px]"
+          className="w-full"
+        />
+        <div className="mt-2 flex justify-center">
+          <div className={miniStamp} style={{ fontFamily: sans }}>
+            day 2 / day 5 / day 7 follow-up active
+          </div>
         </div>
       </div>
     </div>
@@ -173,22 +179,37 @@ function RewriteVisualCard() {
         <div className="mb-2 inline-flex w-full items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1A1A1A]" style={{ fontFamily: sans }}>
           AFL AI Assistant • Running on Autopilot
         </div>
-        <PhoneFramePair
-          left={{
-            frame: 'tiltedUp1',
-            src: '/screenshot-rewrite-app.png',
-            alt: 'Policy anniversary prompt in app',
-          }}
-          right={{
-            frame: 'angled',
-            src: '/screenshot-rewrite-convo.png',
-            alt: 'AFL AI rewrite follow-up conversation',
-          }}
-          front="right"
-          overlapPx={74}
-          phoneClassName="w-[290px] md:w-[330px]"
-          className="w-full"
-        />
+        <div className="flex flex-col items-center gap-4 md:flex-row md:items-end md:justify-center">
+          <div className={`${stampCard} relative w-[250px] overflow-hidden p-4 md:w-[290px]`}>
+            <img
+              src="/screenshot-rewrite-alert-dashboard.png"
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full object-cover opacity-20"
+            />
+            <div className="relative">
+              <p className="text-[10px] uppercase tracking-[0.1em] text-[#1A1A1A]/65" style={{ fontFamily: sans }}>
+                Editorial Signal
+              </p>
+              <h4 className="mt-1 text-[24px] leading-[1.05] text-[#1A1A1A]" style={{ fontFamily: serif }}>
+                Anniversary rewrite alert
+              </h4>
+              <p className="mt-2 text-[12px] text-[#1A1A1A]/75" style={{ fontFamily: sans }}>
+                AI flags upcoming policy anniversaries so rewrite outreach is sent before carriers win the conversation.
+              </p>
+              <div className="mt-3 inline-flex rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[11px] text-[#1A1A1A]" style={{ fontFamily: sans }}>
+                dashboard alert detected
+              </div>
+            </div>
+          </div>
+
+          <PhoneFrame
+            frame="straight"
+            src="/screenshot-rewrite-convo.png"
+            alt="AFL AI rewrite follow-up conversation in straight phone frame"
+            className="w-[290px] md:w-[330px]"
+          />
+        </div>
         <div className="mt-2 flex justify-center">
           <div className={miniStamp} style={{ fontFamily: sans }}>
             appointment booked
@@ -202,15 +223,25 @@ function RewriteVisualCard() {
 function RelationshipVisualCard() {
   return (
     <div className="flex justify-center py-2">
-      <div className="w-full max-w-[420px]">
+      <div className="w-full max-w-[640px]">
         <div className="mb-2 inline-flex w-full items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1A1A1A]" style={{ fontFamily: sans }}>
           AFL AI Assistant • Holiday Message on Autopilot
         </div>
-        <PhoneFrame
-          frame="straight"
-          src="/screenshot-thanksgiving-card.png"
-          alt="AFL Thanksgiving client holiday card"
-          className="mx-auto w-[340px] md:w-[380px]"
+        <PhoneFramePair
+          left={{
+            frame: 'tiltedUp1',
+            src: '/screenshot-thanksgiving-notification.png',
+            alt: 'Thanksgiving notification on client phone',
+          }}
+          right={{
+            frame: 'straight',
+            src: '/screenshot-thanksgiving-card.png',
+            alt: 'Thanksgiving holiday card experience',
+          }}
+          front="right"
+          overlapPx={64}
+          phoneClassName="w-[290px] md:w-[330px]"
+          className="w-full"
         />
       </div>
     </div>
