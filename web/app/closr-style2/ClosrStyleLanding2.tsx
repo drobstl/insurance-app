@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useTierCTA } from '@/hooks/useTierCTA';
 import LeakyBucketCalculator from '@/components/LeakyBucketCalculator';
+import { closrStyle2Content, type ClosrStyle2FeatureId } from './content';
 
 const serif =
   "var(--font-serif), 'EB Garamond', Georgia, 'Times New Roman', serif";
@@ -75,37 +76,12 @@ function RetentionVisualCard() {
 
 function RewriteVisualCard() {
   return (
-    <div className="flex justify-center py-2">
-      <div className="flex flex-col items-center gap-4 md:flex-row md:items-end md:justify-center">
-        <div className={`${stampCard} relative w-[220px] overflow-hidden p-4 md:w-[250px] -rotate-3 hover:rotate-0 transition-transform duration-500`}>
-          <img
-            src="/screenshot-rewrite-alert-dashboard.png"
-            alt=""
-            aria-hidden="true"
-            className="absolute inset-0 h-full w-full object-cover opacity-20"
-          />
-          <div className="relative">
-            <p className="text-[10px] uppercase tracking-[0.1em] text-[#1A1A1A]/65" style={{ fontFamily: sans }}>
-              Editorial Signal
-            </p>
-            <h4 className="mt-1 text-[24px] leading-[1.05] text-[#1A1A1A]" style={{ fontFamily: serif }}>
-              Anniversary rewrite alert
-            </h4>
-            <p className="mt-2 text-[12px] text-[#1A1A1A]/75" style={{ fontFamily: sans }}>
-              AI flags upcoming policy anniversaries so rewrite outreach is sent before carriers win the conversation.
-            </p>
-          </div>
-        </div>
-
-        <div className={`${proofScreenshotCard} rotate-3 translate-y-8 hover:rotate-0 hover:translate-y-0`}>
-          <img
-            src="/screenshot-rewrite-convo.png"
-            alt="AFL AI rewrite follow-up conversation screenshot"
-            className="block h-auto w-full"
-          />
-        </div>
-      </div>
-    </div>
+    <ProofScreenshotPair
+      leftSrc="/screenshot-rewrite-convo.png"
+      leftAlt="AFL AI rewrite follow-up conversation screenshot"
+      rightSrc="/screenshot-rewrite-app.png"
+      rightAlt="Rewrite app screen"
+    />
   );
 }
 
@@ -120,43 +96,25 @@ function RelationshipVisualCard() {
   );
 }
 
+function featureVisualById(id: ClosrStyle2FeatureId) {
+  switch (id) {
+    case 'retention':
+      return <RetentionVisualCard />;
+    case 'referrals':
+      return <ReferralVisualCard />;
+    case 'rewrites':
+      return <RewriteVisualCard />;
+    case 'relationships':
+      return <RelationshipVisualCard />;
+    default:
+      return null;
+  }
+}
+
 export default function ClosrStyleLanding2() {
   const tier = useTierCTA();
   const [openPain, setOpenPain] = useState<number | null>(0);
-  const features = [
-    {
-      id: 'retention',
-      title: 'Automated Retention',
-      subtitle: "You move forward, AI's got your back.",
-      body: 'When a policy slips, forward the carrier\'s conservation notice. AI extracts the client info, matches your records, and sends personalized outreach within hours. Then follows up on Day 2, 5, and 7.',
-      href: '/v5/retention',
-      visual: <RetentionVisualCard />,
-    },
-    {
-      id: 'referrals',
-      title: 'One-Tap Referrals',
-      subtitle: "Put a referral button in every client's pocket. AI takes it from there.",
-      body: 'One tap from your client. AI texts the referral via iMessage, qualifies them, and books the appointment on your calendar. You just show up and close.',
-      href: '/v5/referrals',
-      visual: <ReferralVisualCard />,
-    },
-    {
-      id: 'rewrites',
-      title: 'Automated Rewrites',
-      subtitle: 'Every anniversary is a booked appointment.',
-      body: 'When a policy hits its one-year mark, your client hears from you -- not the carrier. AI sends a notification, they book on your calendar. The rewrite comes to you.',
-      href: '/v5/rewrites',
-      visual: <RewriteVisualCard />,
-    },
-    {
-      id: 'relationships',
-      title: 'Relationships on Autopilot',
-      subtitle: "People don't refer agents, they refer relationships.",
-      body: '7+ personalized touchpoints per year, per client -- completely automatic. Holiday cards for 5 major holidays, birthday messages, anniversary alerts, and custom push notifications.',
-      href: '/v5/relationships',
-      visual: <RelationshipVisualCard />,
-    },
-  ] as const;
+  const features = closrStyle2Content.proof.features;
 
   return (
     <div className="min-h-screen bg-[#F5F0E8] text-[#1A1A1A]">
@@ -165,20 +123,22 @@ export default function ClosrStyleLanding2() {
           <div className="flex items-center gap-2">
             <img src="/logo.png" alt="AgentForLife" className="h-6 w-10 object-contain" />
             <span className="text-base text-[#1A1A1A]" style={{ fontFamily: serif }}>
-              AgentForLife
+              {closrStyle2Content.brandName}
             </span>
           </div>
           <div className="hidden items-center gap-6 md:flex">
             <a href="#features" className="text-sm text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
-              Features
+              {closrStyle2Content.nav.features}
             </a>
             <a href="#pricing" className="text-sm text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
-              Pricing
+              {closrStyle2Content.nav.pricing}
             </a>
             <Link href="/login" className="text-sm text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
-              Log in
+              {closrStyle2Content.nav.login}
             </Link>
-            <StampButton href={tier.ctaHref}>{tier.isFoundingOpen ? 'Get Started Free' : tier.ctaText}</StampButton>
+            <StampButton href={tier.ctaHref}>
+              {tier.isFoundingOpen ? closrStyle2Content.nav.primaryCtaWhenFoundingOpen : tier.ctaText}
+            </StampButton>
           </div>
         </div>
       </nav>
@@ -189,19 +149,18 @@ export default function ClosrStyleLanding2() {
             className="text-[3.35rem] leading-[0.93] tracking-[-0.02em] md:text-[6.2rem]"
             style={{ fontFamily: serif }}
           >
-            <span className="text-[#1A1A1A]/45">Chargebacks happen</span>
+            <span className="text-[#1A1A1A]/45">{closrStyle2Content.hero.headlineTop}</span>
             <br />
-            <span className="text-[#1A1A1A]/45">when clients forget </span>
-            <span className="font-bold text-[#1A1A1A]">you</span>
-            <span className="text-[#1A1A1A]"> exist.</span>
+            <span className="text-[#1A1A1A]/45">{closrStyle2Content.hero.headlineLeadIn}</span>
+            <span className="font-bold text-[#1A1A1A]">{closrStyle2Content.hero.headlineEmphasis}</span>
+            <span className="text-[#1A1A1A]">{closrStyle2Content.hero.headlineTail}</span>
           </h1>
           <p className="mx-auto mt-7 max-w-2xl text-[18px] leading-[1.6] text-[#1A1A1A]/72 md:text-[19px]" style={{ fontFamily: sans }}>
-            We built a system that makes sure they never do. A branded app on their phone. Automated
-            touchpoints, one-tap referrals, and conservation outreach running in the background.
+            {closrStyle2Content.hero.body}
           </p>
           <div className="mt-9">
             <StampButton href={tier.ctaHref}>
-              {tier.isFoundingOpen ? 'Lock In My Free Spot' : tier.ctaText}
+              {tier.isFoundingOpen ? closrStyle2Content.hero.primaryCtaWhenFoundingOpen : tier.ctaText}
             </StampButton>
           </div>
         </div>
@@ -209,18 +168,13 @@ export default function ClosrStyleLanding2() {
 
       <section className="border-y border-[#1A1A1A]/15 px-6 py-[58px]">
         <div className="mx-auto grid max-w-5xl grid-cols-2 gap-6 text-center md:grid-cols-4">
-          {[
-            ['97%', 'Client Retention'],
-            ['3x', 'Referral Volume'],
-            ['$0', 'Founding Cost'],
-            ['10 min', 'Setup Time'],
-          ].map(([value, label]) => (
-            <div key={label}>
+          {closrStyle2Content.stats.map((stat) => (
+            <div key={stat.label}>
               <p className="text-[58px] leading-none text-[#1A1A1A]" style={{ fontFamily: serif }}>
-                {value}
+                {stat.value}
               </p>
               <p className="mt-2 text-[15px] text-[#1A1A1A]/70" style={{ fontFamily: sans }}>
-                {label}
+                {stat.label}
               </p>
             </div>
           ))}
@@ -230,23 +184,19 @@ export default function ClosrStyleLanding2() {
       <section id="features" className="mx-4 mt-12 rounded-[56px] bg-[#1A1A1A] px-7 py-16 text-[#FFFDEB] md:mx-6 md:px-[60px]">
         <div className="mx-auto max-w-5xl">
           <p className="text-center text-xs uppercase tracking-[0.14em] text-[#FFFDEB]/60" style={{ fontFamily: sans }}>
-            Protect Your Book
+            {closrStyle2Content.payoff.eyebrow}
           </p>
           <h2 className="mt-4 text-center text-4xl leading-[1.05] md:text-[64px]" style={{ fontFamily: serif }}>
-            Three ways AgentForLife pays for itself
+            {closrStyle2Content.payoff.title}
           </h2>
           <div className="mt-11 grid gap-8 md:grid-cols-3">
-            {[
-              ['Save at-risk policies', 'Conservation alerts trigger outreach before cancellations become chargebacks.'],
-              ['Automate relationship touchpoints', 'Birthdays, holidays, anniversaries, and policy milestones go out on schedule.'],
-              ['Generate warm referrals', 'Clients share in-app and AI qualifies referrals while you stay focused on selling.'],
-            ].map(([title, body]) => (
-              <article key={title}>
+            {closrStyle2Content.payoff.cards.map((card) => (
+              <article key={card.title}>
                 <h3 className="text-[20px] text-[#FFFDEB]" style={{ fontFamily: sans }}>
-                  {title}
+                  {card.title}
                 </h3>
                 <p className="mt-3 text-[15px] leading-relaxed text-[#FFFDEB]/72" style={{ fontFamily: sans }}>
-                  {body}
+                  {card.body}
                 </p>
               </article>
             ))}
@@ -258,10 +208,10 @@ export default function ClosrStyleLanding2() {
         <div className="mx-auto max-w-5xl">
           <div className="mb-12 text-center">
             <p className="text-xs uppercase tracking-[0.14em] text-[#1A1A1A]/58" style={{ fontFamily: sans }}>
-              Product Proof
+              {closrStyle2Content.proof.eyebrow}
             </p>
             <h2 className="mt-3 text-4xl leading-[1.06] text-[#1A1A1A] md:text-[56px]" style={{ fontFamily: serif }}>
-              Four systems working while you sell
+              {closrStyle2Content.proof.title}
             </h2>
           </div>
         </div>
@@ -288,11 +238,11 @@ export default function ClosrStyleLanding2() {
                   className="mt-5 inline-flex items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-4 py-2 text-[13px] font-semibold text-[#1A1A1A] shadow-[2px_2px_0_0_#1A1A1A] transition-transform hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_0_#1A1A1A]"
                   style={{ fontFamily: sans }}
                 >
-                  See how it works
+                  {closrStyle2Content.proof.featureCtaLabel}
                 </Link>
               </div>
               <div className={index % 2 === 0 ? 'md:translate-y-3' : 'md:order-1 md:-translate-y-3'}>
-                {feature.visual}
+                {featureVisualById(feature.id)}
               </div>
             </div>
           ))}
@@ -303,33 +253,17 @@ export default function ClosrStyleLanding2() {
         <div className="mx-auto max-w-6xl">
           <div className="mb-10 text-center">
             <p className="text-xs uppercase tracking-[0.14em] text-[#1A1A1A]/58" style={{ fontFamily: sans }}>
-              The Uncomfortable Truth
+              {closrStyle2Content.pain.eyebrow}
             </p>
             <h2 className="mt-3 text-4xl leading-[1.06] text-[#1A1A1A] md:text-[56px]" style={{ fontFamily: serif }}>
-              Here&apos;s what&apos;s costing you money right now
+              {closrStyle2Content.pain.title}
             </h2>
           </div>
 
           <div className="grid items-start gap-10 lg:grid-cols-2 lg:gap-14">
             <div className={`${stampCard} p-6 md:p-7`}>
               <div className="space-y-4">
-                {[
-                  {
-                    title: 'Silence',
-                    body: "After the close, you become a name they'll never call. Then a lapse notice hits -- and a chargeback follows.",
-                    accent: '#7F1C34',
-                  },
-                  {
-                    title: 'Dead referrals',
-                    body: 'You ask clients to refer friends. They say "sure." They never do. The few who try? The lead goes cold.',
-                    accent: '#8451B8',
-                  },
-                  {
-                    title: 'Missed rewrites',
-                    body: 'Every policy anniversary is a lay-down sale. With no system to flag it, the carrier auto-renews and you miss out.',
-                    accent: '#0F5F56',
-                  },
-                ].map((card, i) => (
+                {closrStyle2Content.pain.cards.map((card, i) => (
                   <div key={card.title} className={i > 0 ? 'border-t border-[#1A1A1A]/12 pt-4' : ''}>
                     <button
                       onClick={() => setOpenPain(openPain === i ? null : i)}
@@ -362,7 +296,7 @@ export default function ClosrStyleLanding2() {
                 initialReferralRate={5}
                 initialRewriteRate={10}
                 ctaHref={tier.ctaHref}
-                ctaText={tier.isFoundingOpen ? 'Stop the Bleeding' : tier.ctaText}
+                ctaText={tier.isFoundingOpen ? closrStyle2Content.pain.calculatorCtaWhenFoundingOpen : tier.ctaText}
                 theme="closr"
               />
             </div>
@@ -373,25 +307,30 @@ export default function ClosrStyleLanding2() {
       <section className="mx-4 rounded-[56px] bg-[#0F5F56] px-7 py-16 text-[#FFFDEB] md:mx-6 md:px-[60px]">
         <div className="mx-auto max-w-5xl text-center">
           <h2 className="text-4xl leading-[1.06] md:text-[64px]" style={{ fontFamily: serif }}>
-            Built for agents who want clients for life
+            {closrStyle2Content.greenCallout.title}
           </h2>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-            <span className="rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-4 py-2 text-sm text-[#1A1A1A]" style={{ fontFamily: sans }}>
-              Retention
-            </span>
-            <span className="rounded-full border border-[#FFFDEB]/70 px-4 py-2 text-sm text-[#FFFDEB]" style={{ fontFamily: sans }}>
-              Referrals
-            </span>
-            <span className="rounded-full border border-[#FFFDEB]/70 px-4 py-2 text-sm text-[#FFFDEB]" style={{ fontFamily: sans }}>
-              Rewrites
-            </span>
+            {closrStyle2Content.greenCallout.chips.map((chip, index) => (
+              <span
+                key={chip}
+                className={
+                  index === 0
+                    ? 'rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-4 py-2 text-sm text-[#1A1A1A]'
+                    : 'rounded-full border border-[#FFFDEB]/70 px-4 py-2 text-sm text-[#FFFDEB]'
+                }
+                style={{ fontFamily: sans }}
+              >
+                {chip}
+              </span>
+            ))}
           </div>
           <p className="mx-auto mt-6 max-w-2xl text-base text-[#FFFDEB]/80" style={{ fontFamily: sans }}>
-            Give clients a branded app experience and give yourself a post-sale system that keeps policies
-            active and referrals flowing.
+            {closrStyle2Content.greenCallout.body}
           </p>
           <div className="mt-8">
-            <StampButton href={tier.ctaHref}>{tier.isFoundingOpen ? 'Start Free' : tier.ctaText}</StampButton>
+            <StampButton href={tier.ctaHref}>
+              {tier.isFoundingOpen ? closrStyle2Content.greenCallout.ctaWhenFoundingOpen : tier.ctaText}
+            </StampButton>
           </div>
         </div>
       </section>
@@ -399,53 +338,43 @@ export default function ClosrStyleLanding2() {
       <section id="pricing" className="mx-4 mt-10 rounded-[56px] bg-[#0F5F56] px-7 py-16 text-[#FFFDEB] md:mx-6 md:px-[60px]">
         <div className="mx-auto max-w-5xl">
           <h2 className="text-center text-4xl leading-[1.06] md:text-[64px]" style={{ fontFamily: serif }}>
-            Pricing
+            {closrStyle2Content.pricing.title}
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-center text-[16px] text-[#FFFDEB]/78" style={{ fontFamily: sans }}>
-            Founding access is free for life while spots remain. Standard access begins at $49/month.
+            {closrStyle2Content.pricing.subtitle}
           </p>
           <div className="mx-auto mt-10 grid max-w-3xl gap-5 md:grid-cols-2">
-            <article className={`${stampCard} p-6 text-[#1A1A1A]`}>
-              <p className="text-sm uppercase tracking-[0.1em] text-[#1A1A1A]/75" style={{ fontFamily: sans }}>
-                Founding Members
-              </p>
-              <p className="mt-3 text-5xl leading-none text-[#1A1A1A]" style={{ fontFamily: serif }}>
-                $0
-              </p>
-              <p className="mt-2 text-sm text-[#1A1A1A]/72" style={{ fontFamily: sans }}>
-                Free for life while 50 founding spots are open.
-              </p>
-              <div className="mt-6">
-                <StampButton href={tier.ctaHref}>Apply now</StampButton>
-              </div>
-            </article>
-            <article className={`${stampCard} p-6 text-[#1A1A1A]`}>
-              <p className="text-sm uppercase tracking-[0.1em] text-[#1A1A1A]/75" style={{ fontFamily: sans }}>
-                Standard
-              </p>
-              <p className="mt-3 text-5xl leading-none text-[#1A1A1A]" style={{ fontFamily: serif }}>
-                $49
-              </p>
-              <p className="mt-2 text-sm text-[#1A1A1A]/72" style={{ fontFamily: sans }}>
-                $49/month. Cancel anytime.
-              </p>
-              <div className="mt-6">
-                <StampButton href={tier.ctaHref}>Get started</StampButton>
-              </div>
-            </article>
+            {closrStyle2Content.pricing.cards.map((card) => (
+              <article key={card.title} className={`${stampCard} p-6 text-[#1A1A1A]`}>
+                <p className="text-sm uppercase tracking-[0.1em] text-[#1A1A1A]/75" style={{ fontFamily: sans }}>
+                  {card.title}
+                </p>
+                <p className="mt-3 text-5xl leading-none text-[#1A1A1A]" style={{ fontFamily: serif }}>
+                  {card.price}
+                </p>
+                <p className="mt-2 text-sm text-[#1A1A1A]/72" style={{ fontFamily: sans }}>
+                  {card.body}
+                </p>
+                <div className="mt-6">
+                  <StampButton href={tier.ctaHref}>
+                    {tier.isFoundingOpen ? card.ctaWhenFoundingOpen : tier.ctaText}
+                  </StampButton>
+                </div>
+              </article>
+            ))}
           </div>
         </div>
       </section>
 
       <section className="px-6 py-24 text-center">
         <h2 className="mx-auto max-w-3xl text-4xl leading-[1.06] text-[#1A1A1A] md:text-[64px]" style={{ fontFamily: serif }}>
-          Keep clients close. Grow by referral.
+          {closrStyle2Content.finalCta.title}
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-[16px] text-[#1A1A1A]/70" style={{ fontFamily: sans }}>
-          Launch in minutes and run your entire post-sale system from one place.
+          {closrStyle2Content.finalCta.body}
         </p>
         <div className="mt-8">
-          <StampButton href={tier.ctaHref}>Lock in my free spot</StampButton>
+          <StampButton href={tier.ctaHref}>{closrStyle2Content.finalCta.ctaLabel}</StampButton>
         </div>
       </section>
 
@@ -454,13 +383,13 @@ export default function ClosrStyleLanding2() {
           <div className="flex items-center gap-2">
             <img src="/logo.png" alt="AgentForLife" className="h-6 w-10 object-contain" />
             <span className="text-base" style={{ fontFamily: serif }}>
-              AgentForLife
+              {closrStyle2Content.brandName}
             </span>
           </div>
           <div className="flex items-center gap-6 text-sm text-[#FFFDEB]/75" style={{ fontFamily: sans }}>
-            <Link href="/privacy">Privacy</Link>
-            <Link href="/terms">Terms</Link>
-            <Link href="/login">Log in</Link>
+            <Link href="/privacy">{closrStyle2Content.footer.links.privacy}</Link>
+            <Link href="/terms">{closrStyle2Content.footer.links.terms}</Link>
+            <Link href="/login">{closrStyle2Content.footer.links.login}</Link>
           </div>
         </div>
       </footer>
