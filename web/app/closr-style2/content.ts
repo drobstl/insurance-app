@@ -7,8 +7,8 @@ export const closrStyle2Content = {
     primaryCtaWhenFoundingOpen: 'Get Started Free',
   },
   hero: {
-    headlineTop: 'Kill chargebacks.',
-    headlineLeadIn: 'Explode your referrals. ',
+    headlineTop: 'Stop chargebacks.',
+    headlineLeadIn: 'Automate referrals and rewrites. ',
     headlineEmphasis: '3x',
     headlineTail: ' your income.',
     body:
