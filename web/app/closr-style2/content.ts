@@ -8,11 +8,11 @@ export const closrStyle2Content = {
   },
   hero: {
     headlineTop: 'Stop chargebacks.',
-    headlineLeadIn: 'Automate referrals and rewrites. ',
+    headlineLeadIn: 'Automate referrals. ',
     headlineEmphasis: '3x',
     headlineTail: ' your income.',
     body:
-      'AgentForLife protects your book and leverages it while you sleep. Your clients get your own branded app, automated touchpoints, one-tap referrals, and policy retention on autopilot. You get peace of mind and a business that compounds.',
+      'AgentForLife protects your book and leverages it while you sleep. Your clients get a personalized app powered by the best AI sales agent on the market. You get peace of mind and a business that compounds.',
     primaryCtaWhenFoundingOpen: 'Lock In My Free Spot',
   },
   stats: [
@@ -40,7 +40,7 @@ export const closrStyle2Content = {
     ],
   },
   proof: {
-    eyebrow: 'Product Proof',
+    eyebrow: 'AgentForLife',
     title: 'Four systems working while you sell',
     featureCtaLabel: 'See how it works',
     features: [
@@ -48,21 +48,21 @@ export const closrStyle2Content = {
         id: 'retention',
         title: 'Automated Retention',
         subtitle: "You move forward, AgentForLife has your back.",
-        body: "When a policy slips, forward the email notice and AgentForLife springs into action with personalized outreach. Then follows up on Day 2, 5, and 7. You sell it, we save it.",
+        body: "When a policy slips AgentForLife springs into action with personalized outreach. Then follows up until its back on the books. You sell it, AgentForLife save it.",
         href: '/v5/retention',
       },
       {
         id: 'referrals',
         title: 'One-Tap Referrals',
-        subtitle: "Put a referral button in every client's pocket. AI takes it from there.",
-        body: 'One tap from your client. AgentForLife texts the referral, qualifies them, and books the appointment on your calendar. You just show up and close.',
+        subtitle: "Put a referral button in every client's pocket. AgentForLife takes it from there.",
+        body: 'One tap from your client. AgentForLife texts the referral, qualifies, and books the appointment. You just show up and close.',
         href: '/v5/referrals',
       },
       {
         id: 'rewrites',
         title: 'Automated Rewrites',
         subtitle: 'Every anniversary is a booked appointment.',
-        body: 'At the one-year mark, your client hears from you -- not the carrier. AgentForLife notifies and books them on your calendar. The rewrite comes to you.',
+        body: 'At the one-year mark, AgentForLife automatically notifies and books your client on your calendar for a policy review. The rewrite comes to you.',
         href: '/v5/rewrites',
       },
       {
