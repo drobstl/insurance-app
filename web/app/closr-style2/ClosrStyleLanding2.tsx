@@ -162,26 +162,95 @@ export default function ClosrStyleLanding2() {
         </div>
       </nav>
 
-      <section className="px-6 pb-24 pt-20 text-center md:pb-28 md:pt-24">
-        <div className="mx-auto max-w-5xl">
-          <h1
-            className="text-[3.35rem] leading-[0.93] tracking-[-0.02em] md:text-[6.2rem]"
-            style={{ fontFamily: serif }}
-          >
-            <span className="text-[#1A1A1A]/45">{closrStyle2Content.hero.headlineTop}</span>
-            <br />
-            <span className="text-[#1A1A1A]/45">{closrStyle2Content.hero.headlineLeadIn}</span>
-            <br />
-            <span className="font-bold text-[#1A1A1A]">{closrStyle2Content.hero.headlineEmphasis}</span>
-            <span className="text-[#1A1A1A]">{closrStyle2Content.hero.headlineTail}</span>
-          </h1>
-          <p className="mx-auto mt-7 max-w-2xl text-[18px] leading-[1.6] text-[#1A1A1A]/72 md:text-[19px]" style={{ fontFamily: sans }}>
-            {closrStyle2Content.hero.body}
-          </p>
-          <div className="mt-9">
-            <StampButton href={tier.ctaHref}>
-              {tier.isFoundingOpen ? closrStyle2Content.hero.primaryCtaWhenFoundingOpen : tier.ctaText}
-            </StampButton>
+      <section className="overflow-hidden px-6 pb-20 pt-14 md:pb-24 md:pt-20">
+        <div className="mx-auto grid w-full max-w-6xl items-center gap-12 lg:grid-cols-[1fr_0.95fr] lg:gap-16">
+          <div>
+            <div
+              className="inline-flex items-center gap-2 rounded-full border border-[#A08A27] bg-[#F8E9A2] px-4 py-2 text-[12px] font-semibold text-[#5A4B12]"
+              style={{ fontFamily: sans }}
+            >
+              <span aria-hidden="true">•</span>
+              <span>{tier.bannerText}</span>
+            </div>
+
+            <h1
+              className="mt-6 max-w-[12ch] text-[3.2rem] leading-[0.95] tracking-[-0.02em] md:text-[5.7rem]"
+              style={{ fontFamily: serif }}
+            >
+              <span className="text-[#1A1A1A]/45">{closrStyle2Content.hero.headlineTop}</span>
+              <br />
+              <span className="text-[#1A1A1A]/45">{closrStyle2Content.hero.headlineLeadIn}</span>
+              <br />
+              <span className="font-bold text-[#1A1A1A]">{closrStyle2Content.hero.headlineEmphasis}</span>
+              <span className="text-[#1A1A1A]">{closrStyle2Content.hero.headlineTail}</span>
+            </h1>
+
+            <p className="mt-6 max-w-xl text-[18px] leading-[1.55] text-[#1A1A1A]/72 md:text-[20px]" style={{ fontFamily: sans }}>
+              {closrStyle2Content.hero.body}
+            </p>
+
+            <div className="mt-8 flex flex-wrap items-center gap-4">
+              <StampButton href={tier.ctaHref}>
+                {tier.isFoundingOpen ? closrStyle2Content.hero.primaryCtaWhenFoundingOpen : tier.ctaText}
+              </StampButton>
+              <p className="text-[13px] text-[#1A1A1A]/62" style={{ fontFamily: sans }}>
+                {tier.ctaSubtext}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-center lg:justify-end">
+            <div className="relative">
+              <div className="absolute -left-14 top-10 hidden lg:block">
+                <span
+                  className="inline-flex -rotate-3 rounded-full border border-[#6F56B3] bg-[#F0D7FF] px-3 py-1.5 text-[11px] font-semibold text-[#2B1F45] shadow-[2px_2px_0_0_rgba(26,26,26,0.15)]"
+                  style={{ fontFamily: sans }}
+                >
+                  Holiday cards
+                </span>
+              </div>
+              <div className="absolute -right-14 top-24 hidden lg:block">
+                <span
+                  className="inline-flex rotate-2 rounded-full border border-[#A44E1C] bg-[#FFD9BF] px-3 py-1.5 text-[11px] font-semibold text-[#52250D] shadow-[2px_2px_0_0_rgba(26,26,26,0.15)]"
+                  style={{ fontFamily: sans }}
+                >
+                  AI referrals
+                </span>
+              </div>
+              <div className="absolute -left-16 bottom-32 hidden lg:block">
+                <span
+                  className="inline-flex rotate-1 rounded-full border border-[#5E1227] bg-[#F7CBD8] px-3 py-1.5 text-[11px] font-semibold text-[#3C0C1A] shadow-[2px_2px_0_0_rgba(26,26,26,0.15)]"
+                  style={{ fontFamily: sans }}
+                >
+                  Rewrite alerts
+                </span>
+              </div>
+              <div className="absolute -right-10 bottom-16 hidden lg:block">
+                <span
+                  className="inline-flex -rotate-2 rounded-full border border-[#0B4D46] bg-[#CDEEE8] px-3 py-1.5 text-[11px] font-semibold text-[#073A35] shadow-[2px_2px_0_0_rgba(26,26,26,0.15)]"
+                  style={{ fontFamily: sans }}
+                >
+                  Conservation
+                </span>
+              </div>
+
+              <div className="w-[300px] rounded-[2.9rem] border-2 border-[#1A1A1A] bg-[#171717] p-3 shadow-[7px_7px_0_0_#1A1A1A] md:w-[325px]">
+                <div className="overflow-hidden rounded-[2.35rem] border border-[#2E2E2E] bg-black">
+                  <video
+                    className="h-auto w-full object-contain"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload="auto"
+                    poster="/app-preview-poster.jpeg"
+                  >
+                    <source src="/app-preview.webm" type="video/webm" />
+                    <source src="/app-preview.mp4" type="video/mp4" />
+                  </video>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
