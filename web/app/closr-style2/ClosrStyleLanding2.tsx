@@ -152,6 +152,7 @@ export default function ClosrStyleLanding2() {
             <span className="text-[#1A1A1A]/45">{closrStyle2Content.hero.headlineTop}</span>
             <br />
             <span className="text-[#1A1A1A]/45">{closrStyle2Content.hero.headlineLeadIn}</span>
+            <br />
             <span className="font-bold text-[#1A1A1A]">{closrStyle2Content.hero.headlineEmphasis}</span>
             <span className="text-[#1A1A1A]">{closrStyle2Content.hero.headlineTail}</span>
           </h1>
