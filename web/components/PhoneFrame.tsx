@@ -2,9 +2,6 @@
 
 import type { CSSProperties } from 'react';
 
-const FRAME_CANVAS_WIDTH = 768;
-const FRAME_CANVAS_HEIGHT = 1376;
-
 export type TransformControls = {
   perspective?: number;
   rotateXDeg?: number;
@@ -247,10 +244,10 @@ export default function PhoneFrame({
   };
 
   return (
-    <div
-      className={cx('relative w-full', className)}
-      style={{ aspectRatio: `${FRAME_CANVAS_WIDTH} / ${FRAME_CANVAS_HEIGHT}` }}
-    >
+    <div className={cx('relative w-full', className)}>
+      {/* Intrinsic-height spacer so layout is stable even if aspect-ratio support varies. */}
+      <img src={config.src} alt="" aria-hidden="true" className="block w-full select-none opacity-0" />
+
       {/* Screenshot goes underneath frame artwork so bezel/hand/shadow naturally overlap it. */}
       <div className="absolute z-10 overflow-hidden" style={screenWindowStyle}>
         <img
