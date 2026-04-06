@@ -148,7 +148,8 @@ export default function PhoneFrame({
   screenStyle,
 }: PhoneFrameProps) {
   const config = PHONE_FRAME_CONFIGS[frame];
-  const screen = config.screen;
+  // Widen from literal union so optional fields are safely addressable.
+  const screen: ScreenWindowConfig = config.screen;
 
   const screenWindowStyle: CSSProperties = {
     left: `${screen.leftPct}%`,
