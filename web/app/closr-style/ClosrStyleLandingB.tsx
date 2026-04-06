@@ -109,18 +109,30 @@ function ReferralVisualCard() {
         <p className="text-[11px] uppercase tracking-[0.1em] text-[#1A1A1A]/60" style={{ fontFamily: sans }}>
           Referral iMessage Flow
         </p>
-        <div className="mt-3 space-y-2">
-          <div className="max-w-[80%] rounded-2xl border border-[#1A1A1A]/10 bg-[#F5F0E8] px-3 py-2 text-[12px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
-            Hey, I wanted to connect you with my insurance agent Daniel.
+        <div className="mt-3">
+          <div className="mx-auto w-[268px] rounded-[30px] border-2 border-[#1A1A1A] bg-[#F8F6EF] p-2 shadow-[6px_6px_0_0_#1A1A1A]">
+            <div className="mx-auto mb-2 h-1.5 w-16 rounded-full bg-[#1A1A1A]/20" />
+            <div className="rounded-[22px] border border-[#1A1A1A]/12 bg-white p-3">
+              <p className="text-[9px] uppercase tracking-[0.12em] text-[#1A1A1A]/55" style={{ fontFamily: sans }}>
+                AFL AI Assistant • Autopilot ON
+              </p>
+              <div className="mt-2 space-y-2">
+                <div className="max-w-[82%] rounded-2xl bg-[#E8E8EC] px-3 py-2 text-[12px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
+                  Hey, I wanted to connect you with my insurance agent Daniel.
+                </div>
+                <div className="ml-auto max-w-[78%] rounded-2xl bg-[#3B9BFF] px-3 py-2 text-[12px] text-white" style={{ fontFamily: sans }}>
+                  We own and need protection.
+                </div>
+                <div className="max-w-[92%] rounded-2xl bg-[#E8E8EC] px-3 py-2 text-[12px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
+                  Perfect. Grab a time here and I&apos;ll walk you through options.
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="ml-auto max-w-[78%] rounded-2xl border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-2 text-[12px] text-[#1A1A1A]" style={{ fontFamily: sans }}>
-            We own and need protection.
-          </div>
-          <div className="max-w-[92%] rounded-2xl border border-[#1A1A1A]/10 bg-[#F5F0E8] px-3 py-2 text-[12px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
-            Perfect. Grab a time here and I&apos;ll walk you through options.
-          </div>
-          <div className={miniStamp} style={{ fontFamily: sans }}>
+          <div className="mt-2 flex justify-center">
+            <div className={miniStamp} style={{ fontFamily: sans }}>
             calendar link sent
+            </div>
           </div>
         </div>
       </div>
@@ -136,7 +148,7 @@ function RetentionVisualCard() {
           Conservation Alert
         </p>
         <div className="mt-3 rounded-lg border border-[#1A1A1A]/10 bg-[#F8F6EF] p-3">
-          <p className="text-[12px] text-[#0F5F56] font-semibold" style={{ fontFamily: sans }}>
+          <p className="text-[12px] font-semibold text-[#7f1c34]" style={{ fontFamily: sans }}>
             HIGH PRIORITY -- chargeback risk
           </p>
           <p className="mt-1 text-[11px] text-[#1A1A1A]/75" style={{ fontFamily: sans }}>
@@ -162,15 +174,27 @@ function RewriteVisualCard() {
         <p className="text-[11px] uppercase tracking-[0.1em] text-[#1A1A1A]/60" style={{ fontFamily: sans }}>
           Anniversary Rewrite
         </p>
-        <div className="mt-3 space-y-2">
-          <div className="ml-auto max-w-[85%] rounded-2xl border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-2 text-[12px] text-[#1A1A1A]" style={{ fontFamily: sans }}>
-            Your policy just hit the one-year mark -- want me to compare rates?
+        <div className="mt-3">
+          <div className="mx-auto w-[268px] rounded-[30px] border-2 border-[#1A1A1A] bg-[#F8F6EF] p-2 shadow-[6px_6px_0_0_#1A1A1A]">
+            <div className="mx-auto mb-2 h-1.5 w-16 rounded-full bg-[#1A1A1A]/20" />
+            <div className="rounded-[22px] border border-[#1A1A1A]/12 bg-white p-3">
+              <p className="text-[9px] uppercase tracking-[0.12em] text-[#1A1A1A]/55" style={{ fontFamily: sans }}>
+                AFL AI Assistant • Autopilot ON
+              </p>
+              <div className="mt-2 space-y-2">
+                <div className="ml-auto max-w-[86%] rounded-2xl bg-[#3B9BFF] px-3 py-2 text-[12px] text-white" style={{ fontFamily: sans }}>
+                  Your policy just hit the one-year mark -- want me to compare rates?
+                </div>
+                <div className="max-w-[78%] rounded-2xl bg-[#E8E8EC] px-3 py-2 text-[12px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
+                  Yes, that would be great.
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="max-w-[78%] rounded-2xl border border-[#1A1A1A]/10 bg-[#F5F0E8] px-3 py-2 text-[12px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
-            Yes, that would be great.
-          </div>
-          <div className={miniStamp} style={{ fontFamily: sans }}>
-            appointment booked
+          <div className="mt-2 flex justify-center">
+            <div className={miniStamp} style={{ fontFamily: sans }}>
+              appointment booked
+            </div>
           </div>
         </div>
       </div>
@@ -185,15 +209,37 @@ function RelationshipVisualCard() {
         <p className="text-[11px] uppercase tracking-[0.1em] text-[#1A1A1A]/60" style={{ fontFamily: sans }}>
           Touchpoints on Autopilot
         </p>
-        <div className="mt-3 space-y-2">
-          <div className="rounded-lg border border-[#1A1A1A]/10 bg-[#F8F6EF] px-3 py-2 text-[11px] text-[#1A1A1A]/80" style={{ fontFamily: sans }}>
-            Thanksgiving greeting delivered
-          </div>
-          <div className="rounded-lg border border-[#1A1A1A]/10 bg-[#F8F6EF] px-3 py-2 text-[11px] text-[#1A1A1A]/80" style={{ fontFamily: sans }}>
-            Birthday message scheduled
-          </div>
-          <div className="rounded-lg border border-[#1A1A1A]/10 bg-[#F8F6EF] px-3 py-2 text-[11px] text-[#1A1A1A]/80" style={{ fontFamily: sans }}>
-            Anniversary reminder queued
+        <div className="mt-3 flex justify-center">
+          <div className="relative h-[312px] w-[184px] overflow-hidden rounded-[30px] border-2 border-[#1A1A1A] bg-gradient-to-b from-[#ff6c4d] to-[#ffa946] p-3 shadow-[6px_6px_0_0_#1A1A1A]">
+            <div className="mx-auto mb-5 h-1.5 w-14 rounded-full bg-white/45" />
+            <div className="mx-auto h-14 w-14 rounded-full border-2 border-white/75 bg-white/35" />
+            <p className="mt-3 text-center text-[11px] font-semibold text-white" style={{ fontFamily: sans }}>
+              Daniel Roberts
+            </p>
+            <p className="text-center text-[10px] text-white/90" style={{ fontFamily: sans }}>
+              Crosswinds Financial Group
+            </p>
+            <p className="mt-3 text-center text-[25px] leading-[1.05] font-bold text-white" style={{ fontFamily: sans }}>
+              Happy Thanksgiving,
+              <br />
+              Daniel!
+            </p>
+            <p className="mx-auto mt-3 max-w-[145px] text-center text-[9px] leading-[1.45] text-white/95" style={{ fontFamily: sans }}>
+              Happy Thanksgiving, John! I&apos;m grateful for the trust you place in me to protect what matters
+              most to your family.
+            </p>
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_15%,rgba(255,255,255,0.2),transparent_55%)]" />
+
+            <span className="leaf-fall absolute left-[14px] top-[10px] h-2.5 w-4 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '0s', animationDuration: '7.4s' }} />
+            <span className="leaf-fall absolute left-[122px] top-[18px] h-2 w-3.5 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '1.1s', animationDuration: '6.4s' }} />
+            <span className="leaf-fall absolute left-[58px] top-[42px] h-2.5 w-4 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '0.8s', animationDuration: '7.8s' }} />
+            <span className="leaf-fall absolute left-[146px] top-[58px] h-2.5 w-4 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '2.2s', animationDuration: '6.9s' }} />
+            <span className="leaf-fall absolute left-[36px] top-[84px] h-2 w-3.5 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '2.8s', animationDuration: '7s' }} />
+            <span className="leaf-fall absolute left-[102px] top-[92px] h-2.5 w-4 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '3.3s', animationDuration: '6.2s' }} />
+            <span className="leaf-fall-slow absolute left-[18px] top-[126px] h-2.5 w-4 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '1.7s', animationDuration: '9.6s' }} />
+            <span className="leaf-fall-slow absolute left-[136px] top-[132px] h-2 w-3.5 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '2.7s', animationDuration: '10.2s' }} />
+            <span className="leaf-fall-slow absolute left-[76px] top-[150px] h-2.5 w-4 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '3.5s', animationDuration: '9.2s' }} />
+            <span className="leaf-fall-slow absolute left-[44px] top-[172px] h-2 w-3.5 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '4.2s', animationDuration: '10.5s' }} />
           </div>
         </div>
       </div>
@@ -334,7 +380,7 @@ export default function ClosrStyleLandingB() {
         </div>
       </section>
 
-      <section className="px-6 py-24 md:py-28">
+      <section className="px-6 py-24 md:py-32">
         <div className="mx-auto max-w-5xl">
           <div className="mb-12 text-center">
             <p className="text-xs uppercase tracking-[0.14em] text-[#1A1A1A]/58" style={{ fontFamily: sans }}>
@@ -345,9 +391,14 @@ export default function ClosrStyleLandingB() {
             </h2>
           </div>
         </div>
-        <div className="mx-auto grid max-w-5xl gap-16">
+        <div className="mx-auto grid max-w-5xl gap-20 md:gap-24">
           {features.map((feature, index) => (
-            <div key={feature.id} className="grid items-center gap-9 md:grid-cols-[1.06fr_0.94fr] md:gap-12">
+            <div
+              key={feature.id}
+              className={`grid items-center gap-10 md:grid-cols-[1.06fr_0.94fr] md:gap-14 ${
+                index > 0 ? 'border-t border-[#1A1A1A]/12 pt-12 md:pt-16' : ''
+              }`}
+            >
               <div className={index % 2 === 0 ? 'md:pr-4' : 'md:order-2 md:pl-4'}>
                 <h3 className="text-[2.15rem] leading-[1.08] text-[#1A1A1A] md:text-[48px]" style={{ fontFamily: serif }}>
                   {feature.title}
@@ -468,6 +519,51 @@ export default function ClosrStyleLandingB() {
           </div>
         </div>
       </footer>
+      <style jsx>{`
+        .leaf-fall {
+          opacity: 0;
+          animation-name: leaf-fall;
+          animation-timing-function: linear;
+          animation-iteration-count: infinite;
+          will-change: transform, opacity;
+        }
+
+        @keyframes leaf-fall {
+          0% {
+            transform: translate3d(0, -10px, 0) rotate(0deg);
+            opacity: 0;
+          }
+          10% {
+            opacity: 0.95;
+          }
+          100% {
+            transform: translate3d(18px, 228px, 0) rotate(220deg);
+            opacity: 0;
+          }
+        }
+
+        .leaf-fall-slow {
+          opacity: 0;
+          animation-name: leaf-fall-slow;
+          animation-timing-function: linear;
+          animation-iteration-count: infinite;
+          will-change: transform, opacity;
+        }
+
+        @keyframes leaf-fall-slow {
+          0% {
+            transform: translate3d(0, -12px, 0) rotate(30deg);
+            opacity: 0;
+          }
+          12% {
+            opacity: 0.85;
+          }
+          100% {
+            transform: translate3d(-14px, 236px, 0) rotate(-190deg);
+            opacity: 0;
+          }
+        }
+      `}</style>
     </div>
   );
 }
