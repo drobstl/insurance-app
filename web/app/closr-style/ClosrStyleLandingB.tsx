@@ -154,8 +154,8 @@ function RetentionVisualCard() {
           }}
           right={{
             frame: 'tiltedUp2',
-            src: '/screenshot-retention-booking.png',
-            alt: 'Retention booking calendar screen',
+            src: '/screenshot-retention-conservation-email.png',
+            alt: 'Conservation alert email screenshot',
           }}
           front="left"
           overlapPx={70}
