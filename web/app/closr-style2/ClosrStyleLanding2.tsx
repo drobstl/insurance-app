@@ -111,6 +111,25 @@ function featureVisualById(id: ClosrStyle2FeatureId) {
   }
 }
 
+function subtitleChipStylesById(id: ClosrStyle2FeatureId) {
+  switch (id) {
+    case 'retention':
+      // Lavender
+      return 'border-[#6F56B3] bg-[#F0D7FF] text-[#2B1F45]';
+    case 'referrals':
+      // Orange
+      return 'border-[#A44E1C] bg-[#FFD9BF] text-[#52250D]';
+    case 'rewrites':
+      // Burgundy
+      return 'border-[#5E1227] bg-[#F7CBD8] text-[#3C0C1A]';
+    case 'relationships':
+      // Deep teal
+      return 'border-[#0B4D46] bg-[#CDEEE8] text-[#073A35]';
+    default:
+      return 'border-[#1A1A1A] bg-[#F0D7FF] text-[#1A1A1A]';
+  }
+}
+
 export default function ClosrStyleLanding2() {
   const tier = useTierCTA();
   const [openPain, setOpenPain] = useState<number | null>(0);
@@ -224,16 +243,18 @@ export default function ClosrStyleLanding2() {
                 index > 0 ? 'border-t border-[#1A1A1A]/12 pt-12 md:pt-16' : ''
               }`}
             >
-              <p
-                className="mx-auto max-w-[36ch] text-center text-[24px] leading-[1.2] text-[#1A1A1A]/88 md:text-[32px]"
-                style={{ fontFamily: serif, fontStyle: 'italic' }}
-              >
-                {feature.subtitle}
-              </p>
+              <div className="flex justify-center">
+                <span
+                  className={`inline-flex max-w-[44ch] items-center justify-center rounded-full border px-4 py-1.5 text-center text-[12px] font-semibold tracking-[0.02em] md:px-5 md:py-2 md:text-[14px] ${subtitleChipStylesById(feature.id)}`}
+                  style={{ fontFamily: sans }}
+                >
+                  {feature.title}
+                </span>
+              </div>
               <div className="mt-8 grid items-center gap-10 md:grid-cols-[0.84fr_1.16fr] md:gap-14">
                 <div className={index % 2 === 0 ? 'md:pr-4' : 'md:order-2 md:pl-4'}>
-                  <h3 className="text-[2.15rem] leading-[1.08] text-[#1A1A1A] md:text-[48px]" style={{ fontFamily: serif }}>
-                    {feature.title}
+                  <h3 className="text-[2.25rem] leading-[1.08] text-[#1A1A1A] md:text-[56px]" style={{ fontFamily: serif }}>
+                    {feature.subtitle}
                   </h3>
                   <p className="mt-4 text-[16px] leading-relaxed text-[#1A1A1A]/72" style={{ fontFamily: sans }}>
                     {feature.body}
