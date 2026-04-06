@@ -104,35 +104,33 @@ function ClientAppProofCard() {
 
 function ReferralVisualCard() {
   return (
-    <div className={`${stampCard} p-5`}>
-      <div className="rounded-xl border border-[#1A1A1A]/15 bg-white p-4">
-        <p className="text-[11px] uppercase tracking-[0.1em] text-[#1A1A1A]/60" style={{ fontFamily: sans }}>
-          Referral iMessage Flow
-        </p>
-        <div className="mt-3">
-          <div className="mx-auto w-[268px] rounded-[30px] border-2 border-[#1A1A1A] bg-[#F8F6EF] p-2 shadow-[6px_6px_0_0_#1A1A1A]">
-            <div className="mx-auto mb-2 h-1.5 w-16 rounded-full bg-[#1A1A1A]/20" />
-            <div className="rounded-[22px] border border-[#1A1A1A]/12 bg-white p-3">
-              <p className="text-[9px] uppercase tracking-[0.12em] text-[#1A1A1A]/55" style={{ fontFamily: sans }}>
-                AFL AI Assistant • Autopilot ON
-              </p>
-              <div className="mt-2 space-y-2">
-                <div className="max-w-[82%] rounded-2xl bg-[#E8E8EC] px-3 py-2 text-[12px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
-                  Hey, I wanted to connect you with my insurance agent Daniel.
-                </div>
-                <div className="ml-auto max-w-[78%] rounded-2xl bg-[#3B9BFF] px-3 py-2 text-[12px] text-white" style={{ fontFamily: sans }}>
-                  We own and need protection.
-                </div>
-                <div className="max-w-[92%] rounded-2xl bg-[#E8E8EC] px-3 py-2 text-[12px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
-                  Perfect. Grab a time here and I&apos;ll walk you through options.
-                </div>
+    <div className="flex justify-center py-2">
+      <div className="w-[210px]">
+        <div className="mb-2 inline-flex w-full items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1A1A1A]" style={{ fontFamily: sans }}>
+          AFL AI Assistant • Running on Autopilot
+        </div>
+        <div className="rounded-[36px] border-2 border-[#1A1A1A] bg-[#F8F6EF] p-2.5 shadow-[7px_7px_0_0_#1A1A1A]">
+          <div className="mx-auto mb-2 h-1.5 w-16 rounded-full bg-[#1A1A1A]/20" />
+          <div className="rounded-[26px] bg-white px-2.5 pb-3 pt-2.5">
+            <p className="text-[9px] uppercase tracking-[0.12em] text-[#0F5F56]" style={{ fontFamily: sans }}>
+              Sent automatically by AFL AI
+            </p>
+            <div className="mt-2 space-y-2">
+              <div className="max-w-[84%] rounded-2xl bg-[#E8E8EC] px-2.5 py-2 text-[11px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
+                Hey, I wanted to connect you with my insurance agent Daniel.
+              </div>
+              <div className="ml-auto max-w-[80%] rounded-2xl bg-[#3B9BFF] px-2.5 py-2 text-[11px] text-white" style={{ fontFamily: sans }}>
+                We own and need protection.
+              </div>
+              <div className="max-w-[94%] rounded-2xl bg-[#E8E8EC] px-2.5 py-2 text-[11px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
+                Perfect. Grab a time here and I&apos;ll walk you through options.
               </div>
             </div>
           </div>
-          <div className="mt-2 flex justify-center">
-            <div className={miniStamp} style={{ fontFamily: sans }}>
+        </div>
+        <div className="mt-2 flex justify-center">
+          <div className={miniStamp} style={{ fontFamily: sans }}>
             calendar link sent
-            </div>
           </div>
         </div>
       </div>
@@ -169,32 +167,30 @@ function RetentionVisualCard() {
 
 function RewriteVisualCard() {
   return (
-    <div className={`${stampCard} p-5`}>
-      <div className="rounded-xl border border-[#1A1A1A]/15 bg-white p-4">
-        <p className="text-[11px] uppercase tracking-[0.1em] text-[#1A1A1A]/60" style={{ fontFamily: sans }}>
-          Anniversary Rewrite
-        </p>
-        <div className="mt-3">
-          <div className="mx-auto w-[268px] rounded-[30px] border-2 border-[#1A1A1A] bg-[#F8F6EF] p-2 shadow-[6px_6px_0_0_#1A1A1A]">
-            <div className="mx-auto mb-2 h-1.5 w-16 rounded-full bg-[#1A1A1A]/20" />
-            <div className="rounded-[22px] border border-[#1A1A1A]/12 bg-white p-3">
-              <p className="text-[9px] uppercase tracking-[0.12em] text-[#1A1A1A]/55" style={{ fontFamily: sans }}>
-                AFL AI Assistant • Autopilot ON
-              </p>
-              <div className="mt-2 space-y-2">
-                <div className="ml-auto max-w-[86%] rounded-2xl bg-[#3B9BFF] px-3 py-2 text-[12px] text-white" style={{ fontFamily: sans }}>
-                  Your policy just hit the one-year mark -- want me to compare rates?
-                </div>
-                <div className="max-w-[78%] rounded-2xl bg-[#E8E8EC] px-3 py-2 text-[12px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
-                  Yes, that would be great.
-                </div>
+    <div className="flex justify-center py-2">
+      <div className="w-[210px]">
+        <div className="mb-2 inline-flex w-full items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1A1A1A]" style={{ fontFamily: sans }}>
+          AFL AI Assistant • Running on Autopilot
+        </div>
+        <div className="rounded-[36px] border-2 border-[#1A1A1A] bg-[#F8F6EF] p-2.5 shadow-[7px_7px_0_0_#1A1A1A]">
+          <div className="mx-auto mb-2 h-1.5 w-16 rounded-full bg-[#1A1A1A]/20" />
+          <div className="rounded-[26px] bg-white px-2.5 pb-3 pt-2.5">
+            <p className="text-[9px] uppercase tracking-[0.12em] text-[#0F5F56]" style={{ fontFamily: sans }}>
+              Sent automatically by AFL AI
+            </p>
+            <div className="mt-2 space-y-2">
+              <div className="ml-auto max-w-[87%] rounded-2xl bg-[#3B9BFF] px-2.5 py-2 text-[11px] text-white" style={{ fontFamily: sans }}>
+                Your policy just hit the one-year mark -- want me to compare rates?
+              </div>
+              <div className="max-w-[80%] rounded-2xl bg-[#E8E8EC] px-2.5 py-2 text-[11px] text-[#1A1A1A]/85" style={{ fontFamily: sans }}>
+                Yes, that would be great.
               </div>
             </div>
           </div>
-          <div className="mt-2 flex justify-center">
-            <div className={miniStamp} style={{ fontFamily: sans }}>
-              appointment booked
-            </div>
+        </div>
+        <div className="mt-2 flex justify-center">
+          <div className={miniStamp} style={{ fontFamily: sans }}>
+            appointment booked
           </div>
         </div>
       </div>
@@ -204,43 +200,41 @@ function RewriteVisualCard() {
 
 function RelationshipVisualCard() {
   return (
-    <div className={`${stampCard} p-5`}>
-      <div className="rounded-xl border border-[#1A1A1A]/15 bg-white p-4">
-        <p className="text-[11px] uppercase tracking-[0.1em] text-[#1A1A1A]/60" style={{ fontFamily: sans }}>
-          Touchpoints on Autopilot
-        </p>
-        <div className="mt-3 flex justify-center">
-          <div className="relative h-[312px] w-[184px] overflow-hidden rounded-[30px] border-2 border-[#1A1A1A] bg-gradient-to-b from-[#ff6c4d] to-[#ffa946] p-3 shadow-[6px_6px_0_0_#1A1A1A]">
-            <div className="mx-auto mb-5 h-1.5 w-14 rounded-full bg-white/45" />
-            <div className="mx-auto h-14 w-14 rounded-full border-2 border-white/75 bg-white/35" />
-            <p className="mt-3 text-center text-[11px] font-semibold text-white" style={{ fontFamily: sans }}>
-              Daniel Roberts
-            </p>
-            <p className="text-center text-[10px] text-white/90" style={{ fontFamily: sans }}>
-              Crosswinds Financial Group
-            </p>
-            <p className="mt-3 text-center text-[25px] leading-[1.05] font-bold text-white" style={{ fontFamily: sans }}>
-              Happy Thanksgiving,
-              <br />
-              Daniel!
-            </p>
-            <p className="mx-auto mt-3 max-w-[145px] text-center text-[9px] leading-[1.45] text-white/95" style={{ fontFamily: sans }}>
-              Happy Thanksgiving, John! I&apos;m grateful for the trust you place in me to protect what matters
-              most to your family.
-            </p>
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_15%,rgba(255,255,255,0.2),transparent_55%)]" />
+    <div className="flex justify-center py-2">
+      <div className="w-[228px]">
+        <div className="mb-2 inline-flex w-full items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1A1A1A]" style={{ fontFamily: sans }}>
+          AFL AI Assistant • Holiday Message on Autopilot
+        </div>
+        <div className="relative h-[392px] w-[220px] overflow-hidden rounded-[40px] border-2 border-[#1A1A1A] bg-gradient-to-b from-[#ff6c4d] to-[#ffa946] p-3 shadow-[8px_8px_0_0_#1A1A1A]">
+          <div className="mx-auto mb-5 h-1.5 w-16 rounded-full bg-white/45" />
+          <div className="mx-auto h-16 w-16 rounded-full border-2 border-white/75 bg-white/35" />
+          <p className="mt-3 text-center text-[12px] font-semibold text-white" style={{ fontFamily: sans }}>
+            Daniel Roberts
+          </p>
+          <p className="text-center text-[10px] text-white/90" style={{ fontFamily: sans }}>
+            Crosswinds Financial Group
+          </p>
+          <p className="mt-3 text-center text-[36px] leading-[1.03] font-bold text-white" style={{ fontFamily: sans }}>
+            Happy Thanksgiving,
+            <br />
+            John!
+          </p>
+          <p className="mx-auto mt-3 max-w-[176px] text-center text-[10px] leading-[1.45] text-white/95" style={{ fontFamily: sans }}>
+            I&apos;m grateful for the trust you place in me to protect what matters most to your family.
+            Enjoy every bite.
+          </p>
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_15%,rgba(255,255,255,0.2),transparent_55%)]" />
 
-            <span className="leaf-fall absolute left-[14px] top-[10px] h-2.5 w-4 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '0s', animationDuration: '7.4s' }} />
-            <span className="leaf-fall absolute left-[122px] top-[18px] h-2 w-3.5 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '1.1s', animationDuration: '6.4s' }} />
-            <span className="leaf-fall absolute left-[58px] top-[42px] h-2.5 w-4 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '0.8s', animationDuration: '7.8s' }} />
-            <span className="leaf-fall absolute left-[146px] top-[58px] h-2.5 w-4 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '2.2s', animationDuration: '6.9s' }} />
-            <span className="leaf-fall absolute left-[36px] top-[84px] h-2 w-3.5 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '2.8s', animationDuration: '7s' }} />
-            <span className="leaf-fall absolute left-[102px] top-[92px] h-2.5 w-4 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '3.3s', animationDuration: '6.2s' }} />
-            <span className="leaf-fall-slow absolute left-[18px] top-[126px] h-2.5 w-4 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '1.7s', animationDuration: '9.6s' }} />
-            <span className="leaf-fall-slow absolute left-[136px] top-[132px] h-2 w-3.5 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '2.7s', animationDuration: '10.2s' }} />
-            <span className="leaf-fall-slow absolute left-[76px] top-[150px] h-2.5 w-4 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '3.5s', animationDuration: '9.2s' }} />
-            <span className="leaf-fall-slow absolute left-[44px] top-[172px] h-2 w-3.5 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '4.2s', animationDuration: '10.5s' }} />
-          </div>
+          <span className="leaf-fall absolute left-[16px] top-[12px] h-3 w-5 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '0s', animationDuration: '7.4s' }} />
+          <span className="leaf-fall absolute left-[148px] top-[20px] h-2.5 w-4.5 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '1.1s', animationDuration: '6.4s' }} />
+          <span className="leaf-fall absolute left-[70px] top-[48px] h-3 w-5 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '0.8s', animationDuration: '7.8s' }} />
+          <span className="leaf-fall absolute left-[174px] top-[62px] h-3 w-5 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '2.2s', animationDuration: '6.9s' }} />
+          <span className="leaf-fall absolute left-[38px] top-[92px] h-2.5 w-4.5 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '2.8s', animationDuration: '7s' }} />
+          <span className="leaf-fall absolute left-[124px] top-[104px] h-3 w-5 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '3.3s', animationDuration: '6.2s' }} />
+          <span className="leaf-fall-slow absolute left-[26px] top-[144px] h-3 w-5 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '1.7s', animationDuration: '9.6s' }} />
+          <span className="leaf-fall-slow absolute left-[166px] top-[152px] h-2.5 w-4.5 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '2.7s', animationDuration: '10.2s' }} />
+          <span className="leaf-fall-slow absolute left-[96px] top-[182px] h-3 w-5 rounded-[70%_35%_70%_35%] bg-[#ff6c4d]" style={{ animationDelay: '3.5s', animationDuration: '9.2s' }} />
+          <span className="leaf-fall-slow absolute left-[52px] top-[222px] h-2.5 w-4.5 rounded-[70%_35%_70%_35%] bg-[#ffa946]" style={{ animationDelay: '4.2s', animationDuration: '10.5s' }} />
         </div>
       </div>
     </div>
@@ -537,7 +531,7 @@ export default function ClosrStyleLandingB() {
             opacity: 0.95;
           }
           100% {
-            transform: translate3d(18px, 228px, 0) rotate(220deg);
+            transform: translate3d(22px, 280px, 0) rotate(260deg);
             opacity: 0;
           }
         }
@@ -559,7 +553,7 @@ export default function ClosrStyleLandingB() {
             opacity: 0.85;
           }
           100% {
-            transform: translate3d(-14px, 236px, 0) rotate(-190deg);
+            transform: translate3d(-20px, 296px, 0) rotate(-220deg);
             opacity: 0;
           }
         }
