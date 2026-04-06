@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { useTierCTA } from '@/hooks/useTierCTA';
 import PhoneFrame from '@/components/PhoneFrame';
 import PhoneFramePair from '@/components/PhoneFramePair';
+import LeakyBucketCalculator from '@/components/LeakyBucketCalculator';
 
 const serif =
   "var(--font-serif), 'EB Garamond', Georgia, 'Times New Roman', serif";
@@ -217,6 +219,7 @@ function RelationshipVisualCard() {
 
 export default function ClosrStyleLandingB() {
   const tier = useTierCTA();
+  const [openPain, setOpenPain] = useState<number | null>(0);
   const features = [
     {
       id: 'referrals',
@@ -390,6 +393,77 @@ export default function ClosrStyleLandingB() {
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="px-6 py-16 md:py-20">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-10 text-center">
+            <p className="text-xs uppercase tracking-[0.14em] text-[#1A1A1A]/58" style={{ fontFamily: sans }}>
+              The Uncomfortable Truth
+            </p>
+            <h2 className="mt-3 text-4xl leading-[1.06] text-[#1A1A1A] md:text-[56px]" style={{ fontFamily: serif }}>
+              Here&apos;s what&apos;s costing you money right now
+            </h2>
+          </div>
+
+          <div className="grid items-start gap-10 lg:grid-cols-2 lg:gap-14">
+            <div className={`${stampCard} p-6 md:p-7`}>
+              <div className="space-y-4">
+                {[
+                  {
+                    title: 'Silence',
+                    body: "After the close, you become a name they'll never call. Then a lapse notice hits -- and a chargeback follows.",
+                    accent: '#7F1C34',
+                  },
+                  {
+                    title: 'Dead referrals',
+                    body: 'You ask clients to refer friends. They say "sure." They never do. The few who try? The lead goes cold.',
+                    accent: '#8451B8',
+                  },
+                  {
+                    title: 'Missed rewrites',
+                    body: 'Every policy anniversary is a lay-down sale. With no system to flag it, the carrier auto-renews and you miss out.',
+                    accent: '#0F5F56',
+                  },
+                ].map((card, i) => (
+                  <div key={card.title} className={i > 0 ? 'border-t border-[#1A1A1A]/12 pt-4' : ''}>
+                    <button
+                      onClick={() => setOpenPain(openPain === i ? null : i)}
+                      className="flex w-full items-start justify-between gap-3 text-left"
+                    >
+                      <h3 className="text-[22px] leading-tight text-[#1A1A1A]" style={{ fontFamily: serif }}>
+                        {card.title}
+                      </h3>
+                      <span
+                        className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#1A1A1A]/20 text-sm"
+                        style={{ color: card.accent }}
+                      >
+                        {openPain === i ? '−' : '+'}
+                      </span>
+                    </button>
+                    {openPain === i && (
+                      <p className="mt-3 text-[15px] leading-relaxed text-[#1A1A1A]/74" style={{ fontFamily: sans }}>
+                        {card.body}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <LeakyBucketCalculator
+                initialBookSize={250000}
+                initialRetentionRate={70}
+                initialReferralRate={5}
+                initialRewriteRate={10}
+                ctaHref={tier.ctaHref}
+                ctaText={tier.isFoundingOpen ? 'Stop the Bleeding' : tier.ctaText}
+                theme="closr"
+              />
+            </div>
+          </div>
         </div>
       </section>
 
