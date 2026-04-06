@@ -44,6 +44,19 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/closr-style', request.url));
   }
 
+  // Closr-style2 sandbox route: UA-aware like home route.
+  if (path === '/closr-style2') {
+    if (mobile) {
+      return NextResponse.rewrite(new URL('/closr-style2/m', request.url));
+    }
+    return NextResponse.next();
+  }
+
+  // Keep desktop URL clean for closr-style2 as well.
+  if (path === '/closr-style2/m' && !mobile) {
+    return NextResponse.redirect(new URL('/closr-style2', request.url));
+  }
+
   // Desktop: redirect /v5 to / so URL stays clean (agentforlife.app)
   if (path === '/v5' && !mobile) {
     return NextResponse.redirect(new URL('/', request.url));
