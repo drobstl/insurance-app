@@ -47,6 +47,10 @@
     {
       "path": "/api/cron/experiment-check",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/ingestion-signing-canary",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

@@ -65,6 +65,9 @@ export async function POST(req: NextRequest): Promise<NextResponse<IngestionV3Su
     }
 
     const exists = await gcsPathExists(gcsPath);
+    // #region agent log
+    fetch('http://127.0.0.1:7412/ingest/09931433-2034-41d9-90f4-26d8a7253b3b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'abd57d'},body:JSON.stringify({sessionId:'abd57d',runId:'pre-fix',hypothesisId:'H8-H9',location:'jobs/route.ts:POST:after-gcs-exists',message:'ingestion_job_gcs_exists_check',data:{gcsPath,exists,mode,fileName:fileName||null,contentType:sourceContentType||null},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     if (!exists) {
       return NextResponse.json(
         {
@@ -151,6 +154,9 @@ export async function POST(req: NextRequest): Promise<NextResponse<IngestionV3Su
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to create ingestion v3 job.';
+    // #region agent log
+    fetch('http://127.0.0.1:7412/ingest/09931433-2034-41d9-90f4-26d8a7253b3b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'abd57d'},body:JSON.stringify({sessionId:'abd57d',runId:'pre-fix',hypothesisId:'H8-H9',location:'jobs/route.ts:POST:catch',message:'ingestion_job_create_failed',data:{errorType:error instanceof Error?error.name:typeof error,errorMessage:message},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     return NextResponse.json(
       {
         success: false,
@@ -170,7 +176,10 @@ async function gcsPathExists(gcsPath: string): Promise<boolean> {
   try {
     const [exists] = await getAdminStorage().bucket().file(gcsPath).exists();
     return !!exists;
-  } catch {
+  } catch (error) {
+    // #region agent log
+    fetch('http://127.0.0.1:7412/ingest/09931433-2034-41d9-90f4-26d8a7253b3b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'abd57d'},body:JSON.stringify({sessionId:'abd57d',runId:'pre-fix',hypothesisId:'H8',location:'jobs/route.ts:gcsPathExists:catch',message:'gcs_exists_check_failed',data:{gcsPath,errorType:error instanceof Error?error.name:typeof error,errorMessage:error instanceof Error?error.message:String(error)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     return false;
   }
 }

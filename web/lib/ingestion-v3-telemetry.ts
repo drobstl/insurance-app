@@ -11,7 +11,10 @@ type IngestionV3TelemetryEventName =
   | 'ingestion_v3_process_succeeded'
   | 'ingestion_v3_process_requeued'
   | 'ingestion_v3_process_failed'
-  | 'ingestion_v3_process_auth_failed';
+  | 'ingestion_v3_process_auth_failed'
+  | 'ingestion_v3_upload_signing_failed'
+  | 'ingestion_v3_signing_canary_succeeded'
+  | 'ingestion_v3_signing_canary_failed';
 
 type IngestionV3TelemetryPayload = Record<string, string | number | boolean | null | undefined>;
 
@@ -143,5 +146,49 @@ export function trackIngestionV3ProcessFailed(params: {
 export function trackIngestionV3ProcessAuthFailed(params: { message: string }) {
   emitTelemetry('ingestion_v3_process_auth_failed', {
     message: params.message,
+  });
+}
+
+export function trackIngestionV3UploadSigningFailed(params: {
+  stage: 'cors_config' | 'generate_signed_url' | 'signed_put';
+  errorCode: string;
+  errorMessage: string;
+}) {
+  emitTelemetry('ingestion_v3_upload_signing_failed', {
+    stage: params.stage,
+    error_code: params.errorCode,
+    error_message: params.errorMessage,
+  });
+}
+
+export function trackIngestionV3SigningCanarySucceeded(params: {
+  objectPath: string;
+  totalMs: number;
+  signUrlMs: number;
+  putMs: number;
+  verifyMs: number;
+}) {
+  emitTelemetry('ingestion_v3_signing_canary_succeeded', {
+    object_path: params.objectPath,
+    total_ms: params.totalMs,
+    sign_url_ms: params.signUrlMs,
+    put_ms: params.putMs,
+    verify_ms: params.verifyMs,
+  });
+}
+
+export function trackIngestionV3SigningCanaryFailed(params: {
+  stage: string;
+  errorCode: string;
+  errorMessage: string;
+  objectPath: string;
+  totalMs: number;
+}) {
+  emitTelemetry('ingestion_v3_signing_canary_failed', {
+    stage: params.stage,
+    error_code: params.errorCode,
+    error_message: params.errorMessage,
+    object_path: params.objectPath,
+    total_ms: params.totalMs,
   });
 }

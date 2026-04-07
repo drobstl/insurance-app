@@ -156,6 +156,10 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
     setTimingSummary(null);
 
     try {
+      const runId = `pre-fix:${Date.now()}`;
+      // #region agent log
+      fetch('http://127.0.0.1:7412/ingest/09931433-2034-41d9-90f4-26d8a7253b3b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'abd57d'},body:JSON.stringify({sessionId:'abd57d',runId,hypothesisId:'H3-H5',location:'ApplicationUpload.tsx:processFile:start',message:'upload_process_started',data:{fileName:file.name,fileSize:file.size,fileType:file.type||null},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       setProcessingLabel('Uploading file...');
       const stopUploadProgress = startAutoProgress(setProcessingProgress, 10, 35, 2, 700);
       let gcsPath: string;
@@ -194,8 +198,14 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
                 body: file,
               }).then((res) => {
                 if (!res.ok) {
-                  throw new Error(`Upload failed (${res.status}).`);
+                  return res.text().then((bodyText) => {
+                    // #region agent log
+                    fetch('http://127.0.0.1:7412/ingest/09931433-2034-41d9-90f4-26d8a7253b3b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'abd57d'},body:JSON.stringify({sessionId:'abd57d',runId:'pre-fix',hypothesisId:'H10-H13',location:'ApplicationUpload.tsx:processFile:gcs-put-non-ok',message:'gcs_upload_put_non_ok',data:{status:res.status,statusText:res.statusText,bodySnippet:bodyText.slice(0,240)},timestamp:Date.now()})}).catch(()=>{});
+                    // #endregion
+                    throw new Error(`Upload failed (${res.status}). ${bodyText.slice(0, 200)}`);
+                  });
                 }
+                return undefined;
               }),
               GCS_UPLOAD_TIMEOUT_MS,
               'Upload timed out while sending file.',
@@ -271,7 +281,11 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
         }
 
         if (statusBody.job.status === 'failed') {
-          throw new Error(statusBody.job.error?.message || 'Failed to parse the application.');
+          const code = statusBody.job.error?.code ? ` [${statusBody.job.error.code}]` : '';
+          // #region agent log
+          fetch('http://127.0.0.1:7412/ingest/09931433-2034-41d9-90f4-26d8a7253b3b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'abd57d'},body:JSON.stringify({sessionId:'abd57d',runId,hypothesisId:'H2-H3-H5',location:'ApplicationUpload.tsx:processFile:status-failed',message:'job_status_failed',data:{jobId:created.jobId,errorCode:statusBody.job.error?.code||null,errorMessage:statusBody.job.error?.message||null,retryable:statusBody.job.error?.retryable??null,terminal:statusBody.job.error?.terminal??null},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
+          throw new Error(`${statusBody.job.error?.message || 'Failed to parse the application.'}${code}`);
         }
 
         if (statusBody.job.status === 'queued' || statusBody.job.status === 'uploading') {
@@ -324,6 +338,9 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
           message = err.message;
         }
       }
+      // #region agent log
+      fetch('http://127.0.0.1:7412/ingest/09931433-2034-41d9-90f4-26d8a7253b3b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'abd57d'},body:JSON.stringify({sessionId:'abd57d',runId:'pre-fix:catch',hypothesisId:'H3-H5',location:'ApplicationUpload.tsx:processFile:catch',message:'upload_flow_failed_at_ui',data:{errorType:err instanceof Error?err.name:typeof err,errorMessage:err instanceof Error?err.message:String(err),userMessage:message},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       setErrorMessage(message);
       setStage('error');
     } finally {

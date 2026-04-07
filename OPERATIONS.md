@@ -60,6 +60,7 @@
 ## Health Monitoring
 
 **Health Check Endpoint**: https://agentforlife.app/api/health
+**Ingestion Signing Check**: https://agentforlife.app/api/health/ingestion-signing
 
 Set up monitoring with a free service:
 1. Go to https://uptimerobot.com (free tier)
@@ -69,6 +70,28 @@ Set up monitoring with a free service:
    - URL: https://agentforlife.app/api/health
    - Monitoring Interval: 5 minutes
 4. Set up alert contacts (your email/phone)
+
+### Ingestion Upload Alerting (NEW)
+
+The application upload path now emits structured alert logs and a canary check:
+
+- **Cron canary**: `/api/cron/ingestion-signing-canary` runs every 15 minutes (configured in `web/vercel.json`)
+- **On-demand health check**: `/api/health/ingestion-signing` returns `503` when signed upload is broken
+- **Alert log marker**: `[ingestion-v3-alert]` in Vercel logs
+
+Where to see alerts:
+1. **Vercel Dashboard → Project → Observability → Logs**
+2. Filter for: `ingestion-v3-alert`
+3. You will see fields like:
+   - `errorCode=SIGNATURE_MISMATCH`
+   - `errorCode=INVALID_JWT_SIGNATURE`
+   - `stage=cors_config|generate_signed_url|signed_put`
+
+Recommended monitor setup:
+1. Add an UptimeRobot/Better Uptime monitor for `https://agentforlife.app/api/health/ingestion-signing`
+2. Alert if HTTP status is not `200`
+3. Keep interval at 5 minutes
+4. Add SMS + email escalation for this monitor
 
 ## Maintenance Calendar
 
@@ -148,6 +171,15 @@ Set these as recurring calendar reminders:
 **"Network error" on upload:**
 - Browser is failing the cross-origin PUT to GCS. Current code retries 3 times automatically.
 - If persistent: check GCS bucket CORS config allows PUT from `https://agentforlife.app`.
+
+**"Upload failed (403) ... SignatureDoesNotMatch"**
+- This is a signing failure (service-account key mismatch/stale key).
+- Check Vercel logs for `[ingestion-v3-alert] upload signing failure`.
+- Verify `FIREBASE_ADMIN_SERVICE_ACCOUNT_BASE64` matches the active key for service account:
+  `firebase-adminsdk-fbsvc@insurance-agent-app-6f613.iam.gserviceaccount.com`
+- After updating the key, redeploy/restart and re-test:
+  - `GET /api/health/ingestion-signing` should return 200
+  - Upload flow should no longer require fallback.
 
 **"Couldn't read the application" / extraction failures:**
 - Check Vercel function logs for the `/api/ingestion/v3/jobs/*/process` route.
