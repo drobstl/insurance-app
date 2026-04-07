@@ -320,23 +320,23 @@ export default function ClosrStyleLanding2() {
                   {feature.title}
                 </span>
               </div>
-              <div className="mt-8 grid items-center gap-10 lg:grid-cols-[1.08fr_0.92fr] lg:gap-12">
-                <div className={index % 2 === 0 ? 'lg:pr-4' : 'lg:order-2 lg:pl-4'}>
-                  <h3 className="text-[2.15rem] leading-[1.12] text-[#1A1A1A] md:text-[3.1rem]" style={{ fontFamily: serif }}>
+              <div className="mt-8 grid items-start gap-10 lg:grid-cols-[1.22fr_0.78fr] lg:gap-10">
+                <div className={index % 2 === 0 ? 'max-w-[620px] lg:pr-5' : 'max-w-[620px] lg:order-2 lg:pl-5'}>
+                  <h3 className="text-balance text-[2rem] leading-[1.16] tracking-[-0.012em] text-[#1A1A1A] md:text-[3.25rem]" style={{ fontFamily: serif }}>
                     {feature.subtitle}
                   </h3>
-                  <p className="mt-5 max-w-[56ch] text-[17px] leading-[1.65] text-[#1A1A1A]/72 md:text-[18px]" style={{ fontFamily: sans }}>
+                  <p className="mt-5 max-w-[62ch] text-[17px] leading-[1.72] text-[#1A1A1A]/72 md:text-[18px]" style={{ fontFamily: sans }}>
                     {feature.body}
                   </p>
                   <Link
                     href={feature.href}
-                    className="mt-5 inline-flex items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-4 py-2 text-[13px] font-semibold text-[#1A1A1A] shadow-[2px_2px_0_0_#1A1A1A] transition-transform hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_0_#1A1A1A]"
+                    className="mt-6 inline-flex items-center justify-center rounded-full border border-[#1A1A1A] bg-[#F0D7FF] px-4 py-2 text-[13px] font-semibold text-[#1A1A1A] shadow-[2px_2px_0_0_#1A1A1A] transition-transform hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_0_#1A1A1A]"
                     style={{ fontFamily: sans }}
                   >
                     {closrStyle2Content.proof.featureCtaLabel}
                   </Link>
                 </div>
-                <div className={index % 2 === 0 ? 'lg:translate-y-3' : 'lg:order-1 lg:-translate-y-3'}>
+                <div className={index % 2 === 0 ? 'justify-self-center lg:translate-y-2' : 'justify-self-center lg:order-1 lg:-translate-y-2'}>
                   {featureVisualById(feature.id)}
                 </div>
               </div>
