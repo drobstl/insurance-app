@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { doc, collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -268,7 +268,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, agentProfile, isAdmin, handleLogout } = useDashboard();
 
-  const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
   const [showCancelWarning, setShowCancelWarning] = useState(false);
@@ -281,8 +280,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const [tickerStats, setTickerStats] = useState<AgentAggregates | null>(null);
   const [tickerClientCount, setTickerClientCount] = useState(0);
 
-  const expandTimeout = useRef<NodeJS.Timeout | null>(null);
-  const collapseTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -310,16 +307,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       setAdminOpen(true);
     }
   }, [pathname]);
-
-  const handleSidebarEnter = useCallback(() => {
-    if (collapseTimeout.current) clearTimeout(collapseTimeout.current);
-    expandTimeout.current = setTimeout(() => setSidebarExpanded(true), 200);
-  }, []);
-
-  const handleSidebarLeave = useCallback(() => {
-    if (expandTimeout.current) clearTimeout(expandTimeout.current);
-    collapseTimeout.current = setTimeout(() => setSidebarExpanded(false), 200);
-  }, []);
 
   const handleManageSubscription = async () => {
     if (!user) return;
@@ -361,13 +348,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-[#e4e4e4] flex">
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 h-full bg-[#005851] z-50 transition-all duration-300 ${sidebarExpanded ? 'w-56' : 'w-16'}`}
-        onMouseEnter={handleSidebarEnter}
-        onMouseLeave={handleSidebarLeave}
+        className="fixed left-0 top-0 h-full bg-[#005851] z-50 w-56"
       >
         <div className="h-14 flex items-center px-4 border-b border-white/10">
           <img src="/logo.png" alt="AgentForLife™" className="w-11 h-7 object-contain" />
-          <span className={`ml-3 text-white text-lg whitespace-nowrap overflow-hidden transition-all duration-300 brand-title ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
+          <span className="ml-3 text-white text-lg whitespace-nowrap overflow-hidden brand-title opacity-100 w-auto">
             AgentForLife™
           </span>
         </div>
@@ -377,7 +362,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             <button
               key={item.key}
               onClick={() => router.push(item.path)}
-              title={!sidebarExpanded ? item.label : undefined}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
                 activeKey === item.key
                   ? 'bg-[#daf3f0] text-[#005851]'
@@ -387,14 +371,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               <div className="relative shrink-0">
                 {item.icon}
               </div>
-              <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
+              <span className="whitespace-nowrap overflow-hidden text-sm font-semibold opacity-100 w-auto">
                 {item.label}
               </span>
-              {!sidebarExpanded && (
-                <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-[#0A3D3D] text-white text-xs font-medium rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-[60] shadow-lg">
-                  {item.label}
-                </div>
-              )}
             </button>
           ))}
 
@@ -404,8 +383,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
               <div className="relative group/admin">
                 <button
-                  onClick={() => sidebarExpanded && setAdminOpen(!adminOpen)}
-                  title={!sidebarExpanded ? 'Admin' : undefined}
+                  onClick={() => setAdminOpen(!adminOpen)}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 relative ${
                     isAdminRoute
                       ? 'bg-white/15 text-white'
@@ -417,69 +395,44 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                     </svg>
                   </div>
-                  <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold flex-1 text-left ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
+                  <span className="whitespace-nowrap overflow-hidden text-sm font-semibold flex-1 text-left opacity-100 w-auto">
                     Admin
                   </span>
-                  {sidebarExpanded && (
-                    <svg className={`w-4 h-4 shrink-0 transition-transform duration-200 ${adminOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  )}
+                  <svg className={`w-4 h-4 shrink-0 transition-transform duration-200 ${adminOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </button>
 
-                {sidebarExpanded && (
-                  <div
-                    className="grid transition-[grid-template-rows] duration-200 ease-in-out"
-                    style={{ gridTemplateRows: adminOpen ? '1fr' : '0fr' }}
-                  >
-                    <div className="overflow-hidden">
-                      <div className="pl-3 mt-1 space-y-0.5">
-                        {ADMIN_NAV_ITEMS.map((item) => (
-                          <button
-                            key={item.key}
-                            onClick={() => router.push(item.path)}
-                            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-[5px] transition-all duration-200 ${
-                              activeAdminKey === item.key
-                                ? 'bg-[#daf3f0] text-[#005851]'
-                                : 'text-white/70 hover:bg-white/10 hover:text-white'
-                            }`}
-                          >
-                            {item.icon}
-                            <span className="text-xs font-semibold whitespace-nowrap">{item.label}</span>
-                          </button>
-                        ))}
-                      </div>
+                <div
+                  className="grid transition-[grid-template-rows] duration-200 ease-in-out"
+                  style={{ gridTemplateRows: adminOpen ? '1fr' : '0fr' }}
+                >
+                  <div className="overflow-hidden">
+                    <div className="pl-3 mt-1 space-y-0.5">
+                      {ADMIN_NAV_ITEMS.map((item) => (
+                        <button
+                          key={item.key}
+                          onClick={() => router.push(item.path)}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-[5px] transition-all duration-200 ${
+                            activeAdminKey === item.key
+                              ? 'bg-[#daf3f0] text-[#005851]'
+                              : 'text-white/70 hover:bg-white/10 hover:text-white'
+                          }`}
+                        >
+                          {item.icon}
+                          <span className="text-xs font-semibold whitespace-nowrap">{item.label}</span>
+                        </button>
+                      ))}
                     </div>
                   </div>
-                )}
-
-                {!sidebarExpanded && (
-                  <div className="absolute left-full top-0 ml-2 py-2 bg-[#0A3D3D] rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/admin:opacity-100 group-hover/admin:pointer-events-auto transition-opacity duration-150 z-[60] min-w-[170px]">
-                    <div className="px-3 py-1.5 text-[10px] font-bold text-white/50 uppercase tracking-wider">Admin</div>
-                    {ADMIN_NAV_ITEMS.map((item) => (
-                      <button
-                        key={item.key}
-                        onClick={() => router.push(item.path)}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${
-                          activeAdminKey === item.key
-                            ? 'bg-white/15 text-white'
-                            : 'text-white/80 hover:bg-white/10 hover:text-white'
-                        }`}
-                      >
-                        {item.icon}
-                        <span className="text-xs font-medium whitespace-nowrap">{item.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                </div>
               </div>
             </>
           )}
 
           <button
             onClick={() => router.push('/dashboard/settings')}
-            title={!sidebarExpanded ? 'Settings' : undefined}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 ${
               activeKey === 'settings'
                 ? 'bg-[#daf3f0] text-[#005851]'
                 : 'text-white/80 hover:bg-white/10 hover:text-white'
@@ -489,20 +442,15 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
+            <span className="whitespace-nowrap overflow-hidden text-sm font-semibold opacity-100 w-auto">
               Settings
             </span>
-            {!sidebarExpanded && (
-              <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-[#0A3D3D] text-white text-xs font-medium rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-[60] shadow-lg">
-                Settings
-              </div>
-            )}
           </button>
         </nav>
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 ml-16 flex flex-col min-h-screen overflow-hidden">
+      <div className="flex-1 ml-56 flex flex-col min-h-screen overflow-hidden">
         {/* Header */}
         <header className="h-14 bg-white border-b border-[#d0d0d0] sticky top-0 z-40 flex items-center justify-between px-6">
           <div className="flex items-center gap-2">

@@ -2278,7 +2278,7 @@ export default function ClientsPage() {
 
       {/* Anniversary Alert Banner */}
       {anniversaryAlerts.length > 0 && !anniversaryDismissed && (
-        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-[5px] p-4">
+        <div className="mb-6 bg-amber-50 rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-4">
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 bg-amber-100 rounded-[5px] flex items-center justify-center shrink-0 mt-0.5">
@@ -2324,7 +2324,7 @@ export default function ClientsPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={handleOpenModal}
-            className="px-4 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors flex items-center gap-2 text-sm"
+            className="px-4 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors flex items-center gap-2 text-sm"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -2345,7 +2345,7 @@ export default function ClientsPage() {
               setIntroMessage(DEFAULT_INTRO_TEMPLATE);
               setIntroSentCount(null);
             }}
-            className="px-4 py-2.5 bg-white hover:bg-gray-50 text-[#000000] font-semibold rounded-[5px] border border-[#d0d0d0] transition-colors flex items-center gap-2 text-sm"
+            className="px-4 py-2.5 bg-white hover:bg-gray-50 text-[#000000] font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors flex items-center gap-2 text-sm"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -2363,7 +2363,7 @@ export default function ClientsPage() {
             placeholder="Search clients..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] placeholder-[#707070] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+            className="w-full pl-10 pr-4 py-2.5 bg-white rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] text-sm text-[#000000] placeholder-[#707070] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
           />
         </div>
       </div>
@@ -2380,7 +2380,7 @@ export default function ClientsPage() {
           </div>
         </div>
       ) : clients.length === 0 ? (
-        <div className="bg-white rounded-[5px] border border-[#d0d0d0] p-12 text-center">
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-12 text-center">
           <div className="w-16 h-16 bg-[#daf3f0] rounded-full flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-[#005851]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -2398,7 +2398,7 @@ export default function ClientsPage() {
           </button>
         </div>
       ) : filteredClients.length === 0 ? (
-        <div className="bg-white rounded-[5px] border border-[#d0d0d0] p-12 text-center">
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-12 text-center">
           <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -2410,7 +2410,7 @@ export default function ClientsPage() {
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-[5px] border border-[#d0d0d0] overflow-hidden">
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden">
           {/* Desktop table */}
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
