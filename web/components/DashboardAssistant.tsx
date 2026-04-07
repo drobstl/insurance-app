@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type PanInfo } from 'framer-motion';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import { captureEvent } from '../lib/posthog';
 import { ANALYTICS_EVENTS } from '../lib/analytics-events';
@@ -24,6 +24,10 @@ const LINK_REGEX = /(\[[^\]]+\]\([^)]+\))/g;
 const LINK_MATCH_REGEX = /^\[([^\]]+)\]\(([^)]+)\)$/;
 const BOLD_REGEX = /(\*\*[^*]+\*\*)/g;
 const BOLD_MATCH_REGEX = /^\*\*([^*]+)\*\*$/;
+const PATCH_DRAG_HOLD_MS = 280;
+const PATCH_OFFSET_STORAGE_KEY = 'patch-fab-offset-v1';
+const PATCH_BUTTON_SIZE_PX = 44;
+const PATCH_MIN_MARGIN_PX = 12;
 
 function parseLinks(text: string): React.ReactNode[] {
   const parts = text.split(LINK_REGEX);
@@ -119,6 +123,10 @@ export default function DashboardAssistant() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const dragHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressClickRef = useRef(false);
+  const [fabOffset, setFabOffset] = useState({ x: 0, y: 0 });
+  const [dragArmed, setDragArmed] = useState(false);
 
   // Tilt: two 10deg nods back-to-back, then rest, then random delay and repeat
   useEffect(() => {
@@ -177,6 +185,49 @@ export default function DashboardAssistant() {
   useEffect(() => {
     const img = new Image();
     img.src = '/patch-face-wink.png';
+  }, []);
+
+  const clampFabOffset = useCallback((next: { x: number; y: number }) => {
+    if (typeof window === 'undefined') return next;
+    const maxLeft = Math.min(0, -(window.innerWidth - PATCH_BUTTON_SIZE_PX - PATCH_MIN_MARGIN_PX * 2));
+    const maxUp = Math.min(0, -(window.innerHeight - PATCH_BUTTON_SIZE_PX - PATCH_MIN_MARGIN_PX * 2));
+    return {
+      x: Math.max(maxLeft, Math.min(0, next.x)),
+      y: Math.max(maxUp, Math.min(0, next.y)),
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raw = window.localStorage.getItem(PATCH_OFFSET_STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as { x?: number; y?: number };
+      const x = typeof parsed.x === 'number' ? parsed.x : 0;
+      const y = typeof parsed.y === 'number' ? parsed.y : 0;
+      setFabOffset(clampFabOffset({ x, y }));
+    } catch {
+      // Ignore malformed local state and use defaults.
+    }
+  }, [clampFabOffset]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(PATCH_OFFSET_STORAGE_KEY, JSON.stringify(fabOffset));
+  }, [fabOffset]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setFabOffset((prev) => clampFabOffset(prev));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [clampFabOffset]);
+
+  const clearDragHoldTimer = useCallback(() => {
+    if (!dragHoldTimerRef.current) return;
+    clearTimeout(dragHoldTimerRef.current);
+    dragHoldTimerRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -284,21 +335,56 @@ export default function DashboardAssistant() {
     sendMessage(input);
   };
 
+  const handleFabPointerDown = () => {
+    clearDragHoldTimer();
+    dragHoldTimerRef.current = setTimeout(() => {
+      setDragArmed(true);
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(8);
+      }
+    }, PATCH_DRAG_HOLD_MS);
+  };
+
+  const handleFabPointerUpOrCancel = () => {
+    clearDragHoldTimer();
+    setDragArmed(false);
+  };
+
+  const handleFabDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    suppressClickRef.current = true;
+    setDragArmed(false);
+    setFabOffset((prev) => clampFabOffset({ x: prev.x + info.offset.x, y: prev.y + info.offset.y }));
+  };
+
   return (
     <>
       {/* Floating mascot button */}
       <motion.button
-        onClick={() =>
+        onClick={() => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false;
+            return;
+          }
           setOpen((prev) => {
             const next = !prev;
             if (next && messages.length === 0) {
               captureEvent(ANALYTICS_EVENTS.PATCH_CONVERSATION_STARTED, { entry: 'floating_button' });
             }
             return next;
-          })
-        }
-        className="fixed bottom-5 right-5 z-50 w-11 h-11 rounded-full flex items-center justify-center bg-transparent border border-gray-200/80 shadow-[0_4px_12px_rgba(0,0,0,0.12)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.15)] p-0 transition-shadow"
-        animate={{ rotate: open ? 0 : tiltDeg }}
+          });
+        }}
+        onPointerDown={handleFabPointerDown}
+        onPointerUp={handleFabPointerUpOrCancel}
+        onPointerCancel={handleFabPointerUpOrCancel}
+        drag={dragArmed}
+        dragMomentum={false}
+        dragElastic={0}
+        onDragStart={() => {
+          suppressClickRef.current = true;
+        }}
+        onDragEnd={handleFabDragEnd}
+        className="fixed bottom-24 md:bottom-5 right-4 md:right-5 z-50 w-11 h-11 rounded-full flex items-center justify-center bg-transparent border border-gray-200/80 shadow-[0_4px_12px_rgba(0,0,0,0.12)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.15)] p-0 transition-shadow"
+        animate={{ rotate: open ? 0 : tiltDeg, x: fabOffset.x, y: fabOffset.y }}
         transition={{ rotate: { duration: 0.35, ease: 'easeInOut' } }}
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.95 }}
@@ -341,7 +427,7 @@ export default function DashboardAssistant() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="fixed bottom-[60px] right-5 z-50 w-[380px] max-h-[520px] bg-white rounded-[12px] shadow-2xl border border-[#e0e0e0] flex flex-col overflow-hidden"
+            className="fixed bottom-[128px] md:bottom-[60px] right-4 md:right-5 z-50 w-[calc(100vw-2rem)] max-w-[380px] max-h-[60vh] md:max-h-[520px] bg-white rounded-[12px] shadow-2xl border border-[#e0e0e0] flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center gap-3 px-4 py-3 bg-[#005851] text-white shrink-0">

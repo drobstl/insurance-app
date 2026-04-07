@@ -3,6 +3,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
+import { buildHolidayCardMessage, resolveClientLanguage, type HolidayCardKey } from '../../../../lib/client-language';
 
 /**
  * Daily cron job: on US holidays, sends a personalized push notification to
@@ -140,10 +141,14 @@ export async function GET(req: NextRequest) {
 
         // 5. Build personalized notification
         const firstName = clientName.split(' ')[0];
-        const pushTitle = `${todaysHoliday.name} Greetings`;
-        const pushBody = todaysHoliday.greeting
-          .replace('{firstName}', firstName)
-          .replace('{agentSignature}', agentSignature);
+        const localizedHoliday = buildHolidayCardMessage({
+          holiday: todaysHoliday.id as HolidayCardKey,
+          firstName,
+          agentSignature,
+          language: resolveClientLanguage(clientData.preferredLanguage),
+        });
+        const pushTitle = localizedHoliday.title;
+        const pushBody = localizedHoliday.body;
 
         try {
           const expoResponse = await fetch(

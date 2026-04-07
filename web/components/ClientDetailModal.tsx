@@ -5,7 +5,13 @@ import { Timestamp } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { formatCurrency, formatDate, formatDateLong, getStatusColor, getPolicyTypeIcon, getAnniversaryDate, daysUntilAnniversary } from '../lib/policyUtils';
 import type { Beneficiary } from '../lib/types';
-import { buildWelcomeMessage, resolveClientLanguage, type SupportedLanguage } from '../lib/client-language';
+import {
+  buildHolidayCardMessage,
+  buildWelcomeMessage,
+  resolveClientLanguage,
+  type HolidayCardKey,
+  type SupportedLanguage,
+} from '../lib/client-language';
 
 interface Client {
   id: string;
@@ -100,7 +106,7 @@ export default function ClientDetailModal({
 
   // ── Holiday card state ──
   const [showHolidayForm, setShowHolidayForm] = useState(false);
-  const [selectedHoliday, setSelectedHoliday] = useState('thanksgiving');
+  const [selectedHoliday, setSelectedHoliday] = useState<HolidayCardKey>('thanksgiving');
   const [holidaySending, setHolidaySending] = useState(false);
   const [holidayStatus, setHolidayStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [holidayError, setHolidayError] = useState('');
@@ -441,26 +447,21 @@ export default function ClientDetailModal({
     }
   }, [client, notifTitle, notifBody, includeBookingLink]);
 
-  const holidayCards: Record<string, { label: string; emoji: string; title: string; greeting: (name: string, agent: string) => string }> = {
+  const holidayCards: Record<HolidayCardKey, { label: string; emoji: string }> = {
     christmas: {
-      label: 'Christmas', emoji: '🎄', title: 'Christmas Greetings',
-      greeting: (n, a) => `Merry Christmas, ${n}! Wishing you and your family a season full of warmth, joy, and time together. It\u2019s a privilege to be your agent \u2014 I hope this holiday brings you everything you deserve. \u2014 ${a}`,
+      label: 'Christmas', emoji: '🎄',
     },
     newyear: {
-      label: "New Year\u2019s", emoji: '🎆', title: "New Year\u2019s Day Greetings",
-      greeting: (n, a) => `Happy New Year, ${n}! Here\u2019s to a fresh start and a year full of good things. I\u2019m honored to be the one looking out for you and your family \u2014 let\u2019s make this year a great one. \u2014 ${a}`,
+      label: "New Year's", emoji: '🎆',
     },
     valentines: {
-      label: "Valentine\u2019s Day", emoji: '💝', title: "Valentine\u2019s Day Greetings",
-      greeting: (n, a) => `Happy Valentine\u2019s Day, ${n}! Today is all about the people who matter most \u2014 and protecting the ones you love is something I never take lightly. Enjoy every moment with your loved ones today. \u2014 ${a}`,
+      label: "Valentine's Day", emoji: '💝',
     },
     july4th: {
-      label: '4th of July', emoji: '🇺🇸', title: 'Independence Day Greetings',
-      greeting: (n, a) => `Happy 4th of July, ${n}! Wishing you a day full of good food, great company, and maybe a few fireworks. Enjoy the celebration \u2014 you and your family deserve it. \u2014 ${a}`,
+      label: '4th of July', emoji: '🇺🇸',
     },
     thanksgiving: {
-      label: 'Thanksgiving', emoji: '🍂', title: 'Thanksgiving Greetings',
-      greeting: (n, a) => `Happy Thanksgiving, ${n}! I\u2019m grateful for the trust you place in me to protect what matters most to your family. I hope your table is full and your heart is fuller. Enjoy every bite. \u2014 ${a}`,
+      label: 'Thanksgiving', emoji: '🍂',
     },
   };
 
@@ -476,9 +477,14 @@ export default function ClientDetailModal({
       const currentUser = auth.currentUser;
       if (!currentUser) throw new Error('Not authenticated');
 
-      const card = holidayCards[selectedHoliday];
       const firstName = (client.name || 'Friend').split(' ')[0];
       const agent = agentName || 'Your Agent';
+      const localizedCard = buildHolidayCardMessage({
+        holiday: selectedHoliday,
+        firstName,
+        agentSignature: agent,
+        language: resolveClientLanguage(client.preferredLanguage),
+      });
 
       const token = await currentUser.getIdToken();
       const response = await fetch('/api/notifications/send', {
@@ -491,8 +497,8 @@ export default function ClientDetailModal({
           clientId: client.id,
           type: 'holiday',
           holiday: selectedHoliday,
-          title: card.title,
-          body: card.greeting(firstName, agent),
+          title: localizedCard.title,
+          body: localizedCard.body,
           includeBookingLink: false, // Holiday cards never show "Book your appointment"
         }),
       });
@@ -865,10 +871,12 @@ export default function ClientDetailModal({
                     <div className="bg-white rounded-[5px] border border-amber-100 p-3 mb-3">
                       <p className="text-xs text-gray-400 uppercase tracking-wide mb-1.5">Preview</p>
                       <p className="text-sm text-gray-700 leading-relaxed">
-                        {holidayCards[selectedHoliday].greeting(
-                          (client?.name || 'Friend').split(' ')[0],
-                          agentName || 'Your Agent'
-                        )}
+                        {buildHolidayCardMessage({
+                          holiday: selectedHoliday,
+                          firstName: (client?.name || 'Friend').split(' ')[0],
+                          agentSignature: agentName || 'Your Agent',
+                          language: resolveClientLanguage(client?.preferredLanguage),
+                        }).body}
                       </p>
                     </div>
 
