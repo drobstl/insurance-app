@@ -851,7 +851,7 @@ export default function ClientDetailModal({
                 ) : (
                   <>
                     <div className="flex flex-wrap gap-1.5 mb-3">
-                      {Object.entries(holidayCards).map(([key, card]) => (
+                      {(Object.entries(holidayCards) as Array<[HolidayCardKey, { label: string; emoji: string }]>).map(([key, card]) => (
                         <button
                           key={key}
                           onClick={() => setSelectedHoliday(key)}

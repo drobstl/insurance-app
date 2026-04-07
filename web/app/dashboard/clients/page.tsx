@@ -192,6 +192,12 @@ interface ImportFileStatus {
   error?: string;
 }
 
+interface ParseProgressState {
+  fileName: string;
+  progress: number;
+  label: string;
+}
+
 interface GoogleDriveStatusResponse {
   success: boolean;
   connected: boolean;
@@ -462,8 +468,10 @@ export default function ClientsPage() {
   const [pendingClientApplicationData, setPendingClientApplicationData] = useState<ExtractedApplicationData | null>(null);
   const [clientApplicationUploading, setClientApplicationUploading] = useState(false);
   const [clientApplicationNote, setClientApplicationNote] = useState<string | null>(null);
+  const [clientParseProgress, setClientParseProgress] = useState<ParseProgressState | null>(null);
   const [policyApplicationUploading, setPolicyApplicationUploading] = useState(false);
   const [policyApplicationNote, setPolicyApplicationNote] = useState<string | null>(null);
+  const [policyParseProgress, setPolicyParseProgress] = useState<ParseProgressState | null>(null);
   const [autoOpenPolicyUploadPicker, setAutoOpenPolicyUploadPicker] = useState(false);
 
   // ── Import state ──
@@ -959,6 +967,7 @@ export default function ClientsPage() {
     setPendingClientApplicationData(null);
     setClientApplicationNote(null);
     setClientApplicationUploading(false);
+    setClientParseProgress(null);
     setIsModalOpen(true);
   }, []);
 
@@ -971,6 +980,7 @@ export default function ClientsPage() {
     setPendingClientApplicationData(null);
     setClientApplicationNote(null);
     setClientApplicationUploading(false);
+    setClientParseProgress(null);
   }, []);
 
   const handleEditClient = useCallback((client: Client) => {
@@ -1251,6 +1261,7 @@ export default function ClientsPage() {
     setPolicyFormSuccess('');
     setPolicyApplicationNote(null);
     setPolicyApplicationUploading(false);
+    setPolicyParseProgress(null);
     setAutoOpenPolicyUploadPicker(options?.openUploadPicker === true);
     setIsPolicyModalOpen(true);
   }, []);
@@ -1263,6 +1274,7 @@ export default function ClientsPage() {
     setPolicyFormSuccess('');
     setPolicyApplicationNote(null);
     setPolicyApplicationUploading(false);
+    setPolicyParseProgress(null);
     setAutoOpenPolicyUploadPicker(false);
   }, []);
 
@@ -1355,7 +1367,18 @@ export default function ClientsPage() {
     }));
   }, []);
 
-  const parseApplicationFile = useCallback(async (file: File): Promise<{ data: ExtractedApplicationData; note?: string }> => {
+  const parseApplicationFile = useCallback(async (
+    file: File,
+    onProgress?: (state: ParseProgressState) => void,
+  ): Promise<{ data: ExtractedApplicationData; note?: string }> => {
+    const reportProgress = (progress: number, label: string) => {
+      onProgress?.({
+        fileName: file.name,
+        progress: Math.max(0, Math.min(100, Math.round(progress))),
+        label,
+      });
+    };
+
     if (!user) {
       throw new Error('You must be signed in to parse application files.');
     }
@@ -1367,7 +1390,9 @@ export default function ClientsPage() {
       throw new Error('File is too large. Maximum size is 13MB.');
     }
 
+    reportProgress(8, 'Preparing file...');
     const token = await user.getIdToken();
+    reportProgress(20, 'Uploading file...');
     const signedRes = await fetch('/api/ingestion/v3/upload-url', {
       method: 'POST',
       headers: {
@@ -1405,6 +1430,7 @@ export default function ClientsPage() {
       'Upload timed out while sending file.',
     );
 
+    reportProgress(50, 'Queueing parser...');
     const createRes = await fetch('/api/ingestion/v3/jobs', {
       method: 'POST',
       headers: {
@@ -1425,8 +1451,11 @@ export default function ClientsPage() {
     }
 
     const startedAt = Date.now();
+    reportProgress(62, 'Extracting data...');
     while (Date.now() - startedAt < IMPORT_PARSE_TIMEOUT_MS) {
       await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
+      const elapsedMs = Date.now() - startedAt;
+      reportProgress(62 + Math.min(30, (elapsedMs / IMPORT_PARSE_TIMEOUT_MS) * 30), 'Extracting data...');
 
       const statusRes = await fetch(`/api/ingestion/v3/jobs/${encodeURIComponent(created.jobId)}`, {
         cache: 'no-store',
@@ -1450,6 +1479,7 @@ export default function ClientsPage() {
         if (!data) {
           throw new Error('Could not extract application data from this file. Please try another PDF.');
         }
+        reportProgress(100, 'Extraction complete');
         return { data, note: statusBody.job.result?.application?.note || undefined };
       }
 
@@ -1468,17 +1498,19 @@ export default function ClientsPage() {
 
     setClientApplicationUploading(true);
     setClientApplicationNote(null);
+    setClientParseProgress({ fileName: file.name, progress: 5, label: 'Preparing file...' });
     setFormError('');
     setFormSuccess('');
 
     try {
-      const parsed = await parseApplicationFile(file);
+      const parsed = await parseApplicationFile(file, setClientParseProgress);
       handleClientApplicationExtracted(parsed.data);
       setClientApplicationNote(parsed.note || null);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to parse application PDF.');
     } finally {
       setClientApplicationUploading(false);
+      setClientParseProgress(null);
     }
   }, [handleClientApplicationExtracted, parseApplicationFile]);
 
@@ -1494,11 +1526,12 @@ export default function ClientsPage() {
 
     setPolicyApplicationUploading(true);
     setPolicyApplicationNote(null);
+    setPolicyParseProgress({ fileName: file.name, progress: 5, label: 'Preparing file...' });
     setPolicyFormError('');
     setPolicyFormSuccess('');
 
     try {
-      const parsed = await parseApplicationFile(file);
+      const parsed = await parseApplicationFile(file, setPolicyParseProgress);
       const mapped = mapExtractedApplicationToPolicyFormData(parsed.data);
       setPolicyFormData((prev) => ({ ...prev, ...mapped }));
       setPolicyApplicationNote(parsed.note || null);
@@ -1506,6 +1539,7 @@ export default function ClientsPage() {
       setPolicyFormError(err instanceof Error ? err.message : 'Failed to parse application PDF.');
     } finally {
       setPolicyApplicationUploading(false);
+      setPolicyParseProgress(null);
     }
   }, [parseApplicationFile]);
 
@@ -2777,6 +2811,21 @@ export default function ClientsPage() {
                   <p className="mt-2 text-xs text-[#707070]">
                     AI will extract client info and policy details in one step. Max 13MB.
                   </p>
+                  {clientApplicationUploading && clientParseProgress && (
+                    <div className="mt-2 rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/40 p-3">
+                      <div className="flex items-center justify-between text-xs text-[#005851] mb-1">
+                        <span className="font-medium truncate pr-2">{clientParseProgress.fileName}</span>
+                        <span>{clientParseProgress.progress}%</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-white/80 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#45bcaa] transition-all duration-300 ease-out"
+                          style={{ width: `${clientParseProgress.progress}%` }}
+                        />
+                      </div>
+                      <p className="mt-1 text-[11px] text-[#005851]/80">{clientParseProgress.label}</p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -3469,6 +3518,21 @@ export default function ClientsPage() {
                   <p className="text-xs text-[#707070]">
                     AI will extract client info and policy details in one step. Max 13MB.
                   </p>
+                  {policyApplicationUploading && policyParseProgress && (
+                    <div className="rounded-[5px] border border-[#0099FF]/25 bg-[#0099FF]/5 p-3">
+                      <div className="flex items-center justify-between text-xs text-[#0A5CA8] mb-1">
+                        <span className="font-medium truncate pr-2">{policyParseProgress.fileName}</span>
+                        <span>{policyParseProgress.progress}%</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-white rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#0099FF] transition-all duration-300 ease-out"
+                          style={{ width: `${policyParseProgress.progress}%` }}
+                        />
+                      </div>
+                      <p className="mt-1 text-[11px] text-[#0A5CA8]/80">{policyParseProgress.label}</p>
+                    </div>
+                  )}
                   {policyApplicationNote && (
                     <p className="text-xs text-[#707070]">{policyApplicationNote}</p>
                   )}
