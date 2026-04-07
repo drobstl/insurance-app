@@ -281,11 +281,33 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
         }
 
         if (statusBody.job.status === 'failed') {
-          const code = statusBody.job.error?.code ? ` [${statusBody.job.error.code}]` : '';
+          const errorCode = statusBody.job.error?.code || '';
           // #region agent log
           fetch('http://127.0.0.1:7412/ingest/09931433-2034-41d9-90f4-26d8a7253b3b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'abd57d'},body:JSON.stringify({sessionId:'abd57d',runId,hypothesisId:'H2-H3-H5',location:'ApplicationUpload.tsx:processFile:status-failed',message:'job_status_failed',data:{jobId:created.jobId,errorCode:statusBody.job.error?.code||null,errorMessage:statusBody.job.error?.message||null,retryable:statusBody.job.error?.retryable??null,terminal:statusBody.job.error?.terminal??null},timestamp:Date.now()})}).catch(()=>{});
           // #endregion
-          throw new Error(`${statusBody.job.error?.message || 'Failed to parse the application.'}${code}`);
+          if (errorCode === 'INTERNAL_ERROR' || errorCode === 'CLAUDE_SCHEMA_INVALID') {
+            const fallbackForm = new FormData();
+            fallbackForm.append('file', file, file.name);
+            const fallbackRes = await fetch('/api/parse-application', {
+              method: 'POST',
+              body: fallbackForm,
+              signal: controller.signal,
+            });
+            const fallbackBody = (await fallbackRes.json()) as {
+              success: boolean;
+              data?: ExtractedApplicationData;
+              note?: string;
+              error?: string;
+            };
+            if (!fallbackRes.ok || !fallbackBody.success || !fallbackBody.data) {
+              throw new Error(fallbackBody.error || `Direct parser failed (${fallbackRes.status}).`);
+            }
+            parsedData = fallbackBody.data;
+            parsedNote = fallbackBody.note || null;
+            break;
+          }
+          const codeSuffix = errorCode ? ` [${errorCode}]` : '';
+          throw new Error(`${statusBody.job.error?.message || 'Failed to parse the application.'}${codeSuffix}`);
         }
 
         if (statusBody.job.status === 'queued' || statusBody.job.status === 'uploading') {

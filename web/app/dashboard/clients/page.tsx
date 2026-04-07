@@ -1390,105 +1390,149 @@ export default function ClientsPage() {
       throw new Error('File is too large. Maximum size is 13MB.');
     }
 
+    const runDirectParseFallback = async (): Promise<{ data: ExtractedApplicationData; note?: string }> => {
+      // #region agent log
+      fetch('http://127.0.0.1:7412/ingest/09931433-2034-41d9-90f4-26d8a7253b3b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'abd57d'},body:JSON.stringify({sessionId:'abd57d',runId:'post-fix',hypothesisId:'H15',location:'clients/page.tsx:parseApplicationFile:direct-fallback',message:'client_application_direct_fallback_started',data:{fileName:file.name,fileSize:file.size},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      reportProgress(55, 'Retrying with direct parser...');
+      const fallbackForm = new FormData();
+      fallbackForm.append('file', file, file.name);
+      const fallbackRes = await fetch('/api/parse-application', {
+        method: 'POST',
+        body: fallbackForm,
+      });
+      const fallbackBody = (await fallbackRes.json()) as {
+        success: boolean;
+        data?: ExtractedApplicationData;
+        note?: string;
+        error?: string;
+      };
+      if (!fallbackRes.ok || !fallbackBody.success || !fallbackBody.data) {
+        throw new Error(fallbackBody.error || `Direct parser failed (${fallbackRes.status}).`);
+      }
+      // #region agent log
+      fetch('http://127.0.0.1:7412/ingest/09931433-2034-41d9-90f4-26d8a7253b3b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'abd57d'},body:JSON.stringify({sessionId:'abd57d',runId:'post-fix',hypothesisId:'H15',location:'clients/page.tsx:parseApplicationFile:direct-fallback-success',message:'client_application_direct_fallback_succeeded',data:{fileName:file.name},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      reportProgress(100, 'Extraction complete');
+      return { data: fallbackBody.data, note: fallbackBody.note };
+    };
+
     reportProgress(8, 'Preparing file...');
     const token = await user.getIdToken();
     reportProgress(20, 'Uploading file...');
-    const signedRes = await fetch('/api/ingestion/v3/upload-url', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        fileName: file.name,
-        contentType: file.type || 'application/pdf',
-        fileSize: file.size,
-        purpose: 'application',
-      }),
-    });
-    const signedBody = (await signedRes.json()) as {
-      success: boolean;
-      uploadUrl?: string;
-      gcsPath?: string;
-      error?: { message?: string };
-    };
-    if (!signedRes.ok || !signedBody.success || !signedBody.uploadUrl || !signedBody.gcsPath) {
-      throw new Error(signedBody.error?.message || `Failed to start file upload (${signedRes.status}).`);
-    }
-
-    await withTimeout(
-      fetch(signedBody.uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type || 'application/pdf' },
-        body: file,
-      }).then((res) => {
-        if (!res.ok) {
-          throw new Error(`Upload failed (${res.status}).`);
-        }
-      }),
-      BULK_GCS_UPLOAD_TIMEOUT_MS,
-      'Upload timed out while sending file.',
-    );
-
-    reportProgress(50, 'Queueing parser...');
-    const createRes = await fetch('/api/ingestion/v3/jobs', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        mode: 'application',
-        gcsPath: signedBody.gcsPath,
-        fileName: file.name,
-        contentType: file.type || 'application/pdf',
-        idempotencyKey: `application-v3:${file.name}:${file.size}:${file.lastModified}`,
-      }),
-    });
-    const created = (await createRes.json()) as IngestionV3SubmitJobResponse;
-    if (!createRes.ok || !created.success || !created.jobId) {
-      throw new Error(created.error?.message || `Failed to start parsing job (${createRes.status}).`);
-    }
-
-    const startedAt = Date.now();
-    reportProgress(62, 'Extracting data...');
-    while (Date.now() - startedAt < IMPORT_PARSE_TIMEOUT_MS) {
-      await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
-      const elapsedMs = Date.now() - startedAt;
-      reportProgress(62 + Math.min(30, (elapsedMs / IMPORT_PARSE_TIMEOUT_MS) * 30), 'Extracting data...');
-
-      const statusRes = await fetch(`/api/ingestion/v3/jobs/${encodeURIComponent(created.jobId)}`, {
-        cache: 'no-store',
+    try {
+      const signedRes = await fetch('/api/ingestion/v3/upload-url', {
+        method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          fileName: file.name,
+          contentType: file.type || 'application/pdf',
+          fileSize: file.size,
+          purpose: 'application',
+        }),
       });
-      const contentType = statusRes.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        throw new Error('Unexpected response while checking parse status. Please try again.');
+      const signedBody = (await signedRes.json()) as {
+        success: boolean;
+        uploadUrl?: string;
+        gcsPath?: string;
+        error?: { message?: string };
+      };
+      if (!signedRes.ok || !signedBody.success || !signedBody.uploadUrl || !signedBody.gcsPath) {
+        throw new Error(signedBody.error?.message || `Failed to start file upload (${signedRes.status}).`);
       }
 
-      const statusBody = (await statusRes.json()) as IngestionV3JobStatusResponse;
-      if (!statusRes.ok || !statusBody.success || !statusBody.job) {
-        throw new Error(statusBody.error?.message || `Failed to check parsing status (${statusRes.status}).`);
+      await withTimeout(
+        fetch(signedBody.uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.type || 'application/pdf' },
+          body: file,
+        }).then((res) => {
+          if (!res.ok) {
+            throw new Error(`Upload failed (${res.status}).`);
+          }
+        }),
+        BULK_GCS_UPLOAD_TIMEOUT_MS,
+        'Upload timed out while sending file.',
+      );
+
+      reportProgress(50, 'Queueing parser...');
+      const createRes = await fetch('/api/ingestion/v3/jobs', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mode: 'application',
+          gcsPath: signedBody.gcsPath,
+          fileName: file.name,
+          contentType: file.type || 'application/pdf',
+          idempotencyKey: `application-v3:${file.name}:${file.size}:${file.lastModified}`,
+        }),
+      });
+      const created = (await createRes.json()) as IngestionV3SubmitJobResponse;
+      if (!createRes.ok || !created.success || !created.jobId) {
+        throw new Error(created.error?.message || `Failed to start parsing job (${createRes.status}).`);
       }
 
-      if (statusBody.job.status === 'review_ready' || statusBody.job.status === 'saved') {
-        const data = statusBody.job.result?.application?.data;
-        if (!data) {
-          throw new Error('Could not extract application data from this file. Please try another PDF.');
+      const startedAt = Date.now();
+      reportProgress(62, 'Extracting data...');
+      while (Date.now() - startedAt < IMPORT_PARSE_TIMEOUT_MS) {
+        await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
+        const elapsedMs = Date.now() - startedAt;
+        reportProgress(62 + Math.min(30, (elapsedMs / IMPORT_PARSE_TIMEOUT_MS) * 30), 'Extracting data...');
+
+        const statusRes = await fetch(`/api/ingestion/v3/jobs/${encodeURIComponent(created.jobId)}`, {
+          cache: 'no-store',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/json',
+          },
+        });
+        const contentType = statusRes.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          throw new Error('Unexpected response while checking parse status. Please try again.');
         }
-        reportProgress(100, 'Extraction complete');
-        return { data, note: statusBody.job.result?.application?.note || undefined };
+
+        const statusBody = (await statusRes.json()) as IngestionV3JobStatusResponse;
+        if (!statusRes.ok || !statusBody.success || !statusBody.job) {
+          throw new Error(statusBody.error?.message || `Failed to check parsing status (${statusRes.status}).`);
+        }
+
+        if (statusBody.job.status === 'review_ready' || statusBody.job.status === 'saved') {
+          const data = statusBody.job.result?.application?.data;
+          if (!data) {
+            throw new Error('Could not extract application data from this file. Please try another PDF.');
+          }
+          reportProgress(100, 'Extraction complete');
+          return { data, note: statusBody.job.result?.application?.note || undefined };
+        }
+
+        if (statusBody.job.status === 'failed') {
+          const code = statusBody.job.error?.code || '';
+          if (code === 'INTERNAL_ERROR' || code === 'CLAUDE_SCHEMA_INVALID') {
+            return runDirectParseFallback();
+          }
+          const codeSuffix = code ? ` [${code}]` : '';
+          throw new Error(`${statusBody.job.error?.message || 'Failed to parse file. Please try again.'}${codeSuffix}`);
+        }
       }
 
-      if (statusBody.job.status === 'failed') {
-        throw new Error(statusBody.job.error?.message || 'Failed to parse file. Please try again.');
+      throw new Error('Parsing timed out. Please retry the file.');
+    } catch (v3Error) {
+      const message = v3Error instanceof Error ? v3Error.message : String(v3Error);
+      const shouldFallback =
+        message.includes('Upload failed (403)') ||
+        message.includes('Invalid JWT Signature') ||
+        message.includes('SignatureDoesNotMatch');
+      if (!shouldFallback) {
+        throw v3Error;
       }
+      return runDirectParseFallback();
     }
-
-    throw new Error('Parsing timed out. Please retry the file.');
   }, [user]);
 
   const handleClientApplicationFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {

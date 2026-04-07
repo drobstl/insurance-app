@@ -130,6 +130,7 @@ export function trackIngestionV3ProcessFailed(params: {
   attempts: number;
   maxAttempts: number;
   error: IngestionV3ErrorDetails;
+  diagnosticCategory?: string;
 }) {
   emitTelemetry('ingestion_v3_process_failed', {
     job_id: params.jobId,
@@ -140,6 +141,7 @@ export function trackIngestionV3ProcessFailed(params: {
     retryable: params.error.retryable,
     terminal: params.error.terminal,
     error_message: params.error.message,
+    diagnostic_category: params.diagnosticCategory ?? null,
   });
 }
 

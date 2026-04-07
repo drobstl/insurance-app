@@ -102,6 +102,7 @@ export async function processIngestionV3Job(jobId: string): Promise<ProcessInges
   } catch (error) {
     console.error('[ingestion-v3-processor] Raw extraction error:', error instanceof Error ? { message: error.message, stack: error.stack } : error);
     const classified = classifyProcessorError(error);
+    const diagnosticCategory = classifyProcessorDiagnosticCategory(error, classified);
     // #region agent log
     fetch('http://127.0.0.1:7412/ingest/09931433-2034-41d9-90f4-26d8a7253b3b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'abd57d'},body:JSON.stringify({sessionId:'abd57d',runId:'pre-fix',hypothesisId:'H1-H2',location:'ingestion-v3-processor.ts:processIngestionV3Job:catch',message:'processor_error_classified',data:{jobId,code:classified.code,retryable:classified.retryable,terminal:classified.terminal,message:classified.message},timestamp:Date.now()})}).catch(()=>{});
     // #endregion
@@ -164,6 +165,14 @@ export async function processIngestionV3Job(jobId: string): Promise<ProcessInges
       attempts: lock.job.attempts,
       maxAttempts: lock.job.maxAttempts,
       error: terminalError,
+      diagnosticCategory,
+    });
+    console.error('[ingestion-v3-alert] process failed', {
+      jobId,
+      code: terminalError.code,
+      diagnosticCategory,
+      retryable: terminalError.retryable,
+      terminal: terminalError.terminal,
     });
 
     // Fire-and-forget: update batch progress doc if this job belongs to a batch.
@@ -337,6 +346,16 @@ function classifyProcessorError(error: unknown): IngestionV3ErrorDetails {
     retryable: false,
     terminal: true,
   };
+}
+
+function classifyProcessorDiagnosticCategory(error: unknown, classified: IngestionV3ErrorDetails): string {
+  if (classified.code !== 'INTERNAL_ERROR') return classified.code;
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  if (message.includes('storage') || message.includes('bucket') || message.includes('download')) return 'INTERNAL_STORAGE_IO';
+  if (message.includes('json') || message.includes('parse')) return 'INTERNAL_PARSE_ERROR';
+  if (message.includes('anthropic') || message.includes('claude')) return 'INTERNAL_LLM_ERROR';
+  if (message.includes('timeout')) return 'INTERNAL_TIMEOUT';
+  return 'INTERNAL_UNKNOWN';
 }
 
 function getRetryDelaySeconds(attemptNumber: number): number {
