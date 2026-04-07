@@ -18,6 +18,32 @@ function isMobile(userAgent: string | null): boolean {
 }
 
 export function proxy(request: NextRequest) {
+  // PostHog reverse proxy: preserve host for /ingest requests
+  // to avoid 401s on /flags when the hosting layer rewrites requests.
+  if (request.nextUrl.pathname.startsWith('/ingest/')) {
+    const url = request.nextUrl.clone();
+    const isAssetRoute =
+      url.pathname.startsWith('/ingest/static/') ||
+      url.pathname.startsWith('/ingest/array/');
+    const hostname = isAssetRoute
+      ? 'us-assets.i.posthog.com'
+      : 'us.i.posthog.com';
+
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('host', hostname);
+
+    url.protocol = 'https';
+    url.hostname = hostname;
+    url.port = '443';
+    url.pathname = url.pathname.replace(/^\/ingest/, '');
+
+    return NextResponse.rewrite(url, {
+      request: {
+        headers: requestHeaders,
+      },
+    });
+  }
+
   const pathname = request.nextUrl.pathname || '';
   const path = pathname.replace(/\/$/, '') || '/';
 
