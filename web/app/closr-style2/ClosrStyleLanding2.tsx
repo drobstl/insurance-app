@@ -320,12 +320,12 @@ export default function ClosrStyleLanding2() {
                   {feature.title}
                 </span>
               </div>
-              <div className="mt-8 grid items-center gap-10 md:grid-cols-[0.84fr_1.16fr] md:gap-14">
-                <div className={index % 2 === 0 ? 'md:pr-4' : 'md:order-2 md:pl-4'}>
-                  <h3 className="text-[2.25rem] leading-[1.08] text-[#1A1A1A] md:text-[56px]" style={{ fontFamily: serif }}>
+              <div className="mt-8 grid items-center gap-10 lg:grid-cols-[1.08fr_0.92fr] lg:gap-12">
+                <div className={index % 2 === 0 ? 'lg:pr-4' : 'lg:order-2 lg:pl-4'}>
+                  <h3 className="text-[2.15rem] leading-[1.12] text-[#1A1A1A] md:text-[3.1rem]" style={{ fontFamily: serif }}>
                     {feature.subtitle}
                   </h3>
-                  <p className="mt-4 text-[16px] leading-relaxed text-[#1A1A1A]/72" style={{ fontFamily: sans }}>
+                  <p className="mt-5 max-w-[56ch] text-[17px] leading-[1.65] text-[#1A1A1A]/72 md:text-[18px]" style={{ fontFamily: sans }}>
                     {feature.body}
                   </p>
                   <Link
@@ -336,7 +336,7 @@ export default function ClosrStyleLanding2() {
                     {closrStyle2Content.proof.featureCtaLabel}
                   </Link>
                 </div>
-                <div className={index % 2 === 0 ? 'md:translate-y-3' : 'md:order-1 md:-translate-y-3'}>
+                <div className={index % 2 === 0 ? 'lg:translate-y-3' : 'lg:order-1 lg:-translate-y-3'}>
                   {featureVisualById(feature.id)}
                 </div>
               </div>
