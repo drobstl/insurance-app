@@ -174,7 +174,7 @@ export default function ClosrStyleLanding2() {
             </div>
 
             <h1
-              className="mt-6 max-w-[12ch] text-[3.2rem] leading-[0.95] tracking-[-0.02em] md:text-[5.7rem]"
+              className="mt-7 max-w-[14ch] text-[3rem] leading-[1.02] tracking-[-0.015em] md:text-[5.15rem]"
               style={{ fontFamily: serif }}
             >
               <span className="text-[#1A1A1A]/45">{closrStyle2Content.hero.headlineTop}</span>
@@ -185,11 +185,11 @@ export default function ClosrStyleLanding2() {
               <span className="text-[#1A1A1A]">{closrStyle2Content.hero.headlineTail}</span>
             </h1>
 
-            <p className="mt-6 max-w-xl text-[18px] leading-[1.55] text-[#1A1A1A]/72 md:text-[20px]" style={{ fontFamily: sans }}>
+            <p className="mt-7 max-w-[58ch] text-[17px] leading-[1.7] text-[#1A1A1A]/72 md:text-[19px]" style={{ fontFamily: sans }}>
               {closrStyle2Content.hero.body}
             </p>
 
-            <div className="mt-8 flex flex-wrap items-center gap-4">
+            <div className="mt-9 flex flex-wrap items-center gap-4">
               <StampButton href={tier.ctaHref}>
                 {tier.isFoundingOpen ? closrStyle2Content.hero.primaryCtaWhenFoundingOpen : tier.ctaText}
               </StampButton>
@@ -201,7 +201,7 @@ export default function ClosrStyleLanding2() {
 
           <div className="flex justify-center lg:justify-end">
             <div className="relative">
-              <div className="absolute -left-14 top-10 hidden lg:block">
+              <div className="animate-float-a absolute -left-14 top-10 hidden lg:block">
                 <span
                   className="inline-flex -rotate-3 rounded-full border border-[#6F56B3] bg-[#F0D7FF] px-3 py-1.5 text-[11px] font-semibold text-[#2B1F45] shadow-[2px_2px_0_0_rgba(26,26,26,0.15)]"
                   style={{ fontFamily: sans }}
@@ -209,7 +209,7 @@ export default function ClosrStyleLanding2() {
                   Holiday cards
                 </span>
               </div>
-              <div className="absolute -right-14 top-24 hidden lg:block">
+              <div className="animate-float-b absolute -right-14 top-24 hidden lg:block">
                 <span
                   className="inline-flex rotate-2 rounded-full border border-[#A44E1C] bg-[#FFD9BF] px-3 py-1.5 text-[11px] font-semibold text-[#52250D] shadow-[2px_2px_0_0_rgba(26,26,26,0.15)]"
                   style={{ fontFamily: sans }}
@@ -217,7 +217,7 @@ export default function ClosrStyleLanding2() {
                   AI referrals
                 </span>
               </div>
-              <div className="absolute -left-16 bottom-32 hidden lg:block">
+              <div className="animate-float-c absolute -left-16 bottom-32 hidden lg:block">
                 <span
                   className="inline-flex rotate-1 rounded-full border border-[#5E1227] bg-[#F7CBD8] px-3 py-1.5 text-[11px] font-semibold text-[#3C0C1A] shadow-[2px_2px_0_0_rgba(26,26,26,0.15)]"
                   style={{ fontFamily: sans }}
@@ -225,7 +225,7 @@ export default function ClosrStyleLanding2() {
                   Rewrite alerts
                 </span>
               </div>
-              <div className="absolute -right-10 bottom-16 hidden lg:block">
+              <div className="animate-float-d absolute -right-10 bottom-16 hidden lg:block">
                 <span
                   className="inline-flex -rotate-2 rounded-full border border-[#0B4D46] bg-[#CDEEE8] px-3 py-1.5 text-[11px] font-semibold text-[#073A35] shadow-[2px_2px_0_0_rgba(26,26,26,0.15)]"
                   style={{ fontFamily: sans }}
