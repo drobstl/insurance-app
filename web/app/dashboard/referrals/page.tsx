@@ -225,14 +225,8 @@ export default function ReferralsPage() {
 
       {/* Referrals List */}
       <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px]">
-        <div className="px-4 py-3 border-b border-[#d0d0d0] flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-[#d0d0d0]">
           <h2 className="text-sm font-semibold text-[#000000]">Referral Conversations</h2>
-          <div className="flex gap-2 text-xs">
-            <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full">{referrals.filter(r => r.status === 'pending').length} Pending</span>
-            <span className="px-2 py-0.5 bg-teal-100 text-teal-700 rounded-full">{referrals.filter(r => ['outreach-sent', 'drip-1', 'drip-2'].includes(r.status)).length} Outreach</span>
-            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">{referrals.filter(r => r.status === 'active').length} Active</span>
-            <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full">{referrals.filter(r => r.status === 'booked' || r.appointmentBooked).length} Booked</span>
-          </div>
         </div>
 
         {referralsLoading ? (
@@ -288,25 +282,25 @@ export default function ReferralsPage() {
           <div className="divide-y divide-[#d0d0d0]">
             {referrals.map((referral) => {
               const statusColors: Record<string, string> = {
-                pending: 'bg-yellow-100 text-yellow-700',
-                active: 'bg-blue-100 text-blue-700',
+                pending: 'bg-teal-100 text-teal-700',
                 'outreach-sent': 'bg-teal-100 text-teal-700',
-                'drip-1': 'bg-orange-100 text-orange-700',
-                'drip-2': 'bg-orange-100 text-orange-700',
-                'drip-complete': 'bg-gray-100 text-gray-600',
+                'drip-1': 'bg-teal-100 text-teal-700',
+                'drip-2': 'bg-teal-100 text-teal-700',
+                active: 'bg-blue-100 text-blue-700',
                 'booking-sent': 'bg-purple-100 text-purple-700',
                 booked: 'bg-green-100 text-green-700',
+                'drip-complete': 'bg-gray-100 text-gray-600',
                 closed: 'bg-gray-100 text-gray-600',
               };
               const statusLabels: Record<string, string> = {
-                pending: 'Waiting for reply',
-                active: 'In conversation',
-                'outreach-sent': 'AI reached out',
-                'drip-1': 'Follow-up 1',
-                'drip-2': 'Follow-up 2',
-                'drip-complete': 'No response',
-                'booking-sent': 'Booking link sent',
-                booked: 'Appointment booked',
+                pending: 'AI Working',
+                'outreach-sent': 'AI Working',
+                'drip-1': 'AI Working',
+                'drip-2': 'AI Working',
+                active: 'In Conversation',
+                'booking-sent': 'Booking Sent',
+                booked: 'Booked',
+                'drip-complete': 'No Response',
                 closed: 'Closed',
               };
               return (

@@ -502,52 +502,29 @@ export default function ConservationPage() {
                         setManualMessage('');
                       }}
                     >
-                      {/* Header: client identity */}
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="font-semibold text-[#000000] text-sm">{alert.clientName}</span>
-                        <span className="text-[#707070] text-xs">{alert.carrier}</span>
-                        {alert.policyType && (
-                          <span className="text-xs text-[#707070] bg-[#f1f1f1] px-1.5 py-0.5 rounded">{alert.policyType}</span>
-                        )}
-                      </div>
-
-                      {/* Risk badge on its own line */}
-                      {alert.isChargebackRisk ? (
-                        <div className="mb-2">
-                          <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full font-semibold">
-                            CHARGEBACK RISK &mdash; {alert.policyAge !== null ? `${Math.round(alert.policyAge / 30)}mo old` : '< 1yr'}
-                          </span>
-                        </div>
-                      ) : alert.policyAge !== null ? (
-                        <div className="mb-2">
-                          <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full">
-                            {Math.round(alert.policyAge / 30)}mo old
-                          </span>
-                        </div>
-                      ) : null}
-
-                      {/* Details: status + metadata */}
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${statusColors[alert.status] || 'bg-gray-100 text-gray-600'}`}>
+                      {/* Line 1: Status leads, then client identity */}
+                      <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                        <span className={`px-3 py-1 text-sm rounded-full font-semibold ${statusColors[alert.status] || 'bg-gray-100 text-gray-600'}`}>
                           {statusLabel}
                         </span>
-                        <span className="text-xs text-[#707070]">
-                          {alert.reason === 'lapsed_payment' ? 'Lapsed Payment' : alert.reason === 'cancellation' ? 'Cancellation' : 'Other'}
-                        </span>
-                        {alert.source === 'email_forward' && (
-                          <span className="text-xs text-[#a0a0a0]">via email</span>
-                        )}
-                        {alert.source === 'manual_flag' && (
-                          <span className="text-xs text-[#a0a0a0]">flagged by agent</span>
-                        )}
-                        {msgCount > 0 && (
-                          <span className="text-xs text-[#707070]">{msgCount} msg{msgCount !== 1 ? 's' : ''}</span>
+                        <span className="font-semibold text-[#000000] text-sm">{alert.clientName}</span>
+                        <span className="text-[#707070] text-xs">{alert.carrier}</span>
+                      </div>
+
+                      {/* Line 2: Reason + source */}
+                      <div className="flex items-center gap-1.5 mb-2 text-xs text-[#707070]">
+                        <span>{alert.reason === 'lapsed_payment' ? 'Lapsed Payment' : alert.reason === 'cancellation' ? 'Cancellation' : 'Other'}</span>
+                        {alert.source && (
+                          <>
+                            <span className="text-[#d0d0d0]">&middot;</span>
+                            <span className="text-[#a0a0a0]">{alert.source === 'email_forward' ? 'via email' : alert.source === 'manual_flag' ? 'flagged by agent' : ''}</span>
+                          </>
                         )}
                       </div>
 
-                      {/* AI insight */}
+                      {/* AI insight -- prominent when present */}
                       {alert.aiInsight && !isResolved && !isExpanded && (
-                        <p className="text-xs text-[#005851] bg-[#f0faf9] px-3 py-1.5 rounded-[5px] inline-block mb-2">
+                        <p className="text-xs text-[#005851] bg-[#f0faf9] px-3 py-2 rounded-[5px] mb-2 leading-relaxed">
                           {alert.aiInsight}
                         </p>
                       )}
@@ -606,6 +583,25 @@ export default function ConservationPage() {
                     {/* Expanded conversation */}
                     {isExpanded && (
                       <div className="px-4 pb-4 space-y-3 border-t border-[#f0f0f0]">
+                        {/* Policy details */}
+                        <div className="flex items-center gap-2 flex-wrap mt-3 text-xs text-[#707070]">
+                          {alert.policyType && (
+                            <span className="bg-[#f1f1f1] px-1.5 py-0.5 rounded">{alert.policyType}</span>
+                          )}
+                          {alert.isChargebackRisk ? (
+                            <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-semibold">
+                              CHARGEBACK RISK &mdash; {alert.policyAge !== null ? `${Math.round(alert.policyAge / 30)}mo old` : '< 1yr'}
+                            </span>
+                          ) : alert.policyAge !== null ? (
+                            <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
+                              {Math.round(alert.policyAge / 30)}mo old
+                            </span>
+                          ) : null}
+                          {msgCount > 0 && (
+                            <span>{msgCount} message{msgCount !== 1 ? 's' : ''}</span>
+                          )}
+                        </div>
+
                         {/* AI toggle */}
                         {!isResolved && (
                           <div className="flex items-center justify-between bg-[#f8f8f8] rounded-[5px] px-3 py-2 mt-3">
