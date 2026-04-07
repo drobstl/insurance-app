@@ -221,7 +221,7 @@ export default function PolicyReviewsPage() {
   }
 
   return (
-    <div>
+    <div className="max-w-5xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#0D4D4D]">Rewrites</h1>
         <p className="text-[#6B7280] text-sm mt-1">Anniversary-based rewrite campaigns powered by AI.</p>
@@ -235,19 +235,19 @@ export default function PolicyReviewsPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-4">
           <p className="text-2xl font-black text-[#0D4D4D]">{activeReviews.length}</p>
           <p className="text-xs text-[#6B7280]">Active Campaigns</p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-4">
           <p className="text-2xl font-black text-[#3DD6C3]">{bookedReviews.length}</p>
           <p className="text-xs text-[#6B7280]">Booked</p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-4">
           <p className="text-2xl font-black text-[#fdcc02]">{awaitingResponse.length}</p>
           <p className="text-xs text-[#6B7280]">Awaiting Response</p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-4">
           <p className="text-2xl font-black text-blue-500">{conversationActive.length}</p>
           <p className="text-xs text-[#6B7280]">In Conversation</p>
         </div>
@@ -256,7 +256,7 @@ export default function PolicyReviewsPage() {
       {/* Filter tabs */}
       <div className="flex gap-2 mb-4">
         {(['active', 'booked', 'all'] as const).map((f) => (
-          <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${filter === f ? 'bg-[#0D4D4D] text-white' : 'bg-gray-100 text-[#6B7280] hover:bg-gray-200'}`}>
+          <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] text-sm font-semibold transition-colors ${filter === f ? 'bg-[#0D4D4D] text-white' : 'bg-gray-100 text-[#6B7280] hover:bg-gray-200'}`}>
             {f === 'active' ? 'Active' : f === 'booked' ? 'Booked' : 'All'}
           </button>
         ))}
@@ -264,7 +264,7 @@ export default function PolicyReviewsPage() {
 
       {/* Empty state */}
       {reviews.length === 0 && !reviewsLoading && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-12 text-center">
           <div className="w-16 h-16 bg-[#3DD6C3]/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
           </div>
@@ -277,7 +277,7 @@ export default function PolicyReviewsPage() {
       {filteredReviews.length > 0 && (
         <div className="space-y-3">
           {filteredReviews.map((review) => (
-            <div key={review.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div key={review.id} className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[4px] border-b-[4px] overflow-hidden">
               <button
                 onClick={() => {
                   const opening = expandedReview !== review.id;

@@ -151,7 +151,7 @@ export default function BadgeCelebration({
           <div className="relative flex items-center justify-center w-full h-full">
             <PremiumBadge
               badgeId={badge.id}
-              size={120}
+              size={200}
               shimmer
               glow
             />
