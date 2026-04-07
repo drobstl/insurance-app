@@ -267,7 +267,7 @@ export default function ConservationPage() {
   };
 
   return (
-    <div className="relative">
+    <div className="relative max-w-4xl">
       {/* Confetti overlay */}
       {showConfetti && (
         <div className="fixed inset-0 z-50 pointer-events-none overflow-hidden">
@@ -309,15 +309,15 @@ export default function ConservationPage() {
       {/* Summary Stats */}
       {hasAlerts && (
         <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-white rounded-[5px] border border-[#d0d0d0] p-4">
+          <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-4">
             <p className="text-2xl font-bold text-[#000000]">{activeAlerts.length}</p>
             <p className="text-xs text-[#707070]">Active Alerts</p>
           </div>
-          <div className="bg-white rounded-[5px] border border-[#d0d0d0] p-4">
+          <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-4">
             <p className="text-2xl font-bold text-red-600">{highPriorityCount}</p>
             <p className="text-xs text-[#707070]">Chargeback Risk</p>
           </div>
-          <div className="bg-white rounded-[5px] border border-[#d0d0d0] p-4">
+          <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-4">
             <p className="text-2xl font-bold text-green-600">{savedThisWeek}</p>
             <p className="text-xs text-[#707070]">Saved This Week</p>
           </div>
@@ -326,7 +326,7 @@ export default function ConservationPage() {
 
       {/* How to create alerts */}
       {!hasAlerts && (
-        <div className="bg-white rounded-[5px] border border-[#d0d0d0] p-6 mb-6">
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-6 mb-6">
           <div className="flex items-start gap-4">
             <div className="w-12 h-12 bg-[#daf3f0] rounded-[5px] flex items-center justify-center shrink-0">
               <svg className="w-6 h-6 text-[#005851]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -365,7 +365,7 @@ export default function ConservationPage() {
 
       {/* Email forwarding reminder */}
       {hasAlerts && (
-        <div className="bg-[#daf3f0] border border-[#45bcaa]/30 rounded-[5px] px-4 py-3 mb-6 flex items-center gap-3">
+        <div className="bg-[#daf3f0] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] px-4 py-3 mb-6 flex items-center gap-3">
           <svg className="w-4 h-4 text-[#005851] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
@@ -376,7 +376,7 @@ export default function ConservationPage() {
       )}
 
       {/* Alert List */}
-      <div className="bg-white rounded-[5px] border border-[#d0d0d0]">
+      <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px]">
         <div className="p-4 border-b border-[#d0d0d0]">
           <h2 className="text-sm font-semibold text-[#000000]">All Alerts</h2>
         </div>
@@ -503,93 +503,90 @@ export default function ConservationPage() {
                         setManualMessage('');
                       }}
                     >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <span className="font-semibold text-[#000000] text-sm">{alert.clientName}</span>
-                            <span className="text-[#707070] text-xs">{alert.carrier}</span>
-                            {alert.policyType && (
-                              <span className="text-xs text-[#707070] bg-[#f1f1f1] px-1.5 py-0.5 rounded">{alert.policyType}</span>
-                            )}
-                            {alert.isChargebackRisk ? (
-                              <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full font-semibold">
-                                CHARGEBACK RISK &mdash; {alert.policyAge !== null ? `${Math.round(alert.policyAge / 30)}mo old` : '< 1yr'}
-                              </span>
-                            ) : alert.policyAge !== null ? (
-                              <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full">
-                                {Math.round(alert.policyAge / 30)}mo old
-                              </span>
-                            ) : null}
-                          </div>
+                      <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                        <span className="font-semibold text-[#000000] text-sm">{alert.clientName}</span>
+                        <span className="text-[#707070] text-xs">{alert.carrier}</span>
+                        {alert.policyType && (
+                          <span className="text-xs text-[#707070] bg-[#f1f1f1] px-1.5 py-0.5 rounded">{alert.policyType}</span>
+                        )}
+                        {alert.isChargebackRisk ? (
+                          <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full font-semibold">
+                            CHARGEBACK RISK &mdash; {alert.policyAge !== null ? `${Math.round(alert.policyAge / 30)}mo old` : '< 1yr'}
+                          </span>
+                        ) : alert.policyAge !== null ? (
+                          <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full">
+                            {Math.round(alert.policyAge / 30)}mo old
+                          </span>
+                        ) : null}
+                      </div>
 
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${statusColors[alert.status] || 'bg-gray-100 text-gray-600'}`}>
-                              {statusLabel}
-                            </span>
-                            <span className="text-xs text-[#707070]">
-                              {alert.reason === 'lapsed_payment' ? 'Lapsed Payment' : alert.reason === 'cancellation' ? 'Cancellation' : 'Other'}
-                            </span>
-                            {alert.source === 'email_forward' && (
-                              <span className="text-xs text-[#a0a0a0]">via email</span>
-                            )}
-                            {alert.source === 'manual_flag' && (
-                              <span className="text-xs text-[#a0a0a0]">flagged by agent</span>
-                            )}
-                            {msgCount > 0 && (
-                              <span className="text-xs text-[#707070]">{msgCount} msg{msgCount !== 1 ? 's' : ''}</span>
-                            )}
-                          </div>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${statusColors[alert.status] || 'bg-gray-100 text-gray-600'}`}>
+                          {statusLabel}
+                        </span>
+                        <span className="text-xs text-[#707070]">
+                          {alert.reason === 'lapsed_payment' ? 'Lapsed Payment' : alert.reason === 'cancellation' ? 'Cancellation' : 'Other'}
+                        </span>
+                        {alert.source === 'email_forward' && (
+                          <span className="text-xs text-[#a0a0a0]">via email</span>
+                        )}
+                        {alert.source === 'manual_flag' && (
+                          <span className="text-xs text-[#a0a0a0]">flagged by agent</span>
+                        )}
+                        {msgCount > 0 && (
+                          <span className="text-xs text-[#707070]">{msgCount} msg{msgCount !== 1 ? 's' : ''}</span>
+                        )}
+                      </div>
 
-                          {alert.aiInsight && !isResolved && !isExpanded && (
-                            <p className="text-xs text-[#005851] bg-[#f0faf9] px-3 py-1.5 rounded-[5px] inline-block">
-                              {alert.aiInsight}
-                            </p>
-                          )}
-                        </div>
+                      {alert.aiInsight && !isResolved && !isExpanded && (
+                        <p className="text-xs text-[#005851] bg-[#f0faf9] px-3 py-1.5 rounded-[5px] inline-block mb-1.5">
+                          {alert.aiInsight}
+                        </p>
+                      )}
 
-                        <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                          {!isResolved && (
-                            <div className="flex flex-col gap-1.5">
-                              {isScheduled && (
-                                <button
-                                  onClick={() => handleCancelOutreach(alert.id)}
-                                  className="px-3 py-1.5 bg-white border border-amber-400 text-amber-700 text-xs font-medium rounded-[5px] hover:bg-amber-50 transition-colors"
-                                >
-                                  Cancel Auto-Send
-                                </button>
-                              )}
-                              {alert.status === 'new' && alert.clientId && (
-                                <button
-                                  onClick={() => handleManualOutreach(alert.id)}
-                                  className="px-3 py-1.5 bg-[#44bbaa] text-white text-xs font-medium rounded-[5px] hover:bg-[#005751] transition-colors"
-                                >
-                                  Send Outreach
-                                </button>
-                              )}
+                      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-[#f0f0f0]" onClick={(e) => e.stopPropagation()}>
+                        {!isResolved && (
+                          <>
+                            {isScheduled && (
                               <button
-                                onClick={() => handleResolve(alert.id, 'saved')}
-                                className="px-3 py-1.5 bg-white border border-green-400 text-green-700 text-xs font-medium rounded-[5px] hover:bg-green-50 transition-colors"
+                                onClick={() => handleCancelOutreach(alert.id)}
+                                className="px-3 py-1.5 bg-white border border-amber-400 text-amber-700 text-xs font-medium rounded-[5px] hover:bg-amber-50 transition-colors"
                               >
-                                Mark Saved
+                                Cancel Auto-Send
                               </button>
+                            )}
+                            {alert.status === 'new' && alert.clientId && (
                               <button
-                                onClick={() => handleResolve(alert.id, 'lost')}
-                                className="px-3 py-1.5 bg-white border border-[#d0d0d0] text-[#707070] text-xs font-medium rounded-[5px] hover:bg-[#f8f8f8] transition-colors"
+                                onClick={() => handleManualOutreach(alert.id)}
+                                className="px-3 py-1.5 bg-[#44bbaa] text-white text-xs font-medium rounded-[5px] hover:bg-[#005751] transition-colors"
                               >
-                                Mark Lost
+                                Send Outreach
                               </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleDelete(alert.id); }}
-                                className="px-3 py-1.5 bg-white border border-red-300 text-red-600 text-xs font-medium rounded-[5px] hover:bg-red-50 transition-colors"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          )}
-                          <svg className={`w-4 h-4 text-[#707070] transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </div>
+                            )}
+                            <button
+                              onClick={() => handleResolve(alert.id, 'saved')}
+                              className="px-3 py-1.5 bg-white border border-green-400 text-green-700 text-xs font-medium rounded-[5px] hover:bg-green-50 transition-colors"
+                            >
+                              Mark Saved
+                            </button>
+                            <button
+                              onClick={() => handleResolve(alert.id, 'lost')}
+                              className="px-3 py-1.5 bg-white border border-[#d0d0d0] text-[#707070] text-xs font-medium rounded-[5px] hover:bg-[#f8f8f8] transition-colors"
+                            >
+                              Mark Lost
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDelete(alert.id); }}
+                              className="px-3 py-1.5 bg-white border border-red-300 text-red-600 text-xs font-medium rounded-[5px] hover:bg-red-50 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
+                        <div className="flex-1" />
+                        <svg className={`w-4 h-4 text-[#707070] transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
                       </div>
                     </div>
 

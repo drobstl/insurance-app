@@ -150,7 +150,7 @@ export default function ReferralsPage() {
   }
 
   return (
-    <div>
+    <div className="max-w-4xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#000000]">Referrals</h1>
         <p className="text-[#707070] text-sm mt-1">Track referral conversations and booked appointments.</p>
@@ -163,7 +163,7 @@ export default function ReferralsPage() {
       )}
 
       {/* AI Referral Assistant Card */}
-      <div className="bg-white rounded-[5px] border border-[#d0d0d0] mb-6 p-5">
+      <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] mb-6 p-5">
         <div className="flex items-center justify-between">
           <div className="flex-1 mr-4">
             <h3 className="text-sm font-semibold text-[#000000] mb-1">AI Referral Assistant</h3>
@@ -224,7 +224,7 @@ export default function ReferralsPage() {
       </div>
 
       {/* Referrals List */}
-      <div className="bg-white rounded-[5px] border border-[#d0d0d0]">
+      <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px]">
         <div className="px-4 py-3 border-b border-[#d0d0d0] flex items-center justify-between">
           <h2 className="text-sm font-semibold text-[#000000]">Referral Conversations</h2>
           <div className="flex gap-2 text-xs">
