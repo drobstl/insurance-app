@@ -3,6 +3,7 @@ import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { PRIMARY_MODEL, HELPER_MODEL } from './ai-models';
 import { buildSharedVoiceBlock, buildDripPrinciples } from './ai-voice';
+import { languageInstruction, type SupportedLanguage } from './client-language';
 import { enrichPrompt, type EnrichmentResult } from './dynamic-prompt';
 import { critiqueMessage } from './message-critic';
 import { analyzeConversation } from './conversation-analyzer';
@@ -75,6 +76,7 @@ export interface PolicyReviewOutreachContext {
   coverageAmount: number | null;
   schedulingUrl: string | null;
   messageStyle: 'lower_price' | 'check_in';
+  preferredLanguage?: SupportedLanguage;
 }
 
 export interface PolicyReviewConversationContext {
@@ -88,6 +90,7 @@ export interface PolicyReviewConversationContext {
   coverageAmount: number | null;
   schedulingUrl: string | null;
   conversation: PolicyReviewMessage[];
+  preferredLanguage?: SupportedLanguage;
 }
 
 export interface PolicyReviewDripContext {
@@ -99,6 +102,7 @@ export interface PolicyReviewDripContext {
   carrier: string;
   schedulingUrl: string | null;
   dripNumber: number;
+  preferredLanguage?: SupportedLanguage;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -135,7 +139,9 @@ YOUR APPROACH:
 - End with a genuine question — something that invites them to respond.
 - Don't mention specific numbers, rates, or quotes. You haven't reviewed anything yet.
 ${ctx.schedulingUrl ? `- Do NOT share your scheduling link in this first message. Save it for later.` : ''}
-- Must end with a question to invite a response.`,
+- Must end with a question to invite a response.
+
+${languageInstruction(ctx.preferredLanguage ?? 'en')}`,
       messages: [
         { role: 'user', content: 'Write the first outreach text message.' },
       ],
@@ -232,7 +238,9 @@ REVIEW-SPECIFIC PUSHBACK:
 
 REVIEW-SPECIFIC RULES:
 - Return [DONE] when the conversation is over (client declined, or you've made your exit).
-- Return [WAIT] if the client goes silent.`;
+- Return [WAIT] if the client goes silent.
+
+${languageInstruction(ctx.preferredLanguage ?? 'en')}`;
 }
 
 export async function generateReviewResponse(
@@ -464,7 +472,9 @@ ${ctx.clientFirstName}'s ${ctx.policyType} policy with ${ctx.carrier} recently h
 
 ${dripGuidance}
 
-${ctx.schedulingUrl && ctx.dripNumber === 2 ? `Include your scheduling link in this final message: ${ctx.schedulingUrl}` : ctx.schedulingUrl ? `Do NOT include your scheduling link yet — save it for the final follow-up or when they respond.` : ''}`,
+${ctx.schedulingUrl && ctx.dripNumber === 2 ? `Include your scheduling link in this final message: ${ctx.schedulingUrl}` : ctx.schedulingUrl ? `Do NOT include your scheduling link yet — save it for the final follow-up or when they respond.` : ''}
+
+${languageInstruction(ctx.preferredLanguage ?? 'en')}`,
       messages: [
         { role: 'user', content: 'Write the follow-up text message.' },
       ],

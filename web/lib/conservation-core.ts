@@ -5,6 +5,7 @@ import { getAdminFirestore } from './firebase-admin';
 import { extractConservationData, generateOutreachMessage, assessSaveability } from './conservation-ai';
 import { normalizePhone, isValidE164 } from './phone';
 import { getCarrierServicePhone } from './carriers';
+import { resolveClientLanguage } from './client-language';
 import type {
   ConservationSource,
   ConservationAlert,
@@ -63,6 +64,7 @@ interface MatchResult {
   policyType: string | null;
   coverageAmount: number | null;
   clientPolicyCount: number;
+  preferredLanguage: 'en' | 'es';
 }
 
 /**
@@ -125,6 +127,7 @@ async function findMatch(
           policyType: (policyData.policyType as string) || null,
           coverageAmount: (policyData.coverageAmount as number) || null,
           clientPolicyCount: policiesSnap.size,
+          preferredLanguage: resolveClientLanguage(clientData.preferredLanguage),
         };
       }
     }
@@ -148,6 +151,7 @@ async function findMatch(
         policyType: (policyData.policyType as string) || null,
         coverageAmount: (policyData.coverageAmount as number) || null,
         clientPolicyCount: policiesSnap.size,
+        preferredLanguage: resolveClientLanguage(clientData.preferredLanguage),
       };
     }
   }
@@ -243,6 +247,7 @@ export async function createManualConservationAlert(
     availableChannels,
     carrier: carrier || null,
     carrierServicePhone,
+    preferredLanguage: resolveClientLanguage(clientData.preferredLanguage),
   };
 
   const initialMessage = await generateOutreachMessage(outreachCtx);
@@ -304,6 +309,7 @@ export async function createManualConservationAlert(
       : null,
     channelsUsed: [] as ConservationChannel[],
     lastClientReplyAt: null as string | null,
+    preferredLanguage: resolveClientLanguage(clientData.preferredLanguage),
     notes: null,
     createdAt: FieldValue.serverTimestamp(),
     resolvedAt: null,
@@ -388,6 +394,7 @@ export async function createConservationAlert(
     availableChannels,
     carrier: carrierName,
     carrierServicePhone,
+    preferredLanguage: match?.preferredLanguage || 'en',
   };
 
   const initialMessage = await generateOutreachMessage(outreachCtx);
@@ -453,6 +460,7 @@ export async function createConservationAlert(
       : null,
     channelsUsed: [] as ConservationChannel[],
     lastClientReplyAt: null as string | null,
+    preferredLanguage: match?.preferredLanguage || 'en',
     notes: null,
     createdAt: FieldValue.serverTimestamp(),
     resolvedAt: null,

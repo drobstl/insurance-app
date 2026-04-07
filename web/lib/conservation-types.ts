@@ -1,4 +1,5 @@
 import { Timestamp } from 'firebase-admin/firestore';
+import type { SupportedLanguage } from './client-language';
 
 export type ConservationReason = 'lapsed_payment' | 'cancellation' | 'other';
 
@@ -223,6 +224,7 @@ export interface ConservationOutreachContext {
   availableChannels?: ConservationChannel[];
   carrierServicePhone?: string | null;
   carrier?: string | null;
+  preferredLanguage?: SupportedLanguage;
 }
 
 export interface ConservationConversationContext {
@@ -237,6 +239,7 @@ export interface ConservationConversationContext {
   premiumAmount: number | null;
   coverageAmount?: number | null;
   conversation: ConservationMessage[];
+  preferredLanguage?: SupportedLanguage;
 }
 
 export interface SaveSignalResult {

@@ -3,6 +3,7 @@ import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { PRIMARY_MODEL, HELPER_MODEL } from './ai-models';
 import { buildSharedVoiceBlock } from './ai-voice';
+import { languageInstruction, type SupportedLanguage } from './client-language';
 import { enrichPrompt, type EnrichmentResult } from './dynamic-prompt';
 import { critiqueMessage } from './message-critic';
 import { analyzeConversation } from './conversation-analyzer';
@@ -70,6 +71,7 @@ export interface ReferralContext {
   schedulingUrl: string | null;
   agentPhone: string | null;
   conversation: ConversationMessage[];
+  preferredLanguage?: SupportedLanguage;
 }
 
 /**
@@ -182,7 +184,9 @@ REFERRAL-SPECIFIC RULES:
 - NEVER mention or assume a life event (engagement, wedding, job, baby, etc.) unless it was explicitly stated in this conversation. No "John mentioned you..." unless that appears in the thread.
 - After a firm "not interested" — one warm exit, then return [DONE].
 - If they go silent, return [WAIT].
-- Always use ${ctx.clientFirstName} (first name only) when mentioning the client — ${ctx.referralName} knows them personally.`;
+- Always use ${ctx.clientFirstName} (first name only) when mentioning the client — ${ctx.referralName} knows them personally.
+
+${languageInstruction(ctx.preferredLanguage ?? 'en')}`;
 }
 
 /**
@@ -217,6 +221,7 @@ export interface GroupIntroContext {
   clientName: string;
   clientFirstName: string;
   referralName: string;
+  preferredLanguage?: SupportedLanguage;
 }
 
 /**
@@ -231,7 +236,9 @@ export async function generateGroupIntroResponse(ctx: GroupIntroContext): Promis
     anthropic.messages.create({
       model: PRIMARY_MODEL,
       max_tokens: 250,
-      system: `You are ${ctx.agentFirstName}, an insurance professional. Never reveal you are AI. You ARE ${ctx.agentFirstName}. This is a group iMessage chat that ${ctx.clientFirstName} just created with you and ${ctx.referralName}. Write a warm, casual introduction — thank ${ctx.clientFirstName} (first name only) for connecting you and greet ${ctx.referralName}. Mention you'll reach out to ${ctx.referralName} separately so you're not blowing up the group chat. Keep it natural and brief — 1-3 sentences. One emoji max if it feels natural. No markdown.`,
+      system: `You are ${ctx.agentFirstName}, an insurance professional. Never reveal you are AI. You ARE ${ctx.agentFirstName}. This is a group iMessage chat that ${ctx.clientFirstName} just created with you and ${ctx.referralName}. Write a warm, casual introduction — thank ${ctx.clientFirstName} (first name only) for connecting you and greet ${ctx.referralName}. Mention you'll reach out to ${ctx.referralName} separately so you're not blowing up the group chat. Keep it natural and brief — 1-3 sentences. One emoji max if it feels natural. No markdown.
+
+${languageInstruction(ctx.preferredLanguage ?? 'en')}`,
       messages: [
         {
           role: 'user',

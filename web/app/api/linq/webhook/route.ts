@@ -35,6 +35,7 @@ import {
 } from '../../../../lib/policy-review-ai';
 import { normalizePhone } from '../../../../lib/phone';
 import { FieldValue } from 'firebase-admin/firestore';
+import { resolveClientLanguage } from '../../../../lib/client-language';
 
 /**
  * POST /api/linq/webhook
@@ -108,6 +109,7 @@ async function handleGroupMessage(data: LinqWebhookMessageData) {
   let clientName = 'A client';
   let clientId: string | null = null;
   let matchedRef: FirebaseFirestore.DocumentReference | null = null;
+  let preferredLanguage = resolveClientLanguage('en');
 
   const pendingSnap = await db
     .collectionGroup('referrals')
@@ -124,6 +126,7 @@ async function handleGroupMessage(data: LinqWebhookMessageData) {
       agentId = doc.ref.parent.parent!.id;
       clientName = (d.clientName as string) || 'A client';
       clientId = (d.clientId as string) || null;
+      preferredLanguage = resolveClientLanguage(d.preferredLanguage);
       break;
     }
   }
@@ -147,6 +150,7 @@ async function handleGroupMessage(data: LinqWebhookMessageData) {
           agentId = candidateAgentId;
           clientName = (d.clientName as string) || 'A client';
           clientId = d.clientId as string;
+          preferredLanguage = resolveClientLanguage(clientData.preferredLanguage);
           break;
         }
       }
@@ -162,6 +166,7 @@ async function handleGroupMessage(data: LinqWebhookMessageData) {
     await matchedRef.update({
       groupChatId: chatId,
       updatedAt: FieldValue.serverTimestamp(),
+      preferredLanguage,
     });
   } else {
     // --- Fallback: find agent by linqPhoneNumber (e.g. organic text to the number) ---
@@ -194,6 +199,9 @@ async function handleGroupMessage(data: LinqWebhookMessageData) {
       ? 'A client'
       : (clientSnap.docs[0].data().name as string) || 'A client';
     clientId = clientSnap.empty ? null : clientSnap.docs[0].id;
+    if (!clientSnap.empty) {
+      preferredLanguage = resolveClientLanguage(clientSnap.docs[0].data().preferredLanguage);
+    }
 
     // Try to match a pending referral under this specific agent
     const agentPendingSnap = await db
@@ -221,6 +229,7 @@ async function handleGroupMessage(data: LinqWebhookMessageData) {
       await matchedRef.update({
         groupChatId: chatId,
         updatedAt: FieldValue.serverTimestamp(),
+        preferredLanguage,
       });
     } else {
       const refData = {
@@ -238,6 +247,7 @@ async function handleGroupMessage(data: LinqWebhookMessageData) {
         lastDripAt: null,
         groupChatId: chatId,
         directChatId: null,
+        preferredLanguage,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       };
@@ -363,6 +373,7 @@ async function handleDirectMessage(data: LinqWebhookMessageData) {
     schedulingUrl,
     agentPhone: (agentData.phoneNumber as string) || null,
     conversation,
+    preferredLanguage: resolveClientLanguage(referralData.preferredLanguage),
   };
 
   // Show typing indicator while generating AI response
@@ -630,6 +641,7 @@ async function handleConservationReply(
     premiumAmount: (alertData.premiumAmount as number) || null,
     coverageAmount: (alertData.coverageAmount as number) || null,
     conversation,
+    preferredLanguage: resolveClientLanguage(alertData.preferredLanguage),
   };
 
   try {
@@ -764,6 +776,7 @@ async function handlePolicyReviewReply(
     coverageAmount: (reviewData.coverageAmount as number) || null,
     schedulingUrl,
     conversation,
+    preferredLanguage: resolveClientLanguage(reviewData.preferredLanguage),
   };
 
   try { await startTypingIndicator(chatId); } catch { /* non-critical */ }

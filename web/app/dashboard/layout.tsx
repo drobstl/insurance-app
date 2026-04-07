@@ -343,12 +343,32 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const isAdminRoute = pathname.startsWith('/dashboard/admin');
   const activeAdminKey = ADMIN_NAV_ITEMS.find(item => pathname.startsWith(item.path))?.key ?? null;
+  const mobileNavItems = NAV_ITEMS.filter((item) =>
+    ['home', 'clients', 'referrals', 'conservation'].includes(item.key),
+  );
 
   return (
     <div className="min-h-screen bg-[#e4e4e4] flex">
+      <div className="md:hidden fixed top-0 inset-x-0 h-14 bg-white border-b border-[#d0d0d0] z-40 flex items-center justify-between px-4">
+        <div className="flex items-center gap-2">
+          <img src="/logo.png" alt="AgentForLife™" className="w-8 h-5 object-contain" />
+          <span className="text-[#005851] text-sm font-bold">AgentForLife</span>
+        </div>
+        <button
+          onClick={() => router.push('/dashboard/settings')}
+          className="w-8 h-8 rounded-[5px] bg-[#f1f1f1] text-[#005851] flex items-center justify-center"
+          aria-label="Open settings"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
+      </div>
+
       {/* Sidebar */}
       <aside
-        className="fixed left-0 top-0 h-full bg-[#005851] z-50 w-56"
+        className="hidden md:block fixed left-0 top-0 h-full bg-[#005851] z-50 w-56"
       >
         <div className="h-14 flex items-center px-4 border-b border-white/10">
           <img src="/logo.png" alt="AgentForLife™" className="w-11 h-7 object-contain" />
@@ -450,9 +470,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 ml-56 flex flex-col min-h-screen overflow-hidden">
+      <div className="flex-1 md:ml-56 flex flex-col min-h-screen overflow-hidden pt-14 md:pt-0 pb-20 md:pb-0">
         {/* Header */}
-        <header className="h-14 bg-white border-b border-[#d0d0d0] sticky top-0 z-40 flex items-center justify-between px-6">
+        <header className="hidden md:flex h-14 bg-white border-b border-[#d0d0d0] sticky top-0 z-40 items-center justify-between px-6">
           <div className="flex items-center gap-2">
             <span className="text-[#005851] font-extrabold text-lg tracking-wide">AGENTFORLIFE</span>
             <span className="text-[#d0d0d0]">|</span>
@@ -550,10 +570,42 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         <DashboardTicker stats={tickerStats} clientCount={tickerClientCount} />
 
         {/* Page Content */}
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 p-4 md:p-6 overflow-auto">
           {children}
         </main>
       </div>
+
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-[#d0d0d0]">
+        <div className="grid grid-cols-5">
+          {mobileNavItems.map((item) => {
+            const active = activeKey === item.key;
+            return (
+              <button
+                key={item.key}
+                onClick={() => router.push(item.path)}
+                className={`py-2 px-1 flex flex-col items-center justify-center gap-1 ${
+                  active ? 'text-[#005851]' : 'text-[#707070]'
+                }`}
+              >
+                <div className="w-5 h-5">{item.icon}</div>
+                <span className="text-[10px] font-semibold leading-none">{item.label}</span>
+              </button>
+            );
+          })}
+          <button
+            onClick={() => router.push('/dashboard/settings')}
+            className={`py-2 px-1 flex flex-col items-center justify-center gap-1 ${
+              activeKey === 'settings' ? 'text-[#005851]' : 'text-[#707070]'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span className="text-[10px] font-semibold leading-none">Settings</span>
+          </button>
+        </div>
+      </nav>
 
       {/* Onboarding */}
       {showOnboarding && user && (

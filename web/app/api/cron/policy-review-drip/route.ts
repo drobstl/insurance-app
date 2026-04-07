@@ -5,6 +5,7 @@ import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { generateDripMessage, type PolicyReviewDripContext } from '../../../../lib/policy-review-ai';
 import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
+import { resolveClientLanguage } from '../../../../lib/client-language';
 import { Resend } from 'resend';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import {
@@ -155,6 +156,7 @@ export async function GET() {
             carrier: (data.carrier as string) || '',
             schedulingUrl,
             dripNumber: REVIEW_STAGE_DRIP_NUMBER[nextStage],
+            preferredLanguage: resolveClientLanguage(data.preferredLanguage),
           };
 
           let message: string;
@@ -181,6 +183,9 @@ export async function GET() {
                 .get();
               if (clientDoc.exists) {
                 pushToken = (clientDoc.data()!.pushToken as string) || null;
+                dripCtx.preferredLanguage = resolveClientLanguage(
+                  data.preferredLanguage ?? clientDoc.data()!.preferredLanguage,
+                );
               }
             } catch { /* ignore */ }
           }

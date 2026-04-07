@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { normalizePhone } from '../../../../lib/phone';
 import { FieldValue } from 'firebase-admin/firestore';
+import { resolveClientLanguage } from '../../../../lib/client-language';
 
 /**
  * POST /api/referral/notify
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
 
     // Resolve client phone: prefer explicit param, fall back to Firestore lookup
     let resolvedClientPhone: string | null = clientPhone ? normalizePhone(clientPhone) : null;
+    let preferredLanguage = resolveClientLanguage('en');
     if (!resolvedClientPhone && clientId) {
       const clientDoc = await db
         .collection('agents')
@@ -47,7 +49,9 @@ export async function POST(req: NextRequest) {
         .doc(clientId)
         .get();
       if (clientDoc.exists) {
-        const phone = (clientDoc.data() as Record<string, unknown>).phone as string | undefined;
+        const clientData = clientDoc.data() as Record<string, unknown>;
+        const phone = clientData.phone as string | undefined;
+        preferredLanguage = resolveClientLanguage(clientData.preferredLanguage);
         if (phone) resolvedClientPhone = normalizePhone(phone);
       }
     }
@@ -67,6 +71,7 @@ export async function POST(req: NextRequest) {
       lastDripAt: null,
       groupChatId: null,
       directChatId: null,
+      preferredLanguage,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     };

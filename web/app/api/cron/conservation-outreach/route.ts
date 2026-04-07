@@ -9,6 +9,7 @@ import { Resend } from 'resend';
 import { generateOutreachMessage, generateConservationEmail } from '../../../../lib/conservation-ai';
 import { getCarrierServicePhone } from '../../../../lib/carriers';
 import type { ConservationOutreachContext, ConservationChannel } from '../../../../lib/conservation-types';
+import { resolveClientLanguage } from '../../../../lib/client-language';
 import {
   type TouchStage,
   TOUCH_STAGE_TO_STATUS,
@@ -343,6 +344,7 @@ export async function GET(req: NextRequest) {
           availableChannels: (alertData.availableChannels as ConservationChannel[]) || [],
           carrier: carrierName || null,
           carrierServicePhone: getCarrierServicePhone(carrierName),
+          preferredLanguage: resolveClientLanguage(alertData.preferredLanguage ?? clientData.preferredLanguage),
         };
 
         const sendOpts = {
@@ -473,6 +475,7 @@ export async function GET(req: NextRequest) {
             availableChannels: channels,
             carrier: carrierName || null,
             carrierServicePhone: getCarrierServicePhone(carrierName),
+            preferredLanguage: resolveClientLanguage(alertData.preferredLanguage ?? clientData.preferredLanguage),
           };
 
           let followUpMessage: string;

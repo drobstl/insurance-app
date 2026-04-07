@@ -1,7 +1,7 @@
 # CONTEXT.md — AgentForLife (AFL)
 
 > Drop this in the repo root. Read it before any strategic or architectural decision.
-> Last updated: March 28, 2026
+> Last updated: April 7, 2026
 
 ## What This Is
 
@@ -19,6 +19,7 @@ Independent life insurance agents selling mortgage protection, final expense, an
 - Manual add, CSV import (up to 400 rows), PDF application parsing, book-of-business PDF parsing
 - Each client gets a unique code (e.g., X7K9-M2P4-Q8R1) for mobile app access
 - Client detail view: policies, beneficiaries, referrals, contact history
+- Per-client preferred language (`en`/`es`) for outbound messaging personalization
 
 ### AI Referral Pipeline
 - Client shares app or sends group text → referral created
@@ -143,6 +144,8 @@ Standalone pricing remains for agents who come directly. Founding member migrati
 - Added (March 2026): Google Drive integration Task 1 backend foundation. Introduced server-side OAuth helpers and token persistence for `drive.readonly`, with Firestore integration storage at `integrations/{agentId}/google/drive`, OAuth state handling, and new API endpoints under `/api/integrations/google/*` (`auth`, `callback`, `disconnect`, `token`, `status`). Callback now redirects to `/dashboard` with success/error query params for UI handling.
 - Added (March 2026): Google Drive connect/disconnect controls in Dashboard Settings. The account settings tab now checks Google integration status on load, supports connect (OAuth start + redirect), supports disconnect, and surfaces callback success/error state using dashboard query params.
 - Added (March 2026): Google Drive Phase 1 is complete. Delivered Google Picker file selection in the Clients import flow, a new `/api/integrations/google/import` route that downloads Drive PDFs and stages them in GCS with idempotent ingestion-v3 job creation (`drive:{fileId}:{modifiedTime}:{sizeBytes}`), and dashboard UI support across both Settings (connect/disconnect state) and Clients (Connect Google Drive + Import from Google Drive actions). Drive imports now feed the same existing ingestion-v3 queue/process pipeline with no parser behavior changes from local uploads.
+- Added (April 2026): Spanish messaging support for client lifecycle flows. Clients can now be marked with a preferred language (`en`/`es`), and outbound automated messaging paths use Spanish when set (welcome text/resend, referral follow-ups, conservation/review AI prompts, and birthday push copy).
+- Added (April 2026): Mobile-first responsive dashboard shell for agents on phones (mobile top bar + bottom nav + mobile breakpoint layout tuning on core pages). Desktop/laptop layout is intentionally preserved with no design changes outside the new language controls.
 - Decision (March 2026): PDF ingestion hardening is now a four-phase delivery plan. Phase 1 is reliability-only (source retention on failures, durable run triggering, server-driven transient retries, and shared retry utility extraction) with no new user-facing features. Phase 2 adds the runtime extraction mode selector (`fast` vs `best_accuracy`) and backup LLM circuit-breaker fallback behind a feature flag. Phase 3 introduces typed error taxonomy and moderate hardening cleanups. Phase 4 adds observability dashboards and SLO alerting.
 - Known issues / next session:
   - "0 pages" metadata bug in extraction summary.

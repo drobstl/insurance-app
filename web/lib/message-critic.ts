@@ -2,6 +2,7 @@ import 'server-only';
 
 import Anthropic from '@anthropic-ai/sdk';
 import { HELPER_MODEL } from './ai-models';
+import { resolveClientLanguage } from './client-language';
 import type {
   ConversationMessage,
   ClientPersona,
@@ -33,6 +34,7 @@ export async function critiqueMessage(params: {
   persona: ClientPersona;
   personaStrategy: string | null;
   antiPatterns: string | null;
+  preferredLanguage?: string;
 }): Promise<CriticResult> {
   const anthropic = getAnthropic();
   const transcript = formatTranscript(params.conversation);
@@ -44,6 +46,11 @@ export async function critiqueMessage(params: {
   const personaBlock = params.personaStrategy
     ? `PERSONA-SPECIFIC STRATEGY (${params.persona}):\n${params.personaStrategy}`
     : `Client persona: ${params.persona}. No persona-specific strategy yet.`;
+
+  const preferredLanguage = resolveClientLanguage(params.preferredLanguage);
+  const languageRule = preferredLanguage === 'es'
+    ? 'LANGUAGE RULE: Candidate must be fully in natural Spanish unless the client explicitly asked for English.'
+    : 'LANGUAGE RULE: Candidate must be in natural English unless the client explicitly asked for Spanish.';
 
   const result = await anthropic.messages.create({
     model: HELPER_MODEL,
@@ -64,6 +71,8 @@ VOICE RULES:
 ${antiPatternsBlock}
 
 ${personaBlock}
+
+${languageRule}
 
 CONVERSATION SO FAR:
 ${transcript}

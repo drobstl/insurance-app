@@ -17,6 +17,7 @@ import {
 import { getLinqAttachmentId } from '../../../../lib/business-card-url';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { FieldValue } from 'firebase-admin/firestore';
+import { resolveClientLanguage } from '../../../../lib/client-language';
 
 export const maxDuration = 120;
 
@@ -75,6 +76,7 @@ export async function POST(req: NextRequest) {
     const clientFirstName = clientName.split(' ')[0];
     const referralName = (referralData.referralName as string) || 'Friend';
     const referralPhone = normalizePhone((referralData.referralPhone as string) || '');
+    const preferredLanguage = resolveClientLanguage(referralData.preferredLanguage);
 
     // -----------------------------------------------------------------------
     // Step 1: Wait ~35s for the group chat to settle
@@ -98,6 +100,7 @@ export async function POST(req: NextRequest) {
       clientName,
       clientFirstName,
       referralName,
+      preferredLanguage,
     });
 
     if (groupIntro) {
@@ -147,6 +150,7 @@ export async function POST(req: NextRequest) {
       schedulingUrl,
       agentPhone: (agentData.phoneNumber as string) || null,
       conversation: filterConversationToGroupOnly(rawConversation),
+      preferredLanguage,
     };
 
     const opener = await generateFirstMessage(ctx);

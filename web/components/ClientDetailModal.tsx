@@ -5,6 +5,7 @@ import { Timestamp } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { formatCurrency, formatDate, formatDateLong, getStatusColor, getPolicyTypeIcon, getAnniversaryDate, daysUntilAnniversary } from '../lib/policyUtils';
 import type { Beneficiary } from '../lib/types';
+import { buildWelcomeMessage, resolveClientLanguage, type SupportedLanguage } from '../lib/client-language';
 
 interface Client {
   id: string;
@@ -18,6 +19,7 @@ interface Client {
   policyReviewOptOut?: boolean;
   sourceReferralId?: string;
   sourceReferralName?: string;
+  preferredLanguage?: SupportedLanguage;
 }
 
 interface Policy {
@@ -51,7 +53,7 @@ interface ClientDetailModalProps {
   onDeletePolicy: (policy: Policy) => void;
   onUploadApplication: () => void;
   onEditClient?: (client: Client) => void;
-  onUpdateClient?: (clientId: string, updates: { name: string; email: string; phone: string; dateOfBirth: string }) => Promise<void>;
+  onUpdateClient?: (clientId: string, updates: { name: string; email: string; phone: string; dateOfBirth: string; preferredLanguage: SupportedLanguage }) => Promise<void>;
   onFlagAtRisk?: (policyId: string, reason: 'lapsed_payment' | 'cancellation') => void;
   agentName?: string;
   hasSchedulingUrl?: boolean;
@@ -118,7 +120,13 @@ export default function ClientDetailModal({
   const [referralName, setReferralName] = useState<string | null>(null);
   const [clearingReferral, setClearingReferral] = useState(false);
   const [editingClientInline, setEditingClientInline] = useState(false);
-  const [clientDraft, setClientDraft] = useState({ name: '', email: '', phone: '', dateOfBirth: '' });
+  const [clientDraft, setClientDraft] = useState<{ name: string; email: string; phone: string; dateOfBirth: string; preferredLanguage: SupportedLanguage }>({
+    name: '',
+    email: '',
+    phone: '',
+    dateOfBirth: '',
+    preferredLanguage: 'en',
+  });
   const [clientEditError, setClientEditError] = useState('');
   const [clientEditSuccess, setClientEditSuccess] = useState('');
   const [savingClientInline, setSavingClientInline] = useState(false);
@@ -243,7 +251,13 @@ export default function ClientDetailModal({
       const token = await currentUser.getIdToken();
       const firstName = (client.name || 'there').split(' ')[0];
       const agent = agentName || 'your agent';
-      const message = `Hey ${firstName}! ${agent} here. Download the AgentForLife app and use code ${client.clientCode} to connect with me. https://agentforlife.app/app`;
+      const message = buildWelcomeMessage({
+        firstName,
+        agentName: agent,
+        code: client.clientCode,
+        appUrl: 'https://agentforlife.app/app',
+        language: resolveClientLanguage(client.preferredLanguage),
+      });
       const res = await fetch('/api/client/welcome-sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -321,6 +335,7 @@ export default function ClientDetailModal({
         email: client.email || '',
         phone: client.phone || '',
         dateOfBirth: client.dateOfBirth || '',
+        preferredLanguage: resolveClientLanguage(client.preferredLanguage),
       });
       setClientEditError('');
       setClientEditSuccess('');
@@ -335,6 +350,7 @@ export default function ClientDetailModal({
       email: client.email || '',
       phone: client.phone || '',
       dateOfBirth: client.dateOfBirth || '',
+      preferredLanguage: resolveClientLanguage(client.preferredLanguage),
     });
     setClientEditError('');
     setClientEditSuccess('');
@@ -362,6 +378,7 @@ export default function ClientDetailModal({
         email: clientDraft.email.trim(),
         phone: clientDraft.phone.trim(),
         dateOfBirth: clientDraft.dateOfBirth || '',
+        preferredLanguage: clientDraft.preferredLanguage,
       });
       setClientEditSuccess('Client details updated.');
       setEditingClientInline(false);
@@ -683,6 +700,17 @@ export default function ClientDetailModal({
                       className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
                     />
                   </div>
+                  <div className="col-span-2">
+                    <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Preferred Language</p>
+                    <select
+                      value={clientDraft.preferredLanguage}
+                      onChange={(e) => setClientDraft((prev) => ({ ...prev, preferredLanguage: resolveClientLanguage(e.target.value) }))}
+                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                    >
+                      <option value="en">English</option>
+                      <option value="es">Spanish</option>
+                    </select>
+                  </div>
                   <div className="col-span-2 flex gap-2 pt-1">
                     <button
                       type="button"
@@ -724,6 +752,12 @@ export default function ClientDetailModal({
                         ? formatDateLong(client.dateOfBirth)
                         : <span className="text-gray-400 italic font-normal">Not provided</span>
                       }
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Preferred Language</p>
+                    <p className="text-[#000000] font-medium">
+                      {resolveClientLanguage(client?.preferredLanguage) === 'es' ? 'Spanish' : 'English'}
                     </p>
                   </div>
                 </>

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
+import { buildBirthdayPush, resolveClientLanguage } from '../../../../lib/client-language';
 
 function getResend() {
   const key = process.env.RESEND_API_KEY;
@@ -89,11 +90,16 @@ export async function GET(req: NextRequest) {
 
         // 5. Send push notification via Expo Push API
         const firstName = clientName.split(' ')[0];
-        const pushTitle = 'Happy Birthday! 🎂';
         const agentSignature = agencyName
           ? `${agentName}, ${agencyName}`
           : agentName;
-        const pushBody = `Happy Birthday, ${firstName}! Today is your day — I hope it's filled with the people and moments that mean the most to you. It's a privilege to be the one looking after your family's protection. Enjoy every minute. — ${agentSignature}`;
+        const localizedPush = buildBirthdayPush({
+          firstName,
+          agentSignature,
+          language: resolveClientLanguage(clientData.preferredLanguage),
+        });
+        const pushTitle = localizedPush.title;
+        const pushBody = localizedPush.body;
 
         try {
           const expoResponse = await fetch(

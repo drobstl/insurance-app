@@ -3,6 +3,7 @@ import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { PRIMARY_MODEL, HELPER_MODEL } from './ai-models';
 import { buildSharedVoiceBlock, buildDripPrinciples } from './ai-voice';
+import { languageInstruction } from './client-language';
 import { enrichPrompt, type EnrichmentResult } from './dynamic-prompt';
 import { critiqueMessage } from './message-critic';
 import { analyzeConversation } from './conversation-analyzer';
@@ -205,7 +206,9 @@ You're a problem-finder and problem-solver, not someone chasing a client to keep
 - ${ctx.reason === 'lapsed_payment' ? 'Lead with warmth. "Hey, just wanted to check in — noticed something came up with your policy." Make it easy for them. Give them the carrier number if you have it.' : ctx.reason === 'cancellation' ? 'Be genuinely curious about what changed. Don\'t assume you know why. Ask: "What\'s going on?" or "What changed?" before offering any solutions. Help them reconnect to why they got coverage: "What was the main reason you got the policy originally?" or "Before this came up, how were you feeling about the coverage?" They may have a good reason — respect that.' : 'Be warm, check in, see what\'s happening.'}
 - ${dripContext}
 - ${schedulingNote}
-- Sign off naturally as ${ctx.agentFirstName} if it fits the drip.`,
+- Sign off naturally as ${ctx.agentFirstName} if it fits the drip.
+
+${languageInstruction(ctx.preferredLanguage ?? 'en')}`,
       messages: [
         {
           role: 'user',
@@ -411,7 +414,9 @@ QUESTIONS TO AVOID IN CONSERVATION:
 
 CONSERVATION-SPECIFIC RULES:
 - Return [DONE] when the conversation is over (client firmly declined twice, or you've made your gracious exit).
-- Return [WAIT] if the client goes silent and stops responding.`;
+- Return [WAIT] if the client goes silent and stops responding.
+
+${languageInstruction(ctx.preferredLanguage ?? 'en')}`;
 
   const learningConversation: LearningMessage[] = ctx.conversation.map((m) => ({
     role: m.role,
@@ -663,7 +668,9 @@ FORMAT:
 - End with a clear, simple next step and sign off as ${ctx.agentFirstName}.
 ${contactInfo ? `- Include your contact info in the sign-off: ${contactInfo}` : ''}
 - No markdown, no bullet points, no emojis. Warm, professional, personal.
-- Do not include a subject line. Just the email body.`,
+- Do not include a subject line. Just the email body.
+
+${languageInstruction(ctx.preferredLanguage ?? 'en')}`,
       messages: [
         {
           role: 'user',

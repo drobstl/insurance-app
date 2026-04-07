@@ -7,6 +7,7 @@ import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { generateInitialOutreach, type PolicyReviewOutreachContext } from '../../../../lib/policy-review-ai';
 import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
+import { resolveClientLanguage } from '../../../../lib/client-language';
 import {
   type ConservationChannel,
   type ReviewTouchStage,
@@ -57,6 +58,7 @@ interface AnniversaryPolicy {
   anniversaryDate: string;
   daysUntil: number;
   policyPath: string;
+  preferredLanguage: 'en' | 'es';
 }
 
 export async function GET(req: NextRequest) {
@@ -104,6 +106,7 @@ export async function GET(req: NextRequest) {
         const clientFirstName = clientName.split(' ')[0];
         const clientPhone = (clientData.phone as string) || null;
         const clientPushToken = (clientData.pushToken as string) || null;
+        const preferredLanguage = resolveClientLanguage(clientData.preferredLanguage);
         const clientOptedOut = (clientData.policyReviewOptOut as boolean) === true;
 
         if (clientOptedOut) continue;
@@ -155,6 +158,7 @@ export async function GET(req: NextRequest) {
             anniversaryDate: anniversary.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
             daysUntil,
             policyPath: `agents/${agentDoc.id}/clients/${clientDoc.id}/policies/${policyDoc.id}`,
+            preferredLanguage,
           };
 
           // Day -3: Agent heads-up (3 days before anniversary)
@@ -248,6 +252,7 @@ export async function GET(req: NextRequest) {
                 coverageAmount: hit.coverageAmount,
                 schedulingUrl,
                 messageStyle: messageStyle === 'custom' ? 'check_in' : messageStyle,
+                preferredLanguage: hit.preferredLanguage,
               };
 
               const aiMessage = await generateInitialOutreach(outreachCtx);
@@ -358,6 +363,7 @@ export async function GET(req: NextRequest) {
                 nextTouchAt,
                 channelsUsed: [usedChannel],
                 lastClientReplyAt: null,
+                preferredLanguage: hit.preferredLanguage,
                 createdAt: FieldValue.serverTimestamp(),
                 updatedAt: FieldValue.serverTimestamp(),
               });

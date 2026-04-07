@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
+import { resolveClientLanguage } from '../../../../lib/client-language';
 
 export const maxDuration = 60;
 
@@ -306,6 +307,7 @@ export async function POST(request: NextRequest) {
         clientCode: code,
         agentId: uid,
         createdAt: FieldValue.serverTimestamp(),
+        preferredLanguage: resolveClientLanguage('en'),
       };
       if ((primaryRow.dateOfBirth || '').trim()) {
         clientPayload.dateOfBirth = primaryRow.dateOfBirth.trim();

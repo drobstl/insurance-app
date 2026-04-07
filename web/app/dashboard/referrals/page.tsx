@@ -152,7 +152,7 @@ export default function ReferralsPage() {
   return (
     <div className="max-w-5xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#000000]">Referrals</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-[#000000]">Referrals</h1>
         <p className="text-[#707070] text-sm mt-1">Track referral conversations and booked appointments.</p>
       </div>
 
@@ -164,8 +164,8 @@ export default function ReferralsPage() {
 
       {/* AI Referral Assistant Card */}
       <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] mb-6 p-5">
-        <div className="flex items-center justify-between">
-          <div className="flex-1 mr-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex-1 md:mr-4">
             <h3 className="text-sm font-semibold text-[#000000] mb-1">AI Referral Assistant</h3>
             {aiAssistantEnabled ? (
               <p className="text-sm text-[#707070]">
@@ -309,13 +309,13 @@ export default function ReferralsPage() {
                     className="flex items-center justify-between cursor-pointer"
                     onClick={() => { setExpandedReferral(expandedReferral === referral.id ? null : referral.id); setManualMessageText(''); }}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div className="w-9 h-9 rounded-full bg-[#005851] flex items-center justify-center text-white text-sm font-bold">
                         {(referral.referralName || '?')[0].toUpperCase()}
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold text-[#000000]">{referral.referralName}</p>
-                        <p className="text-xs text-[#707070]">Referred by {referral.clientName}</p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-[#000000] truncate">{referral.referralName}</p>
+                        <p className="text-xs text-[#707070] truncate">Referred by {referral.clientName}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">

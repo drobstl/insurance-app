@@ -5,6 +5,7 @@ import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { buildReferralDripMessage, resolveClientLanguage } from '../../../../lib/client-language';
 
 const DRIP_STATUSES = ['outreach-sent', 'drip-1', 'drip-2'] as const;
 
@@ -21,32 +22,6 @@ const NEXT_STATUS: Record<string, string> = {
   'drip-1': 'drip-2',
   'drip-2': 'drip-complete',
 };
-
-function buildDripMessage(
-  status: string,
-  referralName: string,
-  clientName: string,
-  agentFirstName: string,
-  schedulingUrl: string | null,
-): string {
-  switch (status) {
-    case 'outreach-sent':
-      return `Hey ${referralName}, ${clientName} mentioned something interesting about you that made me think I could help. Did you get my last message?`;
-
-    case 'drip-1':
-      return `Hey ${referralName}, quick thought — most families don't realize how fast things add up if something unexpected happens. The mortgage, bills, kids' expenses. It's one of those things that's easy to put off but hard to fix after the fact. Anyway, just wanted to plant the seed — no pressure at all.`;
-
-    case 'drip-2': {
-      const bookingPart = schedulingUrl
-        ? ` If you ever want to take 15 minutes to see where you stand, here's my calendar: ${schedulingUrl}`
-        : ` If you ever want to chat, I'm a text away.`;
-      return `Hey ${referralName}, last thing from me — I don't want to be that person who keeps texting.${bookingPart} Either way, it was great connecting through ${clientName}. Take care!`;
-    }
-
-    default:
-      return '';
-  }
-}
 
 /**
  * GET /api/cron/referral-drip
@@ -65,8 +40,6 @@ export async function GET() {
 
     for (const agentDoc of agentsSnap.docs) {
       const agentData = agentDoc.data();
-      const agentName = (agentData.name as string) || 'Your agent';
-      const agentFirstName = agentName.split(' ')[0];
       const schedulingUrl = (agentData.schedulingUrl as string) || null;
 
       for (const status of DRIP_STATUSES) {
@@ -96,7 +69,13 @@ export async function GET() {
           const clientName = (data.clientName as string) || 'A friend';
           const referralPhone = normalizePhone((data.referralPhone as string) || '');
 
-          const message = buildDripMessage(status, referralName, clientName, agentFirstName, schedulingUrl);
+          const message = buildReferralDripMessage({
+            status,
+            referralName,
+            clientName,
+            schedulingUrl,
+            language: resolveClientLanguage(data.preferredLanguage),
+          });
           if (!message || !isValidE164(referralPhone)) continue;
 
           const directChatId = (data.directChatId as string) || null;

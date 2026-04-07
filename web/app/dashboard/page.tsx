@@ -261,9 +261,9 @@ export default function DashboardHomePage() {
       )}
 
       {/* ── Value Hero ─────────────────────────────────────────── */}
-      <div className="flex items-start justify-between mt-2 mb-10">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6 mt-2 mb-8 md:mb-10">
         <div>
-          <p className="text-8xl font-extrabold text-[#005851] tracking-tight">
+          <p className="text-5xl md:text-8xl font-extrabold text-[#005851] tracking-tight">
             {formatValue(totalValue)}
           </p>
           <p className="text-sm text-[#707070] mt-1">total value created</p>
@@ -321,7 +321,7 @@ export default function DashboardHomePage() {
       </div>
 
       {/* ── Three Metric Cards ─────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5">
           <div className="flex items-start justify-between mb-1">
             <span className="text-4xl font-extrabold text-[#16a34a]">
@@ -403,8 +403,8 @@ export default function DashboardHomePage() {
 
       {/* ── Nav Grid ───────────────────────────────────────────── */}
       <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden mt-8">
-        <div className="grid grid-cols-2">
-          <div className="border-r border-b border-[#e0e0e0] px-4 py-4">
+        <div className="grid grid-cols-1 md:grid-cols-2">
+          <div className="md:border-r border-b border-[#e0e0e0] px-4 py-4">
             <NavLink
               color="bg-red-500"
               label="Retention"
@@ -420,7 +420,7 @@ export default function DashboardHomePage() {
               onClick={() => router.push('/dashboard/referrals')}
             />
           </div>
-          <div className="border-r border-[#e0e0e0] px-4 py-4">
+          <div className="md:border-r border-b md:border-b-0 border-[#e0e0e0] px-4 py-4">
             <NavLink
               color="bg-amber-500"
               label="Anniversaries"
