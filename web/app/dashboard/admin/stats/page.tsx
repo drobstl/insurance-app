@@ -67,7 +67,6 @@ export default function AdminStatsPage() {
 
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [stats, setStats] = useState<AgentAggregates | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -150,67 +149,7 @@ export default function AdminStatsPage() {
 
   return (
     <div className="min-h-screen bg-[#e4e4e4] flex">
-      {/* ============================================================ */}
-      {/*  Sidebar                                                      */}
-      {/* ============================================================ */}
-      <aside
-        className={`fixed left-0 top-0 h-full bg-[#005851] z-50 transition-all duration-300 ${
-          sidebarExpanded ? 'w-56' : 'w-16'
-        }`}
-        onMouseEnter={() => setSidebarExpanded(true)}
-        onMouseLeave={() => setSidebarExpanded(false)}
-      >
-        <div className="h-14 flex items-center px-4 border-b border-white/10">
-          <img src="/logo.png" alt="AgentForLife™" className="w-11 h-7 object-contain" />
-          <span
-            className={`ml-3 text-white text-lg whitespace-nowrap overflow-hidden transition-all duration-300 brand-title ${
-              sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'
-            }`}
-          >
-            AgentForLife™
-          </span>
-        </div>
-
-        <nav className="mt-4 px-2 space-y-1">
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white"
-          >
-            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-            </svg>
-            <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
-              Dashboard
-            </span>
-          </button>
-          <button
-            onClick={() => router.push('/dashboard/admin/applications')}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 text-white/80 hover:bg-white/10 hover:text-white"
-          >
-            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
-              Applications
-            </span>
-          </button>
-          <button
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] bg-white/15 text-white"
-          >
-            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-            <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 text-sm font-semibold ${sidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
-              Stats
-            </span>
-          </button>
-        </nav>
-      </aside>
-
-      {/* ============================================================ */}
-      {/*  Main Content                                                 */}
-      {/* ============================================================ */}
-      <main className="ml-16 flex-1 p-6 max-w-6xl mx-auto w-full">
+      <main className="ml-0 flex-1 p-6 max-w-6xl mx-auto w-full">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>

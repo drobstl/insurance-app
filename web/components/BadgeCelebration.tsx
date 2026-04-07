@@ -139,9 +139,9 @@ export default function BadgeCelebration({
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
       {/* Visible celebration card */}
-      <div className="relative bg-white rounded-[12px] shadow-2xl max-w-sm w-full p-8 text-center animate-in zoom-in-95 duration-300">
+      <div className="relative bg-white rounded-[12px] shadow-2xl max-w-lg w-full p-8 text-center animate-in zoom-in-95 duration-300">
         {/* Glow ring behind badge */}
-        <div className="relative mx-auto w-[200px] h-[200px] mb-6">
+        <div className="relative mx-auto w-[300px] h-[300px] mb-6">
           <div
             className="absolute inset-0 rounded-full animate-pulse"
             style={{
@@ -151,7 +151,7 @@ export default function BadgeCelebration({
           <div className="relative flex items-center justify-center w-full h-full">
             <PremiumBadge
               badgeId={badge.id}
-              size={200}
+              size={300}
               shimmer
               glow
             />
