@@ -141,7 +141,7 @@ export default function BadgeCelebration({
       {/* Visible celebration card */}
       <div className="relative bg-white rounded-[12px] shadow-2xl max-w-sm w-full p-8 text-center animate-in zoom-in-95 duration-300">
         {/* Glow ring behind badge */}
-        <div className="relative mx-auto w-[120px] h-[120px] mb-6">
+        <div className="relative mx-auto w-[200px] h-[200px] mb-6">
           <div
             className="absolute inset-0 rounded-full animate-pulse"
             style={{

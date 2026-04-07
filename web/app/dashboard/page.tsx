@@ -33,18 +33,6 @@ const TYPE_META: Record<ActivityItem['type'], { color: string; href: string }> =
   'policy-review': { color: 'bg-[#005851]', href: '/dashboard/policy-reviews' },
 };
 
-function computeFanArc(count: number) {
-  const maxSpread = 160;
-  const maxX = 32;
-  return Array.from({ length: count }, (_, i) => {
-    const t = count === 1 ? 0 : (i / (count - 1)) * 2 - 1;
-    const y = t * (maxSpread / 2);
-    const x = maxX - Math.abs(t) * 12;
-    const rotate = t * 6;
-    return { x, y, rotate };
-  });
-}
-
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const days = Math.floor(diff / 86_400_000);
@@ -541,11 +529,15 @@ function AIActivityFan({
   const anchor = anchorRef.current?.getBoundingClientRect();
   if (!anchor) return null;
 
-  const originX = anchor.right;
-  const originY = anchor.top + anchor.height / 2;
-
   const fetched = !loading || items.length > 0;
-  const arc = computeFanArc(Math.max(items.length, 1));
+  const cardWidth = 420;
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1280;
+  const left = Math.min(Math.max(16, anchor.left), viewportWidth - cardWidth - 16);
+  const top = anchor.bottom + 10;
+  const transformOriginX = Math.max(
+    16,
+    Math.min(cardWidth - 16, anchor.left - left + anchor.width / 2),
+  );
 
   return (
     <AnimatePresence>
@@ -560,132 +552,60 @@ function AIActivityFan({
             onClick={onClose}
           />
 
-          {!fetched ? (
-            <motion.div
-              className="fixed z-[71] flex items-center gap-2 bg-white rounded-[5px] shadow-lg px-4 py-2.5"
-              style={{ left: originX + 16, top: originY - 16 }}
-              initial={{ opacity: 0, scale: 0.8, x: -20 }}
-              animate={{ opacity: 1, scale: 1, x: 0 }}
-              exit={{ opacity: 0, scale: 0.8, x: -20 }}
-            >
-              <svg className="animate-spin w-4 h-4 text-[#005851]" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              <span className="text-xs text-[#707070]">Loading activity...</span>
-            </motion.div>
-          ) : items.length === 0 ? (
-            <motion.div
-              className="fixed z-[71] flex items-center gap-2.5 bg-white rounded-[5px] shadow-lg border border-[#e4e4e4] px-4 py-3"
-              style={{ left: originX + 16, top: originY - 18 }}
-              initial={{ opacity: 0, scale: 0.8, x: -20 }}
-              animate={{ opacity: 1, scale: 1, x: 0 }}
-              exit={{ opacity: 0, scale: 0.8, x: -20 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-            >
-              <svg className="w-4 h-4 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <span className="text-sm text-[#707070]">No AI activity this week</span>
-            </motion.div>
-          ) : (
-            <>
-              <motion.p
-                className="fixed z-[71] text-[10px] font-semibold text-[#707070] uppercase tracking-wider"
-                style={{
-                  left: originX + 40,
-                  top: originY + arc[0].y - 42,
-                }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ delay: 0.25, duration: 0.2 }}
-              >
-                This Week
-              </motion.p>
+          <motion.div
+            className="fixed z-[71] w-[420px] max-w-[calc(100vw-2rem)] bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[4px] border-b-[4px] shadow-2xl overflow-hidden"
+            style={{
+              left,
+              top,
+              transformOrigin: `${transformOriginX}px top`,
+            }}
+            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+            transition={{ type: 'spring', stiffness: 360, damping: 30 }}
+          >
+            <div className="px-4 py-3 border-b border-[#e0e0e0]">
+              <p className="text-[10px] font-semibold text-[#707070] uppercase tracking-wider">This Week</p>
+            </div>
 
-              <motion.svg
-                className="fixed inset-0 z-[70] pointer-events-none"
-                style={{ width: '100vw', height: '100vh' }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-              >
-                {items.map((item, i) => {
-                  const offset = arc[i];
+            {!fetched ? (
+              <div className="flex items-center gap-2 px-4 py-4">
+                <svg className="animate-spin w-4 h-4 text-[#005851]" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <span className="text-xs text-[#707070]">Loading activity...</span>
+              </div>
+            ) : items.length === 0 ? (
+              <div className="flex items-center gap-2.5 px-4 py-4">
+                <svg className="w-4 h-4 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <span className="text-sm text-[#707070]">No AI activity this week</span>
+              </div>
+            ) : (
+              <div className="p-2 max-h-80 overflow-y-auto space-y-1">
+                {items.map((item) => {
+                  const meta = TYPE_META[item.type];
                   return (
-                    <motion.line
+                    <motion.button
                       key={item.id}
-                      x1={originX}
-                      y1={originY}
-                      x2={originX + offset.x}
-                      y2={originY + offset.y}
-                      stroke="#005851"
-                      strokeWidth={1}
-                      initial={{ opacity: 0, pathLength: 0 }}
-                      animate={{ opacity: 0.15, pathLength: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{
-                        type: 'spring',
-                        stiffness: 400,
-                        damping: 28,
-                        delay: i * 0.05,
-                      }}
-                    />
+                      className="w-full flex items-center gap-2.5 bg-white rounded-lg border border-[#e4e4e4] px-3 py-2 hover:border-[#005851]/30 hover:shadow-sm transition-all text-left"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 6 }}
+                      transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+                      onClick={() => onNavigate(meta.href)}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${meta.color} shrink-0`} />
+                      <span className="text-xs text-[#000000] flex-1 truncate">{item.summary}</span>
+                      <span className="text-[10px] text-[#707070] shrink-0">{relativeTime(item.timestamp)}</span>
+                    </motion.button>
                   );
                 })}
-              </motion.svg>
-
-              {items.map((item, i) => {
-                const meta = TYPE_META[item.type];
-                const offset = arc[i];
-                return (
-                  <motion.button
-                    key={item.id}
-                    className="fixed z-[71] flex items-center gap-2 bg-white rounded-[5px] shadow-lg border border-[#e4e4e4] pl-2.5 pr-3 py-1.5 hover:shadow-xl hover:border-[#005851]/30 transition-shadow cursor-pointer whitespace-nowrap"
-                    style={{
-                      left: originX + offset.x,
-                      top: originY + offset.y - 16,
-                      transformOrigin: 'left center',
-                    }}
-                    initial={{
-                      opacity: 0,
-                      scale: 0.3,
-                      x: -(offset.x),
-                      y: -(offset.y),
-                      rotate: 0,
-                    }}
-                    animate={{
-                      opacity: 1,
-                      scale: 1,
-                      x: 0,
-                      y: 0,
-                      rotate: offset.rotate,
-                    }}
-                    exit={{
-                      opacity: 0,
-                      scale: 0.3,
-                      x: -(offset.x),
-                      y: -(offset.y),
-                      rotate: 0,
-                    }}
-                    transition={{
-                      type: 'spring',
-                      stiffness: 400,
-                      damping: 28,
-                      delay: i * 0.05,
-                    }}
-                    onClick={() => onNavigate(meta.href)}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full ${meta.color} shrink-0`} />
-                    <span className="text-xs text-[#000000] max-w-[200px] truncate">{item.summary}</span>
-                    <span className="text-[10px] text-[#707070] ml-1 shrink-0">{relativeTime(item.timestamp)}</span>
-                  </motion.button>
-                );
-              })}
-            </>
-          )}
+              </div>
+            )}
+          </motion.div>
         </>
       )}
     </AnimatePresence>
