@@ -989,27 +989,34 @@ export default function ClientsPage() {
 
   const handleInlineUpdateClient = useCallback(async (
     clientId: string,
-    updates: { name: string; email: string; phone: string; dateOfBirth: string; preferredLanguage: SupportedLanguage }
+    updates: { name: string; email: string; phone: string; dateOfBirth: string; preferredLanguage?: SupportedLanguage }
   ) => {
     if (!user) {
       throw new Error('Not authenticated');
     }
 
-    await updateDoc(doc(db, 'agents', user.uid, 'clients', clientId), {
+    const agentClientPatch: Record<string, unknown> = {
       name: updates.name,
       email: updates.email,
       phone: updates.phone,
       dateOfBirth: updates.dateOfBirth || null,
-      preferredLanguage: updates.preferredLanguage,
-    });
+    };
+    if (updates.preferredLanguage) {
+      agentClientPatch.preferredLanguage = resolveClientLanguage(updates.preferredLanguage);
+    }
+
+    await updateDoc(doc(db, 'agents', user.uid, 'clients', clientId), agentClientPatch);
     try {
-      await updateDoc(doc(db, 'clients', clientId), {
+      const topLevelPatch: Record<string, unknown> = {
         name: updates.name,
         email: updates.email,
         phone: updates.phone,
         dateOfBirth: updates.dateOfBirth || null,
-        preferredLanguage: updates.preferredLanguage,
-      });
+      };
+      if (updates.preferredLanguage) {
+        topLevelPatch.preferredLanguage = resolveClientLanguage(updates.preferredLanguage);
+      }
+      await updateDoc(doc(db, 'clients', clientId), topLevelPatch);
     } catch (mirrorErr) {
       console.error('Top-level client mirror update failed (non-blocking):', mirrorErr);
     }
@@ -1022,7 +1029,7 @@ export default function ClientsPage() {
             email: updates.email,
             phone: updates.phone,
             dateOfBirth: updates.dateOfBirth || '',
-            preferredLanguage: updates.preferredLanguage,
+            preferredLanguage: resolveClientLanguage(updates.preferredLanguage ?? prev.preferredLanguage),
           }
         : prev
     ));
@@ -1035,7 +1042,7 @@ export default function ClientsPage() {
             email: updates.email,
             phone: updates.phone,
             dateOfBirth: updates.dateOfBirth || '',
-            preferredLanguage: updates.preferredLanguage,
+            preferredLanguage: resolveClientLanguage(updates.preferredLanguage ?? client.preferredLanguage),
           }
         : client
     )));
