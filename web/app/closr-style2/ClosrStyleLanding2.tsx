@@ -294,7 +294,7 @@ export default function ClosrStyleLanding2() {
       </section>
 
       <section className="px-6 py-24 md:py-32">
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto max-w-6xl">
           <div className="mb-12 text-center">
             <p className="text-xs uppercase tracking-[0.14em] text-[#1A1A1A]/58" style={{ fontFamily: sans }}>
               {closrStyle2Content.proof.eyebrow}
@@ -304,7 +304,7 @@ export default function ClosrStyleLanding2() {
             </h2>
           </div>
         </div>
-        <div className="mx-auto grid max-w-5xl gap-20 md:gap-24">
+        <div className="mx-auto grid w-full max-w-[84rem] gap-20 md:gap-24">
           {features.map((feature, index) => (
             <div
               key={feature.id}
@@ -320,12 +320,12 @@ export default function ClosrStyleLanding2() {
                   {feature.title}
                 </span>
               </div>
-              <div className="mt-8 grid items-start gap-10 lg:grid-cols-[1.22fr_0.78fr] lg:gap-10">
-                <div className={index % 2 === 0 ? 'max-w-[620px] lg:pr-5' : 'max-w-[620px] lg:order-2 lg:pl-5'}>
-                  <h3 className="text-balance text-[2rem] leading-[1.16] tracking-[-0.012em] text-[#1A1A1A] md:text-[3.25rem]" style={{ fontFamily: serif }}>
+              <div className="mt-8 grid items-start gap-10 lg:grid-cols-[1.34fr_0.66fr] lg:gap-8">
+                <div className={index % 2 === 0 ? 'lg:pr-6' : 'lg:order-2 lg:pl-6'}>
+                  <h3 className="text-balance text-[2rem] leading-[1.14] tracking-[-0.012em] text-[#1A1A1A] md:text-[3rem]" style={{ fontFamily: serif }}>
                     {feature.subtitle}
                   </h3>
-                  <p className="mt-5 max-w-[62ch] text-[17px] leading-[1.72] text-[#1A1A1A]/72 md:text-[18px]" style={{ fontFamily: sans }}>
+                  <p className="mt-5 max-w-[68ch] text-[17px] leading-[1.75] text-[#1A1A1A]/72 md:text-[18px]" style={{ fontFamily: sans }}>
                     {feature.body}
                   </p>
                   <Link
