@@ -1,11 +1,11 @@
 import 'server-only';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { classifySigningError, runIngestionSigningCanary } from '../../../../../lib/ingestion-signing-health';
+import { classifySigningError, runIngestionSigningCanary } from '../../../../lib/ingestion-signing-health';
 import {
   trackIngestionV3SigningCanaryFailed,
   trackIngestionV3SigningCanarySucceeded,
-} from '../../../../../lib/ingestion-v3-telemetry';
+} from '../../../../lib/ingestion-v3-telemetry';
 
 export const maxDuration = 60;
 
