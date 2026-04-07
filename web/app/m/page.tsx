@@ -174,10 +174,15 @@ export default function MobileLandingV2() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6 }}
-            className="flex items-center gap-2 mb-auto"
+            className="flex items-center justify-between gap-3 mb-auto"
           >
-            <img src="/logo.png" alt="AgentForLife" className="w-[44px] h-[25px] object-contain" />
-            <span className="text-white/80 brand-title text-base">AgentForLife™</span>
+            <div className="flex items-center gap-2">
+              <img src="/logo.png" alt="AgentForLife" className="w-[44px] h-[25px] object-contain" />
+              <span className="text-white/80 brand-title text-base">AgentForLife™</span>
+            </div>
+            <Link href="/login" className="text-white/90 hover:text-white text-sm font-medium">
+              Agent Login
+            </Link>
           </motion.div>
 
           {/* Main content */}
