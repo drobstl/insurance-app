@@ -150,7 +150,7 @@ export default function ReferralsPage() {
   }
 
   return (
-    <div className="max-w-4xl">
+    <div className="max-w-5xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#000000]">Referrals</h1>
         <p className="text-[#707070] text-sm mt-1">Track referral conversations and booked appointments.</p>
