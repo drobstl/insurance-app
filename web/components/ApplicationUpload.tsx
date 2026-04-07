@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useId, useEffect } from 'react';
 import type {
+  Beneficiary,
   ExtractedApplicationData,
   IngestionV3JobStatusResponse,
   IngestionV3SubmitJobResponse,
@@ -24,6 +25,70 @@ const JOB_POLL_INTERVAL_MS = 1500;
 const JOB_STATUS_TIMEOUT_MS = 8_000;
 const MAX_RELIABLE_APPLICATION_FILE_BYTES = 13 * 1024 * 1024;
 const GCS_UPLOAD_TIMEOUT_MS = 120_000;
+const POLICY_TYPE_OPTIONS: NonNullable<ExtractedApplicationData['policyType']>[] = ['IUL', 'Term Life', 'Whole Life', 'Mortgage Protection', 'Accidental', 'Other'];
+const PREMIUM_FREQUENCY_OPTIONS: NonNullable<ExtractedApplicationData['premiumFrequency']>[] = ['monthly', 'quarterly', 'semi-annual', 'annual'];
+
+const EMPTY_POLICY_FIELDS: ExtractedApplicationData = {
+  policyType: null,
+  policyNumber: null,
+  insuranceCompany: null,
+  policyOwner: null,
+  insuredName: null,
+  beneficiaries: null,
+  coverageAmount: null,
+  premiumAmount: null,
+  premiumFrequency: null,
+  renewalDate: null,
+  insuredEmail: null,
+  insuredPhone: null,
+  insuredDateOfBirth: null,
+  insuredState: null,
+  effectiveDate: null,
+};
+
+function normalizeText(value: string | null | undefined): string | null {
+  const trimmed = (value || '').trim();
+  return trimmed ? trimmed : null;
+}
+
+function normalizeNumber(value: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  return value;
+}
+
+function normalizeBeneficiaryList(beneficiaries: Beneficiary[] | null | undefined): Beneficiary[] | null {
+  if (!beneficiaries || beneficiaries.length === 0) return null;
+  const normalized = beneficiaries
+    .map((b) => ({
+      ...b,
+      name: (b.name || '').trim(),
+      relationship: (b.relationship || '').trim() || undefined,
+      percentage: b.percentage != null && Number.isFinite(b.percentage) ? b.percentage : undefined,
+      irrevocable: b.irrevocable ?? null,
+    }))
+    .filter((b) => b.name);
+  return normalized.length > 0 ? normalized : null;
+}
+
+function normalizeExtractedData(data: ExtractedApplicationData): ExtractedApplicationData {
+  return {
+    policyType: data.policyType,
+    policyNumber: normalizeText(data.policyNumber),
+    insuranceCompany: normalizeText(data.insuranceCompany),
+    policyOwner: normalizeText(data.policyOwner),
+    insuredName: normalizeText(data.insuredName),
+    beneficiaries: normalizeBeneficiaryList(data.beneficiaries),
+    coverageAmount: normalizeNumber(data.coverageAmount),
+    premiumAmount: normalizeNumber(data.premiumAmount),
+    premiumFrequency: data.premiumFrequency,
+    renewalDate: normalizeText(data.renewalDate),
+    insuredEmail: normalizeText(data.insuredEmail),
+    insuredPhone: normalizeText(data.insuredPhone),
+    insuredDateOfBirth: normalizeText(data.insuredDateOfBirth),
+    insuredState: normalizeText(data.insuredState),
+    effectiveDate: normalizeText(data.effectiveDate),
+  };
+}
 
 export default function ApplicationUpload({ clientName, onExtracted, onClose, onCreateClientAndPolicy, mode = 'policy-only' }: ApplicationUploadProps) {
   const [stage, setStage] = useState<Stage>('upload');
@@ -286,7 +351,8 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
   const handleDragLeave = () => setDragActive(false);
 
   const handleConfirm = () => {
-    if (mode === 'client-and-policy' && onCreateClientAndPolicy && policyFields) {
+    const normalizedPolicy = normalizeExtractedData(policyFields || extractedData || EMPTY_POLICY_FIELDS);
+    if (mode === 'client-and-policy' && onCreateClientAndPolicy) {
       if (!clientFields.name.trim()) return;
       onCreateClientAndPolicy(
         {
@@ -295,10 +361,10 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
           phone: clientFields.phone.trim(),
           dateOfBirth: clientFields.dateOfBirth,
         },
-        policyFields,
+        normalizedPolicy,
       );
-    } else if (extractedData) {
-      onExtracted(policyFields || extractedData);
+    } else if (extractedData || policyFields) {
+      onExtracted(normalizedPolicy);
     }
   };
 
@@ -318,6 +384,79 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
 
   const isClientAndPolicy = mode === 'client-and-policy';
   const missingContact = isClientAndPolicy && !clientFields.phone.trim() && !clientFields.email.trim();
+  const editablePolicy = policyFields || extractedData || EMPTY_POLICY_FIELDS;
+  const beneficiaries = editablePolicy.beneficiaries || [];
+  const primaryBeneficiaries = beneficiaries
+    .map((beneficiary, index) => ({ beneficiary, index }))
+    .filter(({ beneficiary }) => beneficiary.type === 'primary');
+  const contingentBeneficiaries = beneficiaries
+    .map((beneficiary, index) => ({ beneficiary, index }))
+    .filter(({ beneficiary }) => beneficiary.type === 'contingent');
+
+  const updatePolicyFields = useCallback((updater: (current: ExtractedApplicationData) => ExtractedApplicationData) => {
+    setPolicyFields((prev) => updater(prev || extractedData || EMPTY_POLICY_FIELDS));
+  }, [extractedData]);
+
+  const updateNullableTextField = useCallback((key: keyof Pick<
+    ExtractedApplicationData,
+    'policyNumber' | 'insuranceCompany' | 'policyOwner' | 'insuredName' | 'insuredEmail' | 'insuredPhone' | 'insuredDateOfBirth' | 'insuredState' | 'effectiveDate' | 'renewalDate'
+  >, value: string) => {
+    updatePolicyFields((current) => ({
+      ...current,
+      [key]: value || null,
+    }));
+  }, [updatePolicyFields]);
+
+  const updateNumberField = useCallback((key: keyof Pick<ExtractedApplicationData, 'coverageAmount' | 'premiumAmount'>, value: string) => {
+    const parsed = Number(value);
+    updatePolicyFields((current) => ({
+      ...current,
+      [key]: value === '' || Number.isNaN(parsed) ? null : parsed,
+    }));
+  }, [updatePolicyFields]);
+
+  const updatePolicyType = useCallback((value: string) => {
+    updatePolicyFields((current) => ({
+      ...current,
+      policyType: value ? value as NonNullable<ExtractedApplicationData['policyType']> : null,
+    }));
+  }, [updatePolicyFields]);
+
+  const updatePremiumFrequency = useCallback((value: string) => {
+    updatePolicyFields((current) => ({
+      ...current,
+      premiumFrequency: value ? value as NonNullable<ExtractedApplicationData['premiumFrequency']> : null,
+    }));
+  }, [updatePolicyFields]);
+
+  const updateBeneficiaries = useCallback((updater: (current: Beneficiary[]) => Beneficiary[]) => {
+    updatePolicyFields((current) => {
+      const nextBeneficiaries = updater([...(current.beneficiaries || [])]);
+      return { ...current, beneficiaries: nextBeneficiaries.length > 0 ? nextBeneficiaries : null };
+    });
+  }, [updatePolicyFields]);
+
+  const addBeneficiary = useCallback((type: Beneficiary['type']) => {
+    updateBeneficiaries((current) => [
+      ...current,
+      { name: '', relationship: '', percentage: undefined, irrevocable: null, type },
+    ]);
+  }, [updateBeneficiaries]);
+
+  const removeBeneficiary = useCallback((indexToRemove: number) => {
+    updateBeneficiaries((current) => current.filter((_, index) => index !== indexToRemove));
+  }, [updateBeneficiaries]);
+
+  const updateBeneficiaryField = useCallback((
+    indexToUpdate: number,
+    field: keyof Beneficiary,
+    value: string | number | boolean | null | undefined,
+  ) => {
+    updateBeneficiaries((current) => current.map((beneficiary, index) => {
+      if (index !== indexToUpdate) return beneficiary;
+      return { ...beneficiary, [field]: value };
+    }));
+  }, [updateBeneficiaries]);
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
@@ -501,64 +640,133 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
                   <h4 className="text-xs font-semibold text-[#005851] uppercase tracking-wide mb-2">Policy Details</h4>
                 )}
                 <div className="space-y-1">
-                  <FieldRow label="Policy Type" value={policyFields?.policyType} />
-                  <FieldRow label="Insurance Company" value={policyFields?.insuranceCompany} />
-                  <FieldRow label="Policy Number" value={policyFields?.policyNumber} />
-                  <FieldRow label="Policy Owner" value={policyFields?.policyOwner} />
-                  <FieldRow label="Insured" value={policyFields?.insuredName} />
-                  {policyFields?.beneficiaries && policyFields.beneficiaries.length > 0 ? (
+                  <EditableSelectField
+                    label="Policy Type"
+                    value={editablePolicy.policyType || ''}
+                    onChange={updatePolicyType}
+                    options={POLICY_TYPE_OPTIONS}
+                  />
+                  <EditableField label="Insurance Company" value={editablePolicy.insuranceCompany || ''} onChange={(v) => updateNullableTextField('insuranceCompany', v)} placeholder="Carrier name" />
+                  <EditableField label="Policy Number" value={editablePolicy.policyNumber || ''} onChange={(v) => updateNullableTextField('policyNumber', v)} />
+                  <EditableField label="Policy Owner" value={editablePolicy.policyOwner || ''} onChange={(v) => updateNullableTextField('policyOwner', v)} />
+                  <EditableField label="Insured" value={editablePolicy.insuredName || ''} onChange={(v) => updateNullableTextField('insuredName', v)} />
+                  {beneficiaries.length > 0 ? (
                     <>
-                      {policyFields.beneficiaries.filter(b => b.type === 'primary').length > 0 && (
-                        <div className="py-2.5 px-3 rounded-[5px] hover:bg-gray-50 transition-colors">
-                          <span className="text-gray-500 text-sm">Primary Beneficiaries</span>
-                          <div className="mt-1 space-y-0.5">
-                            {policyFields.beneficiaries.filter(b => b.type === 'primary').map((b, i) => (
-                              <p key={i} className="text-[#000000] text-sm font-medium text-right">
-                                {b.name}
-                                {b.relationship && <span className="text-gray-400 text-xs ml-1">({b.relationship})</span>}
-                                {b.percentage != null && <span className="text-gray-400 text-xs ml-1">{b.percentage}%</span>}
-                              </p>
+                      {primaryBeneficiaries.length > 0 && (
+                        <div className="py-2.5 px-3 rounded-[5px] border border-gray-100">
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-500 text-sm">Primary Beneficiaries</span>
+                            <button
+                              type="button"
+                              onClick={() => addBeneficiary('primary')}
+                              className="text-xs text-[#005851] hover:text-[#004540] font-medium"
+                            >
+                              + Add
+                            </button>
+                          </div>
+                          <div className="mt-2 space-y-2">
+                            {primaryBeneficiaries.map(({ beneficiary, index }) => (
+                              <BeneficiaryEditor
+                                key={`primary-${index}`}
+                                beneficiary={beneficiary}
+                                onUpdate={(field, value) => updateBeneficiaryField(index, field, value)}
+                                onRemove={() => removeBeneficiary(index)}
+                              />
                             ))}
                           </div>
                         </div>
                       )}
-                      {policyFields.beneficiaries.filter(b => b.type === 'contingent').length > 0 && (
-                        <div className="py-2.5 px-3 rounded-[5px] hover:bg-gray-50 transition-colors">
-                          <span className="text-gray-500 text-sm">Contingent Beneficiaries</span>
-                          <div className="mt-1 space-y-0.5">
-                            {policyFields.beneficiaries.filter(b => b.type === 'contingent').map((b, i) => (
-                              <p key={i} className="text-[#000000] text-sm font-medium text-right">
-                                {b.name}
-                                {b.relationship && <span className="text-gray-400 text-xs ml-1">({b.relationship})</span>}
-                                {b.percentage != null && <span className="text-gray-400 text-xs ml-1">{b.percentage}%</span>}
-                              </p>
+                      {contingentBeneficiaries.length > 0 && (
+                        <div className="py-2.5 px-3 rounded-[5px] border border-gray-100">
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-500 text-sm">Contingent Beneficiaries</span>
+                            <button
+                              type="button"
+                              onClick={() => addBeneficiary('contingent')}
+                              className="text-xs text-[#005851] hover:text-[#004540] font-medium"
+                            >
+                              + Add
+                            </button>
+                          </div>
+                          <div className="mt-2 space-y-2">
+                            {contingentBeneficiaries.map(({ beneficiary, index }) => (
+                              <BeneficiaryEditor
+                                key={`contingent-${index}`}
+                                beneficiary={beneficiary}
+                                onUpdate={(field, value) => updateBeneficiaryField(index, field, value)}
+                                onRemove={() => removeBeneficiary(index)}
+                              />
                             ))}
                           </div>
                         </div>
+                      )}
+                      {primaryBeneficiaries.length === 0 && (
+                        <button
+                          type="button"
+                          onClick={() => addBeneficiary('primary')}
+                          className="w-full py-2.5 px-3 rounded-[5px] border border-dashed border-gray-300 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                        >
+                          + Add primary beneficiary
+                        </button>
+                      )}
+                      {contingentBeneficiaries.length === 0 && (
+                        <button
+                          type="button"
+                          onClick={() => addBeneficiary('contingent')}
+                          className="w-full py-2.5 px-3 rounded-[5px] border border-dashed border-gray-300 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                        >
+                          + Add contingent beneficiary
+                        </button>
                       )}
                     </>
                   ) : (
-                    <FieldRow label="Beneficiaries" value={null} />
+                    <div className="py-2.5 px-3 rounded-[5px] border border-dashed border-gray-300 space-y-2">
+                      <p className="text-gray-500 text-sm">No beneficiaries found.</p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => addBeneficiary('primary')}
+                          className="flex-1 py-2 px-3 rounded-[5px] bg-gray-100 hover:bg-gray-200 text-xs font-medium text-gray-700"
+                        >
+                          + Primary
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addBeneficiary('contingent')}
+                          className="flex-1 py-2 px-3 rounded-[5px] bg-gray-100 hover:bg-gray-200 text-xs font-medium text-gray-700"
+                        >
+                          + Contingent
+                        </button>
+                      </div>
+                    </div>
                   )}
-                  <FieldRow
+                  <EditableField
                     label="Death Benefit"
-                    value={policyFields?.coverageAmount != null ? `$${policyFields.coverageAmount.toLocaleString()}` : null}
+                    value={editablePolicy.coverageAmount != null ? String(editablePolicy.coverageAmount) : ''}
+                    onChange={(v) => updateNumberField('coverageAmount', v)}
+                    type="number"
+                    placeholder="250000"
                   />
-                  <FieldRow
-                    label="Premium"
-                    value={
-                      policyFields?.premiumAmount != null
-                        ? `$${policyFields.premiumAmount.toLocaleString()}${policyFields.premiumFrequency ? ` / ${policyFields.premiumFrequency}` : ''}`
-                        : null
-                    }
+                  <EditableField
+                    label="Premium Amount"
+                    value={editablePolicy.premiumAmount != null ? String(editablePolicy.premiumAmount) : ''}
+                    onChange={(v) => updateNumberField('premiumAmount', v)}
+                    type="number"
+                    placeholder="89"
                   />
-                  <FieldRow label="Effective Date" value={policyFields?.effectiveDate} />
-                  <FieldRow label="Renewal Date" value={policyFields?.renewalDate} />
+                  <EditableSelectField
+                    label="Premium Frequency"
+                    value={editablePolicy.premiumFrequency || ''}
+                    onChange={updatePremiumFrequency}
+                    options={PREMIUM_FREQUENCY_OPTIONS}
+                  />
+                  <EditableField label="Effective Date" value={editablePolicy.effectiveDate || ''} onChange={(v) => updateNullableTextField('effectiveDate', v)} type="date" />
+                  <EditableField label="Renewal Date" value={editablePolicy.renewalDate || ''} onChange={(v) => updateNullableTextField('renewalDate', v)} type="date" />
                   {!isClientAndPolicy && (
                     <>
-                      <FieldRow label="Email" value={policyFields?.insuredEmail} />
-                      <FieldRow label="Phone" value={policyFields?.insuredPhone} />
-                      <FieldRow label="Birthday" value={policyFields?.insuredDateOfBirth} />
+                      <EditableField label="Email" value={editablePolicy.insuredEmail || ''} onChange={(v) => updateNullableTextField('insuredEmail', v)} placeholder="email@example.com" />
+                      <EditableField label="Phone" value={editablePolicy.insuredPhone || ''} onChange={(v) => updateNullableTextField('insuredPhone', v)} placeholder="(555) 123-4567" />
+                      <EditableField label="Birthday" value={editablePolicy.insuredDateOfBirth || ''} onChange={(v) => updateNullableTextField('insuredDateOfBirth', v)} type="date" />
                     </>
                   )}
                 </div>
@@ -639,16 +847,87 @@ function EditableField({ label, value, onChange, placeholder, type = 'text' }: {
   );
 }
 
-function FieldRow({ label, value }: { label: string; value: string | number | null | undefined }) {
-  const hasValue = value !== null && value !== undefined && value !== '';
+function EditableSelectField({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+}) {
+  const hasValue = value !== '';
   return (
-    <div className="flex items-center justify-between py-2.5 px-3 rounded-[5px] hover:bg-gray-50 transition-colors">
-      <span className="text-gray-500 text-sm">{label}</span>
-      {hasValue ? (
-        <span className="text-[#000000] text-sm font-medium text-right max-w-[60%] truncate">{value}</span>
-      ) : (
-        <span className="text-gray-300 text-sm italic">Not found</span>
+    <div className="flex items-center gap-3 py-1.5 px-3 rounded-[5px] hover:bg-gray-50 transition-colors">
+      <span className="text-gray-500 text-sm w-28 shrink-0">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="flex-1 text-sm text-[#000000] bg-transparent border-b border-gray-200 focus:border-[#45bcaa] focus:outline-none py-0.5 transition-colors"
+      >
+        <option value="">Not found</option>
+        {options.map((option) => (
+          <option key={option} value={option}>{option}</option>
+        ))}
+      </select>
+      {!hasValue && (
+        <span className="text-[10px] text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded shrink-0">Not found</span>
       )}
+    </div>
+  );
+}
+
+function BeneficiaryEditor({
+  beneficiary,
+  onUpdate,
+  onRemove,
+}: {
+  beneficiary: Beneficiary;
+  onUpdate: (field: keyof Beneficiary, value: string | number | boolean | null | undefined) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="rounded-[5px] border border-gray-200 p-2.5 space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          type="text"
+          value={beneficiary.name}
+          onChange={(e) => onUpdate('name', e.target.value)}
+          placeholder="Full name"
+          className="col-span-2 px-2.5 py-2 text-xs border border-gray-200 rounded-[5px] focus:outline-none focus:border-[#45bcaa]"
+        />
+        <input
+          type="text"
+          value={beneficiary.relationship || ''}
+          onChange={(e) => onUpdate('relationship', e.target.value)}
+          placeholder="Relationship"
+          className="px-2.5 py-2 text-xs border border-gray-200 rounded-[5px] focus:outline-none focus:border-[#45bcaa]"
+        />
+        <input
+          type="number"
+          value={beneficiary.percentage == null ? '' : String(beneficiary.percentage)}
+          onChange={(e) => onUpdate('percentage', e.target.value === '' ? undefined : Number(e.target.value))}
+          placeholder="%"
+          min={0}
+          max={100}
+          className="px-2.5 py-2 text-xs border border-gray-200 rounded-[5px] focus:outline-none focus:border-[#45bcaa]"
+        />
+      </div>
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-1.5 text-xs text-gray-500">
+          <input
+            type="checkbox"
+            checked={beneficiary.irrevocable === true}
+            onChange={(e) => onUpdate('irrevocable', e.target.checked)}
+          />
+          Irrevocable
+        </label>
+        <button type="button" onClick={onRemove} className="text-xs text-red-500 hover:text-red-600 font-medium">
+          Remove
+        </button>
+      </div>
     </div>
   );
 }

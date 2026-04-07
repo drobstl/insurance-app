@@ -51,6 +51,7 @@ interface ClientDetailModalProps {
   onDeletePolicy: (policy: Policy) => void;
   onUploadApplication: () => void;
   onEditClient?: (client: Client) => void;
+  onUpdateClient?: (clientId: string, updates: { name: string; email: string; phone: string; dateOfBirth: string }) => Promise<void>;
   onFlagAtRisk?: (policyId: string, reason: 'lapsed_payment' | 'cancellation') => void;
   agentName?: string;
   hasSchedulingUrl?: boolean;
@@ -67,6 +68,7 @@ export default function ClientDetailModal({
   onDeletePolicy,
   onUploadApplication,
   onEditClient,
+  onUpdateClient,
   onFlagAtRisk,
   agentName,
   hasSchedulingUrl,
@@ -115,6 +117,11 @@ export default function ClientDetailModal({
   // ── Referral link state ──
   const [referralName, setReferralName] = useState<string | null>(null);
   const [clearingReferral, setClearingReferral] = useState(false);
+  const [editingClientInline, setEditingClientInline] = useState(false);
+  const [clientDraft, setClientDraft] = useState({ name: '', email: '', phone: '', dateOfBirth: '' });
+  const [clientEditError, setClientEditError] = useState('');
+  const [clientEditSuccess, setClientEditSuccess] = useState('');
+  const [savingClientInline, setSavingClientInline] = useState(false);
 
   // Animate in on mount
   useEffect(() => {
@@ -308,8 +315,63 @@ export default function ClientDetailModal({
       setSendingCode(false);
       setFlaggingPolicyId(null);
       setFlagResult(null);
+      setEditingClientInline(false);
+      setClientDraft({
+        name: client.name || '',
+        email: client.email || '',
+        phone: client.phone || '',
+        dateOfBirth: client.dateOfBirth || '',
+      });
+      setClientEditError('');
+      setClientEditSuccess('');
+      setSavingClientInline(false);
     }
   }, [client?.id]);
+
+  const startInlineClientEdit = useCallback(() => {
+    if (!client) return;
+    setClientDraft({
+      name: client.name || '',
+      email: client.email || '',
+      phone: client.phone || '',
+      dateOfBirth: client.dateOfBirth || '',
+    });
+    setClientEditError('');
+    setClientEditSuccess('');
+    setEditingClientInline(true);
+  }, [client]);
+
+  const cancelInlineClientEdit = useCallback(() => {
+    setClientEditError('');
+    setClientEditSuccess('');
+    setEditingClientInline(false);
+  }, []);
+
+  const handleSaveInlineClient = useCallback(async () => {
+    if (!client || !onUpdateClient) return;
+    if (!clientDraft.name.trim()) {
+      setClientEditError('Client name is required.');
+      return;
+    }
+    setClientEditError('');
+    setClientEditSuccess('');
+    setSavingClientInline(true);
+    try {
+      await onUpdateClient(client.id, {
+        name: clientDraft.name.trim(),
+        email: clientDraft.email.trim(),
+        phone: clientDraft.phone.trim(),
+        dateOfBirth: clientDraft.dateOfBirth || '',
+      });
+      setClientEditSuccess('Client details updated.');
+      setEditingClientInline(false);
+      setTimeout(() => setClientEditSuccess(''), 1800);
+    } catch (err) {
+      setClientEditError(err instanceof Error ? err.message : 'Failed to update client.');
+    } finally {
+      setSavingClientInline(false);
+    }
+  }, [client, clientDraft, onUpdateClient]);
 
   const handleSendNotification = useCallback(async () => {
     if (!client || !notifBody.trim()) return;
@@ -477,9 +539,15 @@ export default function ClientDetailModal({
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {onEditClient && client && (
+            {(onUpdateClient || onEditClient) && client && (
               <button
-                onClick={() => onEditClient(client)}
+                onClick={() => {
+                  if (onUpdateClient) {
+                    startInlineClientEdit();
+                  } else if (onEditClient) {
+                    onEditClient(client);
+                  }
+                }}
                 className="w-10 h-10 rounded-[5px] bg-gray-100 hover:bg-[#daf3f0] flex items-center justify-center text-gray-500 hover:text-[#005851] transition-colors"
                 title="Edit client info"
               >
@@ -574,23 +642,97 @@ export default function ClientDetailModal({
           {/* Profile Info */}
           <div className="px-6 pb-5">
             <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Phone</p>
-                <p className="text-[#000000] font-medium">{client?.phone || <span className="text-gray-400 italic font-normal">Not provided</span>}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Email</p>
-                <p className="text-[#000000] font-medium truncate">{client?.email || <span className="text-gray-400 italic font-normal">Not provided</span>}</p>
-              </div>
-              <div className="col-span-2">
-                <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Date of Birth</p>
-                <p className="text-[#000000] font-medium">
-                  {client?.dateOfBirth
-                    ? formatDateLong(client.dateOfBirth)
-                    : <span className="text-gray-400 italic font-normal">Not provided</span>
-                  }
-                </p>
-              </div>
+              {editingClientInline ? (
+                <>
+                  <div className="col-span-2">
+                    <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Name</p>
+                    <input
+                      type="text"
+                      value={clientDraft.name}
+                      onChange={(e) => setClientDraft((prev) => ({ ...prev, name: e.target.value }))}
+                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                      placeholder="Full name"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Email</p>
+                    <input
+                      type="email"
+                      value={clientDraft.email}
+                      onChange={(e) => setClientDraft((prev) => ({ ...prev, email: e.target.value }))}
+                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                      placeholder="email@example.com"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Phone</p>
+                    <input
+                      type="tel"
+                      value={clientDraft.phone}
+                      onChange={(e) => setClientDraft((prev) => ({ ...prev, phone: e.target.value }))}
+                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                      placeholder="(555) 123-4567"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Date of Birth</p>
+                    <input
+                      type="date"
+                      value={clientDraft.dateOfBirth}
+                      onChange={(e) => setClientDraft((prev) => ({ ...prev, dateOfBirth: e.target.value }))}
+                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                    />
+                  </div>
+                  <div className="col-span-2 flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={cancelInlineClientEdit}
+                      disabled={savingClientInline}
+                      className="px-3 py-2 text-sm font-medium rounded-[5px] bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveInlineClient}
+                      disabled={savingClientInline}
+                      className="px-3 py-2 text-sm font-semibold rounded-[5px] bg-[#005851] hover:bg-[#004540] text-white disabled:opacity-50"
+                    >
+                      {savingClientInline ? 'Saving...' : 'Save Details'}
+                    </button>
+                  </div>
+                  {clientEditError && (
+                    <div className="col-span-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-[5px] px-3 py-2">
+                      {clientEditError}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Phone</p>
+                    <p className="text-[#000000] font-medium">{client?.phone || <span className="text-gray-400 italic font-normal">Not provided</span>}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Email</p>
+                    <p className="text-[#000000] font-medium truncate">{client?.email || <span className="text-gray-400 italic font-normal">Not provided</span>}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Date of Birth</p>
+                    <p className="text-[#000000] font-medium">
+                      {client?.dateOfBirth
+                        ? formatDateLong(client.dateOfBirth)
+                        : <span className="text-gray-400 italic font-normal">Not provided</span>
+                      }
+                    </p>
+                  </div>
+                </>
+              )}
+              {clientEditSuccess && (
+                <div className="col-span-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-[5px] px-3 py-2">
+                  {clientEditSuccess}
+                </div>
+              )}
               {client?.sourceReferralId && (
                 <div className="col-span-2">
                   <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Referred By</p>

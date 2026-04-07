@@ -971,6 +971,46 @@ export default function ClientsPage() {
     setIsModalOpen(true);
   }, []);
 
+  const handleInlineUpdateClient = useCallback(async (
+    clientId: string,
+    updates: { name: string; email: string; phone: string; dateOfBirth: string }
+  ) => {
+    if (!user) {
+      throw new Error('Not authenticated');
+    }
+
+    await updateDoc(doc(db, 'agents', user.uid, 'clients', clientId), {
+      name: updates.name,
+      email: updates.email,
+      phone: updates.phone,
+      dateOfBirth: updates.dateOfBirth || null,
+    });
+
+    setSelectedClient((prev) => (
+      prev && prev.id === clientId
+        ? {
+            ...prev,
+            name: updates.name,
+            email: updates.email,
+            phone: updates.phone,
+            dateOfBirth: updates.dateOfBirth || '',
+          }
+        : prev
+    ));
+
+    setClients((prev) => prev.map((client) => (
+      client.id === clientId
+        ? {
+            ...client,
+            name: updates.name,
+            email: updates.email,
+            phone: updates.phone,
+            dateOfBirth: updates.dateOfBirth || '',
+          }
+        : client
+    )));
+  }, [user]);
+
   const handleSubmitClient = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -992,7 +1032,15 @@ export default function ClientsPage() {
         // Update the selected client if it's the one being edited
         if (selectedClient?.id === editingClient.id) {
           setSelectedClient((prev) =>
-            prev ? { ...prev, name: formData.name.trim(), email: formData.email.trim(), phone: formData.phone.trim() } : null
+            prev
+              ? {
+                  ...prev,
+                  name: formData.name.trim(),
+                  email: formData.email.trim(),
+                  phone: formData.phone.trim(),
+                  dateOfBirth: formData.dateOfBirth || '',
+                }
+              : null
           );
         }
         setFormSuccess('Client updated!');
@@ -2599,7 +2647,7 @@ export default function ClientsPage() {
 
       {/* ── Add/Edit Client Modal ── */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleCloseModal} />
           <div className="relative w-full max-w-md bg-white rounded-[5px] border border-gray-200 shadow-2xl">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -3753,6 +3801,7 @@ export default function ClientsPage() {
           onDeletePolicy={(policy) => setDeleteConfirmPolicy(policy)}
           onUploadApplication={() => setIsUploadModalOpen(true)}
           onEditClient={handleEditClient}
+          onUpdateClient={handleInlineUpdateClient}
           onFlagAtRisk={() => { refreshPolicies(); }}
           agentName={agentProfile.name}
           hasSchedulingUrl={!!agentProfile.schedulingUrl}
