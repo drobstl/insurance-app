@@ -19,7 +19,6 @@ import {
 import { auth, db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
 import ClientDetailModal from '../../../components/ClientDetailModal';
-import ApplicationUpload from '../../../components/ApplicationUpload';
 import SectionTipCard from '../../../components/SectionTipCard';
 import type {
   ExtractedApplicationData,
@@ -40,6 +39,7 @@ import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 import { useGooglePicker } from '../../../hooks/useGooglePicker';
 import type { GooglePickerSelectedFile } from '../../../hooks/useGooglePicker';
+import { buildWelcomeMessage, resolveClientLanguage, type SupportedLanguage } from '../../../lib/client-language';
 
 // ─── Constants ─────────────────────────────────────────────
 
@@ -51,11 +51,11 @@ const IMPORT_BATCH_SIZE = 50;
 const IMPORT_PARSE_TIMEOUT_MS = 120_000;
 const JOB_POLL_INTERVAL_MS = 1500;
 const MIN_IMPORT_ROW_QUALITY_RATIO = 0.65;
-const MIN_APPLICATION_POLICY_SIGNALS = 2;
 const DEFAULT_BULK_PDF_CONCURRENCY = 5;
 const MAX_BULK_PDF_CONCURRENCY = 6;
 const BULK_GCS_UPLOAD_TIMEOUT_MS = 120_000;
 const BULK_PARSE_MAX_RETRIES = 2;
+const MAX_APPLICATION_PDF_BYTES = 13 * 1024 * 1024;
 const DEFAULT_WELCOME_SMS_TEMPLATE =
   'Hey {{firstName}}! {{agentName}} here. Download the AgentForLife app and use code {{code}} to connect with me. https://agentforlife.app/app';
 const DEFAULT_INTRO_TEMPLATE =
@@ -106,6 +106,7 @@ interface Client {
   createdAt: Timestamp;
   agentId: string;
   sourceReferralId?: string;
+  preferredLanguage?: SupportedLanguage;
 }
 
 interface Policy {
@@ -165,12 +166,6 @@ interface ImportRow {
   coverageAmount: string;
   status: string;
   premiumFrequency?: string;
-}
-
-interface PendingSinglePdfCreation {
-  clientInfo: { name: string; email: string; phone: string; dateOfBirth: string };
-  appData: ExtractedApplicationData;
-  clientCode: string;
 }
 
 type ImportSourceType = 'local';
@@ -430,7 +425,13 @@ export default function ClientsPage() {
   // ── Client form state ──
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '', dateOfBirth: '' });
+  const [formData, setFormData] = useState<{ name: string; email: string; phone: string; dateOfBirth: string; preferredLanguage: SupportedLanguage }>({
+    name: '',
+    email: '',
+    phone: '',
+    dateOfBirth: '',
+    preferredLanguage: 'en',
+  });
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -458,12 +459,12 @@ export default function ClientsPage() {
   const [deleting, setDeleting] = useState(false);
 
   // ── Application upload state ──
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [isClientUploadModalOpen, setIsClientUploadModalOpen] = useState(false);
   const [pendingClientApplicationData, setPendingClientApplicationData] = useState<ExtractedApplicationData | null>(null);
-  const [pendingSinglePdfCreation, setPendingSinglePdfCreation] = useState<PendingSinglePdfCreation | null>(null);
-  const [showSinglePdfSmsConfirm, setShowSinglePdfSmsConfirm] = useState(false);
-  const [singlePdfSmsDraft, setSinglePdfSmsDraft] = useState('');
+  const [clientApplicationUploading, setClientApplicationUploading] = useState(false);
+  const [clientApplicationNote, setClientApplicationNote] = useState<string | null>(null);
+  const [policyApplicationUploading, setPolicyApplicationUploading] = useState(false);
+  const [policyApplicationNote, setPolicyApplicationNote] = useState<string | null>(null);
+  const [autoOpenPolicyUploadPicker, setAutoOpenPolicyUploadPicker] = useState(false);
 
   // ── Import state ──
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -531,14 +532,24 @@ export default function ClientsPage() {
   const refreshSummaries = useCallback(() => setSummaryVersion((v) => v + 1), []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const clientApplicationFileInputRef = useRef<HTMLInputElement>(null);
+  const policyApplicationFileInputRef = useRef<HTMLInputElement>(null);
   const importModalScrollRef = useRef<HTMLDivElement>(null);
   const emptyClientsStateTrackedRef = useRef(false);
   const emptyClientSearchTrackedRef = useRef<string | null>(null);
   const welcomeSmsTemplate = (agentProfile.welcomeSmsTemplate || '').trim() || DEFAULT_WELCOME_SMS_TEMPLATE;
-  const shouldPromptBeforeSinglePdfWelcomeSms = !(agentProfile.skipWelcomeSmsConfirmation ?? false);
 
-  const buildWelcomeSms = useCallback((firstName: string, code: string) => {
+  const buildWelcomeSms = useCallback((firstName: string, code: string, language: SupportedLanguage = 'en') => {
     const agentName = (agentProfile.name || 'your agent').trim() || 'your agent';
+    if (language === 'es') {
+      return buildWelcomeMessage({
+        firstName,
+        agentName,
+        code,
+        appUrl: CLIENT_APP_URL,
+        language,
+      });
+    }
     return applyWelcomeTemplate(welcomeSmsTemplate, { firstName, code, agentName });
   }, [agentProfile.name, welcomeSmsTemplate]);
 
@@ -942,20 +953,24 @@ export default function ClientsPage() {
 
   const handleOpenModal = useCallback(() => {
     setEditingClient(null);
-    setFormData({ name: '', email: '', phone: '', dateOfBirth: '' });
+    setFormData({ name: '', email: '', phone: '', dateOfBirth: '', preferredLanguage: 'en' });
     setFormError('');
     setFormSuccess('');
     setPendingClientApplicationData(null);
+    setClientApplicationNote(null);
+    setClientApplicationUploading(false);
     setIsModalOpen(true);
   }, []);
 
   const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
     setEditingClient(null);
-    setFormData({ name: '', email: '', phone: '', dateOfBirth: '' });
+    setFormData({ name: '', email: '', phone: '', dateOfBirth: '', preferredLanguage: 'en' });
     setFormError('');
     setFormSuccess('');
     setPendingClientApplicationData(null);
+    setClientApplicationNote(null);
+    setClientApplicationUploading(false);
   }, []);
 
   const handleEditClient = useCallback((client: Client) => {
@@ -965,6 +980,7 @@ export default function ClientsPage() {
       email: client.email || '',
       phone: client.phone || '',
       dateOfBirth: client.dateOfBirth || '',
+      preferredLanguage: resolveClientLanguage(client.preferredLanguage),
     });
     setFormError('');
     setFormSuccess('');
@@ -973,7 +989,7 @@ export default function ClientsPage() {
 
   const handleInlineUpdateClient = useCallback(async (
     clientId: string,
-    updates: { name: string; email: string; phone: string; dateOfBirth: string }
+    updates: { name: string; email: string; phone: string; dateOfBirth: string; preferredLanguage: SupportedLanguage }
   ) => {
     if (!user) {
       throw new Error('Not authenticated');
@@ -984,7 +1000,19 @@ export default function ClientsPage() {
       email: updates.email,
       phone: updates.phone,
       dateOfBirth: updates.dateOfBirth || null,
+      preferredLanguage: updates.preferredLanguage,
     });
+    try {
+      await updateDoc(doc(db, 'clients', clientId), {
+        name: updates.name,
+        email: updates.email,
+        phone: updates.phone,
+        dateOfBirth: updates.dateOfBirth || null,
+        preferredLanguage: updates.preferredLanguage,
+      });
+    } catch (mirrorErr) {
+      console.error('Top-level client mirror update failed (non-blocking):', mirrorErr);
+    }
 
     setSelectedClient((prev) => (
       prev && prev.id === clientId
@@ -994,6 +1022,7 @@ export default function ClientsPage() {
             email: updates.email,
             phone: updates.phone,
             dateOfBirth: updates.dateOfBirth || '',
+            preferredLanguage: updates.preferredLanguage,
           }
         : prev
     ));
@@ -1006,6 +1035,7 @@ export default function ClientsPage() {
             email: updates.email,
             phone: updates.phone,
             dateOfBirth: updates.dateOfBirth || '',
+            preferredLanguage: updates.preferredLanguage,
           }
         : client
     )));
@@ -1028,7 +1058,19 @@ export default function ClientsPage() {
           email: formData.email.trim(),
           phone: formData.phone.trim(),
           dateOfBirth: formData.dateOfBirth || null,
+          preferredLanguage: formData.preferredLanguage,
         });
+        try {
+          await updateDoc(doc(db, 'clients', editingClient.id), {
+            name: formData.name.trim(),
+            email: formData.email.trim(),
+            phone: formData.phone.trim(),
+            dateOfBirth: formData.dateOfBirth || null,
+            preferredLanguage: formData.preferredLanguage,
+          });
+        } catch (mirrorErr) {
+          console.error('Top-level client mirror update failed (non-blocking):', mirrorErr);
+        }
         // Update the selected client if it's the one being edited
         if (selectedClient?.id === editingClient.id) {
           setSelectedClient((prev) =>
@@ -1039,6 +1081,7 @@ export default function ClientsPage() {
                   email: formData.email.trim(),
                   phone: formData.phone.trim(),
                   dateOfBirth: formData.dateOfBirth || '',
+                  preferredLanguage: formData.preferredLanguage,
                 }
               : null
           );
@@ -1054,6 +1097,7 @@ export default function ClientsPage() {
           clientCode: code,
           agentId: user.uid,
           createdAt: serverTimestamp(),
+          preferredLanguage: formData.preferredLanguage,
         };
         if (formData.dateOfBirth) newClient.dateOfBirth = formData.dateOfBirth;
         const docRef = await addDoc(collection(db, 'agents', user.uid, 'clients'), newClient);
@@ -1071,6 +1115,7 @@ export default function ClientsPage() {
               clientCode: code,
               agentId: user.uid,
               createdAt: serverTimestamp(),
+              preferredLanguage: formData.preferredLanguage,
             }),
             setDoc(doc(db, 'clientCodes', code), { agentId: user.uid, clientId: docRef.id }),
           ]);
@@ -1081,7 +1126,7 @@ export default function ClientsPage() {
         // Auto-send welcome text with code via Linq if client has a phone
         if (formData.phone.trim()) {
           const firstName = formData.name.trim().split(' ')[0];
-          const welcomeText = buildWelcomeSms(firstName, code);
+          const welcomeText = buildWelcomeSms(firstName, code, formData.preferredLanguage);
           try {
             const token = await user.getIdToken();
             await fetch('/api/client/welcome-sms', {
@@ -1192,11 +1237,14 @@ export default function ClientsPage() {
 
   // ─── Policy Handlers ─────────────────────────────────────
 
-  const handleOpenPolicyModal = useCallback(() => {
+  const handleOpenPolicyModal = useCallback((options?: { openUploadPicker?: boolean }) => {
     setEditingPolicy(null);
     setPolicyFormData({ ...emptyPolicyForm });
     setPolicyFormError('');
     setPolicyFormSuccess('');
+    setPolicyApplicationNote(null);
+    setPolicyApplicationUploading(false);
+    setAutoOpenPolicyUploadPicker(options?.openUploadPicker === true);
     setIsPolicyModalOpen(true);
   }, []);
 
@@ -1206,6 +1254,9 @@ export default function ClientsPage() {
     setPolicyFormData({ ...emptyPolicyForm });
     setPolicyFormError('');
     setPolicyFormSuccess('');
+    setPolicyApplicationNote(null);
+    setPolicyApplicationUploading(false);
+    setAutoOpenPolicyUploadPicker(false);
   }, []);
 
   const handleSubmitPolicy = useCallback(async (e: React.FormEvent) => {
@@ -1286,15 +1337,7 @@ export default function ClientsPage() {
 
   // ─── Application Upload Handlers ─────────────────────────
 
-  const handleApplicationExtracted = useCallback((data: ExtractedApplicationData) => {
-    setIsUploadModalOpen(false);
-    const mapped = mapExtractedApplicationToPolicyFormData(data);
-    setPolicyFormData((prev) => ({ ...prev, ...mapped }));
-    setIsPolicyModalOpen(true);
-  }, []);
-
   const handleClientApplicationExtracted = useCallback((data: ExtractedApplicationData) => {
-    setIsClientUploadModalOpen(false);
     setPendingClientApplicationData(data);
     setFormData((prev) => ({
       ...prev,
@@ -1305,138 +1348,170 @@ export default function ClientsPage() {
     }));
   }, []);
 
-  const executeCreateClientAndPolicy = useCallback(async (
-    payload: PendingSinglePdfCreation,
-    welcomeMessageOverride?: string,
-  ) => {
-    if (!user || !payload.clientInfo.name.trim()) return;
-    const { clientInfo, appData, clientCode } = payload;
-    setIsClientUploadModalOpen(false);
-    setSubmitting(true);
+  const parseApplicationFile = useCallback(async (file: File): Promise<{ data: ExtractedApplicationData; note?: string }> => {
+    if (!user) {
+      throw new Error('You must be signed in to parse application files.');
+    }
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf) {
+      throw new Error('Please upload a PDF file.');
+    }
+    if (file.size > MAX_APPLICATION_PDF_BYTES) {
+      throw new Error('File is too large. Maximum size is 13MB.');
+    }
+
+    const token = await user.getIdToken();
+    const signedRes = await fetch('/api/ingestion/v3/upload-url', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        fileName: file.name,
+        contentType: file.type || 'application/pdf',
+        fileSize: file.size,
+        purpose: 'application',
+      }),
+    });
+    const signedBody = (await signedRes.json()) as {
+      success: boolean;
+      uploadUrl?: string;
+      gcsPath?: string;
+      error?: { message?: string };
+    };
+    if (!signedRes.ok || !signedBody.success || !signedBody.uploadUrl || !signedBody.gcsPath) {
+      throw new Error(signedBody.error?.message || `Failed to start file upload (${signedRes.status}).`);
+    }
+
+    await withTimeout(
+      fetch(signedBody.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/pdf' },
+        body: file,
+      }).then((res) => {
+        if (!res.ok) {
+          throw new Error(`Upload failed (${res.status}).`);
+        }
+      }),
+      BULK_GCS_UPLOAD_TIMEOUT_MS,
+      'Upload timed out while sending file.',
+    );
+
+    const createRes = await fetch('/api/ingestion/v3/jobs', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        mode: 'application',
+        gcsPath: signedBody.gcsPath,
+        fileName: file.name,
+        contentType: file.type || 'application/pdf',
+        idempotencyKey: `application-v3:${file.name}:${file.size}:${file.lastModified}`,
+      }),
+    });
+    const created = (await createRes.json()) as IngestionV3SubmitJobResponse;
+    if (!createRes.ok || !created.success || !created.jobId) {
+      throw new Error(created.error?.message || `Failed to start parsing job (${createRes.status}).`);
+    }
+
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < IMPORT_PARSE_TIMEOUT_MS) {
+      await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
+
+      const statusRes = await fetch(`/api/ingestion/v3/jobs/${encodeURIComponent(created.jobId)}`, {
+        cache: 'no-store',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      });
+      const contentType = statusRes.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Unexpected response while checking parse status. Please try again.');
+      }
+
+      const statusBody = (await statusRes.json()) as IngestionV3JobStatusResponse;
+      if (!statusRes.ok || !statusBody.success || !statusBody.job) {
+        throw new Error(statusBody.error?.message || `Failed to check parsing status (${statusRes.status}).`);
+      }
+
+      if (statusBody.job.status === 'review_ready' || statusBody.job.status === 'saved') {
+        const data = statusBody.job.result?.application?.data;
+        if (!data) {
+          throw new Error('Could not extract application data from this file. Please try another PDF.');
+        }
+        return { data, note: statusBody.job.result?.application?.note || undefined };
+      }
+
+      if (statusBody.job.status === 'failed') {
+        throw new Error(statusBody.job.error?.message || 'Failed to parse file. Please try again.');
+      }
+    }
+
+    throw new Error('Parsing timed out. Please retry the file.');
+  }, [user]);
+
+  const handleClientApplicationFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setClientApplicationUploading(true);
+    setClientApplicationNote(null);
     setFormError('');
+    setFormSuccess('');
 
     try {
-      const newClient: Record<string, unknown> = {
-        name: clientInfo.name.trim(),
-        email: clientInfo.email.trim(),
-        phone: clientInfo.phone.trim(),
-        clientCode,
-        agentId: user.uid,
-        createdAt: serverTimestamp(),
-      };
-      if (clientInfo.dateOfBirth) newClient.dateOfBirth = clientInfo.dateOfBirth;
-
-      const docRef = await addDoc(collection(db, 'agents', user.uid, 'clients'), newClient);
-      captureEvent(ANALYTICS_EVENTS.CLIENT_ADDED, { method: 'pdf_parse' });
-
-      // Mirror to top-level collections for the mobile app (non-blocking)
-      try {
-        await Promise.all([
-          setDoc(doc(db, 'clients', docRef.id), {
-            name: clientInfo.name.trim(),
-            email: clientInfo.email.trim(),
-            phone: clientInfo.phone.trim(),
-            clientCode,
-            agentId: user.uid,
-            createdAt: serverTimestamp(),
-          }),
-          setDoc(doc(db, 'clientCodes', clientCode), { agentId: user.uid, clientId: docRef.id }),
-        ]);
-      } catch (mirrorErr) {
-        console.error('Top-level client mirror failed (non-blocking):', mirrorErr);
-      }
-
-      // Auto-send welcome text with code if client has a phone
-      if (clientInfo.phone.trim()) {
-        const firstName = clientInfo.name.trim().split(' ')[0];
-        const welcomeText = (welcomeMessageOverride || '').trim() || buildWelcomeSms(firstName, clientCode);
-        try {
-          const token = await user.getIdToken();
-          await fetch('/api/client/welcome-sms', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ clientPhone: clientInfo.phone.trim(), message: welcomeText }),
-          });
-        } catch (smsErr) {
-          console.error('Auto-text failed (non-blocking):', smsErr);
-        }
-      }
-
-      // Create the policy from the extracted data
-      const mapped = mapExtractedApplicationToPolicyFormData(appData);
-      const policySignalCount = [
-        mapped.policyType,
-        mapped.policyNumber,
-        mapped.insuranceCompany === 'Other' ? mapped.otherCarrier : mapped.insuranceCompany,
-        mapped.coverageAmount,
-        mapped.premiumAmount,
-      ].filter((v) => !!String(v || '').trim()).length;
-
-      if (policySignalCount < MIN_APPLICATION_POLICY_SIGNALS) {
-        setFormError('Client was created, but extracted policy data looked incomplete. Please review and add the policy manually.');
-        return;
-      }
-
-      const policyData: Record<string, unknown> = {
-        policyType: mapped.policyType || '',
-        policyNumber: mapped.policyNumber || '',
-        insuranceCompany: mapped.insuranceCompany === 'Other' ? (mapped.otherCarrier || '') : (mapped.insuranceCompany || ''),
-        policyOwner: mapped.policyOwner || clientInfo.name.trim(),
-        beneficiaries: mapped.beneficiaries || [],
-        coverageAmount: mapped.coverageAmount ? parseFloat(mapped.coverageAmount) : 0,
-        premiumAmount: mapped.premiumAmount ? parseFloat(mapped.premiumAmount) : 0,
-        premiumFrequency: mapped.premiumFrequency || 'monthly',
-        renewalDate: mapped.renewalDate || '',
-        effectiveDate: mapped.effectiveDate || null,
-        status: 'Active',
-        ingestionQualityGate: true,
-      };
-
-      const policyToken = await user.getIdToken();
-      await apiCreatePolicy(policyToken, docRef.id, policyData);
-
-      // Re-fetch summaries from the server now that the policy is confirmed created
-      refreshSummaries();
-
-      setFormSuccess('Client & policy created!');
-      setTimeout(() => setFormSuccess(''), 3000);
+      const parsed = await parseApplicationFile(file);
+      handleClientApplicationExtracted(parsed.data);
+      setClientApplicationNote(parsed.note || null);
     } catch (err) {
-      console.error('Error creating client & policy:', err);
-      setFormError('Client was created, but the policy could not be saved. Open the client and add the policy manually.');
+      setFormError(err instanceof Error ? err.message : 'Failed to parse application PDF.');
     } finally {
-      setSubmitting(false);
-      setPendingSinglePdfCreation(null);
-      setShowSinglePdfSmsConfirm(false);
+      setClientApplicationUploading(false);
     }
-  }, [user, refreshSummaries, buildWelcomeSms]);
+  }, [handleClientApplicationExtracted, parseApplicationFile]);
 
-  const handleCreateClientAndPolicy = useCallback(async (
-    clientInfo: { name: string; email: string; phone: string; dateOfBirth: string },
-    appData: ExtractedApplicationData,
-  ) => {
-    if (!user || !clientInfo.name.trim()) return;
+  const handleClickClientApplicationUpload = useCallback(() => {
+    if (clientApplicationUploading) return;
+    clientApplicationFileInputRef.current?.click();
+  }, [clientApplicationUploading]);
 
-    const payload: PendingSinglePdfCreation = {
-      clientInfo,
-      appData,
-      clientCode: generateClientCode(),
-    };
+  const handlePolicyApplicationFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
 
-    if (clientInfo.phone.trim() && shouldPromptBeforeSinglePdfWelcomeSms) {
-      const firstName = clientInfo.name.trim().split(' ')[0];
-      setSinglePdfSmsDraft(buildWelcomeSms(firstName, payload.clientCode));
-      setPendingSinglePdfCreation(payload);
-      setShowSinglePdfSmsConfirm(true);
-      return;
+    setPolicyApplicationUploading(true);
+    setPolicyApplicationNote(null);
+    setPolicyFormError('');
+    setPolicyFormSuccess('');
+
+    try {
+      const parsed = await parseApplicationFile(file);
+      const mapped = mapExtractedApplicationToPolicyFormData(parsed.data);
+      setPolicyFormData((prev) => ({ ...prev, ...mapped }));
+      setPolicyApplicationNote(parsed.note || null);
+    } catch (err) {
+      setPolicyFormError(err instanceof Error ? err.message : 'Failed to parse application PDF.');
+    } finally {
+      setPolicyApplicationUploading(false);
     }
+  }, [parseApplicationFile]);
 
-    await executeCreateClientAndPolicy(payload);
-  }, [user, shouldPromptBeforeSinglePdfWelcomeSms, buildWelcomeSms, executeCreateClientAndPolicy]);
+  const handleClickPolicyApplicationUpload = useCallback(() => {
+    if (policyApplicationUploading) return;
+    policyApplicationFileInputRef.current?.click();
+  }, [policyApplicationUploading]);
 
-  const handleConfirmSinglePdfCreate = useCallback(async () => {
-    if (!pendingSinglePdfCreation) return;
-    await executeCreateClientAndPolicy(pendingSinglePdfCreation, singlePdfSmsDraft);
-  }, [pendingSinglePdfCreation, singlePdfSmsDraft, executeCreateClientAndPolicy]);
+  useEffect(() => {
+    if (!isPolicyModalOpen || !autoOpenPolicyUploadPicker || editingPolicy) return;
+    policyApplicationFileInputRef.current?.click();
+    setAutoOpenPolicyUploadPicker(false);
+  }, [isPolicyModalOpen, autoOpenPolicyUploadPicker, editingPolicy]);
 
   // ─── BOB Import Handlers ─────────────────────────────────
 
@@ -2192,7 +2267,13 @@ export default function ClientsPage() {
 
   const handleShareCode = useCallback(async (client: Client) => {
     const firstName = client.name.split(' ')[0];
-    const message = `Hey ${firstName}! Download the AgentForLife app and use code ${client.clientCode} to connect with me. ${CLIENT_APP_URL}`;
+    const message = buildWelcomeMessage({
+      firstName,
+      agentName: (agentProfile.name || 'your agent').trim() || 'your agent',
+      code: client.clientCode || '',
+      appUrl: CLIENT_APP_URL,
+      language: resolveClientLanguage(client.preferredLanguage),
+    });
     try {
       await navigator.clipboard.writeText(message);
       captureEvent(ANALYTICS_EVENTS.REFERRAL_LINK_SHARED, { channel: 'client_code_copy' });
@@ -2209,7 +2290,7 @@ export default function ClientsPage() {
       setCopiedClientId(client.id);
       setTimeout(() => setCopiedClientId(null), 2000);
     }
-  }, []);
+  }, [agentProfile.name]);
 
   // ─── Loading State ───────────────────────────────────────
 
@@ -2666,18 +2747,29 @@ export default function ClientsPage() {
 
             <form onSubmit={handleSubmitClient} className="p-6 space-y-4">
               {/* PDF Upload option for new clients */}
-              {!editingClient && !pendingClientApplicationData && (
+              {!editingClient && (
                 <div className="mb-2">
                   <button
                     type="button"
-                    onClick={() => setIsClientUploadModalOpen(true)}
+                    onClick={handleClickClientApplicationUpload}
+                    disabled={clientApplicationUploading}
                     className="w-full px-4 py-3 border-2 border-dashed border-[#45bcaa]/40 hover:border-[#45bcaa] bg-[#daf3f0]/30 hover:bg-[#daf3f0]/60 rounded-[5px] text-sm font-medium text-[#005851] transition-all flex items-center justify-center gap-2"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
-                    Upload Application PDF to Auto-Fill
+                    {clientApplicationUploading ? 'Reading application PDF...' : 'Upload Application PDF to Auto-Fill'}
                   </button>
+                  <input
+                    ref={clientApplicationFileInputRef}
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    onChange={handleClientApplicationFileSelect}
+                    className="hidden"
+                  />
+                  <p className="mt-2 text-xs text-[#707070]">
+                    AI will extract client info and policy details in one step. Max 13MB.
+                  </p>
                 </div>
               )}
 
@@ -2688,6 +2780,9 @@ export default function ClientsPage() {
                   </svg>
                   <span className="font-medium">Application data extracted! A policy will be auto-created.</span>
                 </div>
+              )}
+              {clientApplicationNote && (
+                <p className="text-xs text-[#707070]">{clientApplicationNote}</p>
               )}
 
               <div>
@@ -2731,6 +2826,18 @@ export default function ClientsPage() {
                   onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))}
                   className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#000000] mb-1">Preferred Language</label>
+                <select
+                  value={formData.preferredLanguage}
+                  onChange={(e) => setFormData((f) => ({ ...f, preferredLanguage: resolveClientLanguage(e.target.value) }))}
+                  className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                >
+                  <option value="en">English</option>
+                  <option value="es">Spanish</option>
+                </select>
               </div>
 
               {formError && (
@@ -3333,16 +3440,32 @@ export default function ClientsPage() {
             <form onSubmit={handleSubmitPolicy} className="p-6 space-y-4">
               {/* Upload Application Button */}
               {!editingPolicy && (
-                <button
-                  type="button"
-                  onClick={() => setIsUploadModalOpen(true)}
-                  className="w-full px-4 py-3 border-2 border-dashed border-[#0099FF]/30 hover:border-[#0099FF] bg-[#0099FF]/5 hover:bg-[#0099FF]/10 rounded-[5px] text-sm font-medium text-[#0099FF] transition-all flex items-center justify-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                  Upload Application PDF to Auto-Fill
-                </button>
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={handleClickPolicyApplicationUpload}
+                    disabled={policyApplicationUploading}
+                    className="w-full px-4 py-3 border-2 border-dashed border-[#0099FF]/30 hover:border-[#0099FF] bg-[#0099FF]/5 hover:bg-[#0099FF]/10 rounded-[5px] text-sm font-medium text-[#0099FF] transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    {policyApplicationUploading ? 'Reading application PDF...' : 'Upload Application PDF to Auto-Fill'}
+                  </button>
+                  <input
+                    ref={policyApplicationFileInputRef}
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    onChange={handlePolicyApplicationFileSelect}
+                    className="hidden"
+                  />
+                  <p className="text-xs text-[#707070]">
+                    AI will extract client info and policy details in one step. Max 13MB.
+                  </p>
+                  {policyApplicationNote && (
+                    <p className="text-xs text-[#707070]">{policyApplicationNote}</p>
+                  )}
+                </div>
               )}
 
               {/* Policy Type */}
@@ -3799,7 +3922,7 @@ export default function ClientsPage() {
             setIsPolicyModalOpen(true);
           }}
           onDeletePolicy={(policy) => setDeleteConfirmPolicy(policy)}
-          onUploadApplication={() => setIsUploadModalOpen(true)}
+          onUploadApplication={() => handleOpenPolicyModal({ openUploadPicker: true })}
           onEditClient={handleEditClient}
           onUpdateClient={handleInlineUpdateClient}
           onFlagAtRisk={() => { refreshPolicies(); }}
@@ -3807,71 +3930,6 @@ export default function ClientsPage() {
           hasSchedulingUrl={!!agentProfile.schedulingUrl}
           clientPushToken={clientPushToken === undefined ? null : clientPushToken}
         />
-      )}
-
-      {/* ── Application Upload (for existing client / policy) ── */}
-      {isUploadModalOpen && selectedClient && (
-        <ApplicationUpload
-          clientName={selectedClient.name}
-          onExtracted={handleApplicationExtracted}
-          onClose={() => setIsUploadModalOpen(false)}
-        />
-      )}
-
-      {/* ── Application Upload (for new client + policy creation) ── */}
-      {isClientUploadModalOpen && (
-        <ApplicationUpload
-          clientName="New Client"
-          onExtracted={handleClientApplicationExtracted}
-          onClose={() => setIsClientUploadModalOpen(false)}
-          onCreateClientAndPolicy={handleCreateClientAndPolicy}
-          mode="client-and-policy"
-        />
-      )}
-
-      {/* ── Single PDF Welcome SMS Confirmation ── */}
-      {showSinglePdfSmsConfirm && pendingSinglePdfCreation && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setShowSinglePdfSmsConfirm(false)}
-          />
-          <div className="relative bg-white rounded-[5px] shadow-2xl w-full max-w-xl border border-gray-200">
-            <div className="p-5 border-b border-gray-200">
-              <h3 className="text-lg font-bold text-[#000000]">Confirm Welcome Text</h3>
-              <p className="text-sm text-[#707070] mt-1">
-                Creating this client will send the following text message.
-              </p>
-            </div>
-            <div className="p-5 space-y-3">
-              <textarea
-                value={singlePdfSmsDraft}
-                onChange={(e) => setSinglePdfSmsDraft(e.target.value)}
-                rows={5}
-                className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa] resize-y"
-              />
-              <p className="text-xs text-[#707070]">
-                You can edit this before sending. This template can also be changed in Settings.
-              </p>
-            </div>
-            <div className="p-5 pt-0 flex gap-3">
-              <button
-                onClick={() => setShowSinglePdfSmsConfirm(false)}
-                disabled={submitting}
-                className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors disabled:opacity-60"
-              >
-                Back
-              </button>
-              <button
-                onClick={handleConfirmSinglePdfCreate}
-                disabled={submitting}
-                className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors disabled:opacity-60"
-              >
-                {submitting ? 'Creating...' : 'Create Client & Send Text'}
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* ── Flag At Risk Modal ── */}
