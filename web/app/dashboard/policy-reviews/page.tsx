@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
 import SectionTipCard from '../../../components/SectionTipCard';
@@ -106,51 +106,64 @@ export default function PolicyReviewsPage() {
   const emptyStateTrackedRef = useRef(false);
   const [filter, setFilter] = useState<'active' | 'booked' | 'all'>('active');
 
-  useEffect(() => {
+  const fetchReviews = useCallback(async () => {
     if (!user) return;
     setReviewsLoading(true);
-
-    const reviewsRef = collection(db, 'agents', user.uid, 'policyReviews');
-
-    const unsub = onSnapshot(reviewsRef, (snapshot) => {
-      const list: PolicyReviewUI[] = snapshot.docs.map((d) => {
-        const data = d.data() as Partial<PolicyReviewUI>;
-        return {
-          id: d.id,
-          clientId: data.clientId || '',
-          clientName: data.clientName || 'Client',
-          clientFirstName: data.clientFirstName || 'Client',
-          policyId: data.policyId || '',
-          policyType: data.policyType || 'Policy',
-          carrier: data.carrier || '',
-          premiumAmount: data.premiumAmount ?? null,
-          coverageAmount: data.coverageAmount ?? null,
-          anniversaryDate: data.anniversaryDate || '',
-          messageStyle: data.messageStyle || 'check_in',
-          status: data.status || 'outreach-sent',
-          conversation: Array.isArray(data.conversation) ? data.conversation : [],
-          gatheredInfo: data.gatheredInfo,
-          chatId: data.chatId ?? null,
-          dripCount: data.dripCount ?? 0,
-          aiEnabled: data.aiEnabled ?? true,
-          createdAt: (data.createdAt as PolicyReviewUI['createdAt']) || null,
-          lastDripAt: (data.lastDripAt as PolicyReviewUI['lastDripAt']) || null,
-        };
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/policy-reviews', {
+        headers: { Authorization: `Bearer ${token}` },
       });
+
+      if (!res.ok) {
+        throw new Error(`Failed to load policy reviews: ${res.status}`);
+      }
+
+      const data = await res.json() as { reviews?: Partial<PolicyReviewUI>[] };
+      const list: PolicyReviewUI[] = (data.reviews || []).map((review) => ({
+        id: review.id || '',
+        clientId: review.clientId || '',
+        clientName: review.clientName || 'Client',
+        clientFirstName: review.clientFirstName || 'Client',
+        policyId: review.policyId || '',
+        policyType: review.policyType || 'Policy',
+        carrier: review.carrier || '',
+        premiumAmount: review.premiumAmount ?? null,
+        coverageAmount: review.coverageAmount ?? null,
+        anniversaryDate: review.anniversaryDate || '',
+        messageStyle: review.messageStyle || 'check_in',
+        status: review.status || 'outreach-sent',
+        conversation: Array.isArray(review.conversation) ? review.conversation : [],
+        gatheredInfo: review.gatheredInfo,
+        chatId: review.chatId ?? null,
+        dripCount: review.dripCount ?? 0,
+        aiEnabled: review.aiEnabled ?? true,
+        createdAt: review.createdAt || null,
+        lastDripAt: review.lastDripAt || null,
+      }));
+
       list.sort((a, b) => {
         const bMs = toMillis(b.createdAt) || toMillis(b.lastDripAt);
         const aMs = toMillis(a.createdAt) || toMillis(a.lastDripAt);
         return bMs - aMs;
       });
-      setReviews(list);
-      setReviewsLoading(false);
-    }, (error) => {
-      console.error('Error fetching policy reviews:', error);
-      setReviewsLoading(false);
-    });
 
-    return () => unsub();
+      setReviews(list);
+    } catch (error) {
+      console.error('Error fetching policy reviews:', error);
+    } finally {
+      setReviewsLoading(false);
+    }
   }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    void fetchReviews();
+    const intervalId = window.setInterval(() => {
+      void fetchReviews();
+    }, 30_000);
+    return () => window.clearInterval(intervalId);
+  }, [user, fetchReviews]);
 
   const handleToggleAi = async (reviewId: string, currentValue: boolean) => {
     if (!user) return;
@@ -158,6 +171,7 @@ export default function PolicyReviewsPage() {
       await updateDoc(doc(db, 'agents', user.uid, 'policyReviews', reviewId), {
         aiEnabled: !currentValue,
       });
+      void fetchReviews();
     } catch (err) {
       console.error('Error toggling AI:', err);
     }
@@ -169,6 +183,7 @@ export default function PolicyReviewsPage() {
       await updateDoc(doc(db, 'agents', user.uid, 'policyReviews', reviewId), {
         status: 'booked',
       });
+      void fetchReviews();
       captureEvent(ANALYTICS_EVENTS.POLICY_REVIEW_COMPLETED, { completion_status: 'booked' });
     } catch (err) {
       console.error('Error marking as booked:', err);
@@ -186,6 +201,7 @@ export default function PolicyReviewsPage() {
       await updateDoc(doc(db, 'agents', user.uid, 'policyReviews', reviewId), {
         status: 'closed',
       });
+      void fetchReviews();
       captureEvent(ANALYTICS_EVENTS.POLICY_REVIEW_COMPLETED, { completion_status: 'closed' });
     } catch (err) {
       console.error('Error marking as closed:', err);
@@ -216,7 +232,10 @@ export default function PolicyReviewsPage() {
           collection: 'policyReviews',
         }),
       });
-      if (res.ok) setManualMessage('');
+      if (res.ok) {
+        setManualMessage('');
+        void fetchReviews();
+      }
     } catch (err) {
       console.error('Error sending message:', err);
       captureEvent(ANALYTICS_EVENTS.ACTION_FAILED, {
@@ -227,7 +246,7 @@ export default function PolicyReviewsPage() {
     } finally {
       setSendingMessage(false);
     }
-  }, [user, manualMessage, sendingMessage, reviews]);
+  }, [user, manualMessage, sendingMessage, reviews, fetchReviews]);
 
   const activeStatuses = ['outreach-sent', 'drip-1', 'drip-2', 'drip-complete', 'conversation-active', 'booking-sent'];
   const activeReviews = reviews.filter(r => activeStatuses.includes(r.status));
