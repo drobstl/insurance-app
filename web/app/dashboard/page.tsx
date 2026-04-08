@@ -111,7 +111,7 @@ function formatValue(n: number): string {
 
 export default function DashboardHomePage() {
   const router = useRouter();
-  const { user, loading, agentProfile, dismissTip } = useDashboard();
+  const { user, loading, agentProfile, dismissTip, isAdmin } = useDashboard();
 
   const [clients, setClients] = useState<Client[]>([]);
   const [conservationAlerts, setConservationAlerts] = useState<ConservationAlert[]>([]);
@@ -220,6 +220,8 @@ export default function DashboardHomePage() {
   }, [user, clients]);
 
   useEffect(() => {
+    if (!isAdmin) return;
+
     let cancelled = false;
 
     const fetchSigningHealth = async () => {
@@ -257,7 +259,7 @@ export default function DashboardHomePage() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, []);
+  }, [isAdmin]);
 
   const activeConservation = conservationAlerts.filter(
     (a) => a.status !== 'saved' && a.status !== 'lost',
@@ -313,52 +315,54 @@ export default function DashboardHomePage() {
         </SectionTipCard>
       )}
 
-      <button
-        type="button"
-        onClick={() => router.push('/dashboard/clients')}
-        className={`w-full mb-4 rounded-lg border px-3 py-2 text-left transition-colors ${
-          ingestionSigningHealth.status === 'healthy'
-            ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
-            : ingestionSigningHealth.status === 'checking'
-              ? 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-              : 'bg-red-50 border-red-200 hover:bg-red-100'
-        }`}
-      >
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                ingestionSigningHealth.status === 'healthy'
-                  ? 'bg-emerald-500'
-                  : ingestionSigningHealth.status === 'checking'
-                    ? 'bg-gray-400'
-                    : 'bg-red-500'
-              }`}
-            />
-            <span className="text-xs font-semibold text-[#000000] uppercase tracking-wide">
-              Upload Signing Health
+      {isAdmin && (
+        <button
+          type="button"
+          onClick={() => router.push('/dashboard/clients')}
+          className={`w-full mb-4 rounded-lg border px-3 py-2 text-left transition-colors ${
+            ingestionSigningHealth.status === 'healthy'
+              ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
+              : ingestionSigningHealth.status === 'checking'
+                ? 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                : 'bg-red-50 border-red-200 hover:bg-red-100'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  ingestionSigningHealth.status === 'healthy'
+                    ? 'bg-emerald-500'
+                    : ingestionSigningHealth.status === 'checking'
+                      ? 'bg-gray-400'
+                      : 'bg-red-500'
+                }`}
+              />
+              <span className="text-xs font-semibold text-[#000000] uppercase tracking-wide">
+                Upload Signing Health
+              </span>
+            </div>
+            <span className="text-xs text-[#4b5563]">
+              {ingestionSigningHealth.status === 'healthy'
+                ? 'Healthy'
+                : ingestionSigningHealth.status === 'checking'
+                  ? 'Checking...'
+                  : 'Action needed'}
             </span>
           </div>
-          <span className="text-xs text-[#4b5563]">
-            {ingestionSigningHealth.status === 'healthy'
-              ? 'Healthy'
-              : ingestionSigningHealth.status === 'checking'
-                ? 'Checking...'
-                : 'Action needed'}
-          </span>
-        </div>
-        {ingestionSigningHealth.status === 'unhealthy' && (
-          <p className="mt-1 text-xs text-red-700">
-            {ingestionSigningHealth.errorCode ? `[${ingestionSigningHealth.errorCode}] ` : ''}
-            {ingestionSigningHealth.message || 'Signed uploads may fail for users.'}
-          </p>
-        )}
-        {ingestionSigningHealth.checkedAt && (
-          <p className="mt-1 text-[11px] text-[#6b7280]">
-            Last checked {new Date(ingestionSigningHealth.checkedAt).toLocaleTimeString()}
-          </p>
-        )}
-      </button>
+          {ingestionSigningHealth.status === 'unhealthy' && (
+            <p className="mt-1 text-xs text-red-700">
+              {ingestionSigningHealth.errorCode ? `[${ingestionSigningHealth.errorCode}] ` : ''}
+              {ingestionSigningHealth.message || 'Signed uploads may fail for users.'}
+            </p>
+          )}
+          {ingestionSigningHealth.checkedAt && (
+            <p className="mt-1 text-[11px] text-[#6b7280]">
+              Last checked {new Date(ingestionSigningHealth.checkedAt).toLocaleTimeString()}
+            </p>
+          )}
+        </button>
+      )}
 
       {/* ── Value Hero ─────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6 mt-2 mb-8 md:mb-10">
@@ -502,9 +506,9 @@ export default function DashboardHomePage() {
       )}
 
       {/* ── Nav Grid ───────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden mt-8">
+      <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden mt-6">
         <div className="grid grid-cols-1 md:grid-cols-2">
-          <div className="md:border-r border-b border-[#e0e0e0] px-4 py-4">
+          <div className="md:border-r border-b border-[#e0e0e0] px-4 py-3">
             <NavLink
               color="bg-red-500"
               label="Retention"
@@ -512,7 +516,7 @@ export default function DashboardHomePage() {
               onClick={() => router.push('/dashboard/conservation')}
             />
           </div>
-          <div className="border-b border-[#e0e0e0] px-4 py-4">
+          <div className="border-b border-[#e0e0e0] px-4 py-3">
             <NavLink
               color="bg-[#2563eb]"
               label="Referrals"
@@ -520,7 +524,7 @@ export default function DashboardHomePage() {
               onClick={() => router.push('/dashboard/referrals')}
             />
           </div>
-          <div className="md:border-r border-b md:border-b-0 border-[#e0e0e0] px-4 py-4">
+          <div className="md:border-r border-b md:border-b-0 border-[#e0e0e0] px-4 py-3">
             <NavLink
               color="bg-amber-500"
               label="Anniversaries"
@@ -528,7 +532,7 @@ export default function DashboardHomePage() {
               onClick={() => router.push('/dashboard/policy-reviews')}
             />
           </div>
-          <div className="px-4 py-4" ref={fanAnchorRef}>
+          <div className="px-4 py-3" ref={fanAnchorRef}>
             <NavLink
               color="bg-[#005851]"
               label="AI Activity"
@@ -632,11 +636,41 @@ function AIActivityFan({
   const fetched = !loading || items.length > 0;
   const cardWidth = 420;
   const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1280;
-  const left = Math.min(Math.max(16, anchor.left), viewportWidth - cardWidth - 16);
-  const top = anchor.bottom + 10;
+  const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const viewportPadding = 16;
+  const anchorGap = 10;
+  const headerHeight = 42;
+  const panelWidth = Math.min(cardWidth, viewportWidth - viewportPadding * 2);
+  const left = Math.min(
+    Math.max(viewportPadding, anchor.left),
+    viewportWidth - panelWidth - viewportPadding,
+  );
+  const spaceBelow = viewportHeight - anchor.bottom - anchorGap - viewportPadding;
+  const spaceAbove = anchor.top - anchorGap - viewportPadding;
+  const openAbove = spaceBelow < 240 && spaceAbove > spaceBelow;
+  const availableVerticalSpace = Math.max(180, openAbove ? spaceAbove : spaceBelow);
+  const panelMaxHeight = Math.max(
+    180,
+    Math.min(availableVerticalSpace, viewportHeight - viewportPadding * 2),
+  );
+  const bodyMaxHeight = Math.max(110, panelMaxHeight - headerHeight - 10);
+  const unclampedTop = anchor.bottom + anchorGap;
+  const unclampedBottom = viewportHeight - anchor.top + anchorGap;
+  const top = openAbove
+    ? undefined
+    : Math.min(
+      Math.max(viewportPadding, unclampedTop),
+      viewportHeight - viewportPadding - panelMaxHeight,
+    );
+  const bottom = openAbove
+    ? Math.min(
+      Math.max(viewportPadding, unclampedBottom),
+      viewportHeight - viewportPadding - panelMaxHeight,
+    )
+    : undefined;
   const transformOriginX = Math.max(
     16,
-    Math.min(cardWidth - 16, anchor.left - left + anchor.width / 2),
+    Math.min(panelWidth - 16, anchor.left - left + anchor.width / 2),
   );
 
   return (
@@ -657,11 +691,13 @@ function AIActivityFan({
             style={{
               left,
               top,
-              transformOrigin: `${transformOriginX}px top`,
+              bottom,
+              maxHeight: panelMaxHeight,
+              transformOrigin: `${transformOriginX}px ${openAbove ? 'bottom' : 'top'}`,
             }}
-            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+            initial={{ opacity: 0, scale: 0.95, y: openAbove ? 10 : -10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+            exit={{ opacity: 0, scale: 0.95, y: openAbove ? 10 : -10 }}
             transition={{ type: 'spring', stiffness: 360, damping: 30 }}
           >
             <div className="px-4 py-3 border-b border-[#e0e0e0]">
@@ -684,7 +720,7 @@ function AIActivityFan({
                 <span className="text-sm text-[#707070]">No AI activity this week</span>
               </div>
             ) : (
-              <div className="p-2 max-h-80 overflow-y-auto space-y-1">
+              <div className="p-2 overflow-y-auto space-y-1" style={{ maxHeight: bodyMaxHeight }}>
                 {items.map((item) => {
                   const meta = TYPE_META[item.type];
                   return (
@@ -723,7 +759,7 @@ function NavLink({ color, label, count, onClick }: {
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-3 py-2 text-left group"
+      className="w-full flex items-center gap-3 py-1.5 text-left group"
     >
       <span className={`w-2 h-2 rounded-full ${color} shrink-0`} />
       <span className="text-sm font-bold text-[#000000] group-hover:text-[#005851] transition-colors">
