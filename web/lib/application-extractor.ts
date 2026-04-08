@@ -163,9 +163,6 @@ export async function extractApplicationFields(
   const fileSizeBytes = options.fileSizeBytes;
 
   const isLargePdf = typeof fileSizeBytes === 'number' && fileSizeBytes >= LARGE_PDF_THRESHOLD_BYTES;
-  // #region agent log
-  fetch('http://127.0.0.1:7412/ingest/09931433-2034-41d9-90f4-26d8a7253b3b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'abd57d'},body:JSON.stringify({sessionId:'abd57d',runId:'pre-fix',hypothesisId:'H1-H4',location:'application-extractor.ts:extractApplicationFields:entry',message:'extract_application_fields_entry',data:{pdfBase64Length:pdfBase64.length,fileSizeBytes:fileSizeBytes??null,isLargePdf},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
 
   if (isLargePdf) {
     // Large PDFs: run a faster first pass, then fall back to full-depth only when needed.
@@ -270,9 +267,6 @@ async function runExtractionAttempt(
     } catch (err) {
       lastError = err;
       console.error(`[application-extractor] Attempt ${attempt + 1}/${config.maxRetries} failed:`, err);
-      // #region agent log
-      fetch('http://127.0.0.1:7412/ingest/09931433-2034-41d9-90f4-26d8a7253b3b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'abd57d'},body:JSON.stringify({sessionId:'abd57d',runId:'pre-fix',hypothesisId:'H1',location:'application-extractor.ts:runExtractionAttempt:catch',message:'anthropic_attempt_failed',data:{attempt:attempt+1,maxRetries:config.maxRetries,maxTokens:config.maxTokens,errorType:err instanceof Error?err.name:typeof err,errorMessage:err instanceof Error?err.message:String(err)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       const isRetryable = isRetryableExtractionError(err);
 
       if (!isRetryable || attempt === config.maxRetries - 1) break;

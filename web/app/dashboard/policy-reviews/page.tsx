@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
 import SectionTipCard from '../../../components/SectionTipCard';
@@ -48,6 +48,28 @@ interface PolicyReviewUI {
   dripCount: number;
   aiEnabled: boolean;
   createdAt: { toDate?: () => Date } | null;
+  lastDripAt?: { toDate?: () => Date; toMillis?: () => number } | string | null;
+}
+
+function toMillis(value: unknown): number {
+  if (!value) return 0;
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  if (typeof value === 'object' && value !== null) {
+    const maybeTimestamp = value as { toDate?: () => Date; toMillis?: () => number };
+    if (typeof maybeTimestamp.toMillis === 'function') {
+      const ms = maybeTimestamp.toMillis();
+      return Number.isFinite(ms) ? ms : 0;
+    }
+    if (typeof maybeTimestamp.toDate === 'function') {
+      const date = maybeTimestamp.toDate();
+      const ms = date.getTime();
+      return Number.isFinite(ms) ? ms : 0;
+    }
+  }
+  return 0;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -89,13 +111,37 @@ export default function PolicyReviewsPage() {
     setReviewsLoading(true);
 
     const reviewsRef = collection(db, 'agents', user.uid, 'policyReviews');
-    const reviewsQuery = query(reviewsRef, orderBy('createdAt', 'desc'));
 
-    const unsub = onSnapshot(reviewsQuery, (snapshot) => {
-      const list: PolicyReviewUI[] = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      } as PolicyReviewUI));
+    const unsub = onSnapshot(reviewsRef, (snapshot) => {
+      const list: PolicyReviewUI[] = snapshot.docs.map((d) => {
+        const data = d.data() as Partial<PolicyReviewUI>;
+        return {
+          id: d.id,
+          clientId: data.clientId || '',
+          clientName: data.clientName || 'Client',
+          clientFirstName: data.clientFirstName || 'Client',
+          policyId: data.policyId || '',
+          policyType: data.policyType || 'Policy',
+          carrier: data.carrier || '',
+          premiumAmount: data.premiumAmount ?? null,
+          coverageAmount: data.coverageAmount ?? null,
+          anniversaryDate: data.anniversaryDate || '',
+          messageStyle: data.messageStyle || 'check_in',
+          status: data.status || 'outreach-sent',
+          conversation: Array.isArray(data.conversation) ? data.conversation : [],
+          gatheredInfo: data.gatheredInfo,
+          chatId: data.chatId ?? null,
+          dripCount: data.dripCount ?? 0,
+          aiEnabled: data.aiEnabled ?? true,
+          createdAt: (data.createdAt as PolicyReviewUI['createdAt']) || null,
+          lastDripAt: (data.lastDripAt as PolicyReviewUI['lastDripAt']) || null,
+        };
+      });
+      list.sort((a, b) => {
+        const bMs = toMillis(b.createdAt) || toMillis(b.lastDripAt);
+        const aMs = toMillis(a.createdAt) || toMillis(a.lastDripAt);
+        return bMs - aMs;
+      });
       setReviews(list);
       setReviewsLoading(false);
     }, (error) => {

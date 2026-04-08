@@ -67,9 +67,6 @@ export async function POST(req: NextRequest): Promise<NextResponse<IngestionV3Up
     const safeName = sanitizeFileName(fileName);
     const gcsPath = `ingestion/v3/${purpose}/${Date.now()}-${randomUUID()}-${safeName}`;
     const bucket = getAdminStorage().bucket();
-    // #region agent log
-    fetch('http://127.0.0.1:7412/ingest/09931433-2034-41d9-90f4-26d8a7253b3b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'abd57d'},body:JSON.stringify({sessionId:'abd57d',runId:'pre-fix',hypothesisId:'H6-H8',location:'upload-url/route.ts:POST:before-cors',message:'upload_url_request_validated',data:{fileName:safeName,fileSize,purpose,contentType,gcsPath},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     await ensureBucketCors(bucket);
     const file = bucket.file(gcsPath);
 
@@ -79,9 +76,6 @@ export async function POST(req: NextRequest): Promise<NextResponse<IngestionV3Up
       expires: Date.now() + SIGNED_URL_TTL_MS,
       contentType,
     });
-    // #region agent log
-    fetch('http://127.0.0.1:7412/ingest/09931433-2034-41d9-90f4-26d8a7253b3b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'abd57d'},body:JSON.stringify({sessionId:'abd57d',runId:'pre-fix',hypothesisId:'H6',location:'upload-url/route.ts:POST:after-signed-url',message:'upload_url_generated',data:{gcsPath,hasUploadUrl:Boolean(uploadUrl)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     return NextResponse.json({ success: true, uploadUrl, gcsPath });
   } catch (error) {
@@ -96,9 +90,6 @@ export async function POST(req: NextRequest): Promise<NextResponse<IngestionV3Up
       errorCode: classifySigningError(message),
       message,
     });
-    // #region agent log
-    fetch('http://127.0.0.1:7412/ingest/09931433-2034-41d9-90f4-26d8a7253b3b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'abd57d'},body:JSON.stringify({sessionId:'abd57d',runId:'pre-fix',hypothesisId:'H6-H8',location:'upload-url/route.ts:POST:catch',message:'upload_url_generation_failed',data:{errorType:error instanceof Error?error.name:typeof error,errorMessage:message},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     return NextResponse.json(
       {
         success: false,
@@ -147,9 +138,6 @@ async function ensureBucketCors(bucket: any) {
       errorCode: classifySigningError(message),
       message,
     });
-    // #region agent log
-    fetch('http://127.0.0.1:7412/ingest/09931433-2034-41d9-90f4-26d8a7253b3b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'abd57d'},body:JSON.stringify({sessionId:'abd57d',runId:'pre-fix',hypothesisId:'H7-H8',location:'upload-url/route.ts:ensureBucketCors:catch',message:'bucket_cors_set_failed',data:{errorType:err instanceof Error?err.name:typeof err,errorMessage:err instanceof Error?err.message:String(err)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     // Keep route non-fatal if permission is limited; signer still works.
     console.warn('[ingestion/v3/upload-url] Unable to set bucket CORS automatically:', err);
   }

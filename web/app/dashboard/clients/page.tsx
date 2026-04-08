@@ -1391,9 +1391,6 @@ export default function ClientsPage() {
     }
 
     const runDirectParseFallback = async (): Promise<{ data: ExtractedApplicationData; note?: string }> => {
-      // #region agent log
-      fetch('http://127.0.0.1:7412/ingest/09931433-2034-41d9-90f4-26d8a7253b3b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'abd57d'},body:JSON.stringify({sessionId:'abd57d',runId:'post-fix',hypothesisId:'H15',location:'clients/page.tsx:parseApplicationFile:direct-fallback',message:'client_application_direct_fallback_started',data:{fileName:file.name,fileSize:file.size},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       reportProgress(55, 'Retrying with direct parser...');
       const fallbackForm = new FormData();
       fallbackForm.append('file', file, file.name);
@@ -1410,9 +1407,6 @@ export default function ClientsPage() {
       if (!fallbackRes.ok || !fallbackBody.success || !fallbackBody.data) {
         throw new Error(fallbackBody.error || `Direct parser failed (${fallbackRes.status}).`);
       }
-      // #region agent log
-      fetch('http://127.0.0.1:7412/ingest/09931433-2034-41d9-90f4-26d8a7253b3b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'abd57d'},body:JSON.stringify({sessionId:'abd57d',runId:'post-fix',hypothesisId:'H15',location:'clients/page.tsx:parseApplicationFile:direct-fallback-success',message:'client_application_direct_fallback_succeeded',data:{fileName:file.name},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       reportProgress(100, 'Extraction complete');
       return { data: fallbackBody.data, note: fallbackBody.note };
     };
