@@ -156,6 +156,11 @@ export default function DashboardHomePage() {
 
   useEffect(() => {
     if (!user) return;
+    void fetchWeeklyActivity();
+  }, [user, fetchWeeklyActivity]);
+
+  useEffect(() => {
+    if (!user) return;
     return onSnapshot(
       doc(db, 'agents', user.uid, 'stats', 'aggregates'),
       (snap) => {
@@ -535,8 +540,8 @@ export default function DashboardHomePage() {
           <div className="px-4 py-3" ref={fanAnchorRef}>
             <NavLink
               color="bg-[#005851]"
-              label="AI Activity"
-              count={stats?.touchpoints.total ?? 0}
+              label="AI Activity (This Week)"
+              count={weeklyItems.length}
               onClick={toggleFan}
             />
           </div>

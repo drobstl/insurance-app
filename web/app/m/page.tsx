@@ -174,19 +174,23 @@ export default function MobileLandingV2() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6 }}
-            className="flex items-center justify-between gap-3 mb-auto"
+            className="relative z-20 flex shrink-0 items-center justify-between gap-3 mb-auto"
           >
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <img src="/logo.png" alt="AgentForLife" className="w-[44px] h-[25px] object-contain" />
               <span className="text-white/80 brand-title text-base">AgentForLife™</span>
             </div>
-            <Link href="/login" className="text-white/90 hover:text-white text-sm font-medium">
+            <Link
+              href="/login"
+              className="shrink-0 text-white/90 hover:text-white text-sm font-medium underline-offset-4 hover:underline py-2 -my-2"
+              prefetch={false}
+            >
               Agent Login
             </Link>
           </motion.div>
 
-          {/* Main content */}
-          <div className="flex-1 flex flex-col justify-center -mt-8">
+          {/* Main content — keep below header so negative margin does not cover Agent Login taps */}
+          <div className="relative z-10 flex flex-1 flex-col justify-center -mt-8">
             {/* Spots badge */}
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
@@ -931,7 +935,6 @@ export default function MobileLandingV2() {
           </div>
           <nav className="flex flex-wrap justify-center gap-5">
             <Link href="/login" className="text-white/90 hover:text-white text-sm font-medium">Agent Login</Link>
-            <Link href="/app" className="text-white/90 hover:text-white text-sm font-medium">Login</Link>
             <a href="mailto:support@agentforlife.app" className="text-white/40 text-[12px]">Contact</a>
             <Link href="/privacy" className="text-white/40 text-[12px]">Privacy</Link>
             <Link href="/terms" className="text-white/40 text-[12px]">Terms</Link>
