@@ -266,6 +266,14 @@ interface GoogleDriveImportRouteResponse {
   error?: string;
 }
 
+interface CancelGoogleDriveImportResponse {
+  success: boolean;
+  cancelled?: boolean;
+  status?: string;
+  jobsCancelled?: number;
+  error?: string;
+}
+
 function countPolicySignals(row: ImportRow): number {
   let signals = 0;
   if (row.policyNumber?.trim()) signals++;
@@ -530,6 +538,8 @@ export default function ClientsPage() {
 
   // ── Background batch tracking (persists across modal open/close) ──
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
+  const [cancelingBatch, setCancelingBatch] = useState(false);
+  const [batchStatusNotice, setBatchStatusNotice] = useState<{ type: 'info' | 'error'; message: string } | null>(null);
   const [batchNotification, setBatchNotification] = useState<{
     batchId: string;
     totalFiles: number;
@@ -632,6 +642,12 @@ export default function ClientsPage() {
             succeededJobIds,
           });
           setActiveBatchId(null);
+        } else if (status === 'cancelled') {
+          setBatchStatusNotice({ type: 'info', message: 'Import cancelled. You can start a new import anytime.' });
+          setActiveBatchId(null);
+        } else if (status === 'failed') {
+          setBatchStatusNotice({ type: 'error', message: 'Import stopped because processing failed. Please try again.' });
+          setActiveBatchId(null);
         }
       },
     );
@@ -682,6 +698,10 @@ export default function ClientsPage() {
             status: status as 'completed' | 'partial',
             succeededJobIds,
           });
+        } else if (status === 'cancelled' && ageMs < STALE_THRESHOLD_MS) {
+          setBatchStatusNotice({ type: 'info', message: 'Your previous import was cancelled.' });
+        } else if (status === 'failed' && ageMs < STALE_THRESHOLD_MS) {
+          setBatchStatusNotice({ type: 'error', message: 'A recent import failed before completion.' });
         }
       }
       // Unsubscribe after first result — the active batch listener takes over
@@ -2244,6 +2264,7 @@ export default function ClientsPage() {
     setImportError('');
     setImportWarning('');
     setImportSuccess('');
+    setBatchStatusNotice(null);
     clearGooglePickerError();
 
     try {
@@ -2281,12 +2302,63 @@ export default function ClientsPage() {
         total_files: fileCount,
       });
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : 'Failed to import from Google Drive.');
+      const message = err instanceof Error ? err.message : 'Failed to import from Google Drive.';
+      setImportError(message);
+      if (
+        message.toLowerCase().includes('invalid_grant') ||
+        message.toLowerCase().includes('reconnect') ||
+        message.toLowerCase().includes('revoked') ||
+        message.toLowerCase().includes('expired')
+      ) {
+        setGoogleDriveConnected(false);
+        setGoogleDriveEmail(null);
+        void loadGoogleDriveStatus();
+      }
     } finally {
       setParsingBob(false);
       setDriveImportInFlight(false);
     }
-  }, [clearGooglePickerError, pickGoogleDriveFiles, user]);
+  }, [clearGooglePickerError, loadGoogleDriveStatus, pickGoogleDriveFiles, user]);
+
+  const handleCancelActiveBatch = useCallback(async () => {
+    if (!user || !activeBatchId || cancelingBatch) return;
+    setImportError('');
+    setCancelingBatch(true);
+
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/integrations/google/import/cancel', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ batchId: activeBatchId }),
+      });
+      const body = (await res.json()) as CancelGoogleDriveImportResponse;
+      if (!res.ok || !body.success) {
+        throw new Error(body.error || 'Failed to cancel import.');
+      }
+
+      setActiveBatchId(null);
+      if (body.cancelled) {
+        const jobsCancelled = typeof body.jobsCancelled === 'number' ? body.jobsCancelled : 0;
+        setBatchStatusNotice({
+          type: 'info',
+          message:
+            jobsCancelled > 0
+              ? `Import cancelled. Stopped ${jobsCancelled} queued file${jobsCancelled !== 1 ? 's' : ''}.`
+              : 'Import cancelled.',
+        });
+      } else {
+        setBatchStatusNotice({ type: 'info', message: 'Import is no longer running.' });
+      }
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Failed to cancel import.');
+    } finally {
+      setCancelingBatch(false);
+    }
+  }, [user, activeBatchId, cancelingBatch]);
 
   const handleReviewBatchResults = useCallback(async () => {
     if (!batchNotification || !user) return;
@@ -2505,12 +2577,42 @@ export default function ClientsPage() {
 
       {/* Batch Processing In-Progress Banner */}
       {activeBatchId && !batchNotification && (
-        <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-[5px]">
-          <svg className="w-5 h-5 text-blue-500 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
-          <p className="text-sm text-blue-800">Processing your import&hellip; we&apos;ll notify you when it&apos;s ready.</p>
+        <div className="mb-4 flex items-center justify-between gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-[5px]">
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 text-blue-500 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <p className="text-sm text-blue-800">Processing your import&hellip; we&apos;ll notify you when it&apos;s ready.</p>
+          </div>
+          <button
+            onClick={handleCancelActiveBatch}
+            disabled={cancelingBatch}
+            className="px-3 py-1.5 rounded-[5px] text-xs font-semibold border border-blue-300 text-blue-800 hover:bg-blue-100 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          >
+            {cancelingBatch ? 'Cancelling...' : 'Cancel Import'}
+          </button>
+        </div>
+      )}
+
+      {batchStatusNotice && (
+        <div
+          className={`mb-4 flex items-center justify-between gap-3 px-4 py-3 rounded-[5px] border ${
+            batchStatusNotice.type === 'error'
+              ? 'bg-red-50 border-red-200 text-red-700'
+              : 'bg-amber-50 border-amber-200 text-amber-800'
+          }`}
+        >
+          <p className="text-sm">{batchStatusNotice.message}</p>
+          <button
+            onClick={() => setBatchStatusNotice(null)}
+            className="p-1 rounded hover:bg-black/5 transition-colors"
+            aria-label="Dismiss status notice"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
       )}
 

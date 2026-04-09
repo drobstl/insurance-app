@@ -5,7 +5,7 @@ import { getAdminFirestore } from './firebase-admin';
 
 // ─── Types ───────────────────────────────────────────────
 
-export type BatchJobStatus = 'processing' | 'completing' | 'completed' | 'partial' | 'failed';
+export type BatchJobStatus = 'processing' | 'completing' | 'completed' | 'partial' | 'failed' | 'cancelled';
 export type BatchFileStatus = 'queued' | 'processing' | 'succeeded' | 'failed';
 export type BatchSource = 'drive' | 'local';
 
@@ -142,26 +142,35 @@ export async function updateBatchFileStatus(
 ): Promise<void> {
   const ref = getBatchJobRef(agentId, batchId);
 
-  const update: Record<string, unknown> = {
-    [`files.${jobId}.status`]: patch.status,
-    updatedAt: FieldValue.serverTimestamp(),
-  };
-
-  if (patch.status === 'succeeded') {
-    update.completedFiles = FieldValue.increment(1);
-    if (typeof patch.loadedRows === 'number' && patch.loadedRows > 0) {
-      update[`files.${jobId}.loadedRows`] = patch.loadedRows;
-      update.totalRows = FieldValue.increment(patch.loadedRows);
+  await getAdminFirestore().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return;
+    const data = snap.data() as Record<string, unknown>;
+    if ((data.status as BatchJobStatus | undefined) === 'cancelled') {
+      return;
     }
-  } else if (patch.status === 'failed') {
-    update.failedFiles = FieldValue.increment(1);
-    if (patch.error) {
-      update[`files.${jobId}.error`] = patch.error;
-    }
-    update[`files.${jobId}.retryable`] = patch.retryable === true;
-  }
 
-  await ref.update(update);
+    const update: Record<string, unknown> = {
+      [`files.${jobId}.status`]: patch.status,
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+
+    if (patch.status === 'succeeded') {
+      update.completedFiles = FieldValue.increment(1);
+      if (typeof patch.loadedRows === 'number' && patch.loadedRows > 0) {
+        update[`files.${jobId}.loadedRows`] = patch.loadedRows;
+        update.totalRows = FieldValue.increment(patch.loadedRows);
+      }
+    } else if (patch.status === 'failed') {
+      update.failedFiles = FieldValue.increment(1);
+      if (patch.error) {
+        update[`files.${jobId}.error`] = patch.error;
+      }
+      update[`files.${jobId}.retryable`] = patch.retryable === true;
+    }
+
+    tx.update(ref, update);
+  });
 }
 
 // ─── Batch Completion Check ──────────────────────────────
@@ -239,6 +248,9 @@ export async function triggerRetryRound(
     if (!snap.exists) return [];
 
     const data = snap.data() as Record<string, unknown>;
+    if ((data.status as BatchJobStatus | undefined) === 'cancelled') {
+      return [];
+    }
     const state = extractCompletionState(data);
 
     // Guard: only trigger once, only on round 0, only if there are retryable failures
@@ -282,10 +294,12 @@ export async function finalizeBatch(
     if (!snap.exists) return 'failed';
 
     const data = snap.data() as Record<string, unknown>;
+    const currentStatus = (data.status as BatchJobStatus | undefined) ?? 'processing';
+    if (currentStatus === 'cancelled') return 'cancelled';
     const state = extractCompletionState(data);
 
     // Don't finalize if not actually complete
-    if (!state.isComplete) return (data.status as BatchJobStatus) || 'processing';
+    if (!state.isComplete) return currentStatus;
 
     // Don't finalize if we're still on round 0 with retryable failures
     // (triggerRetryRound should handle this case)
@@ -302,6 +316,44 @@ export async function finalizeBatch(
     });
 
     return finalStatus;
+  });
+}
+
+export async function cancelBatchJob(
+  agentId: string,
+  batchId: string,
+): Promise<{ cancelled: boolean; status: BatchJobStatus | 'not_found'; cancellableJobIds: string[] }> {
+  const db = getAdminFirestore();
+  const ref = getBatchJobRef(agentId, batchId);
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) {
+      return { cancelled: false, status: 'not_found' as const, cancellableJobIds: [] };
+    }
+
+    const data = snap.data() as Record<string, unknown>;
+    const currentStatus = (data.status as BatchJobStatus | undefined) ?? 'processing';
+    if (currentStatus === 'completed' || currentStatus === 'partial' || currentStatus === 'failed' || currentStatus === 'cancelled') {
+      return { cancelled: false, status: currentStatus, cancellableJobIds: [] };
+    }
+
+    const files = (data.files || {}) as Record<string, Record<string, unknown>>;
+    const cancellableJobIds: string[] = [];
+    for (const [jobId, entry] of Object.entries(files)) {
+      const status = (entry.status as string | undefined) ?? 'queued';
+      if (status === 'queued' || status === 'processing') {
+        cancellableJobIds.push(jobId);
+      }
+    }
+
+    tx.update(ref, {
+      status: 'cancelled',
+      updatedAt: FieldValue.serverTimestamp(),
+      completedAt: FieldValue.serverTimestamp(),
+    });
+
+    return { cancelled: true, status: 'cancelled' as const, cancellableJobIds };
   });
 }
 
