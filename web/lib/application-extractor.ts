@@ -95,54 +95,39 @@ FIELD EXTRACTION RULES:
 const EXTRACTION_SCHEMA = {
   type: 'object' as const,
   properties: {
-    policyType: {
-      anyOf: [
-        { type: 'string' as const, enum: ['IUL', 'Term Life', 'Whole Life', 'Mortgage Protection', 'Accidental', 'Other'] },
-        { type: 'null' as const },
-      ],
-    },
-    policyNumber: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    insuranceCompany: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    policyOwner: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    insuredName: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    policyType: { type: 'string' as const, enum: ['IUL', 'Term Life', 'Whole Life', 'Mortgage Protection', 'Accidental', 'Other'] },
+    policyNumber: { type: 'string' as const },
+    insuranceCompany: { type: 'string' as const },
+    policyOwner: { type: 'string' as const },
+    insuredName: { type: 'string' as const },
     beneficiaries: {
       type: 'array' as const,
       items: {
         type: 'object' as const,
         properties: {
           name: { type: 'string' as const },
-          relationship: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-          percentage: { anyOf: [{ type: 'number' as const }, { type: 'null' as const }] },
+          relationship: { type: 'string' as const },
+          percentage: { type: 'number' as const },
           irrevocable: { type: 'boolean' as const },
           type: { type: 'string' as const, enum: ['primary', 'contingent'] },
         },
-        required: ['name', 'type', 'relationship', 'percentage', 'irrevocable'],
+        required: ['name', 'type'],
         additionalProperties: false,
       },
     },
-    coverageAmount: { anyOf: [{ type: 'number' as const }, { type: 'null' as const }] },
-    premiumAmount: { anyOf: [{ type: 'number' as const }, { type: 'null' as const }] },
-    premiumFrequency: {
-      anyOf: [
-        { type: 'string' as const, enum: ['monthly', 'quarterly', 'semi-annual', 'annual'] },
-        { type: 'null' as const },
-      ],
-    },
-    renewalDate: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    insuredEmail: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    insuredPhone: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    insuredDateOfBirth: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    insuredState: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    effectiveDate: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
-    applicationSignedDate: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    coverageAmount: { type: 'number' as const },
+    premiumAmount: { type: 'number' as const },
+    premiumFrequency: { type: 'string' as const, enum: ['monthly', 'quarterly', 'semi-annual', 'annual'] },
+    renewalDate: { type: 'string' as const },
+    insuredEmail: { type: 'string' as const },
+    insuredPhone: { type: 'string' as const },
+    insuredDateOfBirth: { type: 'string' as const },
+    insuredState: { type: 'string' as const },
+    effectiveDate: { type: 'string' as const },
+    applicationSignedDate: { type: 'string' as const },
     note: { type: 'string' as const },
   },
-  required: [
-    'policyType', 'policyNumber', 'insuranceCompany', 'policyOwner',
-    'insuredName', 'beneficiaries', 'coverageAmount', 'premiumAmount',
-    'premiumFrequency', 'renewalDate', 'insuredEmail', 'insuredPhone',
-    'insuredDateOfBirth', 'insuredState', 'effectiveDate', 'applicationSignedDate', 'note',
-  ],
+  required: ['note'],
   additionalProperties: false,
 };
 
@@ -372,6 +357,30 @@ function buildResult(parsed: Record<string, unknown>): { data: ExtractedApplicat
     effectiveDate: toIsoDateStringOrNull(parsed.effectiveDate),
     applicationSignedDate: toIsoDateStringOrNull(parsed.applicationSignedDate),
   };
+
+  const keyFields = [
+    'insuredName',
+    'insuredDateOfBirth',
+    'insuredPhone',
+    'policyType',
+    'insuranceCompany',
+    'policyNumber',
+    'coverageAmount',
+    'premiumAmount',
+    'applicationSignedDate',
+  ] as const;
+  const completeness = keyFields.reduce((acc, field) => {
+    const value = data[field];
+    if (typeof value === 'number') return acc + 1;
+    if (typeof value === 'string') return value.trim().length > 0 ? acc + 1 : acc;
+    return value ? acc + 1 : acc;
+  }, 0);
+  console.info('[application-extractor] completeness', {
+    score: `${completeness}/${keyFields.length}`,
+    hasBeneficiaries: Array.isArray(data.beneficiaries) && data.beneficiaries.length > 0,
+    hasEffectiveDate: !!data.effectiveDate,
+    hasSignedDate: !!data.applicationSignedDate,
+  });
 
   return { data, note };
 }
