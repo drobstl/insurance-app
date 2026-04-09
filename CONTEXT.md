@@ -1,7 +1,7 @@
 # CONTEXT.md — AgentForLife (AFL)
 
 > Drop this in the repo root. Read it before any strategic or architectural decision.
-> Last updated: April 7, 2026
+> Last updated: April 8, 2026
 
 ## What This Is
 
@@ -17,6 +17,7 @@ Independent life insurance agents selling mortgage protection, final expense, an
 
 ### Client Management
 - Manual add, CSV import (up to 400 rows), PDF application parsing, book-of-business PDF parsing
+- Optional `clientSinceDate` (YYYY-MM-DD) on each client: when set (from extracted application signature date or manual edit), the dashboard **Client Since** column uses it instead of Firestore `createdAt` (when the record was added in AFL)
 - Each client gets a unique code (e.g., X7K9-M2P4-Q8R1) for mobile app access
 - Client detail view: policies, beneficiaries, referrals, contact history
 - Per-client preferred language (`en`/`es`) for outbound messaging personalization

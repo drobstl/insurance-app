@@ -94,6 +94,7 @@ function emptyExtractedApplicationData(): ExtractedApplicationData {
     insuredDateOfBirth: null,
     insuredState: null,
     effectiveDate: null,
+    applicationSignedDate: null,
   };
 }
 

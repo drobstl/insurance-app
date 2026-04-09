@@ -28,7 +28,13 @@ export interface ExtractedApplicationData {
   insuredPhone: string | null;
   insuredDateOfBirth: string | null;
   insuredState: string | null;
+  /** Carrier policy effective or issue date only — not applicant signature dates. YYYY-MM-DD. */
   effectiveDate: string | null;
+  /**
+   * Earliest date visibly written next to the proposed insured / applicant / owner signature
+   * (when they signed the application). YYYY-MM-DD. Not the date the PDF was uploaded.
+   */
+  applicationSignedDate: string | null;
 }
 
 /**

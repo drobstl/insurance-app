@@ -20,6 +20,7 @@ interface Client {
   phone: string;
   clientCode?: string;
   dateOfBirth?: string;
+  clientSinceDate?: string;
   createdAt: Timestamp;
   agentId: string;
   policyReviewOptOut?: boolean;
@@ -59,7 +60,17 @@ interface ClientDetailModalProps {
   onDeletePolicy: (policy: Policy) => void;
   onUploadApplication: () => void;
   onEditClient?: (client: Client) => void;
-  onUpdateClient?: (clientId: string, updates: { name: string; email: string; phone: string; dateOfBirth: string; preferredLanguage: SupportedLanguage }) => Promise<void>;
+  onUpdateClient?: (
+    clientId: string,
+    updates: {
+      name: string;
+      email: string;
+      phone: string;
+      dateOfBirth: string;
+      clientSinceDate: string;
+      preferredLanguage: SupportedLanguage;
+    },
+  ) => Promise<void>;
   onFlagAtRisk?: (policyId: string, reason: 'lapsed_payment' | 'cancellation') => void;
   agentName?: string;
   hasSchedulingUrl?: boolean;
@@ -126,11 +137,19 @@ export default function ClientDetailModal({
   const [referralName, setReferralName] = useState<string | null>(null);
   const [clearingReferral, setClearingReferral] = useState(false);
   const [editingClientInline, setEditingClientInline] = useState(false);
-  const [clientDraft, setClientDraft] = useState<{ name: string; email: string; phone: string; dateOfBirth: string; preferredLanguage: SupportedLanguage }>({
+  const [clientDraft, setClientDraft] = useState<{
+    name: string;
+    email: string;
+    phone: string;
+    dateOfBirth: string;
+    clientSinceDate: string;
+    preferredLanguage: SupportedLanguage;
+  }>({
     name: '',
     email: '',
     phone: '',
     dateOfBirth: '',
+    clientSinceDate: '',
     preferredLanguage: 'en',
   });
   const [clientEditError, setClientEditError] = useState('');
@@ -341,6 +360,7 @@ export default function ClientDetailModal({
         email: client.email || '',
         phone: client.phone || '',
         dateOfBirth: client.dateOfBirth || '',
+        clientSinceDate: client.clientSinceDate || '',
         preferredLanguage: resolveClientLanguage(client.preferredLanguage),
       });
       setClientEditError('');
@@ -356,6 +376,7 @@ export default function ClientDetailModal({
       email: client.email || '',
       phone: client.phone || '',
       dateOfBirth: client.dateOfBirth || '',
+      clientSinceDate: client.clientSinceDate || '',
       preferredLanguage: resolveClientLanguage(client.preferredLanguage),
     });
     setClientEditError('');
@@ -384,6 +405,7 @@ export default function ClientDetailModal({
         email: clientDraft.email.trim(),
         phone: clientDraft.phone.trim(),
         dateOfBirth: clientDraft.dateOfBirth || '',
+        clientSinceDate: clientDraft.clientSinceDate || '',
         preferredLanguage: clientDraft.preferredLanguage,
       });
       setClientEditSuccess('Client details updated.');
@@ -707,6 +729,16 @@ export default function ClientDetailModal({
                     />
                   </div>
                   <div className="col-span-2">
+                    <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Client since</p>
+                    <input
+                      type="date"
+                      value={clientDraft.clientSinceDate}
+                      onChange={(e) => setClientDraft((prev) => ({ ...prev, clientSinceDate: e.target.value }))}
+                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                    />
+                    <p className="text-[11px] text-gray-400 mt-1">When they became your client; leave blank to use the date added in AgentForLife.</p>
+                  </div>
+                  <div className="col-span-2">
                     <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Preferred Language</p>
                     <select
                       value={clientDraft.preferredLanguage}
@@ -758,6 +790,20 @@ export default function ClientDetailModal({
                         ? formatDateLong(client.dateOfBirth)
                         : <span className="text-gray-400 italic font-normal">Not provided</span>
                       }
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">Client since</p>
+                    <p className="text-[#000000] font-medium">
+                      {client?.clientSinceDate
+                        ? formatDateLong(client.clientSinceDate)
+                        : client?.createdAt?.toDate
+                          ? client.createdAt.toDate().toLocaleDateString('en-US', {
+                              month: 'long',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })
+                          : <span className="text-gray-400 italic font-normal">Not provided</span>}
                     </p>
                   </div>
                   <div className="col-span-2">

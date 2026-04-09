@@ -15,6 +15,7 @@ import {
   Timestamp,
   updateDoc,
   setDoc,
+  deleteField,
 } from 'firebase/firestore';
 import { auth, db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
@@ -102,11 +103,44 @@ interface Client {
   phone: string;
   clientCode?: string;
   dateOfBirth?: string;
+  /** YYYY-MM-DD from application signature / relationship start; list "Client Since" prefers this over createdAt. */
+  clientSinceDate?: string;
   pushToken?: string;
   createdAt: Timestamp;
   agentId: string;
   sourceReferralId?: string;
   preferredLanguage?: SupportedLanguage;
+}
+
+/** Calendar date written on the application (YYYY-MM-DD), distinct from Firestore createdAt. */
+const CLIENT_SINCE_ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+function resolveClientSinceFromExtraction(data: ExtractedApplicationData): string | null {
+  if (data.applicationSignedDate && CLIENT_SINCE_ISO.test(data.applicationSignedDate)) {
+    return data.applicationSignedDate;
+  }
+  if (data.effectiveDate && CLIENT_SINCE_ISO.test(data.effectiveDate)) {
+    return data.effectiveDate;
+  }
+  return null;
+}
+
+function clientSinceSortMs(client: Client): number {
+  if (client.clientSinceDate && CLIENT_SINCE_ISO.test(client.clientSinceDate)) {
+    return new Date(`${client.clientSinceDate}T12:00:00.000Z`).getTime();
+  }
+  return client.createdAt?.toMillis?.() ?? 0;
+}
+
+function formatClientSinceCell(client: Client): string {
+  if (client.clientSinceDate && CLIENT_SINCE_ISO.test(client.clientSinceDate)) {
+    const [y, m, d] = client.clientSinceDate.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  if (client.createdAt?.toDate) {
+    return client.createdAt.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  return '—';
 }
 
 interface Policy {
@@ -431,11 +465,19 @@ export default function ClientsPage() {
   // ── Client form state ──
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
-  const [formData, setFormData] = useState<{ name: string; email: string; phone: string; dateOfBirth: string; preferredLanguage: SupportedLanguage }>({
+  const [formData, setFormData] = useState<{
+    name: string;
+    email: string;
+    phone: string;
+    dateOfBirth: string;
+    clientSinceDate: string;
+    preferredLanguage: SupportedLanguage;
+  }>({
     name: '',
     email: '',
     phone: '',
     dateOfBirth: '',
+    clientSinceDate: '',
     preferredLanguage: 'en',
   });
   const [formError, setFormError] = useState('');
@@ -886,8 +928,8 @@ export default function ClientsPage() {
       if (sortKey === 'name') cmp = a.name.localeCompare(b.name);
       else if (sortKey === 'email') cmp = (a.email || '').localeCompare(b.email || '');
       else if (sortKey === 'createdAt') {
-        const aT = a.createdAt?.toMillis?.() ?? 0;
-        const bT = b.createdAt?.toMillis?.() ?? 0;
+        const aT = clientSinceSortMs(a);
+        const bT = clientSinceSortMs(b);
         cmp = aT - bT;
       }
       return sortDir === 'asc' ? cmp : -cmp;
@@ -961,7 +1003,7 @@ export default function ClientsPage() {
 
   const handleOpenModal = useCallback(() => {
     setEditingClient(null);
-    setFormData({ name: '', email: '', phone: '', dateOfBirth: '', preferredLanguage: 'en' });
+    setFormData({ name: '', email: '', phone: '', dateOfBirth: '', clientSinceDate: '', preferredLanguage: 'en' });
     setFormError('');
     setFormSuccess('');
     setPendingClientApplicationData(null);
@@ -974,7 +1016,7 @@ export default function ClientsPage() {
   const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
     setEditingClient(null);
-    setFormData({ name: '', email: '', phone: '', dateOfBirth: '', preferredLanguage: 'en' });
+    setFormData({ name: '', email: '', phone: '', dateOfBirth: '', clientSinceDate: '', preferredLanguage: 'en' });
     setFormError('');
     setFormSuccess('');
     setPendingClientApplicationData(null);
@@ -990,6 +1032,7 @@ export default function ClientsPage() {
       email: client.email || '',
       phone: client.phone || '',
       dateOfBirth: client.dateOfBirth || '',
+      clientSinceDate: client.clientSinceDate || '',
       preferredLanguage: resolveClientLanguage(client.preferredLanguage),
     });
     setFormError('');
@@ -999,10 +1042,25 @@ export default function ClientsPage() {
 
   const handleInlineUpdateClient = useCallback(async (
     clientId: string,
-    updates: { name: string; email: string; phone: string; dateOfBirth: string; preferredLanguage?: SupportedLanguage }
+    updates: {
+      name: string;
+      email: string;
+      phone: string;
+      dateOfBirth: string;
+      clientSinceDate: string;
+      preferredLanguage?: SupportedLanguage;
+    },
   ) => {
     if (!user) {
       throw new Error('Not authenticated');
+    }
+
+    const sinceTrim = updates.clientSinceDate.trim();
+    const clientSincePatch: Record<string, unknown> = {};
+    if (!sinceTrim) {
+      clientSincePatch.clientSinceDate = deleteField();
+    } else if (CLIENT_SINCE_ISO.test(sinceTrim)) {
+      clientSincePatch.clientSinceDate = sinceTrim;
     }
 
     const agentClientPatch: Record<string, unknown> = {
@@ -1010,6 +1068,7 @@ export default function ClientsPage() {
       email: updates.email,
       phone: updates.phone,
       dateOfBirth: updates.dateOfBirth || null,
+      ...clientSincePatch,
     };
     if (updates.preferredLanguage) {
       agentClientPatch.preferredLanguage = resolveClientLanguage(updates.preferredLanguage);
@@ -1022,6 +1081,7 @@ export default function ClientsPage() {
         email: updates.email,
         phone: updates.phone,
         dateOfBirth: updates.dateOfBirth || null,
+        ...clientSincePatch,
       };
       if (updates.preferredLanguage) {
         topLevelPatch.preferredLanguage = resolveClientLanguage(updates.preferredLanguage);
@@ -1031,6 +1091,12 @@ export default function ClientsPage() {
       console.error('Top-level client mirror update failed (non-blocking):', mirrorErr);
     }
 
+    const nextClientSinceLocal = (prev: string | undefined): string | undefined => {
+      if (!sinceTrim) return undefined;
+      if (CLIENT_SINCE_ISO.test(sinceTrim)) return sinceTrim;
+      return prev;
+    };
+
     setSelectedClient((prev) => (
       prev && prev.id === clientId
         ? {
@@ -1039,6 +1105,7 @@ export default function ClientsPage() {
             email: updates.email,
             phone: updates.phone,
             dateOfBirth: updates.dateOfBirth || '',
+            clientSinceDate: nextClientSinceLocal(prev.clientSinceDate),
             preferredLanguage: resolveClientLanguage(updates.preferredLanguage ?? prev.preferredLanguage),
           }
         : prev
@@ -1052,6 +1119,7 @@ export default function ClientsPage() {
             email: updates.email,
             phone: updates.phone,
             dateOfBirth: updates.dateOfBirth || '',
+            clientSinceDate: nextClientSinceLocal(client.clientSinceDate),
             preferredLanguage: resolveClientLanguage(updates.preferredLanguage ?? client.preferredLanguage),
           }
         : client
@@ -1070,12 +1138,27 @@ export default function ClientsPage() {
     setSubmitting(true);
     try {
       if (editingClient) {
+        const editSinceTrim = formData.clientSinceDate.trim();
+        const editSincePatch: Record<string, unknown> = {};
+        if (!editSinceTrim) {
+          editSincePatch.clientSinceDate = deleteField();
+        } else if (CLIENT_SINCE_ISO.test(editSinceTrim)) {
+          editSincePatch.clientSinceDate = editSinceTrim;
+        }
+
+        const editSinceLocal = (prev: string | undefined): string | undefined => {
+          if (!editSinceTrim) return undefined;
+          if (CLIENT_SINCE_ISO.test(editSinceTrim)) return editSinceTrim;
+          return prev;
+        };
+
         await updateDoc(doc(db, 'agents', user.uid, 'clients', editingClient.id), {
           name: formData.name.trim(),
           email: formData.email.trim(),
           phone: formData.phone.trim(),
           dateOfBirth: formData.dateOfBirth || null,
           preferredLanguage: formData.preferredLanguage,
+          ...editSincePatch,
         });
         try {
           await updateDoc(doc(db, 'clients', editingClient.id), {
@@ -1084,6 +1167,7 @@ export default function ClientsPage() {
             phone: formData.phone.trim(),
             dateOfBirth: formData.dateOfBirth || null,
             preferredLanguage: formData.preferredLanguage,
+            ...editSincePatch,
           });
         } catch (mirrorErr) {
           console.error('Top-level client mirror update failed (non-blocking):', mirrorErr);
@@ -1098,11 +1182,27 @@ export default function ClientsPage() {
                   email: formData.email.trim(),
                   phone: formData.phone.trim(),
                   dateOfBirth: formData.dateOfBirth || '',
+                  clientSinceDate: editSinceLocal(prev.clientSinceDate),
                   preferredLanguage: formData.preferredLanguage,
                 }
               : null
           );
         }
+        setClients((prev) =>
+          prev.map((c) =>
+            c.id === editingClient.id
+              ? {
+                  ...c,
+                  name: formData.name.trim(),
+                  email: formData.email.trim(),
+                  phone: formData.phone.trim(),
+                  dateOfBirth: formData.dateOfBirth || '',
+                  clientSinceDate: editSinceLocal(c.clientSinceDate),
+                  preferredLanguage: formData.preferredLanguage,
+                }
+              : c,
+          ),
+        );
         setFormSuccess('Client updated!');
         setTimeout(() => handleCloseModal(), 800);
       } else {
@@ -1117,6 +1217,15 @@ export default function ClientsPage() {
           preferredLanguage: formData.preferredLanguage,
         };
         if (formData.dateOfBirth) newClient.dateOfBirth = formData.dateOfBirth;
+        const manualSince = formData.clientSinceDate.trim();
+        let resolvedClientSince: string | null = null;
+        if (manualSince && CLIENT_SINCE_ISO.test(manualSince)) {
+          resolvedClientSince = manualSince;
+        } else if (pendingClientApplicationData) {
+          resolvedClientSince = resolveClientSinceFromExtraction(pendingClientApplicationData);
+        }
+        if (resolvedClientSince) newClient.clientSinceDate = resolvedClientSince;
+
         const docRef = await addDoc(collection(db, 'agents', user.uid, 'clients'), newClient);
         captureEvent(ANALYTICS_EVENTS.CLIENT_ADDED, { method: 'manual' });
 
@@ -1133,6 +1242,7 @@ export default function ClientsPage() {
               agentId: user.uid,
               createdAt: serverTimestamp(),
               preferredLanguage: formData.preferredLanguage,
+              ...(resolvedClientSince ? { clientSinceDate: resolvedClientSince } : {}),
             }),
             setDoc(doc(db, 'clientCodes', code), { agentId: user.uid, clientId: docRef.id }),
           ]);
@@ -1358,12 +1468,14 @@ export default function ClientsPage() {
 
   const handleClientApplicationExtracted = useCallback((data: ExtractedApplicationData) => {
     setPendingClientApplicationData(data);
+    const fromPdf = resolveClientSinceFromExtraction(data);
     setFormData((prev) => ({
       ...prev,
       name: data.insuredName || prev.name,
       email: data.insuredEmail || prev.email,
       phone: data.insuredPhone || prev.phone,
       dateOfBirth: data.insuredDateOfBirth || prev.dateOfBirth,
+      clientSinceDate: fromPdf || prev.clientSinceDate,
     }));
   }, []);
 
@@ -2609,7 +2721,7 @@ export default function ClientsPage() {
                       </div>
                     </td>
                     <td className="px-5 py-3.5 text-xs text-[#707070]">
-                      {client.createdAt?.toDate ? client.createdAt.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                      {formatClientSinceCell(client)}
                     </td>
                     <td className="px-5 py-3.5 text-sm text-[#707070]">
                       {summary ? (
@@ -2920,6 +3032,19 @@ export default function ClientsPage() {
                   onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))}
                   className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#000000] mb-1">Client since</label>
+                <input
+                  type="date"
+                  value={formData.clientSinceDate}
+                  onChange={(e) => setFormData((f) => ({ ...f, clientSinceDate: e.target.value }))}
+                  className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                />
+                <p className="mt-1 text-xs text-[#707070]">
+                  When they became your client (often the application signature date). Filled automatically from PDFs when found. Leave blank to show the date they were added here.
+                </p>
               </div>
 
               <div>

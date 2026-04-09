@@ -75,7 +75,8 @@ function normalizeApplicationData(data: ExtractedApplicationData): ExtractedAppl
     insuredPhone: toNullableString(data.insuredPhone),
     insuredDateOfBirth: toNullableString(data.insuredDateOfBirth),
     insuredState: toStateAbbreviationOrNull(data.insuredState),
-    effectiveDate: toNullableString(data.effectiveDate),
+    effectiveDate: toIsoDateOrNull(data.effectiveDate),
+    applicationSignedDate: toIsoDateOrNull(data.applicationSignedDate),
   };
 }
 
@@ -100,6 +101,14 @@ function normalizeBeneficiaries(beneficiaries: Beneficiary[] | null): Beneficiar
     irrevocable: b.irrevocable,
     type: b.type as 'primary' | 'contingent',
   }));
+}
+
+function toIsoDateOrNull(value: unknown): string | null {
+  const s = toNullableString(value);
+  if (!s) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const t = Date.parse(`${s}T12:00:00.000Z`);
+  return Number.isNaN(t) ? null : s;
 }
 
 function toNullableString(value: unknown): string | null {

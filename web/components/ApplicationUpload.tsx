@@ -44,6 +44,7 @@ const EMPTY_POLICY_FIELDS: ExtractedApplicationData = {
   insuredDateOfBirth: null,
   insuredState: null,
   effectiveDate: null,
+  applicationSignedDate: null,
 };
 
 function normalizeText(value: string | null | undefined): string | null {
@@ -87,6 +88,7 @@ function normalizeExtractedData(data: ExtractedApplicationData): ExtractedApplic
     insuredDateOfBirth: normalizeText(data.insuredDateOfBirth),
     insuredState: normalizeText(data.insuredState),
     effectiveDate: normalizeText(data.effectiveDate),
+    applicationSignedDate: normalizeText(data.applicationSignedDate),
   };
 }
 
@@ -407,7 +409,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
   const filledFields = extractedData
     ? Object.entries(extractedData).filter(([, v]) => v !== null && v !== undefined).length
     : 0;
-  const totalFields = 15;
+  const totalFields = 16;
 
   const isClientAndPolicy = mode === 'client-and-policy';
   const missingContact = isClientAndPolicy && !clientFields.phone.trim() && !clientFields.email.trim();
@@ -426,7 +428,8 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
 
   const updateNullableTextField = useCallback((key: keyof Pick<
     ExtractedApplicationData,
-    'policyNumber' | 'insuranceCompany' | 'policyOwner' | 'insuredName' | 'insuredEmail' | 'insuredPhone' | 'insuredDateOfBirth' | 'insuredState' | 'effectiveDate' | 'renewalDate'
+    | 'policyNumber' | 'insuranceCompany' | 'policyOwner' | 'insuredName' | 'insuredEmail' | 'insuredPhone'
+    | 'insuredDateOfBirth' | 'insuredState' | 'effectiveDate' | 'applicationSignedDate' | 'renewalDate'
   >, value: string) => {
     updatePolicyFields((current) => ({
       ...current,
@@ -786,6 +789,12 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
                     value={editablePolicy.premiumFrequency || ''}
                     onChange={updatePremiumFrequency}
                     options={PREMIUM_FREQUENCY_OPTIONS}
+                  />
+                  <EditableField
+                    label="Application signed (client)"
+                    value={editablePolicy.applicationSignedDate || ''}
+                    onChange={(v) => updateNullableTextField('applicationSignedDate', v)}
+                    type="date"
                   />
                   <EditableField label="Effective Date" value={editablePolicy.effectiveDate || ''} onChange={(v) => updateNullableTextField('effectiveDate', v)} type="date" />
                   <EditableField label="Renewal Date" value={editablePolicy.renewalDate || ''} onChange={(v) => updateNullableTextField('renewalDate', v)} type="date" />

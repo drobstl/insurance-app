@@ -61,7 +61,9 @@ FIELD EXTRACTION RULES:
 
 "insuredPhone": Phone number of the insured.
 
-"effectiveDate": Policy effective date, issue date, or application date. Format: YYYY-MM-DD.
+"effectiveDate": The carrier's policy **effective date** or **issue date** only (as labeled on the policy schedule or similar). Do NOT use applicant signature dates, agent sign dates, or generic "application date" lines next to signatures. Format: YYYY-MM-DD.
+
+"applicationSignedDate": The date handwritten or printed **immediately beside** the **Proposed Insured**, **Applicant**, or **Policy Owner** signature line(s) — i.e. when the client signed the application. Scan **all pages** including signature / authorization pages (often near the end). If multiple such dates appear, return the **earliest** one that corresponds to the insured/applicant/owner signing. Do NOT use: agent-only dates, witness-only dates, today's date from cover letters, or metadata. If no such date is visible, null. Format: YYYY-MM-DD.
 
 STRICT RULES:
 - NEVER fabricate, guess, or infer values not explicitly visible in the document
@@ -132,13 +134,14 @@ const EXTRACTION_SCHEMA = {
     insuredDateOfBirth: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
     insuredState: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
     effectiveDate: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
+    applicationSignedDate: { anyOf: [{ type: 'string' as const }, { type: 'null' as const }] },
     note: { type: 'string' as const },
   },
   required: [
     'policyType', 'policyNumber', 'insuranceCompany', 'policyOwner',
     'insuredName', 'beneficiaries', 'coverageAmount', 'premiumAmount',
     'premiumFrequency', 'renewalDate', 'insuredEmail', 'insuredPhone',
-    'insuredDateOfBirth', 'insuredState', 'effectiveDate', 'note',
+    'insuredDateOfBirth', 'insuredState', 'effectiveDate', 'applicationSignedDate', 'note',
   ],
   additionalProperties: false,
 };
@@ -168,6 +171,10 @@ export async function extractApplicationFields(
     // Large PDFs: run a faster first pass, then fall back to full-depth only when needed.
     const fastResult = await runExtractionAttempt(anthropic, pdfBase64, { maxTokens: 1200, maxRetries: 1 });
     if (isFastPassAcceptable(fastResult.data)) {
+      if (shouldRetryForSignatureDate(fastResult.data)) {
+        const deep = await runExtractionAttempt(anthropic, pdfBase64, { maxTokens: 2048, maxRetries: 2 });
+        return pickExtractionPreferringSignatureDate(fastResult, deep);
+      }
       return fastResult;
     }
     return runExtractionAttempt(anthropic, pdfBase64, { maxTokens: 2048, maxRetries: 2 });
@@ -182,6 +189,10 @@ export async function extractApplicationFields(
       maxRetries: 1,
     });
     if (isFastPassAcceptable(fastResult.data)) {
+      if (shouldRetryForSignatureDate(fastResult.data)) {
+        const deep = await runExtractionAttempt(anthropic, pdfBase64, { maxTokens: 1550, maxRetries: 1 });
+        return pickExtractionPreferringSignatureDate(fastResult, deep);
+      }
       return fastResult;
     }
     return runExtractionAttempt(anthropic, pdfBase64, { maxTokens: 1550, maxRetries: 1 });
@@ -358,7 +369,8 @@ function buildResult(parsed: Record<string, unknown>): { data: ExtractedApplicat
     insuredPhone: toStringOrNull(parsed.insuredPhone),
     insuredDateOfBirth: toStringOrNull(parsed.insuredDateOfBirth),
     insuredState: toStateAbbreviationOrNull(parsed.insuredState),
-    effectiveDate: toStringOrNull(parsed.effectiveDate),
+    effectiveDate: toIsoDateStringOrNull(parsed.effectiveDate),
+    applicationSignedDate: toIsoDateStringOrNull(parsed.applicationSignedDate),
   };
 
   return { data, note };
@@ -441,6 +453,34 @@ function isFastPassAcceptable(data: ExtractedApplicationData): boolean {
   const hasFinancialAnchor = data.coverageAmount != null || data.premiumAmount != null;
 
   return hasIdentity && hasPolicyAnchor && hasFinancialAnchor;
+}
+
+/** Fast pass often skips late signature pages; run a deeper pass when core fields look good but signature date is missing. */
+function shouldRetryForSignatureDate(data: ExtractedApplicationData): boolean {
+  if (data.applicationSignedDate) return false;
+  return isFastPassAcceptable(data);
+}
+
+function pickExtractionPreferringSignatureDate(
+  fast: { data: ExtractedApplicationData; note?: string },
+  deep: { data: ExtractedApplicationData; note?: string },
+): { data: ExtractedApplicationData; note?: string } {
+  if (deep.data.applicationSignedDate) {
+    const note = [fast.note, deep.note].filter(Boolean).join(' ');
+    return {
+      data: { ...fast.data, applicationSignedDate: deep.data.applicationSignedDate },
+      note: note || undefined,
+    };
+  }
+  return fast;
+}
+
+function toIsoDateStringOrNull(val: unknown): string | null {
+  const s = toStringOrNull(val);
+  if (!s) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const t = Date.parse(`${s}T12:00:00.000Z`);
+  return Number.isNaN(t) ? null : s;
 }
 
 function toBooleanOrNull(val: unknown): boolean | null {
