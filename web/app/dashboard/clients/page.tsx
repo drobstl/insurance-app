@@ -38,6 +38,14 @@ import {
 import { isTimeoutError, withTimeout } from '../../../lib/timeout';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
+import {
+  computeApplicationCoreCompleteness,
+  isDirectParserFallbackEnabled,
+  mapIngestionErrorToUserMessage,
+  shouldFallbackForJobFailure,
+  shouldFallbackForThrownMessage,
+  V3_CLIENT_POLICY,
+} from '../../../lib/ingestion-v3-client-policy';
 import { useGooglePicker } from '../../../hooks/useGooglePicker';
 import type { GooglePickerSelectedFile } from '../../../hooks/useGooglePicker';
 import { buildWelcomeMessage, resolveClientLanguage, type SupportedLanguage } from '../../../lib/client-language';
@@ -49,14 +57,16 @@ const POLICY_STATUSES = ['Active', 'Pending', 'Lapsed'];
 const CLIENT_APP_URL = 'https://agentforlife.app/app';
 const MAX_IMPORT_ROWS = 400;
 const IMPORT_BATCH_SIZE = 50;
-const IMPORT_PARSE_TIMEOUT_MS = 120_000;
-const JOB_POLL_INTERVAL_MS = 1500;
+const IMPORT_PARSE_TIMEOUT_MS = V3_CLIENT_POLICY.hardResolveMs;
+const JOB_POLL_INTERVAL_MS = V3_CLIENT_POLICY.pollIntervalMs;
 const MIN_IMPORT_ROW_QUALITY_RATIO = 0.65;
 const DEFAULT_BULK_PDF_CONCURRENCY = 5;
 const MAX_BULK_PDF_CONCURRENCY = 6;
 const BULK_GCS_UPLOAD_TIMEOUT_MS = 120_000;
 const BULK_PARSE_MAX_RETRIES = 2;
-const MAX_APPLICATION_PDF_BYTES = 13 * 1024 * 1024;
+const MAX_APPLICATION_PDF_BYTES = V3_CLIENT_POLICY.maxUploadBytes;
+const V3_STEP_TIMEOUT_MS = V3_CLIENT_POLICY.stepTimeoutMs;
+const V3_QUEUE_STALL_FALLBACK_MS = V3_CLIENT_POLICY.stallThresholdMs;
 const DEFAULT_WELCOME_SMS_TEMPLATE =
   'Hey {{firstName}}! {{agentName}} here. Download the AgentForLife app and use code {{code}} to connect with me. https://agentforlife.app/app';
 const DEFAULT_INTRO_TEMPLATE =
@@ -1503,6 +1513,7 @@ export default function ClientsPage() {
     file: File,
     onProgress?: (state: ParseProgressState) => void,
   ): Promise<{ data: ExtractedApplicationData; note?: string }> => {
+    const entryPoint = 'add_client';
     const reportProgress = (progress: number, label: string) => {
       onProgress?.({
         fileName: file.name,
@@ -1519,17 +1530,44 @@ export default function ClientsPage() {
       throw new Error('Please upload a PDF file.');
     }
     if (file.size > MAX_APPLICATION_PDF_BYTES) {
-      throw new Error('File is too large. Maximum size is 13MB.');
+      throw new Error('This file is too large. Please upload a file under 16 MB.');
     }
 
-    const runDirectParseFallback = async (): Promise<{ data: ExtractedApplicationData; note?: string }> => {
+    const token = await user.getIdToken();
+    const startedAt = Date.now();
+    const fallbackEnabled = isDirectParserFallbackEnabled();
+    let usedFallback = false;
+    let trackedProgressSla = false;
+    let trackedTargetSla = false;
+
+    captureEvent(ANALYTICS_EVENTS.APPLICATION_UPLOAD_STARTED, {
+      entry_point: entryPoint,
+      file_size_bytes: file.size,
+      file_extension: file.name.split('.').pop()?.toLowerCase() || 'unknown',
+      source: 'local',
+    });
+
+    const runDirectParseFallback = async (
+      triggerReason: 'queue_stall' | 'timeout' | 'processor_failed' | 'signing_error',
+      jobId?: string,
+    ): Promise<{ data: ExtractedApplicationData; note?: string }> => {
+      usedFallback = true;
+      captureEvent(ANALYTICS_EVENTS.APPLICATION_FALLBACK_TRIGGERED, {
+        entry_point: entryPoint,
+        trigger_reason: triggerReason,
+        job_id: jobId,
+      });
       reportProgress(55, 'Retrying with direct parser...');
       const fallbackForm = new FormData();
       fallbackForm.append('file', file, file.name);
-      const fallbackRes = await fetch('/api/parse-application', {
-        method: 'POST',
-        body: fallbackForm,
-      });
+      const fallbackRes = await withTimeout(
+        fetch('/api/parse-application', {
+          method: 'POST',
+          body: fallbackForm,
+        }),
+        V3_STEP_TIMEOUT_MS,
+        'Direct parser request timed out.',
+      );
       const fallbackBody = (await fallbackRes.json()) as {
         success: boolean;
         data?: ExtractedApplicationData;
@@ -1537,6 +1575,12 @@ export default function ClientsPage() {
         error?: string;
       };
       if (!fallbackRes.ok || !fallbackBody.success || !fallbackBody.data) {
+        captureEvent(ANALYTICS_EVENTS.APPLICATION_FALLBACK_FAILED, {
+          entry_point: entryPoint,
+          error_code: 'FALLBACK_FAILED',
+          http_status: fallbackRes.status,
+          timeout: false,
+        });
         throw new Error(fallbackBody.error || `Direct parser failed (${fallbackRes.status}).`);
       }
       reportProgress(100, 'Extraction complete');
@@ -1544,22 +1588,25 @@ export default function ClientsPage() {
     };
 
     reportProgress(8, 'Preparing file...');
-    const token = await user.getIdToken();
     reportProgress(20, 'Uploading file...');
     try {
-      const signedRes = await fetch('/api/ingestion/v3/upload-url', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fileName: file.name,
-          contentType: file.type || 'application/pdf',
-          fileSize: file.size,
-          purpose: 'application',
+      const signedRes = await withTimeout(
+        fetch('/api/ingestion/v3/upload-url', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            fileName: file.name,
+            contentType: file.type || 'application/pdf',
+            fileSize: file.size,
+            purpose: 'application',
+          }),
         }),
-      });
+        V3_STEP_TIMEOUT_MS,
+        'Upload URL generation timed out.',
+      );
       const signedBody = (await signedRes.json()) as {
         success: boolean;
         uploadUrl?: string;
@@ -1567,6 +1614,13 @@ export default function ClientsPage() {
         error?: { message?: string };
       };
       if (!signedRes.ok || !signedBody.success || !signedBody.uploadUrl || !signedBody.gcsPath) {
+        captureEvent(ANALYTICS_EVENTS.APPLICATION_UPLOAD_SIGNED_URL_FAILED, {
+          entry_point: entryPoint,
+          error_code: 'SIGNED_URL_FAILED',
+          http_status: signedRes.status,
+          timeout: false,
+          attempt: 1,
+        });
         throw new Error(signedBody.error?.message || `Failed to start file upload (${signedRes.status}).`);
       }
 
@@ -1577,6 +1631,13 @@ export default function ClientsPage() {
           body: file,
         }).then((res) => {
           if (!res.ok) {
+            captureEvent(ANALYTICS_EVENTS.APPLICATION_UPLOAD_PUT_FAILED, {
+              entry_point: entryPoint,
+              http_status: res.status,
+              timeout: false,
+              attempt_count: 1,
+              error_category: 'http',
+            });
             throw new Error(`Upload failed (${res.status}).`);
           }
         }),
@@ -1585,39 +1646,73 @@ export default function ClientsPage() {
       );
 
       reportProgress(50, 'Queueing parser...');
-      const createRes = await fetch('/api/ingestion/v3/jobs', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          mode: 'application',
-          gcsPath: signedBody.gcsPath,
-          fileName: file.name,
-          contentType: file.type || 'application/pdf',
-          idempotencyKey: `application-v3:${file.name}:${file.size}:${file.lastModified}`,
+      const createRes = await withTimeout(
+        fetch('/api/ingestion/v3/jobs', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            mode: 'application',
+            gcsPath: signedBody.gcsPath,
+            fileName: file.name,
+            contentType: file.type || 'application/pdf',
+            idempotencyKey: `application-v3:${file.name}:${file.size}:${file.lastModified}`,
+          }),
         }),
-      });
+        V3_STEP_TIMEOUT_MS,
+        'Parser queue request timed out.',
+      );
       const created = (await createRes.json()) as IngestionV3SubmitJobResponse;
       if (!createRes.ok || !created.success || !created.jobId) {
-        throw new Error(created.error?.message || `Failed to start parsing job (${createRes.status}).`);
+        captureEvent(ANALYTICS_EVENTS.APPLICATION_JOB_CREATE_FAILED, {
+          entry_point: entryPoint,
+          error_code: created.error?.code || 'JOB_CREATE_FAILED',
+          http_status: createRes.status,
+          idempotency_key_present: true,
+        });
+        throw new Error(mapIngestionErrorToUserMessage(created.error?.code, created.error?.message || 'Failed to start parsing job.'));
       }
 
-      const startedAt = Date.now();
+      let stalledSinceMs: number | null = null;
       reportProgress(62, 'Extracting data...');
       while (Date.now() - startedAt < IMPORT_PARSE_TIMEOUT_MS) {
         await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
         const elapsedMs = Date.now() - startedAt;
         reportProgress(62 + Math.min(30, (elapsedMs / IMPORT_PARSE_TIMEOUT_MS) * 30), 'Extracting data...');
+        if (!trackedProgressSla && elapsedMs >= V3_CLIENT_POLICY.progressSlaMs) {
+          trackedProgressSla = true;
+          captureEvent(ANALYTICS_EVENTS.APPLICATION_SLA_BREACH, {
+            entry_point: entryPoint,
+            breach_type: 'progress',
+            elapsed_ms: elapsedMs,
+            current_stage: 'processing',
+            job_id: created.jobId,
+          });
+        }
+        if (!trackedTargetSla && elapsedMs >= V3_CLIENT_POLICY.usableTargetMs) {
+          trackedTargetSla = true;
+          captureEvent(ANALYTICS_EVENTS.APPLICATION_SLA_BREACH, {
+            entry_point: entryPoint,
+            breach_type: 'target',
+            elapsed_ms: elapsedMs,
+            current_stage: 'processing',
+            job_id: created.jobId,
+          });
+        }
 
-        const statusRes = await fetch(`/api/ingestion/v3/jobs/${encodeURIComponent(created.jobId)}`, {
-          cache: 'no-store',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: 'application/json',
-          },
-        });
+        const statusRes = await withTimeout(
+          fetch(`/api/ingestion/v3/jobs/${encodeURIComponent(created.jobId)}`, {
+            cache: 'no-store',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: 'application/json',
+            },
+          }),
+          V3_STEP_TIMEOUT_MS,
+          'Status check timed out.',
+        );
         const contentType = statusRes.headers.get('content-type') || '';
         if (!contentType.includes('application/json')) {
           throw new Error('Unexpected response while checking parse status. Please try again.');
@@ -1625,7 +1720,10 @@ export default function ClientsPage() {
 
         const statusBody = (await statusRes.json()) as IngestionV3JobStatusResponse;
         if (!statusRes.ok || !statusBody.success || !statusBody.job) {
-          throw new Error(statusBody.error?.message || `Failed to check parsing status (${statusRes.status}).`);
+          throw new Error(mapIngestionErrorToUserMessage(
+            statusBody.error?.code,
+            statusBody.error?.message || `Failed to check parsing status (${statusRes.status}).`,
+          ));
         }
 
         if (statusBody.job.status === 'review_ready' || statusBody.job.status === 'saved') {
@@ -1633,31 +1731,73 @@ export default function ClientsPage() {
           if (!data) {
             throw new Error('Could not extract application data from this file. Please try another PDF.');
           }
+          const completeness = computeApplicationCoreCompleteness(data);
+          captureEvent(ANALYTICS_EVENTS.APPLICATION_CORE_COMPLETENESS, {
+            entry_point: entryPoint,
+            job_id: created.jobId,
+            core_fields_total: completeness.coreFieldsTotal,
+            core_fields_present: completeness.coreFieldsPresent,
+            completeness_ratio: completeness.ratio,
+            carrier_detected: completeness.carrierDetected,
+          });
+          captureEvent(ANALYTICS_EVENTS.APPLICATION_PARSE_COMPLETED, {
+            entry_point: entryPoint,
+            result_type: completeness.resultType,
+            elapsed_ms: elapsedMs,
+            used_fallback: usedFallback,
+            job_id: created.jobId,
+          });
           reportProgress(100, 'Extraction complete');
           return { data, note: statusBody.job.result?.application?.note || undefined };
         }
 
         if (statusBody.job.status === 'failed') {
           const code = statusBody.job.error?.code || '';
-          if (code === 'INTERNAL_ERROR' || code === 'CLAUDE_SCHEMA_INVALID') {
-            return runDirectParseFallback();
+          if (shouldFallbackForJobFailure(code)) {
+            if (!fallbackEnabled) {
+              throw new Error(mapIngestionErrorToUserMessage(code, 'Primary parser failed and fallback is disabled.'));
+            }
+            return runDirectParseFallback('processor_failed', created.jobId);
           }
-          const codeSuffix = code ? ` [${code}]` : '';
-          throw new Error(`${statusBody.job.error?.message || 'Failed to parse file. Please try again.'}${codeSuffix}`);
+          throw new Error(mapIngestionErrorToUserMessage(code, statusBody.job.error?.message || 'Failed to parse file. Please try again.'));
+        }
+
+        if (statusBody.job.status === 'queued' || statusBody.job.status === 'uploading' || statusBody.job.status === 'processing') {
+          stalledSinceMs = stalledSinceMs ?? Date.now();
+          const stalledMs = Date.now() - stalledSinceMs;
+          if (stalledMs >= V3_QUEUE_STALL_FALLBACK_MS) {
+            captureEvent(ANALYTICS_EVENTS.APPLICATION_POLL_STALLED, {
+              entry_point: entryPoint,
+              job_id: created.jobId,
+              stalled_status: statusBody.job.status,
+              stalled_ms: stalledMs,
+            });
+            if (!fallbackEnabled) {
+              throw new Error('Primary parser stalled while fallback is disabled. Check ingestionJobsV3 status for this job.');
+            }
+            return runDirectParseFallback('queue_stall', created.jobId);
+          }
+        } else {
+          stalledSinceMs = null;
         }
       }
 
-      throw new Error('Parsing timed out. Please retry the file.');
+      if (!fallbackEnabled) {
+        throw new Error('Primary parser timed out and fallback is disabled.');
+      }
+      return runDirectParseFallback('timeout', created.jobId);
     } catch (v3Error) {
       const message = v3Error instanceof Error ? v3Error.message : String(v3Error);
-      const shouldFallback =
-        message.includes('Upload failed (403)') ||
-        message.includes('Invalid JWT Signature') ||
-        message.includes('SignatureDoesNotMatch');
-      if (!shouldFallback) {
+      if (!shouldFallbackForThrownMessage(message) || !fallbackEnabled) {
+        captureEvent(ANALYTICS_EVENTS.APPLICATION_PARSE_COMPLETED, {
+          entry_point: entryPoint,
+          result_type: 'error',
+          elapsed_ms: Date.now() - startedAt,
+          used_fallback: usedFallback,
+        });
         throw v3Error;
       }
-      return runDirectParseFallback();
+      return runDirectParseFallback('signing_error');
     }
   }, [user]);
 
@@ -1887,7 +2027,18 @@ export default function ClientsPage() {
     return { rows };
   }, [parseCsvLine]);
 
-  const mapBobRowsToImportRows = useCallback((rows: any[]): ImportRow[] => {
+  const mapBobRowsToImportRows = useCallback((rows: Array<{
+    firstName: string;
+    lastName: string;
+    phone: string | null;
+    email: string | null;
+    dateOfBirth: string | null;
+    policyType: string | null;
+    policyNumber: string | null;
+    carrier: string | null;
+    premiumAmount: number | null;
+    coverageAmount: number | null;
+  }>): ImportRow[] => {
     return (rows || []).map((row) => ({
       name: [row.firstName, row.lastName].filter(Boolean).join(' ').trim() || row.firstName || row.lastName || '',
       owner: '',
@@ -1942,7 +2093,7 @@ export default function ClientsPage() {
       if (statusBody.job.status === 'review_ready' || statusBody.job.status === 'saved') {
         const v3Rows = statusBody.job.result?.bob?.rows || [];
         return {
-          rows: mapBobRowsToImportRows(v3Rows as any[]),
+          rows: mapBobRowsToImportRows(v3Rows),
           note: statusBody.job.result?.bob?.note,
         };
       }
@@ -3023,25 +3174,161 @@ export default function ClientsPage() {
       {isModalOpen && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleCloseModal} />
-          <div className="relative w-full max-w-md bg-white rounded-[5px] border border-gray-200 shadow-2xl">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-[#000000]">
-                {editingClient ? 'Edit Client' : 'Add Client'}
-              </h3>
-              <button
-                onClick={handleCloseModal}
-                className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#000000] transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+          {editingClient ? (
+            <div className="relative w-full max-w-md bg-white rounded-[5px] border border-gray-200 shadow-2xl">
+              <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                <h3 className="text-xl font-bold text-[#000000]">Edit Client</h3>
+                <button
+                  onClick={handleCloseModal}
+                  className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#000000] transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <form onSubmit={handleSubmitClient} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#000000] mb-1">Name *</label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))}
+                    className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                    placeholder="Full name"
+                  />
+                </div>
 
-            <form onSubmit={handleSubmitClient} className="p-6 space-y-4">
-              {/* PDF Upload option for new clients */}
-              {!editingClient && (
-                <div className="mb-2">
+                <div>
+                  <label className="block text-sm font-medium text-[#000000] mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData((f) => ({ ...f, email: e.target.value }))}
+                    className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                    placeholder="email@example.com"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[#000000] mb-1">Phone</label>
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData((f) => ({ ...f, phone: e.target.value }))}
+                    className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                    placeholder="(555) 123-4567"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[#000000] mb-1">Date of Birth</label>
+                  <input
+                    type="date"
+                    value={formData.dateOfBirth}
+                    onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))}
+                    className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[#000000] mb-1">Client since</label>
+                  <input
+                    type="date"
+                    value={formData.clientSinceDate}
+                    onChange={(e) => setFormData((f) => ({ ...f, clientSinceDate: e.target.value }))}
+                    className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                  />
+                  <p className="mt-1 text-xs text-[#707070]">
+                    When they became your client (often the application signature date). Filled automatically from PDFs when found. Leave blank to show the date they were added here.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[#000000] mb-1">Preferred Language</label>
+                  <select
+                    value={formData.preferredLanguage}
+                    onChange={(e) => setFormData((f) => ({ ...f, preferredLanguage: resolveClientLanguage(e.target.value) }))}
+                    className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                  >
+                    <option value="en">English</option>
+                    <option value="es">Spanish</option>
+                  </select>
+                </div>
+
+                {formError && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-[5px] text-xs text-red-600">
+                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {formError}
+                  </div>
+                )}
+
+                {formSuccess && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-[5px] text-xs text-green-700">
+                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    {formSuccess}
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleCloseModal}
+                    className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] transition-colors flex items-center justify-center gap-2 text-sm"
+                  >
+                    {submitting ? (
+                      <>
+                        <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Saving...
+                      </>
+                    ) : (
+                      'Update Client'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : (
+            <div className="relative z-10 w-full max-w-5xl grid gap-4 lg:grid-cols-2">
+              <div className="bg-white rounded-[5px] border border-gray-200 shadow-2xl">
+                <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                  <div>
+                    <h3 className="text-xl font-bold text-[#000000]">Automated</h3>
+                    <p className="text-xs text-[#707070] mt-0.5">Upload application PDF to auto-fill</p>
+                  </div>
+                  <button
+                    onClick={handleCloseModal}
+                    className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#000000] transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-[5px] text-xs text-amber-800">
+                    <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    <p>
+                      We&apos;re sorry if automated upload is not working consistently right now while we fix it. Thank you for your patience and understanding as a founding member. Please use Manual mode in the meantime so you can continue taking full advantage of the Agent for Life system.
+                    </p>
+                  </div>
+
                   <button
                     type="button"
                     onClick={handleClickClientApplicationUpload}
@@ -3060,11 +3347,11 @@ export default function ClientsPage() {
                     onChange={handleClientApplicationFileSelect}
                     className="hidden"
                   />
-                  <p className="mt-2 text-xs text-[#707070]">
-                    AI will extract client info and policy details in one step. Max 13MB.
+                  <p className="text-xs text-[#707070]">
+                    AI will extract client info and policy details in one step. Max 16 MB.
                   </p>
                   {clientApplicationUploading && clientParseProgress && (
-                    <div className="mt-2 rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/40 p-3">
+                    <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/40 p-3">
                       <div className="flex items-center justify-between text-xs text-[#005851] mb-1">
                         <span className="font-medium truncate pr-2">{clientParseProgress.fileName}</span>
                         <span>{clientParseProgress.progress}%</span>
@@ -3078,137 +3365,153 @@ export default function ClientsPage() {
                       <p className="mt-1 text-[11px] text-[#005851]/80">{clientParseProgress.label}</p>
                     </div>
                   )}
-                </div>
-              )}
-
-              {pendingClientApplicationData && (
-                <div className="flex items-center gap-2 px-3 py-2 bg-[#daf3f0] border border-[#45bcaa]/30 rounded-[5px] text-xs text-[#005851]">
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className="font-medium">Application data extracted! A policy will be auto-created.</span>
-                </div>
-              )}
-              {clientApplicationNote && (
-                <p className="text-xs text-[#707070]">{clientApplicationNote}</p>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-[#000000] mb-1">Name *</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))}
-                  className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
-                  placeholder="Full name"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#000000] mb-1">Email</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData((f) => ({ ...f, email: e.target.value }))}
-                  className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
-                  placeholder="email@example.com"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#000000] mb-1">Phone</label>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData((f) => ({ ...f, phone: e.target.value }))}
-                  className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
-                  placeholder="(555) 123-4567"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#000000] mb-1">Date of Birth</label>
-                <input
-                  type="date"
-                  value={formData.dateOfBirth}
-                  onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))}
-                  className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#000000] mb-1">Client since</label>
-                <input
-                  type="date"
-                  value={formData.clientSinceDate}
-                  onChange={(e) => setFormData((f) => ({ ...f, clientSinceDate: e.target.value }))}
-                  className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
-                />
-                <p className="mt-1 text-xs text-[#707070]">
-                  When they became your client (often the application signature date). Filled automatically from PDFs when found. Leave blank to show the date they were added here.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#000000] mb-1">Preferred Language</label>
-                <select
-                  value={formData.preferredLanguage}
-                  onChange={(e) => setFormData((f) => ({ ...f, preferredLanguage: resolveClientLanguage(e.target.value) }))}
-                  className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
-                >
-                  <option value="en">English</option>
-                  <option value="es">Spanish</option>
-                </select>
-              </div>
-
-              {formError && (
-                <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-[5px] text-xs text-red-600">
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {formError}
-                </div>
-              )}
-
-              {formSuccess && (
-                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-[5px] text-xs text-green-700">
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  {formSuccess}
-                </div>
-              )}
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors text-sm"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] transition-colors flex items-center justify-center gap-2 text-sm"
-                >
-                  {submitting ? (
-                    <>
-                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      Saving...
-                    </>
-                  ) : editingClient ? (
-                    'Update Client'
-                  ) : (
-                    'Add Client'
+                  {clientApplicationNote && (
+                    <p className="text-xs text-[#707070]">{clientApplicationNote}</p>
                   )}
-                </button>
+                </div>
               </div>
-            </form>
-          </div>
+
+              <div className="bg-white rounded-[5px] border border-gray-200 shadow-2xl">
+                <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                  <div>
+                    <h3 className="text-xl font-bold text-[#000000]">Manual</h3>
+                    <p className="text-xs text-[#707070] mt-0.5">Enter client details manually</p>
+                  </div>
+                  <button
+                    onClick={handleCloseModal}
+                    className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#000000] transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <form onSubmit={handleSubmitClient} className="p-6 space-y-4">
+                  {pendingClientApplicationData && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-[#daf3f0] border border-[#45bcaa]/30 rounded-[5px] text-xs text-[#005851]">
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="font-medium">Application data extracted! A policy will be auto-created.</span>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#000000] mb-1">Name *</label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))}
+                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                      placeholder="Full name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#000000] mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData((f) => ({ ...f, email: e.target.value }))}
+                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                      placeholder="email@example.com"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#000000] mb-1">Phone</label>
+                    <input
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => setFormData((f) => ({ ...f, phone: e.target.value }))}
+                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                      placeholder="(555) 123-4567"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#000000] mb-1">Date of Birth</label>
+                    <input
+                      type="date"
+                      value={formData.dateOfBirth}
+                      onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))}
+                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#000000] mb-1">Client since</label>
+                    <input
+                      type="date"
+                      value={formData.clientSinceDate}
+                      onChange={(e) => setFormData((f) => ({ ...f, clientSinceDate: e.target.value }))}
+                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                    />
+                    <p className="mt-1 text-xs text-[#707070]">
+                      When they became your client (often the application signature date). Filled automatically from PDFs when found. Leave blank to show the date they were added here.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#000000] mb-1">Preferred Language</label>
+                    <select
+                      value={formData.preferredLanguage}
+                      onChange={(e) => setFormData((f) => ({ ...f, preferredLanguage: resolveClientLanguage(e.target.value) }))}
+                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                    >
+                      <option value="en">English</option>
+                      <option value="es">Spanish</option>
+                    </select>
+                  </div>
+
+                  {formError && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-[5px] text-xs text-red-600">
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {formError}
+                    </div>
+                  )}
+
+                  {formSuccess && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-[5px] text-xs text-green-700">
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      {formSuccess}
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleCloseModal}
+                      className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] transition-colors flex items-center justify-center gap-2 text-sm"
+                    >
+                      {submitting ? (
+                        <>
+                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Saving...
+                        </>
+                      ) : (
+                        'Add Client'
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -3781,7 +4084,7 @@ export default function ClientsPage() {
                     className="hidden"
                   />
                   <p className="text-xs text-[#707070]">
-                    AI will extract client info and policy details in one step. Max 13MB.
+                    AI will extract client info and policy details in one step. Max 16 MB.
                   </p>
                   {policyApplicationUploading && policyParseProgress && (
                     <div className="rounded-[5px] border border-[#0099FF]/25 bg-[#0099FF]/5 p-3">
