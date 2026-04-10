@@ -38,14 +38,6 @@ import {
 import { isTimeoutError, withTimeout } from '../../../lib/timeout';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
-import {
-  computeApplicationCoreCompleteness,
-  isDirectParserFallbackEnabled,
-  mapIngestionErrorToUserMessage,
-  shouldFallbackForJobFailure,
-  shouldFallbackForThrownMessage,
-  V3_CLIENT_POLICY,
-} from '../../../lib/ingestion-v3-client-policy';
 import { useGooglePicker } from '../../../hooks/useGooglePicker';
 import type { GooglePickerSelectedFile } from '../../../hooks/useGooglePicker';
 import { buildWelcomeMessage, resolveClientLanguage, type SupportedLanguage } from '../../../lib/client-language';
@@ -57,16 +49,14 @@ const POLICY_STATUSES = ['Active', 'Pending', 'Lapsed'];
 const CLIENT_APP_URL = 'https://agentforlife.app/app';
 const MAX_IMPORT_ROWS = 400;
 const IMPORT_BATCH_SIZE = 50;
-const IMPORT_PARSE_TIMEOUT_MS = V3_CLIENT_POLICY.hardResolveMs;
-const JOB_POLL_INTERVAL_MS = V3_CLIENT_POLICY.pollIntervalMs;
+const IMPORT_PARSE_TIMEOUT_MS = 120_000;
+const JOB_POLL_INTERVAL_MS = 1500;
 const MIN_IMPORT_ROW_QUALITY_RATIO = 0.65;
 const DEFAULT_BULK_PDF_CONCURRENCY = 5;
 const MAX_BULK_PDF_CONCURRENCY = 6;
 const BULK_GCS_UPLOAD_TIMEOUT_MS = 120_000;
 const BULK_PARSE_MAX_RETRIES = 2;
-const MAX_APPLICATION_PDF_BYTES = V3_CLIENT_POLICY.maxUploadBytes;
-const V3_STEP_TIMEOUT_MS = V3_CLIENT_POLICY.stepTimeoutMs;
-const V3_QUEUE_STALL_FALLBACK_MS = V3_CLIENT_POLICY.stallThresholdMs;
+const MAX_APPLICATION_PDF_BYTES = 13 * 1024 * 1024;
 const DEFAULT_WELCOME_SMS_TEMPLATE =
   'Hey {{firstName}}! {{agentName}} here. Download the AgentForLife app and use code {{code}} to connect with me. https://agentforlife.app/app';
 const DEFAULT_INTRO_TEMPLATE =
@@ -1513,7 +1503,6 @@ export default function ClientsPage() {
     file: File,
     onProgress?: (state: ParseProgressState) => void,
   ): Promise<{ data: ExtractedApplicationData; note?: string }> => {
-    const entryPoint = 'add_client';
     const reportProgress = (progress: number, label: string) => {
       onProgress?.({
         fileName: file.name,
@@ -1530,44 +1519,17 @@ export default function ClientsPage() {
       throw new Error('Please upload a PDF file.');
     }
     if (file.size > MAX_APPLICATION_PDF_BYTES) {
-      throw new Error('This file is too large. Please upload a file under 16 MB.');
+      throw new Error('File is too large. Maximum size is 13MB.');
     }
 
-    const token = await user.getIdToken();
-    const startedAt = Date.now();
-    const fallbackEnabled = isDirectParserFallbackEnabled();
-    let usedFallback = false;
-    let trackedProgressSla = false;
-    let trackedTargetSla = false;
-
-    captureEvent(ANALYTICS_EVENTS.APPLICATION_UPLOAD_STARTED, {
-      entry_point: entryPoint,
-      file_size_bytes: file.size,
-      file_extension: file.name.split('.').pop()?.toLowerCase() || 'unknown',
-      source: 'local',
-    });
-
-    const runDirectParseFallback = async (
-      triggerReason: 'queue_stall' | 'timeout' | 'processor_failed' | 'signing_error',
-      jobId?: string,
-    ): Promise<{ data: ExtractedApplicationData; note?: string }> => {
-      usedFallback = true;
-      captureEvent(ANALYTICS_EVENTS.APPLICATION_FALLBACK_TRIGGERED, {
-        entry_point: entryPoint,
-        trigger_reason: triggerReason,
-        job_id: jobId,
-      });
+    const runDirectParseFallback = async (): Promise<{ data: ExtractedApplicationData; note?: string }> => {
       reportProgress(55, 'Retrying with direct parser...');
       const fallbackForm = new FormData();
       fallbackForm.append('file', file, file.name);
-      const fallbackRes = await withTimeout(
-        fetch('/api/parse-application', {
-          method: 'POST',
-          body: fallbackForm,
-        }),
-        V3_STEP_TIMEOUT_MS,
-        'Direct parser request timed out.',
-      );
+      const fallbackRes = await fetch('/api/parse-application', {
+        method: 'POST',
+        body: fallbackForm,
+      });
       const fallbackBody = (await fallbackRes.json()) as {
         success: boolean;
         data?: ExtractedApplicationData;
@@ -1575,12 +1537,6 @@ export default function ClientsPage() {
         error?: string;
       };
       if (!fallbackRes.ok || !fallbackBody.success || !fallbackBody.data) {
-        captureEvent(ANALYTICS_EVENTS.APPLICATION_FALLBACK_FAILED, {
-          entry_point: entryPoint,
-          error_code: 'FALLBACK_FAILED',
-          http_status: fallbackRes.status,
-          timeout: false,
-        });
         throw new Error(fallbackBody.error || `Direct parser failed (${fallbackRes.status}).`);
       }
       reportProgress(100, 'Extraction complete');
@@ -1588,25 +1544,22 @@ export default function ClientsPage() {
     };
 
     reportProgress(8, 'Preparing file...');
+    const token = await user.getIdToken();
     reportProgress(20, 'Uploading file...');
     try {
-      const signedRes = await withTimeout(
-        fetch('/api/ingestion/v3/upload-url', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            fileName: file.name,
-            contentType: file.type || 'application/pdf',
-            fileSize: file.size,
-            purpose: 'application',
-          }),
+      const signedRes = await fetch('/api/ingestion/v3/upload-url', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fileName: file.name,
+          contentType: file.type || 'application/pdf',
+          fileSize: file.size,
+          purpose: 'application',
         }),
-        V3_STEP_TIMEOUT_MS,
-        'Upload URL generation timed out.',
-      );
+      });
       const signedBody = (await signedRes.json()) as {
         success: boolean;
         uploadUrl?: string;
@@ -1614,13 +1567,6 @@ export default function ClientsPage() {
         error?: { message?: string };
       };
       if (!signedRes.ok || !signedBody.success || !signedBody.uploadUrl || !signedBody.gcsPath) {
-        captureEvent(ANALYTICS_EVENTS.APPLICATION_UPLOAD_SIGNED_URL_FAILED, {
-          entry_point: entryPoint,
-          error_code: 'SIGNED_URL_FAILED',
-          http_status: signedRes.status,
-          timeout: false,
-          attempt: 1,
-        });
         throw new Error(signedBody.error?.message || `Failed to start file upload (${signedRes.status}).`);
       }
 
@@ -1631,13 +1577,6 @@ export default function ClientsPage() {
           body: file,
         }).then((res) => {
           if (!res.ok) {
-            captureEvent(ANALYTICS_EVENTS.APPLICATION_UPLOAD_PUT_FAILED, {
-              entry_point: entryPoint,
-              http_status: res.status,
-              timeout: false,
-              attempt_count: 1,
-              error_category: 'http',
-            });
             throw new Error(`Upload failed (${res.status}).`);
           }
         }),
@@ -1646,73 +1585,39 @@ export default function ClientsPage() {
       );
 
       reportProgress(50, 'Queueing parser...');
-      const createRes = await withTimeout(
-        fetch('/api/ingestion/v3/jobs', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            mode: 'application',
-            gcsPath: signedBody.gcsPath,
-            fileName: file.name,
-            contentType: file.type || 'application/pdf',
-            idempotencyKey: `application-v3:${file.name}:${file.size}:${file.lastModified}`,
-          }),
+      const createRes = await fetch('/api/ingestion/v3/jobs', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mode: 'application',
+          gcsPath: signedBody.gcsPath,
+          fileName: file.name,
+          contentType: file.type || 'application/pdf',
+          idempotencyKey: `application-v3:${file.name}:${file.size}:${file.lastModified}`,
         }),
-        V3_STEP_TIMEOUT_MS,
-        'Parser queue request timed out.',
-      );
+      });
       const created = (await createRes.json()) as IngestionV3SubmitJobResponse;
       if (!createRes.ok || !created.success || !created.jobId) {
-        captureEvent(ANALYTICS_EVENTS.APPLICATION_JOB_CREATE_FAILED, {
-          entry_point: entryPoint,
-          error_code: created.error?.code || 'JOB_CREATE_FAILED',
-          http_status: createRes.status,
-          idempotency_key_present: true,
-        });
-        throw new Error(mapIngestionErrorToUserMessage(created.error?.code, created.error?.message || 'Failed to start parsing job.'));
+        throw new Error(created.error?.message || `Failed to start parsing job (${createRes.status}).`);
       }
 
-      let stalledSinceMs: number | null = null;
+      const startedAt = Date.now();
       reportProgress(62, 'Extracting data...');
       while (Date.now() - startedAt < IMPORT_PARSE_TIMEOUT_MS) {
         await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
         const elapsedMs = Date.now() - startedAt;
         reportProgress(62 + Math.min(30, (elapsedMs / IMPORT_PARSE_TIMEOUT_MS) * 30), 'Extracting data...');
-        if (!trackedProgressSla && elapsedMs >= V3_CLIENT_POLICY.progressSlaMs) {
-          trackedProgressSla = true;
-          captureEvent(ANALYTICS_EVENTS.APPLICATION_SLA_BREACH, {
-            entry_point: entryPoint,
-            breach_type: 'progress',
-            elapsed_ms: elapsedMs,
-            current_stage: 'processing',
-            job_id: created.jobId,
-          });
-        }
-        if (!trackedTargetSla && elapsedMs >= V3_CLIENT_POLICY.usableTargetMs) {
-          trackedTargetSla = true;
-          captureEvent(ANALYTICS_EVENTS.APPLICATION_SLA_BREACH, {
-            entry_point: entryPoint,
-            breach_type: 'target',
-            elapsed_ms: elapsedMs,
-            current_stage: 'processing',
-            job_id: created.jobId,
-          });
-        }
 
-        const statusRes = await withTimeout(
-          fetch(`/api/ingestion/v3/jobs/${encodeURIComponent(created.jobId)}`, {
-            cache: 'no-store',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: 'application/json',
-            },
-          }),
-          V3_STEP_TIMEOUT_MS,
-          'Status check timed out.',
-        );
+        const statusRes = await fetch(`/api/ingestion/v3/jobs/${encodeURIComponent(created.jobId)}`, {
+          cache: 'no-store',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/json',
+          },
+        });
         const contentType = statusRes.headers.get('content-type') || '';
         if (!contentType.includes('application/json')) {
           throw new Error('Unexpected response while checking parse status. Please try again.');
@@ -1720,10 +1625,7 @@ export default function ClientsPage() {
 
         const statusBody = (await statusRes.json()) as IngestionV3JobStatusResponse;
         if (!statusRes.ok || !statusBody.success || !statusBody.job) {
-          throw new Error(mapIngestionErrorToUserMessage(
-            statusBody.error?.code,
-            statusBody.error?.message || `Failed to check parsing status (${statusRes.status}).`,
-          ));
+          throw new Error(statusBody.error?.message || `Failed to check parsing status (${statusRes.status}).`);
         }
 
         if (statusBody.job.status === 'review_ready' || statusBody.job.status === 'saved') {
@@ -1731,73 +1633,31 @@ export default function ClientsPage() {
           if (!data) {
             throw new Error('Could not extract application data from this file. Please try another PDF.');
           }
-          const completeness = computeApplicationCoreCompleteness(data);
-          captureEvent(ANALYTICS_EVENTS.APPLICATION_CORE_COMPLETENESS, {
-            entry_point: entryPoint,
-            job_id: created.jobId,
-            core_fields_total: completeness.coreFieldsTotal,
-            core_fields_present: completeness.coreFieldsPresent,
-            completeness_ratio: completeness.ratio,
-            carrier_detected: completeness.carrierDetected,
-          });
-          captureEvent(ANALYTICS_EVENTS.APPLICATION_PARSE_COMPLETED, {
-            entry_point: entryPoint,
-            result_type: completeness.resultType,
-            elapsed_ms: elapsedMs,
-            used_fallback: usedFallback,
-            job_id: created.jobId,
-          });
           reportProgress(100, 'Extraction complete');
           return { data, note: statusBody.job.result?.application?.note || undefined };
         }
 
         if (statusBody.job.status === 'failed') {
           const code = statusBody.job.error?.code || '';
-          if (shouldFallbackForJobFailure(code)) {
-            if (!fallbackEnabled) {
-              throw new Error(mapIngestionErrorToUserMessage(code, 'Primary parser failed and fallback is disabled.'));
-            }
-            return runDirectParseFallback('processor_failed', created.jobId);
+          if (code === 'INTERNAL_ERROR' || code === 'CLAUDE_SCHEMA_INVALID') {
+            return runDirectParseFallback();
           }
-          throw new Error(mapIngestionErrorToUserMessage(code, statusBody.job.error?.message || 'Failed to parse file. Please try again.'));
-        }
-
-        if (statusBody.job.status === 'queued' || statusBody.job.status === 'uploading' || statusBody.job.status === 'processing') {
-          stalledSinceMs = stalledSinceMs ?? Date.now();
-          const stalledMs = Date.now() - stalledSinceMs;
-          if (stalledMs >= V3_QUEUE_STALL_FALLBACK_MS) {
-            captureEvent(ANALYTICS_EVENTS.APPLICATION_POLL_STALLED, {
-              entry_point: entryPoint,
-              job_id: created.jobId,
-              stalled_status: statusBody.job.status,
-              stalled_ms: stalledMs,
-            });
-            if (!fallbackEnabled) {
-              throw new Error('Primary parser stalled while fallback is disabled. Check ingestionJobsV3 status for this job.');
-            }
-            return runDirectParseFallback('queue_stall', created.jobId);
-          }
-        } else {
-          stalledSinceMs = null;
+          const codeSuffix = code ? ` [${code}]` : '';
+          throw new Error(`${statusBody.job.error?.message || 'Failed to parse file. Please try again.'}${codeSuffix}`);
         }
       }
 
-      if (!fallbackEnabled) {
-        throw new Error('Primary parser timed out and fallback is disabled.');
-      }
-      return runDirectParseFallback('timeout', created.jobId);
+      throw new Error('Parsing timed out. Please retry the file.');
     } catch (v3Error) {
       const message = v3Error instanceof Error ? v3Error.message : String(v3Error);
-      if (!shouldFallbackForThrownMessage(message) || !fallbackEnabled) {
-        captureEvent(ANALYTICS_EVENTS.APPLICATION_PARSE_COMPLETED, {
-          entry_point: entryPoint,
-          result_type: 'error',
-          elapsed_ms: Date.now() - startedAt,
-          used_fallback: usedFallback,
-        });
+      const shouldFallback =
+        message.includes('Upload failed (403)') ||
+        message.includes('Invalid JWT Signature') ||
+        message.includes('SignatureDoesNotMatch');
+      if (!shouldFallback) {
         throw v3Error;
       }
-      return runDirectParseFallback('signing_error');
+      return runDirectParseFallback();
     }
   }, [user]);
 
@@ -2027,18 +1887,7 @@ export default function ClientsPage() {
     return { rows };
   }, [parseCsvLine]);
 
-  const mapBobRowsToImportRows = useCallback((rows: Array<{
-    firstName: string;
-    lastName: string;
-    phone: string | null;
-    email: string | null;
-    dateOfBirth: string | null;
-    policyType: string | null;
-    policyNumber: string | null;
-    carrier: string | null;
-    premiumAmount: number | null;
-    coverageAmount: number | null;
-  }>): ImportRow[] => {
+  const mapBobRowsToImportRows = useCallback((rows: any[]): ImportRow[] => {
     return (rows || []).map((row) => ({
       name: [row.firstName, row.lastName].filter(Boolean).join(' ').trim() || row.firstName || row.lastName || '',
       owner: '',
@@ -2093,7 +1942,7 @@ export default function ClientsPage() {
       if (statusBody.job.status === 'review_ready' || statusBody.job.status === 'saved') {
         const v3Rows = statusBody.job.result?.bob?.rows || [];
         return {
-          rows: mapBobRowsToImportRows(v3Rows),
+          rows: mapBobRowsToImportRows(v3Rows as any[]),
           note: statusBody.job.result?.bob?.note,
         };
       }
@@ -3348,7 +3197,7 @@ export default function ClientsPage() {
                     className="hidden"
                   />
                   <p className="text-xs text-[#707070]">
-                    AI will extract client info and policy details in one step. Max 16 MB.
+                    AI will extract client info and policy details in one step. Max 13MB.
                   </p>
                   {clientApplicationUploading && clientParseProgress && (
                     <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/40 p-3">
@@ -4084,7 +3933,7 @@ export default function ClientsPage() {
                     className="hidden"
                   />
                   <p className="text-xs text-[#707070]">
-                    AI will extract client info and policy details in one step. Max 16 MB.
+                    AI will extract client info and policy details in one step. Max 13MB.
                   </p>
                   {policyApplicationUploading && policyParseProgress && (
                     <div className="rounded-[5px] border border-[#0099FF]/25 bg-[#0099FF]/5 p-3">
