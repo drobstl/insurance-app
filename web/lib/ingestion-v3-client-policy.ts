@@ -79,7 +79,7 @@ export function computeApplicationCoreCompleteness(data: ExtractedApplicationDat
     data.premiumAmount,
   ];
 
-  const coreFieldsPresent = checks.reduce((acc, value) => {
+  const coreFieldsPresent = checks.reduce<number>((acc, value) => {
     if (typeof value === 'number') return Number.isFinite(value) ? acc + 1 : acc;
     if (typeof value === 'string') return value.trim().length > 0 ? acc + 1 : acc;
     return value ? acc + 1 : acc;
