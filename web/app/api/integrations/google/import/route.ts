@@ -1,9 +1,17 @@
 import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { enqueueIngestionV3ProcessJob } from '../../../../../lib/cloud-tasks';
 import { getAdminAuth, getAdminStorage } from '../../../../../lib/firebase-admin';
-import { getGoogleDriveIntegration, updateGoogleDriveTokens } from '../../../../../lib/google-drive-store';
-import { refreshGoogleAccessToken } from '../../../../../lib/google-oauth';
+import {
+  clearGoogleDriveIntegration,
+  getGoogleDriveIntegration,
+  updateGoogleDriveTokens,
+} from '../../../../../lib/google-drive-store';
+import {
+  GOOGLE_DRIVE_RECONNECT_USER_MESSAGE,
+  GoogleDriveReconnectRequiredError,
+  isGoogleInvalidGrantError,
+  refreshGoogleAccessToken,
+} from '../../../../../lib/google-oauth';
 import {
   checkBatchCompletion,
   createBatchJob,
@@ -17,7 +25,6 @@ import {
   findExistingIngestionV3JobByIdempotency,
   getIngestionV3Job,
   getIngestionV3JobsCollection,
-  setIngestionV3JobError,
 } from '../../../../../lib/ingestion-v3-store';
 import type { IngestionV3UploadPurpose } from '../../../../../lib/ingestion-v3-types';
 
@@ -134,10 +141,19 @@ async function resolveGoogleAccessToken(req: NextRequest, agentId: string): Prom
     throw new Error('Google token expired and no refresh token is available. Reconnect required.');
   }
 
-  const refreshed = await refreshGoogleAccessToken({
-    refreshToken: integration.refreshToken,
-    redirectUri: getCallbackUrl(req),
-  });
+  let refreshed;
+  try {
+    refreshed = await refreshGoogleAccessToken({
+      refreshToken: integration.refreshToken,
+      redirectUri: getCallbackUrl(req),
+    });
+  } catch (refreshErr) {
+    if (isGoogleInvalidGrantError(refreshErr)) {
+      await clearGoogleDriveIntegration(agentId);
+      throw new GoogleDriveReconnectRequiredError();
+    }
+    throw refreshErr;
+  }
 
   const nextAccessToken = refreshed.accessToken || integration.accessToken;
   const nextRefreshToken = refreshed.refreshToken || integration.refreshToken;
@@ -414,33 +430,6 @@ async function processOneFile(params: {
       batchId,
     });
 
-    try {
-      console.log(`[drive-import] Enqueuing Cloud Task for job ${created.id} (file: ${file.name})`);
-      await enqueueIngestionV3ProcessJob(created.id);
-      console.log(`[drive-import] Successfully enqueued job ${created.id} (file: ${file.name})`);
-    } catch (enqueueError) {
-      console.error(`[drive-import] ENQUEUE FAILED for job ${created.id} (file: ${file.name}):`, enqueueError);
-      const enqueueMessage =
-        enqueueError instanceof Error ? enqueueError.message : 'Failed to dispatch processing task.';
-      await setIngestionV3JobError(
-        created.id,
-        {
-          code: 'TASK_ENQUEUE_FAILED',
-          message: enqueueMessage,
-          retryable: true,
-          terminal: false,
-        },
-        'failed',
-      );
-      return {
-        fileId: file.id,
-        name: file.name,
-        status: 'failed',
-        jobId: created.id,
-        error: enqueueMessage,
-      };
-    }
-
     return {
       fileId: file.id,
       name: file.name,
@@ -599,14 +588,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<GoogleDriveIm
         const state = await checkBatchCompletion(agentId, batchId);
         if (state?.isComplete) {
           if (state.retryRound === 0 && state.retryableJobIds.length > 0) {
-            const retriedJobIds = await triggerRetryRound(agentId, batchId);
-            for (const retryJobId of retriedJobIds) {
-              try {
-                await enqueueIngestionV3ProcessJob(retryJobId, { delaySeconds: 30 });
-              } catch (enqueueErr) {
-                console.error(`[drive-import] Failed to re-enqueue job ${retryJobId} for batch retry:`, enqueueErr);
-              }
-            }
+            await triggerRetryRound(agentId, batchId);
           } else {
             const finalStatus = await finalizeBatch(agentId, batchId);
             console.log(`[drive-import] Batch ${batchId} finalized from import route with status: ${finalStatus}`);
@@ -632,6 +614,9 @@ export async function POST(req: NextRequest): Promise<NextResponse<GoogleDriveIm
       results,
     });
   } catch (error) {
+    if (error instanceof GoogleDriveReconnectRequiredError) {
+      return NextResponse.json({ success: false, error: GOOGLE_DRIVE_RECONNECT_USER_MESSAGE }, { status: 401 });
+    }
     const message = error instanceof Error ? error.message : 'Failed to import files from Google Drive.';
     const status = message === 'Unauthorized' ? 401 : 500;
     return NextResponse.json({ success: false, error: message }, { status });

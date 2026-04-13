@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { enqueueIngestionV3ProcessJob } from '../../../../../lib/cloud-tasks';
 import { getAdminAuth, getAdminStorage } from '../../../../../lib/firebase-admin';
 import {
   createIngestionV3Job,
-  findExistingIngestionV3JobByIdempotency,
-  setIngestionV3JobError,
 } from '../../../../../lib/ingestion-v3-store';
 import {
   trackIngestionV3JobCreated,
-  trackIngestionV3TaskEnqueued,
-  trackIngestionV3TaskEnqueueFailed,
 } from '../../../../../lib/ingestion-v3-telemetry';
 import type { IngestionV3Mode } from '../../../../../lib/ingestion-v3-types';
 import type { IngestionV3SubmitJobResponse } from '../../../../../lib/types';
@@ -81,17 +76,6 @@ export async function POST(req: NextRequest): Promise<NextResponse<IngestionV3Su
     }
 
     const agentId = await getOptionalAgentId(req);
-    const existing = await findExistingIngestionV3JobByIdempotency({
-      agentId,
-      idempotencyKey,
-    });
-    if (existing) {
-      return NextResponse.json({
-        success: true,
-        jobId: existing.id,
-        status: existing.status,
-      });
-    }
 
     const created = await createIngestionV3Job({
       mode,
@@ -108,41 +92,6 @@ export async function POST(req: NextRequest): Promise<NextResponse<IngestionV3Su
       agentId,
       maxAttempts: created.maxAttempts,
     });
-
-    try {
-      await enqueueIngestionV3ProcessJob(created.id);
-      trackIngestionV3TaskEnqueued({
-        jobId: created.id,
-        mode,
-      });
-    } catch (enqueueError) {
-      const enqueueMessage =
-        enqueueError instanceof Error ? enqueueError.message : 'Failed to dispatch processing task.';
-      const typedError = {
-        code: 'TASK_ENQUEUE_FAILED' as const,
-        message: enqueueMessage,
-        retryable: true,
-        terminal: false,
-      };
-      await setIngestionV3JobError(
-        created.id,
-        typedError,
-        'failed',
-      );
-      trackIngestionV3TaskEnqueueFailed({
-        jobId: created.id,
-        mode,
-        error: typedError,
-      });
-
-      return NextResponse.json(
-        {
-          success: false,
-          error: typedError,
-        },
-        { status: 500 },
-      );
-    }
 
     return NextResponse.json({
       success: true,
@@ -170,7 +119,7 @@ async function gcsPathExists(gcsPath: string): Promise<boolean> {
   try {
     const [exists] = await getAdminStorage().bucket().file(gcsPath).exists();
     return !!exists;
-  } catch (error) {
+  } catch {
     return false;
   }
 }

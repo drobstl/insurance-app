@@ -1639,6 +1639,9 @@ export default function ClientsPage() {
 
         if (statusBody.job.status === 'failed') {
           const code = statusBody.job.error?.code || '';
+          if (code === 'DOCUMENT_NOT_APPLICATION') {
+            throw new Error('This file was not recognized as an insurance application. Please upload an application PDF.');
+          }
           if (code === 'INTERNAL_ERROR' || code === 'CLAUDE_SCHEMA_INVALID') {
             return runDirectParseFallback();
           }

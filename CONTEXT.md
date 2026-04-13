@@ -1,7 +1,7 @@
 # CONTEXT.md — AgentForLife (AFL)
 
 > Drop this in the repo root. Read it before any strategic or architectural decision.
-> Last updated: April 8, 2026
+> Last updated: April 9, 2026
 
 ## What This Is
 
@@ -145,11 +145,40 @@ Standalone pricing remains for agents who come directly. Founding member migrati
 - Added (March 2026): Google Drive integration Task 1 backend foundation. Introduced server-side OAuth helpers and token persistence for `drive.readonly`, with Firestore integration storage at `integrations/{agentId}/google/drive`, OAuth state handling, and new API endpoints under `/api/integrations/google/*` (`auth`, `callback`, `disconnect`, `token`, `status`). Callback now redirects to `/dashboard` with success/error query params for UI handling.
 - Added (March 2026): Google Drive connect/disconnect controls in Dashboard Settings. The account settings tab now checks Google integration status on load, supports connect (OAuth start + redirect), supports disconnect, and surfaces callback success/error state using dashboard query params.
 - Added (March 2026): Google Drive Phase 1 is complete. Delivered Google Picker file selection in the Clients import flow, a new `/api/integrations/google/import` route that downloads Drive PDFs and stages them in GCS with idempotent ingestion-v3 job creation (`drive:{fileId}:{modifiedTime}:{sizeBytes}`), and dashboard UI support across both Settings (connect/disconnect state) and Clients (Connect Google Drive + Import from Google Drive actions). Drive imports now feed the same existing ingestion-v3 queue/process pipeline with no parser behavior changes from local uploads.
+- Fixed (April 2026): Google `invalid_grant` during token refresh (revoked/expired refresh token, OAuth Testing-mode limits, or rotated client secret) left Firestore showing “connected” while the Picker failed. Token and import routes now detect `invalid_grant`, clear the stale `integrations/{agentId}/google/drive` doc, return a clear reconnect message, and the Clients import modal refetches Drive status so the UI matches reality.
 - Added (April 2026): Spanish messaging support for client lifecycle flows. Clients can now be marked with a preferred language (`en`/`es`), and outbound automated messaging paths use Spanish when set (welcome text/resend, referral follow-ups, conservation/review AI prompts, and birthday push copy).
 - Added (April 2026): Mobile-first responsive dashboard shell for agents on phones (mobile top bar + bottom nav + mobile breakpoint layout tuning on core pages). Desktop/laptop layout is intentionally preserved with no design changes outside the new language controls.
 - Added (April 2026): Ingestion signing resiliency + observability hardening. Implemented signed-upload canary checks (`/api/health/ingestion-signing` for UptimeRobot/monitoring, `/api/cron/ingestion-signing-canary` every 15m with `CRON_SECRET`), structured alert logs (`[ingestion-v3-alert]`) with typed error codes (`SIGNATURE_MISMATCH`, `INVALID_JWT_SIGNATURE`, etc.), processor-level failure classification (`diagnosticCategory` on terminal v3 failures for PostHog + `[ingestion-v3-alert] process failed`), and automatic fallback from the v3 pipeline to **`POST /api/parse-application`** when signed PUT fails with known signing errors or when the v3 job fails with `INTERNAL_ERROR` / `CLAUDE_SCHEMA_INVALID` (some carrier PDFs parse successfully on the direct path even when the async processor errors). Operational detail is in `OPERATIONS.md`.
 - Added (April 2026): **Admin-only** “Upload Signing Health” strip on the dashboard home page: only users whose email appears in `NEXT_PUBLIC_ADMIN_EMAILS` (same mechanism as the Admin sidebar) see the indicator or poll the health route from the browser; external uptime checks still hit the public health URL unauthenticated.
-- Decision (March 2026): PDF ingestion hardening is now a four-phase delivery plan. Phase 1 is reliability-only (source retention on failures, durable run triggering, server-driven transient retries, and shared retry utility extraction) with no new user-facing features. Phase 2 adds the runtime extraction mode selector (`fast` vs `best_accuracy`) and backup LLM circuit-breaker fallback behind a feature flag. Phase 3 introduces typed error taxonomy and moderate hardening cleanups. Phase 4 adds observability dashboards and SLO alerting.
+- Added (April 9, 2026): PDF ingestion reliability audit + Phase 2 architecture reset.
+  - **PDF Ingestion Pipeline Status (April 9, 2026):** The v3 PDF ingestion pipeline (`ingestionJobsV3`) has persistent reliability failures in production. Firestore job-document audit found four dominant failure modes:
+    1. `TASK_ENQUEUE_FAILED` — dispatch/orchestration failures in the Vercel serverless path (most common; jobs never reach extraction).
+    2. `MAX_RETRIES_EXHAUSTED` with null metrics — processor crashes before writing diagnostics, leaving no usable failure data.
+    3. `INTERNAL_ERROR` — generic catch-all failures with no captured real error string.
+    4. `CLAUDE_SCHEMA_INVALID` — extraction executes but Claude output is malformed (seen repeatedly on dense AMAM forms).
+  - **Architecture Decision — Phase 2:** Processing is moved out of Vercel into a Google Cloud Function (Gen 2). Vercel is now responsible for UI, signed upload URL initiation, Firestore job creation (`status: "queued"`), polling, and retry initiation. The Cloud Function owns extraction, validation, fallback re-extraction, retry decisions, and writes results/metrics/errors to Firestore. Cloud Tasks is removed from the active ingestion pipeline (may be reintroduced later only for rate limiting at scale).
+  - **Product contract for ingestion reliability:** Partial success is the default. Any job with 4+ core fields and at least one name is marked `review_ready`; jobs only hard-fail when minimum viability is not met or source/config is unrecoverable. Source PDFs are never deleted on failure. Every failed job must include a specific error code and real error message.
+- Added (April 9, 2026): Test corpus assembled for extraction deploy-gate validation (10 real applications across 8 carriers):
+  1. Foresters — Term Life (clean baseline)
+  2. Mutual of Omaha — Term Life
+  3. Mutual of Omaha — Critical Illness (supplemental health form)
+  4. Americo — CBO 100 (`ICC18 5160`)
+  5. Americo — IUL (same base form + different product selection + 14-page illustration)
+  6. American-Amicable (AMAM) — dense single-page, hardest parser case
+  7. United Home Life (UHL) — Simple Term 20 DLX eApp
+  8. AIG (American General) — Guaranteed Issue Whole Life (short/simple)
+  9. Banner Life / Legal & General America — Quility Term Plus 15 (longest, multi-part, 28+ pages)
+  10. Second AMAM application — hardest-carrier repeatability check
+  - Deploy-gate pass criteria: >=80% core field completeness across all 10 files, and zero false data (null is acceptable; incorrect extracted values are not).
+- In progress (April 9, 2026): Phase 2 implementation cutover has started in code:
+  - Vercel `POST /api/ingestion/v3/jobs` now creates queued job docs and returns immediately (no dispatch orchestration call).
+  - New Firestore-triggered GCF package scaffold added at `gcf/ingestion-v3-processor` (lock + throttle + extraction + fallback + completeness gate + zombie cleanup baseline).
+  - Vercel processing endpoint `/api/ingestion/v3/jobs/[jobId]/process` is explicitly deprecated (HTTP 410) to prevent accidental use.
+  - Client upload entry points now share 16 MB limits, unified fallback/error policy, and standardized telemetry event names for release-gate tracking.
+- In progress (April 2026): Carrier-template pilot for application parsing (Americo ICC18 5160 family) is being wired into the GCF processor:
+  - Added an application-vs-non-application classifier step before extraction; non-application files now fail with explicit terminal code `DOCUMENT_NOT_APPLICATION`.
+  - Added Americo template hints (`Americo` header + `ICC18 5160` + Section 2 product checkbox variants like Term/CBO) to route extraction with form-aware guidance while preserving generic fallback behavior for unknown templates.
+  - UI error mapping now shows a clear user-facing message when a file is not recognized as an insurance application.
 - Known issues / next session:
   - "0 pages" metadata bug in extraction summary.
   - Bulk import intelligence notes are concatenated into an unreadable wall of text (needs per-file collapsible notes).

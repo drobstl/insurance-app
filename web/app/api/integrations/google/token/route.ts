@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth } from '../../../../../lib/firebase-admin';
-import { getGoogleDriveIntegration, updateGoogleDriveTokens } from '../../../../../lib/google-drive-store';
-import { refreshGoogleAccessToken } from '../../../../../lib/google-oauth';
+import {
+  clearGoogleDriveIntegration,
+  getGoogleDriveIntegration,
+  updateGoogleDriveTokens,
+} from '../../../../../lib/google-drive-store';
+import {
+  GOOGLE_DRIVE_RECONNECT_USER_MESSAGE,
+  isGoogleInvalidGrantError,
+  refreshGoogleAccessToken,
+} from '../../../../../lib/google-oauth';
 
 interface TokenRouteResponse {
   success: boolean;
@@ -59,10 +67,22 @@ export async function GET(req: NextRequest): Promise<NextResponse<TokenRouteResp
       );
     }
 
-    const refreshed = await refreshGoogleAccessToken({
-      refreshToken: integration.refreshToken,
-      redirectUri: getCallbackUrl(req),
-    });
+    let refreshed;
+    try {
+      refreshed = await refreshGoogleAccessToken({
+        refreshToken: integration.refreshToken,
+        redirectUri: getCallbackUrl(req),
+      });
+    } catch (refreshErr) {
+      if (isGoogleInvalidGrantError(refreshErr)) {
+        await clearGoogleDriveIntegration(agentId);
+        return NextResponse.json(
+          { success: false, error: GOOGLE_DRIVE_RECONNECT_USER_MESSAGE },
+          { status: 401 },
+        );
+      }
+      throw refreshErr;
+    }
 
     const nextAccessToken = refreshed.accessToken || integration.accessToken;
     const nextRefreshToken = refreshed.refreshToken || integration.refreshToken;

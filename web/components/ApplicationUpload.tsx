@@ -7,6 +7,16 @@ import type {
   IngestionV3JobStatusResponse,
   IngestionV3SubmitJobResponse,
 } from '../lib/types';
+import { ANALYTICS_EVENTS } from '../lib/analytics-events';
+import {
+  computeApplicationCoreCompleteness,
+  isDirectParserFallbackEnabled,
+  mapIngestionErrorToUserMessage,
+  shouldFallbackForJobFailure,
+  shouldFallbackForThrownMessage,
+  V3_CLIENT_POLICY,
+} from '../lib/ingestion-v3-client-policy';
+import { captureEvent } from '../lib/posthog';
 import { isTimeoutError, withTimeout } from '../lib/timeout';
 
 interface ApplicationUploadProps {
@@ -20,11 +30,11 @@ interface ApplicationUploadProps {
 }
 
 type Stage = 'upload' | 'processing' | 'review' | 'error';
-const PARSE_TIMEOUT_MS = 120_000;
-const JOB_POLL_INTERVAL_MS = 1500;
-const JOB_STATUS_TIMEOUT_MS = 8_000;
-const MAX_RELIABLE_APPLICATION_FILE_BYTES = 13 * 1024 * 1024;
-const GCS_UPLOAD_TIMEOUT_MS = 120_000;
+const PARSE_TIMEOUT_MS = V3_CLIENT_POLICY.hardResolveMs;
+const JOB_POLL_INTERVAL_MS = V3_CLIENT_POLICY.pollIntervalMs;
+const MAX_RELIABLE_APPLICATION_FILE_BYTES = V3_CLIENT_POLICY.maxUploadBytes;
+const GCS_UPLOAD_TIMEOUT_MS = V3_CLIENT_POLICY.gcsUploadTimeoutMs;
+const ENTRY_POINT = 'application_upload';
 const POLICY_TYPE_OPTIONS: NonNullable<ExtractedApplicationData['policyType']>[] = ['IUL', 'Term Life', 'Whole Life', 'Mortgage Protection', 'Accidental', 'Other'];
 const PREMIUM_FREQUENCY_OPTIONS: NonNullable<ExtractedApplicationData['premiumFrequency']>[] = ['monthly', 'quarterly', 'semi-annual', 'annual'];
 
@@ -145,7 +155,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       return;
     }
     if (file.size > MAX_RELIABLE_APPLICATION_FILE_BYTES) {
-      setErrorMessage('File is too large. Maximum size is 13MB.');
+      setErrorMessage('This file is too large. Please upload a file under 16 MB.');
       setStage('error');
       isProcessingRef.current = false;
       return;
@@ -157,13 +167,72 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
     setProcessingLabel('Preparing file...');
     setTimingSummary(null);
 
+    const startedAt = Date.now();
+    let usedFallback = false;
+    let jobIdForTelemetry: string | null = null;
+    const fallbackEnabled = isDirectParserFallbackEnabled();
+    const trackSlaBreach = (elapsedMs: number, breachType: 'progress' | 'target') => {
+      captureEvent(ANALYTICS_EVENTS.APPLICATION_SLA_BREACH, {
+        entry_point: ENTRY_POINT,
+        breach_type: breachType,
+        elapsed_ms: elapsedMs,
+        current_stage: stage,
+        job_id: jobIdForTelemetry,
+      });
+    };
+    captureEvent(ANALYTICS_EVENTS.APPLICATION_UPLOAD_STARTED, {
+      entry_point: ENTRY_POINT,
+      file_size_bytes: file.size,
+      file_extension: file.name.split('.').pop()?.toLowerCase() || 'unknown',
+      source: 'local',
+    });
+
+    const runDirectParseFallback = async (
+      reason: 'queue_stall' | 'timeout' | 'processor_failed' | 'signing_error',
+    ): Promise<{ data: ExtractedApplicationData; note?: string }> => {
+      captureEvent(ANALYTICS_EVENTS.APPLICATION_FALLBACK_TRIGGERED, {
+        entry_point: ENTRY_POINT,
+        trigger_reason: reason,
+        job_id: jobIdForTelemetry,
+      });
+      setProcessingLabel('Retrying with direct parser...');
+      setProcessingProgress((p) => Math.max(p, 80));
+      const fallbackForm = new FormData();
+      fallbackForm.append('file', file, file.name);
+      const fallbackRes = await withTimeout(
+        fetch('/api/parse-application', {
+          method: 'POST',
+          body: fallbackForm,
+          signal: controller.signal,
+        }),
+        V3_CLIENT_POLICY.stepTimeoutMs,
+        'Direct parser request timed out.',
+      );
+      const fallbackBody = (await fallbackRes.json()) as {
+        success: boolean;
+        data?: ExtractedApplicationData;
+        note?: string;
+        error?: string;
+      };
+      if (!fallbackRes.ok || !fallbackBody.success || !fallbackBody.data) {
+        captureEvent(ANALYTICS_EVENTS.APPLICATION_FALLBACK_FAILED, {
+          entry_point: ENTRY_POINT,
+          http_status: fallbackRes.status,
+          timeout: false,
+          error_code: 'FALLBACK_FAILED',
+        });
+        throw new Error(fallbackBody.error || `Direct parser failed (${fallbackRes.status}).`);
+      }
+      usedFallback = true;
+      return { data: fallbackBody.data, note: fallbackBody.note || undefined };
+    };
+
     try {
-      const runId = `pre-fix:${Date.now()}`;
       setProcessingLabel('Uploading file...');
       const stopUploadProgress = startAutoProgress(setProcessingProgress, 10, 35, 2, 700);
       let gcsPath: string;
       try {
-        const signedRes = await fetch('/api/ingestion/v3/upload-url', {
+        const signedRes = await withTimeout(fetch('/api/ingestion/v3/upload-url', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal: controller.signal,
@@ -173,7 +242,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
             fileSize: file.size,
             purpose: 'application',
           }),
-        });
+        }), V3_CLIENT_POLICY.stepTimeoutMs, 'Upload URL generation timed out.');
         const signedBody = (await signedRes.json()) as {
           success: boolean;
           uploadUrl?: string;
@@ -181,6 +250,13 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
           error?: { message?: string };
         };
         if (!signedRes.ok || !signedBody.success || !signedBody.uploadUrl || !signedBody.gcsPath) {
+          captureEvent(ANALYTICS_EVENTS.APPLICATION_UPLOAD_SIGNED_URL_FAILED, {
+            entry_point: ENTRY_POINT,
+            error_code: 'SIGNED_URL_FAILED',
+            http_status: signedRes.status,
+            timeout: false,
+            attempt: 1,
+          });
           throw new Error(signedBody.error?.message || `Failed to start file upload (${signedRes.status}).`);
         }
 
@@ -210,6 +286,14 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
             break;
           } catch (err) {
             lastPutError = err;
+            const isTimeout = isTimeoutError(err);
+            captureEvent(ANALYTICS_EVENTS.APPLICATION_UPLOAD_PUT_FAILED, {
+              entry_point: ENTRY_POINT,
+              http_status: 0,
+              timeout: isTimeout,
+              attempt_count: attempt + 1,
+              error_category: isTimeout ? 'timeout' : 'network',
+            });
             // Don't retry if aborted or timed out
             if (err instanceof DOMException && err.name === 'AbortError') throw err;
             if (isTimeoutError(err)) throw err;
@@ -241,22 +325,50 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       });
       const created = (await createRes.json()) as IngestionV3SubmitJobResponse;
       if (!createRes.ok || !created.success || !created.jobId) {
-        throw new Error(created.error?.message || `Failed to start parsing job (${createRes.status}).`);
+        captureEvent(ANALYTICS_EVENTS.APPLICATION_JOB_CREATE_FAILED, {
+          entry_point: ENTRY_POINT,
+          error_code: created.error?.code || 'JOB_CREATE_FAILED',
+          http_status: createRes.status,
+          idempotency_key_present: true,
+        });
+        throw new Error(
+          mapIngestionErrorToUserMessage(
+            created.error?.code,
+            created.error?.message || `Failed to start parsing job (${createRes.status}).`,
+          ),
+        );
       }
+      jobIdForTelemetry = created.jobId;
 
-      const startedAt = Date.now();
       let parsedData: ExtractedApplicationData | null = null;
       let parsedNote: string | null = null;
+      let stallStartAt: number | null = null;
+      let progressSlaTracked = false;
+      let targetSlaTracked = false;
       while (Date.now() - startedAt < PARSE_TIMEOUT_MS) {
         await new Promise((r) => setTimeout(r, JOB_POLL_INTERVAL_MS));
+        const elapsed = Date.now() - startedAt;
+        if (!progressSlaTracked && elapsed >= V3_CLIENT_POLICY.progressSlaMs) {
+          progressSlaTracked = true;
+          trackSlaBreach(elapsed, 'progress');
+        }
+        if (!targetSlaTracked && elapsed >= V3_CLIENT_POLICY.usableTargetMs) {
+          targetSlaTracked = true;
+          trackSlaBreach(elapsed, 'target');
+        }
 
-        const statusRes = await fetch(`/api/ingestion/v3/jobs/${created.jobId}`, {
+        const statusRes = await withTimeout(fetch(`/api/ingestion/v3/jobs/${created.jobId}`, {
           cache: 'no-store',
           signal: controller.signal,
-        });
+        }), V3_CLIENT_POLICY.statusTimeoutMs, 'Status check timed out.');
         const statusBody = (await statusRes.json()) as IngestionV3JobStatusResponse;
         if (!statusRes.ok || !statusBody.success || !statusBody.job) {
-          throw new Error(statusBody.error?.message || `Failed to check parsing status (${statusRes.status}).`);
+          throw new Error(
+            mapIngestionErrorToUserMessage(
+              statusBody.error?.code,
+              statusBody.error?.message || `Failed to check parsing status (${statusRes.status}).`,
+            ),
+          );
         }
 
         if (statusBody.job.status === 'review_ready' || statusBody.job.status === 'saved') {
@@ -273,49 +385,63 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
               `Processed in ${totalSec}s (source ${sourceSec}s, extraction ${extractSec}s, validation ${validateSec}s, lane ${lane}).`,
             );
           }
+          stallStartAt = null;
           break;
         }
 
         if (statusBody.job.status === 'failed') {
           const errorCode = statusBody.job.error?.code || '';
-          if (errorCode === 'INTERNAL_ERROR' || errorCode === 'CLAUDE_SCHEMA_INVALID') {
-            const fallbackForm = new FormData();
-            fallbackForm.append('file', file, file.name);
-            const fallbackRes = await fetch('/api/parse-application', {
-              method: 'POST',
-              body: fallbackForm,
-              signal: controller.signal,
-            });
-            const fallbackBody = (await fallbackRes.json()) as {
-              success: boolean;
-              data?: ExtractedApplicationData;
-              note?: string;
-              error?: string;
-            };
-            if (!fallbackRes.ok || !fallbackBody.success || !fallbackBody.data) {
-              throw new Error(fallbackBody.error || `Direct parser failed (${fallbackRes.status}).`);
+          if (shouldFallbackForJobFailure(errorCode)) {
+            if (!fallbackEnabled) {
+              throw new Error(mapIngestionErrorToUserMessage(errorCode, 'Primary parser failed and fallback is disabled.'));
             }
-            parsedData = fallbackBody.data;
-            parsedNote = fallbackBody.note || null;
+            const fallback = await runDirectParseFallback('processor_failed');
+            parsedData = fallback.data;
+            parsedNote = fallback.note || null;
             break;
           }
-          const codeSuffix = errorCode ? ` [${errorCode}]` : '';
-          throw new Error(`${statusBody.job.error?.message || 'Failed to parse the application.'}${codeSuffix}`);
+          throw new Error(mapIngestionErrorToUserMessage(errorCode, statusBody.job.error?.message || 'Failed to parse the application.'));
+        }
+
+        if (statusBody.job.status === 'queued' || statusBody.job.status === 'uploading' || statusBody.job.status === 'processing') {
+          stallStartAt = stallStartAt ?? Date.now();
+          const stalledMs = Date.now() - stallStartAt;
+          if (stalledMs >= V3_CLIENT_POLICY.stallThresholdMs) {
+            captureEvent(ANALYTICS_EVENTS.APPLICATION_POLL_STALLED, {
+              entry_point: ENTRY_POINT,
+              job_id: created.jobId,
+              stalled_status: statusBody.job.status,
+              stalled_ms: stalledMs,
+            });
+            if (!fallbackEnabled) {
+              throw new Error('Primary parser stalled while fallback is disabled. Check ingestionJobsV3 status for this job.');
+            }
+            const fallback = await runDirectParseFallback('queue_stall');
+            parsedData = fallback.data;
+            parsedNote = fallback.note || null;
+            break;
+          }
         }
 
         if (statusBody.job.status === 'queued' || statusBody.job.status === 'uploading') {
-          setProcessingLabel('Queued...');
+          setProcessingLabel('Queued for processing...');
           setProcessingProgress((p) => Math.max(p, 50));
         } else if (statusBody.job.status === 'processing') {
           setProcessingLabel('Extracting data...');
-          const elapsed = Date.now() - startedAt;
-          const estimated = Math.min(92, 58 + Math.floor(elapsed / 1200));
+          const estimated = Math.min(92, 58 + Math.floor((Date.now() - startedAt) / 1200));
           setProcessingProgress((p) => Math.max(p, estimated));
+        } else {
+          stallStartAt = null;
         }
       }
 
       if (!parsedData) {
-        throw new Error('Ingestion job timed out while parsing this file.');
+        if (!fallbackEnabled) {
+          throw new Error('Primary parser timed out and fallback is disabled.');
+        }
+        const fallback = await runDirectParseFallback('timeout');
+        parsedData = fallback.data;
+        parsedNote = fallback.note || null;
       }
 
       setProcessingLabel('Finalizing...');
@@ -334,6 +460,22 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
         });
       }
 
+      const completeness = computeApplicationCoreCompleteness(parsedData);
+      captureEvent(ANALYTICS_EVENTS.APPLICATION_CORE_COMPLETENESS, {
+        entry_point: ENTRY_POINT,
+        job_id: created.jobId,
+        core_fields_total: completeness.coreFieldsTotal,
+        core_fields_present: completeness.coreFieldsPresent,
+        completeness_ratio: completeness.ratio,
+        carrier_detected: completeness.carrierDetected,
+      });
+      captureEvent(ANALYTICS_EVENTS.APPLICATION_PARSE_COMPLETED, {
+        entry_point: ENTRY_POINT,
+        result_type: completeness.resultType,
+        elapsed_ms: Date.now() - startedAt,
+        used_fallback: usedFallback,
+        job_id: created.jobId,
+      });
       setStage('review');
     } catch (err) {
       // If aborted (modal closed or new upload started), silently bail
@@ -343,22 +485,31 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       }
       let message = 'Something went wrong. Please try again.';
       if (isTimeoutError(err)) {
-        message = 'Request timed out. If you\u2019re on a slow connection, try again on a stronger network.';
+        message = 'Processing timed out. Please retry this file.';
       } else if (err instanceof TypeError) {
         message = 'Network error. Check your connection and try again.';
       } else if (err instanceof Error) {
         if (err.message.includes('client token') || err.message.includes('Vercel Blob')) {
           message = 'Upload service temporarily unavailable. Please try again.';
+        } else if (shouldFallbackForThrownMessage(err.message)) {
+          message = 'We lost track of processing status. Please retry this file.';
         } else {
           message = err.message;
         }
       }
+      captureEvent(ANALYTICS_EVENTS.APPLICATION_PARSE_COMPLETED, {
+        entry_point: ENTRY_POINT,
+        result_type: 'error',
+        elapsed_ms: Date.now() - startedAt,
+        used_fallback: usedFallback,
+        job_id: jobIdForTelemetry,
+      });
       setErrorMessage(message);
       setStage('error');
     } finally {
       isProcessingRef.current = false;
     }
-  }, [mode]);
+  }, [mode, stage]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -537,8 +688,8 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
                   </p>
                   <p className="text-gray-500 text-sm">
                     {isClientAndPolicy
-                      ? 'AI will extract client info and policy details in one step. Max 13MB.'
-                      : 'Drag & drop or click to browse. Max 13MB.'}
+                      ? 'AI will extract client info and policy details in one step. Max 16 MB.'
+                      : 'Drag & drop or click to browse. Max 16 MB.'}
                   </p>
                 </div>
               </label>
@@ -584,7 +735,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
                   <div className="w-2 h-2 rounded-full bg-[#0099FF] animate-bounce" style={{ animationDelay: '150ms' }} />
                   <div className="w-2 h-2 rounded-full bg-[#0099FF] animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
-                <p className="text-gray-400 text-xs">This usually takes 5–15 seconds (longer on slow connections)</p>
+                <p className="text-gray-400 text-xs">Most files resolve in under 45s. We auto-resolve within 90s.</p>
               </div>
             </div>
           )}

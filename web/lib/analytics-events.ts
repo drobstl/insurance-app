@@ -27,6 +27,16 @@ export const ANALYTICS_EVENTS = {
   BULK_IMPORT_FILE_PARSED: 'bulk_import_file_parsed',
   BULK_IMPORT_SESSION_COMPLETED: 'bulk_import_session_completed',
   BULK_IMPORT_ACTIVATED: 'bulk_import_activated',
+  APPLICATION_UPLOAD_STARTED: 'application_upload_started',
+  APPLICATION_UPLOAD_SIGNED_URL_FAILED: 'application_upload_signed_url_failed',
+  APPLICATION_UPLOAD_PUT_FAILED: 'application_upload_put_failed',
+  APPLICATION_JOB_CREATE_FAILED: 'application_job_create_failed',
+  APPLICATION_POLL_STALLED: 'application_poll_stalled',
+  APPLICATION_FALLBACK_TRIGGERED: 'application_fallback_triggered',
+  APPLICATION_FALLBACK_FAILED: 'application_fallback_failed',
+  APPLICATION_PARSE_COMPLETED: 'application_parse_completed',
+  APPLICATION_CORE_COMPLETENESS: 'application_core_completeness',
+  APPLICATION_SLA_BREACH: 'application_sla_breach',
 } as const;
 
 export type AnalyticsEventName =
@@ -154,6 +164,16 @@ export type AnalyticsEventPropertiesMap = {
     imported_count?: number;
     policy_count?: number;
   } & GenericEventProperties;
+  application_upload_started: GenericEventProperties;
+  application_upload_signed_url_failed: GenericEventProperties;
+  application_upload_put_failed: GenericEventProperties;
+  application_job_create_failed: GenericEventProperties;
+  application_poll_stalled: GenericEventProperties;
+  application_fallback_triggered: GenericEventProperties;
+  application_fallback_failed: GenericEventProperties;
+  application_parse_completed: GenericEventProperties;
+  application_core_completeness: GenericEventProperties;
+  application_sla_breach: GenericEventProperties;
 };
 
 export type AnalyticsEventProperties<T extends AnalyticsEventName> =

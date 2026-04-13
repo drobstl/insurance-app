@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { extractApplicationFields } from '../../../lib/application-extractor';
 import type { ParseApplicationResponse } from '../../../lib/types';
 
-const MAX_APPLICATION_PDF_BYTES = 13 * 1024 * 1024;
+const MAX_APPLICATION_PDF_BYTES = 16 * 1024 * 1024;
 
 export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicationResponse>> {
   const startedAt = Date.now();
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
     }
     if (file.size > MAX_APPLICATION_PDF_BYTES) {
       return NextResponse.json(
-        { success: false, error: 'File is too large. Maximum size is 13MB.' },
+        { success: false, error: 'This file is too large. Please upload a PDF under 16 MB.' },
         { status: 400 },
       );
     }
@@ -52,7 +52,10 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to parse application PDF.';
+    const message =
+      error instanceof Error
+        ? mapParseApplicationError(error.message)
+        : 'We could not read this file right now. Please try again or enter fields manually.';
     return NextResponse.json(
       {
         success: false,
@@ -61,4 +64,18 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
       { status: 500 },
     );
   }
+}
+
+function mapParseApplicationError(rawMessage: string): string {
+  const message = rawMessage.toLowerCase();
+  if (message.includes('anthropic_api_key') || message.includes('api key')) {
+    return 'Extraction is temporarily unavailable. Please try again in a moment.';
+  }
+  if (message.includes('timeout') || message.includes('timed out')) {
+    return 'Parsing timed out. Please try again.';
+  }
+  if (message.includes('parse ai response') || message.includes('invalid') || message.includes('schema')) {
+    return 'We had trouble reading this file. Please review any missing fields.';
+  }
+  return 'We could not read this file right now. Please try again or enter fields manually.';
 }

@@ -1,0 +1,13 @@
+{
+  "functions": [
+    {
+      "source": "ingestion-v3-processor",
+      "codebase": "ingestionv3",
+      "runtime": "nodejs20",
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" install",
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ]
+    }
+  ]
+}
