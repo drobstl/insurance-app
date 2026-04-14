@@ -1335,7 +1335,7 @@ export default function ClientsPage() {
   }, []);
 
   const createClientFromAddFlow = useCallback(async (
-    source: 'manual' | 'extracted'
+    source: 'manual' | 'pdf_parse'
   ): Promise<{ id: string; name: string; phone: string; code: string }> => {
     if (!user) {
       throw new Error('You must be signed in to add a client.');
@@ -1461,7 +1461,7 @@ export default function ClientsPage() {
     setFormSuccess('');
     setSubmitting(true);
     try {
-      const created = await createClientFromAddFlow('extracted');
+      const created = await createClientFromAddFlow('pdf_parse');
       const firstName = created.name.split(' ')[0] || created.name;
       setCreatedClientContext({ id: created.id, name: created.name, phone: created.phone });
       setWelcomeDraft(buildWelcomeSms(firstName, created.code, formData.preferredLanguage));
