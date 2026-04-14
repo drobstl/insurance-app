@@ -1,3 +1,33 @@
+## CRITICAL: Repository and Safety Rules
+
+### Canonical repo
+This repo MUST be at `/Users/danielroberts/Developer/insurance-app`. If you find yourself working in an iCloud path (`~/Library/Mobile Documents/...`), STOP and tell the user. The iCloud copy is stale and must not be used.
+
+### Commit before modifying
+Before making any code changes, check `git status`. If there are uncommitted changes from a previous session, tell the user and ask them to commit or stash before proceeding. Never overwrite uncommitted working code.
+
+### Commit after success
+After any session that produces working, tested code, prompt the user to commit and push before ending the session or starting new work.
+
+### Investigate before changing
+Always read and present findings from target files before modifying them. Never assume you know the current state of a file - verify it first.
+
+## PDF Application Extraction Pipeline - DO NOT CHANGE WITHOUT READING
+
+The extraction pipeline works as follows. Do not modify this architecture without explicit user approval:
+
+1. Client-side renders PDF pages to JPEG (pdfjs-dist, scale 1.62, quality 0.80) using PAGE_MAP for carrier page selection
+2. JPEGs uploaded to GCS with signed URLs, job created with `gcsImagePaths`
+3. Cloud Function (`gcf/ingestion-v3-processor`) downloads images, sends base64 JPEG image blocks to Claude
+4. No `output_config` or `json_schema` - Claude returns unstructured JSON
+5. `safeJsonParse` strips markdown fences, `normalizeApplication` normalizes
+6. Completeness gate evaluates, writes `review_ready` to Firestore
+
+Key files:
+- `gcf/ingestion-v3-processor/src/index.ts` - DO NOT add `output_config`, DO NOT switch to PDF document blocks, DO NOT remove fence stripping from `safeJsonParse`
+- `web/lib/pdf/render-selected-pages-to-jpeg.ts` - DO NOT change the render scale (1.62) or quality (0.80) without explicit approval
+- `web/app/dashboard/clients/page.tsx` - DO NOT remove PAGE_MAP, DO NOT add fallback parsing paths, DO NOT re-add `runDirectParseFallback`
+
 # AgentForLife (AFL) — Cursor Project Rules
 
 ## Before responding to any question about product strategy, architecture, business logic, pricing, or integration with Closr AI:
