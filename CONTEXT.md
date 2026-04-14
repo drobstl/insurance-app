@@ -1,3 +1,4 @@
+> ⚠️ Canonical repo path: /Users/danielroberts/Developer/insurance-app — Always verify you are working in this directory before making any changes. The iCloud Desktop path is deprecated and should not be used.
 # CONTEXT.md — AgentForLife (AFL)
 
 > Drop this in the repo root. Read it before any strategic or architectural decision.
@@ -175,6 +176,10 @@ Standalone pricing remains for agents who come directly. Founding member migrati
   - New Firestore-triggered GCF package scaffold added at `gcf/ingestion-v3-processor` (lock + throttle + extraction + fallback + completeness gate + zombie cleanup baseline).
   - Vercel processing endpoint `/api/ingestion/v3/jobs/[jobId]/process` is explicitly deprecated (HTTP 410) to prevent accidental use.
   - Client upload entry points now share 16 MB limits, unified fallback/error policy, and standardized telemetry event names for release-gate tracking.
+- Updated (April 13, 2026): Application extraction now uses a single image-first ingestion path for supported forms.
+  - The dashboard no longer uploads raw application PDFs for extraction. It renders carrier-mapped pages client-side with `pdfjs-dist` (currently `americo_icc18_5160` -> pages 1/2/5), encodes them to JPEG (<200 KB/page target), uploads those images to GCS, and creates ingestion jobs with `gcsImagePaths`.
+  - The Cloud Function processor now downloads `gcsImagePaths` and sends ordered `image/jpeg` blocks to Claude; page-selection prompt branches (`PAGE_INSTRUCTIONS`) were removed, and the system prompt now instructs extraction from all visible pages.
+  - The dashboard application upload flow removed direct `/api/parse-application` fallback and removed unknown-carrier parsing path in this flow; supported carrier/form selection now drives one deterministic extraction path.
 - In progress (April 2026): Carrier-template pilot for application parsing (Americo ICC18 5160 family) is being wired into the GCF processor:
   - Added an application-vs-non-application classifier step before extraction; non-application files now fail with explicit terminal code `DOCUMENT_NOT_APPLICATION`.
   - Added Americo template hints (`Americo` header + `ICC18 5160` + Section 2 product checkbox variants like Term/CBO) to route extraction with form-aware guidance while preserving generic fallback behavior for unknown templates.

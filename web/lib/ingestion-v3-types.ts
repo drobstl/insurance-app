@@ -68,16 +68,18 @@ export interface IngestionV3Metrics {
   sourceFetchMs?: number;
   extractionMs?: number;
   validationMs?: number;
-  parserPath?: 'ai-pdf' | 'ai-text' | 'deterministic' | 'csv-parser';
+  parserPath?: 'ai-pdf' | 'ai-image' | 'ai-text' | 'deterministic' | 'csv-parser';
 }
 
 export interface IngestionV3JobRecord {
   id: string;
   mode: IngestionV3Mode;
   status: IngestionV3Status;
+  carrierFormType?: string;
   agentId?: string;
   batchId?: string;
   gcsPath: string;
+  gcsImagePaths: string[];
   fileName?: string;
   contentType?: string;
   attempts: number;

@@ -41,6 +41,8 @@ import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 import { useGooglePicker } from '../../../hooks/useGooglePicker';
 import type { GooglePickerSelectedFile } from '../../../hooks/useGooglePicker';
 import { buildWelcomeMessage, resolveClientLanguage, type SupportedLanguage } from '../../../lib/client-language';
+import { fireConfetti } from '../../../lib/confetti';
+import { renderFirstPdfPagesToJpegs } from '../../../lib/pdf/render-selected-pages-to-jpeg';
 
 // ─── Constants ─────────────────────────────────────────────
 
@@ -57,6 +59,8 @@ const MAX_BULK_PDF_CONCURRENCY = 6;
 const BULK_GCS_UPLOAD_TIMEOUT_MS = 120_000;
 const BULK_PARSE_MAX_RETRIES = 2;
 const MAX_APPLICATION_PDF_BYTES = 13 * 1024 * 1024;
+const MAX_APPLICATION_RENDER_PAGES = 6;
+const DEFAULT_APPLICATION_TYPE = 'unknown';
 const DEFAULT_WELCOME_SMS_TEMPLATE =
   'Hey {{firstName}}! {{agentName}} here. Download the AgentForLife app and use code {{code}} to connect with me. https://agentforlife.app/app';
 const DEFAULT_INTRO_TEMPLATE =
@@ -64,6 +68,13 @@ const DEFAULT_INTRO_TEMPLATE =
 import { KNOWN_CARRIER_NAMES } from '../../../lib/carriers';
 
 const KNOWN_CARRIERS = KNOWN_CARRIER_NAMES;
+type ApplicationFormType = 'americo_icc18_5160' | 'unknown';
+const APPLICATION_TYPE_OPTIONS: Array<{ label: string; value: ApplicationFormType }> = [
+  { label: 'Americo - Term', value: 'americo_icc18_5160' },
+  { label: 'Americo - CBO', value: 'americo_icc18_5160' },
+  { label: 'Americo - Other', value: 'americo_icc18_5160' },
+  { label: 'Other Carrier', value: 'unknown' },
+];
 
 function getBulkPdfConcurrencyLimit(): number {
   const raw = process.env.NEXT_PUBLIC_IMPORT_PDF_CONCURRENCY;
@@ -179,6 +190,8 @@ interface PolicyFormData {
   status: string;
 }
 
+type AddFlowStage = 'list' | 'upload' | 'review' | 'welcome';
+
 interface AnniversaryAlert {
   clientName: string;
   clientId: string;
@@ -230,6 +243,12 @@ interface ParseProgressState {
   fileName: string;
   progress: number;
   label: string;
+}
+
+interface ParseApplicationOptions {
+  carrierFormType?: ApplicationFormType;
+  signal?: AbortSignal;
+  onJobId?: (jobId: string) => void;
 }
 
 interface GoogleDriveStatusResponse {
@@ -449,6 +468,21 @@ async function apiDeletePolicy(token: string, clientId: string, policyId?: strin
   if (!res.ok) throw new Error(`Failed to delete policy (${res.status})`);
 }
 
+async function apiCancelIngestionV3Job(
+  token: string,
+  jobId: string,
+  error: { code: string; message: string; retryable: boolean; terminal: boolean },
+): Promise<void> {
+  const res = await fetch(`/api/ingestion/v3/jobs/${encodeURIComponent(jobId)}/cancel`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ error }),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to cancel processing job (${res.status}).`);
+  }
+}
+
 // ─── Component ─────────────────────────────────────────────
 
 export default function ClientsPage() {
@@ -491,6 +525,18 @@ export default function ClientsPage() {
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [addFlowStage, setAddFlowStage] = useState<AddFlowStage>('list');
+  const [manualEntryExpanded, setManualEntryExpanded] = useState(false);
+  const [addFlowPolicyForm, setAddFlowPolicyForm] = useState<PolicyFormData>({ ...emptyPolicyForm });
+  const [welcomeDraft, setWelcomeDraft] = useState('');
+  const [welcomeSending, setWelcomeSending] = useState(false);
+  const [welcomeError, setWelcomeError] = useState('');
+  const [createdClientContext, setCreatedClientContext] = useState<{
+    id: string;
+    name: string;
+    phone: string;
+  } | null>(null);
+  const [addFlowToast, setAddFlowToast] = useState<{ message: string; celebrate: boolean } | null>(null);
 
   // ── Delete client state ──
   const [deleteConfirmClient, setDeleteConfirmClient] = useState<Client | null>(null);
@@ -518,9 +564,11 @@ export default function ClientsPage() {
   const [pendingClientApplicationData, setPendingClientApplicationData] = useState<ExtractedApplicationData | null>(null);
   const [clientApplicationUploading, setClientApplicationUploading] = useState(false);
   const [clientApplicationNote, setClientApplicationNote] = useState<string | null>(null);
+  const [clientApplicationType, setClientApplicationType] = useState<ApplicationFormType>(DEFAULT_APPLICATION_TYPE);
   const [clientParseProgress, setClientParseProgress] = useState<ParseProgressState | null>(null);
   const [policyApplicationUploading, setPolicyApplicationUploading] = useState(false);
   const [policyApplicationNote, setPolicyApplicationNote] = useState<string | null>(null);
+  const [policyApplicationType, setPolicyApplicationType] = useState<ApplicationFormType>(DEFAULT_APPLICATION_TYPE);
   const [policyParseProgress, setPolicyParseProgress] = useState<ParseProgressState | null>(null);
   const [autoOpenPolicyUploadPicker, setAutoOpenPolicyUploadPicker] = useState(false);
 
@@ -594,6 +642,10 @@ export default function ClientsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const clientApplicationFileInputRef = useRef<HTMLInputElement>(null);
   const policyApplicationFileInputRef = useRef<HTMLInputElement>(null);
+  const clientApplicationAbortRef = useRef<AbortController | null>(null);
+  const policyApplicationAbortRef = useRef<AbortController | null>(null);
+  const activeClientJobIdRef = useRef<string | null>(null);
+  const activePolicyJobIdRef = useRef<string | null>(null);
   const importModalScrollRef = useRef<HTMLDivElement>(null);
   const emptyClientsStateTrackedRef = useRef(false);
   const emptyClientSearchTrackedRef = useRef<string | null>(null);
@@ -999,6 +1051,17 @@ export default function ClientsPage() {
 
   useEffect(() => { setCurrentPage(1); }, [searchQuery, sortKey, sortDir]);
 
+  useEffect(() => {
+    if (!addFlowToast) return;
+    if (addFlowToast.celebrate) {
+      fireConfetti();
+    }
+    const timeoutId = window.setTimeout(() => {
+      setAddFlowToast(null);
+    }, 4200);
+    return () => window.clearTimeout(timeoutId);
+  }, [addFlowToast]);
+
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -1021,28 +1084,49 @@ export default function ClientsPage() {
 
   // ─── Client Handlers ─────────────────────────────────────
 
-  const handleOpenModal = useCallback(() => {
-    setEditingClient(null);
+  const resetAddFlowState = useCallback(() => {
+    clientApplicationAbortRef.current?.abort();
+    clientApplicationAbortRef.current = null;
+    activeClientJobIdRef.current = null;
     setFormData({ name: '', email: '', phone: '', dateOfBirth: '', clientSinceDate: '', preferredLanguage: 'en' });
     setFormError('');
     setFormSuccess('');
     setPendingClientApplicationData(null);
     setClientApplicationNote(null);
+    setClientApplicationType(DEFAULT_APPLICATION_TYPE);
     setClientApplicationUploading(false);
     setClientParseProgress(null);
-    setIsModalOpen(true);
+    setManualEntryExpanded(false);
+    setAddFlowPolicyForm({ ...emptyPolicyForm });
+    setCreatedClientContext(null);
+    setWelcomeDraft('');
+    setWelcomeError('');
+    setWelcomeSending(false);
   }, []);
 
+  const handleStartAddFlow = useCallback(() => {
+    resetAddFlowState();
+    setAddFlowStage('upload');
+  }, [resetAddFlowState]);
+
+  const handleCloseAddFlow = useCallback(() => {
+    resetAddFlowState();
+    setAddFlowStage('list');
+  }, [resetAddFlowState]);
+
+  const handleOpenModal = useCallback(() => {
+    setEditingClient(null);
+    handleStartAddFlow();
+  }, [handleStartAddFlow]);
+
   const handleCloseModal = useCallback(() => {
+    clientApplicationAbortRef.current?.abort();
+    clientApplicationAbortRef.current = null;
+    activeClientJobIdRef.current = null;
     setIsModalOpen(false);
     setEditingClient(null);
-    setFormData({ name: '', email: '', phone: '', dateOfBirth: '', clientSinceDate: '', preferredLanguage: 'en' });
     setFormError('');
     setFormSuccess('');
-    setPendingClientApplicationData(null);
-    setClientApplicationNote(null);
-    setClientApplicationUploading(false);
-    setClientParseProgress(null);
   }, []);
 
   const handleEditClient = useCallback((client: Client) => {
@@ -1157,22 +1241,33 @@ export default function ClientsPage() {
     setFormSuccess('');
     setSubmitting(true);
     try {
-      if (editingClient) {
-        const editSinceTrim = formData.clientSinceDate.trim();
-        const editSincePatch: Record<string, unknown> = {};
-        if (!editSinceTrim) {
-          editSincePatch.clientSinceDate = deleteField();
-        } else if (CLIENT_SINCE_ISO.test(editSinceTrim)) {
-          editSincePatch.clientSinceDate = editSinceTrim;
-        }
+      if (!editingClient) {
+        return;
+      }
+      const editSinceTrim = formData.clientSinceDate.trim();
+      const editSincePatch: Record<string, unknown> = {};
+      if (!editSinceTrim) {
+        editSincePatch.clientSinceDate = deleteField();
+      } else if (CLIENT_SINCE_ISO.test(editSinceTrim)) {
+        editSincePatch.clientSinceDate = editSinceTrim;
+      }
 
-        const editSinceLocal = (prev: string | undefined): string | undefined => {
-          if (!editSinceTrim) return undefined;
-          if (CLIENT_SINCE_ISO.test(editSinceTrim)) return editSinceTrim;
-          return prev;
-        };
+      const editSinceLocal = (prev: string | undefined): string | undefined => {
+        if (!editSinceTrim) return undefined;
+        if (CLIENT_SINCE_ISO.test(editSinceTrim)) return editSinceTrim;
+        return prev;
+      };
 
-        await updateDoc(doc(db, 'agents', user.uid, 'clients', editingClient.id), {
+      await updateDoc(doc(db, 'agents', user.uid, 'clients', editingClient.id), {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        dateOfBirth: formData.dateOfBirth || null,
+        preferredLanguage: formData.preferredLanguage,
+        ...editSincePatch,
+      });
+      try {
+        await updateDoc(doc(db, 'clients', editingClient.id), {
           name: formData.name.trim(),
           email: formData.email.trim(),
           phone: formData.phone.trim(),
@@ -1180,150 +1275,41 @@ export default function ClientsPage() {
           preferredLanguage: formData.preferredLanguage,
           ...editSincePatch,
         });
-        try {
-          await updateDoc(doc(db, 'clients', editingClient.id), {
-            name: formData.name.trim(),
-            email: formData.email.trim(),
-            phone: formData.phone.trim(),
-            dateOfBirth: formData.dateOfBirth || null,
-            preferredLanguage: formData.preferredLanguage,
-            ...editSincePatch,
-          });
-        } catch (mirrorErr) {
-          console.error('Top-level client mirror update failed (non-blocking):', mirrorErr);
-        }
-        // Update the selected client if it's the one being edited
-        if (selectedClient?.id === editingClient.id) {
-          setSelectedClient((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  name: formData.name.trim(),
-                  email: formData.email.trim(),
-                  phone: formData.phone.trim(),
-                  dateOfBirth: formData.dateOfBirth || '',
-                  clientSinceDate: editSinceLocal(prev.clientSinceDate),
-                  preferredLanguage: formData.preferredLanguage,
-                }
-              : null
-          );
-        }
-        setClients((prev) =>
-          prev.map((c) =>
-            c.id === editingClient.id
-              ? {
-                  ...c,
-                  name: formData.name.trim(),
-                  email: formData.email.trim(),
-                  phone: formData.phone.trim(),
-                  dateOfBirth: formData.dateOfBirth || '',
-                  clientSinceDate: editSinceLocal(c.clientSinceDate),
-                  preferredLanguage: formData.preferredLanguage,
-                }
-              : c,
-          ),
-        );
-        setFormSuccess('Client updated!');
-        setTimeout(() => handleCloseModal(), 800);
-      } else {
-        const code = generateClientCode();
-        const newClient: Record<string, unknown> = {
-          name: formData.name.trim(),
-          email: formData.email.trim(),
-          phone: formData.phone.trim(),
-          clientCode: code,
-          agentId: user.uid,
-          createdAt: serverTimestamp(),
-          preferredLanguage: formData.preferredLanguage,
-        };
-        if (formData.dateOfBirth) newClient.dateOfBirth = formData.dateOfBirth;
-        const manualSince = formData.clientSinceDate.trim();
-        let resolvedClientSince: string | null = null;
-        if (manualSince && CLIENT_SINCE_ISO.test(manualSince)) {
-          resolvedClientSince = manualSince;
-        } else if (pendingClientApplicationData) {
-          resolvedClientSince = resolveClientSinceFromExtraction(pendingClientApplicationData);
-        }
-        if (resolvedClientSince) newClient.clientSinceDate = resolvedClientSince;
-
-        const docRef = await addDoc(collection(db, 'agents', user.uid, 'clients'), newClient);
-        captureEvent(ANALYTICS_EVENTS.CLIENT_ADDED, { method: 'manual' });
-
-        setFormSuccess('Client added!');
-
-        // Mirror to top-level collections for the mobile app (non-blocking)
-        try {
-          await Promise.all([
-            setDoc(doc(db, 'clients', docRef.id), {
-              name: formData.name.trim(),
-              email: formData.email.trim(),
-              phone: formData.phone.trim(),
-              clientCode: code,
-              agentId: user.uid,
-              createdAt: serverTimestamp(),
-              preferredLanguage: formData.preferredLanguage,
-              ...(resolvedClientSince ? { clientSinceDate: resolvedClientSince } : {}),
-            }),
-            setDoc(doc(db, 'clientCodes', code), { agentId: user.uid, clientId: docRef.id }),
-          ]);
-        } catch (mirrorErr) {
-          console.error('Top-level client mirror failed (non-blocking):', mirrorErr);
-        }
-
-        // Auto-send welcome text with code via Linq if client has a phone
-        if (formData.phone.trim()) {
-          const firstName = formData.name.trim().split(' ')[0];
-          const welcomeText = buildWelcomeSms(firstName, code, formData.preferredLanguage);
-          try {
-            const token = await user.getIdToken();
-            await fetch('/api/client/welcome-sms', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-              body: JSON.stringify({
-                clientPhone: formData.phone.trim(),
-                message: welcomeText,
-              }),
-            });
-          } catch (smsErr) {
-            console.error('Auto-text failed (non-blocking):', smsErr);
-          }
-
-          // Auto-match referral by phone (non-blocking)
-          try {
-            const matchToken = await user.getIdToken();
-            await fetch('/api/clients/match-referral', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${matchToken}` },
-              body: JSON.stringify({ clientId: docRef.id, clientPhone: formData.phone.trim() }),
-            });
-          } catch (matchErr) {
-            console.error('Referral match failed (non-blocking):', matchErr);
-          }
-        }
-
-        // If there's pending application data, auto-create the policy
-        if (pendingClientApplicationData) {
-          const mapped = mapExtractedApplicationToPolicyFormData(pendingClientApplicationData);
-          const policyData: Record<string, unknown> = {
-            policyType: mapped.policyType || '',
-            policyNumber: mapped.policyNumber || '',
-            insuranceCompany: mapped.insuranceCompany === 'Other' ? (mapped.otherCarrier || '') : (mapped.insuranceCompany || ''),
-            policyOwner: mapped.policyOwner || formData.name.trim(),
-            beneficiaries: mapped.beneficiaries || [],
-            coverageAmount: mapped.coverageAmount ? parseFloat(mapped.coverageAmount) : 0,
-            premiumAmount: mapped.premiumAmount ? parseFloat(mapped.premiumAmount) : 0,
-            premiumFrequency: mapped.premiumFrequency || 'monthly',
-            renewalDate: mapped.renewalDate || '',
-            effectiveDate: mapped.effectiveDate || null,
-            status: 'Active',
-          };
-          const token = await user.getIdToken();
-          await apiCreatePolicy(token, docRef.id, policyData);
-          refreshSummaries();
-        }
-
-        setTimeout(() => handleCloseModal(), 800);
+      } catch (mirrorErr) {
+        console.error('Top-level client mirror update failed (non-blocking):', mirrorErr);
       }
+      if (selectedClient?.id === editingClient.id) {
+        setSelectedClient((prev) =>
+          prev
+            ? {
+                ...prev,
+                name: formData.name.trim(),
+                email: formData.email.trim(),
+                phone: formData.phone.trim(),
+                dateOfBirth: formData.dateOfBirth || '',
+                clientSinceDate: editSinceLocal(prev.clientSinceDate),
+                preferredLanguage: formData.preferredLanguage,
+              }
+            : null
+        );
+      }
+      setClients((prev) =>
+        prev.map((c) =>
+          c.id === editingClient.id
+            ? {
+                ...c,
+                name: formData.name.trim(),
+                email: formData.email.trim(),
+                phone: formData.phone.trim(),
+                dateOfBirth: formData.dateOfBirth || '',
+                clientSinceDate: editSinceLocal(c.clientSinceDate),
+                preferredLanguage: formData.preferredLanguage,
+              }
+            : c,
+        ),
+      );
+      setFormSuccess('Client updated!');
+      setTimeout(() => handleCloseModal(), 800);
     } catch (err) {
       console.error('Error saving client:', err);
       captureEvent(ANALYTICS_EVENTS.ACTION_FAILED, {
@@ -1335,7 +1321,197 @@ export default function ClientsPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [user, formData, editingClient, selectedClient, pendingClientApplicationData, handleCloseModal, buildWelcomeSms]);
+  }, [user, formData, editingClient, selectedClient, handleCloseModal]);
+
+  const hasAddFlowPolicyInput = useCallback((data: PolicyFormData) => {
+    if (data.policyType.trim()) return true;
+    if (data.policyNumber.trim()) return true;
+    if (data.insuranceCompany.trim()) return true;
+    if (data.otherCarrier.trim()) return true;
+    if (data.policyOwner.trim()) return true;
+    if (data.coverageAmount.trim()) return true;
+    if (data.premiumAmount.trim()) return true;
+    return data.beneficiaries.some((b) => b.name.trim() || (b.relationship || '').trim() || typeof b.percentage === 'number');
+  }, []);
+
+  const createClientFromAddFlow = useCallback(async (
+    source: 'manual' | 'extracted'
+  ): Promise<{ id: string; name: string; phone: string; code: string }> => {
+    if (!user) {
+      throw new Error('You must be signed in to add a client.');
+    }
+    const trimmedName = formData.name.trim();
+    if (!trimmedName) {
+      throw new Error('Client name is required.');
+    }
+
+    const code = generateClientCode();
+    const newClient: Record<string, unknown> = {
+      name: trimmedName,
+      email: formData.email.trim(),
+      phone: formData.phone.trim(),
+      clientCode: code,
+      agentId: user.uid,
+      createdAt: serverTimestamp(),
+      preferredLanguage: formData.preferredLanguage,
+    };
+    if (formData.dateOfBirth) newClient.dateOfBirth = formData.dateOfBirth;
+    const manualSince = formData.clientSinceDate.trim();
+    let resolvedClientSince: string | null = null;
+    if (manualSince && CLIENT_SINCE_ISO.test(manualSince)) {
+      resolvedClientSince = manualSince;
+    } else if (pendingClientApplicationData) {
+      resolvedClientSince = resolveClientSinceFromExtraction(pendingClientApplicationData);
+    }
+    if (resolvedClientSince) newClient.clientSinceDate = resolvedClientSince;
+
+    const docRef = await addDoc(collection(db, 'agents', user.uid, 'clients'), newClient);
+    captureEvent(ANALYTICS_EVENTS.CLIENT_ADDED, { method: source });
+
+    try {
+      await Promise.all([
+        setDoc(doc(db, 'clients', docRef.id), {
+          name: trimmedName,
+          email: formData.email.trim(),
+          phone: formData.phone.trim(),
+          clientCode: code,
+          agentId: user.uid,
+          createdAt: serverTimestamp(),
+          preferredLanguage: formData.preferredLanguage,
+          ...(resolvedClientSince ? { clientSinceDate: resolvedClientSince } : {}),
+        }),
+        setDoc(doc(db, 'clientCodes', code), { agentId: user.uid, clientId: docRef.id }),
+      ]);
+    } catch (mirrorErr) {
+      console.error('Top-level client mirror failed (non-blocking):', mirrorErr);
+    }
+
+    if (formData.phone.trim()) {
+      try {
+        const matchToken = await user.getIdToken();
+        await fetch('/api/clients/match-referral', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${matchToken}` },
+          body: JSON.stringify({ clientId: docRef.id, clientPhone: formData.phone.trim() }),
+        });
+      } catch (matchErr) {
+        console.error('Referral match failed (non-blocking):', matchErr);
+      }
+    }
+
+    if (hasAddFlowPolicyInput(addFlowPolicyForm)) {
+      const policyData: Record<string, unknown> = {
+        policyType: addFlowPolicyForm.policyType.trim(),
+        policyNumber: addFlowPolicyForm.policyNumber.trim(),
+        insuranceCompany: addFlowPolicyForm.insuranceCompany === 'Other'
+          ? addFlowPolicyForm.otherCarrier.trim()
+          : addFlowPolicyForm.insuranceCompany.trim(),
+        policyOwner: addFlowPolicyForm.policyOwner.trim() || trimmedName,
+        beneficiaries: addFlowPolicyForm.beneficiaries
+          .filter((b) => b.name.trim())
+          .map((b) => ({
+            name: b.name.trim(),
+            type: b.type,
+            relationship: b.relationship?.trim() || '',
+            ...(typeof b.percentage === 'number' ? { percentage: b.percentage } : {}),
+          })),
+        coverageAmount: addFlowPolicyForm.coverageAmount ? parseFloat(addFlowPolicyForm.coverageAmount) : 0,
+        premiumAmount: addFlowPolicyForm.premiumAmount ? parseFloat(addFlowPolicyForm.premiumAmount) : 0,
+        premiumFrequency: addFlowPolicyForm.premiumFrequency || 'monthly',
+        renewalDate: addFlowPolicyForm.renewalDate || '',
+        effectiveDate: addFlowPolicyForm.effectiveDate || null,
+        status: 'Active',
+      };
+      const token = await user.getIdToken();
+      await apiCreatePolicy(token, docRef.id, policyData);
+      refreshSummaries();
+    }
+
+    return {
+      id: docRef.id,
+      name: trimmedName,
+      phone: formData.phone.trim(),
+      code,
+    };
+  }, [user, formData, pendingClientApplicationData, hasAddFlowPolicyInput, addFlowPolicyForm, refreshSummaries]);
+
+  const handleManualCreateAndContinue = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting) return;
+    setFormError('');
+    setFormSuccess('');
+    setSubmitting(true);
+    try {
+      const created = await createClientFromAddFlow('manual');
+      const firstName = created.name.split(' ')[0] || created.name;
+      setCreatedClientContext({ id: created.id, name: created.name, phone: created.phone });
+      setWelcomeDraft(buildWelcomeSms(firstName, created.code, formData.preferredLanguage));
+      setWelcomeError('');
+      setAddFlowStage('welcome');
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to save client. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [submitting, createClientFromAddFlow, buildWelcomeSms, formData.preferredLanguage]);
+
+  const handleReviewConfirmAndCreate = useCallback(async () => {
+    if (submitting) return;
+    setFormError('');
+    setFormSuccess('');
+    setSubmitting(true);
+    try {
+      const created = await createClientFromAddFlow('extracted');
+      const firstName = created.name.split(' ')[0] || created.name;
+      setCreatedClientContext({ id: created.id, name: created.name, phone: created.phone });
+      setWelcomeDraft(buildWelcomeSms(firstName, created.code, formData.preferredLanguage));
+      setWelcomeError('');
+      setAddFlowStage('welcome');
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to save client. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [submitting, createClientFromAddFlow, buildWelcomeSms, formData.preferredLanguage]);
+
+  const finishAddFlow = useCallback((message: string, celebrate: boolean) => {
+    handleCloseAddFlow();
+    setAddFlowToast({ message, celebrate });
+  }, [handleCloseAddFlow]);
+
+  const handleSkipWelcome = useCallback(() => {
+    if (!createdClientContext) {
+      handleCloseAddFlow();
+      return;
+    }
+    finishAddFlow(`${createdClientContext.name} added — welcome message not sent`, false);
+  }, [createdClientContext, finishAddFlow, handleCloseAddFlow]);
+
+  const handleSendWelcome = useCallback(async () => {
+    if (!user || !createdClientContext?.phone.trim()) {
+      handleSkipWelcome();
+      return;
+    }
+    if (welcomeSending) return;
+    setWelcomeSending(true);
+    setWelcomeError('');
+    try {
+      const token = await user.getIdToken();
+      await fetch('/api/client/welcome-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          clientPhone: createdClientContext.phone.trim(),
+          message: welcomeDraft.trim(),
+        }),
+      });
+      finishAddFlow(`${createdClientContext.name} added successfully!`, true);
+    } catch (err) {
+      setWelcomeError(err instanceof Error ? err.message : 'Failed to send welcome text.');
+    } finally {
+      setWelcomeSending(false);
+    }
+  }, [user, createdClientContext, welcomeDraft, welcomeSending, handleSkipWelcome, finishAddFlow]);
 
   const handleDeleteClient = useCallback(async () => {
     if (!user || !deleteConfirmClient) return;
@@ -1390,19 +1566,25 @@ export default function ClientsPage() {
     setPolicyFormError('');
     setPolicyFormSuccess('');
     setPolicyApplicationNote(null);
+    setPolicyApplicationType(DEFAULT_APPLICATION_TYPE);
     setPolicyApplicationUploading(false);
     setPolicyParseProgress(null);
+    activePolicyJobIdRef.current = null;
     setAutoOpenPolicyUploadPicker(options?.openUploadPicker === true);
     setIsPolicyModalOpen(true);
   }, []);
 
   const handleClosePolicyModal = useCallback(() => {
+    policyApplicationAbortRef.current?.abort();
+    policyApplicationAbortRef.current = null;
+    activePolicyJobIdRef.current = null;
     setIsPolicyModalOpen(false);
     setEditingPolicy(null);
     setPolicyFormData({ ...emptyPolicyForm });
     setPolicyFormError('');
     setPolicyFormSuccess('');
     setPolicyApplicationNote(null);
+    setPolicyApplicationType(DEFAULT_APPLICATION_TYPE);
     setPolicyApplicationUploading(false);
     setPolicyParseProgress(null);
     setAutoOpenPolicyUploadPicker(false);
@@ -1488,6 +1670,7 @@ export default function ClientsPage() {
 
   const handleClientApplicationExtracted = useCallback((data: ExtractedApplicationData) => {
     setPendingClientApplicationData(data);
+    const mappedPolicy = mapExtractedApplicationToPolicyFormData(data);
     const fromPdf = resolveClientSinceFromExtraction(data);
     setFormData((prev) => ({
       ...prev,
@@ -1497,18 +1680,38 @@ export default function ClientsPage() {
       dateOfBirth: data.insuredDateOfBirth || prev.dateOfBirth,
       clientSinceDate: fromPdf || prev.clientSinceDate,
     }));
+    setAddFlowPolicyForm((prev) => ({
+      ...prev,
+      ...mappedPolicy,
+      beneficiaries: mappedPolicy.beneficiaries || prev.beneficiaries,
+    }));
+    setManualEntryExpanded(false);
+    setAddFlowStage('review');
   }, []);
 
   const parseApplicationFile = useCallback(async (
     file: File,
     onProgress?: (state: ParseProgressState) => void,
+    options?: ParseApplicationOptions,
   ): Promise<{ data: ExtractedApplicationData; note?: string }> => {
+    const signal = options?.signal;
+    const carrierFormType = options?.carrierFormType ?? DEFAULT_APPLICATION_TYPE;
+    let currentJobId: string | null = null;
+    let token: string | null = null;
     const reportProgress = (progress: number, label: string) => {
       onProgress?.({
         fileName: file.name,
         progress: Math.max(0, Math.min(100, Math.round(progress))),
         label,
       });
+    };
+    const markJobFailed = async (error: { code: string; message: string; retryable: boolean; terminal: boolean }) => {
+      if (!currentJobId || !token) return;
+      try {
+        await apiCancelIngestionV3Job(token, currentJobId, error);
+      } catch {
+        // Ignore cleanup failures and preserve original parse flow behavior.
+      }
     };
 
     if (!user) {
@@ -1529,6 +1732,7 @@ export default function ClientsPage() {
       const fallbackRes = await fetch('/api/parse-application', {
         method: 'POST',
         body: fallbackForm,
+        signal,
       });
       const fallbackBody = (await fallbackRes.json()) as {
         success: boolean;
@@ -1544,47 +1748,68 @@ export default function ClientsPage() {
     };
 
     reportProgress(8, 'Preparing file...');
-    const token = await user.getIdToken();
-    reportProgress(20, 'Uploading file...');
+    token = await user.getIdToken();
+    reportProgress(14, 'Rendering PDF pages...');
     try {
-      const signedRes = await fetch('/api/ingestion/v3/upload-url', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fileName: file.name,
-          contentType: file.type || 'application/pdf',
-          fileSize: file.size,
-          purpose: 'application',
-        }),
-      });
-      const signedBody = (await signedRes.json()) as {
-        success: boolean;
-        uploadUrl?: string;
-        gcsPath?: string;
-        error?: { message?: string };
-      };
-      if (!signedRes.ok || !signedBody.success || !signedBody.uploadUrl || !signedBody.gcsPath) {
-        throw new Error(signedBody.error?.message || `Failed to start file upload (${signedRes.status}).`);
+      const renderedPages = await renderFirstPdfPagesToJpegs(file, MAX_APPLICATION_RENDER_PAGES);
+      if (!renderedPages.length) {
+        throw new Error('No pages could be rendered from this PDF.');
       }
 
-      await withTimeout(
-        fetch(signedBody.uploadUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': file.type || 'application/pdf' },
-          body: file,
-        }).then((res) => {
-          if (!res.ok) {
-            throw new Error(`Upload failed (${res.status}).`);
-          }
-        }),
-        BULK_GCS_UPLOAD_TIMEOUT_MS,
-        'Upload timed out while sending file.',
-      );
+      const baseFileName = file.name.replace(/\.pdf$/i, '') || 'application';
+      const gcsImagePaths: string[] = [];
+      for (let index = 0; index < renderedPages.length; index += 1) {
+        if (signal?.aborted) {
+          throw new Error('Cancelled by agent.');
+        }
 
-      reportProgress(50, 'Queueing parser...');
+        const page = renderedPages[index];
+        const uploadProgress = 20 + Math.round(((index + 1) / renderedPages.length) * 30);
+        reportProgress(uploadProgress, `Uploading rendered page ${page.pageNumber}/${renderedPages.length}...`);
+
+        const signedRes = await fetch('/api/ingestion/v3/upload-url', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            fileName: `${baseFileName}-page-${page.pageNumber}.jpg`,
+            contentType: 'image/jpeg',
+            fileSize: page.blob.size,
+            purpose: 'application',
+          }),
+          signal,
+        });
+        const signedBody = (await signedRes.json()) as {
+          success: boolean;
+          uploadUrl?: string;
+          gcsPath?: string;
+          error?: { message?: string };
+        };
+        if (!signedRes.ok || !signedBody.success || !signedBody.uploadUrl || !signedBody.gcsPath) {
+          throw new Error(signedBody.error?.message || `Failed to start file upload (${signedRes.status}).`);
+        }
+
+        await withTimeout(
+          fetch(signedBody.uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'image/jpeg' },
+            body: page.blob,
+            signal,
+          }).then((res) => {
+            if (!res.ok) {
+              throw new Error(`Upload failed (${res.status}).`);
+            }
+          }),
+          BULK_GCS_UPLOAD_TIMEOUT_MS,
+          'Upload timed out while sending rendered pages.',
+        );
+
+        gcsImagePaths.push(signedBody.gcsPath);
+      }
+
+      reportProgress(52, 'Queueing parser...');
       const createRes = await fetch('/api/ingestion/v3/jobs', {
         method: 'POST',
         headers: {
@@ -1593,16 +1818,20 @@ export default function ClientsPage() {
         },
         body: JSON.stringify({
           mode: 'application',
-          gcsPath: signedBody.gcsPath,
+          gcsImagePaths,
           fileName: file.name,
-          contentType: file.type || 'application/pdf',
-          idempotencyKey: `application-v3:${file.name}:${file.size}:${file.lastModified}`,
+          contentType: 'image/jpeg',
+          idempotencyKey: `application-v3:${file.name}:${file.size}:${file.lastModified}:pages-${gcsImagePaths.length}`,
+          carrierFormType,
         }),
+        signal,
       });
       const created = (await createRes.json()) as IngestionV3SubmitJobResponse;
       if (!createRes.ok || !created.success || !created.jobId) {
         throw new Error(created.error?.message || `Failed to start parsing job (${createRes.status}).`);
       }
+      currentJobId = created.jobId;
+      options?.onJobId?.(created.jobId);
 
       const startedAt = Date.now();
       reportProgress(62, 'Extracting data...');
@@ -1617,6 +1846,7 @@ export default function ClientsPage() {
             Authorization: `Bearer ${token}`,
             Accept: 'application/json',
           },
+          signal,
         });
         const contentType = statusRes.headers.get('content-type') || '';
         if (!contentType.includes('application/json')) {
@@ -1650,8 +1880,23 @@ export default function ClientsPage() {
         }
       }
 
+      await markJobFailed({
+        code: 'CLIENT_TIMEOUT',
+        message: 'Processing timed out. Please retry.',
+        retryable: false,
+        terminal: true,
+      });
       throw new Error('Parsing timed out. Please retry the file.');
     } catch (v3Error) {
+      if (signal?.aborted) {
+        await markJobFailed({
+          code: 'USER_CANCELLED',
+          message: 'Cancelled by agent.',
+          retryable: false,
+          terminal: true,
+        });
+        throw new Error('Cancelled by agent.');
+      }
       const message = v3Error instanceof Error ? v3Error.message : String(v3Error);
       const shouldFallback =
         message.includes('Upload failed (403)') ||
@@ -1674,23 +1919,57 @@ export default function ClientsPage() {
     setClientParseProgress({ fileName: file.name, progress: 5, label: 'Preparing file...' });
     setFormError('');
     setFormSuccess('');
+    const controller = new AbortController();
+    clientApplicationAbortRef.current = controller;
+    activeClientJobIdRef.current = null;
 
     try {
-      const parsed = await parseApplicationFile(file, setClientParseProgress);
+      const parsed = await parseApplicationFile(file, setClientParseProgress, {
+        carrierFormType: clientApplicationType,
+        signal: controller.signal,
+        onJobId: (jobId) => {
+          activeClientJobIdRef.current = jobId;
+        },
+      });
       handleClientApplicationExtracted(parsed.data);
       setClientApplicationNote(parsed.note || null);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to parse application PDF.');
     } finally {
+      clientApplicationAbortRef.current = null;
+      activeClientJobIdRef.current = null;
       setClientApplicationUploading(false);
       setClientParseProgress(null);
     }
-  }, [handleClientApplicationExtracted, parseApplicationFile]);
+  }, [clientApplicationType, handleClientApplicationExtracted, parseApplicationFile]);
 
   const handleClickClientApplicationUpload = useCallback(() => {
     if (clientApplicationUploading) return;
     clientApplicationFileInputRef.current?.click();
   }, [clientApplicationUploading]);
+
+  const handleCancelClientApplicationUpload = useCallback(async () => {
+    if (!user) return;
+    const jobId = activeClientJobIdRef.current;
+    const controller = clientApplicationAbortRef.current;
+    controller?.abort();
+    if (jobId) {
+      try {
+        const token = await user.getIdToken();
+        await apiCancelIngestionV3Job(token, jobId, {
+          code: 'USER_CANCELLED',
+          message: 'Cancelled by agent.',
+          retryable: false,
+          terminal: true,
+        });
+      } catch {}
+    }
+    activeClientJobIdRef.current = null;
+    clientApplicationAbortRef.current = null;
+    setClientApplicationUploading(false);
+    setClientParseProgress(null);
+    setFormError('Cancelled by agent.');
+  }, [user]);
 
   const handlePolicyApplicationFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1702,24 +1981,58 @@ export default function ClientsPage() {
     setPolicyParseProgress({ fileName: file.name, progress: 5, label: 'Preparing file...' });
     setPolicyFormError('');
     setPolicyFormSuccess('');
+    const controller = new AbortController();
+    policyApplicationAbortRef.current = controller;
+    activePolicyJobIdRef.current = null;
 
     try {
-      const parsed = await parseApplicationFile(file, setPolicyParseProgress);
+      const parsed = await parseApplicationFile(file, setPolicyParseProgress, {
+        carrierFormType: policyApplicationType,
+        signal: controller.signal,
+        onJobId: (jobId) => {
+          activePolicyJobIdRef.current = jobId;
+        },
+      });
       const mapped = mapExtractedApplicationToPolicyFormData(parsed.data);
       setPolicyFormData((prev) => ({ ...prev, ...mapped }));
       setPolicyApplicationNote(parsed.note || null);
     } catch (err) {
       setPolicyFormError(err instanceof Error ? err.message : 'Failed to parse application PDF.');
     } finally {
+      policyApplicationAbortRef.current = null;
+      activePolicyJobIdRef.current = null;
       setPolicyApplicationUploading(false);
       setPolicyParseProgress(null);
     }
-  }, [parseApplicationFile]);
+  }, [parseApplicationFile, policyApplicationType]);
 
   const handleClickPolicyApplicationUpload = useCallback(() => {
     if (policyApplicationUploading) return;
     policyApplicationFileInputRef.current?.click();
   }, [policyApplicationUploading]);
+
+  const handleCancelPolicyApplicationUpload = useCallback(async () => {
+    if (!user) return;
+    const jobId = activePolicyJobIdRef.current;
+    const controller = policyApplicationAbortRef.current;
+    controller?.abort();
+    if (jobId) {
+      try {
+        const token = await user.getIdToken();
+        await apiCancelIngestionV3Job(token, jobId, {
+          code: 'USER_CANCELLED',
+          message: 'Cancelled by agent.',
+          retryable: false,
+          terminal: true,
+        });
+      } catch {}
+    }
+    activePolicyJobIdRef.current = null;
+    policyApplicationAbortRef.current = null;
+    setPolicyApplicationUploading(false);
+    setPolicyParseProgress(null);
+    setPolicyFormError('Cancelled by agent.');
+  }, [user]);
 
   useEffect(() => {
     if (!isPolicyModalOpen || !autoOpenPolicyUploadPicker || editingPolicy) return;
@@ -2558,9 +2871,195 @@ export default function ClientsPage() {
     }
   }, [agentProfile.name]);
 
+  const renderAddFlowPolicyInputs = () => (
+    <div className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <input
+          type="date"
+          value={formData.clientSinceDate}
+          onChange={(e) => setFormData((f) => ({ ...f, clientSinceDate: e.target.value }))}
+          className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm"
+        />
+        <select
+          value={addFlowPolicyForm.policyType}
+          onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, policyType: e.target.value }))}
+          className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm"
+        >
+          <option value="">Policy Type</option>
+          {POLICY_TYPES.map((type) => (
+            <option key={type} value={type}>{type}</option>
+          ))}
+        </select>
+        <input
+          type="text"
+          value={addFlowPolicyForm.policyNumber}
+          onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, policyNumber: e.target.value }))}
+          placeholder="Policy Number"
+          className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm"
+        />
+        <select
+          value={addFlowPolicyForm.insuranceCompany}
+          onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, insuranceCompany: e.target.value }))}
+          className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm"
+        >
+          <option value="">Insurance Company</option>
+          {KNOWN_CARRIERS.map((carrier) => (
+            <option key={carrier} value={carrier}>{carrier}</option>
+          ))}
+          <option value="Other">Other</option>
+        </select>
+        {addFlowPolicyForm.insuranceCompany === 'Other' && (
+          <input
+            type="text"
+            value={addFlowPolicyForm.otherCarrier}
+            onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, otherCarrier: e.target.value }))}
+            placeholder="Carrier Name"
+            className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm sm:col-span-2"
+          />
+        )}
+        <input
+          type="text"
+          value={addFlowPolicyForm.policyOwner}
+          onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, policyOwner: e.target.value }))}
+          placeholder="Policy Owner"
+          className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm"
+        />
+        <input
+          type="number"
+          value={addFlowPolicyForm.coverageAmount}
+          onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, coverageAmount: e.target.value }))}
+          placeholder="Coverage Amount"
+          className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm"
+        />
+        <input
+          type="number"
+          value={addFlowPolicyForm.premiumAmount}
+          onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, premiumAmount: e.target.value }))}
+          placeholder="Premium Amount"
+          className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm"
+        />
+        <select
+          value={addFlowPolicyForm.premiumFrequency}
+          onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, premiumFrequency: e.target.value }))}
+          className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm"
+        >
+          <option value="monthly">Premium Frequency: Monthly</option>
+          <option value="quarterly">Premium Frequency: Quarterly</option>
+          <option value="semi-annual">Premium Frequency: Semi-Annual</option>
+          <option value="annual">Premium Frequency: Annual</option>
+        </select>
+        <input
+          type="date"
+          value={addFlowPolicyForm.effectiveDate}
+          onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, effectiveDate: e.target.value }))}
+          className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm"
+        />
+        <input
+          type="date"
+          value={addFlowPolicyForm.renewalDate}
+          onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, renewalDate: e.target.value }))}
+          className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm"
+        />
+      </div>
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-sm font-medium text-[#000000]">Beneficiaries</label>
+          <button
+            type="button"
+            onClick={() => {
+              setAddFlowPolicyForm((f) => ({
+                ...f,
+                beneficiaries: [...f.beneficiaries, { name: '', type: 'primary', relationship: '', percentage: undefined }],
+              }));
+            }}
+            className="text-xs text-[#005851] font-semibold hover:underline"
+          >
+            + Add Beneficiary
+          </button>
+        </div>
+        <div className="space-y-2">
+          {addFlowPolicyForm.beneficiaries.map((beneficiary, index) => (
+            <div key={index} className="rounded-[5px] border border-[#d0d0d0] bg-[#f8f8f8] p-3">
+              <div className="grid gap-2 sm:grid-cols-4">
+                <input
+                  type="text"
+                  value={beneficiary.name}
+                  onChange={(e) => {
+                    const next = [...addFlowPolicyForm.beneficiaries];
+                    next[index] = { ...next[index], name: e.target.value };
+                    setAddFlowPolicyForm((f) => ({ ...f, beneficiaries: next }));
+                  }}
+                  placeholder="Name"
+                  className="px-2 py-1.5 border border-[#d0d0d0] rounded-[5px] text-xs sm:col-span-2"
+                />
+                <input
+                  type="text"
+                  value={beneficiary.relationship || ''}
+                  onChange={(e) => {
+                    const next = [...addFlowPolicyForm.beneficiaries];
+                    next[index] = { ...next[index], relationship: e.target.value };
+                    setAddFlowPolicyForm((f) => ({ ...f, beneficiaries: next }));
+                  }}
+                  placeholder="Relationship"
+                  className="px-2 py-1.5 border border-[#d0d0d0] rounded-[5px] text-xs"
+                />
+                <input
+                  type="number"
+                  value={beneficiary.percentage ?? ''}
+                  onChange={(e) => {
+                    const next = [...addFlowPolicyForm.beneficiaries];
+                    next[index] = {
+                      ...next[index],
+                      percentage: e.target.value ? Number(e.target.value) : undefined,
+                    };
+                    setAddFlowPolicyForm((f) => ({ ...f, beneficiaries: next }));
+                  }}
+                  placeholder="%"
+                  className="px-2 py-1.5 border border-[#d0d0d0] rounded-[5px] text-xs"
+                />
+              </div>
+              <div className="mt-2 flex items-center justify-between">
+                <select
+                  value={beneficiary.type}
+                  onChange={(e) => {
+                    const next = [...addFlowPolicyForm.beneficiaries];
+                    next[index] = { ...next[index], type: e.target.value as 'primary' | 'contingent' };
+                    setAddFlowPolicyForm((f) => ({ ...f, beneficiaries: next }));
+                  }}
+                  className="px-2 py-1.5 border border-[#d0d0d0] rounded-[5px] text-xs"
+                >
+                  <option value="primary">Primary</option>
+                  <option value="contingent">Contingent</option>
+                </select>
+                {addFlowPolicyForm.beneficiaries.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = addFlowPolicyForm.beneficiaries.filter((_, i) => i !== index);
+                      setAddFlowPolicyForm((f) => ({ ...f, beneficiaries: next }));
+                    }}
+                    className="text-xs text-red-600 hover:underline"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
   // ─── Loading State ───────────────────────────────────────
 
   if (loading) return null;
+  const addFlowSlideIndex = (
+    addFlowStage === 'list' ? 0
+      : addFlowStage === 'upload' ? 1
+        : addFlowStage === 'review' ? 2
+          : 3
+  );
 
   // ─── Render ──────────────────────────────────────────────
 
@@ -2696,6 +3195,12 @@ export default function ClientsPage() {
         </div>
       )}
 
+      <div className="-mx-1 overflow-x-hidden overflow-y-visible px-1">
+        <div
+          className="flex transition-transform duration-[560ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
+          style={{ transform: `translateX(-${addFlowSlideIndex * 100}%)` }}
+        >
+          <div className="w-full shrink-0">
       {/* Action Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">
         <div className="flex items-center gap-2">
@@ -2729,6 +3234,15 @@ export default function ClientsPage() {
             </svg>
             Import Book of Business
           </button>
+          {addFlowToast && (
+            <div className={`px-3 py-2 rounded-[5px] border text-xs font-medium ${
+              addFlowToast.celebrate
+                ? 'bg-[#daf3f0] border-[#45bcaa]/40 text-[#005851]'
+                : 'bg-white border-[#d0d0d0] text-[#444]'
+            }`}>
+              {addFlowToast.message}
+            </div>
+          )}
         </div>
         <div className="flex-1" />
         <div className="relative w-full sm:w-72">
@@ -3017,6 +3531,131 @@ export default function ClientsPage() {
           </div>
         </div>
       )}
+          </div>
+          <div className="w-full shrink-0 px-1">
+            <div className="max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px]">
+              <div className="flex items-center justify-between p-6 border-b border-[#ececec]">
+                <div>
+                  <h3 className="text-xl font-bold text-[#000000]">Add Client</h3>
+                  <p className="text-xs text-[#707070] mt-1">Upload an application or expand manual entry.</p>
+                </div>
+                <button type="button" onClick={handleCloseAddFlow} className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#000000] mb-1">Application Type</label>
+                  <select
+                    value={clientApplicationType}
+                    onChange={(e) => setClientApplicationType(e.target.value as ApplicationFormType)}
+                    className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+                    disabled={clientApplicationUploading}
+                  >
+                    {APPLICATION_TYPE_OPTIONS.map((option) => (
+                      <option key={option.label} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClickClientApplicationUpload}
+                  disabled={clientApplicationUploading}
+                  className="w-full px-4 py-3 border-2 border-dashed border-[#45bcaa]/40 hover:border-[#45bcaa] bg-[#daf3f0]/30 hover:bg-[#daf3f0]/60 rounded-[5px] text-sm font-medium text-[#005851] transition-all"
+                >
+                  {clientApplicationUploading ? 'Reading application PDF...' : 'Upload Application PDF'}
+                </button>
+                <input ref={clientApplicationFileInputRef} type="file" accept=".pdf,application/pdf" onChange={handleClientApplicationFileSelect} className="hidden" />
+                {clientApplicationUploading && clientParseProgress && (
+                  <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/40 p-3">
+                    <div className="flex items-center justify-between text-xs text-[#005851] mb-1">
+                      <span className="font-medium truncate pr-2">{clientParseProgress.fileName}</span>
+                      <span>{clientParseProgress.progress}%</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-white/80 rounded-full overflow-hidden">
+                      <div className="h-full bg-[#45bcaa] transition-all duration-300 ease-out" style={{ width: `${clientParseProgress.progress}%` }} />
+                    </div>
+                    <p className="mt-1 text-[11px] text-[#005851]/80">{clientParseProgress.label}</p>
+                  </div>
+                )}
+                {formError && !manualEntryExpanded && (
+                  <p className="text-xs text-red-600">{formError}</p>
+                )}
+                <div className="border-t border-[#ececec] pt-4">
+                  <button type="button" onClick={() => setManualEntryExpanded((prev) => !prev)} className="w-full px-4 py-2.5 bg-white hover:bg-gray-50 text-[#000000] font-semibold rounded-[5px] border border-[#d0d0d0] text-sm">
+                    {manualEntryExpanded ? 'Hide Manual Entry' : 'Expand Manual Entry'}
+                  </button>
+                  {manualEntryExpanded && (
+                    <form onSubmit={handleManualCreateAndContinue} className="mt-4 space-y-3">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <input type="text" value={formData.name} onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))} placeholder="Name *" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                        <input type="tel" value={formData.phone} onChange={(e) => setFormData((f) => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                        <input type="email" value={formData.email} onChange={(e) => setFormData((f) => ({ ...f, email: e.target.value }))} placeholder="Email" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                        <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))} className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                      </div>
+                      {renderAddFlowPolicyInputs()}
+                      {formError && <p className="text-xs text-red-600">{formError}</p>}
+                      <div className="flex gap-3">
+                        <button type="button" onClick={handleCloseAddFlow} className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-[5px] border border-gray-200 text-sm">Cancel</button>
+                        <button type="submit" disabled={submitting} className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] text-sm">{submitting ? 'Saving...' : 'Create Client'}</button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="w-full shrink-0 px-1">
+            <div className="max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] max-h-[78vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-[#ececec] p-6 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-[#000000]">Review & Confirm</h3>
+                  <p className="text-xs text-[#707070] mt-1">Step 1 of 2</p>
+                </div>
+                <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#45bcaa]" /><span className="h-2.5 w-2.5 rounded-full bg-[#d0d0d0]" /></div>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="flex items-center gap-2 px-3 py-2 bg-[#daf3f0] border border-[#45bcaa]/30 rounded-[5px] text-xs text-[#005851]">
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span className="font-medium">Extraction complete. Review and confirm.</span>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <input type="text" value={formData.name} onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))} placeholder="Name *" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                  <input type="tel" value={formData.phone} onChange={(e) => setFormData((f) => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                  <input type="email" value={formData.email} onChange={(e) => setFormData((f) => ({ ...f, email: e.target.value }))} placeholder="Email" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                  <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))} className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                </div>
+                {renderAddFlowPolicyInputs()}
+                {formError && <p className="text-xs text-red-600">{formError}</p>}
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setAddFlowStage('upload')} className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-[5px] border border-gray-200 text-sm">Cancel</button>
+                  <button type="button" onClick={handleReviewConfirmAndCreate} disabled={submitting} className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] text-sm">{submitting ? 'Creating...' : 'Confirm & Create'}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="w-full shrink-0 px-1">
+            <div className="max-w-3xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px]">
+              <div className="p-6 border-b border-[#ececec] flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-[#000000]">Welcome Message</h3>
+                  <p className="text-xs text-[#707070] mt-1">Step 2 of 2</p>
+                </div>
+                <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#d0d0d0]" /><span className="h-2.5 w-2.5 rounded-full bg-[#45bcaa]" /></div>
+              </div>
+              <div className="p-6 space-y-4">
+                <p className="text-sm text-[#444]"><span className="font-semibold">Client:</span> {createdClientContext?.name || '—'}<br /><span className="font-semibold">Phone:</span> {createdClientContext?.phone || '—'}</p>
+                <textarea value={welcomeDraft} onChange={(e) => setWelcomeDraft(e.target.value)} rows={7} className="w-full px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                {welcomeError && <p className="text-xs text-red-600">{welcomeError}</p>}
+                <div className="flex gap-3">
+                  <button type="button" onClick={handleSkipWelcome} className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-[5px] border border-gray-200 text-sm">Skip</button>
+                  <button type="button" onClick={handleSendWelcome} disabled={welcomeSending || !createdClientContext?.phone} className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] text-sm">{welcomeSending ? 'Sending...' : 'Send Welcome Text'}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* ═══════════════════════════════════════════════════════
           MODALS
@@ -3026,7 +3665,7 @@ export default function ClientsPage() {
       {isModalOpen && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleCloseModal} />
-          {editingClient ? (
+          {editingClient && (
             <div className="relative w-full max-w-md bg-white rounded-[5px] border border-gray-200 shadow-2xl">
               <div className="flex items-center justify-between p-6 border-b border-gray-200">
                 <h3 className="text-xl font-bold text-[#000000]">Edit Client</h3>
@@ -3153,215 +3792,6 @@ export default function ClientsPage() {
                   </button>
                 </div>
               </form>
-            </div>
-          ) : (
-            <div className="relative z-10 w-full max-w-5xl grid gap-4 lg:grid-cols-2">
-              <div className="bg-white rounded-[5px] border border-gray-200 shadow-2xl">
-                <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                  <div>
-                    <h3 className="text-xl font-bold text-[#000000]">Automated</h3>
-                    <p className="text-xs text-[#707070] mt-0.5">Upload application PDF to auto-fill</p>
-                  </div>
-                  <button
-                    onClick={handleCloseModal}
-                    className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#000000] transition-colors"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="p-6 space-y-4">
-                  <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-[5px] text-xs text-amber-800">
-                    <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                    </svg>
-                    <p>
-                      We&apos;re sorry if automated upload is not working consistently right now while we fix it. Thank you for your patience and understanding as a founding member. Please use Manual mode in the meantime so you can continue taking full advantage of the Agent for Life system.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleClickClientApplicationUpload}
-                    disabled={clientApplicationUploading}
-                    className="w-full px-4 py-3 border-2 border-dashed border-[#45bcaa]/40 hover:border-[#45bcaa] bg-[#daf3f0]/30 hover:bg-[#daf3f0]/60 rounded-[5px] text-sm font-medium text-[#005851] transition-all flex items-center justify-center gap-2"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    {clientApplicationUploading ? 'Reading application PDF...' : 'Upload Application PDF to Auto-Fill'}
-                  </button>
-                  <input
-                    ref={clientApplicationFileInputRef}
-                    type="file"
-                    accept=".pdf,application/pdf"
-                    onChange={handleClientApplicationFileSelect}
-                    className="hidden"
-                  />
-                  <p className="text-xs text-[#707070]">
-                    AI will extract client info and policy details in one step. Max 13MB.
-                  </p>
-                  {clientApplicationUploading && clientParseProgress && (
-                    <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/40 p-3">
-                      <div className="flex items-center justify-between text-xs text-[#005851] mb-1">
-                        <span className="font-medium truncate pr-2">{clientParseProgress.fileName}</span>
-                        <span>{clientParseProgress.progress}%</span>
-                      </div>
-                      <div className="h-1.5 w-full bg-white/80 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-[#45bcaa] transition-all duration-300 ease-out"
-                          style={{ width: `${clientParseProgress.progress}%` }}
-                        />
-                      </div>
-                      <p className="mt-1 text-[11px] text-[#005851]/80">{clientParseProgress.label}</p>
-                    </div>
-                  )}
-                  {clientApplicationNote && (
-                    <p className="text-xs text-[#707070]">{clientApplicationNote}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-white rounded-[5px] border border-gray-200 shadow-2xl">
-                <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                  <div>
-                    <h3 className="text-xl font-bold text-[#000000]">Manual</h3>
-                    <p className="text-xs text-[#707070] mt-0.5">Enter client details manually</p>
-                  </div>
-                  <button
-                    onClick={handleCloseModal}
-                    className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#000000] transition-colors"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                <form onSubmit={handleSubmitClient} className="p-6 space-y-4">
-                  {pendingClientApplicationData && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-[#daf3f0] border border-[#45bcaa]/30 rounded-[5px] text-xs text-[#005851]">
-                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span className="font-medium">Application data extracted! A policy will be auto-created.</span>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-sm font-medium text-[#000000] mb-1">Name *</label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))}
-                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
-                      placeholder="Full name"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-[#000000] mb-1">Email</label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData((f) => ({ ...f, email: e.target.value }))}
-                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
-                      placeholder="email@example.com"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-[#000000] mb-1">Phone</label>
-                    <input
-                      type="tel"
-                      value={formData.phone}
-                      onChange={(e) => setFormData((f) => ({ ...f, phone: e.target.value }))}
-                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
-                      placeholder="(555) 123-4567"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-[#000000] mb-1">Date of Birth</label>
-                    <input
-                      type="date"
-                      value={formData.dateOfBirth}
-                      onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))}
-                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-[#000000] mb-1">Client since</label>
-                    <input
-                      type="date"
-                      value={formData.clientSinceDate}
-                      onChange={(e) => setFormData((f) => ({ ...f, clientSinceDate: e.target.value }))}
-                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
-                    />
-                    <p className="mt-1 text-xs text-[#707070]">
-                      When they became your client (often the application signature date). Filled automatically from PDFs when found. Leave blank to show the date they were added here.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-[#000000] mb-1">Preferred Language</label>
-                    <select
-                      value={formData.preferredLanguage}
-                      onChange={(e) => setFormData((f) => ({ ...f, preferredLanguage: resolveClientLanguage(e.target.value) }))}
-                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
-                    >
-                      <option value="en">English</option>
-                      <option value="es">Spanish</option>
-                    </select>
-                  </div>
-
-                  {formError && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-[5px] text-xs text-red-600">
-                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {formError}
-                    </div>
-                  )}
-
-                  {formSuccess && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-[5px] text-xs text-green-700">
-                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      {formSuccess}
-                    </div>
-                  )}
-
-                  <div className="flex gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={handleCloseModal}
-                      className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors text-sm"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] transition-colors flex items-center justify-center gap-2 text-sm"
-                    >
-                      {submitting ? (
-                        <>
-                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                          </svg>
-                          Saving...
-                        </>
-                      ) : (
-                        'Add Client'
-                      )}
-                    </button>
-                  </div>
-                </form>
-              </div>
             </div>
           )}
         </div>
@@ -3917,6 +4347,22 @@ export default function ClientsPage() {
               {/* Upload Application Button */}
               {!editingPolicy && (
                 <div className="space-y-2">
+                  <div>
+                    <label className="block text-sm font-medium text-[#000000] mb-1">Application Type</label>
+                    <select
+                      value={policyApplicationType}
+                      onChange={(e) => setPolicyApplicationType(e.target.value as ApplicationFormType)}
+                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                      disabled={policyApplicationUploading}
+                    >
+                      {APPLICATION_TYPE_OPTIONS.map((option) => (
+                        <option key={option.label} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <button
                     type="button"
                     onClick={handleClickPolicyApplicationUpload}
@@ -3951,6 +4397,13 @@ export default function ClientsPage() {
                         />
                       </div>
                       <p className="mt-1 text-[11px] text-[#0A5CA8]/80">{policyParseProgress.label}</p>
+                      <button
+                        type="button"
+                        onClick={handleCancelPolicyApplicationUpload}
+                        className="mt-2 px-3 py-1.5 text-xs font-semibold rounded-[5px] border border-[#0A5CA8]/30 text-[#0A5CA8] hover:bg-[#e8f4ff] transition-colors"
+                      >
+                        Cancel
+                      </button>
                     </div>
                   )}
                   {policyApplicationNote && (

@@ -10,7 +10,9 @@ const JOBS_COLLECTION = 'ingestionJobsV3';
 interface IngestionV3JobDoc {
   mode: IngestionV3Mode;
   status: IngestionV3Status;
-  gcsPath: string;
+  carrierFormType?: string;
+  gcsPath?: string;
+  gcsImagePaths: string[];
   fileName?: string;
   contentType?: string;
   attempts: number;
@@ -31,7 +33,9 @@ interface IngestionV3JobDoc {
 
 export interface CreateIngestionV3JobInput {
   mode: IngestionV3Mode;
-  gcsPath: string;
+  carrierFormType?: string;
+  gcsPath?: string;
+  gcsImagePaths?: string[];
   fileName?: string;
   contentType?: string;
   maxAttempts?: number;
@@ -66,7 +70,9 @@ export async function createIngestionV3Job(input: CreateIngestionV3JobInput): Pr
   const payload: IngestionV3JobDoc = {
     mode: input.mode,
     status: 'queued',
+    carrierFormType: typeof input.carrierFormType === 'string' && input.carrierFormType.trim() ? input.carrierFormType.trim() : 'unknown',
     gcsPath: input.gcsPath,
+    gcsImagePaths: Array.isArray(input.gcsImagePaths) ? input.gcsImagePaths.filter((path) => !!path.trim()) : [],
     fileName: input.fileName,
     contentType: input.contentType,
     attempts: 0,
@@ -261,14 +267,43 @@ export async function requeueIngestionV3JobWithBackoff(
   });
 }
 
+export async function cancelIngestionV3Job(
+  jobId: string,
+  error: IngestionV3ErrorDetails,
+): Promise<'not_found' | 'ignored' | 'updated'> {
+  const db = getAdminFirestore();
+  const ref = db.collection(JOBS_COLLECTION).doc(jobId);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return 'not_found' as const;
+    const data = snap.data() as Record<string, unknown>;
+    const status = (data.status as IngestionV3Status | undefined) ?? 'failed';
+    if (status === 'review_ready' || status === 'saved' || status === 'failed') {
+      return 'ignored' as const;
+    }
+
+    tx.update(ref, {
+      status: 'failed',
+      error,
+      processingToken: FieldValue.delete(),
+      retryAfter: FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp(),
+      completedAt: FieldValue.serverTimestamp(),
+    });
+    return 'updated' as const;
+  });
+}
+
 export function toIngestionV3JobRecord(id: string, data: Record<string, unknown>): IngestionV3JobRecord {
   return {
     id,
     mode: (data.mode as IngestionV3Mode) ?? 'application',
     status: (data.status as IngestionV3Status) ?? 'failed',
+    carrierFormType: typeof data.carrierFormType === 'string' ? data.carrierFormType : undefined,
     agentId: typeof data.agentId === 'string' ? data.agentId : undefined,
     batchId: typeof data.batchId === 'string' ? data.batchId : undefined,
     gcsPath: typeof data.gcsPath === 'string' ? data.gcsPath : '',
+    gcsImagePaths: toStringArray(data.gcsImagePaths),
     fileName: typeof data.fileName === 'string' ? data.fileName : undefined,
     contentType: typeof data.contentType === 'string' ? data.contentType : undefined,
     attempts: typeof data.attempts === 'number' ? data.attempts : 0,
@@ -282,6 +317,11 @@ export function toIngestionV3JobRecord(id: string, data: Record<string, unknown>
     completedAt: toIsoStringOptional(data.completedAt),
     retryAfter: toIsoStringOptional(data.retryAfter),
   };
+}
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean);
 }
 
 function compactObject<T extends object>(obj: T): Partial<T> {

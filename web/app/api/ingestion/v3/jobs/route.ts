@@ -13,7 +13,9 @@ export const maxDuration = 60;
 
 interface CreateIngestionV3JobBody {
   mode?: IngestionV3Mode;
+  carrierFormType?: string;
   gcsPath?: string;
+  gcsImagePaths?: string[];
   fileName?: string;
   contentType?: string;
   idempotencyKey?: string;
@@ -39,18 +41,22 @@ export async function POST(req: NextRequest): Promise<NextResponse<IngestionV3Su
 
     const body = (await req.json()) as CreateIngestionV3JobBody;
     const mode = body.mode === 'bob' ? 'bob' : 'application';
+    const carrierFormType = typeof body.carrierFormType === 'string' ? body.carrierFormType.trim() : '';
     const gcsPath = (body.gcsPath || '').trim();
+    const gcsImagePaths = Array.isArray(body.gcsImagePaths)
+      ? body.gcsImagePaths.filter((value): value is string => typeof value === 'string').map((value) => value.trim()).filter(Boolean)
+      : [];
     const fileName = body.fileName?.trim();
     const sourceContentType = body.contentType?.trim();
     const idempotencyKey = body.idempotencyKey?.trim();
 
-    if (!gcsPath) {
+    if (mode === 'application' && !carrierFormType) {
       return NextResponse.json(
         {
           success: false,
           error: {
-            code: 'UPLOAD_NOT_FOUND',
-            message: 'gcsPath is required.',
+            code: 'UPLOAD_SOURCE_INVALID',
+            message: 'carrierFormType is required.',
             retryable: false,
             terminal: true,
           },
@@ -59,27 +65,77 @@ export async function POST(req: NextRequest): Promise<NextResponse<IngestionV3Su
       );
     }
 
-    const exists = await gcsPathExists(gcsPath);
-    if (!exists) {
+    if (mode === 'application') {
+      if (!gcsImagePaths.length) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'UPLOAD_NOT_FOUND',
+              message: 'gcsImagePaths is required for application jobs.',
+              retryable: false,
+              terminal: true,
+            },
+          },
+          { status: 400 },
+        );
+      }
+
+      const allImagesExist = await Promise.all(gcsImagePaths.map((path) => gcsPathExists(path)));
+      if (allImagesExist.some((exists) => !exists)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'UPLOAD_NOT_FOUND',
+              message: 'One or more uploaded images were not found in storage.',
+              retryable: false,
+              terminal: true,
+            },
+          },
+          { status: 404 },
+        );
+      }
+    } else if (!gcsPath) {
       return NextResponse.json(
         {
           success: false,
           error: {
             code: 'UPLOAD_NOT_FOUND',
-            message: 'Uploaded file was not found in storage.',
+            message: 'gcsPath is required for bob jobs.',
             retryable: false,
             terminal: true,
           },
         },
-        { status: 404 },
+        { status: 400 },
       );
+    }
+
+    if (mode === 'bob') {
+      const exists = await gcsPathExists(gcsPath);
+      if (!exists) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'UPLOAD_NOT_FOUND',
+              message: 'Uploaded file was not found in storage.',
+              retryable: false,
+              terminal: true,
+            },
+          },
+          { status: 404 },
+        );
+      }
     }
 
     const agentId = await getOptionalAgentId(req);
 
     const created = await createIngestionV3Job({
       mode,
+      carrierFormType,
       gcsPath,
+      gcsImagePaths,
       fileName,
       contentType: sourceContentType,
       agentId,
