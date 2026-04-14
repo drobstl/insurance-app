@@ -2,7 +2,7 @@
 # CONTEXT.md — AgentForLife (AFL)
 
 > Drop this in the repo root. Read it before any strategic or architectural decision.
-> Last updated: April 9, 2026
+> Last updated: April 14, 2026
 
 ## What This Is
 
@@ -202,6 +202,58 @@ Standalone pricing remains for agents who come directly. Founding member migrati
 - Standalone access remains available for agents not on Closr AI
 - NEPQ methodology is the foundation for all AI-generated messaging
 - Linq handles iMessage/SMS (migrated from SendBlue)
+
+## PDF Application Extraction Pipeline (April 14, 2026)
+
+> This section is the single source of truth for how PDF application upload and extraction works. If any Cursor session or Claude conversation describes a different architecture, this section takes precedence.
+
+### Architecture
+
+1. Agent selects an application type from a dropdown in the dashboard (e.g., "Americo - Mortgage Protection/Term")
+2. The selection maps to a `carrierFormType` key (e.g., `americo_icc18_5160`)
+3. Client-side `PAGE_MAP` determines which PDF pages to render for that carrier (e.g., pages 1, 2, 5)
+4. Dashboard renders those pages to JPEG using `pdfjs-dist` (scale 1.62, quality 0.80) via `web/lib/pdf/render-selected-pages-to-jpeg.ts`
+5. JPEGs are uploaded to GCS via signed URLs
+6. Ingestion job is created in Firestore (`ingestionJobsV3`) with `gcsImagePaths` array
+7. Cloud Function (`gcf/ingestion-v3-processor`) triggers on job creation, downloads JPEG images from GCS
+8. Sends base64 JPEG image blocks to Claude Sonnet 4.6 with `GENERIC_APPLICATION_SYSTEM_PROMPT`
+9. No `output_config` or `json_schema` — Claude returns unstructured JSON based on prompt instructions
+10. `safeJsonParse` strips markdown code fences, then `normalizeApplication` normalizes the result
+11. Completeness gate evaluates core fields; if passing, job status set to `review_ready`
+12. Dashboard polls Firestore and picks up extracted data for agent review
+
+### Key implementation details
+
+- **No `output_config`:** Removed because the Anthropic API rejected the schema as "too complex" (16 union-type limit on structured output). Claude relies entirely on the system prompt for output format.
+- **JPEG, not native PDF:** Native PDF sending as base64 document blocks timed out at 90+ seconds for 6-8 MB files. The JPEG path gets ~5 second Claude responses.
+- **`PAGE_INSTRUCTIONS` was removed from the GCF processor.** Carrier-specific page selection happens client-side via `PAGE_MAP`. The GCF processor receives only the relevant page images and doesn't need to know which pages they are.
+- **`buildApplicationSystemPrompt(carrierFormType)` exists** in the GCF processor but currently has no carrier-specific prompt entries. It returns `GENERIC_APPLICATION_SYSTEM_PROMPT` for all carriers. Carrier-specific prompt supplements are the next planned addition.
+
+### GENERIC_APPLICATION_SYSTEM_PROMPT FIELD RULES
+
+The system prompt includes explicit FIELD RULES for all 16 extraction fields:
+insuredName, insuredPhone, insuredEmail, insuredState, renewalDate, policyOwner, beneficiaries, coverageAmount, premiumAmount, premiumFrequency, policyNumber, policyType, insuranceCompany, insuredDateOfBirth, effectiveDate, applicationSignedDate.
+
+The four fields insuredPhone, insuredEmail, insuredState, and renewalDate were added on April 14, 2026 to fix null extraction for those fields. The root cause was that they existed in the code schema but had no FIELD RULES guidance in the prompt — Claude only extracts fields it has explicit instructions for.
+
+### Carrier page mappings (current)
+
+| Carrier Form Type | Label | Pages |
+|---|---|---|
+| `americo_icc18_5160` | Americo - Mortgage Protection/Term (also CBO) | 1, 2, 5 |
+
+### Key files
+
+- `gcf/ingestion-v3-processor/src/index.ts` — Cloud Function: download images, call Claude, normalize, completeness gate
+- `web/lib/pdf/render-selected-pages-to-jpeg.ts` — Browser PDF-to-JPEG rendering utility
+- `web/app/dashboard/clients/page.tsx` — PAGE_MAP, application type dropdown, upload flow, job polling
+- `web/lib/ingestion-v3-store.ts` — Job creation with `gcsImagePaths`
+- `web/lib/ingestion-v3-types.ts` — Type definitions including `gcsImagePaths`
+- `web/app/api/ingestion/v3/jobs/route.ts` — API endpoint for job creation
+
+### Repository rule
+
+The canonical working repo is `/Users/danielroberts/Developer/insurance-app`. The iCloud Desktop copy (`~/Library/Mobile Documents/com~apple~CloudDocs/Desktop/insurance-app`) is stale and must not be used for development. Always verify you are in the Developer path before making changes.
 
 ## Open Questions
 
