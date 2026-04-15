@@ -176,14 +176,16 @@ Standalone pricing remains for agents who come directly. Founding member migrati
   - New Firestore-triggered GCF package scaffold added at `gcf/ingestion-v3-processor` (lock + throttle + extraction + fallback + completeness gate + zombie cleanup baseline).
   - Vercel processing endpoint `/api/ingestion/v3/jobs/[jobId]/process` is explicitly deprecated (HTTP 410) to prevent accidental use.
   - Client upload entry points now share 16 MB limits, unified fallback/error policy, and standardized telemetry event names for release-gate tracking.
-- Updated (April 13, 2026): Application extraction now uses a single image-first ingestion path for supported forms.
-  - The dashboard no longer uploads raw application PDFs for extraction. It renders carrier-mapped pages client-side with `pdfjs-dist` (currently `americo_icc18_5160` -> pages 1/2/5), encodes them to JPEG (<200 KB/page target), uploads those images to GCS, and creates ingestion jobs with `gcsImagePaths`.
-  - The Cloud Function processor now downloads `gcsImagePaths` and sends ordered `image/jpeg` blocks to Claude; page-selection prompt branches (`PAGE_INSTRUCTIONS`) were removed, and the system prompt now instructs extraction from all visible pages.
-  - The dashboard application upload flow removed direct `/api/parse-application` fallback and removed unknown-carrier parsing path in this flow; supported carrier/form selection now drives one deterministic extraction path.
-- In progress (April 2026): Carrier-template pilot for application parsing (Americo ICC18 5160 family) is being wired into the GCF processor:
-  - Added an application-vs-non-application classifier step before extraction; non-application files now fail with explicit terminal code `DOCUMENT_NOT_APPLICATION`.
-  - Added Americo template hints (`Americo` header + `ICC18 5160` + Section 2 product checkbox variants like Term/CBO) to route extraction with form-aware guidance while preserving generic fallback behavior for unknown templates.
-  - UI error mapping now shows a clear user-facing message when a file is not recognized as an insurance application.
+- Updated (April 13-14, 2026): Application extraction now uses an image-first ingestion path with carrier PAGE_MAP + carrier prompt supplements.
+  - The dashboard no longer uploads raw application PDFs for extraction. It renders selected pages client-side with `pdfjs-dist`, encodes them to JPEG (<200 KB/page target), uploads those images to GCS, and creates ingestion jobs with `gcsImagePaths`.
+  - Client-side carrier mappings now include: `americo_icc18_5160` (1/2/5), `americo_icc18_5160_iul` (1/2/5/21/22), and `americo_icc24_5426` (1/2/3/4/5). Unmapped form types (including `unknown`) fall back to rendering the first `MAX_APPLICATION_RENDER_PAGES`.
+  - The Cloud Function processor downloads ordered `gcsImagePaths`, sends ordered `image/jpeg` blocks to Claude, and appends carrier-specific prompt supplements (image-position based guidance) when `carrierFormType` has a supplement entry.
+  - Dashboard application type labels are now: "Americo - Term or CBO", "Americo - IUL", "Americo - Whole Life", and "Other Carrier".
+  - The direct `/api/parse-application` fallback remains in place as a resilience path for specific signed-upload/job error classes.
+- In progress (April 2026): Carrier-template guidance rollout for application parsing is expanding in production:
+  - Non-application classifier step is active before extraction; non-application files fail with explicit terminal code `DOCUMENT_NOT_APPLICATION`.
+  - Carrier guidance is now delivered through dedicated prompt supplement entries keyed by `carrierFormType`, with image-position instructions aligned to PAGE_MAP ordering.
+  - UI error mapping shows a clear user-facing message when a file is not recognized as an insurance application.
 - Known issues / next session:
   - "0 pages" metadata bug in extraction summary.
   - Bulk import intelligence notes are concatenated into an unreadable wall of text (needs per-file collapsible notes).
@@ -209,14 +211,14 @@ Standalone pricing remains for agents who come directly. Founding member migrati
 
 ### Architecture
 
-1. Agent selects an application type from a dropdown in the dashboard (e.g., "Americo - Mortgage Protection/Term")
+1. Agent selects an application type from a dropdown in the dashboard (e.g., "Americo - Term or CBO")
 2. The selection maps to a `carrierFormType` key (e.g., `americo_icc18_5160`)
-3. Client-side `PAGE_MAP` determines which PDF pages to render for that carrier (e.g., pages 1, 2, 5)
+3. Client-side `PAGE_MAP` determines which PDF pages to render for that carrier (e.g., pages 1, 2, 5). If a form type is unmapped (including `unknown`), the client falls back to rendering the first `MAX_APPLICATION_RENDER_PAGES` sequentially.
 4. Dashboard renders those pages to JPEG using `pdfjs-dist` (scale 1.62, quality 0.80) via `web/lib/pdf/render-selected-pages-to-jpeg.ts`
 5. JPEGs are uploaded to GCS via signed URLs
 6. Ingestion job is created in Firestore (`ingestionJobsV3`) with `gcsImagePaths` array
 7. Cloud Function (`gcf/ingestion-v3-processor`) triggers on job creation, downloads JPEG images from GCS
-8. Sends base64 JPEG image blocks to Claude Sonnet 4.6 with `GENERIC_APPLICATION_SYSTEM_PROMPT`
+8. Sends base64 JPEG image blocks to Claude Sonnet 4.6 with `GENERIC_APPLICATION_SYSTEM_PROMPT` plus carrier supplement text when available for that `carrierFormType`
 9. No `output_config` or `json_schema` — Claude returns unstructured JSON based on prompt instructions
 10. `safeJsonParse` strips markdown code fences, then `normalizeApplication` normalizes the result
 11. Completeness gate evaluates core fields; if passing, job status set to `review_ready`
@@ -226,8 +228,10 @@ Standalone pricing remains for agents who come directly. Founding member migrati
 
 - **No `output_config`:** Removed because the Anthropic API rejected the schema as "too complex" (16 union-type limit on structured output). Claude relies entirely on the system prompt for output format.
 - **JPEG, not native PDF:** Native PDF sending as base64 document blocks timed out at 90+ seconds for 6-8 MB files. The JPEG path gets ~5 second Claude responses.
-- **`PAGE_INSTRUCTIONS` was removed from the GCF processor.** Carrier-specific page selection happens client-side via `PAGE_MAP`. The GCF processor receives only the relevant page images and doesn't need to know which pages they are.
-- **`buildApplicationSystemPrompt(carrierFormType)` exists** in the GCF processor but currently has no carrier-specific prompt entries. It returns `GENERIC_APPLICATION_SYSTEM_PROMPT` for all carriers. Carrier-specific prompt supplements are the next planned addition.
+- **`PAGE_INSTRUCTIONS` was removed from the GCF processor.** Carrier-specific page selection happens client-side via `PAGE_MAP`. The GCF processor receives only ordered page images and does not receive page-number metadata.
+- **Carrier prompt supplements are now active.** `buildApplicationSystemPrompt(carrierFormType)` appends supplement text from `gcf/ingestion-v3-processor/src/carrier-prompt-supplements.ts` when a matching entry exists; otherwise it returns `GENERIC_APPLICATION_SYSTEM_PROMPT`.
+- **Supplements use image positions, not PDF page numbers.** Guidance references "Image 1/2/3..." because Claude receives ordered image blocks, not native PDF page metadata.
+- **Resilience fallback still exists.** The dashboard retains a direct `/api/parse-application` fallback path for specific signed upload failures and select v3 job failures (`INTERNAL_ERROR` / `CLAUDE_SCHEMA_INVALID`).
 
 ### GENERIC_APPLICATION_SYSTEM_PROMPT FIELD RULES
 
@@ -240,7 +244,9 @@ The four fields insuredPhone, insuredEmail, insuredState, and renewalDate were a
 
 | Carrier Form Type | Label | Pages |
 |---|---|---|
-| `americo_icc18_5160` | Americo - Mortgage Protection/Term (also CBO) | 1, 2, 5 |
+| `americo_icc18_5160` | Americo - Term or CBO | 1, 2, 5 |
+| `americo_icc18_5160_iul` | Americo - IUL | 1, 2, 5, 21, 22 |
+| `americo_icc24_5426` | Americo - Whole Life | 1, 2, 3, 4, 5 |
 
 ### Key files
 
