@@ -192,6 +192,7 @@ Standalone pricing remains for agents who come directly. Founding member migrati
   - "Import Book of Business" naming is confusing for agents uploading a few PDFs (not a CSV dump).
   - Single-file Upload Application modal does not support multi-select.
   - Dashboard auth "Checking account access" spinner hangs on load.
+  - Two mystery date pickers at the bottom of the Review & Confirm card show empty mm/dd/yyyy on every test — unknown what fields they map to.
   - PostHog instrumentation files for Closr AI are still uncommitted.
 
 **Founding Member Program:** First 50 agents free for life. This commitment needs a migration path as AFL becomes a Closr AI module.
@@ -247,6 +248,24 @@ The four fields insuredPhone, insuredEmail, insuredState, and renewalDate were a
 | `americo_icc18_5160` | Americo - Term or CBO | 1, 2, 5 |
 | `americo_icc18_5160_iul` | Americo - IUL | 1, 2, 5, 21, 22 |
 | `americo_icc24_5426` | Americo - Whole Life | 1, 2, 3, 4, 5 |
+
+### Testing Results (April 14-15, 2026)
+
+| Test | Carrier/Form | Result | Notes |
+|---|---|---|---|
+| Term (Craig Pippin) | `americo_icc18_5160` | ✅ 16/16 fields | Policy number correctly null (not in PAGE_MAP pages). Signed date extracted from page 5. |
+| IUL (Robin Howard) | `americo_icc18_5160_iul` | ✅ All fields | Policy number `AM02854798` from Bank Draft (page 21). Signed date correctly null (blank on page 5). Conditional Receipt fallback (page 22) added after this test - untested. |
+| Whole Life (Barbara Seaton) - attempt 1 | `americo_icc24_5426` | ❌ Cross-contamination | Policy number showed `AM02854798` (Robin Howard's). Likely stale state from canceling previous flow. |
+| Whole Life (Barbara Seaton) - attempt 2 | `americo_icc24_5426` | ❌ Empty policy number | Old PAGE_MAP was `[1, 2, 4]` but Bank Draft was on page 3. PAGE_MAP since updated to `[1, 2, 3, 4, 5]`. Needs re-test. |
+
+### Open Items (Priority Order)
+
+1. Expand Term/CBO PAGE_MAP. Full Term/CBO packages are 9 pages. Bank Draft Authorization is on page 7, Conditional Receipt on page 8. Current PAGE_MAP `[1, 2, 5]` misses both, so policy number and effective date are always null for full packages. Need to decide: expand to `[1, 2, 5, 7, 8]` (fixed positions) or send more pages and scan (like Whole Life), depending on whether Bank Draft position varies. Term/CBO samples available for page structure analysis.
+2. Re-test Whole Life with updated PAGE_MAP `[1, 2, 3, 4, 5]` and scanning supplement. Use Barbara Seaton PDF (Bank Draft on page 3, expected policy number `AM02488865`).
+3. Re-test IUL Conditional Receipt fallback. Robin Howard's page 5 signature date was blank - verify that Image 5 (Conditional Receipt, page 22) now provides the date `11/18/2025`.
+4. Document `unknown` carrier handling. Current behavior works (renders first N pages, no supplement, base prompt does best-effort). Just needs to be intentional and documented.
+5. Investigate two mystery date pickers at the bottom of the Review & Confirm card. They show empty mm/dd/yyyy on every test. Unknown what fields they map to.
+6. Sliding card redesign (Block 6) - separate from extraction work. Plan file at `.cursor/plans/clients_sliding_add_flow_8e25628d.plan.md`.
 
 ### Key files
 
