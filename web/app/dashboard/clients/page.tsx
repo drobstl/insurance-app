@@ -71,7 +71,7 @@ import { KNOWN_CARRIER_NAMES } from '../../../lib/carriers';
 const KNOWN_CARRIERS = KNOWN_CARRIER_NAMES;
 type ApplicationFormType = string;
 const APPLICATION_TYPE_OPTIONS: Array<{ label: string; value: ApplicationFormType }> = [
-  { label: 'Americo - Term / CBO', value: 'americo_icc18_5160' },
+  { label: 'Americo - Term or CBO', value: 'americo_icc18_5160' },
   { label: 'Americo - IUL', value: 'americo_icc18_5160_iul' },
   { label: 'Americo - Whole Life', value: 'americo_icc24_5426' },
   { label: 'Other Carrier', value: 'unknown' },
