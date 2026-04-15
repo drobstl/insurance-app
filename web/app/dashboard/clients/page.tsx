@@ -42,7 +42,8 @@ import { useGooglePicker } from '../../../hooks/useGooglePicker';
 import type { GooglePickerSelectedFile } from '../../../hooks/useGooglePicker';
 import { buildWelcomeMessage, resolveClientLanguage, type SupportedLanguage } from '../../../lib/client-language';
 import { fireConfetti } from '../../../lib/confetti';
-import { renderFirstPdfPagesToJpegs } from '../../../lib/pdf/render-selected-pages-to-jpeg';
+import { renderFirstPdfPagesToJpegs, renderSelectedPdfPagesToJpegs } from '../../../lib/pdf/render-selected-pages-to-jpeg';
+import { APPLICATION_PAGE_MAP } from '../../../lib/pdf/application-page-map';
 
 // ─── Constants ─────────────────────────────────────────────
 
@@ -68,7 +69,7 @@ const DEFAULT_INTRO_TEMPLATE =
 import { KNOWN_CARRIER_NAMES } from '../../../lib/carriers';
 
 const KNOWN_CARRIERS = KNOWN_CARRIER_NAMES;
-type ApplicationFormType = 'americo_icc18_5160' | 'unknown';
+type ApplicationFormType = string;
 const APPLICATION_TYPE_OPTIONS: Array<{ label: string; value: ApplicationFormType }> = [
   { label: 'Americo - Term', value: 'americo_icc18_5160' },
   { label: 'Americo - CBO', value: 'americo_icc18_5160' },
@@ -1751,7 +1752,10 @@ export default function ClientsPage() {
     token = await user.getIdToken();
     reportProgress(14, 'Rendering PDF pages...');
     try {
-      const renderedPages = await renderFirstPdfPagesToJpegs(file, MAX_APPLICATION_RENDER_PAGES);
+      const selectedPageNumbers = APPLICATION_PAGE_MAP[carrierFormType];
+      const renderedPages = Array.isArray(selectedPageNumbers) && selectedPageNumbers.length
+        ? await renderSelectedPdfPagesToJpegs(file, selectedPageNumbers)
+        : await renderFirstPdfPagesToJpegs(file, MAX_APPLICATION_RENDER_PAGES);
       if (!renderedPages.length) {
         throw new Error('No pages could be rendered from this PDF.');
       }
@@ -1898,6 +1902,11 @@ export default function ClientsPage() {
         throw new Error('Cancelled by agent.');
       }
       const message = v3Error instanceof Error ? v3Error.message : String(v3Error);
+      if (message.includes('is missing from the uploaded PDF.')) {
+        throw new Error(
+          'This PDF does not have enough pages for the selected application type. Verify the application type is correct, or choose "Other Carrier" to extract from the first pages.',
+        );
+      }
       const shouldFallback =
         message.includes('Upload failed (403)') ||
         message.includes('Invalid JWT Signature') ||

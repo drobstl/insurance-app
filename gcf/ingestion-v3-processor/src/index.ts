@@ -4,6 +4,7 @@ import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { defineSecret } from 'firebase-functions/params';
+import { CARRIER_PROMPT_SUPPLEMENTS } from './carrier-prompt-supplements';
 
 initializeApp();
 getFirestore().settings({ ignoreUndefinedProperties: true });
@@ -438,8 +439,9 @@ async function runApplicationExtraction(imageBuffers: Buffer[], carrierFormType:
 }
 
 function buildApplicationSystemPrompt(carrierFormType: string): string {
-  void carrierFormType;
-  return GENERIC_APPLICATION_SYSTEM_PROMPT;
+  const supplement = CARRIER_PROMPT_SUPPLEMENTS[carrierFormType];
+  if (!supplement) return GENERIC_APPLICATION_SYSTEM_PROMPT;
+  return `${GENERIC_APPLICATION_SYSTEM_PROMPT}\n\n${supplement}`;
 }
 
 function evaluateCompleteness(data: ExtractedApplicationData) {
