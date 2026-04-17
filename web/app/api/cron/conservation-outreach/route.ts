@@ -6,8 +6,13 @@ import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { Resend } from 'resend';
-import { generateOutreachMessage, generateConservationEmail } from '../../../../lib/conservation-ai';
+import {
+  generateOutreachMessage,
+  generateConservationEmail,
+  enforceOutreachBookingCta,
+} from '../../../../lib/conservation-ai';
 import { getCarrierServicePhone } from '../../../../lib/carriers';
+import { ensureAgentBookingSlug, buildBrandedBookingUrl } from '../../../../lib/booking-link';
 import type { ConservationOutreachContext, ConservationChannel } from '../../../../lib/conservation-types';
 import { resolveClientLanguage } from '../../../../lib/client-language';
 import {
@@ -294,6 +299,24 @@ export async function GET(req: NextRequest) {
       const schedulingUrl = (agentData.schedulingUrl as string) || null;
       const agentEmail = (agentData.email as string) || null;
       const agentPhone = (agentData.phoneNumber as string) || null;
+      let bookingSlug: string | null = null;
+      if (schedulingUrl) {
+        bookingSlug = await ensureAgentBookingSlug({
+          agentId: agentDoc.id,
+          agentName,
+          agencyName: (agentData.agencyName as string) || null,
+          existingSlug: (agentData.bookingSlug as string) || null,
+        });
+      }
+
+      const stageBookingUrl = (stage: TouchStage): string | null => {
+        if (!bookingSlug || !schedulingUrl) return null;
+        return buildBrandedBookingUrl({
+          bookingSlug,
+          source: 'conservation',
+          stage,
+        });
+      };
 
       const alertsRef = db
         .collection('agents')
@@ -312,6 +335,18 @@ export async function GET(req: NextRequest) {
 
         const clientId = alertData.clientId as string | null;
         if (!clientId) continue;
+
+        const locked = await db.runTransaction(async (tx) => {
+          const latestSnap = await tx.get(alertDoc.ref);
+          const latest = latestSnap.data() || {};
+          const latestStatus = (latest.status as string) || '';
+          const lockAt = (latest.initialSendLockAt as string | null) || null;
+          const lockFresh = lockAt && Date.now() - new Date(lockAt).getTime() < 5 * 60 * 1000;
+          if (latestStatus !== 'outreach_scheduled' || lockFresh) return false;
+          tx.update(alertDoc.ref, { initialSendLockAt: nowIso });
+          return true;
+        });
+        if (!locked) continue;
 
         const clientDoc = await db
           .collection('agents')
@@ -348,7 +383,12 @@ export async function GET(req: NextRequest) {
         };
 
         const sendOpts = {
-          message,
+          message: enforceOutreachBookingCta({
+            message,
+            schedulingUrl,
+            bookingUrl: stageBookingUrl('initial'),
+            dripNumber: 0,
+          }),
           avail,
           agentName,
           agentFirstName,
@@ -377,7 +417,7 @@ export async function GET(req: NextRequest) {
             .add({
               type: 'conservation',
               title: `Message from ${agentName}`,
-              body: message,
+              body: sendOpts.message,
               includeBookingLink: !!schedulingUrl,
               schedulingUrl: schedulingUrl || null,
               sentAt: FieldValue.serverTimestamp(),
@@ -387,7 +427,7 @@ export async function GET(req: NextRequest) {
 
           const conversationEntry = {
             role: 'agent-ai' as const,
-            body: message,
+            body: sendOpts.message,
             timestamp: nowIso,
             channels: [result.channel],
           };
@@ -403,6 +443,7 @@ export async function GET(req: NextRequest) {
             lastDripAt: nowIso,
             chatId: result.chatId,
             conversation: FieldValue.arrayUnion(conversationEntry),
+            initialSendLockAt: FieldValue.delete(),
           });
 
           outreachFired++;
@@ -486,9 +527,15 @@ export async function GET(req: NextRequest) {
             continue;
           }
           if (!followUpMessage) continue;
+          const followUpWithBooking = enforceOutreachBookingCta({
+            message: followUpMessage,
+            schedulingUrl,
+            bookingUrl: stageBookingUrl(nextStage),
+            dripNumber,
+          });
 
           const sendOpts = {
-            message: followUpMessage,
+            message: followUpWithBooking,
             avail,
             agentName,
             agentFirstName,
@@ -535,7 +582,7 @@ export async function GET(req: NextRequest) {
             .add({
               type: 'conservation',
               title: `Message from ${agentName}`,
-              body: followUpMessage,
+              body: followUpWithBooking,
               includeBookingLink: !!schedulingUrl,
               sentAt: FieldValue.serverTimestamp(),
               readAt: null,
@@ -544,7 +591,7 @@ export async function GET(req: NextRequest) {
 
           const conversationEntry = {
             role: 'agent-ai' as const,
-            body: followUpMessage,
+            body: followUpWithBooking,
             timestamp: nowIso,
             channels: [sendResult.channel],
           };
@@ -563,7 +610,7 @@ export async function GET(req: NextRequest) {
             channelsUsed: [...existingChannelsUsed, sendResult.channel],
             dripCount: (alertData.dripCount || 0) + 1,
             lastDripAt: nowIso,
-            dripMessages: [...existingDripMessages, followUpMessage],
+            dripMessages: [...existingDripMessages, followUpWithBooking],
             conversation: FieldValue.arrayUnion(conversationEntry),
           };
 

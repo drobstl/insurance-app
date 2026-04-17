@@ -50,6 +50,35 @@ interface ConservationAlertUI {
   resolvedAt: string | null;
 }
 
+function formatMessageTimestamp(timestamp: string): string {
+  const d = new Date(timestamp);
+  if (Number.isNaN(d.getTime())) return '';
+
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfMsgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.round((startOfToday.getTime() - startOfMsgDay.getTime()) / 86400000);
+
+  const timePart = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (diffDays === 0) return `Today, ${timePart}`;
+  if (diffDays === 1) return `Yesterday, ${timePart}`;
+  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${timePart}`;
+}
+
+function formatDayLabel(timestamp: string): string {
+  const d = new Date(timestamp);
+  if (Number.isNaN(d.getTime())) return '';
+
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfMsgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.round((startOfToday.getTime() - startOfMsgDay.getTime()) / 86400000);
+
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
 export default function ConservationPage() {
   const { user, loading, agentProfile, dismissTip } = useDashboard();
 
@@ -416,6 +445,7 @@ export default function ConservationPage() {
               const isCelebrating = celebrationAlert === alert.id && alert.status === 'saved';
               const conversation = alert.conversation || [];
               const msgCount = conversation.length;
+              const isPreSend = alert.status === 'new' || alert.status === 'outreach_scheduled';
 
               const statusLabel = alert.status === 'outreach_scheduled'
                 ? `Outreach in ${minutesLeft}m`
@@ -637,23 +667,39 @@ export default function ConservationPage() {
                         )}
 
                         {/* Conversation messages */}
+                        {!isResolved && isPreSend && alert.initialMessage && (
+                          <div className="bg-[#f0faf9] border border-[#c7ece7] rounded-[5px] p-3">
+                            <p className="text-[11px] uppercase tracking-wide font-semibold text-[#007268] mb-1">AI Draft (not sent yet)</p>
+                            <p className="text-sm text-[#005851] leading-relaxed">{alert.initialMessage}</p>
+                          </div>
+                        )}
+
                         {conversation.length > 0 ? (
                           <div className="space-y-2">
                             {conversation.map((msg, i) => (
-                              <div key={i} className={`flex ${msg.role === 'client' ? 'justify-start' : 'justify-end'}`}>
-                                <div className={`max-w-[80%] px-3 py-2 rounded-lg text-sm ${
-                                  msg.role === 'agent-ai'
-                                    ? 'bg-[#005851] text-white'
-                                    : msg.role === 'agent-manual'
-                                      ? 'bg-[#1a6b5c] text-white'
-                                      : 'bg-[#f0f0f0] text-[#000000]'
-                                }`}>
-                                  <p>{msg.body}</p>
-                                  <p className={`text-[10px] mt-1 ${msg.role === 'client' ? 'text-[#a0a0a0]' : 'text-white/60'}`}>
-                                    {msg.role === 'agent-ai' ? 'AI (as you)' : msg.role === 'agent-manual' ? 'You (manual)' : alert.clientName.split(' ')[0]}
-                                    {msg.timestamp && ` · ${new Date(msg.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}
-                                    {msg.channels && msg.channels.length > 0 && ` · ${msg.channels.join(', ')}`}
-                                  </p>
+                              <div key={i}>
+                                {(i === 0 || formatDayLabel(conversation[i - 1].timestamp) !== formatDayLabel(msg.timestamp)) && (
+                                  <div className="flex items-center justify-center my-2">
+                                    <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-[#f3f3f3] text-[#707070]">
+                                      {formatDayLabel(msg.timestamp)}
+                                    </span>
+                                  </div>
+                                )}
+                                <div className={`flex ${msg.role === 'client' ? 'justify-start' : 'justify-end'}`}>
+                                  <div className={`max-w-[80%] px-3 py-2 rounded-lg text-sm ${
+                                    msg.role === 'agent-ai'
+                                      ? 'bg-[#005851] text-white'
+                                      : msg.role === 'agent-manual'
+                                        ? 'bg-[#1a6b5c] text-white'
+                                        : 'bg-[#f0f0f0] text-[#000000]'
+                                  }`}>
+                                    <p>{msg.body}</p>
+                                    <p className={`text-[10px] mt-1 ${msg.role === 'client' ? 'text-[#a0a0a0]' : 'text-white/60'}`}>
+                                      {msg.role === 'agent-ai' ? 'AI (as you)' : msg.role === 'agent-manual' ? 'You (manual)' : alert.clientName.split(' ')[0]}
+                                      {msg.timestamp && ` · ${formatMessageTimestamp(msg.timestamp)}`}
+                                      {msg.channels && msg.channels.length > 0 && ` · ${msg.channels.join(', ')}`}
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
                             ))}

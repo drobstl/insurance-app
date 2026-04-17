@@ -267,10 +267,6 @@ export async function createManualConservationAlert(
     ? new Date(now.getTime() + GRACE_PERIOD_MS).toISOString()
     : null;
 
-  const initialConversation = initialMessage
-    ? [{ role: 'agent-ai' as const, body: initialMessage, timestamp: now.toISOString() }]
-    : [];
-
   const alertData = {
     source: 'manual_flag' as const,
     rawText: `Manually flagged: ${params.reason === 'lapsed_payment' ? 'Missed Payment' : 'Cancellation'}`,
@@ -296,7 +292,12 @@ export async function createManualConservationAlert(
     dripCount: 0,
     initialMessage,
     dripMessages: [] as string[],
-    conversation: initialConversation,
+    conversation: [] as Array<{
+      role: 'client' | 'agent-ai' | 'agent-manual';
+      body: string;
+      timestamp: string;
+      channels?: ConservationChannel[];
+    }>,
     chatId: null as string | null,
     aiEnabled: true,
     availableChannels,
@@ -418,10 +419,6 @@ export async function createConservationAlert(
     ? new Date(now.getTime() + GRACE_PERIOD_MS).toISOString()
     : null;
 
-  const initialConversation = initialMessage
-    ? [{ role: 'agent-ai' as const, body: initialMessage, timestamp: now.toISOString() }]
-    : [];
-
   const alertData = {
     source,
     rawText,
@@ -447,7 +444,12 @@ export async function createConservationAlert(
     dripCount: 0,
     initialMessage,
     dripMessages: [] as string[],
-    conversation: initialConversation,
+    conversation: [] as Array<{
+      role: 'client' | 'agent-ai' | 'agent-manual';
+      body: string;
+      timestamp: string;
+      channels?: ConservationChannel[];
+    }>,
     chatId: null as string | null,
     aiEnabled: true,
     availableChannels,

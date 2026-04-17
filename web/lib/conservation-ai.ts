@@ -151,6 +151,47 @@ function describeReason(reason: ConservationReason): string {
   return 'policy issue';
 }
 
+const URL_REGEX = /https?:\/\/\S+/i;
+
+function hasBookingLanguage(text: string): boolean {
+  return /\b(book|booking|calendar|schedule|scheduled|quick call|time on my calendar)\b/i.test(text);
+}
+
+/**
+ * Ensures conservation outreach includes a booking CTA/link on touch 1 or 2
+ * whenever an agent scheduling URL is available.
+ */
+export function enforceOutreachBookingCta(params: {
+  message: string;
+  schedulingUrl: string | null;
+  bookingUrl?: string | null;
+  dripNumber: number;
+}): string {
+  const schedulingUrl = params.schedulingUrl?.trim();
+  if (!schedulingUrl) return params.message.trim();
+
+  const bookingUrl = (params.bookingUrl || schedulingUrl).trim();
+  const message = params.message.trim();
+  const requiresCta = params.dripNumber === 0 || params.dripNumber === 1;
+
+  const hasAnyUrl = URL_REGEX.test(message);
+  const hasBookingCta = hasBookingLanguage(message);
+
+  if (hasAnyUrl && hasBookingCta) {
+    return message;
+  }
+
+  if (!requiresCta) {
+    return message;
+  }
+
+  if (hasAnyUrl && !hasBookingCta) {
+    return `${message} If you want, pick a quick time on my calendar and we can walk through this together.`;
+  }
+
+  return `${message} If you want, pick a quick time on my calendar so we can make sure this coverage stays on track: ${bookingUrl}`;
+}
+
 /**
  * Generates a personalized outreach message for a conservation alert.
  * Tone adapts based on reason (missed payment vs cancellation) and drip number.

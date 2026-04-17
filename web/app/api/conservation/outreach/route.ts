@@ -5,6 +5,8 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
 import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
+import { ensureAgentBookingSlug, buildBrandedBookingUrl } from '../../../../lib/booking-link';
+import { enforceOutreachBookingCta } from '../../../../lib/conservation-ai';
 import {
   type TouchStage,
   type ConservationChannel,
@@ -67,6 +69,24 @@ export async function POST(req: NextRequest) {
     const alertData = alertSnap.data()!;
     const clientId = alertData.clientId as string | null;
     const message = (alertData.initialMessage as string) || '';
+    const status = (alertData.status as string) || 'new';
+    const lockAt = (alertData.initialSendLockAt as string | null) || null;
+    const lockFresh = lockAt && Date.now() - new Date(lockAt).getTime() < 5 * 60 * 1000;
+
+    if (['outreach_sent', 'drip_1', 'drip_2', 'drip_3', 'saved', 'lost'].includes(status)) {
+      return NextResponse.json({ success: true, alreadySent: true, sentChannel: null });
+    }
+
+    if (!['new', 'outreach_scheduled'].includes(status)) {
+      return NextResponse.json(
+        { error: `Alert is not in a sendable state (${status}).` },
+        { status: 409 },
+      );
+    }
+
+    if (lockFresh) {
+      return NextResponse.json({ success: true, alreadySending: true, sentChannel: null });
+    }
 
     if (!clientId) {
       return NextResponse.json(
@@ -74,6 +94,9 @@ export async function POST(req: NextRequest) {
         { status: 422 },
       );
     }
+
+    // Lightweight send lock to reduce duplicate sends from manual+cron races.
+    await alertRef.update({ initialSendLockAt: new Date().toISOString() });
 
     if (!message) {
       return NextResponse.json(
@@ -97,6 +120,26 @@ export async function POST(req: NextRequest) {
     const agentData = agentDoc.data() || {};
     const agentName = (agentData.name as string) || 'Your Agent';
     const schedulingUrl = (agentData.schedulingUrl as string) || null;
+    let bookingUrl: string | null = null;
+    if (schedulingUrl) {
+      const bookingSlug = await ensureAgentBookingSlug({
+        agentId,
+        agentName,
+        agencyName: (agentData.agencyName as string) || null,
+        existingSlug: (agentData.bookingSlug as string) || null,
+      });
+      bookingUrl = buildBrandedBookingUrl({
+        bookingSlug,
+        source: 'conservation',
+        stage: 'initial',
+      });
+    }
+    const messageWithBooking = enforceOutreachBookingCta({
+      message,
+      schedulingUrl,
+      bookingUrl,
+      dripNumber: 0,
+    });
 
     const now = new Date();
     const nowIso = now.toISOString();
@@ -137,7 +180,7 @@ export async function POST(req: NextRequest) {
             body: JSON.stringify({
               to: pushToken,
               title: `Message from ${agentName}`,
-              body: message,
+              body: messageWithBooking,
               sound: 'default',
               badge: 1,
               priority: 'high',
@@ -161,7 +204,7 @@ export async function POST(req: NextRequest) {
           const result = await sendOrCreateChat({
             to: normalizedPhone,
             chatId,
-            text: message,
+            text: messageWithBooking,
           });
           chatId = result.chatId;
           sentChannel = 'sms';
@@ -184,7 +227,7 @@ export async function POST(req: NextRequest) {
     await clientRef.collection('notifications').add({
       type: 'conservation',
       title: `Message from ${agentName}`,
-      body: message,
+      body: messageWithBooking,
       includeBookingLink: !!schedulingUrl,
       schedulingUrl: schedulingUrl || null,
       sentAt: FieldValue.serverTimestamp(),
@@ -192,7 +235,7 @@ export async function POST(req: NextRequest) {
       status: sentChannel ? 'sent' : 'failed',
     });
 
-    await alertRef.update({
+    const alertUpdate: Record<string, unknown> = {
       status: 'outreach_sent',
       touchStage: 'initial' as TouchStage,
       nextTouchAt,
@@ -202,7 +245,17 @@ export async function POST(req: NextRequest) {
       smsSentAt: sentChannel === 'sms' ? nowIso : null,
       lastDripAt: nowIso,
       chatId,
-    });
+      initialSendLockAt: FieldValue.delete(),
+    };
+    if (sentChannel) {
+      alertUpdate.conversation = FieldValue.arrayUnion({
+        role: 'agent-ai' as const,
+        body: messageWithBooking,
+        timestamp: nowIso,
+        channels: [sentChannel],
+      });
+    }
+    await alertRef.update(alertUpdate);
 
     return NextResponse.json({
       success: true,

@@ -93,6 +93,15 @@ export default function ClientDetailModal({
   hasSchedulingUrl,
   clientPushToken,
 }: ClientDetailModalProps) {
+  const formatPremiumCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
   const frequencyLabel = (freq?: string) => {
     switch (freq) {
       case 'quarterly': return '/qtr';
@@ -1246,7 +1255,7 @@ export default function ClientDetailModal({
                           </div>
                           <div>
                             <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Premium</p>
-                            <p className="text-[#000000] font-semibold">{formatCurrency(policy.premiumAmount)}{frequencyLabel(policy.premiumFrequency)}</p>
+                            <p className="text-[#000000] font-semibold">{formatPremiumCurrency(policy.premiumAmount)}{frequencyLabel(policy.premiumFrequency)}</p>
                           </div>
                         </>
                       ) : (policy.policyType === 'Accidental' || policy.policyType === 'Term Life') ? (
@@ -1257,7 +1266,7 @@ export default function ClientDetailModal({
                           </div>
                           <div className="col-span-2">
                             <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Premium</p>
-                            <p className="text-[#000000] font-semibold">{formatCurrency(policy.premiumAmount)}{frequencyLabel(policy.premiumFrequency)}</p>
+                            <p className="text-[#000000] font-semibold">{formatPremiumCurrency(policy.premiumAmount)}{frequencyLabel(policy.premiumFrequency)}</p>
                           </div>
                         </>
                       ) : (
@@ -1268,7 +1277,7 @@ export default function ClientDetailModal({
                           </div>
                           <div>
                             <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Premium</p>
-                            <p className="text-[#000000] font-semibold">{formatCurrency(policy.premiumAmount)}{frequencyLabel(policy.premiumFrequency)}</p>
+                            <p className="text-[#000000] font-semibold">{formatPremiumCurrency(policy.premiumAmount)}{frequencyLabel(policy.premiumFrequency)}</p>
                           </div>
                         </>
                       )}
