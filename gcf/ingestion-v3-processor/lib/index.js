@@ -10,6 +10,7 @@ const firestore_1 = require("firebase-admin/firestore");
 const storage_1 = require("firebase-admin/storage");
 const firestore_2 = require("firebase-functions/v2/firestore");
 const params_1 = require("firebase-functions/params");
+const carrier_prompt_supplements_1 = require("./carrier-prompt-supplements");
 (0, app_1.initializeApp)();
 (0, firestore_1.getFirestore)().settings({ ignoreUndefinedProperties: true });
 const REGION = 'us-central1';
@@ -381,8 +382,10 @@ async function runApplicationExtraction(imageBuffers, carrierFormType) {
     }
 }
 function buildApplicationSystemPrompt(carrierFormType) {
-    void carrierFormType;
-    return GENERIC_APPLICATION_SYSTEM_PROMPT;
+    const supplement = carrier_prompt_supplements_1.CARRIER_PROMPT_SUPPLEMENTS[carrierFormType];
+    if (!supplement)
+        return GENERIC_APPLICATION_SYSTEM_PROMPT;
+    return `${GENERIC_APPLICATION_SYSTEM_PROMPT}\n\n${supplement}`;
 }
 function evaluateCompleteness(data) {
     const [firstName, ...rest] = (data.insuredName || '').trim().split(/\s+/);
