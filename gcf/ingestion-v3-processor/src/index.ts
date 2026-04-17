@@ -3,6 +3,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import { CARRIER_PROMPT_SUPPLEMENTS } from './carrier-prompt-supplements';
 
@@ -12,6 +13,8 @@ getFirestore().settings({ ignoreUndefinedProperties: true });
 const REGION = 'us-central1';
 const JOBS_COLLECTION = 'ingestionJobsV3';
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
+const ZOMBIE_TIMEOUT_MS = 5 * 60 * 1000;
+const ZOMBIE_SCAN_LIMIT = 200;
 
 const GENERIC_APPLICATION_SYSTEM_PROMPT = `You are an expert insurance application document parser.
 
@@ -253,6 +256,63 @@ export const processIngestionV3Queued = onDocumentCreated(
         error_message: classified.message,
       });
     }
+  },
+);
+
+export const cleanupIngestionV3Zombies = onSchedule(
+  {
+    region: REGION,
+    schedule: 'every 5 minutes',
+    timeoutSeconds: 240,
+  },
+  async () => {
+    const db = getFirestore();
+    const cutoffMs = Date.now() - ZOMBIE_TIMEOUT_MS;
+    const snap = await db
+      .collection(JOBS_COLLECTION)
+      .where('status', '==', 'processing')
+      .limit(ZOMBIE_SCAN_LIMIT)
+      .get();
+
+    if (snap.empty) return;
+
+    const staleDocs = snap.docs.filter((doc) => {
+      const data = doc.data() as Record<string, unknown>;
+      const startedAtMs = toMillisOrNull(data.startedAt);
+      // If startedAt is missing/malformed, do not force-fail the job.
+      return startedAtMs != null && startedAtMs <= cutoffMs;
+    });
+
+    if (!staleDocs.length) {
+      emit('ingestion_v3_zombie_cleanup', {
+        scanned_jobs: snap.size,
+        affected_jobs: 0,
+      });
+      return;
+    }
+
+    await Promise.all(
+      staleDocs.map((doc) =>
+        doc.ref.update({
+          status: 'failed',
+          error: {
+            code: 'PROCESSING_TIMEOUT',
+            message: 'Job exceeded processing timeout (5 minutes) and was marked failed.',
+            retryable: false,
+            terminal: true,
+          },
+          processingToken: FieldValue.delete(),
+          retryAfter: FieldValue.delete(),
+          updatedAt: FieldValue.serverTimestamp(),
+          completedAt: FieldValue.serverTimestamp(),
+        }),
+      ),
+    );
+
+    emit('ingestion_v3_zombie_cleanup', {
+      scanned_jobs: snap.size,
+      affected_jobs: staleDocs.length,
+    });
   },
 );
 
@@ -511,6 +571,53 @@ function isIngestionError(value: unknown): value is IngestionError {
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean);
+}
+
+function toMillisOrNull(value: unknown): number | null {
+  if (!value) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
+  if (typeof value === 'object') {
+    const candidate = value as {
+      toMillis?: () => number;
+      toDate?: () => Date;
+      _seconds?: number;
+      _nanoseconds?: number;
+      seconds?: number;
+      nanoseconds?: number;
+    };
+
+    if (typeof candidate.toMillis === 'function') {
+      const millis = candidate.toMillis();
+      return Number.isFinite(millis) ? millis : null;
+    }
+    if (typeof candidate.toDate === 'function') {
+      const date = candidate.toDate();
+      const millis = date.getTime();
+      return Number.isNaN(millis) ? null : millis;
+    }
+
+    const sec =
+      typeof candidate.seconds === 'number'
+        ? candidate.seconds
+        : typeof candidate._seconds === 'number'
+          ? candidate._seconds
+          : null;
+    if (sec == null) return null;
+
+    const nanos =
+      typeof candidate.nanoseconds === 'number'
+        ? candidate.nanoseconds
+        : typeof candidate._nanoseconds === 'number'
+          ? candidate._nanoseconds
+          : 0;
+    return sec * 1000 + Math.floor(nanos / 1_000_000);
+  }
+  return null;
 }
 
 function randomToken(): string {

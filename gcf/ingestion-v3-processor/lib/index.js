@@ -3,12 +3,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.processIngestionV3Queued = void 0;
+exports.cleanupIngestionV3Zombies = exports.processIngestionV3Queued = void 0;
 const sdk_1 = __importDefault(require("@anthropic-ai/sdk"));
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
 const storage_1 = require("firebase-admin/storage");
 const firestore_2 = require("firebase-functions/v2/firestore");
+const scheduler_1 = require("firebase-functions/v2/scheduler");
 const params_1 = require("firebase-functions/params");
 const carrier_prompt_supplements_1 = require("./carrier-prompt-supplements");
 (0, app_1.initializeApp)();
@@ -16,6 +17,8 @@ const carrier_prompt_supplements_1 = require("./carrier-prompt-supplements");
 const REGION = 'us-central1';
 const JOBS_COLLECTION = 'ingestionJobsV3';
 const ANTHROPIC_API_KEY = (0, params_1.defineSecret)('ANTHROPIC_API_KEY');
+const ZOMBIE_TIMEOUT_MS = 5 * 60 * 1000;
+const ZOMBIE_SCAN_LIMIT = 200;
 const GENERIC_APPLICATION_SYSTEM_PROMPT = `You are an expert insurance application document parser.
 
 You are viewing pages extracted from an insurance application. Extract data from all visible pages. Use the visible form layout, labels, and filled-in values to extract the requested fields.
@@ -202,6 +205,51 @@ exports.processIngestionV3Queued = (0, firestore_2.onDocumentCreated)({
             error_message: classified.message,
         });
     }
+});
+exports.cleanupIngestionV3Zombies = (0, scheduler_1.onSchedule)({
+    region: REGION,
+    schedule: 'every 5 minutes',
+    timeoutSeconds: 240,
+}, async () => {
+    const db = (0, firestore_1.getFirestore)();
+    const cutoffMs = Date.now() - ZOMBIE_TIMEOUT_MS;
+    const snap = await db
+        .collection(JOBS_COLLECTION)
+        .where('status', '==', 'processing')
+        .limit(ZOMBIE_SCAN_LIMIT)
+        .get();
+    if (snap.empty)
+        return;
+    const staleDocs = snap.docs.filter((doc) => {
+        const data = doc.data();
+        const startedAtMs = toMillisOrNull(data.startedAt);
+        // If startedAt is missing/malformed, do not force-fail the job.
+        return startedAtMs != null && startedAtMs <= cutoffMs;
+    });
+    if (!staleDocs.length) {
+        emit('ingestion_v3_zombie_cleanup', {
+            scanned_jobs: snap.size,
+            affected_jobs: 0,
+        });
+        return;
+    }
+    await Promise.all(staleDocs.map((doc) => doc.ref.update({
+        status: 'failed',
+        error: {
+            code: 'PROCESSING_TIMEOUT',
+            message: 'Job exceeded processing timeout (5 minutes) and was marked failed.',
+            retryable: false,
+            terminal: true,
+        },
+        processingToken: firestore_1.FieldValue.delete(),
+        retryAfter: firestore_1.FieldValue.delete(),
+        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        completedAt: firestore_1.FieldValue.serverTimestamp(),
+    })));
+    emit('ingestion_v3_zombie_cleanup', {
+        scanned_jobs: snap.size,
+        affected_jobs: staleDocs.length,
+    });
 });
 async function lockQueuedJob(jobId) {
     const db = (0, firestore_1.getFirestore)();
@@ -454,6 +502,42 @@ function toStringArray(value) {
     if (!Array.isArray(value))
         return [];
     return value.filter((item) => typeof item === 'string').map((item) => item.trim()).filter(Boolean);
+}
+function toMillisOrNull(value) {
+    if (!value)
+        return null;
+    if (typeof value === 'number')
+        return Number.isFinite(value) ? value : null;
+    if (typeof value === 'string') {
+        const parsed = Date.parse(value);
+        return Number.isNaN(parsed) ? null : parsed;
+    }
+    if (typeof value === 'object') {
+        const candidate = value;
+        if (typeof candidate.toMillis === 'function') {
+            const millis = candidate.toMillis();
+            return Number.isFinite(millis) ? millis : null;
+        }
+        if (typeof candidate.toDate === 'function') {
+            const date = candidate.toDate();
+            const millis = date.getTime();
+            return Number.isNaN(millis) ? null : millis;
+        }
+        const sec = typeof candidate.seconds === 'number'
+            ? candidate.seconds
+            : typeof candidate._seconds === 'number'
+                ? candidate._seconds
+                : null;
+        if (sec == null)
+            return null;
+        const nanos = typeof candidate.nanoseconds === 'number'
+            ? candidate.nanoseconds
+            : typeof candidate._nanoseconds === 'number'
+                ? candidate._nanoseconds
+                : 0;
+        return sec * 1000 + Math.floor(nanos / 1_000_000);
+    }
+    return null;
 }
 function randomToken() {
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
