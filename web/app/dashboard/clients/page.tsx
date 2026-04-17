@@ -78,8 +78,19 @@ const APPLICATION_TYPE_OPTIONS: Array<{ label: string; value: ApplicationFormTyp
   { label: 'Americo - Term or CBO', value: 'americo_icc18_5160' },
   { label: 'Americo - IUL', value: 'americo_icc18_5160_iul' },
   { label: 'Americo - Whole Life', value: 'americo_icc24_5426' },
+  { label: 'American-Amicable - Mortgage Protection', value: 'amam_icc15_aa9466' },
   { label: 'Other Carrier', value: 'unknown' },
 ];
+
+// Carrier form types whose PDFs ship in multiple page-count variants where the
+// requested PAGE_MAP pages may not all exist (e.g. short-form / extended-addendum
+// variants). These go through renderSelectedPdfPagesToJpegsTolerant so the renderer
+// clamps missing pages instead of hard-failing; the matching carrier prompt
+// supplement must be written to handle the variable image count.
+const SHORT_FORM_CARRIER_FORM_TYPES = new Set<ApplicationFormType>([
+  'americo_icc18_5160',
+  'amam_icc15_aa9466',
+]);
 
 function getBulkPdfConcurrencyLimit(): number {
   const raw = process.env.NEXT_PUBLIC_IMPORT_PDF_CONCURRENCY;
@@ -1759,11 +1770,14 @@ export default function ClientsPage() {
       const selectedPageNumbers = APPLICATION_PAGE_MAP[carrierFormType];
       let renderedPages: Array<{ pageNumber: number; blob: Blob }>;
       if (Array.isArray(selectedPageNumbers) && selectedPageNumbers.length) {
-        // Americo Term/CBO (icc18_5160) ships in both 9-page (with Bank Draft on p7) and
-        // 5-page (no Bank Draft) variants. Use the tolerant renderer so short-form PDFs
-        // don't hard-fail at render time; the carrier prompt supplement is written to
-        // handle both 3- and 4-image outcomes.
-        if (carrierFormType === 'americo_icc18_5160') {
+        // Some carrier forms ship in multiple page-count variants where the requested
+        // PAGE_MAP pages may not all exist:
+        // - Americo Term/CBO (icc18_5160): 9-page with Bank Draft on p7, or 5-page short-form without.
+        // - AMAM ICC15-AA9466 (Mortgage Protection): 9/10-page with Bank Draft on p5 or p6,
+        //   or 8-page variant missing p6.
+        // Use the tolerant renderer so short-form PDFs don't hard-fail at render time;
+        // the matching carrier prompt supplement must handle the variable image count.
+        if (SHORT_FORM_CARRIER_FORM_TYPES.has(carrierFormType)) {
           const tolerantResult = await renderSelectedPdfPagesToJpegsTolerant(file, selectedPageNumbers);
           renderedPages = tolerantResult.rendered;
           if (tolerantResult.skipped.length) {
@@ -2907,12 +2921,15 @@ export default function ClientsPage() {
   const renderAddFlowPolicyInputs = () => (
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
-        <input
-          type="date"
-          value={formData.clientSinceDate}
-          onChange={(e) => setFormData((f) => ({ ...f, clientSinceDate: e.target.value }))}
-          className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm"
-        />
+        <div className="flex flex-col">
+          <label className="text-xs font-medium text-[#707070] mb-1">Client Since</label>
+          <input
+            type="date"
+            value={formData.clientSinceDate}
+            onChange={(e) => setFormData((f) => ({ ...f, clientSinceDate: e.target.value }))}
+            className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm"
+          />
+        </div>
         <select
           value={addFlowPolicyForm.policyType}
           onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, policyType: e.target.value }))}
@@ -2981,18 +2998,24 @@ export default function ClientsPage() {
           <option value="semi-annual">Premium Frequency: Semi-Annual</option>
           <option value="annual">Premium Frequency: Annual</option>
         </select>
-        <input
-          type="date"
-          value={addFlowPolicyForm.effectiveDate}
-          onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, effectiveDate: e.target.value }))}
-          className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm"
-        />
-        <input
-          type="date"
-          value={addFlowPolicyForm.renewalDate}
-          onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, renewalDate: e.target.value }))}
-          className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm"
-        />
+        <div className="flex flex-col">
+          <label className="text-xs font-medium text-[#707070] mb-1">Effective Date</label>
+          <input
+            type="date"
+            value={addFlowPolicyForm.effectiveDate}
+            onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, effectiveDate: e.target.value }))}
+            className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm"
+          />
+        </div>
+        <div className="flex flex-col">
+          <label className="text-xs font-medium text-[#707070] mb-1">Renewal Date</label>
+          <input
+            type="date"
+            value={addFlowPolicyForm.renewalDate}
+            onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, renewalDate: e.target.value }))}
+            className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm"
+          />
+        </div>
       </div>
       <div>
         <div className="flex items-center justify-between mb-2">
@@ -3624,7 +3647,10 @@ export default function ClientsPage() {
                         <input type="text" value={formData.name} onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))} placeholder="Name *" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
                         <input type="tel" value={formData.phone} onChange={(e) => setFormData((f) => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
                         <input type="email" value={formData.email} onChange={(e) => setFormData((f) => ({ ...f, email: e.target.value }))} placeholder="Email" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
-                        <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))} className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                        <div className="flex flex-col">
+                          <label className="text-xs font-medium text-[#707070] mb-1">Date of Birth</label>
+                          <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))} className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                        </div>
                       </div>
                       {renderAddFlowPolicyInputs()}
                       {formError && <p className="text-xs text-red-600">{formError}</p>}
@@ -3656,7 +3682,10 @@ export default function ClientsPage() {
                   <input type="text" value={formData.name} onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))} placeholder="Name *" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
                   <input type="tel" value={formData.phone} onChange={(e) => setFormData((f) => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
                   <input type="email" value={formData.email} onChange={(e) => setFormData((f) => ({ ...f, email: e.target.value }))} placeholder="Email" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
-                  <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))} className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                  <div className="flex flex-col">
+                    <label className="text-xs font-medium text-[#707070] mb-1">Date of Birth</label>
+                    <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))} className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                  </div>
                 </div>
                 {renderAddFlowPolicyInputs()}
                 {formError && <p className="text-xs text-red-600">{formError}</p>}
