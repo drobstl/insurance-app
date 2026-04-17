@@ -37,6 +37,7 @@ export const ANALYTICS_EVENTS = {
   APPLICATION_PARSE_COMPLETED: 'application_parse_completed',
   APPLICATION_CORE_COMPLETENESS: 'application_core_completeness',
   APPLICATION_SLA_BREACH: 'application_sla_breach',
+  INGESTION_V3_PAGE_MAP_CLAMPED: 'ingestion_v3_page_map_clamped',
 } as const;
 
 export type AnalyticsEventName =
@@ -174,6 +175,13 @@ export type AnalyticsEventPropertiesMap = {
   application_parse_completed: GenericEventProperties;
   application_core_completeness: GenericEventProperties;
   application_sla_breach: GenericEventProperties;
+  ingestion_v3_page_map_clamped: {
+    carrier_form_type?: string;
+    num_pages?: number;
+    requested_count?: number;
+    rendered_count?: number;
+    skipped_pages?: string;
+  } & GenericEventProperties;
 };
 
 export type AnalyticsEventProperties<T extends AnalyticsEventName> =

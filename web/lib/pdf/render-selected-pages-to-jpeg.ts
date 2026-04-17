@@ -53,6 +53,48 @@ export async function renderSelectedPdfPagesToJpegs(file: File, pageNumbers: num
   return renderedPages;
 }
 
+export type TolerantRenderResult = {
+  rendered: RenderedJpegPage[];
+  requested: number[];
+  skipped: number[];
+};
+
+export async function renderSelectedPdfPagesToJpegsTolerant(
+  file: File,
+  pageNumbers: number[],
+): Promise<TolerantRenderResult> {
+  if (typeof window === 'undefined') {
+    throw new Error('PDF rendering is only available in the browser.');
+  }
+
+  const uniqueSortedPages = Array.from(new Set(pageNumbers)).sort((a, b) => a - b);
+  if (!uniqueSortedPages.length) {
+    throw new Error('At least one page number is required.');
+  }
+  if (uniqueSortedPages.some((pageNumber) => !Number.isInteger(pageNumber) || pageNumber < 1)) {
+    throw new Error('Invalid page selection for this application type.');
+  }
+
+  const pdfjs = await loadPdfJs();
+  const loadingTask = pdfjs.getDocument({ data: await file.arrayBuffer() });
+  const documentProxy = await loadingTask.promise;
+
+  const renderablePages = uniqueSortedPages.filter((pageNumber) => pageNumber <= documentProxy.numPages);
+  const skipped = uniqueSortedPages.filter((pageNumber) => pageNumber > documentProxy.numPages);
+
+  if (!renderablePages.length) {
+    throw new Error('None of the requested pages exist in the uploaded PDF.');
+  }
+
+  const renderedPages: RenderedJpegPage[] = [];
+  for (const pageNumber of renderablePages) {
+    const page = await documentProxy.getPage(pageNumber);
+    const blob = await renderPageAsJpeg(page);
+    renderedPages.push({ pageNumber, blob });
+  }
+  return { rendered: renderedPages, requested: uniqueSortedPages, skipped };
+}
+
 export async function renderFirstPdfPagesToJpegs(file: File, maxPages = 6): Promise<RenderedJpegPage[]> {
   if (!Number.isFinite(maxPages) || maxPages < 1) {
     throw new Error('Invalid page limit for rendering.');

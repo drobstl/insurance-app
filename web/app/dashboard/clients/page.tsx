@@ -42,7 +42,11 @@ import { useGooglePicker } from '../../../hooks/useGooglePicker';
 import type { GooglePickerSelectedFile } from '../../../hooks/useGooglePicker';
 import { buildWelcomeMessage, resolveClientLanguage, type SupportedLanguage } from '../../../lib/client-language';
 import { fireConfetti } from '../../../lib/confetti';
-import { renderFirstPdfPagesToJpegs, renderSelectedPdfPagesToJpegs } from '../../../lib/pdf/render-selected-pages-to-jpeg';
+import {
+  renderFirstPdfPagesToJpegs,
+  renderSelectedPdfPagesToJpegs,
+  renderSelectedPdfPagesToJpegsTolerant,
+} from '../../../lib/pdf/render-selected-pages-to-jpeg';
 import { APPLICATION_PAGE_MAP } from '../../../lib/pdf/application-page-map';
 
 // ─── Constants ─────────────────────────────────────────────
@@ -1753,9 +1757,29 @@ export default function ClientsPage() {
     reportProgress(14, 'Rendering PDF pages...');
     try {
       const selectedPageNumbers = APPLICATION_PAGE_MAP[carrierFormType];
-      const renderedPages = Array.isArray(selectedPageNumbers) && selectedPageNumbers.length
-        ? await renderSelectedPdfPagesToJpegs(file, selectedPageNumbers)
-        : await renderFirstPdfPagesToJpegs(file, MAX_APPLICATION_RENDER_PAGES);
+      let renderedPages: Array<{ pageNumber: number; blob: Blob }>;
+      if (Array.isArray(selectedPageNumbers) && selectedPageNumbers.length) {
+        // Americo Term/CBO (icc18_5160) ships in both 9-page (with Bank Draft on p7) and
+        // 5-page (no Bank Draft) variants. Use the tolerant renderer so short-form PDFs
+        // don't hard-fail at render time; the carrier prompt supplement is written to
+        // handle both 3- and 4-image outcomes.
+        if (carrierFormType === 'americo_icc18_5160') {
+          const tolerantResult = await renderSelectedPdfPagesToJpegsTolerant(file, selectedPageNumbers);
+          renderedPages = tolerantResult.rendered;
+          if (tolerantResult.skipped.length) {
+            captureEvent(ANALYTICS_EVENTS.INGESTION_V3_PAGE_MAP_CLAMPED, {
+              carrier_form_type: carrierFormType,
+              requested_count: tolerantResult.requested.length,
+              rendered_count: tolerantResult.rendered.length,
+              skipped_pages: tolerantResult.skipped.join(','),
+            });
+          }
+        } else {
+          renderedPages = await renderSelectedPdfPagesToJpegs(file, selectedPageNumbers);
+        }
+      } else {
+        renderedPages = await renderFirstPdfPagesToJpegs(file, MAX_APPLICATION_RENDER_PAGES);
+      }
       if (!renderedPages.length) {
         throw new Error('No pages could be rendered from this PDF.');
       }
