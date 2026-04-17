@@ -79,6 +79,53 @@ function formatDayLabel(timestamp: string): string {
   return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+function dedupeLegacyConversation(conversation: ConservationMessageUI[]): ConservationMessageUI[] {
+  const deduped: ConservationMessageUI[] = [];
+
+  for (const msg of conversation) {
+    const prev = deduped[deduped.length - 1];
+    if (!prev) {
+      deduped.push(msg);
+      continue;
+    }
+
+    const sameRole = prev.role === msg.role;
+    const sameBody = prev.body.trim() === msg.body.trim();
+    if (!sameRole || !sameBody) {
+      deduped.push(msg);
+      continue;
+    }
+
+    // Legacy cleanup: collapse draft/sent duplicates where one has channels and the other doesn't.
+    const prevHasChannels = !!prev.channels?.length;
+    const currHasChannels = !!msg.channels?.length;
+    if (prevHasChannels === currHasChannels) {
+      deduped.push(msg);
+      continue;
+    }
+
+    const prevTs = new Date(prev.timestamp).getTime();
+    const currTs = new Date(msg.timestamp).getTime();
+    const hasValidTimestamps = Number.isFinite(prevTs) && Number.isFinite(currTs);
+    const within72Hours = hasValidTimestamps ? Math.abs(currTs - prevTs) <= 72 * 60 * 60 * 1000 : true;
+
+    if (!within72Hours) {
+      deduped.push(msg);
+      continue;
+    }
+
+    if (currHasChannels && !prevHasChannels) {
+      deduped[deduped.length - 1] = msg;
+      continue;
+    }
+
+    // Keep previous enriched event, drop current legacy duplicate.
+    continue;
+  }
+
+  return deduped;
+}
+
 export default function ConservationPage() {
   const { user, loading, agentProfile, dismissTip } = useDashboard();
 
@@ -443,7 +490,7 @@ export default function ConservationPage() {
               const minutesLeft = Math.ceil(timeLeft / 60000);
               const isExpanded = expandedAlert === alert.id;
               const isCelebrating = celebrationAlert === alert.id && alert.status === 'saved';
-              const conversation = alert.conversation || [];
+              const conversation = dedupeLegacyConversation(alert.conversation || []);
               const msgCount = conversation.length;
               const isPreSend = alert.status === 'new' || alert.status === 'outreach_scheduled';
 
