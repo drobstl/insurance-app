@@ -2,7 +2,7 @@
 # CONTEXT.md — AgentForLife (AFL)
 
 > Drop this in the repo root. Read it before any strategic or architectural decision.
-> Last updated: April 14, 2026
+> Last updated: April 18, 2026
 
 ## What This Is
 
@@ -186,13 +186,32 @@ Standalone pricing remains for agents who come directly. Founding member migrati
   - Non-application classifier step is active before extraction; non-application files fail with explicit terminal code `DOCUMENT_NOT_APPLICATION`.
   - Carrier guidance is now delivered through dedicated prompt supplement entries keyed by `carrierFormType`, with image-position instructions aligned to PAGE_MAP ordering.
   - UI error mapping shows a clear user-facing message when a file is not recognized as an insurance application.
+- Added (April 15-18, 2026): Carrier extraction coverage expansion and pipeline hardening.
+  - **Seven new carrier/form types shipped to the v3 pipeline** (dropdown entry + PAGE_MAP + carrier supplement + overrides where applicable):
+    - `amam_icc15_aa9466` — American-Amicable Mortgage Protection (Final Expense / Dignity Solutions); multi-beneficiary addendum handling, AA9903 Bank Draft guardrail, policyNumber returns null (M-number is internal tracking only).
+    - `amam_icc18_aa3487` — American-Amicable Term; covers both Home Certainty (11-page, primary) and legacy Express Term (9-page). One supplement handles both via page-1 form-number detection. Name concatenation rules, `None`/`N/A` email handling, primary+contingent beneficiary capture, bank guardrail against AA9903 and embedded PREAUTHORIZATION CHECK PLAN block.
+    - `foresters_icc15_770825` — Foresters Term Life (clean baseline form).
+    - `moo_icc22_l683a` — Mutual of Omaha Term Life Express and IUL Express (18-page shared form); supplement derives `policyType` from the checked Plan Info box (Term vs IUL).
+    - `moo_icc23_l681a` — Mutual of Omaha Living Promise (Level Benefit and Graded Benefit, both Whole Life, 13-15 page variants).
+    - `moo_ma5981` — Mutual of Omaha Accidental Death (5-page standalone product, `policyType` hardcoded to Accidental).
+    - `banner_lga_icc17_lia` — Banner Life / LGA Term (pages 1-9 + 11).
+  - **Americo Term/CBO full-package support.** PAGE_MAP expanded from `[1, 2, 5]` to `[1, 2, 5, 7, 8]` so the Bank Draft (page 7) and Premium Conditional Receipt AAA8482 (page 8) reach Claude; policy number now extracts from Bank Draft and effectiveDate from the "on (Month/Day/Year)" field on the Conditional Receipt. Short-form 5-page variant handled by tolerant renderer.
+  - **`CARRIER_FORM_TYPE_OVERRIDES` table introduced** in `gcf/ingestion-v3-processor/src/index.ts` as a code-side deterministic override for `policyType` and `insuranceCompany`. Replaces the prior per-carrier `if` branches. Currently: Americo Term, AMAM Dignity, AMAM Term. AMAM Dignity migrated from supplement-only enforcement to code-side override (supplement prompt rules retained as secondary signal).
+  - **Universal `effectiveDate` fallback in `normalizeApplication`.** Any form with a null/blank effective date now falls back to `applicationSignedDate` so downstream workflows always have a reasonable policy start date. Applies across all carriers.
+  - **Tolerant PAGE_MAP renderer** skips absent pages rather than failing, enabling one supplement to cover multiple page-count variants of the same form family.
+  - **Compiled `lib/` output checked in** for `gcf/ingestion-v3-processor`. Without this rebuild the deployed Cloud Function would treat new form types as `unknown` and skip carrier overrides/supplements.
+  - **Firestore-index-free zombie cleanup** restored in the Cloud Function after the previous implementation required an index that could not be reliably provisioned in all environments.
+- Fixed (April 17-18, 2026): Dashboard Add Client flow UX corrections.
+  - Four date pickers in the Add Client form are now explicitly labeled (previously two of them rendered as bare mm/dd/yyyy with no clue what they mapped to).
+  - Review & Confirm card restructured: sticky header + sticky footer (Cancel / Confirm & Create always visible), scrollable middle band, bottom gradient fade, floating "Scroll for more" pill with bouncing chevron that auto-hides at the bottom, branded always-visible scrollbar, and cleaned-up slide transition (horizontal clipping fixed, 560ms → 700ms for a calmer feel).
+- Fixed (April 17, 2026): Retention conversation view hides legacy duplicate draft/sent entries that were polluting the timeline.
+- Updated (April 17, 2026): Conservation outreach copy clarified and booking links improved.
 - Known issues / next session:
   - "0 pages" metadata bug in extraction summary.
   - Bulk import intelligence notes are concatenated into an unreadable wall of text (needs per-file collapsible notes).
   - "Import Book of Business" naming is confusing for agents uploading a few PDFs (not a CSV dump).
   - Single-file Upload Application modal does not support multi-select.
   - Dashboard auth "Checking account access" spinner hangs on load.
-  - Two mystery date pickers at the bottom of the Review & Confirm card show empty mm/dd/yyyy on every test — unknown what fields they map to.
   - PostHog instrumentation files for Closr AI are still uncommitted.
 
 **Founding Member Program:** First 50 agents free for life. This commitment needs a migration path as AFL becomes a Closr AI module.
@@ -233,6 +252,9 @@ Standalone pricing remains for agents who come directly. Founding member migrati
 - **Carrier prompt supplements are now active.** `buildApplicationSystemPrompt(carrierFormType)` appends supplement text from `gcf/ingestion-v3-processor/src/carrier-prompt-supplements.ts` when a matching entry exists; otherwise it returns `GENERIC_APPLICATION_SYSTEM_PROMPT`.
 - **Supplements use image positions, not PDF page numbers.** Guidance references "Image 1/2/3..." because Claude receives ordered image blocks, not native PDF page metadata.
 - **Resilience fallback still exists.** The dashboard retains a direct `/api/parse-application` fallback path for specific signed upload failures and select v3 job failures (`INTERNAL_ERROR` / `CLAUDE_SCHEMA_INVALID`).
+- **`CARRIER_FORM_TYPE_OVERRIDES` (code-side deterministic overrides).** A lookup table in `gcf/ingestion-v3-processor/src/index.ts` locks `policyType` and `insuranceCompany` per `carrierFormType`, authoritative over Claude's classification. The agent-selected dropdown is the source of truth for these two fields. This runs alongside supplement-prompt rules (preferred pattern for new carriers). Currently populated for Americo Term, AMAM Dignity (Mortgage Protection), and AMAM Term.
+- **Universal `effectiveDate` fallback.** `normalizeApplication` falls back to `applicationSignedDate` as the effective date whenever a form does not carry one (e.g. AMAM "On Approval", MOO post-issuance assignment, or any blank effective-date field). Applies to every carrier so downstream workflows always have a reasonable policy start date.
+- **Tolerant PAGE_MAP renderer.** When a carrier form has multiple page-count variants that share extraction semantics (Americo Term 5-page short vs 9-page full; AMAM Term 9-page Express vs 11-page Home Certainty; MOO Living Promise 13-15 pages), the client-side renderer skips absent pages rather than failing, and the carrier supplement handles the reduced image set.
 
 ### GENERIC_APPLICATION_SYSTEM_PROMPT FIELD RULES
 
@@ -254,6 +276,7 @@ The four fields insuredPhone, insuredEmail, insuredState, and renewalDate were a
 | `moo_icc22_l683a` | Mutual of Omaha - Term Life Express / IUL Express | 4, 5, 7, 8 |
 | `moo_icc23_l681a` | Mutual of Omaha - Living Promise | 3, 4, 5 |
 | `moo_ma5981` | Mutual of Omaha - Accidental Death | 1, 2 |
+| `banner_lga_icc17_lia` | Banner Life / LGA - Term | 1, 2, 3, 4, 5, 6, 7, 8, 9, 11 |
 
 ### Testing Results (April 14-15, 2026)
 
@@ -266,12 +289,10 @@ The four fields insuredPhone, insuredEmail, insuredState, and renewalDate were a
 
 ### Open Items (Priority Order)
 
-1. Expand Term/CBO PAGE_MAP. Full Term/CBO packages are 9 pages. Bank Draft Authorization is on page 7, Conditional Receipt on page 8. Current PAGE_MAP `[1, 2, 5]` misses both, so policy number and effective date are always null for full packages. Need to decide: expand to `[1, 2, 5, 7, 8]` (fixed positions) or send more pages and scan (like Whole Life), depending on whether Bank Draft position varies. Term/CBO samples available for page structure analysis.
-2. Re-test Whole Life with updated PAGE_MAP `[1, 2, 3, 4, 5]` and scanning supplement. Use Barbara Seaton PDF (Bank Draft on page 3, expected policy number `AM02488865`).
-3. Re-test IUL Conditional Receipt fallback. Robin Howard's page 5 signature date was blank - verify that Image 5 (Conditional Receipt, page 22) now provides the date `11/18/2025`.
-4. Document `unknown` carrier handling. Current behavior works (renders first N pages, no supplement, base prompt does best-effort). Just needs to be intentional and documented.
-5. Investigate two mystery date pickers at the bottom of the Review & Confirm card. They show empty mm/dd/yyyy on every test. Unknown what fields they map to.
-6. Sliding card redesign (Block 6) - separate from extraction work. Plan file at `.cursor/plans/clients_sliding_add_flow_8e25628d.plan.md`.
+1. Re-test Whole Life with updated PAGE_MAP `[1, 2, 3, 4, 5]` and scanning supplement. Use Barbara Seaton PDF (Bank Draft on page 3, expected policy number `AM02488865`).
+2. Re-test IUL Conditional Receipt fallback. Robin Howard's page 5 signature date was blank - verify that Image 5 (Conditional Receipt, page 22) now provides the date `11/18/2025`.
+3. Document `unknown` carrier handling. Current behavior works (renders first N pages, no supplement, base prompt does best-effort). Just needs to be intentional and documented.
+4. Production validation pass across the newly-added carriers (AMAM Mortgage Protection, AMAM Term, Foresters, all three MOO forms, Banner/LGA) — each currently has supplement + PAGE_MAP shipped but limited real-world sample coverage.
 
 ### Key files
 
