@@ -3665,8 +3665,8 @@ export default function ClientsPage() {
             </div>
           </div>
           <div className="w-full shrink-0 px-1">
-            <div className="max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] max-h-[78vh] overflow-y-auto">
-              <div className="sticky top-0 bg-white border-b border-[#ececec] p-6 flex items-center justify-between">
+            <div className="max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px]">
+              <div className="bg-white border-b border-[#ececec] p-6 flex items-center justify-between">
                 <div>
                   <h3 className="text-xl font-bold text-[#000000]">Review & Confirm</h3>
                   <p className="text-xs text-[#707070] mt-1">Step 1 of 2</p>
