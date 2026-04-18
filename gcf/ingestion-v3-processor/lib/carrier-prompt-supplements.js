@@ -2,20 +2,22 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CARRIER_PROMPT_SUPPLEMENTS = void 0;
 exports.CARRIER_PROMPT_SUPPLEMENTS = {
-    // PAGE_MAP: [1, 2, 5, 7] -> Image 1 = page 1, Image 2 = page 2, Image 3 = page 5, Image 4 = page 7 (when present)
+    // PAGE_MAP: [1, 2, 5, 7, 8] -> Image 1 = page 1, Image 2 = page 2, Image 3 = page 5, Image 4 = page 7 (when present), Image 5 = page 8 (when present)
     // If PAGE_MAP changes for this form type, update image references below.
     americo_icc18_5160: `CARRIER-SPECIFIC GUIDANCE - Americo ICC18 5160 (Term / CBO)
-You are receiving 3 or 4 images depending on the application length. Full 9-page applications include a Bank Draft Authorization as Image 4; short-form 5-page applications omit it and you will receive only 3 images.
+You are receiving 3 or 5 images depending on the application length. Full 9-page applications include a Bank Draft Authorization (Image 4) and a Premium Conditional Receipt (Image 5); short-form 5-page applications omit both and you will receive only 3 images.
 
 Image 1: Insured information (Section 1) and product details (Section 2).
 Image 2: Beneficiaries (Section 4) and policy owner (Section 5).
 Image 3: Signature and signed date (Section 9).
 Image 4 (when present): Bank Draft Authorization - extract the policy/application number from the "Policy Number(s)" field in the top-right under Owner Information. If that field is blank, return policyNumber as null.
+Image 5 (when present): Premium Conditional Receipt (form AAA8482). Extract the date written next to "on (Month/Day/Year)" near the top of the page and return it as effectiveDate in YYYY-MM-DD format. If that date field is blank, return effectiveDate as null.
 
 WARNINGS:
 - State: use ONLY the state from the mailing address (field 5). Do NOT use field 13 (Place of Birth) - it is a different value.
 - If Section 5 (Owner) is blank or matches the insured, return policyOwner as null.
-- If only 3 images are supplied (short-form application with no Bank Draft page), return policyNumber as null.`,
+- If only 3 images are supplied (short-form application with no Bank Draft page), return policyNumber as null.
+- If only 3 images are supplied (short-form application with no Premium Conditional Receipt page), return effectiveDate as null.`,
     // PAGE_MAP: [1, 2, 5, 21, 22] -> Image 1 = page 1, Image 2 = page 2, Image 3 = page 5, Image 4 = page 21, Image 5 = page 22
     // If PAGE_MAP changes for this form type, update image references below.
     americo_icc18_5160_iul: `CARRIER-SPECIFIC GUIDANCE - Americo ICC18 5160 IUL (Indexed Universal Life)

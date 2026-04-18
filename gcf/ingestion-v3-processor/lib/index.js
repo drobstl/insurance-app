@@ -146,6 +146,20 @@ exports.processIngestionV3Queued = (0, firestore_2.onDocumentCreated)({
         const extractionStart = Date.now();
         const extraction = await runApplicationExtraction(imageBuffers, job.carrierFormType);
         const extractionMs = Date.now() - extractionStart;
+        // Carrier-specific deterministic overrides. The agent-selected carrierFormType is
+        // authoritative for these fields; bypass Claude classification. Note: AMAM enforces
+        // policyType/insuranceCompany via supplement-prompt rules instead; this code-side
+        // pattern is used for Americo Term/CBO. Accepting the inconsistency for now.
+        if (job.carrierFormType === 'americo_icc18_5160') {
+            extraction.data.policyType = 'Term Life';
+            extraction.data.insuranceCompany = 'Americo';
+            emit('diag', {
+                stage: 'carrier_form_field_override',
+                at: Date.now(),
+                carrier_form_type: job.carrierFormType,
+                fields: 'policyType,insuranceCompany',
+            });
+        }
         const gate = evaluateCompleteness(extraction.data);
         const metrics = {
             totalMs: Date.now() - t0,
