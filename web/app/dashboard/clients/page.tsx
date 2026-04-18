@@ -79,6 +79,7 @@ const APPLICATION_TYPE_OPTIONS: Array<{ label: string; value: ApplicationFormTyp
   { label: 'Americo - IUL', value: 'americo_icc18_5160_iul' },
   { label: 'Americo - Whole Life', value: 'americo_icc24_5426' },
   { label: 'American-Amicable - Mortgage Protection', value: 'amam_icc15_aa9466' },
+  { label: 'American-Amicable - Term', value: 'amam_icc18_aa3487' },
   { label: 'Other Carrier', value: 'unknown' },
 ];
 
@@ -90,6 +91,7 @@ const APPLICATION_TYPE_OPTIONS: Array<{ label: string; value: ApplicationFormTyp
 const SHORT_FORM_CARRIER_FORM_TYPES = new Set<ApplicationFormType>([
   'americo_icc18_5160',
   'amam_icc15_aa9466',
+  'amam_icc18_aa3487',
 ]);
 
 function getBulkPdfConcurrencyLimit(): number {
@@ -3665,16 +3667,16 @@ export default function ClientsPage() {
             </div>
           </div>
           <div className="w-full shrink-0 px-1">
-            <div className="max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden max-h-[78vh] flex flex-col">
-              <div className="shrink-0 bg-white border-b border-[#ececec] p-6 flex items-center justify-between">
+            <div className="max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden">
+              <div className="bg-white border-b border-[#ececec] p-6 flex items-center justify-between">
                 <div>
                   <h3 className="text-xl font-bold text-[#000000]">Review & Confirm</h3>
                   <p className="text-xs text-[#707070] mt-1">Step 1 of 2</p>
                 </div>
                 <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#45bcaa]" /><span className="h-2.5 w-2.5 rounded-full bg-[#d0d0d0]" /></div>
               </div>
-              <div className="relative flex-1 min-h-0">
-                <div className="h-full overflow-y-auto p-6 space-y-4">
+              <div className="relative">
+                <div className="max-h-[60vh] overflow-y-auto overscroll-contain p-6 space-y-4">
                   <div className="flex items-center gap-2 px-3 py-2 bg-[#daf3f0] border border-[#45bcaa]/30 rounded-[5px] text-xs text-[#005851]">
                     <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     <span className="font-medium">Extraction complete. Review and confirm.</span>
@@ -3692,7 +3694,7 @@ export default function ClientsPage() {
                 </div>
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white to-transparent" />
               </div>
-              <div className="shrink-0 border-t border-[#ececec] bg-white p-6 space-y-3">
+              <div className="border-t border-[#ececec] bg-white p-6 space-y-3">
                 {formError && <p className="text-xs text-red-600">{formError}</p>}
                 <div className="flex gap-3">
                   <button type="button" onClick={() => setAddFlowStage('upload')} className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-[5px] border border-gray-200 text-sm">Cancel</button>
