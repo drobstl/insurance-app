@@ -79,4 +79,44 @@ HARD RULES - ALWAYS RETURN NULL:
 BANK DRAFT GUARDRAIL:
 - A qualifying Bank Draft page MUST have BOTH the header text "Bank Draft Authorization" AND the form number "AA9903". Only that page is the Bank Draft.
 - Do NOT extract any values from the HIPAA release, rider disclosures, COVID addendum, or Conditional Receipt. If none of Images 4-5 is a qualifying Bank Draft page (e.g. in an 8-page variant), that is acceptable - the schema has no bank fields. The point of this rule is to prevent routing/account digits or other numbers from non-Bank-Draft pages from ever being returned as policyNumber.`,
+    // PAGE_MAP: [1, 2, 4, 5] -> Image 1 = page 1, Image 2 = page 2, Image 3 = page 4, Image 4 = page 5
+    // This supplement unifies two AMAM term products that share the same extraction rules but
+    // differ in layout: ICC18-AA3487 "Home Certainty" (11 pages, primary) and the legacy
+    // ICC17-AA3413 "Express Term" (9 pages, rare). Form number on Image 1 identifies which.
+    // If PAGE_MAP changes for this form type, update image references below.
+    amam_icc18_aa3487: `CARRIER-SPECIFIC GUIDANCE - American-Amicable Term (Home Certainty ICC18-AA3487 and Express Term ICC17-AA3413)
+You are receiving 4 images from one of two American-Amicable term application layouts. Identify which by reading the form number printed on Image 1:
+- "Form No. ICC18-AA3487" = HOME CERTAINTY (11-page application, primary). Plan name is "Home Certainty 10X" or "Home Certainty 20X".
+- "Form No. ICC17-AA3413" = EXPRESS TERM (9-page application, legacy/rare). Plan name is "Express Term 10" or similar. Header says "EXPRESS TERM" instead of "HOME CERTAINTY".
+
+Both layouts extract into the same schema; the rules below apply to both unless called out.
+
+IMAGE MAPPING:
+- Image 1 (page 1): Main application. Contains insured info, DOB, mailing address, phone, email, SSN, DL#, height/weight, primary beneficiary, plan name, face amount, premium mode, modal premium, Requested Policy Date, tobacco, and Section A health questions.
+- Image 2 (page 2): Signatures page. Contains agreement text, signature lines, "Date of Application" field, signed city/state, and Agent's Report. On Express Term (ICC17-AA3413) ONLY, page 2 also contains an embedded "PREAUTHORIZATION CHECK PLAN - AUTHORIZATION TO HONOR CHARGE DRAWN" block with bank routing/account info - treat this as non-extractable (see BANK GUARDRAIL).
+- Image 3 (page 4): Addendum. Contains Drivers License details, comments, agent info, and beneficiary details (DOB/SSN/relationship when available).
+- Image 4 (page 5): For Home Certainty, this is the Bank Draft Authorization page (form AA9903). For Express Term, this is the HIPAA release (form AA9526). Neither page yields extractable fields - see BANK GUARDRAIL.
+
+FIELD RULES:
+- insuredName: concatenate the three name columns (First, Middle, Last) with single spaces, dropping the Middle segment if blank. Middle may be a single initial (e.g. "L"), a single word (e.g. "N"), a compound like "Chad Harrison", or absent. Strip any trailing "X" checkbox marks.
+- insuredDateOfBirth: from page 1. Return YYYY-MM-DD.
+- insuredPhone: from page 1.
+- insuredEmail: from the Email field on page 1. If the field literally contains "None", "N/A", "none", or is blank (case-insensitive), return null. Do NOT return the literal filler text.
+- insuredState: use ONLY the state from the mailing address row (City / State / Zip) on page 1. Do NOT use "State of Birth" (the field next to DOB) - it is a different value.
+- coverageAmount: from the "Face Amount" field on page 1 as a plain number (e.g. 300000, not "$300,000").
+- premiumAmount: the modal premium ("Modal Prem $") on page 1 as a plain number.
+- premiumFrequency: derive from the Mode checkboxes on page 1. Text hints like "Bank MON" or "Dir MON" indicate monthly but the authoritative signal is the checked box (Monthly/Quarterly/Semi-Annual/Annual).
+- beneficiaries: extract BOTH primary AND contingent when either is present. For each, capture the name, relationship (Spouse/Son/Daughter/Brother/Fiance/etc.), and - when the Addendum (Image 3) provides them - DOB and SSN. If page 1's primary beneficiary field reads "Multi Bene - See Addendum", "Multiple Beneficiaries", "See Addendum", or similar placeholder text, pull the actual beneficiaries from the Addendum (Image 3). Do NOT return placeholder strings as beneficiary names.
+- applicationSignedDate: extract from the "Date of Application" field on Image 2. The value may be a full timestamp like "12/9/2025 6:42:33 PM" - return YYYY-MM-DD only (drop the time component).
+- effectiveDate: extract from the "Requested Policy Date" field on Image 1 (located near the Mode / Modal Premium section). Return YYYY-MM-DD if a real date is written (e.g. "10/17/2024" -> "2024-10-17"). If the field contains "On Approval", "Upon Approval", is blank, is struck through, or contains any non-date text, return null. Do NOT substitute the signed date here; downstream pipeline logic handles the fallback.
+- policyType: ALWAYS return exactly "Term Life". Both Home Certainty and Express Term are term life products.
+- insuranceCompany: ALWAYS return exactly "American-Amicable" (short form). Do NOT return the long form "American-Amicable Life Insurance Company of Texas", and do NOT return "AMAM".
+- policyOwner: if Owner / Payor fields are blank or identify the insured as the owner, return null.
+
+HARD RULES - ALWAYS RETURN NULL:
+- policyNumber: ALWAYS return null. This form has no policy number at application time. The "M-number" at the top right of Image 1 (e.g. M3066723, M3166549, M2746508, M2140015) is an internal application tracking number, NOT a policy number - do not return it.
+
+BANK GUARDRAIL:
+- Do NOT extract any values from the Bank Draft Authorization page (AA9903, Home Certainty page 5) or from the "PREAUTHORIZATION CHECK PLAN" block embedded on page 2 of Express Term. Routing and account numbers are never policy numbers.
+- Do NOT extract any values from the HIPAA release, rider disclosures, Conditional Receipt, or COVID addendum pages. These exist in both layouts and contain no fields the schema cares about.`,
 };

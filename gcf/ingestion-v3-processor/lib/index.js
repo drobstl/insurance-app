@@ -19,6 +19,16 @@ const JOBS_COLLECTION = 'ingestionJobsV3';
 const ANTHROPIC_API_KEY = (0, params_1.defineSecret)('ANTHROPIC_API_KEY');
 const ZOMBIE_TIMEOUT_MS = 5 * 60 * 1000;
 const ZOMBIE_SCAN_LIMIT = 200;
+// Code-side deterministic overrides for fields that the agent-selected
+// carrierFormType makes authoritative (policyType, insuranceCompany). Applied
+// after Claude extraction; bypasses any misclassification. Supplement prompts
+// still enforce the same values as a secondary signal (belt + suspenders).
+// Add a row here when a new mapped form type has a known carrier and product.
+const CARRIER_FORM_TYPE_OVERRIDES = {
+    americo_icc18_5160: { policyType: 'Term Life', insuranceCompany: 'Americo' },
+    amam_icc15_aa9466: { policyType: 'Mortgage Protection', insuranceCompany: 'American-Amicable' },
+    amam_icc18_aa3487: { policyType: 'Term Life', insuranceCompany: 'American-Amicable' },
+};
 const GENERIC_APPLICATION_SYSTEM_PROMPT = `You are an expert insurance application document parser.
 
 You are viewing pages extracted from an insurance application. Extract data from all visible pages. Use the visible form layout, labels, and filled-in values to extract the requested fields.
@@ -146,19 +156,28 @@ exports.processIngestionV3Queued = (0, firestore_2.onDocumentCreated)({
         const extractionStart = Date.now();
         const extraction = await runApplicationExtraction(imageBuffers, job.carrierFormType);
         const extractionMs = Date.now() - extractionStart;
-        // Carrier-specific deterministic overrides. The agent-selected carrierFormType is
-        // authoritative for these fields; bypass Claude classification. Note: AMAM enforces
-        // policyType/insuranceCompany via supplement-prompt rules instead; this code-side
-        // pattern is used for Americo Term/CBO. Accepting the inconsistency for now.
-        if (job.carrierFormType === 'americo_icc18_5160') {
-            extraction.data.policyType = 'Term Life';
-            extraction.data.insuranceCompany = 'Americo';
-            emit('diag', {
-                stage: 'carrier_form_field_override',
-                at: Date.now(),
-                carrier_form_type: job.carrierFormType,
-                fields: 'policyType,insuranceCompany',
-            });
+        // Carrier-specific deterministic overrides driven by CARRIER_FORM_TYPE_OVERRIDES.
+        // The agent-selected carrierFormType is authoritative for the listed fields;
+        // bypass Claude classification.
+        const override = CARRIER_FORM_TYPE_OVERRIDES[job.carrierFormType];
+        if (override) {
+            const applied = [];
+            if (override.policyType) {
+                extraction.data.policyType = override.policyType;
+                applied.push('policyType');
+            }
+            if (override.insuranceCompany) {
+                extraction.data.insuranceCompany = override.insuranceCompany;
+                applied.push('insuranceCompany');
+            }
+            if (applied.length) {
+                emit('diag', {
+                    stage: 'carrier_form_field_override',
+                    at: Date.now(),
+                    carrier_form_type: job.carrierFormType,
+                    fields: applied.join(','),
+                });
+            }
         }
         const gate = evaluateCompleteness(extraction.data);
         const metrics = {
