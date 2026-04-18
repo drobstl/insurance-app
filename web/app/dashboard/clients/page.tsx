@@ -3665,29 +3665,34 @@ export default function ClientsPage() {
             </div>
           </div>
           <div className="w-full shrink-0 px-1">
-            <div className="max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px]">
-              <div className="bg-white border-b border-[#ececec] p-6 flex items-center justify-between">
+            <div className="max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden max-h-[78vh] flex flex-col">
+              <div className="shrink-0 bg-white border-b border-[#ececec] p-6 flex items-center justify-between">
                 <div>
                   <h3 className="text-xl font-bold text-[#000000]">Review & Confirm</h3>
                   <p className="text-xs text-[#707070] mt-1">Step 1 of 2</p>
                 </div>
                 <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#45bcaa]" /><span className="h-2.5 w-2.5 rounded-full bg-[#d0d0d0]" /></div>
               </div>
-              <div className="p-6 space-y-4">
-                <div className="flex items-center gap-2 px-3 py-2 bg-[#daf3f0] border border-[#45bcaa]/30 rounded-[5px] text-xs text-[#005851]">
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  <span className="font-medium">Extraction complete. Review and confirm.</span>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <input type="text" value={formData.name} onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))} placeholder="Name *" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
-                  <input type="tel" value={formData.phone} onChange={(e) => setFormData((f) => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
-                  <input type="email" value={formData.email} onChange={(e) => setFormData((f) => ({ ...f, email: e.target.value }))} placeholder="Email" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
-                  <div className="flex flex-col">
-                    <label className="text-xs font-medium text-[#707070] mb-1">Date of Birth</label>
-                    <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))} className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+              <div className="relative flex-1 min-h-0">
+                <div className="h-full overflow-y-auto p-6 space-y-4">
+                  <div className="flex items-center gap-2 px-3 py-2 bg-[#daf3f0] border border-[#45bcaa]/30 rounded-[5px] text-xs text-[#005851]">
+                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span className="font-medium">Extraction complete. Review and confirm.</span>
                   </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input type="text" value={formData.name} onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))} placeholder="Name *" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                    <input type="tel" value={formData.phone} onChange={(e) => setFormData((f) => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                    <input type="email" value={formData.email} onChange={(e) => setFormData((f) => ({ ...f, email: e.target.value }))} placeholder="Email" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                    <div className="flex flex-col">
+                      <label className="text-xs font-medium text-[#707070] mb-1">Date of Birth</label>
+                      <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))} className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                    </div>
+                  </div>
+                  {renderAddFlowPolicyInputs()}
                 </div>
-                {renderAddFlowPolicyInputs()}
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white to-transparent" />
+              </div>
+              <div className="shrink-0 border-t border-[#ececec] bg-white p-6 space-y-3">
                 {formError && <p className="text-xs text-red-600">{formError}</p>}
                 <div className="flex gap-3">
                   <button type="button" onClick={() => setAddFlowStage('upload')} className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-[5px] border border-gray-200 text-sm">Cancel</button>
