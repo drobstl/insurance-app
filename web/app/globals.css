@@ -198,3 +198,36 @@ input[type="range"].slider-thumb:focus::-webkit-slider-thumb {
 .ticker-scroll {
   animation: ticker 40s linear infinite;
 }
+
+/* Branded always-visible scrollbar */
+.scrollbar-brand {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(69, 188, 170, 0.55) rgba(236, 236, 236, 0.6);
+}
+.scrollbar-brand::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.scrollbar-brand::-webkit-scrollbar-track {
+  background: rgba(236, 236, 236, 0.6);
+  border-radius: 9999px;
+  margin: 6px 0;
+}
+.scrollbar-brand::-webkit-scrollbar-thumb {
+  background: rgba(69, 188, 170, 0.55);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.scrollbar-brand::-webkit-scrollbar-thumb:hover {
+  background: rgba(69, 188, 170, 0.85);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
+/* Gentle bounce for scroll-for-more chevron */
+@keyframes bounceSoft {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(3px); }
+}
+.animate-bounce-soft { animation: bounceSoft 1.2s ease-in-out infinite; }

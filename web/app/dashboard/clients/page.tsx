@@ -554,6 +554,24 @@ export default function ClientsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [addFlowStage, setAddFlowStage] = useState<AddFlowStage>('list');
   const [manualEntryExpanded, setManualEntryExpanded] = useState(false);
+  const reviewScrollRef = useRef<HTMLDivElement | null>(null);
+  const [reviewAtBottom, setReviewAtBottom] = useState(false);
+  const checkReviewScrollPosition = useCallback(() => {
+    const el = reviewScrollRef.current;
+    if (!el) return;
+    const hasOverflow = el.scrollHeight > el.clientHeight + 1;
+    const atBottom = !hasOverflow || el.scrollTop + el.clientHeight >= el.scrollHeight - 4;
+    setReviewAtBottom(atBottom);
+  }, []);
+  useEffect(() => {
+    if (addFlowStage !== 'review') return;
+    const raf = requestAnimationFrame(checkReviewScrollPosition);
+    window.addEventListener('resize', checkReviewScrollPosition);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', checkReviewScrollPosition);
+    };
+  }, [addFlowStage, checkReviewScrollPosition]);
   const [addFlowPolicyForm, setAddFlowPolicyForm] = useState<PolicyFormData>({ ...emptyPolicyForm });
   const [welcomeDraft, setWelcomeDraft] = useState('');
   const [welcomeSending, setWelcomeSending] = useState(false);
@@ -3685,7 +3703,11 @@ export default function ClientsPage() {
                 <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#45bcaa]" /><span className="h-2.5 w-2.5 rounded-full bg-[#d0d0d0]" /></div>
               </div>
               <div className="relative">
-                <div className="max-h-[60vh] overflow-y-auto overscroll-contain p-6 space-y-4">
+                <div
+                  ref={reviewScrollRef}
+                  onScroll={checkReviewScrollPosition}
+                  className="max-h-[60vh] overflow-y-auto overscroll-contain scrollbar-brand p-6 space-y-4"
+                >
                   <div className="flex items-center gap-2 px-3 py-2 bg-[#daf3f0] border border-[#45bcaa]/30 rounded-[5px] text-xs text-[#005851]">
                     <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     <span className="font-medium">Extraction complete. Review and confirm.</span>
@@ -3701,7 +3723,26 @@ export default function ClientsPage() {
                   </div>
                   {renderAddFlowPolicyInputs()}
                 </div>
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white to-transparent" />
+                <div
+                  aria-hidden
+                  className={`pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white via-white/80 to-transparent transition-opacity duration-200 ${reviewAtBottom ? 'opacity-0' : 'opacity-100'}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = reviewScrollRef.current;
+                    if (!el) return;
+                    el.scrollBy({ top: el.clientHeight * 0.8, behavior: 'smooth' });
+                  }}
+                  aria-hidden={reviewAtBottom}
+                  tabIndex={reviewAtBottom ? -1 : 0}
+                  className={`absolute left-1/2 -translate-x-1/2 bottom-3 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white border border-[#45bcaa] text-[#005851] text-xs font-semibold shadow-[0_6px_16px_rgba(0,88,81,0.18)] hover:bg-[#daf3f0] transition-all duration-200 ${reviewAtBottom ? 'opacity-0 translate-y-2 pointer-events-none' : 'opacity-100 translate-y-0'}`}
+                >
+                  <span>Scroll for more</span>
+                  <svg className="w-3.5 h-3.5 animate-bounce-soft" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
               </div>
               <div className="border-t border-[#ececec] bg-white p-6 space-y-3">
                 {formError && <p className="text-xs text-red-600">{formError}</p>}
