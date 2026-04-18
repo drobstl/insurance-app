@@ -269,4 +269,61 @@ HARD RULES - ALWAYS RETURN NULL:
 WARNINGS:
 - Do NOT confuse this form with the MOO Living Promise ICC23L681A or Term Life Express ICC22L683A forms. MA5981 has Sections A-F and says "Application for Accidental Death Insurance" in the header.
 - Do NOT pull any values from the Bank Withdrawal Authorization page (PDF page 3), Agent/Producer Statement page (PDF page 4), or eSignature Data page (PDF page 5) - none are sent to you under PAGE_MAP [1, 2].`,
+    // PAGE_MAP: [1, 2, 3, 4, 5, 6, 7, 8, 9, 11] -> Images 1-9 = PDF pages 1-9 sequentially, Image 10 = PDF page 11
+    // Banner Life and Legal & General America (LGA) both use the same ICC17-LIA application form.
+    // Banner-branded policies sell as "BeyondTerm 10/15/20/25/30/40"; LGA-branded policies sell as
+    // "Quility Term Plus 10/15/20/25/30". Insurance company is legally Banner Life Insurance Company
+    // for both. The PDF length varies (11 / 20 / 30 pages observed) depending on whether
+    // "Information and Underwriting Practices" front matter (2 pages) and/or Part 2 medical history,
+    // rider disclosures, HIPAA, and Privacy Notice are bundled. Because of that, the same
+    // Section (A, B, C, ...) can appear at two different image indexes - the prompt must describe
+    // both layouts rather than hard-wiring image index to section.
+    // If PAGE_MAP changes for this form type, update image references below.
+    banner_lga_icc17_lia: `CARRIER-SPECIFIC GUIDANCE - Banner Life / LGA Term (ICC17-LIA, BeyondTerm or Quility Term Plus)
+You are receiving up to 10 images from a Banner Life ICC17-LIA Individual Life Insurance Application. The same physical form is sold under two brands:
+- Banner Life branded: footer URL reads "www.bannerlife.com". Plan names are "BeyondTerm 10", "BeyondTerm 15", "BeyondTerm 20", "BeyondTerm 25", "BeyondTerm 30", or "BeyondTerm 40".
+- LGA (Legal & General America) branded: footer URL reads "www.LGAmerica.com". Plan names are "Quility Term Plus 10", "Quility Term Plus 15", "Quility Term Plus 20", "Quility Term Plus 25", or "Quility Term Plus 30".
+Both are issued by Banner Life Insurance Company and both are Term Life products.
+
+DOCUMENT VARIANTS (affects which image holds which section):
+- Variant A - "short form" (~11-page PDF): Images 1-2 are "Information and Underwriting Practices" front matter (MIB notice, Fair Credit notice) - IGNORE these. Section A (Proposed Insured) starts on Image 3. Part 1 signature page ("Page 9 - ICC17-LIA") is Image 10.
+- Variant B - "Part 1 + Part 2" (~20-page PDF): There is NO front matter. Section A starts on Image 1. Part 1 signature page appears near Image 9. Part 2 medical history begins right after.
+- Variant C - "full bundled" (~30-page PDF): Images 1-2 are front matter. Section A starts on Image 3. Part 1 signature page is Image 10. Later images (Part 2, riders, HIPAA, Privacy Notice) are NOT in the slice you receive.
+
+Identify the variant by what you see on Image 1: if it says "Information and Underwriting Practices" / "MIB, Inc. Notice", you are in Variant A or C and Section A starts on Image 3. If Image 1 already says "Individual Life Insurance Application Part 1 / Section A: Proposed Insured", you are in Variant B and Section A is on Image 1.
+
+SECTION LAYOUT (apply to whichever image the section actually appears on):
+- Section A (Proposed Insured): First / Middle / Last name, Sex, Date of Birth, SSN, Email, Primary Residence address, three phone numbers (Cell / Home / Work), citizenship (U.S. Citizen / Permanent Resident / H1B / Other), State of Birth, Driver's License No. and State, employment status, occupation checkboxes.
+- Section B (Insurance Applied For): "Amount of Insurance $ ____" and "Plan of Insurance ____" - these are the authoritative coverage amount and plan name. Also Death Benefit Option, rider checkboxes (Waiver of Premium, Child Insurance Rider, Accidental Death, Term Insurance Rider), and "Why is this insurance being purchased" (Personal / Business).
+- Section C (Beneficiary): Primary Beneficiary and Contingent Beneficiary rows. Each row has First / Middle / Last name OR Business Name, Relationship to Proposed Insured, % Share, Telephone, SSN or Tax ID#, Date of Birth, and Address.
+- Section D (Owner): checkbox for "Owner is Proposed Insured" vs "Trust" vs "Other than Proposed Insured or Trust". Name and address if different.
+- Section E (Trust Information): only completed if the owner/beneficiary is a trust.
+- Section F (Premium and Payor): Payment Method (Electronic Funds Transfer (EFT) / Direct Bill), Frequency (Annual / Semi-Annual / Quarterly / Monthly (EFT only)), Planned periodic premium, and Payor identity.
+- Section H (General Questions): total amount of life insurance on your life, prior declines, tobacco use in past 10 years, marijuana use in past 5 years, premium financing question.
+- Declarations / signature page ("Page 9 - ICC17-LIA (9-17)"): look for "e-signed by <Insured Name>" followed by "<City>/<State>" and a date in "M/D/YYYY" form - this is the applicationSignedDate and the signed city/state.
+
+FIELD RULES:
+- insuredName: concatenate First / Middle / Last from Section A (Proposed Insured) with single spaces; drop Middle if blank. Do NOT use Maiden or Suffix unless the user wrote one in the Last/Suffix line. Do NOT return a beneficiary name.
+- insuredDateOfBirth: from Section A "Date of Birth / / " in MM DD YYYY form. Return YYYY-MM-DD.
+- insuredPhone: from Section A phone numbers. Prefer Cell if present; otherwise Home; otherwise Work. Return a 10-digit string or standard "(xxx) xxx-xxxx". If the field is split into three parts like "660 026 2876", concatenate them.
+- insuredEmail: from Section A "Email Address". If blank, return null.
+- insuredState: use ONLY the state from the Primary Residence address row (Address / Apt / City / State / Zip) in Section A. Do NOT use "State of Birth" (a different field several lines below) - it is a different value. Return the 2-letter state abbreviation.
+- coverageAmount: extract from Section B "Amount of Insurance $ ____" as a plain number (e.g. 135000, not "$135,000"). Double-check against Section H question 1 "what will be the total amount of life insurance coverage on your life? $ ____" - these should match and both fields are useful cross-checks.
+- premiumAmount: Banner Life ICC17-LIA does NOT have a modal premium field on Part 1 (the "Planned periodic premium" line in Section F is only for universal life products and is usually blank for term). Return null unless a dollar amount is clearly written in the Section F premium field.
+- premiumFrequency: from Section F "Frequency of Premium Payment" checkboxes. Map "Annual" -> "annual", "Semi-Annual" -> "semi-annual", "Quarterly" -> "quarterly", "Monthly (EFT only)" -> "monthly". Return null if no checkbox is marked.
+- beneficiaries: extract BOTH primary and contingent from Section C when either is present. For each row, capture name (First + Middle + Last, or Business Name if that's what's filled in), relationship (Spouse / Parent / Child / Aunt / Sibling / etc. exactly as written), percentage (from the "% Share" column - a whole number like 50 or 100), and DOB when written. Set type to "primary" or "contingent" based on which subsection the row is in.
+- applicationSignedDate: from the Declarations / signature page. Look for "e-signed by <Insured Name>" followed by "<City>/<State>" and the date. Return YYYY-MM-DD. Example: "e-signed by Jordan Wittmaier Warrensburg/MO 4/15/2026" -> "2026-04-15".
+- policyType: ALWAYS return exactly "Term Life". Both BeyondTerm and Quility Term Plus are term life products.
+- insuranceCompany: ALWAYS return exactly "Banner Life". Both Banner-branded BeyondTerm policies and LGA-branded Quility Term Plus policies are issued by Banner Life Insurance Company. Do NOT return "Legal & General America", "LGA", "Banner Life Insurance Company" (long form), or "William Penn".
+- policyOwner: if Section D has "Owner is Proposed Insured" checked OR Section D is blank, return null. Only return a value when "Other than Proposed Insured or Trust" is checked AND a distinct person's name is written.
+- effectiveDate: ALWAYS return null. ICC17-LIA has no policy effective-date field on Part 1; downstream pipeline logic backfills this from applicationSignedDate.
+
+HARD RULES - ALWAYS RETURN NULL:
+- policyNumber: Banner Life does not assign a policy number at application time. The 10-digit number near the top of a Part 2 Medical History image (e.g. "5001348032", "5001245816") is a Part 2 internal tracking number, NOT a policy number. Return null.
+
+WARNINGS:
+- Image count varies: you may receive fewer than 10 images if the underlying PDF is shorter than 11 pages (the renderer skips pages that do not exist). Extract the fields that are actually visible; do not invent values.
+- Do NOT extract any values from the MIB Notice, Fair Credit Reporting Notice, HIPAA Release, Privacy Notice, Rider Disclosures, or Agent's Report - even though some may be visible in front matter (Images 1-2 for Variants A/C) or bundled pages, they contain no fields we need.
+- Do NOT return the Part 2 medical history tracking number as policyNumber.
+- The plan name in Section B (e.g. "BeyondTerm 30" or "Quility Term Plus 15") tells you which brand the policy is sold under, but insuranceCompany is always "Banner Life" regardless.`,
 };

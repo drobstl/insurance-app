@@ -36,6 +36,10 @@ const CARRIER_FORM_TYPE_OVERRIDES = {
     moo_icc23_l681a: { policyType: 'Whole Life', insuranceCompany: 'Mutual of Omaha' },
     // MA5981 is the standalone Mutual of Omaha Accidental Death Insurance application.
     moo_ma5981: { policyType: 'Accidental', insuranceCompany: 'Mutual of Omaha' },
+    // ICC17-LIA is the shared Banner Life / LGA application form (BeyondTerm under Banner
+    // branding, Quility Term Plus under LGA branding). Both are issued by Banner Life
+    // Insurance Company and are Term Life products.
+    banner_lga_icc17_lia: { policyType: 'Term Life', insuranceCompany: 'Banner Life' },
 };
 const GENERIC_APPLICATION_SYSTEM_PROMPT = `You are an expert insurance application document parser.
 
