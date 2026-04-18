@@ -120,4 +120,216 @@ HARD RULES - ALWAYS RETURN NULL:
 BANK GUARDRAIL:
 - Do NOT extract any values from the Bank Draft Authorization page (AA9903, Home Certainty page 5) or from the "PREAUTHORIZATION CHECK PLAN" block embedded on page 2 of Express Term. Routing and account numbers are never policy numbers.
 - Do NOT extract any values from the HIPAA release, rider disclosures, Conditional Receipt, or COVID addendum pages. These exist in both layouts and contain no fields the schema cares about.`,
+
+  // PAGE_MAP: [1, 2, 3, 8, 9, 10] -> Image 1 = page 1, Image 2 = page 2, Image 3 = page 3, Image 4 = page 8, Image 5 = page 9, Image 6 = page 10
+  // Foresters Term Life packet: ICC19 770839 Product Details cover (page 1) + ICC15 770825 Application pages 1-9 (PDF pages 2-10).
+  // Total PDF length varies 17-24 pages (optional questionnaires, overflow, HIPAA, Electronic Delivery, eSignature Data Page),
+  // but pages 1-10 are always present and deterministic. Everything after page 10 is ignored.
+  // If PAGE_MAP changes for this form type, update image references below.
+  foresters_icc15_770825: `CARRIER-SPECIFIC GUIDANCE - Foresters Term Life (ICC19 770839 cover + ICC15 770825 Application)
+You are receiving 6 images from a Foresters Term Life application packet. The packet is a two-form stack: a one-page Product Details cover (form ICC19 770839 US 12/19) followed by a 9-page Individual Life Insurance Application (form ICC15 770825 US 10/15). Any further pages in the PDF (TIA Agreement, Notices, ADB Rider Disclosure, HIPAA release, questionnaires, Producer Report, Electronic Delivery, eSignature Data Page) are NOT sent to you.
+
+IMAGE MAPPING:
+- Image 1 (PDF page 1, form ICC19 770839): Product Details cover. Header reads "Foresters Term Life". Contains "Amount of life insurance applied for on the proposed insured: $ ____", plan type checkboxes ("Non-medical - Strong Foundation Term Life" vs "Medical - Your Term Life"), Term length checkboxes (10/15/20/25/30 year), rider amounts (Accidental death $, Children's term $, Waiver of premium checkbox), Charity Benefit Beneficiary Designation, and the Proposed Insured first/middle/last name.
+- Image 2 (PDF page 2, App Page 1 of 9): Proposed Insured block (name, gender, street address / city / state / zip, SSN, home phone, alternate/cell phone, DOB, state & country of birth, US citizen, photo ID, occupation & duties, income, full/part time, military, Foresters member, email, primary language) AND the Owner block (complete only if owner is a different person than the insured).
+- Image 3 (PDF page 3, App Page 2 of 9): Beneficiary grid with a Primary section (up to 5 rows) and a Contingent section (up to 3 rows). Each row has Name, Address, DOB, Relationship to proposed insured, Beneficiary Type (Revocable / Irrevocable), and % Share.
+- Image 4 (PDF page 8, App Page 7 of 9): Payment Information and Authorization. Contains "Payment mode" checkboxes (Monthly / Quarterly / Semi-annually / Annually), First/Subsequent premium payment method, Preferred draft date, and PAC banking information (financial institution name, routing, account). Ignore the bank info - it contains no policy number.
+- Image 5 (PDF page 9, App Page 8 of 9): Declarations and Agreements, TIA Questions & Acknowledgement. This is the ONLY page on the application where the modal premium DOLLAR AMOUNT is written, and only when TIA is accepted. Look for the line "First premium payment, in the amount of $ ______, is authorized, provided or collected by" inside the "Yes. I, the owner, understand that temporary coverage is subject to..." block. If the TIA "No" checkbox / owner's initials are present instead (declining temporary coverage), the dollar field will be blank - return premiumAmount as null.
+- Image 6 (PDF page 10, App Page 9 of 9): Signature Section. Contains the signed state and signed date on the line "The owner or the proposed insured, if the proposed insured is the owner, signed in ____ (State) on ____ (mmm/dd/yyyy)." Also contains the Producer Certification with producer name and number.
+
+FIELD RULES:
+- insuredName: concatenate the three name columns from Image 1 (First, Middle, Last) on the "Product Details" cover with single spaces, dropping the Middle segment if blank. Cross-check against the name on Image 2 if needed. Middle may be a single initial (e.g. "M", "W", "L") or absent. Strip any trailing "X" checkbox marks. Do NOT return a beneficiary name.
+- insuredDateOfBirth: from Image 2 "Date of birth (mmm/dd/yyyy)" in the Proposed Insured block. Return YYYY-MM-DD. Example: "Jul 14, 2001" -> "2001-07-14".
+- insuredPhone: from Image 2 Proposed Insured block. Prefer the "Alternate phone/Cell #" if both home and alternate are filled; otherwise use whichever is present. Format as a 10-digit string or standard "(xxx) xxx-xxxx".
+- insuredEmail: from Image 2 "Email" field in the Proposed Insured block. This field is OFTEN BLANK on Foresters applications even when the insured has an email - in that case return null. Do NOT substitute the producer's email or any other email. The agent will fill it in manually downstream.
+- insuredState: use ONLY the state from the mailing address row (Street address / City / State / Zip) in the Proposed Insured block on Image 2. Do NOT use "State & Country of birth" (the field immediately below) - it is a different value. Return the 2-letter state abbreviation.
+- coverageAmount: extract from Image 1 "Amount of life insurance applied for on the proposed insured: $ ____" as a plain number (e.g. 251000, not "$251,000"). This is the authoritative face amount for this form.
+- premiumFrequency: derive from the "Payment mode" checkbox on Image 4. Map "Monthly" -> "monthly", "Quarterly" -> "quarterly", "Semi-annually" -> "semi-annual", "Annually" -> "annual".
+- premiumAmount: extract from the "First premium payment, in the amount of $ ______" field on Image 5 (inside the TIA "Yes" acknowledgement block) as a plain number. If the TIA "No" option is selected instead (owner's initials appear next to the "No" line), the dollar field will be blank - return null in that case.
+- beneficiaries: extract ALL rows that have a name filled in from Image 3. Primary rows are in the "Primary" section (top), contingent rows are in the "Contingent" section (bottom). For each row, capture name, relationship (Spouse-married / Parent / Sibling / Child / Fiance / etc. exactly as written), percentage (from the % Share column), and type ("primary" or "contingent"). If "Irrevocable" is checked, set irrevocable=true; if "Revocable" is checked or neither is checked, set irrevocable=false.
+- applicationSignedDate: from Image 6 Signature Section, the line "signed in (State) on (mmm/dd/yyyy)". Convert to YYYY-MM-DD. Example: "Jan 13, 2026" -> "2026-01-13". If the date is written only as part of the producer's signature block, use that.
+- policyType: ALWAYS return exactly "Term Life". This packet is only used for Foresters Term Life products ("Strong Foundation Term Life" non-medical or "Your Term Life" medical - both are Term Life).
+- insuranceCompany: ALWAYS return exactly "Foresters" (short name). Do NOT return "The Independent Order of Foresters", "Foresters Financial", or "Foresters Life".
+- policyOwner: if the Owner section on Image 2 is blank, return null. If the Owner section is filled but the Owner name/SSN/DOB matches the Insured (a known fill error on this form where the applicant accidentally duplicated their own info into the Owner block), ALSO return null. Only return a value when the Owner is clearly a distinct person from the insured.
+- effectiveDate: ALWAYS return null. This form has no explicit effective/policy date field; downstream pipeline logic backfills this from applicationSignedDate.
+
+HARD RULES - ALWAYS RETURN NULL:
+- policyNumber: ALWAYS return null. Foresters does not assign a policy or certificate number at application time. The UUID-like string visible at the bottom/footer of most pages (e.g. "f23dfaa5-f47d-4922-89b8-2ed478a0f87c") is an internal session/tracking hash, NOT a policy number - do not return it.
+
+BANK GUARDRAIL:
+- Do NOT extract any values from the PAC banking information on Image 4 (routing number, account number, financial institution name) as a policy number. Bank-related fields have no policy number on this form.`,
+
+  // PAGE_MAP: [4, 5, 7, 8] -> Image 1 = PDF page 4, Image 2 = PDF page 5, Image 3 = PDF page 7, Image 4 = PDF page 8 (when present)
+  // Mutual of Omaha Term Life Express and IUL Express share the same ICC22L683A application form (18 pages total).
+  // PDF pages 1-3 are Consent / HIPAA / MIB Pre-Notice, pages 4-7 are the 4-page application proper, page 8 is the
+  // overflow page, pages 9-10 are Producer's Report + Producer Statement, pages 11-14 are ADB Rider Disclosure,
+  // page 15 is Bank Draft (Payment Authorization Form), pages 16-17 are Conditional Receipt, page 18 is eSignature Data Page.
+  // The Bank Draft has NO policy number and the Conditional Receipt has NO effective date - MOO assigns both post-issuance.
+  // If PAGE_MAP changes for this form type, update image references below.
+  moo_icc22_l683a: `CARRIER-SPECIFIC GUIDANCE - Mutual of Omaha ICC22L683A (Term Life Express and IUL Express)
+You are receiving 3 or 4 images from a Mutual of Omaha Individual Life Insurance Application (form ICC22L683A). The same physical form is used for both Term Life Express (10/15/20/30-Year Level Term) and Indexed Universal Life Express - the checkboxes in the "Plan Information" section identify which.
+
+IMAGE MAPPING:
+- Image 1 (PDF page 4, App Page 1): "INDIVIDUAL LIFE INSURANCE APPLICATION" header with "ICC22L683A PLEASE SUBMIT ALL PAGES 1" at the top. Contains Proposed Insured block (First Name / MI / Last Name / Suffix / SSN / Gender / Height / Weight / Home Address / State of Birth / DOB / Phone / Best Time to Call / Annual Income / Email / Driver's License / Occupation / Employer / U.S. Citizen / Tobacco), Plan Information (Term Life checkboxes, Term Riders, Permanent Life IUL checkboxes), and Premium Information (Premium Method, Frequency, Modal Premium, Collected Premium, Name & Address of Payor).
+- Image 2 (PDF page 5, App Page 2): "ICC22L683A PLEASE SUBMIT ALL PAGES 2" at the top. Contains Beneficiary block (Primary + Contingent with % of Proceeds, Relationship, DOB), Other Coverage Information questions, Comments, and the Owner block (Complete Policyowner Information if Proposed Insured is not the Policyowner).
+- Image 3 (PDF page 7, App Page 4): "ICC22L683A PLEASE SUBMIT ALL PAGES 4" at the top. Contains Underwriting questions 8-10, Authorization and Agreement text, and the SIGNATURE section: "Signed at: ________ City _______ State ____ Date _________". Also contains the signature of the Proposed Insured and any Applicant/Owner/Trustee. This is the page that carries the authoritative signed city, signed state, and applicationSignedDate.
+- Image 4 (PDF page 8, when present): Overflow page. Contains supplemental answers (e.g. employment status, supplemental health questions), the Producer Contact Information block (Office Phone Number, Email Address), and miscellaneous addenda. Extraction-wise this page is secondary - use it only to cross-check / fill in the producer's contact info if needed. Do NOT extract applicationSignedDate from timestamps printed here; the authoritative date is on Image 3.
+
+FIELD RULES:
+- insuredName: concatenate First Name, MI, Last Name, Suffix from Image 1 with single spaces; drop MI/Suffix if blank.
+- insuredDateOfBirth: from the "Date of Birth" field in the Proposed Insured block on Image 1. Return YYYY-MM-DD.
+- insuredPhone: from the "Phone Number" field on Image 1.
+- insuredEmail: from the "E-mail" field on Image 1. If blank, return null.
+- insuredState: use ONLY the state from the Home Address row (Street / Apt / City / State / ZIP) on Image 1. Do NOT use "State of Birth" (the field next to DOB) - it is a different value.
+- coverageAmount: extract the value written in the checked plan's "Amount of Insurance Applied for" field on Image 1. For Term Life Express, the field is labeled "Term Life Express Amount of Insurance Applied for $________"; for IUL Express, the field is labeled "Indexed Universal Life Express Amount of Insurance Applied for $________". Return a plain number (e.g. 198000, not "$198,000"). If both appear to have values, prefer whichever plan box is checked; if neither is obvious, use whichever number is written.
+- premiumAmount: the "Modal Premium $________" value in Premium Information on Image 1, as a plain number.
+- premiumFrequency: from the "Frequency of Modal Premium" checkboxes on Image 1. Map "Monthly" -> "monthly", "Annual" -> "annual", "Semi-Annual" -> "semi-annual", "Quarterly" -> "quarterly".
+- policyType: derive from the Plan Information checkboxes on Image 1. Return EXACTLY one of "Term Life" or "IUL":
+  - If any of "30-Year Level Term Life", "20-Year Level Term Life", "15-Year Level Term Life", "10-Year Level Term Life" is checked, OR the "Term Life Express Amount of Insurance Applied for" field has a value, return "Term Life".
+  - If "Indexed Universal Life Express" is checked OR the "Indexed Universal Life Express Amount of Insurance Applied for" field has a value, return "IUL" (not "Indexed Universal Life").
+  - If both appear marked, prefer whichever has a populated Amount field.
+- insuranceCompany: ALWAYS return exactly "Mutual of Omaha". Do NOT return "United of Omaha", "United of Omaha Life Insurance Company", or any variant.
+- beneficiaries: from Image 2 Beneficiary block. Capture primary and contingent beneficiaries when either is present, including name, relationship to insured, DOB, and % of proceeds. Mark type as "primary" or "contingent" accordingly.
+- policyOwner: from the Owner block on Image 2. If that block is blank or matches the insured, return null. Only return a value when a distinct Owner name is written.
+- applicationSignedDate: from the "Signed at City / State / Date" line on Image 3 in the Authorization and Agreement section. The date is what was written or eSigned on the application; return YYYY-MM-DD. If the date appears in a full timestamp format like "11/20/2025 at 22:37:27 GMT", return just "2025-11-20".
+
+HARD RULES - ALWAYS RETURN NULL:
+- policyNumber: ALWAYS return null. Mutual of Omaha does not assign a policy number at application time - the policy number is generated at issue. The "AIS BU#######" string visible on footer/pages is an internal application session identifier, NOT a policy number. The UUID-like string at the bottom of Image 1 (e.g. "12f84f31-69f8-4cfc-8f58-a73f8894f073") is an internal session hash, NOT a policy number.
+- effectiveDate: ALWAYS return null. This form has no explicit effective/policy date field on the application itself; downstream pipeline logic backfills this from applicationSignedDate.
+
+WARNINGS:
+- Image count varies: you may receive 3 or 4 images. If Image 4 (overflow) is absent, do not invent employment/producer fields.
+- Do NOT pull any values from Bank Draft pages, Conditional Receipt pages, or ADB Rider Disclosure pages - none of those are sent to you, but if they ever appear, they contain no fields we need.`,
+
+  // PAGE_MAP: [3, 4, 5] -> Image 1 = PDF page 3, Image 2 = PDF page 4, Image 3 = PDF page 5
+  // Mutual of Omaha Living Promise (Level Benefit Product or Graded Benefit Product) uses the ICC23L681A application.
+  // Total PDF length varies (13-15 pages seen in samples) depending on whether the packet includes overflow, ADB Rider
+  // disclosure, and/or Bank Draft pages. PDF pages 1-2 are Consent / MIB Pre-Notice; pages 3-5 are the 3-page application
+  // proper; everything after page 5 is signatures acknowledgements, ADB disclosure, optional overflow, and Bank Draft.
+  // If PAGE_MAP changes for this form type, update image references below.
+  moo_icc23_l681a: `CARRIER-SPECIFIC GUIDANCE - Mutual of Omaha ICC23L681A (Living Promise - Level Benefit and Graded Benefit)
+You are receiving 3 images from a Mutual of Omaha Living Promise whole life application (form ICC23L681A). The same physical form is used for both the Level Benefit Product and the Graded Benefit Product - which one applies is determined by the health questions in Parts One and Two and confirmed by the "Plan" checkbox on Image 2.
+
+IMAGE MAPPING:
+- Image 1 (PDF page 3, App Page 1): "INDIVIDUAL LIFE INSURANCE APPLICATION" with "ICC23L681A PLEASE SUBMIT ALL PAGES 1" at the top. Contains Proposed Insured block (First Name / MI / Last Name / Suffix / Gender / Height / Weight / SSN / Home Address / State of Birth / DOB / Phone No. / Email / Driver's License / US citizen / Tobacco), Owner block (Complete only if Owner/Applicant is different from Proposed Insured), and Underwriting Part One (questions 1-5) - the eligibility knockout questions.
+- Image 2 (PDF page 4, App Page 2): "ICC23L681A PLEASE SUBMIT ALL PAGES 2" at the top. Contains the rest of Underwriting (questions 6-11, including Part Two which determines Level vs Graded eligibility), Optional Comments, Plan Information ("Q Level Benefit Product" / "Q Graded Benefit Product" with "Amount Applied For $ ______" and "Rider: Q Accidental Death Rider" only if Level), and Premium Information (Premium Method, Frequency, Modal Premium, Collected Premium, Payor info).
+- Image 3 (PDF page 5, App Page 3): Signature page. Contains Authorization text, Agreement text, Fraud Warning, and the line "Signed at: __________ City ___ State ___ Date __________" with the signature of the Proposed Insured. This is the authoritative page for signed city, signed state, and applicationSignedDate.
+
+FIELD RULES:
+- insuredName: concatenate First Name, MI, Last Name, Suffix from Image 1 with single spaces; drop MI/Suffix if blank.
+- insuredDateOfBirth: from the "Date of Birth" field in the Proposed Insured block on Image 1. Return YYYY-MM-DD.
+- insuredPhone: from the "Phone No." field on Image 1.
+- insuredEmail: from the "E-mail" field on Image 1. If blank, return null.
+- insuredState: use ONLY the state from the Home Address row (Street / Apt / City / State / Zip) on Image 1. Do NOT use "State of Birth" (the field labeled "State of Birth") - it is a different value.
+- coverageAmount: extract the value from "Amount Applied For $ ________" in the Plan Information section on Image 2. Return a plain number (e.g. 20000, not "$20,000").
+- premiumAmount: the "Modal Premium $________" value in the Premium Information section on Image 2, as a plain number.
+- premiumFrequency: from the "Frequency of Modal Premium" checkboxes on Image 2. Map "Monthly" -> "monthly", "Annual" -> "annual", "Semi-Annual" -> "semi-annual", "Quarterly" -> "quarterly".
+- policyType: ALWAYS return exactly "Whole Life". Both the Level Benefit Product and Graded Benefit Product are Whole Life products - the Level-vs-Graded distinction is captured by other fields downstream, but policyType itself is always "Whole Life".
+- insuranceCompany: ALWAYS return exactly "Mutual of Omaha". Do NOT return "United of Omaha", "United of Omaha Life Insurance Company", or any other variant.
+- policyOwner: from the Owner block on Image 1. If that block is blank, the instructions above it say "Complete only if Owner/Applicant is different from Proposed Insured" - return null when blank. If a different person is clearly named as Owner, return that name.
+- beneficiaries: the primary ICC23L681A application pages (1-3) do NOT include a beneficiary grid. Return an empty array or null for beneficiaries - the beneficiary info is typically captured on a separate form that is not in the images you receive.
+- applicationSignedDate: from the "Signed at City / State / Date" line on Image 3. Return YYYY-MM-DD. If the date appears in a full timestamp format like "12/15/2025 at 18:42:11 GMT", return just "2025-12-15".
+
+HARD RULES - ALWAYS RETURN NULL:
+- policyNumber: ALWAYS return null. Mutual of Omaha does not assign a policy number at application time. The "AIS BU#######" and UUID-like strings visible on footer/pages are internal session identifiers, NOT policy numbers.
+- effectiveDate: ALWAYS return null. This form has no explicit effective/policy date field on the application itself; downstream pipeline logic backfills this from applicationSignedDate.
+
+WARNINGS:
+- The application can either be 3 images (typical) or fewer if pages are missing. Always extract the fields that are actually visible; do not invent values.
+- Do NOT pull any values from ADB Rider Disclosure pages, Bank Draft pages, overflow pages, or eSignature Data pages - none of those are sent to you under PAGE_MAP [3, 4, 5], and if they ever appear, they do not contain fields we extract.`,
+
+  // PAGE_MAP: [1, 2] -> Image 1 = PDF page 1, Image 2 = PDF page 2
+  // Mutual of Omaha standalone Accidental Death Insurance application (form MA5981, 5 pages total).
+  // This is NOT a life insurance policy with an AD rider - it is a standalone accidental death product.
+  // PDF pages 1-2 are the application proper (Sections A-F). Page 3 is the Bank Draft / Monthly Bank Withdrawal
+  // Authorization, page 4 is the Agent/Producer Statement, page 5 is the eSignature Data page. None of pages
+  // 3-5 carry policy numbers or effective dates - MOO assigns both post-issuance.
+  // If PAGE_MAP changes for this form type, update image references below.
+  moo_ma5981: `CARRIER-SPECIFIC GUIDANCE - Mutual of Omaha MA5981 (Standalone Accidental Death Insurance)
+You are receiving 2 images from a Mutual of Omaha standalone Accidental Death Insurance application (form MA5981). This is NOT a life insurance policy with an AD rider - it is a dedicated Accidental Death product underwritten by Mutual of Omaha Insurance Company.
+
+IMAGE MAPPING:
+- Image 1 (PDF page 1): Main application. Contains SECTION A Primary Insured Information (Legal Name / Legal Residence Street / City / State / Zip / SSN / Gender / Date of Birth / Age / Telephone Number / E-mail / U.S. Citizen / Permanent Resident), SECTION B Insurance Applied For (Accidental Death Insurance Benefit Amount $______, Type of Plan checkboxes: Individual / Family with sub-options, Rider: Return of Premium (ROP), First Premium Payment: Bank Service Plan / Check, Renewal Payment Mode: Monthly BSP / Quarterly DB / Semiannual DB / Annual DB, Modal Premium $______, Amount Collected $______), SECTION C Family Coverage Information (Spouse / Child rows), SECTION D Beneficiary Information (Primary + Contingent with Relationship and DOB), and SECTION E Replacement Information.
+- Image 2 (PDF page 2): Signature page. Contains SECTION F Agreement, "Signed at: ______ City / State", the Signature of Primary Insured + Printed Name + Date line, and the Producer Section. This is the authoritative page for signed city, signed state, and applicationSignedDate.
+
+FIELD RULES:
+- insuredName: from SECTION A "Primary Insured's Legal Name" on Image 1.
+- insuredDateOfBirth: from SECTION A "Date of Birth" on Image 1. Return YYYY-MM-DD.
+- insuredPhone: from SECTION A "Telephone Number" on Image 1.
+- insuredEmail: from SECTION A "E-mail" on Image 1. If blank, return null.
+- insuredState: use ONLY the state from the Legal Residence row (Street / City / State / Zip) in SECTION A on Image 1. Return the 2-letter state abbreviation.
+- coverageAmount: extract from SECTION B "Accidental Death Insurance Benefit Amount $ ______" on Image 1. Return a plain number (e.g. 100000, not "$100,000"). Do NOT use the "Amount Collected" value - that is the first payment collected, not the coverage.
+- premiumAmount: the "Modal Premium $________" value in SECTION B on Image 1, as a plain number.
+- premiumFrequency: derive from SECTION B "Renewal Payment Mode" on Image 1. Map "Monthly Bank Service Plan (BSP)" -> "monthly", "Quarterly Direct Bill" -> "quarterly", "Semiannual Direct Bill" -> "semi-annual", "Annual Direct Bill" -> "annual".
+- policyType: ALWAYS return exactly "Accidental". This form is a standalone accidental death product.
+- insuranceCompany: ALWAYS return exactly "Mutual of Omaha".
+- beneficiaries: from SECTION D on Image 1. Capture Primary Beneficiary (name, relationship, DOB, implicit 100% unless noted otherwise) and Contingent Beneficiary (name, relationship, DOB). Percentages may be written explicitly (e.g. "100%") in a column - capture those when visible. Mark type as "primary" or "contingent".
+- policyOwner: this form has no separate Owner block - the Primary Insured is the Owner. ALWAYS return null.
+- applicationSignedDate: from the "Signed at City / State / Date" line in SECTION F on Image 2, or from the e-Signature timestamp printed next to "e-Signed by [Insured Name]". Return YYYY-MM-DD. If the date appears in a full timestamp like "11/04/2025 at 19:03:08 GMT", return just "2025-11-04".
+
+HARD RULES - ALWAYS RETURN NULL:
+- policyNumber: ALWAYS return null. Mutual of Omaha does not assign a policy number at application time. The UUID-like string visible on pages (e.g. "f3573eed-e521-4b2c-b798-cad45ca7cf23") is an internal session identifier, NOT a policy number. The "M27862" visible on the bank draft sample check is a form/specimen identifier, not a policy number.
+- effectiveDate: ALWAYS return null. This form has no explicit effective/policy date field; downstream pipeline logic backfills this from applicationSignedDate.
+
+WARNINGS:
+- Do NOT confuse this form with the MOO Living Promise ICC23L681A or Term Life Express ICC22L683A forms. MA5981 has Sections A-F and says "Application for Accidental Death Insurance" in the header.
+- Do NOT pull any values from the Bank Withdrawal Authorization page (PDF page 3), Agent/Producer Statement page (PDF page 4), or eSignature Data page (PDF page 5) - none are sent to you under PAGE_MAP [1, 2].`,
+
+  // PAGE_MAP: [1, 2, 3, 4, 5, 6, 7, 8, 9, 11] -> Images 1-9 = PDF pages 1-9 sequentially, Image 10 = PDF page 11
+  // Banner Life and Legal & General America (LGA) both use the same ICC17-LIA application form.
+  // Banner-branded policies sell as "BeyondTerm 10/15/20/25/30/40"; LGA-branded policies sell as
+  // "Quility Term Plus 10/15/20/25/30". Insurance company is legally Banner Life Insurance Company
+  // for both. The PDF length varies (11 / 20 / 30 pages observed) depending on whether
+  // "Information and Underwriting Practices" front matter (2 pages) and/or Part 2 medical history,
+  // rider disclosures, HIPAA, and Privacy Notice are bundled. Because of that, the same
+  // Section (A, B, C, ...) can appear at two different image indexes - the prompt must describe
+  // both layouts rather than hard-wiring image index to section.
+  // If PAGE_MAP changes for this form type, update image references below.
+  banner_lga_icc17_lia: `CARRIER-SPECIFIC GUIDANCE - Banner Life / LGA Term (ICC17-LIA, BeyondTerm or Quility Term Plus)
+You are receiving up to 10 images from a Banner Life ICC17-LIA Individual Life Insurance Application. The same physical form is sold under two brands:
+- Banner Life branded: footer URL reads "www.bannerlife.com". Plan names are "BeyondTerm 10", "BeyondTerm 15", "BeyondTerm 20", "BeyondTerm 25", "BeyondTerm 30", or "BeyondTerm 40".
+- LGA (Legal & General America) branded: footer URL reads "www.LGAmerica.com". Plan names are "Quility Term Plus 10", "Quility Term Plus 15", "Quility Term Plus 20", "Quility Term Plus 25", or "Quility Term Plus 30".
+Both are issued by Banner Life Insurance Company and both are Term Life products.
+
+DOCUMENT VARIANTS (affects which image holds which section):
+- Variant A - "short form" (~11-page PDF): Images 1-2 are "Information and Underwriting Practices" front matter (MIB notice, Fair Credit notice) - IGNORE these. Section A (Proposed Insured) starts on Image 3. Part 1 signature page ("Page 9 - ICC17-LIA") is Image 10.
+- Variant B - "Part 1 + Part 2" (~20-page PDF): There is NO front matter. Section A starts on Image 1. Part 1 signature page appears near Image 9. Part 2 medical history begins right after.
+- Variant C - "full bundled" (~30-page PDF): Images 1-2 are front matter. Section A starts on Image 3. Part 1 signature page is Image 10. Later images (Part 2, riders, HIPAA, Privacy Notice) are NOT in the slice you receive.
+
+Identify the variant by what you see on Image 1: if it says "Information and Underwriting Practices" / "MIB, Inc. Notice", you are in Variant A or C and Section A starts on Image 3. If Image 1 already says "Individual Life Insurance Application Part 1 / Section A: Proposed Insured", you are in Variant B and Section A is on Image 1.
+
+SECTION LAYOUT (apply to whichever image the section actually appears on):
+- Section A (Proposed Insured): First / Middle / Last name, Sex, Date of Birth, SSN, Email, Primary Residence address, three phone numbers (Cell / Home / Work), citizenship (U.S. Citizen / Permanent Resident / H1B / Other), State of Birth, Driver's License No. and State, employment status, occupation checkboxes.
+- Section B (Insurance Applied For): "Amount of Insurance $ ____" and "Plan of Insurance ____" - these are the authoritative coverage amount and plan name. Also Death Benefit Option, rider checkboxes (Waiver of Premium, Child Insurance Rider, Accidental Death, Term Insurance Rider), and "Why is this insurance being purchased" (Personal / Business).
+- Section C (Beneficiary): Primary Beneficiary and Contingent Beneficiary rows. Each row has First / Middle / Last name OR Business Name, Relationship to Proposed Insured, % Share, Telephone, SSN or Tax ID#, Date of Birth, and Address.
+- Section D (Owner): checkbox for "Owner is Proposed Insured" vs "Trust" vs "Other than Proposed Insured or Trust". Name and address if different.
+- Section E (Trust Information): only completed if the owner/beneficiary is a trust.
+- Section F (Premium and Payor): Payment Method (Electronic Funds Transfer (EFT) / Direct Bill), Frequency (Annual / Semi-Annual / Quarterly / Monthly (EFT only)), Planned periodic premium, and Payor identity.
+- Section H (General Questions): total amount of life insurance on your life, prior declines, tobacco use in past 10 years, marijuana use in past 5 years, premium financing question.
+- Declarations / signature page ("Page 9 - ICC17-LIA (9-17)"): look for "e-signed by <Insured Name>" followed by "<City>/<State>" and a date in "M/D/YYYY" form - this is the applicationSignedDate and the signed city/state.
+
+FIELD RULES:
+- insuredName: concatenate First / Middle / Last from Section A (Proposed Insured) with single spaces; drop Middle if blank. Do NOT use Maiden or Suffix unless the user wrote one in the Last/Suffix line. Do NOT return a beneficiary name.
+- insuredDateOfBirth: from Section A "Date of Birth / / " in MM DD YYYY form. Return YYYY-MM-DD.
+- insuredPhone: from Section A phone numbers. Prefer Cell if present; otherwise Home; otherwise Work. Return a 10-digit string or standard "(xxx) xxx-xxxx". If the field is split into three parts like "660 026 2876", concatenate them.
+- insuredEmail: from Section A "Email Address". If blank, return null.
+- insuredState: use ONLY the state from the Primary Residence address row (Address / Apt / City / State / Zip) in Section A. Do NOT use "State of Birth" (a different field several lines below) - it is a different value. Return the 2-letter state abbreviation.
+- coverageAmount: extract from Section B "Amount of Insurance $ ____" as a plain number (e.g. 135000, not "$135,000"). Double-check against Section H question 1 "what will be the total amount of life insurance coverage on your life? $ ____" - these should match and both fields are useful cross-checks.
+- premiumAmount: Banner Life ICC17-LIA does NOT have a modal premium field on Part 1 (the "Planned periodic premium" line in Section F is only for universal life products and is usually blank for term). Return null unless a dollar amount is clearly written in the Section F premium field.
+- premiumFrequency: from Section F "Frequency of Premium Payment" checkboxes. Map "Annual" -> "annual", "Semi-Annual" -> "semi-annual", "Quarterly" -> "quarterly", "Monthly (EFT only)" -> "monthly". Return null if no checkbox is marked.
+- beneficiaries: extract BOTH primary and contingent from Section C when either is present. For each row, capture name (First + Middle + Last, or Business Name if that's what's filled in), relationship (Spouse / Parent / Child / Aunt / Sibling / etc. exactly as written), percentage (from the "% Share" column - a whole number like 50 or 100), and DOB when written. Set type to "primary" or "contingent" based on which subsection the row is in.
+- applicationSignedDate: from the Declarations / signature page. Look for "e-signed by <Insured Name>" followed by "<City>/<State>" and the date. Return YYYY-MM-DD. Example: "e-signed by Jordan Wittmaier Warrensburg/MO 4/15/2026" -> "2026-04-15".
+- policyType: ALWAYS return exactly "Term Life". Both BeyondTerm and Quility Term Plus are term life products.
+- insuranceCompany: ALWAYS return exactly "Banner Life". Both Banner-branded BeyondTerm policies and LGA-branded Quility Term Plus policies are issued by Banner Life Insurance Company. Do NOT return "Legal & General America", "LGA", "Banner Life Insurance Company" (long form), or "William Penn".
+- policyOwner: if Section D has "Owner is Proposed Insured" checked OR Section D is blank, return null. Only return a value when "Other than Proposed Insured or Trust" is checked AND a distinct person's name is written.
+- effectiveDate: ALWAYS return null. ICC17-LIA has no policy effective-date field on Part 1; downstream pipeline logic backfills this from applicationSignedDate.
+
+HARD RULES - ALWAYS RETURN NULL:
+- policyNumber: Banner Life does not assign a policy number at application time. The 10-digit number near the top of a Part 2 Medical History image (e.g. "5001348032", "5001245816") is a Part 2 internal tracking number, NOT a policy number. Return null.
+
+WARNINGS:
+- Image count varies: you may receive fewer than 10 images if the underlying PDF is shorter than 11 pages (the renderer skips pages that do not exist). Extract the fields that are actually visible; do not invent values.
+- Do NOT extract any values from the MIB Notice, Fair Credit Reporting Notice, HIPAA Release, Privacy Notice, Rider Disclosures, or Agent's Report - even though some may be visible in front matter (Images 1-2 for Variants A/C) or bundled pages, they contain no fields we need.
+- Do NOT return the Part 2 medical history tracking number as policyNumber.
+- The plan name in Section B (e.g. "BeyondTerm 30" or "Quility Term Plus 15") tells you which brand the policy is sold under, but insuranceCompany is always "Banner Life" regardless.`,
 };

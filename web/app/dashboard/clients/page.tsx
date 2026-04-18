@@ -80,6 +80,11 @@ const APPLICATION_TYPE_OPTIONS: Array<{ label: string; value: ApplicationFormTyp
   { label: 'Americo - Whole Life', value: 'americo_icc24_5426' },
   { label: 'American-Amicable - Mortgage Protection', value: 'amam_icc15_aa9466' },
   { label: 'American-Amicable - Term', value: 'amam_icc18_aa3487' },
+  { label: 'Foresters - Term Life', value: 'foresters_icc15_770825' },
+  { label: 'Mutual of Omaha - Term Life Express / IUL Express', value: 'moo_icc22_l683a' },
+  { label: 'Mutual of Omaha - Living Promise', value: 'moo_icc23_l681a' },
+  { label: 'Mutual of Omaha - Accidental Death', value: 'moo_ma5981' },
+  { label: 'Banner/LGA - Term', value: 'banner_lga_icc17_lia' },
   { label: 'Other Carrier', value: 'unknown' },
 ];
 
@@ -92,6 +97,10 @@ const SHORT_FORM_CARRIER_FORM_TYPES = new Set<ApplicationFormType>([
   'americo_icc18_5160',
   'amam_icc15_aa9466',
   'amam_icc18_aa3487',
+  'moo_icc22_l683a',
+  'moo_icc23_l681a',
+  'moo_ma5981',
+  'banner_lga_icc17_lia',
 ]);
 
 function getBulkPdfConcurrencyLimit(): number {

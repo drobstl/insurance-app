@@ -245,9 +245,15 @@ The four fields insuredPhone, insuredEmail, insuredState, and renewalDate were a
 
 | Carrier Form Type | Label | Pages |
 |---|---|---|
-| `americo_icc18_5160` | Americo - Term or CBO | 1, 2, 5 |
+| `americo_icc18_5160` | Americo - Term or CBO | 1, 2, 5, 7, 8 |
 | `americo_icc18_5160_iul` | Americo - IUL | 1, 2, 5, 21, 22 |
 | `americo_icc24_5426` | Americo - Whole Life | 1, 2, 3, 4, 5 |
+| `amam_icc15_aa9466` | American-Amicable - Mortgage Protection | 1, 2, 4, 5, 6 |
+| `amam_icc18_aa3487` | American-Amicable - Term | 1, 2, 4, 5 |
+| `foresters_icc15_770825` | Foresters - Term Life | 1, 2, 3, 8, 9, 10 |
+| `moo_icc22_l683a` | Mutual of Omaha - Term Life Express / IUL Express | 4, 5, 7, 8 |
+| `moo_icc23_l681a` | Mutual of Omaha - Living Promise | 3, 4, 5 |
+| `moo_ma5981` | Mutual of Omaha - Accidental Death | 1, 2 |
 
 ### Testing Results (April 14-15, 2026)
 

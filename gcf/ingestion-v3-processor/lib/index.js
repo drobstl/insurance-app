@@ -28,6 +28,14 @@ const CARRIER_FORM_TYPE_OVERRIDES = {
     americo_icc18_5160: { policyType: 'Term Life', insuranceCompany: 'Americo' },
     amam_icc15_aa9466: { policyType: 'Mortgage Protection', insuranceCompany: 'American-Amicable' },
     amam_icc18_aa3487: { policyType: 'Term Life', insuranceCompany: 'American-Amicable' },
+    foresters_icc15_770825: { policyType: 'Term Life', insuranceCompany: 'Foresters' },
+    // ICC22L683A covers BOTH Term Life Express and IUL Express on the same form; do NOT
+    // override policyType here - the prompt supplement derives it from the checked plan box.
+    moo_icc22_l683a: { insuranceCompany: 'Mutual of Omaha' },
+    // ICC23L681A (Living Promise) covers Level Benefit and Graded Benefit, both Whole Life.
+    moo_icc23_l681a: { policyType: 'Whole Life', insuranceCompany: 'Mutual of Omaha' },
+    // MA5981 is the standalone Mutual of Omaha Accidental Death Insurance application.
+    moo_ma5981: { policyType: 'Accidental', insuranceCompany: 'Mutual of Omaha' },
 };
 const GENERIC_APPLICATION_SYSTEM_PROMPT = `You are an expert insurance application document parser.
 
