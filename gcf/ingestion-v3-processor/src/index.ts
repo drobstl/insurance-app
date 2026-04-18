@@ -645,6 +645,12 @@ function safeJsonParse(text: string): Record<string, unknown> {
 }
 
 function normalizeApplication(parsed: Record<string, unknown>): ExtractedApplicationData {
+  const applicationSignedDate = toIsoDateStringOrNull(parsed.applicationSignedDate);
+  const extractedEffectiveDate = toIsoDateStringOrNull(parsed.effectiveDate);
+  // Universal fallback: when the form does not carry an effective date (e.g. AMAM
+  // "On Approval", or any carrier where the field is blank), assume coverage
+  // begins on the application signed date. Applies to all carriers.
+  const effectiveDate = extractedEffectiveDate ?? applicationSignedDate;
   return {
     policyType: toPolicyType(parsed.policyType),
     policyNumber: toStringOrNull(parsed.policyNumber),
@@ -660,8 +666,8 @@ function normalizeApplication(parsed: Record<string, unknown>): ExtractedApplica
     insuredPhone: toStringOrNull(parsed.insuredPhone),
     insuredDateOfBirth: toIsoDateStringOrNull(parsed.insuredDateOfBirth),
     insuredState: toStateAbbreviationOrNull(parsed.insuredState),
-    effectiveDate: toIsoDateStringOrNull(parsed.effectiveDate),
-    applicationSignedDate: toIsoDateStringOrNull(parsed.applicationSignedDate),
+    effectiveDate,
+    applicationSignedDate,
   };
 }
 
