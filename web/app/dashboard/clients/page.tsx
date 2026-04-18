@@ -3253,9 +3253,9 @@ export default function ClientsPage() {
         </div>
       )}
 
-      <div className="-mx-1 overflow-x-hidden overflow-y-visible px-1">
+      <div className="overflow-x-clip">
         <div
-          className="flex transition-transform duration-[560ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
+          className="flex transition-transform duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
           style={{ transform: `translateX(-${addFlowSlideIndex * 100}%)` }}
         >
           <div className="w-full shrink-0">
@@ -3590,7 +3590,7 @@ export default function ClientsPage() {
         </div>
       )}
           </div>
-          <div className="w-full shrink-0 px-1">
+          <div className="w-full shrink-0">
             <div className="max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px]">
               <div className="flex items-center justify-between p-6 border-b border-[#ececec]">
                 <div>
@@ -3666,7 +3666,7 @@ export default function ClientsPage() {
               </div>
             </div>
           </div>
-          <div className="w-full shrink-0 px-1">
+          <div className="w-full shrink-0">
             <div className="max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden">
               <div className="bg-white border-b border-[#ececec] p-6 flex items-center justify-between">
                 <div>
@@ -3703,7 +3703,7 @@ export default function ClientsPage() {
               </div>
             </div>
           </div>
-          <div className="w-full shrink-0 px-1">
+          <div className="w-full shrink-0">
             <div className="max-w-3xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px]">
               <div className="p-6 border-b border-[#ececec] flex items-center justify-between">
                 <div>
