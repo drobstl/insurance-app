@@ -3722,6 +3722,11 @@ export default function ClientsPage() {
                     </div>
                   </div>
                   {renderAddFlowPolicyInputs()}
+                  {formError && <p className="text-xs text-red-600">{formError}</p>}
+                  <div className="flex gap-3 pt-2">
+                    <button type="button" onClick={() => setAddFlowStage('upload')} className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-[5px] border border-gray-200 text-sm">Cancel</button>
+                    <button type="button" onClick={handleReviewConfirmAndCreate} disabled={submitting} className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] text-sm">{submitting ? 'Creating...' : 'Confirm & Create'}</button>
+                  </div>
                 </div>
                 <div
                   aria-hidden
@@ -3743,13 +3748,6 @@ export default function ClientsPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
-              </div>
-              <div className="border-t border-[#ececec] bg-white p-6 space-y-3">
-                {formError && <p className="text-xs text-red-600">{formError}</p>}
-                <div className="flex gap-3">
-                  <button type="button" onClick={() => setAddFlowStage('upload')} className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-[5px] border border-gray-200 text-sm">Cancel</button>
-                  <button type="button" onClick={handleReviewConfirmAndCreate} disabled={submitting} className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] text-sm">{submitting ? 'Creating...' : 'Confirm & Create'}</button>
-                </div>
               </div>
             </div>
           </div>
