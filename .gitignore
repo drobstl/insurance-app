@@ -38,6 +38,11 @@ mobile/ios/Pods/
 # Build artifacts
 *.tsbuildinfo
 
+# Firebase CLI debug logs
+firebase-debug.log
+firebase-debug.*.log
+.firebase/
+
 # Python
 __pycache__/
 *.pyc
