@@ -110,14 +110,20 @@ Dropdown label: **Americo - Term or CBO**  •  Form type: `americo_icc18_5160`
 
 Dropdown label: **Americo - IUL**  •  Form type: `americo_icc18_5160_iul`
 
-- [ ] **`Robin Howard - Americo IUL.pdf`**
-  - insuredName: _fill in_
-  - coverageAmount: _fill in_
-  - planOfInsurance: _fill in_
+- [ ] **`Robin Howard - Americo IUL.pdf`** (PDF too large to read directly; expected values captured from dashboard review card)
+  - insuredName: `Robin Howard`
+  - insuredPhone: `(636) 697-8933`
+  - insuredEmail: `romitchell41580@gmail.com`
+  - insuredDateOfBirth: `1980-04-15`
+  - coverageAmount: `75000`
   - insuranceCompany: `Americo`
   - policyType: `IUL`
-  - applicationSignedDate: _fill in_
-  - primary beneficiary: _fill in_
+  - policyNumber: `AM02854798`
+  - premiumAmount: `52.11`
+  - premiumFrequency: `monthly`
+  - applicationSignedDate: `2025-11-18`
+  - effectiveDate: `2025-11-18` (fallback from signed date)
+  - primary beneficiary: `Kevin Howard` (Spouse, 100%)
   - review_ready: true
 
 ### Americo Whole Life / Eagle Select (ICC24-5426)
@@ -296,11 +302,16 @@ This path is critical: it's what agents use for any carrier we don't have a supp
   - policyType: `Term Life`
   - insuranceCompany: expected `United Home Life` or `UHL`
 
-- [ ] **`Tim Olwin AIG copy.pdf`** (Corebridge/AIG Guaranteed Issue Whole Life Graded Death Benefit, form ICC15-108847 - same form as Donald Nauert. Expected: Tim Olwin DOB 1957-07-08, coverage $15,000, premium $158.75 monthly Bank Draft, primary beneficiary Brenda Olwin (Spouse) 100%, signed 2025-02-10 New Carlisle OH. NOTE: form shows "New Carlisle" in the Middle Initial field which is almost certainly a fill error where the city got entered in the wrong slot - true middle may be blank.)
+- [ ] **`Francis Hanson AIG.pdf`** (Corebridge/AIG Guaranteed Issue Whole Life Graded Death Benefit, form ICC15-108847. Cleaner replacement for Tim fixture.)
   - Pipeline completes without error: YES
   - review_ready: true
-  - insuredName populated: `Tim Olwin` (Claude may return "Tim New Carlisle Olwin" if it reads the misfiled MI - both acceptable on unknown path)
-  - coverageAmount populated: `15000`
+  - insuredName populated: `Francis Hanson`
+  - insuredDateOfBirth: `1947-07-19`
+  - coverageAmount populated: `12000`
+  - premiumAmount: `260.01`
+  - premiumFrequency: `monthly`
+  - applicationSignedDate: `2025-02-18`
+  - primary beneficiary: `Patricia Hanson` (Spouse, 100%)
   - policyType: `Whole Life`
   - insuranceCompany: expected `American General Life` / `Corebridge` / `AIG`
 
@@ -335,32 +346,49 @@ the whole point of the checklist.
 
 ## Known issues / fixtures to revisit
 
-### Brenda Henry (Foresters) - fixture has a form-fill error
-The Foresters application lists "Brenda N Henry" as the primary beneficiary
-(same as the insured), which is almost certainly an agent/applicant mistake.
-The fixture is still useful for verifying extraction ran and produced a plausible
-answer, but the beneficiary field cannot be used to verify "Claude returned the
-correct beneficiary." REPLACE with a cleaner Foresters fixture when one is
-available.
+### Brenda Henry (Foresters) - beneficiary is valid, not a form error
+The beneficiary "Brenda N Henry" is the insured's daughter (same first name),
+so this is a valid beneficiary entry and should NOT be treated as bad data.
 
-### Tim Olwin (Corebridge/AIG, unknown path) - fixture has a form-fill error
-"New Carlisle" (a city name) is entered in the Middle Initial field. The actual
-insured name is "Tim Olwin". Claude may return "Tim New Carlisle Olwin" from
-reading the misfiled value; for the unknown-path fixture this is acceptable but
-REPLACE with a cleaner fixture when one is available.
+### Tim Olwin (Corebridge/AIG, unknown path) - optional edge-case only
+The Tim fixture has "New Carlisle" (a city) in the Middle Initial field and is
+now replaced in the main checklist by `Francis Hanson AIG.pdf`. Keep Tim only
+as an optional resilience check for malformed applications.
 
-### Vickie Besozzi (MOO Living Promise) - supplement may be incorrect
+### MOO Living Promise supplement - confirmed incorrect re: beneficiary grid
 The current `moo_icc23_l681a` supplement in
 `src/carrier-prompt-supplements.ts` says:
 > "The primary ICC23L681A application pages (1-3) do NOT include a beneficiary
 > grid. Return an empty array or null for beneficiaries..."
-However, Vickie's PDF clearly has a beneficiary ("Doug Besozzi", Child) in the
-beneficiary grid on PDF page 5 (the 3rd image in PAGE_MAP [3,4,5]).
-INVESTIGATE: is the beneficiary grid optional on this form? Does the supplement
-need updating to say "extract beneficiary when present, else return empty"? If
-the supplement is changed, RE-TEST all three MOO fixtures (including any future
-IUL Express fixture). Until resolved, treat Vickie's extraction of Doug Besozzi
-as "acceptable, not required."
+
+This rule is WRONG. Investigation of 5 separate MOO Living Promise
+applications confirms the Beneficiary grid is present and populated on
+PDF page 5 (the 3rd image in PAGE_MAP [3,4,5]) on every sample, located in
+the "BENEFICIARY (If more space is needed, list on a separate sheet)"
+section below the Authorization/Agreement:
+
+| Insured | Primary Beneficiary | Relationship | Contingent |
+|---|---|---|---|
+| Vickie Besozzi | Doug Besozzi | Child | — |
+| Leslie Nitteberg | Roy Harison | Sibling | — |
+| Kelly Nauert | Donald Nauert | Spouse/Civil Union Partner | Elizabeth Carey (Child) |
+| James Drennan | Tori Epperson | Domestic Partner | — |
+| Gary Tucker | Sabrina Williams | Child | — |
+
+5 out of 5 have a populated beneficiary. The "return empty array" rule is
+making the Cloud Function miss a real field in production. This is a live bug,
+not just a fixture quirk.
+
+FIX: update the supplement's beneficiary rule to something like:
+"extract the Primary (and Contingent if present) beneficiary from the
+Beneficiary section on the 3rd image. Capture name, relationship, and DOB
+when written. Only return empty array if the section is actually blank."
+
+IMPACT when fixed: every production MOO Living Promise job going forward will
+have the primary beneficiary name extracted. Historical jobs already in
+Firestore won't be backfilled; agents would need to edit those manually.
+Re-test all three current MOO fixtures (Vickie, Danny Clifton for Term,
+Lindsay for MA5981) after the change.
 
 ### Danny Clifton (MOO Term Life Express) - insuranceCompany override test
 The MOO application body repeatedly uses "United of Omaha Life Insurance
