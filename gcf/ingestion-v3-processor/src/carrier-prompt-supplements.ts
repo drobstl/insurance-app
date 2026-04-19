@@ -213,7 +213,7 @@ You are receiving 3 images from a Mutual of Omaha Living Promise whole life appl
 IMAGE MAPPING:
 - Image 1 (PDF page 3, App Page 1): "INDIVIDUAL LIFE INSURANCE APPLICATION" with "ICC23L681A PLEASE SUBMIT ALL PAGES 1" at the top. Contains Proposed Insured block (First Name / MI / Last Name / Suffix / Gender / Height / Weight / SSN / Home Address / State of Birth / DOB / Phone No. / Email / Driver's License / US citizen / Tobacco), Owner block (Complete only if Owner/Applicant is different from Proposed Insured), and Underwriting Part One (questions 1-5) - the eligibility knockout questions.
 - Image 2 (PDF page 4, App Page 2): "ICC23L681A PLEASE SUBMIT ALL PAGES 2" at the top. Contains the rest of Underwriting (questions 6-11, including Part Two which determines Level vs Graded eligibility), Optional Comments, Plan Information ("Q Level Benefit Product" / "Q Graded Benefit Product" with "Amount Applied For $ ______" and "Rider: Q Accidental Death Rider" only if Level), and Premium Information (Premium Method, Frequency, Modal Premium, Collected Premium, Payor info).
-- Image 3 (PDF page 5, App Page 3): Signature page. Contains Authorization text, Agreement text, Fraud Warning, and the line "Signed at: __________ City ___ State ___ Date __________" with the signature of the Proposed Insured. This is the authoritative page for signed city, signed state, and applicationSignedDate.
+- Image 3 (PDF page 5, App Page 3): Signature/beneficiary page. Contains Authorization text, Agreement text, Fraud Warning, the line "Signed at: __________ City ___ State ___ Date __________" with the signature of the Proposed Insured, and in many packets also the beneficiary section (Primary + Contingent). This page is authoritative for signed city, signed state, applicationSignedDate, and beneficiary rows when present.
 
 FIELD RULES:
 - insuredName: concatenate First Name, MI, Last Name, Suffix from Image 1 with single spaces; drop MI/Suffix if blank.
@@ -227,7 +227,7 @@ FIELD RULES:
 - policyType: ALWAYS return exactly "Whole Life". Both the Level Benefit Product and Graded Benefit Product are Whole Life products - the Level-vs-Graded distinction is captured by other fields downstream, but policyType itself is always "Whole Life".
 - insuranceCompany: ALWAYS return exactly "Mutual of Omaha". Do NOT return "United of Omaha", "United of Omaha Life Insurance Company", or any other variant.
 - policyOwner: from the Owner block on Image 1. If that block is blank, the instructions above it say "Complete only if Owner/Applicant is different from Proposed Insured" - return null when blank. If a different person is clearly named as Owner, return that name.
-- beneficiaries: the primary ICC23L681A application pages (1-3) do NOT include a beneficiary grid. Return an empty array or null for beneficiaries - the beneficiary info is typically captured on a separate form that is not in the images you receive.
+- beneficiaries: extract from Image 3 when a beneficiary section is present. Capture both Primary and Contingent rows when either is filled, including name, relationship, percentage (if written), and DOB when written. Set type as "primary" or "contingent". If no beneficiary section is present or all rows are blank, return an empty array.
 - applicationSignedDate: from the "Signed at City / State / Date" line on Image 3. Return YYYY-MM-DD. If the date appears in a full timestamp format like "12/15/2025 at 18:42:11 GMT", return just "2025-12-15".
 
 HARD RULES - ALWAYS RETURN NULL:
