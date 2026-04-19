@@ -2,7 +2,7 @@
 # CONTEXT.md — AgentForLife (AFL)
 
 > Drop this in the repo root. Read it before any strategic or architectural decision.
-> Last updated: April 18, 2026
+> Last updated: April 18, 2026 (evening)
 
 ## What This Is
 
@@ -201,6 +201,14 @@ Standalone pricing remains for agents who come directly. Founding member migrati
   - **Tolerant PAGE_MAP renderer** skips absent pages rather than failing, enabling one supplement to cover multiple page-count variants of the same form family.
   - **Compiled `lib/` output checked in** for `gcf/ingestion-v3-processor`. Without this rebuild the deployed Cloud Function would treat new form types as `unknown` and skip carrier overrides/supplements.
   - **Firestore-index-free zombie cleanup** restored in the Cloud Function after the previous implementation required an index that could not be reliably provisioned in all environments.
+- Fixed (April 18, 2026): MOO Living Promise beneficiary extraction bug (`moo_icc23_l681a`) in production.
+  - Root cause: supplement text incorrectly instructed Claude to return empty beneficiaries for ICC23L681A.
+  - Fix shipped and deployed in `gcf/ingestion-v3-processor`: beneficiary guidance now extracts Primary/Contingent rows from Image 3 (PDF page 5) when present, returning empty array only when the section is blank.
+  - Validation impact: Living Promise beneficiaries now populate reliably for current/future jobs; historical records are unchanged unless manually corrected.
+- Updated (April 18, 2026): Extraction smoke-test playbook hardened (`gcf/ingestion-v3-processor/TESTING.md`).
+  - Added/filled concrete expected values for Robin Howard (Americo IUL) from review-card validation.
+  - Replaced malformed Corebridge/AIG unknown-path fixture (`Tim Olwin`) with cleaner `Francis Hanson AIG.pdf` as primary unknown-path regression sample.
+  - Clarified fixture notes: Brenda Henry beneficiary entry is valid (daughter with same first name), Tim fixture retained only as optional malformed-input edge-case.
 - Fixed (April 17-18, 2026): Dashboard Add Client flow UX corrections.
   - Four date pickers in the Add Client form are now explicitly labeled (previously two of them rendered as bare mm/dd/yyyy with no clue what they mapped to).
   - Review & Confirm card restructured: sticky header + sticky footer (Cancel / Confirm & Create always visible), scrollable middle band, bottom gradient fade, floating "Scroll for more" pill with bouncing chevron that auto-hides at the bottom, branded always-visible scrollbar, and cleaned-up slide transition (horizontal clipping fixed, 560ms → 700ms for a calmer feel).
@@ -252,7 +260,7 @@ Standalone pricing remains for agents who come directly. Founding member migrati
 - **Carrier prompt supplements are now active.** `buildApplicationSystemPrompt(carrierFormType)` appends supplement text from `gcf/ingestion-v3-processor/src/carrier-prompt-supplements.ts` when a matching entry exists; otherwise it returns `GENERIC_APPLICATION_SYSTEM_PROMPT`.
 - **Supplements use image positions, not PDF page numbers.** Guidance references "Image 1/2/3..." because Claude receives ordered image blocks, not native PDF page metadata.
 - **Resilience fallback still exists.** The dashboard retains a direct `/api/parse-application` fallback path for specific signed upload failures and select v3 job failures (`INTERNAL_ERROR` / `CLAUDE_SCHEMA_INVALID`).
-- **`CARRIER_FORM_TYPE_OVERRIDES` (code-side deterministic overrides).** A lookup table in `gcf/ingestion-v3-processor/src/index.ts` locks `policyType` and `insuranceCompany` per `carrierFormType`, authoritative over Claude's classification. The agent-selected dropdown is the source of truth for these two fields. This runs alongside supplement-prompt rules (preferred pattern for new carriers). Currently populated for Americo Term, AMAM Dignity (Mortgage Protection), and AMAM Term.
+- **`CARRIER_FORM_TYPE_OVERRIDES` (code-side deterministic overrides).** A lookup table in `gcf/ingestion-v3-processor/src/index.ts` locks `policyType` and `insuranceCompany` per `carrierFormType`, authoritative over Claude's classification. The agent-selected dropdown is the source of truth for these two fields. This runs alongside supplement-prompt rules (preferred pattern for new carriers). Currently populated for: Americo Term, AMAM Mortgage Protection, AMAM Term, Foresters Term, MOO Term/IUL Express (insuranceCompany), MOO Living Promise, MOO Accidental, and Banner/LGA Term.
 - **Universal `effectiveDate` fallback.** `normalizeApplication` falls back to `applicationSignedDate` as the effective date whenever a form does not carry one (e.g. AMAM "On Approval", MOO post-issuance assignment, or any blank effective-date field). Applies to every carrier so downstream workflows always have a reasonable policy start date.
 - **Tolerant PAGE_MAP renderer.** When a carrier form has multiple page-count variants that share extraction semantics (Americo Term 5-page short vs 9-page full; AMAM Term 9-page Express vs 11-page Home Certainty; MOO Living Promise 13-15 pages), the client-side renderer skips absent pages rather than failing, and the carrier supplement handles the reduced image set.
 
