@@ -28,6 +28,16 @@ Key files:
 - `web/lib/pdf/render-selected-pages-to-jpeg.ts` - DO NOT change the render scale (1.62) or quality (0.80) without explicit approval
 - `web/app/dashboard/clients/page.tsx` - DO NOT remove PAGE_MAP, DO NOT add fallback parsing paths, DO NOT re-add `runDirectParseFallback`
 
+### Pre-deploy smoke test for extraction changes
+Any change that touches `src/carrier-prompt-supplements.ts`, `src/index.ts`,
+`web/lib/pdf/application-page-map.ts`, `web/lib/pdf/render-selected-pages-to-jpeg.ts`,
+or the `APPLICATION_TYPE_OPTIONS` / `SHORT_FORM_CARRIER_FORM_TYPES` sets in
+`web/app/dashboard/clients/page.tsx` MUST be followed by running the manual
+checklist at `gcf/ingestion-v3-processor/TESTING.md` before `firebase deploy`.
+The checklist references a fixture corpus at `~/Developer/insurance-app-fixtures/`
+(outside the repo, contains real PII). When adding a new carrier form type,
+also add at least one fixture row to `TESTING.md` with expected values.
+
 # AgentForLife (AFL) — Cursor Project Rules
 
 ## Before responding to any question about product strategy, architecture, business logic, pricing, or integration with Closr AI:
