@@ -25,6 +25,7 @@ import {
   findExistingIngestionV3JobByIdempotency,
   getIngestionV3Job,
   getIngestionV3JobsCollection,
+  reassignIngestionV3JobBatchIfInFlight,
 } from '../../../../../lib/ingestion-v3-store';
 import type { IngestionV3UploadPurpose } from '../../../../../lib/ingestion-v3-types';
 
@@ -419,7 +420,18 @@ async function processOneFile(params: {
         resumable: false,
       });
 
+    // Reserve and register the job ID in the batch doc BEFORE creating the
+    // ingestion job so the processor can always report terminal status back.
+    const reservedJobId = getIngestionV3JobsCollection().doc().id;
+    await registerBatchFile(agentId, batchId, {
+      jobId: reservedJobId,
+      driveFileId: file.id,
+      fileName: file.name,
+      mimeType: file.mimeType,
+    });
+
     const created = await createIngestionV3Job({
+      jobId: reservedJobId,
       mode: purpose,
       gcsPath,
       fileName,
@@ -528,22 +540,22 @@ export async function POST(req: NextRequest): Promise<NextResponse<GoogleDriveIm
         results[currentIndex] = result;
 
         // Register this file in the batch doc with the correct status.
-        // - 'created': new job enqueued — register as queued, processor handles the rest
+        // - 'created': already registered + enqueued in processOneFile; processor handles the rest
         // - 'reused': existing job found via idempotency — register with its actual terminal status
         //   so the batch counters reflect reality and the batch can complete
         // - 'failed': download/enqueue failure — register as failed immediately
         try {
           const regKey = result.jobId || `import-fail-${file.id}`;
-          await registerBatchFile(agentId, batchId, {
-            jobId: regKey,
-            driveFileId: file.id,
-            fileName: file.name,
-            mimeType: file.mimeType,
-          });
 
           if (result.status === 'created') {
-            // New job, Cloud Task enqueued — processor will update batch doc on completion
+            // New job already registered + enqueued — processor updates batch doc on completion.
           } else if (result.status === 'reused') {
+            await registerBatchFile(agentId, batchId, {
+              jobId: regKey,
+              driveFileId: file.id,
+              fileName: file.name,
+              mimeType: file.mimeType,
+            });
             // Existing job found — register its actual status so counters are correct.
             // Note: failed jobs are never reused (the idempotency check skips them),
             // so we only handle succeeded and still-processing states here.
@@ -557,14 +569,39 @@ export async function POST(req: NextRequest): Promise<NextResponse<GoogleDriveIm
               // Still processing (queued/uploading/processing) — reassign the job's
               // batchId so the processor reports to THIS batch when it finishes.
               console.log(`[drive-import] Reused job ${regKey} still in status "${jobStatus}" — reassigning batchId`);
-              try {
-                await getIngestionV3JobsCollection().doc(regKey).update({ batchId });
-              } catch (reassignErr) {
-                console.error(`[drive-import] Failed to reassign batchId for job ${regKey}:`, reassignErr);
+              const reassigned = await reassignIngestionV3JobBatchIfInFlight(regKey, batchId);
+              if (!reassigned) {
+                const refreshed = await getIngestionV3Job(regKey);
+                const refreshedStatus = refreshed?.status || jobStatus;
+                if (refreshedStatus === 'review_ready' || refreshedStatus === 'saved') {
+                  const refreshedRows = refreshed?.result?.bob?.rows?.length || result.reusedRowCount || 0;
+                  await updateBatchFileStatus(agentId, batchId, regKey, {
+                    status: 'succeeded',
+                    loadedRows: refreshedRows,
+                  });
+                } else if (refreshedStatus === 'failed') {
+                  await updateBatchFileStatus(agentId, batchId, regKey, {
+                    status: 'failed',
+                    error: refreshed?.error?.message || 'Reused job failed before it could be attached to this batch.',
+                    retryable: false,
+                  });
+                } else {
+                  await updateBatchFileStatus(agentId, batchId, regKey, {
+                    status: 'failed',
+                    error: 'Could not attach reused in-flight job to this batch. Please retry import.',
+                    retryable: false,
+                  });
+                }
               }
             }
           } else {
             // Failed at import level
+            await registerBatchFile(agentId, batchId, {
+              jobId: regKey,
+              driveFileId: file.id,
+              fileName: file.name,
+              mimeType: file.mimeType,
+            });
             await updateBatchFileStatus(agentId, batchId, regKey, {
               status: 'failed',
               error: result.error || 'Failed during import.',

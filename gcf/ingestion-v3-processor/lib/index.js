@@ -912,7 +912,14 @@ function parseCsvLine(line, delimiter) {
     for (let i = 0; i < line.length; i += 1) {
         const ch = line[i];
         if (ch === '"') {
-            inQuotes = !inQuotes;
+            // Support escaped quotes ("") within quoted cells.
+            if (inQuotes && line[i + 1] === '"') {
+                current += '"';
+                i += 1;
+            }
+            else {
+                inQuotes = !inQuotes;
+            }
         }
         else if (ch === delimiter && !inQuotes) {
             result.push(current.trim());

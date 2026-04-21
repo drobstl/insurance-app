@@ -32,6 +32,7 @@ interface IngestionV3JobDoc {
 }
 
 export interface CreateIngestionV3JobInput {
+  jobId?: string;
   mode: IngestionV3Mode;
   carrierFormType?: string;
   gcsPath?: string;
@@ -64,7 +65,9 @@ export async function findExistingIngestionV3JobByIdempotency(
 }
 
 export async function createIngestionV3Job(input: CreateIngestionV3JobInput): Promise<IngestionV3JobRecord> {
-  const ref = getIngestionV3JobsCollection().doc();
+  const ref = typeof input.jobId === 'string' && input.jobId.trim()
+    ? getIngestionV3JobsCollection().doc(input.jobId.trim())
+    : getIngestionV3JobsCollection().doc();
   const maxAttempts = typeof input.maxAttempts === 'number' && input.maxAttempts > 0 ? input.maxAttempts : 4;
 
   const payload: IngestionV3JobDoc = {
@@ -97,6 +100,25 @@ export async function getIngestionV3Job(jobId: string): Promise<IngestionV3JobRe
   const snap = await getIngestionV3JobsCollection().doc(jobId).get();
   if (!snap.exists) return null;
   return toIngestionV3JobRecord(snap.id, snap.data() || {});
+}
+
+export async function reassignIngestionV3JobBatchIfInFlight(jobId: string, batchId: string): Promise<boolean> {
+  if (!jobId.trim() || !batchId.trim()) return false;
+  const ref = getIngestionV3JobsCollection().doc(jobId);
+  return getAdminFirestore().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return false;
+    const data = snap.data() as Record<string, unknown>;
+    const status = (data.status as IngestionV3Status | undefined) ?? 'failed';
+    if (status === 'review_ready' || status === 'saved' || status === 'failed') {
+      return false;
+    }
+    tx.update(ref, {
+      batchId,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return true;
+  });
 }
 
 export async function setIngestionV3JobError(
