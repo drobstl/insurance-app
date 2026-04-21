@@ -3302,50 +3302,50 @@ export default function ClientsPage() {
         >
           <div className="w-full shrink-0">
       {/* Action Bar */}
+      {!isImportModalOpen && (
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleOpenModal}
-            className="px-4 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors flex items-center gap-2 text-sm"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            Add Client
-          </button>
-          <button
-            onClick={() => {
-              setIsImportModalOpen(true);
-              setImportData([]);
-              setImportError('');
-              setImportWarning('');
-              setImportSuccess('');
-              setImportProgress(0);
-              setImportFileStatuses([]);
-              setImportSessionStartedAt(null);
-              setJustImportedClients([]);
-              setIntroMessage(DEFAULT_INTRO_TEMPLATE);
-              setIntroSentCount(null);
-            }}
-            className="px-4 py-2.5 bg-white hover:bg-gray-50 text-[#000000] font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors flex items-center gap-2 text-sm"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-            </svg>
-            Bulk Import
-          </button>
-          {addFlowToast && (
-            <div className={`px-3 py-2 rounded-[5px] border text-xs font-medium ${
-              addFlowToast.celebrate
-                ? 'bg-[#daf3f0] border-[#45bcaa]/40 text-[#005851]'
-                : 'bg-white border-[#d0d0d0] text-[#444]'
-            }`}>
-              {addFlowToast.message}
-            </div>
-          )}
-        </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleOpenModal}
+              className="px-4 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors flex items-center gap-2 text-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Add Client
+            </button>
+            <button
+              onClick={() => {
+                setIsImportModalOpen(true);
+                setImportData([]);
+                setImportError('');
+                setImportWarning('');
+                setImportSuccess('');
+                setImportProgress(0);
+                setImportFileStatuses([]);
+                setImportSessionStartedAt(null);
+                setJustImportedClients([]);
+                setIntroMessage(DEFAULT_INTRO_TEMPLATE);
+                setIntroSentCount(null);
+              }}
+              className="px-4 py-2.5 bg-white hover:bg-gray-50 text-[#000000] font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors flex items-center gap-2 text-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              Bulk Import
+            </button>
+            {addFlowToast && (
+              <div className={`px-3 py-2 rounded-[5px] border text-xs font-medium ${
+                addFlowToast.celebrate
+                  ? 'bg-[#daf3f0] border-[#45bcaa]/40 text-[#005851]'
+                  : 'bg-white border-[#d0d0d0] text-[#444]'
+              }`}>
+                {addFlowToast.message}
+              </div>
+            )}
+          </div>
         <div className="flex-1" />
-        {!isImportModalOpen && (
           <div className="relative w-full sm:w-72">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -3358,14 +3358,22 @@ export default function ClientsPage() {
               className="w-full pl-10 pr-4 py-2.5 bg-white rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] text-sm text-[#000000] placeholder-[#707070] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
             />
           </div>
-        )}
       </div>
+      )}
 
+      <div className={`relative mb-6 overflow-visible ${isImportModalOpen ? 'min-h-[520px]' : ''}`}>
       {/* ── Bulk Import Surface ── */}
-      {isImportModalOpen && (
+      <div
+        className={`absolute inset-x-0 top-0 z-20 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          isImportModalOpen
+            ? 'translate-x-0 opacity-100'
+            : 'translate-x-[112%] opacity-0 pointer-events-none'
+        }`}
+        aria-hidden={!isImportModalOpen}
+      >
         <div
           ref={importModalScrollRef}
-          className="relative w-full max-w-4xl mx-auto mb-6 bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] max-h-[82vh] overflow-y-auto"
+          className="relative w-full max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] max-h-[82vh] overflow-y-auto"
         >
             <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-white">
               <div>
@@ -3875,10 +3883,14 @@ export default function ClientsPage() {
               )}
             </div>
         </div>
-      )}
+      </div>
       {/* Client Table */}
-      {!isImportModalOpen && (
-      clientsLoading ? (
+      <div className={`relative z-10 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        isImportModalOpen
+          ? '-translate-x-[72%] opacity-75 scale-[0.985] pointer-events-none select-none'
+          : 'translate-x-0 opacity-100 scale-100'
+      }`}>
+      {clientsLoading ? (
         <div className="flex items-center justify-center py-20">
           <div className="flex flex-col items-center gap-4">
             <svg className="animate-spin w-10 h-10 text-[#45bcaa]" fill="none" viewBox="0 0 24 24">
@@ -4148,8 +4160,9 @@ export default function ClientsPage() {
             )}
           </div>
         </div>
-      )
       )}
+      </div>
+      </div>
           </div>
           <div className="w-full shrink-0">
             <div className="max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px]">
