@@ -214,6 +214,13 @@ Standalone pricing remains for agents who come directly. Founding member migrati
   - Review & Confirm card restructured: sticky header + sticky footer (Cancel / Confirm & Create always visible), scrollable middle band, bottom gradient fade, floating "Scroll for more" pill with bouncing chevron that auto-hides at the bottom, branded always-visible scrollbar, and cleaned-up slide transition (horizontal clipping fixed, 560ms → 700ms for a calmer feel).
 - Fixed (April 17, 2026): Retention conversation view hides legacy duplicate draft/sent entries that were polluting the timeline.
 - Updated (April 17, 2026): Conservation outreach copy clarified and booking links improved.
+- Added (April 20, 2026): Bulk import UI simplification + Closr-style cleanup in Clients.
+  - The import entry CTA is now "Bulk Import" (replacing "Import Book of Business"), and the modal now uses an action-first layout ("Google Drive" / "Choose from Computer") instead of a dense instruction wall.
+  - Drag/drop and multi-file local uploads remain supported; Google Drive connect/import behavior is preserved.
+  - Background progress copy was updated to be friendlier and explicitly reassures agents they can keep working while imports run.
+- Added (April 20, 2026): Admin import reliability monitoring in Dashboard > Admin > Stats.
+  - New "Bulk Import Reliability" section reads Firestore batch docs (`agents/{agentId}/batchJobs`) and shows success/skip/failure rates, tracked files, average and P95 minutes per batch, top failure reasons, and recent batches.
+  - Added threshold-aware rollout status messaging in Admin stats using current targets (success >= 90%, failure <= 5%, P95 <= 15 min) with recommended operator actions when thresholds are missed.
 - Known issues / next session:
   - "0 pages" metadata bug in extraction summary.
   - Bulk import intelligence notes are concatenated into an unreadable wall of text (needs per-file collapsible notes).

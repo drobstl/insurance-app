@@ -66,6 +66,7 @@ const BULK_PARSE_MAX_RETRIES = 2;
 const MAX_APPLICATION_PDF_BYTES = 13 * 1024 * 1024;
 const MAX_APPLICATION_RENDER_PAGES = 6;
 const DEFAULT_APPLICATION_TYPE = 'unknown';
+const BULK_IMPORT_FUN_STATES = ['Baking your import...', 'Building client profiles...', 'Fusion-reactor-ing policy data...'] as const;
 const DEFAULT_WELCOME_SMS_TEMPLATE =
   'Hey {{firstName}}! {{agentName}} here. Download the AgentForLife app and use code {{code}} to connect with me. https://agentforlife.app/app';
 const DEFAULT_INTRO_TEMPLATE =
@@ -130,6 +131,12 @@ function isRetryableBulkImportError(error: unknown): boolean {
     return error.retryable && !error.terminal;
   }
   return false;
+}
+
+function getBulkImportFunLabel(progress: number): (typeof BULK_IMPORT_FUN_STATES)[number] {
+  if (progress < 34) return BULK_IMPORT_FUN_STATES[0];
+  if (progress < 67) return BULK_IMPORT_FUN_STATES[1];
+  return BULK_IMPORT_FUN_STATES[2];
 }
 
 // ─── Interfaces ────────────────────────────────────────────
@@ -2712,6 +2719,14 @@ export default function ClientsPage() {
     }
   }, [clearGooglePickerError, loadGoogleDriveStatus, pickGoogleDriveFiles, user]);
 
+  const handleDriveImportAction = useCallback(() => {
+    if (googleDriveConnected) {
+      void handleImportFromGoogleDrive();
+      return;
+    }
+    void handleConnectGoogleDrive();
+  }, [googleDriveConnected, handleConnectGoogleDrive, handleImportFromGoogleDrive]);
+
   const handleCancelActiveBatch = useCallback(async () => {
     if (!user || !activeBatchId || cancelingBatch) return;
     setImportError('');
@@ -3317,7 +3332,7 @@ export default function ClientsPage() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
-            Import Book of Business
+            Bulk Import
           </button>
           {addFlowToast && (
             <div className={`px-3 py-2 rounded-[5px] border text-xs font-medium ${
@@ -3923,10 +3938,13 @@ export default function ClientsPage() {
           />
           <div
             ref={importModalScrollRef}
-            className="relative w-full max-w-lg bg-white rounded-[5px] border border-gray-200 shadow-2xl max-h-[90vh] overflow-y-auto"
+            className="relative w-full max-w-xl bg-white rounded-xl border border-gray-200 shadow-2xl max-h-[90vh] overflow-y-auto"
           >
             <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
-              <h3 className="text-xl font-bold text-[#000000]">Import Book of Business</h3>
+              <div>
+                <h3 className="text-xl font-bold text-[#000000]">Bulk Import</h3>
+                <p className="text-xs text-[#707070] mt-0.5">Bring in spreadsheets and PDFs from Google Drive or your computer.</p>
+              </div>
               <button
                 onClick={() => !importing && !parsingBob && setIsImportModalOpen(false)}
                 className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#000000] transition-colors"
@@ -4136,47 +4154,27 @@ export default function ClientsPage() {
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
                   </div>
-                  <p className="text-sm text-[#707070]">Uploading your files&hellip;</p>
+                  <p className="text-sm text-[#707070] font-medium">{BULK_IMPORT_FUN_STATES[0]}</p>
+                  <p className="text-xs text-[#999999]">You can keep working while this runs in the background.</p>
                 </div>
               ) : (
                 <>
-                  <div className="bg-[#f8f8f8] border border-[#d0d0d0] rounded-[5px] p-4">
-                    <p className="text-sm font-semibold text-[#000000] mb-1.5">What you&apos;ll need</p>
-                    <p className="text-sm text-[#707070] mb-2">
-                      Upload a file from your carrier portal, CRM, or a spreadsheet. We accept CSV, TSV, Excel, and PDF exports from any carrier.
-                      Column names are matched automatically — the only required field is <span className="font-semibold text-[#000000]">Name</span>.
-                      Clients with multiple policies are automatically grouped. Policies are created for rows that have policy data.
+                  <div className="rounded-[8px] border border-[#d0d0d0] bg-[#f8f8f8] px-4 py-3">
+                    <p className="text-[11px] font-semibold text-[#005851] uppercase tracking-wide">How this works</p>
+                    <p className="text-xs text-[#707070] mt-1">
+                      Pick files from Drive or your computer. We process each file in the background and show you exactly what was created, skipped, or failed.
                     </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {[
-                        { col: 'Name', required: true },
-                        { col: 'Owner', required: false },
-                        { col: 'Phone', required: false },
-                        { col: 'Email', required: false },
-                        { col: 'DOB', required: false },
-                        { col: 'Policy Number', required: false },
-                        { col: 'Carrier', required: false },
-                        { col: 'Policy Type', required: false },
-                        { col: 'Effective Date', required: false },
-                        { col: 'Premium', required: false },
-                        { col: 'Coverage Amount', required: false },
-                        { col: 'Status', required: false },
-                      ].map(({ col, required }) => (
-                        <span key={col} className={`px-2 py-0.5 rounded text-[10px] font-medium ${required ? 'bg-[#daf3f0] text-[#005851] border border-[#45bcaa]/30' : 'bg-white border border-[#d0d0d0] text-[#707070]'}`}>{col}{required ? ' *' : ''}</span>
-                      ))}
-                    </div>
-                    <p className="text-[10px] text-[#999999] mt-1.5">Works with any carrier format — Mutual of Omaha, United of Omaha, and more. Column names are matched automatically.</p>
-                    <p className="text-xs text-[#005851] mt-2.5 font-medium">After import, you&apos;ll be able to have the system text your clients the app download link and their unique code.</p>
                   </div>
 
-                  <div className="border border-[#d0d0d0] rounded-[5px] bg-white p-3 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handleConnectGoogleDrive}
-                        disabled={googleDriveActionLoading || parsingBob || importing}
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-[5px] border border-[#d0d0d0] bg-white hover:bg-[#f8f8f8] disabled:opacity-60 disabled:cursor-not-allowed text-xs font-semibold text-[#005851] transition-colors"
-                      >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={handleDriveImportAction}
+                      disabled={googleDriveActionLoading || googlePickerLoading || parsingBob || importing}
+                      className="text-left border border-[#d0d0d0] rounded-[10px] bg-white p-4 hover:border-[#45bcaa]/60 hover:bg-[#daf3f0]/20 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <div className="inline-flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-[6px] bg-[#f5f5f5] border border-[#e5e5e5] flex items-center justify-center">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 87.3 78" width="20" height="18" aria-hidden>
                           <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
                           <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0-1.2 4.5h27.5z" fill="#00ac47"/>
@@ -4185,33 +4183,39 @@ export default function ClientsPage() {
                           <path d="M59.8 53H27.5L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h32.6c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
                           <path d="M73.4 26.5 60.65 4.5c-.8-1.4-1.95-2.5-3.3-3.3L43.6 25l16.15 28h27.5c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
                         </svg>
-                        {googleDriveActionLoading ? 'Redirecting...' : 'Connect Google Drive'}
-                      </button>
+                        </div>
+                        <span className="text-sm font-semibold text-[#005851]">
+                          {googleDriveActionLoading
+                            ? 'Connecting to Google Drive...'
+                            : googlePickerLoading
+                              ? 'Opening Google Drive...'
+                              : googleDriveConnected
+                                ? 'Choose from Google Drive'
+                                : 'Connect Google Drive'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#707070] mt-2">Select CSV, Excel, Google Sheets, or PDF files from your Drive.</p>
+                    </button>
 
-                      <button
-                        type="button"
-                        onClick={handleImportFromGoogleDrive}
-                        disabled={
-                          !googleDriveConnected ||
-                          googleDriveLoading ||
-                          googlePickerLoading ||
-                          googleDriveActionLoading ||
-                          parsingBob ||
-                          importing
-                        }
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-[5px] bg-[#daf3f0] hover:bg-[#c0ebe4] disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed text-xs font-semibold text-[#005851] transition-colors"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 87.3 78" width="20" height="18" aria-hidden>
-                          <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
-                          <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0-1.2 4.5h27.5z" fill="#00ac47"/>
-                          <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.95 10.3z" fill="#ea4335"/>
-                          <path d="M43.65 25 57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
-                          <path d="M59.8 53H27.5L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h32.6c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
-                          <path d="M73.4 26.5 60.65 4.5c-.8-1.4-1.95-2.5-3.3-3.3L43.6 25l16.15 28h27.5c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
-                        </svg>
-                        {googlePickerLoading ? 'Opening Picker...' : 'Import from Google Drive'}
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={parsingBob || importing}
+                      className="text-left border border-[#d0d0d0] rounded-[10px] bg-white p-4 hover:border-[#45bcaa]/60 hover:bg-[#daf3f0]/20 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <div className="inline-flex items-center gap-2.5 text-sm font-semibold text-[#005851]">
+                        <div className="w-8 h-8 rounded-[6px] bg-[#f5f5f5] border border-[#e5e5e5] flex items-center justify-center">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                          </svg>
+                        </div>
+                        <span>Choose from Computer</span>
+                      </div>
+                      <p className="text-xs text-[#707070] mt-2">Select one file or many at once. We&apos;ll process everything in the background.</p>
+                    </button>
+                  </div>
+
+                  <div className="border border-[#d0d0d0] rounded-[8px] bg-white p-3 space-y-2">
                     <p className="text-[11px] text-[#707070]">
                       {googleDriveLoading
                         ? 'Checking Google Drive connection...'
@@ -4222,6 +4226,14 @@ export default function ClientsPage() {
                     {googlePickerError && (
                       <p className="text-[11px] text-red-600">{googlePickerError}</p>
                     )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv,.tsv,.xlsx,.xls,.pdf,text/csv,text/tab-separated-values,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                      multiple
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
                   </div>
 
                   <div
@@ -4231,21 +4243,18 @@ export default function ClientsPage() {
                       setImportDragActive(true);
                     }}
                     onDragLeave={() => setImportDragActive(false)}
-                    className={`rounded-[5px] border-2 border-dashed p-4 transition-colors ${
+                    className={`rounded-[8px] border-2 border-dashed p-4 transition-colors ${
                       importDragActive
                         ? 'border-[#45bcaa] bg-[#daf3f0]/40'
                         : 'border-[#d0d0d0] bg-white'
                     }`}
                   >
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".csv,.tsv,.xlsx,.xls,.pdf,text/csv,text/tab-separated-values,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-                      multiple
-                      onChange={handleFileUpload}
-                      className="block w-full text-sm text-[#707070] file:mr-4 file:py-2 file:px-4 file:rounded-[5px] file:border-0 file:text-sm file:font-semibold file:bg-[#daf3f0] file:text-[#005851] hover:file:bg-[#c0ebe4] cursor-pointer"
-                    />
-                    <p className="text-xs text-[#707070] mt-1.5">Accepts CSV, TSV, Excel (.xlsx), and PDF files. Select or drop up to 50 files at once. Google Sheets can be imported via Google Drive above.</p>
+                    <p className="text-xs text-[#707070] text-center">
+                      Drag and drop files here, or use one of the buttons above.
+                    </p>
+                    <p className="text-[11px] text-[#999999] text-center mt-1">
+                      Supports CSV, TSV, Excel, Google Sheets (via Drive), and PDF. Up to 50 files per import.
+                    </p>
                   </div>
 
                   {importFileStatuses.length > 0 && (
@@ -4279,7 +4288,11 @@ export default function ClientsPage() {
                                     ? 'bg-blue-50 text-blue-700'
                                     : 'bg-gray-100 text-gray-600'
                             }`}>
-                              {status.state}
+                              {status.state === 'queued'
+                                ? 'queued'
+                                : status.state === 'parsing'
+                                  ? 'processing'
+                                  : status.state}
                             </span>
                           </div>
                         ))}
@@ -4295,7 +4308,7 @@ export default function ClientsPage() {
                           style={{ width: `${importProgress}%` }}
                         />
                       </div>
-                      <p className="text-xs text-[#707070] text-center">{importProgress}% processing files</p>
+                      <p className="text-xs text-[#707070] text-center">{getBulkImportFunLabel(importProgress)} {importProgress}%</p>
                     </div>
                   )}
 
