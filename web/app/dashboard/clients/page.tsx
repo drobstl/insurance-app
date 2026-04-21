@@ -3345,20 +3345,537 @@ export default function ClientsPage() {
           )}
         </div>
         <div className="flex-1" />
-        <div className="relative w-full sm:w-72">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            type="text"
-            placeholder="Search clients..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] text-sm text-[#000000] placeholder-[#707070] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
-          />
-        </div>
+        {!isImportModalOpen && (
+          <div className="relative w-full sm:w-72">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search clients..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-white rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] text-sm text-[#000000] placeholder-[#707070] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+            />
+          </div>
+        )}
       </div>
 
+      {/* ── Bulk Import Surface ── */}
+      {isImportModalOpen && (
+        <div
+          ref={importModalScrollRef}
+          className="relative w-full max-w-4xl mx-auto mb-6 bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] max-h-[82vh] overflow-y-auto"
+        >
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-white">
+              <div>
+                <h3 className="text-xl font-bold text-[#000000]">Bulk Import</h3>
+                <p className="text-xs text-[#707070] mt-0.5">Bring in spreadsheets and PDFs from Google Drive or your computer.</p>
+              </div>
+              <button
+                onClick={() => !importing && !parsingBob && setIsImportModalOpen(false)}
+                className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#000000] transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {importSuccess && activeBatchId ? (
+                /* Background processing confirmation — agent can close and go */
+                <div className="text-center space-y-4 py-4">
+                  <div className="w-14 h-14 bg-[#daf3f0] rounded-full flex items-center justify-center mx-auto">
+                    <svg className="w-7 h-7 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-[#707070] max-w-sm mx-auto">{importSuccess}</p>
+                  <button
+                    onClick={() => {
+                      setIsImportModalOpen(false);
+                      setImportSuccess('');
+                    }}
+                    className="px-6 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors text-sm"
+                  >
+                    Got it
+                  </button>
+                </div>
+              ) : importSuccess ? (
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <p className="text-lg font-bold text-[#000000] mb-2">{importSuccess}</p>
+                  </div>
+                  {introSentCount !== null ? (
+                    <div className="text-center">
+                      <p className="text-[#0D4D4D] font-semibold mb-4">Sent to {introSentCount} client{introSentCount !== 1 ? 's' : ''}.</p>
+                      <button
+                        onClick={() => {
+                          setIsImportModalOpen(false);
+                          setImportSuccess('');
+                          setJustImportedClients([]);
+                          setIntroMessage(DEFAULT_INTRO_TEMPLATE);
+                          setIntroSentCount(null);
+                          setSelectedIntroClients(new Set());
+                          setShowIntroConfirm(false);
+                        }}
+                        className="px-6 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors text-sm"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  ) : (() => {
+                    const withPhone = justImportedClients.filter((r) => r.phone.trim());
+                    if (withPhone.length === 0) {
+                      return (
+                        <button
+                          onClick={() => {
+                            setIsImportModalOpen(false);
+                            setImportSuccess('');
+                            setJustImportedClients([]);
+                            setIntroMessage(DEFAULT_INTRO_TEMPLATE);
+                            setIntroSentCount(null);
+                            setSelectedIntroClients(new Set());
+                            setShowIntroConfirm(false);
+                          }}
+                          className="w-full px-6 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors text-sm"
+                        >
+                          Done
+                        </button>
+                      );
+                    }
+                    const selectedCount = withPhone.filter((r) => selectedIntroClients.has(r.clientId)).length;
+                    if (showIntroConfirm) {
+                      return (
+                        <div className="space-y-4">
+                          <div className="bg-amber-50 border border-amber-200 rounded-[5px] p-4 text-center">
+                            <p className="text-sm font-semibold text-amber-800 mb-1">Confirm Send</p>
+                            <p className="text-sm text-amber-700">
+                              This will text <strong>{selectedCount} client{selectedCount !== 1 ? 's' : ''}</strong> the intro message with their app download link and unique code.
+                            </p>
+                          </div>
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => setShowIntroConfirm(false)}
+                              disabled={sendingIntro}
+                              className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-100 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors text-sm"
+                            >
+                              Go back
+                            </button>
+                            <button
+                              onClick={handleSendBulkIntro}
+                              disabled={sendingIntro}
+                              className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] transition-colors flex items-center justify-center gap-2 text-sm"
+                            >
+                              {sendingIntro ? (
+                                <>
+                                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                  </svg>
+                                  Sending...
+                                </>
+                              ) : (
+                                'Yes, send'
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="space-y-3">
+                        <p className="text-sm text-[#707070]">
+                          Send a custom intro to clients with phone numbers. Use <strong>{'{{firstName}}'}</strong>, <strong>{'{{code}}'}</strong>, and <strong>{'{{agentName}}'}</strong> in your message.
+                        </p>
+                        <textarea
+                          value={introMessage}
+                          onChange={(e) => setIntroMessage(e.target.value)}
+                          rows={6}
+                          className="w-full px-3 py-2 border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] placeholder-[#707070] focus:outline-none focus:border-[#45bcaa] resize-y"
+                          placeholder={DEFAULT_INTRO_TEMPLATE}
+                        />
+                        <p className="text-xs text-[#707070]">If you leave this blank, we&apos;ll send the default message above.</p>
+                        <div className="border border-[#d0d0d0] rounded-[5px] overflow-hidden">
+                          <div className="flex items-center justify-between bg-[#f8f8f8] px-3 py-2 border-b border-[#d0d0d0]">
+                            <span className="text-xs font-semibold text-[#707070]">{selectedCount} of {withPhone.length} selected</span>
+                            <button
+                              onClick={() => {
+                                if (selectedCount === withPhone.length) {
+                                  setSelectedIntroClients(new Set());
+                                } else {
+                                  setSelectedIntroClients(new Set(withPhone.map((r) => r.clientId)));
+                                }
+                              }}
+                              className="text-xs font-medium text-[#005851] hover:text-[#003d3d] transition-colors"
+                            >
+                              {selectedCount === withPhone.length ? 'Deselect all' : 'Select all'}
+                            </button>
+                          </div>
+                          <div className="max-h-48 overflow-y-auto divide-y divide-[#f0f0f0]">
+                            {withPhone.map((client) => (
+                              <label key={client.clientId} className="flex items-center gap-3 px-3 py-2 hover:bg-[#f8f8f8] cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedIntroClients.has(client.clientId)}
+                                  onChange={() => {
+                                    setSelectedIntroClients((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(client.clientId)) {
+                                        next.delete(client.clientId);
+                                      } else {
+                                        next.add(client.clientId);
+                                      }
+                                      return next;
+                                    });
+                                  }}
+                                  className="w-4 h-4 rounded border-[#d0d0d0] text-[#44bbaa] focus:ring-[#44bbaa] shrink-0"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-sm text-[#000000] font-medium">{client.firstName || '—'}</span>
+                                  <span className="text-xs text-[#707070] ml-2">{client.phone}</span>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => {
+                              setIsImportModalOpen(false);
+                              setImportSuccess('');
+                              setJustImportedClients([]);
+                              setIntroMessage(DEFAULT_INTRO_TEMPLATE);
+                              setIntroSentCount(null);
+                              setSelectedIntroClients(new Set());
+                              setShowIntroConfirm(false);
+                            }}
+                            className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors text-sm"
+                          >
+                            Skip
+                          </button>
+                          <button
+                            onClick={() => setShowIntroConfirm(true)}
+                            disabled={selectedCount === 0}
+                            className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-[5px] transition-colors text-sm"
+                          >
+                            {`Send intro to ${selectedCount} client${selectedCount !== 1 ? 's' : ''}`}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : driveImportInFlight ? (
+                /* Google Drive import POST in flight — show loading instead of the form */
+                <div className="text-center space-y-4 py-8">
+                  <div className="w-14 h-14 bg-[#daf3f0] rounded-full flex items-center justify-center mx-auto">
+                    <svg className="w-7 h-7 text-[#45bcaa] animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-[#707070] font-medium">{BULK_IMPORT_FUN_STATES[0]}</p>
+                  <p className="text-xs text-[#999999]">You can keep working while this runs in the background.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="rounded-[8px] border border-[#d0d0d0] bg-[#f8f8f8] px-4 py-3">
+                    <p className="text-[11px] font-semibold text-[#005851] uppercase tracking-wide">How this works</p>
+                    <p className="text-xs text-[#707070] mt-1">
+                      Pick files from Drive or your computer. We process each file in the background and show you exactly what was created, skipped, or failed.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={handleDriveImportAction}
+                      disabled={googleDriveActionLoading || googlePickerLoading || parsingBob || importing}
+                      className="text-left border border-[#d0d0d0] rounded-[10px] bg-white p-4 hover:border-[#45bcaa]/60 hover:bg-[#daf3f0]/20 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <div className="inline-flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-[6px] bg-[#f5f5f5] border border-[#e5e5e5] flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 87.3 78" width="20" height="18" aria-hidden>
+                          <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                          <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0-1.2 4.5h27.5z" fill="#00ac47"/>
+                          <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.95 10.3z" fill="#ea4335"/>
+                          <path d="M43.65 25 57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                          <path d="M59.8 53H27.5L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h32.6c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                          <path d="M73.4 26.5 60.65 4.5c-.8-1.4-1.95-2.5-3.3-3.3L43.6 25l16.15 28h27.5c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+                        </svg>
+                        </div>
+                        <span className="text-sm font-semibold text-[#005851]">
+                          {googleDriveActionLoading
+                            ? 'Connecting to Google Drive...'
+                            : googlePickerLoading
+                              ? 'Opening Google Drive...'
+                              : googleDriveConnected
+                                ? 'Choose from Google Drive'
+                                : 'Connect Google Drive'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#707070] mt-2">Select CSV, Excel, Google Sheets, or PDF files from your Drive.</p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={parsingBob || importing}
+                      className="text-left border border-[#d0d0d0] rounded-[10px] bg-white p-4 hover:border-[#45bcaa]/60 hover:bg-[#daf3f0]/20 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <div className="inline-flex items-center gap-2.5 text-sm font-semibold text-[#005851]">
+                        <div className="w-8 h-8 rounded-[6px] bg-[#f5f5f5] border border-[#e5e5e5] flex items-center justify-center">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                          </svg>
+                        </div>
+                        <span>Choose from Computer</span>
+                      </div>
+                      <p className="text-xs text-[#707070] mt-2">Select one file or many at once. We&apos;ll process everything in the background.</p>
+                    </button>
+                  </div>
+
+                  <div className="border border-[#d0d0d0] rounded-[8px] bg-white p-3 space-y-2">
+                    <p className="text-[11px] text-[#707070]">
+                      {googleDriveLoading
+                        ? 'Checking Google Drive connection...'
+                        : googleDriveConnected
+                          ? `Connected${googleDriveEmail ? ` as ${googleDriveEmail}` : ''}.`
+                          : 'Google Drive not connected. Connect first to import files directly from Drive.'}
+                    </p>
+                    {googlePickerError && (
+                      <p className="text-[11px] text-red-600">{googlePickerError}</p>
+                    )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv,.tsv,.xlsx,.xls,.pdf,text/csv,text/tab-separated-values,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                      multiple
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                  </div>
+
+                  <div
+                    onDrop={handleImportDrop}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setImportDragActive(true);
+                    }}
+                    onDragLeave={() => setImportDragActive(false)}
+                    className={`rounded-[8px] border-2 border-dashed p-4 transition-colors ${
+                      importDragActive
+                        ? 'border-[#45bcaa] bg-[#daf3f0]/40'
+                        : 'border-[#d0d0d0] bg-white'
+                    }`}
+                  >
+                    <p className="text-xs text-[#707070] text-center">
+                      Drag and drop files here, or use one of the buttons above.
+                    </p>
+                    <p className="text-[11px] text-[#999999] text-center mt-1">
+                      Supports CSV, TSV, Excel, Google Sheets (via Drive), and PDF. Up to 50 files per import.
+                    </p>
+                  </div>
+
+                  {importFileStatuses.length > 0 && (
+                    <div className="border border-[#d0d0d0] rounded-[5px] overflow-hidden">
+                      <div className="bg-[#f8f8f8] px-4 py-2 border-b border-[#d0d0d0] flex items-center justify-between">
+                        <p className="text-xs font-semibold text-[#707070]">File Processing</p>
+                        <p className="text-[11px] text-[#707070]">
+                          {importFileStatuses.filter((s) => s.state === 'succeeded').length} succeeded · {importFileStatuses.filter((s) => s.state === 'failed').length} failed · {importFileStatuses.filter((s) => s.state === 'parsing').length} parsing
+                        </p>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto divide-y divide-[#f0f0f0]">
+                        {importFileStatuses.map((status) => (
+                          <div key={status.sourceFileId} className="px-4 py-2 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium text-[#000000] truncate">{status.name}</p>
+                              {status.error ? (
+                                <p className="text-[11px] text-red-600 truncate">{status.error}</p>
+                              ) : (
+                                <p className="text-[11px] text-[#707070]">
+                                  {status.loadedRows > 0 ? `${status.loadedRows} rows loaded` : 'Awaiting parse'}
+                                  {status.rejectedRows > 0 ? ` · ${status.rejectedRows} skipped` : ''}
+                                </p>
+                              )}
+                            </div>
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
+                              status.state === 'succeeded'
+                                ? 'bg-green-50 text-green-700'
+                                : status.state === 'failed'
+                                  ? 'bg-red-50 text-red-700'
+                                  : status.state === 'parsing'
+                                    ? 'bg-blue-50 text-blue-700'
+                                    : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {status.state === 'queued'
+                                ? 'queued'
+                                : status.state === 'parsing'
+                                  ? 'processing'
+                                  : status.state}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {parsingBob && (
+                    <div className="space-y-2">
+                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#45bcaa] rounded-full transition-all duration-300"
+                          style={{ width: `${importProgress}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-[#707070] text-center">{getBulkImportFunLabel(importProgress)} {importProgress}%</p>
+                    </div>
+                  )}
+
+                  {importError && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-[5px] text-xs text-red-600">
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {importError}
+                    </div>
+                  )}
+                  {importWarning && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-[5px] text-xs text-amber-700">
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {importWarning}
+                    </div>
+                  )}
+
+                  {importData.length > 0 && (
+                    <>
+                      {/* Summary of detected fields */}
+                      {(() => {
+                        const withPolicy = importData.filter(r => r.policyNumber || r.carrier || r.policyType || r.premium || r.coverageAmount).length;
+                        const withEffDate = importData.filter(r => r.effectiveDate).length;
+                        return (
+                          <div className="flex flex-wrap gap-2">
+                            <span className="px-2.5 py-1 bg-[#daf3f0] text-[#005851] text-xs font-semibold rounded-[5px]">
+                              {importData.length} client{importData.length !== 1 ? 's' : ''}
+                            </span>
+                            {withPolicy > 0 && (
+                              <span className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-semibold rounded-[5px]">
+                                {withPolicy} {withPolicy !== 1 ? 'policies' : 'policy'}
+                              </span>
+                            )}
+                            {withEffDate > 0 && (
+                              <span className="px-2.5 py-1 bg-purple-50 text-purple-700 text-xs font-semibold rounded-[5px]">
+                                {withEffDate} with effective date
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      <div className="border border-[#d0d0d0] rounded-[5px] overflow-hidden">
+                        <div className="bg-[#f8f8f8] px-4 py-2 border-b border-[#d0d0d0]">
+                          <p className="text-xs font-semibold text-[#707070]">
+                            Preview ({importData.length} row{importData.length !== 1 ? 's' : ''})
+                          </p>
+                        </div>
+                        <div className="max-h-72 overflow-y-auto divide-y divide-[#f0f0f0]">
+                          {importData.slice(0, 50).map((row, i) => {
+                            const hasPolicy = row.policyNumber || row.carrier || row.policyType;
+                            return (
+                              <div key={i} className="px-4 py-2.5 flex items-start gap-3">
+                                <span className="text-xs text-[#707070] w-6 pt-0.5 shrink-0">{i + 1}</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-[#000000] truncate">{row.name}</p>
+                                  <p className="text-xs text-[#707070] truncate">
+                                    {[row.email, row.phone].filter(Boolean).join(' · ') || 'No contact info'}
+                                  </p>
+                                  {hasPolicy && (
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                      <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded font-medium">
+                                        {[row.policyType, row.carrier, row.policyNumber].filter(Boolean).join(' · ')}
+                                      </span>
+                                      {row.effectiveDate && (
+                                        <span className="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded font-medium">
+                                          Eff: {row.effectiveDate}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {importData.length > 50 && (
+                            <div className="px-4 py-2 text-xs text-[#707070] text-center">
+                              +{importData.length - 50} more rows
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {importing && (
+                        <div className="space-y-2">
+                          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-[#44bbaa] rounded-full transition-all duration-300"
+                              style={{ width: `${importProgress}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-[#707070] text-center">{importProgress}% complete</p>
+                        </div>
+                      )}
+
+                      {importData.length > MAX_IMPORT_ROWS && (
+                        <p className="text-xs text-red-600">Maximum {MAX_IMPORT_ROWS} clients per import. Split your file or import in multiple runs.</p>
+                      )}
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImportData([]);
+                            setImportError('');
+                            setImportWarning('');
+                            setImportFileStatuses([]);
+                          }}
+                          disabled={importing || parsingBob}
+                          className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-100 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors text-sm"
+                        >
+                          Clear
+                        </button>
+                        <button
+                          onClick={handleImportClients}
+                          disabled={importing || parsingBob || importData.length > MAX_IMPORT_ROWS}
+                          className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] transition-colors flex items-center justify-center gap-2 text-sm"
+                        >
+                          {importing ? (
+                            <>
+                              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                              Importing...
+                            </>
+                          ) : (
+                            `Import ${importData.length} Record${importData.length !== 1 ? 's' : ''}`
+                          )}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+        </div>
+      )}
       {/* Client Table */}
       {!isImportModalOpen && (
       clientsLoading ? (
@@ -3931,521 +4448,7 @@ export default function ClientsPage() {
         </div>
       )}
 
-      {/* ── Import Clients Modal ── */}
-      {isImportModalOpen && (
-        <div
-          ref={importModalScrollRef}
-          className="relative w-full max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] shadow-xl max-h-[90vh] overflow-y-auto"
-        >
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
-              <div>
-                <h3 className="text-xl font-bold text-[#000000]">Bulk Import</h3>
-                <p className="text-xs text-[#707070] mt-0.5">Bring in spreadsheets and PDFs from Google Drive or your computer.</p>
-              </div>
-              <button
-                onClick={() => !importing && !parsingBob && setIsImportModalOpen(false)}
-                className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-[#000000] transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
 
-            <div className="p-6 space-y-4">
-              {importSuccess && activeBatchId ? (
-                /* Background processing confirmation — agent can close and go */
-                <div className="text-center space-y-4 py-4">
-                  <div className="w-14 h-14 bg-[#daf3f0] rounded-full flex items-center justify-center mx-auto">
-                    <svg className="w-7 h-7 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  <p className="text-sm text-[#707070] max-w-sm mx-auto">{importSuccess}</p>
-                  <button
-                    onClick={() => {
-                      setIsImportModalOpen(false);
-                      setImportSuccess('');
-                    }}
-                    className="px-6 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors text-sm"
-                  >
-                    Got it
-                  </button>
-                </div>
-              ) : importSuccess ? (
-                <div className="space-y-4">
-                  <div className="text-center">
-                    <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <svg className="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                    <p className="text-lg font-bold text-[#000000] mb-2">{importSuccess}</p>
-                  </div>
-                  {introSentCount !== null ? (
-                    <div className="text-center">
-                      <p className="text-[#0D4D4D] font-semibold mb-4">Sent to {introSentCount} client{introSentCount !== 1 ? 's' : ''}.</p>
-                      <button
-                        onClick={() => {
-                          setIsImportModalOpen(false);
-                          setImportSuccess('');
-                          setJustImportedClients([]);
-                          setIntroMessage(DEFAULT_INTRO_TEMPLATE);
-                          setIntroSentCount(null);
-                          setSelectedIntroClients(new Set());
-                          setShowIntroConfirm(false);
-                        }}
-                        className="px-6 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors text-sm"
-                      >
-                        Done
-                      </button>
-                    </div>
-                  ) : (() => {
-                    const withPhone = justImportedClients.filter((r) => r.phone.trim());
-                    if (withPhone.length === 0) {
-                      return (
-                        <button
-                          onClick={() => {
-                            setIsImportModalOpen(false);
-                            setImportSuccess('');
-                            setJustImportedClients([]);
-                            setIntroMessage(DEFAULT_INTRO_TEMPLATE);
-                            setIntroSentCount(null);
-                            setSelectedIntroClients(new Set());
-                            setShowIntroConfirm(false);
-                          }}
-                          className="w-full px-6 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors text-sm"
-                        >
-                          Done
-                        </button>
-                      );
-                    }
-                    const selectedCount = withPhone.filter((r) => selectedIntroClients.has(r.clientId)).length;
-                    if (showIntroConfirm) {
-                      return (
-                        <div className="space-y-4">
-                          <div className="bg-amber-50 border border-amber-200 rounded-[5px] p-4 text-center">
-                            <p className="text-sm font-semibold text-amber-800 mb-1">Confirm Send</p>
-                            <p className="text-sm text-amber-700">
-                              This will text <strong>{selectedCount} client{selectedCount !== 1 ? 's' : ''}</strong> the intro message with their app download link and unique code.
-                            </p>
-                          </div>
-                          <div className="flex gap-3">
-                            <button
-                              onClick={() => setShowIntroConfirm(false)}
-                              disabled={sendingIntro}
-                              className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-100 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors text-sm"
-                            >
-                              Go back
-                            </button>
-                            <button
-                              onClick={handleSendBulkIntro}
-                              disabled={sendingIntro}
-                              className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] transition-colors flex items-center justify-center gap-2 text-sm"
-                            >
-                              {sendingIntro ? (
-                                <>
-                                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                  </svg>
-                                  Sending...
-                                </>
-                              ) : (
-                                'Yes, send'
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    }
-                    return (
-                      <div className="space-y-3">
-                        <p className="text-sm text-[#707070]">
-                          Send a custom intro to clients with phone numbers. Use <strong>{'{{firstName}}'}</strong>, <strong>{'{{code}}'}</strong>, and <strong>{'{{agentName}}'}</strong> in your message.
-                        </p>
-                        <textarea
-                          value={introMessage}
-                          onChange={(e) => setIntroMessage(e.target.value)}
-                          rows={6}
-                          className="w-full px-3 py-2 border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] placeholder-[#707070] focus:outline-none focus:border-[#45bcaa] resize-y"
-                          placeholder={DEFAULT_INTRO_TEMPLATE}
-                        />
-                        <p className="text-xs text-[#707070]">If you leave this blank, we&apos;ll send the default message above.</p>
-                        <div className="border border-[#d0d0d0] rounded-[5px] overflow-hidden">
-                          <div className="flex items-center justify-between bg-[#f8f8f8] px-3 py-2 border-b border-[#d0d0d0]">
-                            <span className="text-xs font-semibold text-[#707070]">{selectedCount} of {withPhone.length} selected</span>
-                            <button
-                              onClick={() => {
-                                if (selectedCount === withPhone.length) {
-                                  setSelectedIntroClients(new Set());
-                                } else {
-                                  setSelectedIntroClients(new Set(withPhone.map((r) => r.clientId)));
-                                }
-                              }}
-                              className="text-xs font-medium text-[#005851] hover:text-[#003d3d] transition-colors"
-                            >
-                              {selectedCount === withPhone.length ? 'Deselect all' : 'Select all'}
-                            </button>
-                          </div>
-                          <div className="max-h-48 overflow-y-auto divide-y divide-[#f0f0f0]">
-                            {withPhone.map((client) => (
-                              <label key={client.clientId} className="flex items-center gap-3 px-3 py-2 hover:bg-[#f8f8f8] cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedIntroClients.has(client.clientId)}
-                                  onChange={() => {
-                                    setSelectedIntroClients((prev) => {
-                                      const next = new Set(prev);
-                                      if (next.has(client.clientId)) {
-                                        next.delete(client.clientId);
-                                      } else {
-                                        next.add(client.clientId);
-                                      }
-                                      return next;
-                                    });
-                                  }}
-                                  className="w-4 h-4 rounded border-[#d0d0d0] text-[#44bbaa] focus:ring-[#44bbaa] shrink-0"
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <span className="text-sm text-[#000000] font-medium">{client.firstName || '—'}</span>
-                                  <span className="text-xs text-[#707070] ml-2">{client.phone}</span>
-                                </div>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="flex gap-3">
-                          <button
-                            onClick={() => {
-                              setIsImportModalOpen(false);
-                              setImportSuccess('');
-                              setJustImportedClients([]);
-                              setIntroMessage(DEFAULT_INTRO_TEMPLATE);
-                              setIntroSentCount(null);
-                              setSelectedIntroClients(new Set());
-                              setShowIntroConfirm(false);
-                            }}
-                            className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors text-sm"
-                          >
-                            Skip
-                          </button>
-                          <button
-                            onClick={() => setShowIntroConfirm(true)}
-                            disabled={selectedCount === 0}
-                            className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-[5px] transition-colors text-sm"
-                          >
-                            {`Send intro to ${selectedCount} client${selectedCount !== 1 ? 's' : ''}`}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              ) : driveImportInFlight ? (
-                /* Google Drive import POST in flight — show loading instead of the form */
-                <div className="text-center space-y-4 py-8">
-                  <div className="w-14 h-14 bg-[#daf3f0] rounded-full flex items-center justify-center mx-auto">
-                    <svg className="w-7 h-7 text-[#45bcaa] animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                  </div>
-                  <p className="text-sm text-[#707070] font-medium">{BULK_IMPORT_FUN_STATES[0]}</p>
-                  <p className="text-xs text-[#999999]">You can keep working while this runs in the background.</p>
-                </div>
-              ) : (
-                <>
-                  <div className="rounded-[8px] border border-[#d0d0d0] bg-[#f8f8f8] px-4 py-3">
-                    <p className="text-[11px] font-semibold text-[#005851] uppercase tracking-wide">How this works</p>
-                    <p className="text-xs text-[#707070] mt-1">
-                      Pick files from Drive or your computer. We process each file in the background and show you exactly what was created, skipped, or failed.
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={handleDriveImportAction}
-                      disabled={googleDriveActionLoading || googlePickerLoading || parsingBob || importing}
-                      className="text-left border border-[#d0d0d0] rounded-[10px] bg-white p-4 hover:border-[#45bcaa]/60 hover:bg-[#daf3f0]/20 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <div className="inline-flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-[6px] bg-[#f5f5f5] border border-[#e5e5e5] flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 87.3 78" width="20" height="18" aria-hidden>
-                          <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
-                          <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0-1.2 4.5h27.5z" fill="#00ac47"/>
-                          <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.95 10.3z" fill="#ea4335"/>
-                          <path d="M43.65 25 57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
-                          <path d="M59.8 53H27.5L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h32.6c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
-                          <path d="M73.4 26.5 60.65 4.5c-.8-1.4-1.95-2.5-3.3-3.3L43.6 25l16.15 28h27.5c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
-                        </svg>
-                        </div>
-                        <span className="text-sm font-semibold text-[#005851]">
-                          {googleDriveActionLoading
-                            ? 'Connecting to Google Drive...'
-                            : googlePickerLoading
-                              ? 'Opening Google Drive...'
-                              : googleDriveConnected
-                                ? 'Choose from Google Drive'
-                                : 'Connect Google Drive'}
-                        </span>
-                      </div>
-                      <p className="text-xs text-[#707070] mt-2">Select CSV, Excel, Google Sheets, or PDF files from your Drive.</p>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={parsingBob || importing}
-                      className="text-left border border-[#d0d0d0] rounded-[10px] bg-white p-4 hover:border-[#45bcaa]/60 hover:bg-[#daf3f0]/20 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <div className="inline-flex items-center gap-2.5 text-sm font-semibold text-[#005851]">
-                        <div className="w-8 h-8 rounded-[6px] bg-[#f5f5f5] border border-[#e5e5e5] flex items-center justify-center">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                          </svg>
-                        </div>
-                        <span>Choose from Computer</span>
-                      </div>
-                      <p className="text-xs text-[#707070] mt-2">Select one file or many at once. We&apos;ll process everything in the background.</p>
-                    </button>
-                  </div>
-
-                  <div className="border border-[#d0d0d0] rounded-[8px] bg-white p-3 space-y-2">
-                    <p className="text-[11px] text-[#707070]">
-                      {googleDriveLoading
-                        ? 'Checking Google Drive connection...'
-                        : googleDriveConnected
-                          ? `Connected${googleDriveEmail ? ` as ${googleDriveEmail}` : ''}.`
-                          : 'Google Drive not connected. Connect first to import files directly from Drive.'}
-                    </p>
-                    {googlePickerError && (
-                      <p className="text-[11px] text-red-600">{googlePickerError}</p>
-                    )}
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".csv,.tsv,.xlsx,.xls,.pdf,text/csv,text/tab-separated-values,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-                      multiple
-                      onChange={handleFileUpload}
-                      className="hidden"
-                    />
-                  </div>
-
-                  <div
-                    onDrop={handleImportDrop}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setImportDragActive(true);
-                    }}
-                    onDragLeave={() => setImportDragActive(false)}
-                    className={`rounded-[8px] border-2 border-dashed p-4 transition-colors ${
-                      importDragActive
-                        ? 'border-[#45bcaa] bg-[#daf3f0]/40'
-                        : 'border-[#d0d0d0] bg-white'
-                    }`}
-                  >
-                    <p className="text-xs text-[#707070] text-center">
-                      Drag and drop files here, or use one of the buttons above.
-                    </p>
-                    <p className="text-[11px] text-[#999999] text-center mt-1">
-                      Supports CSV, TSV, Excel, Google Sheets (via Drive), and PDF. Up to 50 files per import.
-                    </p>
-                  </div>
-
-                  {importFileStatuses.length > 0 && (
-                    <div className="border border-[#d0d0d0] rounded-[5px] overflow-hidden">
-                      <div className="bg-[#f8f8f8] px-4 py-2 border-b border-[#d0d0d0] flex items-center justify-between">
-                        <p className="text-xs font-semibold text-[#707070]">File Processing</p>
-                        <p className="text-[11px] text-[#707070]">
-                          {importFileStatuses.filter((s) => s.state === 'succeeded').length} succeeded · {importFileStatuses.filter((s) => s.state === 'failed').length} failed · {importFileStatuses.filter((s) => s.state === 'parsing').length} parsing
-                        </p>
-                      </div>
-                      <div className="max-h-48 overflow-y-auto divide-y divide-[#f0f0f0]">
-                        {importFileStatuses.map((status) => (
-                          <div key={status.sourceFileId} className="px-4 py-2 flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="text-xs font-medium text-[#000000] truncate">{status.name}</p>
-                              {status.error ? (
-                                <p className="text-[11px] text-red-600 truncate">{status.error}</p>
-                              ) : (
-                                <p className="text-[11px] text-[#707070]">
-                                  {status.loadedRows > 0 ? `${status.loadedRows} rows loaded` : 'Awaiting parse'}
-                                  {status.rejectedRows > 0 ? ` · ${status.rejectedRows} skipped` : ''}
-                                </p>
-                              )}
-                            </div>
-                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
-                              status.state === 'succeeded'
-                                ? 'bg-green-50 text-green-700'
-                                : status.state === 'failed'
-                                  ? 'bg-red-50 text-red-700'
-                                  : status.state === 'parsing'
-                                    ? 'bg-blue-50 text-blue-700'
-                                    : 'bg-gray-100 text-gray-600'
-                            }`}>
-                              {status.state === 'queued'
-                                ? 'queued'
-                                : status.state === 'parsing'
-                                  ? 'processing'
-                                  : status.state}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {parsingBob && (
-                    <div className="space-y-2">
-                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-[#45bcaa] rounded-full transition-all duration-300"
-                          style={{ width: `${importProgress}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-[#707070] text-center">{getBulkImportFunLabel(importProgress)} {importProgress}%</p>
-                    </div>
-                  )}
-
-                  {importError && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-[5px] text-xs text-red-600">
-                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {importError}
-                    </div>
-                  )}
-                  {importWarning && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-[5px] text-xs text-amber-700">
-                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {importWarning}
-                    </div>
-                  )}
-
-                  {importData.length > 0 && (
-                    <>
-                      {/* Summary of detected fields */}
-                      {(() => {
-                        const withPolicy = importData.filter(r => r.policyNumber || r.carrier || r.policyType || r.premium || r.coverageAmount).length;
-                        const withEffDate = importData.filter(r => r.effectiveDate).length;
-                        return (
-                          <div className="flex flex-wrap gap-2">
-                            <span className="px-2.5 py-1 bg-[#daf3f0] text-[#005851] text-xs font-semibold rounded-[5px]">
-                              {importData.length} client{importData.length !== 1 ? 's' : ''}
-                            </span>
-                            {withPolicy > 0 && (
-                              <span className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-semibold rounded-[5px]">
-                                {withPolicy} {withPolicy !== 1 ? 'policies' : 'policy'}
-                              </span>
-                            )}
-                            {withEffDate > 0 && (
-                              <span className="px-2.5 py-1 bg-purple-50 text-purple-700 text-xs font-semibold rounded-[5px]">
-                                {withEffDate} with effective date
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })()}
-
-                      <div className="border border-[#d0d0d0] rounded-[5px] overflow-hidden">
-                        <div className="bg-[#f8f8f8] px-4 py-2 border-b border-[#d0d0d0]">
-                          <p className="text-xs font-semibold text-[#707070]">
-                            Preview ({importData.length} row{importData.length !== 1 ? 's' : ''})
-                          </p>
-                        </div>
-                        <div className="max-h-72 overflow-y-auto divide-y divide-[#f0f0f0]">
-                          {importData.slice(0, 50).map((row, i) => {
-                            const hasPolicy = row.policyNumber || row.carrier || row.policyType;
-                            return (
-                              <div key={i} className="px-4 py-2.5 flex items-start gap-3">
-                                <span className="text-xs text-[#707070] w-6 pt-0.5 shrink-0">{i + 1}</span>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-[#000000] truncate">{row.name}</p>
-                                  <p className="text-xs text-[#707070] truncate">
-                                    {[row.email, row.phone].filter(Boolean).join(' · ') || 'No contact info'}
-                                  </p>
-                                  {hasPolicy && (
-                                    <div className="flex items-center gap-1.5 mt-1">
-                                      <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded font-medium">
-                                        {[row.policyType, row.carrier, row.policyNumber].filter(Boolean).join(' · ')}
-                                      </span>
-                                      {row.effectiveDate && (
-                                        <span className="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded font-medium">
-                                          Eff: {row.effectiveDate}
-                                        </span>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                          {importData.length > 50 && (
-                            <div className="px-4 py-2 text-xs text-[#707070] text-center">
-                              +{importData.length - 50} more rows
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {importing && (
-                        <div className="space-y-2">
-                          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-[#44bbaa] rounded-full transition-all duration-300"
-                              style={{ width: `${importProgress}%` }}
-                            />
-                          </div>
-                          <p className="text-xs text-[#707070] text-center">{importProgress}% complete</p>
-                        </div>
-                      )}
-
-                      {importData.length > MAX_IMPORT_ROWS && (
-                        <p className="text-xs text-red-600">Maximum {MAX_IMPORT_ROWS} clients per import. Split your file or import in multiple runs.</p>
-                      )}
-                      <div className="flex gap-3">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setImportData([]);
-                            setImportError('');
-                            setImportWarning('');
-                            setImportFileStatuses([]);
-                          }}
-                          disabled={importing || parsingBob}
-                          className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-100 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors text-sm"
-                        >
-                          Clear
-                        </button>
-                        <button
-                          onClick={handleImportClients}
-                          disabled={importing || parsingBob || importData.length > MAX_IMPORT_ROWS}
-                          className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] transition-colors flex items-center justify-center gap-2 text-sm"
-                        >
-                          {importing ? (
-                            <>
-                              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                              </svg>
-                              Importing...
-                            </>
-                          ) : (
-                            `Import ${importData.length} Record${importData.length !== 1 ? 's' : ''}`
-                          )}
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-        </div>
-      )}
 
       {/* ── Add/Edit Policy Modal ── */}
       {isPolicyModalOpen && selectedClient && (
