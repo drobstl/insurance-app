@@ -3328,7 +3328,7 @@ export default function ClientsPage() {
         </div>
       )}
 
-      <div className="overflow-x-clip">
+      <div className={isImportModalOpen ? 'overflow-x-visible' : 'overflow-x-clip'}>
         <div
           className="flex transition-transform duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
           style={{ transform: `translateX(-${addFlowSlideIndex * 100}%)` }}
@@ -3920,7 +3920,7 @@ export default function ClientsPage() {
       {/* Client Table */}
       <div className={`relative z-10 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
         isImportModalOpen
-          ? '-translate-x-[72%] opacity-75 scale-[0.985] pointer-events-none select-none'
+          ? '-translate-x-[calc(72%+14rem)] opacity-75 scale-[0.985] pointer-events-none select-none'
           : 'translate-x-0 opacity-100 scale-100'
       }`}>
       {clientsLoading ? (
