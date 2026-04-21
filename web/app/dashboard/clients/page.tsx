@@ -3197,7 +3197,7 @@ export default function ClientsPage() {
   // ─── Render ──────────────────────────────────────────────
 
   return (
-    <div className="w-full">
+    <div className="max-w-5xl mx-auto">
       {/* Page Title */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#000000]">Clients</h1>
