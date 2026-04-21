@@ -26,6 +26,7 @@ interface GoogleOAuthStateDocShape {
   stateId: string;
   createdAt: FirebaseFirestore.FieldValue | FirebaseFirestore.Timestamp;
   expiresAtMs: number;
+  returnTo?: string;
 }
 
 export interface GoogleDriveIntegrationRecord {
@@ -132,18 +133,23 @@ export async function clearGoogleDriveIntegration(agentId: string): Promise<void
   await getGoogleDriveDocRef(agentId).delete().catch(() => {});
 }
 
-export async function createGoogleOAuthState(agentId: string, stateId: string): Promise<void> {
+export async function createGoogleOAuthState(
+  agentId: string,
+  stateId: string,
+  returnTo?: string,
+): Promise<void> {
   const ref = getGoogleOAuthStateDocRef(agentId, stateId);
   const now = Date.now();
   const payload: GoogleOAuthStateDocShape = {
     stateId,
     createdAt: FieldValue.serverTimestamp(),
     expiresAtMs: now + OAUTH_STATE_TTL_MS,
+    ...(returnTo ? { returnTo } : {}),
   };
   await ref.set(payload);
 }
 
-export async function consumeGoogleOAuthState(stateRaw: string): Promise<{ agentId: string } | null> {
+export async function consumeGoogleOAuthState(stateRaw: string): Promise<{ agentId: string; returnTo?: string } | null> {
   const [agentId, stateId] = decodeState(stateRaw);
   if (!agentId || !stateId) return null;
 
@@ -153,10 +159,11 @@ export async function consumeGoogleOAuthState(stateRaw: string): Promise<{ agent
 
   const data = snap.data() as Record<string, unknown>;
   const expiresAtMs = typeof data.expiresAtMs === 'number' ? data.expiresAtMs : 0;
+  const returnTo = typeof data.returnTo === 'string' ? data.returnTo : undefined;
   await ref.delete().catch(() => {});
   if (!expiresAtMs || Date.now() > expiresAtMs) return null;
 
-  return { agentId };
+  return { agentId, returnTo };
 }
 
 export function buildGoogleOAuthState(agentId: string, stateId: string): string {

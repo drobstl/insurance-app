@@ -222,7 +222,11 @@ export default function SettingsPage() {
       const token = await user.getIdToken();
       const res = await fetch('/api/integrations/google/auth', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ returnTo: pathname }),
       });
       const data = (await res.json()) as { success: boolean; authUrl?: string; error?: string };
       if (!res.ok || !data.success || !data.authUrl) {
@@ -235,7 +239,7 @@ export default function SettingsPage() {
       setSaveMessage({ type: 'error', text: message });
       setGoogleDriveConnecting(false);
     }
-  }, [user]);
+  }, [pathname, user]);
 
   const handleGoogleDriveDisconnect = useCallback(async () => {
     if (!user) return;

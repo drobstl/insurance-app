@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   collection,
   addDoc,
@@ -521,6 +522,9 @@ async function apiCancelIngestionV3Job(
 
 export default function ClientsPage() {
   const { user, agentProfile, loading, dismissTip } = useDashboard();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   // ── Client state ──
   const [clients, setClients] = useState<Client[]>([]);
@@ -2167,7 +2171,13 @@ export default function ClientsPage() {
       const token = await user.getIdToken();
       const res = await fetch('/api/integrations/google/auth', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          returnTo: '/dashboard/clients?bulkImport=1',
+        }),
       });
       const body = (await res.json()) as { success: boolean; authUrl?: string; error?: string };
       if (!res.ok || !body.success || !body.authUrl) {
@@ -2179,6 +2189,29 @@ export default function ClientsPage() {
       setGoogleDriveActionLoading(false);
     }
   }, [clearGooglePickerError, user]);
+
+  useEffect(() => {
+    const shouldOpenBulkImport = searchParams.get('bulkImport') === '1';
+    if (!shouldOpenBulkImport) return;
+
+    const driveStatus = searchParams.get('google_drive');
+    const reason = searchParams.get('reason');
+
+    setIsImportModalOpen(true);
+    if (driveStatus === 'success') {
+      setImportWarning('Google Drive connected. Choose files to import.');
+      void loadGoogleDriveStatus();
+    } else if (driveStatus === 'error') {
+      setImportError(reason ? `Google Drive connection failed: ${reason}` : 'Google Drive connection failed.');
+    }
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('bulkImport');
+    params.delete('google_drive');
+    params.delete('reason');
+    const next = params.toString();
+    router.replace(next ? `${pathname}?${next}` : pathname);
+  }, [loadGoogleDriveStatus, pathname, router, searchParams]);
 
   const parseCsvLine = useCallback((line: string, delimiter: string = ','): string[] => {
     const result: string[] = [];
@@ -3164,7 +3197,7 @@ export default function ClientsPage() {
   // ─── Render ──────────────────────────────────────────────
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="w-full">
       {/* Page Title */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#000000]">Clients</h1>
@@ -3179,18 +3212,18 @@ export default function ClientsPage() {
 
       {/* Batch Processing In-Progress Banner */}
       {activeBatchId && !batchNotification && (
-        <div className="mb-4 flex items-center justify-between gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-[5px]">
+        <div className="mb-4 flex items-center justify-between gap-3 px-4 py-3 bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[4px] border-b-[4px]">
           <div className="flex items-center gap-3">
-            <svg className="w-5 h-5 text-blue-500 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 text-[#45bcaa] shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            <p className="text-sm text-blue-800">Processing your import&hellip; we&apos;ll notify you when it&apos;s ready.</p>
+            <p className="text-sm font-medium text-[#005851]">Processing your import&hellip; we&apos;ll notify you when it&apos;s ready.</p>
           </div>
           <button
             onClick={handleCancelActiveBatch}
             disabled={cancelingBatch}
-            className="px-3 py-1.5 rounded-[5px] text-xs font-semibold border border-blue-300 text-blue-800 hover:bg-blue-100 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            className="px-3 py-1.5 rounded-[5px] text-xs font-semibold border border-[#1A1A1A] text-[#000000] bg-white hover:bg-[#f8f8f8] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           >
             {cancelingBatch ? 'Cancelling...' : 'Cancel Import'}
           </button>

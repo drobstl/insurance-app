@@ -10,6 +10,10 @@ interface AuthRouteResponse {
   error?: string;
 }
 
+interface AuthRequestBody {
+  returnTo?: string;
+}
+
 function getCallbackUrl(req: NextRequest): string {
   const url = new URL(req.url);
   return `${url.origin}/api/integrations/google/callback`;
@@ -25,11 +29,25 @@ async function requireAgentId(req: NextRequest): Promise<string> {
   return decoded.uid;
 }
 
+function sanitizeReturnTo(raw?: string): string | undefined {
+  if (!raw || typeof raw !== 'string') return undefined;
+  if (!raw.startsWith('/dashboard')) return undefined;
+  if (raw.startsWith('//')) return undefined;
+  return raw.length <= 500 ? raw : undefined;
+}
+
 export async function POST(req: NextRequest): Promise<NextResponse<AuthRouteResponse>> {
   try {
     const agentId = await requireAgentId(req);
+    let body: AuthRequestBody = {};
+    try {
+      body = (await req.json()) as AuthRequestBody;
+    } catch {
+      body = {};
+    }
+    const returnTo = sanitizeReturnTo(body.returnTo);
     const stateId = randomUUID();
-    await createGoogleOAuthState(agentId, stateId);
+    await createGoogleOAuthState(agentId, stateId, returnTo);
 
     const state = buildGoogleOAuthState(agentId, stateId);
     const authUrl = buildGoogleConsentUrl({

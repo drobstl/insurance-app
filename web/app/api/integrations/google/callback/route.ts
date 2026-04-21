@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { consumeGoogleOAuthState, getGoogleDriveIntegration, upsertGoogleDriveTokens } from '../../../../../lib/google-drive-store';
 import { exchangeGoogleCodeForTokens } from '../../../../../lib/google-oauth';
 
-function callbackRedirect(req: NextRequest, params: Record<string, string>): URL {
+function callbackRedirect(req: NextRequest, returnTo: string | undefined, params: Record<string, string>): URL {
   const base = new URL(req.url);
-  const target = new URL('/dashboard', base.origin);
+  const target = new URL(returnTo || '/dashboard', base.origin);
   for (const [k, v] of Object.entries(params)) {
     target.searchParams.set(k, v);
   }
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   if (oauthError) {
     return NextResponse.redirect(
-      callbackRedirect(req, {
+      callbackRedirect(req, undefined, {
         google_drive: 'error',
         reason: oauthError,
       }),
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   if (!code || !state) {
     return NextResponse.redirect(
-      callbackRedirect(req, {
+      callbackRedirect(req, undefined, {
         google_drive: 'error',
         reason: 'missing_code_or_state',
       }),
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const consumed = await consumeGoogleOAuthState(state);
     if (!consumed?.agentId) {
       return NextResponse.redirect(
-        callbackRedirect(req, {
+        callbackRedirect(req, undefined, {
           google_drive: 'error',
           reason: 'invalid_or_expired_state',
         }),
@@ -80,14 +80,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     });
 
     return NextResponse.redirect(
-      callbackRedirect(req, {
+      callbackRedirect(req, consumed.returnTo, {
         google_drive: 'success',
       }),
     );
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'oauth_callback_failed';
     return NextResponse.redirect(
-      callbackRedirect(req, {
+      callbackRedirect(req, undefined, {
         google_drive: 'error',
         reason,
       }),
