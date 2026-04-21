@@ -149,6 +149,21 @@ export async function updateBatchFileStatus(
     if ((data.status as BatchJobStatus | undefined) === 'cancelled') {
       return;
     }
+    const files = (data.files || {}) as Record<string, Record<string, unknown>>;
+    const existing = files[jobId];
+    if (!existing) {
+      // Ignore updates for unknown jobs to avoid creating partial entries.
+      return;
+    }
+    const prevStatus = (existing.status as BatchFileStatus | undefined) ?? 'queued';
+    if (prevStatus === patch.status) {
+      // Idempotent no-op: same terminal status already applied.
+      return;
+    }
+    if (prevStatus === 'succeeded' || prevStatus === 'failed') {
+      // Protect counters from terminal-to-terminal transitions.
+      return;
+    }
 
     const update: Record<string, unknown> = {
       [`files.${jobId}.status`]: patch.status,

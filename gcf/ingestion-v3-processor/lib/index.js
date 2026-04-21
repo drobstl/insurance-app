@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -11,6 +44,7 @@ const storage_1 = require("firebase-admin/storage");
 const firestore_2 = require("firebase-functions/v2/firestore");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const params_1 = require("firebase-functions/params");
+const XLSX = __importStar(require("xlsx"));
 const carrier_prompt_supplements_1 = require("./carrier-prompt-supplements");
 (0, app_1.initializeApp)();
 (0, firestore_1.getFirestore)().settings({ ignoreUndefinedProperties: true });
@@ -70,6 +104,71 @@ STRICT RULES:
 - Never fabricate values.
 - If a field is unknown, use null.
 - Return strict JSON only.`;
+const BOB_SYSTEM_PROMPT = `You are an expert insurance data parser. Extract structured client and policy data from Book of Business reports.
+
+These files may be CSV/TSV, spreadsheet exports, or PDF reports. Never fabricate values.
+
+For each row extract:
+- name (insured)
+- owner (policy owner, empty when same as insured)
+- email
+- phone
+- dateOfBirth
+- policyNumber
+- carrier
+- policyType (Term Life | Whole Life | IUL | Accidental | Mortgage Protection | Other)
+- effectiveDate
+- premium (monthly amount as number-like string)
+- coverageAmount
+- status (Active | Pending | Lapsed)
+- premiumFrequency (monthly | quarterly | semi-annual | annual)
+
+Return strict JSON with:
+- rowCount
+- note
+- rows (array of objects)`;
+const BOB_EXTRACTION_SCHEMA = {
+    type: 'object',
+    properties: {
+        rowCount: { type: 'number' },
+        note: { type: 'string' },
+        rows: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    name: { type: 'string' },
+                    owner: { type: 'string' },
+                    email: { type: 'string' },
+                    phone: { type: 'string' },
+                    dateOfBirth: { type: 'string' },
+                    policyNumber: { type: 'string' },
+                    carrier: { type: 'string' },
+                    policyType: {
+                        type: 'string',
+                        enum: ['Term Life', 'Whole Life', 'IUL', 'Accidental', 'Mortgage Protection', 'Other'],
+                    },
+                    effectiveDate: { type: 'string' },
+                    premium: { type: 'string' },
+                    coverageAmount: { type: 'string' },
+                    status: { type: 'string' },
+                    premiumFrequency: {
+                        type: 'string',
+                        enum: ['monthly', 'quarterly', 'semi-annual', 'annual'],
+                    },
+                },
+                required: [
+                    'name', 'owner', 'email', 'phone', 'dateOfBirth',
+                    'policyNumber', 'carrier', 'policyType', 'effectiveDate',
+                    'premium', 'coverageAmount', 'status', 'premiumFrequency',
+                ],
+                additionalProperties: false,
+            },
+        },
+    },
+    required: ['rowCount', 'note', 'rows'],
+    additionalProperties: false,
+};
 const APPLICATION_EXTRACTION_SCHEMA = {
     type: 'object',
     properties: {
@@ -138,26 +237,43 @@ exports.processIngestionV3Queued = (0, firestore_2.onDocumentCreated)({
         const t0 = Date.now();
         if (job.mode !== 'application') {
             const sourceStart = Date.now();
-            if (job.gcsPath) {
-                await downloadSource(job.gcsPath);
+            if (!job.gcsPath) {
+                throw {
+                    code: 'UPLOAD_NOT_FOUND',
+                    message: 'Uploaded BOB source path is missing.',
+                    retryable: false,
+                    terminal: true,
+                };
             }
+            const downloaded = await downloadSource(job.gcsPath);
             const sourceFetchMs = Date.now() - sourceStart;
+            const extractionStart = Date.now();
+            const bob = await extractBobResult({
+                fileBuffer: downloaded.buffer,
+                fileName: job.fileName,
+                contentType: job.contentType,
+            });
+            const extractionMs = Date.now() - extractionStart;
             await completeJob(job, {
                 status: 'review_ready',
                 result: {
-                    bob: {
-                        rows: [],
-                        rowCount: 0,
-                        note: 'BOB extraction in GCF is not yet implemented. This path should remain on existing parser until parity.',
-                    },
+                    bob: bob.result,
                 },
                 metrics: {
                     totalMs: Date.now() - t0,
                     sourceFetchMs,
-                    extractionMs: 0,
+                    extractionMs,
                     validationMs: 0,
-                    parserPath: 'ai-pdf',
+                    parserPath: bob.parserPath,
                 },
+            });
+            emit('ingestion_v3_parse_completed', {
+                job_id: job.jobId,
+                mode: job.mode,
+                result_type: bob.result.rows.length > 0 ? 'full' : 'partial',
+                elapsed_ms: Date.now() - t0,
+                row_count: bob.result.rows.length,
+                parser_path: bob.parserPath,
             });
             return;
         }
@@ -312,6 +428,7 @@ async function lockQueuedJob(jobId) {
         const mode = data.mode === 'bob' ? 'bob' : 'application';
         const gcsPath = typeof data.gcsPath === 'string' ? data.gcsPath : undefined;
         const gcsImagePaths = toStringArray(data.gcsImagePaths);
+        const batchId = typeof data.batchId === 'string' ? data.batchId : undefined;
         if (mode === 'application' && !gcsImagePaths.length)
             return { ok: false, reason: 'missing_gcs_image_paths' };
         if (mode === 'bob' && !gcsPath)
@@ -339,6 +456,7 @@ async function lockQueuedJob(jobId) {
                 attempts: attempts + 1,
                 processingToken,
                 agentId,
+                batchId,
                 carrierFormType: typeof data.carrierFormType === 'string' && data.carrierFormType.trim()
                     ? data.carrierFormType.trim()
                     : 'unknown',
@@ -367,6 +485,10 @@ async function completeJob(job, payload) {
             completedAt: firestore_1.FieldValue.serverTimestamp(),
         });
     });
+    await reportToBatchDoc(job, {
+        status: 'succeeded',
+        loadedRows: getLoadedRowsFromResult(payload.result),
+    });
 }
 async function failJob(job, error) {
     const db = (0, firestore_1.getFirestore)();
@@ -387,6 +509,93 @@ async function failJob(job, error) {
             completedAt: firestore_1.FieldValue.serverTimestamp(),
         });
     });
+    await reportToBatchDoc(job, {
+        status: 'failed',
+        error,
+    });
+}
+async function reportToBatchDoc(job, update) {
+    if (!job.agentId || !job.batchId)
+        return;
+    const db = (0, firestore_1.getFirestore)();
+    const ref = db.collection('agents').doc(job.agentId).collection('batchJobs').doc(job.batchId);
+    try {
+        await db.runTransaction(async (tx) => {
+            const snap = await tx.get(ref);
+            if (!snap.exists)
+                return;
+            const data = snap.data();
+            const batchStatus = data.status || 'processing';
+            if (batchStatus === 'cancelled')
+                return;
+            const files = (data.files || {});
+            const existing = files[job.jobId];
+            if (!existing)
+                return;
+            const prevStatus = existing.status || 'queued';
+            if (prevStatus === 'succeeded' || prevStatus === 'failed')
+                return;
+            const patch = {
+                updatedAt: firestore_1.FieldValue.serverTimestamp(),
+                [`files.${job.jobId}.status`]: update.status,
+            };
+            if (update.status === 'succeeded') {
+                patch.completedFiles = firestore_1.FieldValue.increment(1);
+                if (update.loadedRows > 0) {
+                    patch[`files.${job.jobId}.loadedRows`] = update.loadedRows;
+                    patch.totalRows = firestore_1.FieldValue.increment(update.loadedRows);
+                }
+            }
+            else {
+                patch.failedFiles = firestore_1.FieldValue.increment(1);
+                patch[`files.${job.jobId}.error`] = update.error.message;
+                patch[`files.${job.jobId}.retryable`] = false;
+            }
+            tx.update(ref, patch);
+        });
+    }
+    catch (error) {
+        emit('ingestion_v3_batch_report_failed', {
+            job_id: job.jobId,
+            batch_id: job.batchId,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return;
+    }
+    await finalizeBatchIfComplete(job.agentId, job.batchId);
+}
+async function finalizeBatchIfComplete(agentId, batchId) {
+    const db = (0, firestore_1.getFirestore)();
+    const ref = db.collection('agents').doc(agentId).collection('batchJobs').doc(batchId);
+    try {
+        await db.runTransaction(async (tx) => {
+            const snap = await tx.get(ref);
+            if (!snap.exists)
+                return;
+            const data = snap.data();
+            const currentStatus = data.status || 'processing';
+            if (currentStatus === 'cancelled' || currentStatus === 'completed' || currentStatus === 'partial' || currentStatus === 'failed') {
+                return;
+            }
+            const totalFiles = typeof data.totalFiles === 'number' ? data.totalFiles : 0;
+            const completedFiles = typeof data.completedFiles === 'number' ? data.completedFiles : 0;
+            const failedFiles = typeof data.failedFiles === 'number' ? data.failedFiles : 0;
+            const accounted = completedFiles + failedFiles;
+            if (totalFiles <= 0 || accounted < totalFiles)
+                return;
+            tx.update(ref, {
+                status: failedFiles > 0 ? 'partial' : 'completed',
+                updatedAt: firestore_1.FieldValue.serverTimestamp(),
+                completedAt: firestore_1.FieldValue.serverTimestamp(),
+            });
+        });
+    }
+    catch (error) {
+        emit('ingestion_v3_batch_finalize_failed', {
+            batch_id: batchId,
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
 }
 async function downloadSource(gcsPath) {
     const bucket = (0, storage_1.getStorage)().bucket();
@@ -412,6 +621,354 @@ async function downloadImageSources(gcsImagePaths) {
         buffers.push(buffer);
     }
     return buffers;
+}
+async function extractBobResult(input) {
+    const fileName = (input.fileName || '').toLowerCase();
+    const contentType = (input.contentType || '').toLowerCase();
+    const isPdf = fileName.endsWith('.pdf') || contentType.includes('application/pdf');
+    if (isPdf) {
+        const parsed = await extractBobFromPdfBuffer(input.fileBuffer);
+        return {
+            result: normalizeBobResult(parsed),
+            parserPath: 'ai-pdf',
+        };
+    }
+    const { text, parserPath } = toBobTextSource(input.fileBuffer, fileName, contentType);
+    const deterministic = parseBobDeterministically(text, input.fileName || 'upload.csv');
+    if (deterministic.rows.length > 0 && deterministic.confidence === 'high') {
+        return {
+            result: normalizeBobResult({
+                rowCount: deterministic.rows.length,
+                rows: deterministic.rows,
+                note: deterministic.note,
+            }),
+            parserPath,
+        };
+    }
+    const aiParsed = await extractBobFromTextSource(text);
+    return {
+        result: normalizeBobResult(aiParsed),
+        parserPath: 'ai-text',
+    };
+}
+function toBobTextSource(buffer, fileName, contentType) {
+    const isSpreadsheet = fileName.endsWith('.xlsx') ||
+        fileName.endsWith('.xls') ||
+        contentType.includes('spreadsheetml') ||
+        contentType.includes('application/vnd.ms-excel');
+    if (isSpreadsheet) {
+        const workbook = XLSX.read(buffer, { type: 'buffer' });
+        const firstSheet = workbook.SheetNames[0];
+        if (!firstSheet) {
+            throw {
+                code: 'SOURCE_UNSUPPORTED_TYPE',
+                message: 'Spreadsheet does not contain any sheets.',
+                retryable: false,
+                terminal: true,
+            };
+        }
+        const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[firstSheet]);
+        if (!csv.trim()) {
+            throw {
+                code: 'SOURCE_FETCH_FAILED',
+                message: 'Spreadsheet source is empty.',
+                retryable: false,
+                terminal: true,
+            };
+        }
+        return { text: csv, parserPath: 'csv-parser' };
+    }
+    const text = new TextDecoder().decode(buffer);
+    if (!text.trim()) {
+        throw {
+            code: 'SOURCE_FETCH_FAILED',
+            message: 'Text source is empty.',
+            retryable: false,
+            terminal: true,
+        };
+    }
+    return { text, parserPath: 'deterministic' };
+}
+function parseBobDeterministically(text, fileName) {
+    const lines = text.split('\n').filter((line) => line.trim());
+    if (lines.length < 2) {
+        return { rows: [], confidence: 'low', note: `${fileName}: no data rows.` };
+    }
+    const tabCols = lines[0].split('\t').length;
+    const commaCols = lines[0].split(',').length;
+    const delimiter = tabCols > commaCols ? '\t' : ',';
+    const headers = parseCsvLine(lines[0], delimiter).map((h) => normalizeHeader(h));
+    const claimed = new Set();
+    const match = (aliases) => {
+        const sorted = [...aliases].sort((a, b) => b.length - a.length);
+        for (const alias of sorted) {
+            const idx = headers.findIndex((header, i) => !claimed.has(i) && header === alias);
+            if (idx !== -1) {
+                claimed.add(idx);
+                return idx;
+            }
+        }
+        for (const alias of sorted) {
+            const idx = headers.findIndex((header, i) => !claimed.has(i) && header.includes(alias));
+            if (idx !== -1) {
+                claimed.add(idx);
+                return idx;
+            }
+        }
+        return -1;
+    };
+    const nameIdx = match(['insured nme', 'insured name', 'full name', 'client name', 'name', 'applicant', 'policy holder', 'insured']);
+    if (nameIdx === -1) {
+        return { rows: [], confidence: 'low', note: `${fileName}: no name column detected.` };
+    }
+    const ownerIdx = match(['owner nme', 'owner name', 'policy owner', 'owner']);
+    const emailIdx = match(['insured email address', 'email address', 'insured email', 'email', 'e-mail']);
+    const phoneIdx = match(['insured party phone', 'insured phone', 'phone number', 'phone', 'mobile', 'cell']);
+    const dobIdx = match(['insured dob', 'date of birth', 'birth date', 'dob']);
+    const policyNumIdx = match(['policy number', 'policy no', 'policy num', 'certificate number']);
+    const carrierIdx = match(['carrier name', 'carrier', 'insurance company', 'company name', 'insurer']);
+    const policyTypeIdx = match(['product type', 'policy type', 'product', 'line of business']);
+    const effectiveDateIdx = match(['policy effective dte', 'policy issue dte', 'effective date', 'issue date', 'policy date']);
+    const premiumIdx = match(['monthly premium', 'premium amount', 'premium', 'modal premium']);
+    const annualPremiumIdx = match(['annual premium']);
+    const coverageIdx = match(['face amt', 'face amount', 'coverage amount', 'death benefit', 'coverage']);
+    const statusIdx = match(['policy status nme', 'policy status', 'status']);
+    const billModeIdx = match(['bill mode', 'billing mode', 'payment mode', 'payment frequency']);
+    const rows = [];
+    for (let i = 1; i < lines.length; i += 1) {
+        const cols = parseCsvLine(lines[i], delimiter);
+        const name = cols[nameIdx] || '';
+        if (!name.trim())
+            continue;
+        let premium = premiumIdx !== -1 ? (cols[premiumIdx] || '') : '';
+        if (!premium && annualPremiumIdx !== -1) {
+            const annual = parseFloat((cols[annualPremiumIdx] || '0').replace(/[,$]/g, ''));
+            if (!Number.isNaN(annual) && annual > 0) {
+                premium = (annual / 12).toFixed(2);
+            }
+        }
+        const billMode = billModeIdx !== -1 ? (cols[billModeIdx] || '') : '';
+        rows.push({
+            name,
+            owner: ownerIdx !== -1 ? (cols[ownerIdx] || '') : '',
+            email: emailIdx !== -1 ? (cols[emailIdx] || '') : '',
+            phone: phoneIdx !== -1 ? (cols[phoneIdx] || '') : '',
+            dateOfBirth: dobIdx !== -1 ? (cols[dobIdx] || '') : '',
+            policyNumber: policyNumIdx !== -1 ? (cols[policyNumIdx] || '') : '',
+            carrier: carrierIdx !== -1 ? (cols[carrierIdx] || '') : '',
+            policyType: policyTypeIdx !== -1 ? (cols[policyTypeIdx] || '') : '',
+            effectiveDate: effectiveDateIdx !== -1 ? (cols[effectiveDateIdx] || '') : '',
+            premium,
+            coverageAmount: coverageIdx !== -1 ? (cols[coverageIdx] || '') : '',
+            status: normalizeBobStatus(statusIdx !== -1 ? (cols[statusIdx] || '') : ''),
+            premiumFrequency: inferPremiumFrequency(billMode),
+        });
+    }
+    if (!rows.length) {
+        return { rows: [], confidence: 'low', note: `${fileName}: no usable rows parsed.` };
+    }
+    const matchedCoreColumns = [nameIdx, policyNumIdx, carrierIdx, premiumIdx, coverageIdx].filter((idx) => idx !== -1).length;
+    const confidence = matchedCoreColumns >= 3 ? 'high' : 'low';
+    return {
+        rows,
+        confidence,
+        note: confidence === 'high'
+            ? 'Deterministic parser handled this file without AI fallback.'
+            : 'Deterministic parser found partial structure; AI fallback used.',
+    };
+}
+async function extractBobFromTextSource(text) {
+    const anthropic = getAnthropicClient();
+    const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 8192,
+        system: BOB_SYSTEM_PROMPT,
+        output_config: {
+            format: {
+                type: 'json_schema',
+                schema: BOB_EXTRACTION_SCHEMA,
+            },
+        },
+        messages: [
+            {
+                role: 'user',
+                content: `Extract all client and policy data from this Book of Business report:\n\n${text}`,
+            },
+        ],
+    });
+    const textBlock = response.content.find((block) => block.type === 'text');
+    if (!textBlock?.text) {
+        throw new Error('No BOB text extraction response received.');
+    }
+    const parsed = safeJsonParse(textBlock.text);
+    return {
+        rows: normalizeBobRawRows(parsed.rows),
+        rowCount: toBobRowCount(parsed.rowCount, parsed.rows),
+        note: toStringOrNull(parsed.note) || undefined,
+    };
+}
+async function extractBobFromPdfBuffer(pdfBuffer) {
+    const anthropic = getAnthropicClient();
+    const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 8192,
+        system: BOB_SYSTEM_PROMPT,
+        output_config: {
+            format: {
+                type: 'json_schema',
+                schema: BOB_EXTRACTION_SCHEMA,
+            },
+        },
+        messages: [
+            {
+                role: 'user',
+                content: [
+                    {
+                        type: 'document',
+                        source: {
+                            type: 'base64',
+                            media_type: 'application/pdf',
+                            data: pdfBuffer.toString('base64'),
+                        },
+                    },
+                    {
+                        type: 'text',
+                        text: 'Extract all client and policy rows from this Book of Business PDF.',
+                    },
+                ],
+            },
+        ],
+    });
+    const textBlock = response.content.find((block) => block.type === 'text');
+    if (!textBlock?.text) {
+        throw new Error('No BOB PDF extraction response received.');
+    }
+    const parsed = safeJsonParse(textBlock.text);
+    return {
+        rows: normalizeBobRawRows(parsed.rows),
+        rowCount: toBobRowCount(parsed.rowCount, parsed.rows),
+        note: toStringOrNull(parsed.note) || undefined,
+    };
+}
+function normalizeBobResult(input) {
+    const normalizedRows = (input.rows || []).map((row) => {
+        const [firstName, ...rest] = (row.name || '').trim().split(/\s+/);
+        const lastName = rest.join(' ').trim();
+        return {
+            firstName: firstName || row.name || '',
+            lastName,
+            phone: toNullableString(row.phone),
+            email: toNullableString(row.email),
+            dateOfBirth: toNullableString(row.dateOfBirth),
+            policyType: toNullableString(row.policyType),
+            policyNumber: toNullableString(row.policyNumber),
+            carrier: toNullableString(row.carrier),
+            premiumAmount: toNullableNumber(row.premium),
+            coverageAmount: toNullableNumber(row.coverageAmount),
+        };
+    });
+    return {
+        rows: normalizedRows,
+        rowCount: typeof input.rowCount === 'number' ? input.rowCount : normalizedRows.length,
+        note: input.note,
+    };
+}
+function normalizeBobRawRows(value) {
+    if (!Array.isArray(value))
+        return [];
+    return value
+        .map((raw) => {
+        if (!raw || typeof raw !== 'object')
+            return null;
+        const row = raw;
+        return {
+            name: typeof row.name === 'string' ? row.name : '',
+            owner: typeof row.owner === 'string' ? row.owner : '',
+            email: typeof row.email === 'string' ? row.email : '',
+            phone: typeof row.phone === 'string' ? row.phone : '',
+            dateOfBirth: typeof row.dateOfBirth === 'string' ? row.dateOfBirth : '',
+            policyNumber: typeof row.policyNumber === 'string' ? row.policyNumber : '',
+            carrier: typeof row.carrier === 'string' ? row.carrier : '',
+            policyType: typeof row.policyType === 'string' ? row.policyType : '',
+            effectiveDate: typeof row.effectiveDate === 'string' ? row.effectiveDate : '',
+            premium: typeof row.premium === 'string' ? row.premium : '',
+            coverageAmount: typeof row.coverageAmount === 'string' ? row.coverageAmount : '',
+            status: typeof row.status === 'string' ? row.status : '',
+            premiumFrequency: typeof row.premiumFrequency === 'string' ? row.premiumFrequency : '',
+        };
+    })
+        .filter((row) => !!row && !!row.name.trim());
+}
+function toBobRowCount(rowCount, rows) {
+    if (typeof rowCount === 'number' && Number.isFinite(rowCount) && rowCount >= 0) {
+        return rowCount;
+    }
+    return Array.isArray(rows) ? rows.length : 0;
+}
+function parseCsvLine(line, delimiter) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i += 1) {
+        const ch = line[i];
+        if (ch === '"') {
+            inQuotes = !inQuotes;
+        }
+        else if (ch === delimiter && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+        }
+        else {
+            current += ch;
+        }
+    }
+    result.push(current.trim());
+    return result;
+}
+function normalizeHeader(value) {
+    return value.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+}
+function inferPremiumFrequency(value) {
+    const raw = (value || '').toLowerCase().trim();
+    if (raw.includes('month') || raw === 'mon')
+        return 'monthly';
+    if (raw.includes('quarter') || raw === 'qtr')
+        return 'quarterly';
+    if (raw.includes('semi'))
+        return 'semi-annual';
+    if (raw.includes('annual') || raw === 'ann')
+        return 'annual';
+    return 'monthly';
+}
+function normalizeBobStatus(value) {
+    const lower = (value || '').trim().toLowerCase();
+    if (lower === 'pending' || lower === 'applied' || lower === 'submitted')
+        return 'Pending';
+    if (lower === 'lapsed' || lower === 'cancelled' || lower === 'canceled' || lower === 'terminated' || lower === 'expired')
+        return 'Lapsed';
+    return 'Active';
+}
+function toNullableString(value) {
+    if (!value)
+        return null;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+}
+function toNullableNumber(value) {
+    if (typeof value === 'number')
+        return Number.isFinite(value) ? value : null;
+    if (typeof value !== 'string')
+        return null;
+    const normalized = value.replace(/[,$]/g, '').trim();
+    if (!normalized)
+        return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+function getLoadedRowsFromResult(result) {
+    const bob = (result.bob || {});
+    const rows = bob.rows;
+    return Array.isArray(rows) ? rows.length : 0;
 }
 async function runApplicationExtraction(imageBuffers, carrierFormType) {
     const anthropic = getAnthropicClient();

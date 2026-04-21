@@ -221,6 +221,10 @@ Standalone pricing remains for agents who come directly. Founding member migrati
 - Added (April 20, 2026): Admin import reliability monitoring in Dashboard > Admin > Stats.
   - New "Bulk Import Reliability" section reads Firestore batch docs (`agents/{agentId}/batchJobs`) and shows success/skip/failure rates, tracked files, average and P95 minutes per batch, top failure reasons, and recent batches.
   - Added threshold-aware rollout status messaging in Admin stats using current targets (success >= 90%, failure <= 5%, P95 <= 15 min) with recommended operator actions when thresholds are missed.
+- Updated (April 21, 2026): Google Drive bulk import reliability and GCF BOB extraction.
+  - `gcf/ingestion-v3-processor` now reports terminal ingestion outcomes back to Firestore batch docs (`agents/{agentId}/batchJobs/{batchId}`), so Drive imports can transition out of `processing` to `completed`/`partial` without manual cancellation.
+  - Batch file status updates are now idempotent in `web/lib/ingestion-v3-batch-store.ts` to prevent double-increment counter drift from duplicate terminal updates.
+  - GCF BOB mode no longer returns placeholder empty rows by default; it now performs real extraction (deterministic parsing for delimited/spreadsheet data with AI fallback, plus PDF AI extraction) and writes normalized `result.bob.rows`.
 - Known issues / next session:
   - "0 pages" metadata bug in extraction summary.
   - Bulk import intelligence notes are concatenated into an unreadable wall of text (needs per-file collapsible notes).
