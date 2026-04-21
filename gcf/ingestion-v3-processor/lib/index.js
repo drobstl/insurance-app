@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cleanupIngestionV3Zombies = exports.processIngestionV3Queued = void 0;
+exports.reconcileStaleBatchJobs = exports.cleanupIngestionV3Zombies = exports.processIngestionV3Queued = void 0;
 const sdk_1 = __importDefault(require("@anthropic-ai/sdk"));
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
@@ -53,6 +53,8 @@ const JOBS_COLLECTION = 'ingestionJobsV3';
 const ANTHROPIC_API_KEY = (0, params_1.defineSecret)('ANTHROPIC_API_KEY');
 const ZOMBIE_TIMEOUT_MS = 5 * 60 * 1000;
 const ZOMBIE_SCAN_LIMIT = 200;
+const STALE_BATCH_TIMEOUT_MS = 15 * 60 * 1000;
+const STALE_BATCH_SCAN_LIMIT = 100;
 // Code-side deterministic overrides for fields that the agent-selected
 // carrierFormType makes authoritative (policyType, insuranceCompany). Applied
 // after Claude extraction; bypasses any misclassification. Supplement prompts
@@ -412,6 +414,43 @@ exports.cleanupIngestionV3Zombies = (0, scheduler_1.onSchedule)({
         affected_jobs: staleDocs.length,
     });
 });
+exports.reconcileStaleBatchJobs = (0, scheduler_1.onSchedule)({
+    region: REGION,
+    schedule: 'every 5 minutes',
+    timeoutSeconds: 240,
+    memory: '512MiB',
+}, async () => {
+    const db = (0, firestore_1.getFirestore)();
+    const cutoffMs = Date.now() - STALE_BATCH_TIMEOUT_MS;
+    const snap = await db
+        .collectionGroup('batchJobs')
+        .where('status', '==', 'processing')
+        .limit(STALE_BATCH_SCAN_LIMIT)
+        .get();
+    if (snap.empty) {
+        emit('ingestion_v3_stale_batch_reconcile', {
+            scanned_batches: 0,
+            reconciled_batches: 0,
+        });
+        return;
+    }
+    let reconciled = 0;
+    for (const doc of snap.docs) {
+        const data = doc.data();
+        const updatedAtMs = toMillisOrNull(data.updatedAt) ?? toMillisOrNull(data.createdAt);
+        if (updatedAtMs == null || updatedAtMs > cutoffMs) {
+            continue;
+        }
+        const didReconcile = await reconcileBatchDocFromJobs(doc.ref.path);
+        if (didReconcile) {
+            reconciled += 1;
+        }
+    }
+    emit('ingestion_v3_stale_batch_reconcile', {
+        scanned_batches: snap.size,
+        reconciled_batches: reconciled,
+    });
+});
 async function lockQueuedJob(jobId) {
     const db = (0, firestore_1.getFirestore)();
     const ref = db.collection(JOBS_COLLECTION).doc(jobId);
@@ -596,6 +635,87 @@ async function finalizeBatchIfComplete(agentId, batchId) {
             error: error instanceof Error ? error.message : String(error),
         });
     }
+}
+async function reconcileBatchDocFromJobs(batchDocPath) {
+    const db = (0, firestore_1.getFirestore)();
+    const ref = db.doc(batchDocPath);
+    const snap = await ref.get();
+    if (!snap.exists)
+        return false;
+    const data = snap.data();
+    const currentStatus = data.status || 'processing';
+    if (currentStatus !== 'processing')
+        return false;
+    const files = (data.files || {});
+    const jobIds = Object.keys(files);
+    if (!jobIds.length)
+        return false;
+    const jobRefs = jobIds.map((jobId) => db.collection(JOBS_COLLECTION).doc(jobId));
+    const jobSnaps = await db.getAll(...jobRefs);
+    let completedFiles = 0;
+    let failedFiles = 0;
+    let totalRows = 0;
+    const nextFiles = {};
+    for (let i = 0; i < jobIds.length; i += 1) {
+        const jobId = jobIds[i];
+        const existing = files[jobId] || {};
+        const jobSnap = jobSnaps[i];
+        const jobData = jobSnap.exists ? jobSnap.data() : null;
+        const jobStatus = (jobData?.status || '').toLowerCase();
+        if (jobStatus === 'review_ready' || jobStatus === 'saved') {
+            const loadedRows = getLoadedRowsFromResult(jobData?.result || {});
+            nextFiles[jobId] = {
+                ...existing,
+                status: 'succeeded',
+                loadedRows,
+                error: null,
+                retryable: false,
+            };
+            completedFiles += 1;
+            totalRows += loadedRows;
+            continue;
+        }
+        let failureMessage = 'Ingestion job did not reach a terminal success state.';
+        if (!jobSnap.exists) {
+            failureMessage = 'Ingestion job document is missing.';
+        }
+        else if (jobStatus === 'failed') {
+            const err = jobData?.error || {};
+            failureMessage = typeof err.message === 'string' && err.message.trim()
+                ? err.message
+                : 'Ingestion job failed.';
+        }
+        else if (jobStatus === 'queued' || jobStatus === 'processing' || jobStatus === 'uploading') {
+            failureMessage = 'Ingestion job exceeded batch processing timeout.';
+        }
+        nextFiles[jobId] = {
+            ...existing,
+            status: 'failed',
+            loadedRows: 0,
+            error: failureMessage,
+            retryable: false,
+        };
+        failedFiles += 1;
+    }
+    const finalStatus = failedFiles > 0 ? 'partial' : 'completed';
+    await ref.update({
+        files: nextFiles,
+        completedFiles,
+        failedFiles,
+        totalRows,
+        status: finalStatus,
+        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        completedAt: firestore_1.FieldValue.serverTimestamp(),
+    });
+    emit('ingestion_v3_stale_batch_reconciled', {
+        batch_path: batchDocPath,
+        status: finalStatus,
+        total_files: jobIds.length,
+        completed_files: completedFiles,
+        failed_files: failedFiles,
+        total_rows: totalRows,
+    });
+    return true;
 }
 async function downloadSource(gcsPath) {
     const bucket = (0, storage_1.getStorage)().bucket();
