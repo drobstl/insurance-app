@@ -3360,7 +3360,8 @@ export default function ClientsPage() {
       </div>
 
       {/* Client Table */}
-      {clientsLoading ? (
+      {!isImportModalOpen && (
+      clientsLoading ? (
         <div className="flex items-center justify-center py-20">
           <div className="flex flex-col items-center gap-4">
             <svg className="animate-spin w-10 h-10 text-[#45bcaa]" fill="none" viewBox="0 0 24 24">
@@ -3630,6 +3631,7 @@ export default function ClientsPage() {
             )}
           </div>
         </div>
+      )
       )}
           </div>
           <div className="w-full shrink-0">
@@ -3931,15 +3933,10 @@ export default function ClientsPage() {
 
       {/* ── Import Clients Modal ── */}
       {isImportModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => !importing && !parsingBob && setIsImportModalOpen(false)}
-          />
-          <div
-            ref={importModalScrollRef}
-            className="relative w-full max-w-xl bg-white rounded-xl border border-gray-200 shadow-2xl max-h-[90vh] overflow-y-auto"
-          >
+        <div
+          ref={importModalScrollRef}
+          className="relative w-full max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] shadow-xl max-h-[90vh] overflow-y-auto"
+        >
             <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
               <div>
                 <h3 className="text-xl font-bold text-[#000000]">Bulk Import</h3>
@@ -4447,7 +4444,6 @@ export default function ClientsPage() {
                 </>
               )}
             </div>
-          </div>
         </div>
       )}
 
