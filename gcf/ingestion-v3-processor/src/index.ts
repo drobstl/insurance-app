@@ -35,6 +35,13 @@ const CARRIER_FORM_TYPE_OVERRIDES: Record<
   amam_icc15_aa9466: { policyType: 'Mortgage Protection', insuranceCompany: 'American-Amicable' },
   amam_icc18_aa3487: { policyType: 'Term Life', insuranceCompany: 'American-Amicable' },
   foresters_icc15_770825: { policyType: 'Term Life', insuranceCompany: 'Foresters' },
+  uhl_icc22_200_878a: { policyType: 'Term Life', insuranceCompany: 'United Home Life' },
+  transamerica_icc22_t_ap_wl11ic_0822: { policyType: 'Whole Life', insuranceCompany: 'Transamerica' },
+  sbli_policy_packet: { insuranceCompany: 'SBLI' },
+  fg_iul: { insuranceCompany: 'Fidelity & Guaranty Life' },
+  // F&G ICC18-1000 and LAPP1125 can represent multiple product variants; lock carrier only.
+  fg_icc18_1000: { insuranceCompany: 'Fidelity & Guaranty Life' },
+  fg_lapp1125: { insuranceCompany: 'Fidelity & Guaranty Life' },
   // ICC22L683A covers BOTH Term Life Express and IUL Express on the same form; do NOT
   // override policyType here - the prompt supplement derives it from the checked plan box.
   moo_icc22_l683a: { insuranceCompany: 'Mutual of Omaha' },

@@ -156,6 +156,119 @@ HARD RULES - ALWAYS RETURN NULL:
 
 BANK GUARDRAIL:
 - Do NOT extract any values from the PAC banking information on Image 4 (routing number, account number, financial institution name) as a policy number. Bank-related fields have no policy number on this form.`,
+    // PAGE_MAP: [5, 6, 9, 10] -> Image 1 = PDF page 5, Image 2 = PDF page 6, Image 3 = PDF page 9, Image 4 = PDF page 10
+    // United Home Life term packet includes front-matter pages before the ICC22 200-878A application.
+    uhl_icc22_200_878a: `CARRIER-SPECIFIC GUIDANCE - United Home Life ICC22 200-878A (Simple Term)
+You are receiving 4 images from a United Home Life term application packet.
+
+IMAGE MAPPING:
+- Image 1 (app page 1): Proposed insured identity and address fields.
+- Image 2 (app page 2): Beneficiaries, Plan of Insurance, Face Amount, and Modal Premium section.
+- Image 3 (app page 6): Signature section with signed city/state/date and e-sign timestamp.
+- Image 4 (EFT authorization): banking page; do NOT treat account/routing numbers as policy numbers.
+
+FIELD RULES:
+- policyType: ALWAYS return "Term Life".
+- insuranceCompany: ALWAYS return "United Home Life".
+- coverageAmount: from "Face Amount: $" on Image 2.
+- premiumAmount and premiumFrequency: from "Modal Premium" + mode checkboxes on Image 2.
+- beneficiaries: from Section 5 beneficiary rows on Image 2.
+- applicationSignedDate: from Section 16 / eSigned date on Image 3.
+- insuredState: use mailing address state, not state/country of birth.
+- policyOwner: return null unless owner fields explicitly name a different person.
+
+HARD RULES:
+- policyNumber: ALWAYS return null. Internal IDs and bank account/routing numbers are not policy numbers.
+- effectiveDate: ALWAYS return null (pipeline fallback can use signed date).`,
+    // PAGE_MAP: [6, 7, 8, 10, 11] -> Image 1 = PDF page 6, Image 2 = PDF page 7, Image 3 = PDF page 8, Image 4 = PDF page 10, Image 5 = PDF page 11
+    // Transamerica WL app starts after electronic consent pages.
+    transamerica_icc22_t_ap_wl11ic_0822: `CARRIER-SPECIFIC GUIDANCE - Transamerica ICC22 T-AP-WL11IC-0822 (Whole Life)
+You are receiving 5 images from a Transamerica whole life application packet.
+
+IMAGE MAPPING:
+- Image 1: Proposed insured demographics.
+- Image 2: owner details + product details + beneficiary rows.
+- Image 3: payment options and payment mode.
+- Image 4: authorization page.
+- Image 5: signature/certification page for the application section.
+
+FIELD RULES:
+- policyType: ALWAYS return "Whole Life".
+- insuranceCompany: ALWAYS return "Transamerica".
+- coverageAmount: from Product Details "Coverage Amount".
+- premiumAmount: from Product Details "Planned Premium Amount" (preferred) or payment form "Total Premium" when clearly tied to application.
+- premiumFrequency: from payment mode/frequency checkboxes.
+- beneficiaries: from Beneficiary Information rows in product details section.
+- applicationSignedDate: from application signature date lines (owner/insured), not agent-only signatures.
+- insuredState: from residence/mailing address state, not place of birth.
+
+HARD RULES:
+- policyNumber: ALWAYS return null for application-stage extraction.
+- effectiveDate: return null unless an explicit policy effective date is clearly provided on the application section.`,
+    // PAGE_MAP: [14] -> single page pull from SBLI policy packet where payment authorization summary appears.
+    sbli_policy_packet: `CARRIER-SPECIFIC GUIDANCE - SBLI Policy Packet (single-page extraction)
+You are receiving 1 image from an SBLI in-force policy packet.
+
+FIELD RULES:
+- insuranceCompany: ALWAYS return "SBLI".
+- policyNumber: extract when explicitly labeled on this page.
+- premiumAmount: extract from "Total Premium" when present.
+- premiumFrequency: extract from "Recurring Payment Frequency" when present.
+- effectiveDate: extract from "Policy effective date" when present.
+- insuredName / policyOwner: extract from Insured/Owner name fields when visible.
+
+STRICT RULES:
+- If a field is not visible on this single page, return null (do not infer from memory or other pages).
+- Do not treat routing/account numbers as policy numbers.`,
+    // PAGE_MAP: [4, 5, 6, 7, 11] -> Unified F&G IUL option for known F&G packet variants.
+    fg_iul: `CARRIER-SPECIFIC GUIDANCE - Fidelity & Guaranty Life IUL
+You are receiving 5 images from an F&G life insurance application packet (known variants include ICC18-1000 and LAPP1125).
+
+FIELD RULES:
+- insuranceCompany: ALWAYS return "Fidelity & Guaranty Life".
+- policyType: prefer "IUL" when the product/plan section indicates indexed life products (Pathsetter/Everlast style IUL plans).
+- coverageAmount: from LIFE INSURANCE INFORMATION "Amount of Insurance".
+- premiumAmount: from PREMIUM INFORMATION "Planned Premium (ongoing)" when present.
+- premiumFrequency: from PREMIUM INFORMATION mode checkboxes (Annual/Semi-Annual/Quarterly/Monthly).
+- beneficiaries: from Beneficiary Designation section.
+- applicationSignedDate: from "Signed at (City and State) Date" on the signature page.
+- insuredState: from home/mailing address state, not place of birth.
+
+HARD RULES:
+- policyNumber: ALWAYS return null at application stage.
+- effectiveDate: ALWAYS return null (pipeline fallback can use signed date).`,
+    // PAGE_MAP: [4, 5, 6, 7, 11] -> Image 1 = app page 4/15, Image 2 = 5/15, Image 3 = 6/15, Image 4 = 7/15, Image 5 = 11/15
+    fg_icc18_1000: `CARRIER-SPECIFIC GUIDANCE - Fidelity & Guaranty Life ICC18-1000
+You are receiving 5 images from an F&G life insurance application.
+
+FIELD RULES:
+- insuranceCompany: ALWAYS return "Fidelity & Guaranty Life".
+- coverageAmount: from LIFE INSURANCE INFORMATION "Amount of Insurance".
+- premiumAmount: from PREMIUM INFORMATION "Planned Premium (ongoing)" when present.
+- premiumFrequency: from PREMIUM INFORMATION mode checkboxes (Annual/Semi-Annual/Quarterly/Monthly).
+- beneficiaries: from Beneficiary Designation section.
+- applicationSignedDate: from "Signed at (City and State) Date" on the signature page.
+- insuredState: from home/mailing address state, not place of birth.
+
+HARD RULES:
+- policyNumber: ALWAYS return null at application stage.
+- effectiveDate: ALWAYS return null (pipeline fallback can use signed date).`,
+    // PAGE_MAP: [4, 5, 6, 7, 11] -> Image 1 = app page 4/15, Image 2 = 5/15, Image 3 = 6/15, Image 4 = 7/15, Image 5 = 11/15
+    fg_lapp1125: `CARRIER-SPECIFIC GUIDANCE - Fidelity & Guaranty Life LAPP1125
+You are receiving 5 images from an F&G life insurance application variant.
+
+FIELD RULES:
+- insuranceCompany: ALWAYS return "Fidelity & Guaranty Life".
+- coverageAmount: from LIFE INSURANCE INFORMATION "Amount of Insurance".
+- premiumAmount: from PREMIUM INFORMATION "Planned Premium (ongoing)" when present.
+- premiumFrequency: from PREMIUM INFORMATION mode checkboxes (Annual/Semi-Annual/Quarterly/Monthly).
+- beneficiaries: from Beneficiary Designation section.
+- applicationSignedDate: from "Signed at (City and State) Date" on the signature page.
+- insuredState: from home/mailing address state, not place of birth.
+
+HARD RULES:
+- policyNumber: ALWAYS return null at application stage.
+- effectiveDate: ALWAYS return null (pipeline fallback can use signed date).`,
     // PAGE_MAP: [4, 5, 7, 8] -> Image 1 = PDF page 4, Image 2 = PDF page 5, Image 3 = PDF page 7, Image 4 = PDF page 8 (when present)
     // Mutual of Omaha Term Life Express and IUL Express share the same ICC22L683A application form (18 pages total).
     // PDF pages 1-3 are Consent / HIPAA / MIB Pre-Notice, pages 4-7 are the 4-page application proper, page 8 is the

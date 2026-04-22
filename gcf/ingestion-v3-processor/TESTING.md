@@ -264,6 +264,86 @@ Dropdown label: **Mutual of Omaha - Accidental Death**  •  Form type: `moo_ma5
   - policyNumber: `null` (UUID `aa20000f-...` is internal)
   - review_ready: true
 
+### United Home Life Term (ICC22 200-878A)
+
+Dropdown label: **United Home Life - Term (ICC22 200-878A)**  •  Form type: `uhl_icc22_200_878a`
+
+- [ ] **`Ivo UHL.pdf`**
+  - insuredName: `Ivo Angelov`
+  - insuredDateOfBirth: `1991-12-16`
+  - coverageAmount: `375000`
+  - insuranceCompany: `United Home Life`
+  - policyType: `Term Life`
+  - premiumAmount: `243.27`
+  - premiumFrequency: `monthly`
+  - applicationSignedDate: `2025-04-28`
+  - primary beneficiary: `Vanya Angelov` (Wife, 100%)
+  - policyNumber: `null`
+  - review_ready: true
+
+### Transamerica Whole Life (ICC22 T-AP-WL11IC-0822)
+
+Dropdown label: **Transamerica - Whole Life (ICC22 T-AP-WL11IC-0822)**  •  Form type: `transamerica_icc22_t_ap_wl11ic_0822`
+
+- [ ] **`Carole Martin Trans .pdf`**
+  - insuredName: `Carole Martin`
+  - insuredDateOfBirth: `1943-02-05`
+  - coverageAmount: `5000`
+  - insuranceCompany: `Transamerica`
+  - policyType: `Whole Life`
+  - premiumAmount: `71.32`
+  - applicationSignedDate: `2026-04-16`
+  - primary beneficiary: `Earl Martin` (Spouse, 100%)
+  - policyNumber: `null`
+  - review_ready: true
+
+### SBLI Policy Packet (single-page pull)
+
+Dropdown label: **SBLI - Policy Packet**  •  Form type: `sbli_policy_packet`
+
+- [ ] **`Gable SBLI.pdf`**
+  - Uses page 14 only (`PAGE_MAP [14]`)
+  - insuranceCompany: `SBLI`
+  - policyNumber, premium, frequency, and effectiveDate extracted only if visible on that page
+  - Pipeline completes without crash: YES
+  - review_ready: true
+
+### Fidelity & Guaranty Life (ICC18-1000)
+
+Dropdown label: **F&G - IUL**  •  Form type: `fg_iul`
+
+- [ ] **`Sammy Dawnson Signed IUL App 01192026.pdf`**
+  - insuredName: `Sammy Le Dawson`
+  - insuredDateOfBirth: `1977-10-12`
+  - coverageAmount: `105726`
+  - insuranceCompany: `Fidelity & Guaranty Life`
+  - policyType: `IUL`
+  - premiumAmount: `500`
+  - premiumFrequency: `monthly`
+  - policyNumber: `null`
+  - review_ready: true
+
+- [ ] **`Leivon Miramontes F&G IUL Signed Application.pdf`**
+  - insuranceCompany: `Fidelity & Guaranty Life`
+  - policyType: `IUL`
+  - policyNumber: `null`
+  - review_ready: true
+
+### Fidelity & Guaranty Life (LAPP1125)
+
+Dropdown label: **F&G - IUL**  •  Form type: `fg_iul`
+
+- [ ] **`Weston Hudiburgh F&G IUL Signed App 07132025.pdf`**
+  - insuredName: `Weston C Hudiburgh`
+  - insuredDateOfBirth: `1995-10-04`
+  - coverageAmount: `178591`
+  - insuranceCompany: `Fidelity & Guaranty Life`
+  - policyType: `IUL`
+  - premiumAmount: `300`
+  - premiumFrequency: `monthly`
+  - policyNumber: `null`
+  - review_ready: true
+
 ### "Other Carrier" fallback path (unknown form type)
 
 Dropdown label: **Other Carrier**  •  Form type: `unknown`
@@ -314,6 +394,7 @@ This path is critical: it's what agents use for any carrier we don't have a supp
   - primary beneficiary: `Patricia Hanson` (Spouse, 100%)
   - policyType: `Whole Life`
   - insuranceCompany: expected `American General Life` / `Corebridge` / `AIG`
+
 
 ## When a fixture fails
 
