@@ -210,6 +210,30 @@ HARD RULES:
 - policyNumber: ALWAYS return null for application-stage extraction.
 - effectiveDate: return null unless an explicit policy effective date is clearly provided on the application section.`,
 
+  // PAGE_MAP: [1, 2] -> Image 1 = application page 1, Image 2 = application page 2
+  // Corebridge / AIG guaranteed issue whole life app form ICC15-108847.
+  corebridge_aig_icc15_108847: `CARRIER-SPECIFIC GUIDANCE - Corebridge/AIG ICC15-108847 (Guaranteed Issue Whole Life)
+You are receiving 2 images from the application form.
+
+IMAGE MAPPING:
+- Image 1: Applicant identity, coverage amount, beneficiaries, payment frequency/method, premium amount.
+- Image 2: Signature page with signed date and premium payor details.
+
+FIELD RULES:
+- policyType: ALWAYS return "Whole Life".
+- insuranceCompany: ALWAYS return "Corebridge/AIG".
+- coverageAmount: from "Amount of Life Insurance".
+- premiumAmount: from "Your premium amount for the payment frequency selected above".
+- premiumFrequency: from "How often do you want to pay?" checkboxes.
+- beneficiaries: from Beneficiary #1/#2 rows, including relationship and share.
+- applicationSignedDate: from signature date on Image 2.
+- insuredState: from home address state on Image 1.
+- policyOwner: if payor/owner is self and no distinct owner field is filled, return null.
+
+HARD RULES:
+- policyNumber: ALWAYS return null (application number/internal IDs are not policy numbers).
+- effectiveDate: ALWAYS return null (not explicitly assigned at application stage).`,
+
   // PAGE_MAP: [14] -> single page pull from SBLI policy packet where payment authorization summary appears.
   sbli_policy_packet: `CARRIER-SPECIFIC GUIDANCE - SBLI Policy Packet (single-page extraction)
 You are receiving 1 image from an SBLI in-force policy packet.

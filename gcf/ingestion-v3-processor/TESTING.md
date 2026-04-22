@@ -224,7 +224,11 @@ Same physical form covers Term Life Express AND IUL Express - the supplement der
   - policyNumber: `null` (AIS BU4972695 is an internal tracking identifier)
   - review_ready: true
 
-- [ ] IUL Express sample - **SAMPLE PDF PENDING** - add when next MOO IUL sale closes.
+- [ ] **`Cheyenne MOO IULE.pdf`** (IUL Express variant - same mapped form type, IUL plan selected)
+  - insuranceCompany: `Mutual of Omaha`
+  - policyType: `IUL` (derived from IUL Express selection on the form)
+  - policyNumber: `null`
+  - review_ready: true
 
 ### Mutual of Omaha Living Promise (ICC23L681A)
 
@@ -266,7 +270,7 @@ Dropdown label: **Mutual of Omaha - Accidental Death**  •  Form type: `moo_ma5
 
 ### United Home Life Term (ICC22 200-878A)
 
-Dropdown label: **United Home Life - Term (ICC22 200-878A)**  •  Form type: `uhl_icc22_200_878a`
+Dropdown label: **United Home Life - Term**  •  Form type: `uhl_icc22_200_878a`
 
 - [ ] **`Ivo UHL.pdf`**
   - insuredName: `Ivo Angelov`
@@ -281,9 +285,35 @@ Dropdown label: **United Home Life - Term (ICC22 200-878A)**  •  Form type: `u
   - policyNumber: `null`
   - review_ready: true
 
+- [ ] **`Kimber Jones UHL Term 20 DLX copy.pdf`**
+  - insuredName: `Kimber Jones`
+  - insuredDateOfBirth: `1996-10-11`
+  - coverageAmount: `50000`
+  - insuranceCompany: `United Home Life`
+  - policyType: `Term Life`
+  - premiumAmount: `43.93`
+  - premiumFrequency: `monthly`
+  - applicationSignedDate: `2025-08-23`
+  - primary beneficiary: `John Hull` (Fiance, 100%)
+  - policyNumber: `null`
+  - review_ready: true
+
+- [ ] **`Shianna Anderson UHL Term DLX copy.pdf`**
+  - insuredName: `Shianna Anderson`
+  - insuredDateOfBirth: `2001-12-01`
+  - coverageAmount: `50000`
+  - insuranceCompany: `United Home Life`
+  - policyType: `Term Life`
+  - premiumAmount: `28.14`
+  - premiumFrequency: `monthly`
+  - applicationSignedDate: `2024-11-15`
+  - primary beneficiary: `Danny Clifton` (Husband, 100%)
+  - policyNumber: `null`
+  - review_ready: true
+
 ### Transamerica Whole Life (ICC22 T-AP-WL11IC-0822)
 
-Dropdown label: **Transamerica - Whole Life (ICC22 T-AP-WL11IC-0822)**  •  Form type: `transamerica_icc22_t_ap_wl11ic_0822`
+Dropdown label: **Transamerica - Whole Life**  •  Form type: `transamerica_icc22_t_ap_wl11ic_0822`
 
 - [ ] **`Carole Martin Trans .pdf`**
   - insuredName: `Carole Martin`
@@ -306,6 +336,36 @@ Dropdown label: **SBLI - Policy Packet**  •  Form type: `sbli_policy_packet`
   - insuranceCompany: `SBLI`
   - policyNumber, premium, frequency, and effectiveDate extracted only if visible on that page
   - Pipeline completes without crash: YES
+  - review_ready: true
+
+### Corebridge/AIG Guaranteed Issue Whole Life (ICC15-108847)
+
+Dropdown label: **Corebridge/AIG**  •  Form type: `corebridge_aig_icc15_108847`
+
+- [ ] **`Donald Nauert - Corebridge copy.pdf`**
+  - insuredName: `Donald Morley Nauert`
+  - insuredDateOfBirth: `1963-11-20`
+  - coverageAmount: `12000`
+  - insuranceCompany: `Corebridge/AIG`
+  - policyType: `Whole Life`
+  - premiumAmount: `94.7`
+  - premiumFrequency: `monthly`
+  - applicationSignedDate: `2025-11-12`
+  - primary beneficiary: `Kelly Nauert` (Spouse, 100%)
+  - policyNumber: `null`
+  - review_ready: true
+
+- [ ] **`Francis Hanson AIG copy.pdf`**
+  - insuredName: `Francis Hanson`
+  - insuredDateOfBirth: `1947-07-19`
+  - coverageAmount: `12000`
+  - insuranceCompany: `Corebridge/AIG`
+  - policyType: `Whole Life`
+  - premiumAmount: `260.01`
+  - premiumFrequency: `monthly`
+  - applicationSignedDate: `2025-02-18`
+  - primary beneficiary: `Patricia Hanson` (Spouse, 100%)
+  - policyNumber: `null`
   - review_ready: true
 
 ### Fidelity & Guaranty Life (ICC18-1000)
@@ -358,43 +418,6 @@ This path is critical: it's what agents use for any carrier we don't have a supp
   - policyType: read from form - should be `Whole Life` (Claude will infer from "Children's Whole Life Insurance" header)
   - insuranceCompany: `Mutual of Omaha` (may come back as "United of Omaha" from legal text — either is acceptable on the unknown path since agent reviews)
 
-- [ ] **`Donald Nauert - Corebridge.pdf`** (Corebridge Financial / American General Life Guaranteed Issue Whole Life, form ICC15-108847 - not yet supported. Expected: Donald Morley Nauert DOB 1963-11-20, coverage $12,000 Graded Death Benefit GI WL, premium $94.70 monthly Bank Draft, primary beneficiary Kelly Nauert Spouse 100%, signed 2025-11-12 Morley MO.)
-  - Pipeline completes without error: YES
-  - review_ready: true
-  - insuredName populated: `Donald Morley Nauert` (or "Donald Nauert")
-  - coverageAmount populated: `12000`
-  - policyType: `Whole Life` (Guaranteed Issue Whole Life with Graded Death Benefit)
-  - insuranceCompany: expected to come back as something like `American General Life` or `Corebridge` or `AIG` — any of those is acceptable on unknown path
-
-- [ ] **`Kimber Jones UHL Term 20 DLX copy.pdf`** (United Home Life Simple Term 20 DLX, form ICC22 200-878A - not yet supported. Expected: Kimber Jones DOB 1996-10-11, coverage $50,000, premium $43.93 monthly EFT, primary beneficiary John Hull (Fiance) 100%, signed 2025-08-23 Clinton MO.)
-  - Pipeline completes without error: YES
-  - review_ready: true
-  - insuredName populated: `Kimber Jones`
-  - coverageAmount populated: `50000`
-  - policyType: `Term Life`
-  - insuranceCompany: expected `United Home Life` or `UHL`
-
-- [ ] **`Shianna Anderson UHL Term DLX copy.pdf`** (United Home Life Simple Term 20 DLX - same form as Kimber, different insured. Expected: Shianna Anderson DOB 2001-12-01, coverage $50,000, premium $28.14 monthly EFT, primary beneficiary Danny Clifton (Husband) 100%, signed 2024-11-15 Fredericktown MO.)
-  - Pipeline completes without error: YES
-  - review_ready: true
-  - insuredName populated: `Shianna Anderson`
-  - coverageAmount populated: `50000`
-  - policyType: `Term Life`
-  - insuranceCompany: expected `United Home Life` or `UHL`
-
-- [ ] **`Francis Hanson AIG.pdf`** (Corebridge/AIG Guaranteed Issue Whole Life Graded Death Benefit, form ICC15-108847. Cleaner replacement for Tim fixture.)
-  - Pipeline completes without error: YES
-  - review_ready: true
-  - insuredName populated: `Francis Hanson`
-  - insuredDateOfBirth: `1947-07-19`
-  - coverageAmount populated: `12000`
-  - premiumAmount: `260.01`
-  - premiumFrequency: `monthly`
-  - applicationSignedDate: `2025-02-18`
-  - primary beneficiary: `Patricia Hanson` (Spouse, 100%)
-  - policyType: `Whole Life`
-  - insuranceCompany: expected `American General Life` / `Corebridge` / `AIG`
-
 
 ## When a fixture fails
 
@@ -433,7 +456,7 @@ so this is a valid beneficiary entry and should NOT be treated as bad data.
 
 ### Tim Olwin (Corebridge/AIG, unknown path) - optional edge-case only
 The Tim fixture has "New Carlisle" (a city) in the Middle Initial field and is
-now replaced in the main checklist by `Francis Hanson AIG.pdf`. Keep Tim only
+now replaced in the main checklist by `Francis Hanson AIG copy.pdf`. Keep Tim only
 as an optional resilience check for malformed applications.
 
 ### MOO Living Promise supplement - confirmed incorrect re: beneficiary grid

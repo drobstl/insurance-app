@@ -67,6 +67,7 @@ const CARRIER_FORM_TYPE_OVERRIDES = {
     foresters_icc15_770825: { policyType: 'Term Life', insuranceCompany: 'Foresters' },
     uhl_icc22_200_878a: { policyType: 'Term Life', insuranceCompany: 'United Home Life' },
     transamerica_icc22_t_ap_wl11ic_0822: { policyType: 'Whole Life', insuranceCompany: 'Transamerica' },
+    corebridge_aig_icc15_108847: { policyType: 'Whole Life', insuranceCompany: 'Corebridge/AIG' },
     sbli_policy_packet: { insuranceCompany: 'SBLI' },
     fg_iul: { insuranceCompany: 'Fidelity & Guaranty Life' },
     // F&G ICC18-1000 and LAPP1125 can represent multiple product variants; lock carrier only.
