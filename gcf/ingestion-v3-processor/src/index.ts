@@ -501,40 +501,110 @@ export const reconcileStaleBatchJobs = onSchedule(
   async () => {
     const db = getFirestore();
     const cutoffMs = Date.now() - STALE_BATCH_TIMEOUT_MS;
-    const snap = await db
-      .collectionGroup('batchJobs')
-      .where('status', '==', 'processing')
-      .limit(STALE_BATCH_SCAN_LIMIT)
-      .get();
-
-    if (snap.empty) {
+    // Avoid collectionGroup index dependencies by scanning per-agent subcollections.
+    const agentSnap = await db.collection('agents').limit(STALE_BATCH_SCAN_LIMIT).get();
+    if (agentSnap.empty) {
       emit('ingestion_v3_stale_batch_reconcile', {
+        scanned_agents: 0,
         scanned_batches: 0,
+        stale_candidates: 0,
         reconciled_batches: 0,
+        agent_scan_limit: STALE_BATCH_SCAN_LIMIT,
+        per_agent_batch_scan_limit: STALE_BATCH_SCAN_LIMIT,
+        agent_scan_limit_hit: false,
+        per_agent_batch_scan_limit_hit_count: 0,
       });
       return;
     }
 
+    const scannedAgents = agentSnap.size;
+    const agentScanLimitHit = scannedAgents >= STALE_BATCH_SCAN_LIMIT;
+    let scanned = 0;
+    let staleCandidates = 0;
     let reconciled = 0;
-    for (const doc of snap.docs) {
-      const data = doc.data() as Record<string, unknown>;
-      const updatedAtMs = toMillisOrNull(data.updatedAt) ?? toMillisOrNull(data.createdAt);
-      if (updatedAtMs == null || updatedAtMs > cutoffMs) {
-        continue;
+    let perAgentBatchScanLimitHitCount = 0;
+
+    for (const agentDoc of agentSnap.docs) {
+      const batchSnap = await agentDoc.ref
+        .collection('batchJobs')
+        .limit(STALE_BATCH_SCAN_LIMIT)
+        .get();
+      if (batchSnap.size >= STALE_BATCH_SCAN_LIMIT) {
+        perAgentBatchScanLimitHitCount += 1;
       }
 
-      const didReconcile = await reconcileBatchDocFromJobs(doc.ref.path);
-      if (didReconcile) {
-        reconciled += 1;
+      for (const doc of batchSnap.docs) {
+        scanned += 1;
+        const data = doc.data() as Record<string, unknown>;
+        const status = (data.status as string | undefined) || 'processing';
+        if (status !== 'processing') {
+          continue;
+        }
+        const updatedAtMs = toMillisOrNull(data.updatedAt) ?? toMillisOrNull(data.createdAt);
+        if (updatedAtMs == null || updatedAtMs > cutoffMs) {
+          continue;
+        }
+        staleCandidates += 1;
+
+        const didReconcile = await reconcileBatchDocFromJobs(doc.ref.path);
+        if (didReconcile) {
+          reconciled += 1;
+        }
       }
     }
 
-    emit('ingestion_v3_stale_batch_reconcile', {
-      scanned_batches: snap.size,
+    const metrics = {
+      scanned_agents: scannedAgents,
+      scanned_batches: scanned,
+      stale_candidates: staleCandidates,
       reconciled_batches: reconciled,
-    });
+      agent_scan_limit: STALE_BATCH_SCAN_LIMIT,
+      per_agent_batch_scan_limit: STALE_BATCH_SCAN_LIMIT,
+      agent_scan_limit_hit: agentScanLimitHit,
+      per_agent_batch_scan_limit_hit_count: perAgentBatchScanLimitHitCount,
+    };
+    emit('ingestion_v3_stale_batch_reconcile', metrics);
+
+    if (agentScanLimitHit || perAgentBatchScanLimitHitCount > 0) {
+      emit('ingestion_v3_stale_batch_reconcile_limit_hit', metrics);
+    }
+
+    try {
+      await persistStaleBatchReconcileMetrics(metrics);
+    } catch (error) {
+      emit('ingestion_v3_stale_batch_reconcile_metrics_persist_failed', {
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
   },
 );
+
+async function persistStaleBatchReconcileMetrics(metrics: {
+  scanned_agents: number;
+  scanned_batches: number;
+  stale_candidates: number;
+  reconciled_batches: number;
+  agent_scan_limit: number;
+  per_agent_batch_scan_limit: number;
+  agent_scan_limit_hit: boolean;
+  per_agent_batch_scan_limit_hit_count: number;
+}) {
+  const db = getFirestore();
+  const metricsRef = db.collection('systemMetrics').doc('ingestionV3');
+  await metricsRef.set(
+    {
+      staleBatchReconcile: {
+        ...metrics,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+    },
+    { merge: true },
+  );
+  await metricsRef.collection('staleBatchReconcileRuns').add({
+    ...metrics,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+}
 
 async function lockQueuedJob(jobId: string): Promise<{ ok: true; job: LockedJob } | { ok: false; reason: string }> {
   const db = getFirestore();

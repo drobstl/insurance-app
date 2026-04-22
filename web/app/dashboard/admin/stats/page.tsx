@@ -69,6 +69,40 @@ interface ImportHealthStatus {
   actions: string[];
 }
 
+interface IngestionReconcileLatest {
+  scannedAgents: number;
+  scannedBatches: number;
+  staleCandidates: number;
+  reconciledBatches: number;
+  agentScanLimit: number;
+  perAgentBatchScanLimit: number;
+  agentScanLimitHit: boolean;
+  perAgentBatchScanLimitHitCount: number;
+  updatedAtMs: number | null;
+}
+
+interface IngestionReconcileRun {
+  id: string;
+  scannedAgents: number;
+  scannedBatches: number;
+  staleCandidates: number;
+  reconciledBatches: number;
+  agentScanLimitHit: boolean;
+  perAgentBatchScanLimitHitCount: number;
+  createdAtMs: number | null;
+}
+
+interface IngestionReconcileHealth {
+  latest: IngestionReconcileLatest | null;
+  summary24h: {
+    totalRuns: number;
+    limitHitRuns: number;
+    staleCandidates: number;
+    reconciledBatches: number;
+  };
+  recentRuns: IngestionReconcileRun[];
+}
+
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
@@ -88,6 +122,17 @@ function formatPercent(rate: number): string {
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function formatMsDate(ms: number | null | undefined): string {
+  if (typeof ms !== 'number' || Number.isNaN(ms)) return '—';
+  return new Date(ms).toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -234,6 +279,8 @@ export default function AdminStatsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [importHealth, setImportHealth] = useState<ImportHealthSnapshot | null>(null);
   const [importHealthLoading, setImportHealthLoading] = useState(false);
+  const [ingestionReconcileHealth, setIngestionReconcileHealth] = useState<IngestionReconcileHealth | null>(null);
+  const [ingestionReconcileLoading, setIngestionReconcileLoading] = useState(false);
 
   /* ---- Auth + admin check ---- */
   useEffect(() => {
@@ -290,10 +337,35 @@ export default function AdminStatsPage() {
     }
   }, [user]);
 
+  const fetchIngestionReconcileHealth = useCallback(async () => {
+    if (!user) return;
+    setIngestionReconcileLoading(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/admin/ingestion-health', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to load ingestion health');
+      }
+      const data = (await res.json()) as IngestionReconcileHealth;
+      setIngestionReconcileHealth(data);
+    } catch (err) {
+      console.error('Error fetching ingestion reconcile health:', err);
+    } finally {
+      setIngestionReconcileLoading(false);
+    }
+  }, [user]);
+
   useEffect(() => {
     fetchStats();
     fetchImportHealth();
-  }, [fetchImportHealth, fetchStats]);
+    fetchIngestionReconcileHealth();
+  }, [fetchImportHealth, fetchIngestionReconcileHealth, fetchStats]);
 
   /* ---- Manual refresh (authenticated endpoint) ---- */
   const handleRefresh = async () => {
@@ -319,6 +391,7 @@ export default function AdminStatsPage() {
         await fetchStats();
       }
       await fetchImportHealth();
+      await fetchIngestionReconcileHealth();
     } catch (err) {
       console.error('Error refreshing stats:', err);
     } finally {
@@ -519,6 +592,100 @@ export default function AdminStatsPage() {
                         </div>
                       )}
                     </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="bg-white rounded-[5px] border border-[#d0d0d0] p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-[#000000]">Stale Batch Reconciler Health</h2>
+                  <p className="text-xs text-[#707070] mt-0.5">System-level scheduler tracking for stale batch cleanup.</p>
+                </div>
+                {ingestionReconcileLoading && <span className="text-xs text-[#707070]">Refreshing…</span>}
+              </div>
+
+              {!ingestionReconcileHealth || !ingestionReconcileHealth.latest ? (
+                <p className="text-sm text-[#707070]">No reconciler metrics yet. Wait for at least one scheduler run.</p>
+              ) : (
+                <>
+                  <div
+                    className={`rounded-[5px] border p-4 ${
+                      ingestionReconcileHealth.latest.agentScanLimitHit ||
+                      ingestionReconcileHealth.latest.perAgentBatchScanLimitHitCount > 0
+                        ? 'bg-amber-50 border-amber-200'
+                        : 'bg-emerald-50 border-emerald-200'
+                    }`}
+                  >
+                    <p
+                      className={`text-sm font-semibold ${
+                        ingestionReconcileHealth.latest.agentScanLimitHit ||
+                        ingestionReconcileHealth.latest.perAgentBatchScanLimitHitCount > 0
+                          ? 'text-amber-800'
+                          : 'text-emerald-800'
+                      }`}
+                    >
+                      Latest Run:{' '}
+                      {ingestionReconcileHealth.latest.agentScanLimitHit ||
+                      ingestionReconcileHealth.latest.perAgentBatchScanLimitHitCount > 0
+                        ? 'Capacity Warning'
+                        : 'Healthy'}
+                    </p>
+                    <p className="text-xs text-[#4b5563] mt-1">
+                      Updated: {formatMsDate(ingestionReconcileHealth.latest.updatedAtMs)}
+                    </p>
+                    <p className="text-xs text-[#4b5563] mt-1">
+                      Limit hits (24h): {ingestionReconcileHealth.summary24h.limitHitRuns} of{' '}
+                      {ingestionReconcileHealth.summary24h.totalRuns} runs
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <StatCard
+                      label="24h Limit Hits"
+                      value={ingestionReconcileHealth.summary24h.limitHitRuns}
+                      sublabel={`${ingestionReconcileHealth.summary24h.totalRuns} total runs`}
+                    />
+                    <StatCard
+                      label="24h Stale Candidates"
+                      value={ingestionReconcileHealth.summary24h.staleCandidates}
+                    />
+                    <StatCard
+                      label="24h Reconciled"
+                      value={ingestionReconcileHealth.summary24h.reconciledBatches}
+                    />
+                    <StatCard
+                      label="Latest Scan Scope"
+                      value={`${ingestionReconcileHealth.latest.scannedAgents}A / ${ingestionReconcileHealth.latest.scannedBatches}B`}
+                      sublabel={`limits ${ingestionReconcileHealth.latest.agentScanLimit}A / ${ingestionReconcileHealth.latest.perAgentBatchScanLimit}B`}
+                    />
+                  </div>
+
+                  <div className="border border-[#e0e0e0] rounded-[5px] p-4">
+                    <p className="text-xs font-semibold text-[#707070] uppercase tracking-wide mb-2">Recent Reconciler Runs</p>
+                    {ingestionReconcileHealth.recentRuns.length === 0 ? (
+                      <p className="text-sm text-[#707070]">No runs found.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                        {ingestionReconcileHealth.recentRuns.map((run) => (
+                          <div key={run.id} className="rounded-[5px] border border-[#ececec] px-3 py-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-xs font-semibold text-[#000000]">
+                                {run.agentScanLimitHit || run.perAgentBatchScanLimitHitCount > 0 ? 'Capacity warning' : 'Healthy'}
+                              </span>
+                              <span className="text-[11px] text-[#707070]">
+                                {formatMsDate(run.createdAtMs)}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[#707070] mt-1">
+                              Scanned {run.scannedAgents} agents / {run.scannedBatches} batches •
+                              {' '}stale {run.staleCandidates} • reconciled {run.reconciledBatches}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </>
               )}
