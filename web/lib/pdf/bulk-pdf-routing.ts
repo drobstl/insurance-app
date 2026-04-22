@@ -68,8 +68,21 @@ export function detectBulkPdfRoute(fileName: string): BulkPdfRouteDecision {
 export async function buildRoutedPdfBuffer(
   inputPdfBytes: Uint8Array,
   pageNumbers: number[],
-): Promise<{ pdfBytes: Uint8Array; pageCount: number }> {
-  const source = await PDFDocument.load(inputPdfBytes);
+): Promise<{ pdfBytes: Uint8Array; pageCount: number; subsetSkippedReason: null | 'pdf_encrypted_subset_skipped' }> {
+  let source: PDFDocument;
+  try {
+    source = await PDFDocument.load(inputPdfBytes);
+  } catch (error) {
+    const message = error instanceof Error ? error.message.toLowerCase() : '';
+    if (message.includes('is encrypted')) {
+      return {
+        pdfBytes: inputPdfBytes,
+        pageCount: 0,
+        subsetSkippedReason: 'pdf_encrypted_subset_skipped',
+      };
+    }
+    throw error;
+  }
   const availablePages = source.getPageCount();
   const normalized = Array.from(new Set(pageNumbers))
     .filter((pageNumber) => Number.isInteger(pageNumber) && pageNumber >= 1 && pageNumber <= availablePages)
@@ -82,5 +95,5 @@ export async function buildRoutedPdfBuffer(
     target.addPage(page);
   }
   const pdfBytes = await target.save();
-  return { pdfBytes, pageCount: pagesToCopy.length };
+  return { pdfBytes, pageCount: pagesToCopy.length, subsetSkippedReason: null };
 }

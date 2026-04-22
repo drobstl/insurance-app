@@ -428,9 +428,13 @@ async function processOneFile(params: {
         fileName = fileName + '.csv';
       }
       contentType = 'text/csv';
-    } else if (isPdf && routedPdf) {
+    } else if (isPdf && routedPdf && routedPdf.subsetSkippedReason === null) {
       uploadBuffer = Buffer.from(routedPdf.pdfBytes);
       contentType = PDF_MIME;
+    } else if (isPdf && routedPdf?.subsetSkippedReason) {
+      console.log(
+        `[drive-import] ${routedPdf.subsetSkippedReason} file=${file.name} route=${route?.carrierFormType || 'unknown'}`,
+      );
     }
 
     const safeName = sanitizeFileName(fileName);

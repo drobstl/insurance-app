@@ -291,6 +291,7 @@ interface ParseBobSourceResult {
     pagesSent: number;
     usedBroaderMappedSubset: boolean;
     canRetryBroaderMappedSubset: boolean;
+    subsetSkippedReason?: 'pdf_encrypted_subset_skipped';
   };
 }
 
@@ -2429,26 +2430,30 @@ export default function ClientsPage() {
       const useBroaderMappedSubset = route.confidence === 'high' && attempt > 0;
       const targetPages = useBroaderMappedSubset ? route.broaderMappedPages : route.selectedPages;
       const routedBuffer = await buildRoutedPdfBuffer(new Uint8Array(await file.arrayBuffer()), targetPages);
-      const routedArrayBuffer = routedBuffer.pdfBytes.buffer.slice(
-        routedBuffer.pdfBytes.byteOffset,
-        routedBuffer.pdfBytes.byteOffset + routedBuffer.pdfBytes.byteLength,
-      ) as ArrayBuffer;
-      uploadFile = new File([routedArrayBuffer], file.name, {
-        type: 'application/pdf',
-        lastModified: file.lastModified,
-      });
+      if (routedBuffer.subsetSkippedReason === null) {
+        const routedArrayBuffer = routedBuffer.pdfBytes.buffer.slice(
+          routedBuffer.pdfBytes.byteOffset,
+          routedBuffer.pdfBytes.byteOffset + routedBuffer.pdfBytes.byteLength,
+        ) as ArrayBuffer;
+        uploadFile = new File([routedArrayBuffer], file.name, {
+          type: 'application/pdf',
+          lastModified: file.lastModified,
+        });
+      }
       routeMeta = {
         carrierFormType: route.carrierFormType,
         confidence: route.confidence,
         pagesSent: routedBuffer.pageCount,
         usedBroaderMappedSubset: useBroaderMappedSubset,
         canRetryBroaderMappedSubset: route.confidence === 'high' && route.broaderMappedPages.length > 0,
+        subsetSkippedReason: routedBuffer.subsetSkippedReason || undefined,
       };
       captureEvent(ANALYTICS_EVENTS.INGESTION_V3_PAGE_MAP_CLAMPED, {
         carrier_form_type: route.carrierFormType,
         confidence: route.confidence,
         bulk_pdf_route: useBroaderMappedSubset ? 'broader_mapped_subset' : route.confidence === 'high' ? 'mapped' : 'unknown_capped',
         rendered_count: routedBuffer.pageCount,
+        subset_skipped_reason: routedBuffer.subsetSkippedReason || undefined,
         source: 'local_bulk',
       });
     }
@@ -2611,7 +2616,6 @@ export default function ClientsPage() {
       let retryAttemptCount = 0;
       try {
         let parsedRows: ImportRow[] = [];
-        let parsedNote: string | undefined;
         let parseRouting: ParseBobSourceResult['routing'];
 
         if (source.fileType === 'pdf' || source.fileType === 'spreadsheet' || source.fileType === 'text') {
@@ -2620,7 +2624,6 @@ export default function ClientsPage() {
             try {
               const result = await parseBobSourceFile(source.file, attempt);
               parsedRows = result.rows;
-              parsedNote = result.note;
               parseRouting = result.routing;
               const quality = filterHighQualityImportRows(parsedRows);
               const qualityTooLow = quality.accepted.length === 0 || quality.qualityRatio < MIN_IMPORT_ROW_QUALITY_RATIO;
@@ -2629,6 +2632,7 @@ export default function ClientsPage() {
                 source.fileType === 'pdf' &&
                 parseRouting?.canRetryBroaderMappedSubset &&
                 !parseRouting.usedBroaderMappedSubset &&
+                !parseRouting.subsetSkippedReason &&
                 attempt < BULK_PARSE_MAX_RETRIES
               ) {
                 attempt += 1;
@@ -2668,15 +2672,9 @@ export default function ClientsPage() {
             `${source.file.name}: ${quality.rejected} row${quality.rejected !== 1 ? 's were' : ' was'} skipped due to low-confidence policy data.`,
           );
         }
-        if (parsedNote) {
-          warnings.push(`${source.file.name}: ${parsedNote}`);
+        if (parseRouting?.subsetSkippedReason) {
+          warnings.push(`${source.file.name}: PDF preprocessing fallback (${parseRouting.subsetSkippedReason}).`);
         }
-        if (parseRouting) {
-          warnings.push(
-            `${source.file.name}: processed ${parseRouting.pagesSent} page${parseRouting.pagesSent !== 1 ? 's' : ''} (${parseRouting.confidence === 'high' ? `mapped ${parseRouting.carrierFormType}` : 'unknown/low-confidence cap'}).`,
-          );
-        }
-
         setImportData((prev) => [...prev, ...quality.accepted]);
         loadedRows += quality.accepted.length;
         parsedFiles += 1;
