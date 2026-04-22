@@ -39,6 +39,8 @@ const DOWNLOAD_MAX_RETRIES = 3;
 const DOWNLOAD_RETRY_DELAYS_MS = [500, 1500];
 const BULK_IMPORT_SPLIT_TYPE_MESSAGE =
   'Please import spreadsheets and PDFs in separate runs for faster, more reliable processing.';
+const BULK_ENCRYPTED_PDF_UNSUPPORTED_MESSAGE =
+  'This PDF is encrypted/password-protected. Please upload it using Add Client (single-file) or remove protection and retry.';
 
 const PDF_MIME = 'application/pdf';
 const GOOGLE_FOLDER_MIME = 'application/vnd.google-apps.folder';
@@ -417,6 +419,17 @@ async function processOneFile(params: {
           route?.selectedPages || [],
         )
       : null;
+    if (isPdf && routedPdf?.subsetSkippedReason === 'pdf_encrypted_unsupported') {
+      console.log(
+        `[drive-import] reason=pdf_encrypted_unsupported file=${file.name} route=${route?.carrierFormType || 'unknown'}`,
+      );
+      return {
+        fileId: file.id,
+        name: file.name,
+        status: 'failed',
+        error: BULK_ENCRYPTED_PDF_UNSUPPORTED_MESSAGE,
+      };
+    }
 
     // For Google Sheets exports, ensure the filename ends in .csv so the
     // downstream processor routes to the structured (CSV) extraction branch.
@@ -431,10 +444,6 @@ async function processOneFile(params: {
     } else if (isPdf && routedPdf && routedPdf.subsetSkippedReason === null) {
       uploadBuffer = Buffer.from(routedPdf.pdfBytes);
       contentType = PDF_MIME;
-    } else if (isPdf && routedPdf?.subsetSkippedReason) {
-      console.log(
-        `[drive-import] ${routedPdf.subsetSkippedReason} file=${file.name} route=${route?.carrierFormType || 'unknown'}`,
-      );
     }
 
     const safeName = sanitizeFileName(fileName);

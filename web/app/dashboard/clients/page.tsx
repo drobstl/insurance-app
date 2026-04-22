@@ -70,6 +70,8 @@ const MAX_APPLICATION_RENDER_PAGES = 6;
 const DEFAULT_APPLICATION_TYPE = 'unknown';
 const BULK_IMPORT_SPLIT_TYPE_MESSAGE =
   'Please import spreadsheets and PDFs in separate runs for faster, more reliable processing.';
+const BULK_ENCRYPTED_PDF_UNSUPPORTED_MESSAGE =
+  'This PDF is encrypted/password-protected. Please upload it using Add Client (single-file) or remove protection and retry.';
 const BULK_IMPORT_FUN_STATES = ['Baking your import...', 'Building client profiles...', 'Fusion-reactor-ing policy data...'] as const;
 const DEFAULT_WELCOME_SMS_TEMPLATE =
   'Hey {{firstName}}! {{agentName}} here. Download the AgentForLife app and use code {{code}} to connect with me. https://agentforlife.app/app';
@@ -131,6 +133,16 @@ class BulkImportRetryableError extends Error {
     this.name = 'BulkImportRetryableError';
     this.retryable = options?.retryable === true;
     this.terminal = options?.terminal === true;
+  }
+}
+
+class BulkImportTerminalError extends Error {
+  reason: 'pdf_encrypted_unsupported';
+
+  constructor(reason: 'pdf_encrypted_unsupported', message: string) {
+    super(message);
+    this.name = 'BulkImportTerminalError';
+    this.reason = reason;
   }
 }
 
@@ -291,7 +303,7 @@ interface ParseBobSourceResult {
     pagesSent: number;
     usedBroaderMappedSubset: boolean;
     canRetryBroaderMappedSubset: boolean;
-    subsetSkippedReason?: 'pdf_encrypted_subset_skipped';
+    subsetSkippedReason?: 'pdf_encrypted_unsupported';
   };
 }
 
@@ -2456,6 +2468,9 @@ export default function ClientsPage() {
         subset_skipped_reason: routedBuffer.subsetSkippedReason || undefined,
         source: 'local_bulk',
       });
+      if (routedBuffer.subsetSkippedReason) {
+        throw new BulkImportTerminalError('pdf_encrypted_unsupported', BULK_ENCRYPTED_PDF_UNSUPPORTED_MESSAGE);
+      }
     }
 
     const token = await user.getIdToken();
@@ -2697,6 +2712,8 @@ export default function ClientsPage() {
         let message = 'Failed to parse file. Please try again.';
         if (isTimeoutError(err)) {
           message = 'Request timed out while parsing this file. Please retry.';
+        } else if (err instanceof BulkImportTerminalError && err.reason === 'pdf_encrypted_unsupported') {
+          message = BULK_ENCRYPTED_PDF_UNSUPPORTED_MESSAGE;
         } else if (err instanceof Error) {
           if (err.message.includes('client token') || err.message.includes('Vercel Blob')) {
             message = 'Upload service temporarily unavailable. Please try again.';
@@ -2712,6 +2729,7 @@ export default function ClientsPage() {
           success: false,
           retry_attempt_count: retryAttemptCount,
           error: message,
+          reason: err instanceof BulkImportTerminalError ? err.reason : undefined,
         });
       } finally {
         bumpProgress();

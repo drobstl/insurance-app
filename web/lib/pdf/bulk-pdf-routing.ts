@@ -68,7 +68,7 @@ export function detectBulkPdfRoute(fileName: string): BulkPdfRouteDecision {
 export async function buildRoutedPdfBuffer(
   inputPdfBytes: Uint8Array,
   pageNumbers: number[],
-): Promise<{ pdfBytes: Uint8Array; pageCount: number; subsetSkippedReason: null | 'pdf_encrypted_subset_skipped' }> {
+): Promise<{ pdfBytes: Uint8Array; pageCount: number; subsetSkippedReason: null | 'pdf_encrypted_unsupported' }> {
   let source: PDFDocument;
   try {
     source = await PDFDocument.load(inputPdfBytes);
@@ -78,7 +78,7 @@ export async function buildRoutedPdfBuffer(
       return {
         pdfBytes: inputPdfBytes,
         pageCount: 0,
-        subsetSkippedReason: 'pdf_encrypted_subset_skipped',
+        subsetSkippedReason: 'pdf_encrypted_unsupported',
       };
     }
     throw error;
