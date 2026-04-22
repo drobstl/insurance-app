@@ -28,6 +28,7 @@ import {
   reassignIngestionV3JobBatchIfInFlight,
 } from '../../../../../lib/ingestion-v3-store';
 import type { IngestionV3UploadPurpose } from '../../../../../lib/ingestion-v3-types';
+import { buildRoutedPdfBuffer, detectBulkPdfRoute } from '../../../../../lib/pdf/bulk-pdf-routing';
 
 export const maxDuration = 120;
 
@@ -36,6 +37,8 @@ const DOWNLOAD_CONCURRENCY = 5;
 const MAX_FILES_PER_IMPORT = 50;
 const DOWNLOAD_MAX_RETRIES = 3;
 const DOWNLOAD_RETRY_DELAYS_MS = [500, 1500];
+const BULK_IMPORT_SPLIT_TYPE_MESSAGE =
+  'Please import spreadsheets and PDFs in separate runs for faster, more reliable processing.';
 
 const PDF_MIME = 'application/pdf';
 const GOOGLE_FOLDER_MIME = 'application/vnd.google-apps.folder';
@@ -99,6 +102,14 @@ interface NormalizedFile {
   modifiedTime: string;
   sizeBytes: number;
   fromFolder?: string;
+}
+
+function isPdfMime(mimeType: string): boolean {
+  return mimeType === PDF_MIME;
+}
+
+function isStructuredMime(mimeType: string): boolean {
+  return !isPdfMime(mimeType);
 }
 
 // ─── Auth Helpers ─────────────────────────────────────────
@@ -360,7 +371,8 @@ async function processOneFile(params: {
       throw new Error(`Unsupported file type: ${file.mimeType}. Supported: PDF, CSV, TSV, Excel, Google Sheets.`);
     }
 
-    const idempotencyKey = `drive:${file.id}:${file.modifiedTime || 'unknown'}:${Math.max(0, Math.floor(file.sizeBytes))}`;
+    const routeHint = file.mimeType === PDF_MIME ? detectBulkPdfRoute(file.name) : null;
+    const idempotencyKey = `drive:${file.id}:${file.modifiedTime || 'unknown'}:${Math.max(0, Math.floor(file.sizeBytes))}:route-${routeHint?.carrierFormType || 'structured'}:pages-${routeHint?.selectedPages.length || 0}`;
     const existingRef = await findExistingIngestionV3JobByIdempotency({
       agentId,
       idempotencyKey,
@@ -397,16 +409,28 @@ async function processOneFile(params: {
     }
 
     const downloaded = await downloadDriveFile(accessToken, file);
+    const isPdf = file.mimeType === PDF_MIME;
+    const route = isPdf ? routeHint || detectBulkPdfRoute(file.name) : null;
+    const routedPdf = isPdf
+      ? await buildRoutedPdfBuffer(
+          new Uint8Array(downloaded.buffer),
+          route?.selectedPages || [],
+        )
+      : null;
 
     // For Google Sheets exports, ensure the filename ends in .csv so the
     // downstream processor routes to the structured (CSV) extraction branch.
     let fileName = file.name;
     let contentType = downloaded.contentType;
+    let uploadBuffer = downloaded.buffer;
     if (file.mimeType === GOOGLE_SHEET_MIME) {
       if (!fileName.toLowerCase().endsWith('.csv')) {
         fileName = fileName + '.csv';
       }
       contentType = 'text/csv';
+    } else if (isPdf && routedPdf) {
+      uploadBuffer = Buffer.from(routedPdf.pdfBytes);
+      contentType = PDF_MIME;
     }
 
     const safeName = sanitizeFileName(fileName);
@@ -415,7 +439,7 @@ async function processOneFile(params: {
     await getAdminStorage()
       .bucket()
       .file(gcsPath)
-      .save(downloaded.buffer, {
+      .save(uploadBuffer, {
         contentType: contentType || PDF_MIME,
         resumable: false,
       });
@@ -499,6 +523,15 @@ export async function POST(req: NextRequest): Promise<NextResponse<GoogleDriveIm
     if (resolvedFiles.length === 0) {
       return NextResponse.json(
         { success: false, error: 'No supported files found. Folders may be empty or contain only unsupported file types.' },
+        { status: 400 },
+      );
+    }
+
+    const hasPdf = resolvedFiles.some((file) => isPdfMime(file.mimeType));
+    const hasStructured = resolvedFiles.some((file) => isStructuredMime(file.mimeType));
+    if (hasPdf && hasStructured) {
+      return NextResponse.json(
+        { success: false, error: BULK_IMPORT_SPLIT_TYPE_MESSAGE },
         { status: 400 },
       );
     }

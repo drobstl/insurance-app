@@ -49,6 +49,7 @@ import {
   renderSelectedPdfPagesToJpegsTolerant,
 } from '../../../lib/pdf/render-selected-pages-to-jpeg';
 import { APPLICATION_PAGE_MAP } from '../../../lib/pdf/application-page-map';
+import { buildRoutedPdfBuffer, detectBulkPdfRoute } from '../../../lib/pdf/bulk-pdf-routing';
 
 // ─── Constants ─────────────────────────────────────────────
 
@@ -67,6 +68,8 @@ const BULK_PARSE_MAX_RETRIES = 2;
 const MAX_APPLICATION_PDF_BYTES = 13 * 1024 * 1024;
 const MAX_APPLICATION_RENDER_PAGES = 6;
 const DEFAULT_APPLICATION_TYPE = 'unknown';
+const BULK_IMPORT_SPLIT_TYPE_MESSAGE =
+  'Please import spreadsheets and PDFs in separate runs for faster, more reliable processing.';
 const BULK_IMPORT_FUN_STATES = ['Baking your import...', 'Building client profiles...', 'Fusion-reactor-ing policy data...'] as const;
 const DEFAULT_WELCOME_SMS_TEMPLATE =
   'Hey {{firstName}}! {{agentName}} here. Download the AgentForLife app and use code {{code}} to connect with me. https://agentforlife.app/app';
@@ -277,6 +280,18 @@ interface ImportFileStatus {
   loadedRows: number;
   rejectedRows: number;
   error?: string;
+}
+
+interface ParseBobSourceResult {
+  rows: ImportRow[];
+  note?: string;
+  routing?: {
+    carrierFormType: string;
+    confidence: 'high' | 'low';
+    pagesSent: number;
+    usedBroaderMappedSubset: boolean;
+    canRetryBroaderMappedSubset: boolean;
+  };
 }
 
 interface ParseProgressState {
@@ -2401,9 +2416,41 @@ export default function ClientsPage() {
     });
   }, [mapBobRowsToImportRows]);
 
-  const parseBobSourceFile = useCallback(async (file: File): Promise<{ rows: ImportRow[]; note?: string }> => {
+  const parseBobSourceFile = useCallback(async (file: File, attempt = 0): Promise<ParseBobSourceResult> => {
     if (!user) {
       throw new Error('You must be signed in to import files.');
+    }
+
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    let uploadFile = file;
+    let routeMeta: ParseBobSourceResult['routing'];
+    if (isPdf) {
+      const route = detectBulkPdfRoute(file.name);
+      const useBroaderMappedSubset = route.confidence === 'high' && attempt > 0;
+      const targetPages = useBroaderMappedSubset ? route.broaderMappedPages : route.selectedPages;
+      const routedBuffer = await buildRoutedPdfBuffer(new Uint8Array(await file.arrayBuffer()), targetPages);
+      const routedArrayBuffer = routedBuffer.pdfBytes.buffer.slice(
+        routedBuffer.pdfBytes.byteOffset,
+        routedBuffer.pdfBytes.byteOffset + routedBuffer.pdfBytes.byteLength,
+      ) as ArrayBuffer;
+      uploadFile = new File([routedArrayBuffer], file.name, {
+        type: 'application/pdf',
+        lastModified: file.lastModified,
+      });
+      routeMeta = {
+        carrierFormType: route.carrierFormType,
+        confidence: route.confidence,
+        pagesSent: routedBuffer.pageCount,
+        usedBroaderMappedSubset: useBroaderMappedSubset,
+        canRetryBroaderMappedSubset: route.confidence === 'high' && route.broaderMappedPages.length > 0,
+      };
+      captureEvent(ANALYTICS_EVENTS.INGESTION_V3_PAGE_MAP_CLAMPED, {
+        carrier_form_type: route.carrierFormType,
+        confidence: route.confidence,
+        bulk_pdf_route: useBroaderMappedSubset ? 'broader_mapped_subset' : route.confidence === 'high' ? 'mapped' : 'unknown_capped',
+        rendered_count: routedBuffer.pageCount,
+        source: 'local_bulk',
+      });
     }
 
     const token = await user.getIdToken();
@@ -2414,9 +2461,9 @@ export default function ClientsPage() {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        fileName: file.name,
-        contentType: file.type || 'application/octet-stream',
-        fileSize: file.size,
+        fileName: uploadFile.name,
+        contentType: uploadFile.type || 'application/octet-stream',
+        fileSize: uploadFile.size,
         purpose: 'bob',
       }),
     });
@@ -2433,8 +2480,8 @@ export default function ClientsPage() {
     await withTimeout(
       fetch(signedBody.uploadUrl, {
         method: 'PUT',
-        headers: { 'Content-Type': file.type || 'application/octet-stream' },
-        body: file,
+        headers: { 'Content-Type': uploadFile.type || 'application/octet-stream' },
+        body: uploadFile,
       }).then((res) => {
         if (!res.ok) {
           throw new Error(`Upload failed (${res.status}).`);
@@ -2453,9 +2500,9 @@ export default function ClientsPage() {
       body: JSON.stringify({
         mode: 'bob',
         gcsPath: signedBody.gcsPath,
-        fileName: file.name,
-        contentType: file.type || undefined,
-        idempotencyKey: `bob-v3:${file.name}:${file.size}:${file.lastModified}`,
+        fileName: uploadFile.name,
+        contentType: uploadFile.type || undefined,
+        idempotencyKey: `bob-v3:${file.name}:${file.size}:${file.lastModified}:attempt-${attempt}:pages-${routeMeta?.pagesSent || 0}`,
       }),
     });
     const created = (await createRes.json()) as IngestionV3SubmitJobResponse;
@@ -2463,7 +2510,11 @@ export default function ClientsPage() {
       throw new Error(created.error?.message || `Failed to start parse job (${createRes.status}).`);
     }
 
-    return waitForBobIngestionRows(created.jobId, token);
+    const parsed = await waitForBobIngestionRows(created.jobId, token);
+    return {
+      ...parsed,
+      routing: routeMeta,
+    };
   }, [user, waitForBobIngestionRows]);
 
   const getImportFileType = useCallback((file: File): ImportFileType => {
@@ -2471,6 +2522,33 @@ export default function ClientsPage() {
     if (file.type === 'application/pdf' || name.endsWith('.pdf')) return 'pdf';
     if (name.endsWith('.xlsx') || name.endsWith('.xls')) return 'spreadsheet';
     if (name.endsWith('.csv') || name.endsWith('.tsv') || file.type.startsWith('text/')) return 'text';
+    return 'unknown';
+  }, []);
+
+  const getBulkBatchMixValidationError = useCallback((fileTypes: ImportFileType[]): string | null => {
+    if (fileTypes.length === 0) return null;
+    const hasPdf = fileTypes.includes('pdf');
+    const hasStructured = fileTypes.some((fileType) => fileType !== 'pdf');
+    if (hasPdf && hasStructured) {
+      return BULK_IMPORT_SPLIT_TYPE_MESSAGE;
+    }
+    return null;
+  }, []);
+
+  const getImportFileTypeFromGoogleMime = useCallback((mimeType: string): ImportFileType | null => {
+    const normalized = (mimeType || '').toLowerCase().trim();
+    if (!normalized || normalized === 'application/vnd.google-apps.folder') return null;
+    if (normalized === 'application/pdf') return 'pdf';
+    if (
+      normalized === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      normalized === 'application/vnd.ms-excel' ||
+      normalized === 'application/vnd.google-apps.spreadsheet'
+    ) {
+      return 'spreadsheet';
+    }
+    if (normalized === 'text/csv' || normalized === 'text/tab-separated-values' || normalized.startsWith('text/')) {
+      return 'text';
+    }
     return 'unknown';
   }, []);
 
@@ -2534,14 +2612,28 @@ export default function ClientsPage() {
       try {
         let parsedRows: ImportRow[] = [];
         let parsedNote: string | undefined;
+        let parseRouting: ParseBobSourceResult['routing'];
 
         if (source.fileType === 'pdf' || source.fileType === 'spreadsheet' || source.fileType === 'text') {
           let attempt = 0;
           while (true) {
             try {
-              const result = await parseBobSourceFile(source.file);
+              const result = await parseBobSourceFile(source.file, attempt);
               parsedRows = result.rows;
               parsedNote = result.note;
+              parseRouting = result.routing;
+              const quality = filterHighQualityImportRows(parsedRows);
+              const qualityTooLow = quality.accepted.length === 0 || quality.qualityRatio < MIN_IMPORT_ROW_QUALITY_RATIO;
+              if (
+                qualityTooLow &&
+                source.fileType === 'pdf' &&
+                parseRouting?.canRetryBroaderMappedSubset &&
+                !parseRouting.usedBroaderMappedSubset &&
+                attempt < BULK_PARSE_MAX_RETRIES
+              ) {
+                attempt += 1;
+                continue;
+              }
               retryAttemptCount = attempt;
               break;
             } catch (error) {
@@ -2578,6 +2670,11 @@ export default function ClientsPage() {
         }
         if (parsedNote) {
           warnings.push(`${source.file.name}: ${parsedNote}`);
+        }
+        if (parseRouting) {
+          warnings.push(
+            `${source.file.name}: processed ${parseRouting.pagesSent} page${parseRouting.pagesSent !== 1 ? 's' : ''} (${parseRouting.confidence === 'high' ? `mapped ${parseRouting.carrierFormType}` : 'unknown/low-confidence cap'}).`,
+          );
         }
 
         setImportData((prev) => [...prev, ...quality.accepted]);
@@ -2676,10 +2773,18 @@ export default function ClientsPage() {
       file,
       fileType: getImportFileType(file),
     }));
+    const mixValidationError = getBulkBatchMixValidationError(sources.map((source) => source.fileType));
+    if (mixValidationError) {
+      setImportError(mixValidationError);
+      setImportWarning('');
+      setImportSuccess('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
     await processImportSources(sources);
 
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [getImportFileType, processImportSources]);
+  }, [getBulkBatchMixValidationError, getImportFileType, processImportSources]);
 
   const handleImportDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -2693,8 +2798,15 @@ export default function ClientsPage() {
       file,
       fileType: getImportFileType(file),
     }));
+    const mixValidationError = getBulkBatchMixValidationError(sources.map((source) => source.fileType));
+    if (mixValidationError) {
+      setImportError(mixValidationError);
+      setImportWarning('');
+      setImportSuccess('');
+      return;
+    }
     await processImportSources(sources);
-  }, [getImportFileType, processImportSources]);
+  }, [getBulkBatchMixValidationError, getImportFileType, processImportSources]);
 
   const handleImportFromGoogleDrive = useCallback(async () => {
     if (!user) return;
@@ -2708,6 +2820,14 @@ export default function ClientsPage() {
       const token = await user.getIdToken();
       const selectedFiles = await pickGoogleDriveFiles(token);
       if (selectedFiles.length === 0) return;
+      const selectedFileTypes = selectedFiles
+        .map((file) => getImportFileTypeFromGoogleMime(file.mimeType))
+        .filter((value): value is ImportFileType => value !== null);
+      const mixValidationError = getBulkBatchMixValidationError(selectedFileTypes);
+      if (mixValidationError) {
+        setImportError(mixValidationError);
+        return;
+      }
 
       setDriveImportInFlight(true);
       setParsingBob(true); // Show spinner while POST is in flight
@@ -2755,7 +2875,7 @@ export default function ClientsPage() {
       setParsingBob(false);
       setDriveImportInFlight(false);
     }
-  }, [clearGooglePickerError, loadGoogleDriveStatus, pickGoogleDriveFiles, user]);
+  }, [clearGooglePickerError, getBulkBatchMixValidationError, getImportFileTypeFromGoogleMime, loadGoogleDriveStatus, pickGoogleDriveFiles, user]);
 
   const handleDriveImportAction = useCallback(() => {
     if (googleDriveConnected) {

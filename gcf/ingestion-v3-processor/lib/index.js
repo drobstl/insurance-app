@@ -428,76 +428,87 @@ exports.reconcileStaleBatchJobs = (0, scheduler_1.onSchedule)({
     timeoutSeconds: 240,
     memory: '512MiB',
 }, async () => {
-    const db = (0, firestore_1.getFirestore)();
-    const cutoffMs = Date.now() - STALE_BATCH_TIMEOUT_MS;
-    // Avoid collectionGroup index dependencies by scanning per-agent subcollections.
-    const agentSnap = await db.collection('agents').limit(STALE_BATCH_SCAN_LIMIT).get();
-    if (agentSnap.empty) {
-        emit('ingestion_v3_stale_batch_reconcile', {
-            scanned_agents: 0,
-            scanned_batches: 0,
-            stale_candidates: 0,
-            reconciled_batches: 0,
+    try {
+        const db = (0, firestore_1.getFirestore)();
+        const cutoffMs = Date.now() - STALE_BATCH_TIMEOUT_MS;
+        // Avoid collectionGroup index dependencies by scanning per-agent subcollections.
+        const agentSnap = await db.collection('agents').limit(STALE_BATCH_SCAN_LIMIT).get();
+        if (agentSnap.empty) {
+            emit('ingestion_v3_stale_batch_reconcile', {
+                scanned_agents: 0,
+                scanned_batches: 0,
+                stale_candidates: 0,
+                reconciled_batches: 0,
+                agent_scan_limit: STALE_BATCH_SCAN_LIMIT,
+                per_agent_batch_scan_limit: STALE_BATCH_SCAN_LIMIT,
+                agent_scan_limit_hit: false,
+                per_agent_batch_scan_limit_hit_count: 0,
+            });
+            return;
+        }
+        const scannedAgents = agentSnap.size;
+        const agentScanLimitHit = scannedAgents >= STALE_BATCH_SCAN_LIMIT;
+        let scanned = 0;
+        let staleCandidates = 0;
+        let reconciled = 0;
+        let perAgentBatchScanLimitHitCount = 0;
+        for (const agentDoc of agentSnap.docs) {
+            const batchSnap = await agentDoc.ref
+                .collection('batchJobs')
+                .limit(STALE_BATCH_SCAN_LIMIT)
+                .get();
+            if (batchSnap.size >= STALE_BATCH_SCAN_LIMIT) {
+                perAgentBatchScanLimitHitCount += 1;
+            }
+            for (const doc of batchSnap.docs) {
+                scanned += 1;
+                const data = doc.data();
+                const status = data.status || 'processing';
+                if (status !== 'processing') {
+                    continue;
+                }
+                const updatedAtMs = toMillisOrNull(data.updatedAt) ?? toMillisOrNull(data.createdAt);
+                if (updatedAtMs == null || updatedAtMs > cutoffMs) {
+                    continue;
+                }
+                staleCandidates += 1;
+                const didReconcile = await reconcileBatchDocFromJobs(doc.ref.path);
+                if (didReconcile) {
+                    reconciled += 1;
+                }
+            }
+        }
+        const metrics = {
+            scanned_agents: scannedAgents,
+            scanned_batches: scanned,
+            stale_candidates: staleCandidates,
+            reconciled_batches: reconciled,
             agent_scan_limit: STALE_BATCH_SCAN_LIMIT,
             per_agent_batch_scan_limit: STALE_BATCH_SCAN_LIMIT,
-            agent_scan_limit_hit: false,
-            per_agent_batch_scan_limit_hit_count: 0,
-        });
-        return;
-    }
-    const scannedAgents = agentSnap.size;
-    const agentScanLimitHit = scannedAgents >= STALE_BATCH_SCAN_LIMIT;
-    let scanned = 0;
-    let staleCandidates = 0;
-    let reconciled = 0;
-    let perAgentBatchScanLimitHitCount = 0;
-    for (const agentDoc of agentSnap.docs) {
-        const batchSnap = await agentDoc.ref
-            .collection('batchJobs')
-            .limit(STALE_BATCH_SCAN_LIMIT)
-            .get();
-        if (batchSnap.size >= STALE_BATCH_SCAN_LIMIT) {
-            perAgentBatchScanLimitHitCount += 1;
+            agent_scan_limit_hit: agentScanLimitHit,
+            per_agent_batch_scan_limit_hit_count: perAgentBatchScanLimitHitCount,
+        };
+        emit('ingestion_v3_stale_batch_reconcile', metrics);
+        if (agentScanLimitHit || perAgentBatchScanLimitHitCount > 0) {
+            emit('ingestion_v3_stale_batch_reconcile_limit_hit', metrics);
         }
-        for (const doc of batchSnap.docs) {
-            scanned += 1;
-            const data = doc.data();
-            const status = data.status || 'processing';
-            if (status !== 'processing') {
-                continue;
-            }
-            const updatedAtMs = toMillisOrNull(data.updatedAt) ?? toMillisOrNull(data.createdAt);
-            if (updatedAtMs == null || updatedAtMs > cutoffMs) {
-                continue;
-            }
-            staleCandidates += 1;
-            const didReconcile = await reconcileBatchDocFromJobs(doc.ref.path);
-            if (didReconcile) {
-                reconciled += 1;
-            }
+        try {
+            await persistStaleBatchReconcileMetrics(metrics);
         }
-    }
-    const metrics = {
-        scanned_agents: scannedAgents,
-        scanned_batches: scanned,
-        stale_candidates: staleCandidates,
-        reconciled_batches: reconciled,
-        agent_scan_limit: STALE_BATCH_SCAN_LIMIT,
-        per_agent_batch_scan_limit: STALE_BATCH_SCAN_LIMIT,
-        agent_scan_limit_hit: agentScanLimitHit,
-        per_agent_batch_scan_limit_hit_count: perAgentBatchScanLimitHitCount,
-    };
-    emit('ingestion_v3_stale_batch_reconcile', metrics);
-    if (agentScanLimitHit || perAgentBatchScanLimitHitCount > 0) {
-        emit('ingestion_v3_stale_batch_reconcile_limit_hit', metrics);
-    }
-    try {
-        await persistStaleBatchReconcileMetrics(metrics);
+        catch (error) {
+            emit('ingestion_v3_stale_batch_reconcile_metrics_persist_failed', {
+                message: error instanceof Error ? error.message : String(error),
+            });
+        }
     }
     catch (error) {
-        emit('ingestion_v3_stale_batch_reconcile_metrics_persist_failed', {
-            message: error instanceof Error ? error.message : String(error),
-        });
+        if (isFirestoreFailedPreconditionError(error)) {
+            emit('ingestion_v3_stale_batch_reconcile_failed_precondition', {
+                message: error instanceof Error ? error.message : String(error),
+            });
+            return;
+        }
+        throw error;
     }
 });
 async function persistStaleBatchReconcileMetrics(metrics) {
@@ -1330,6 +1341,16 @@ function toMillisOrNull(value) {
         return sec * 1000 + Math.floor(nanos / 1_000_000);
     }
     return null;
+}
+function isFirestoreFailedPreconditionError(error) {
+    if (!error || typeof error !== 'object')
+        return false;
+    const candidate = error;
+    if (candidate.code === 9 || candidate.code === '9' || candidate.code === 'failed-precondition') {
+        return true;
+    }
+    const message = typeof candidate.message === 'string' ? candidate.message.toLowerCase() : '';
+    return message.includes('failed_precondition') || message.includes('failed precondition');
 }
 function randomToken() {
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
