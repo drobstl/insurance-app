@@ -1,0 +1,3 @@
+name,email,phone,carrier,policyType,effectiveDate,premium,coverageAmount
+Jane Carter,jane@example.com,5551112222,Banner,Term,2026-03-15,89.15,250000
+Robert Miles,robert@example.com,,SBLI,Whole Life,2026-04-01,120.00,150000

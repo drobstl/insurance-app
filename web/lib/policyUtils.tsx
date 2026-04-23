@@ -48,6 +48,22 @@ export const daysUntilAnniversary = (anniversary: Date): number => {
 };
 
 /**
+ * Upcoming anniversary eligibility for UI counters/badges.
+ * Excludes policies that already have a started rewrite/policy-review campaign.
+ */
+export const getUpcomingAnniversaryIfEligible = (params: {
+  policyId?: string;
+  createdAt: Timestamp | { seconds: number; nanoseconds: number } | undefined;
+  effectiveDate?: string;
+  startedPolicyReviewPolicyIds: Set<string>;
+}): Date | null => {
+  const anniversary = getAnniversaryDate(params.createdAt, params.effectiveDate);
+  if (!anniversary) return null;
+  if (params.policyId && params.startedPolicyReviewPolicyIds.has(params.policyId)) return null;
+  return anniversary;
+};
+
+/**
  * Returns the number of days since the policy was created.
  * Returns null if createdAt is missing.
  */

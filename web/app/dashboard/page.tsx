@@ -6,7 +6,7 @@ import { collection, onSnapshot, query, orderBy, Timestamp, doc } from 'firebase
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../../firebase';
 import { useDashboard } from './DashboardContext';
-import { getAnniversaryDate } from '../../lib/policyUtils';
+import { getUpcomingAnniversaryIfEligible } from '../../lib/policyUtils';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
 import { computeBookHealth } from '../../lib/book-health';
 import { computeBookHealthBreakdown } from '../../lib/book-health';
@@ -117,6 +117,7 @@ export default function DashboardHomePage() {
   const [conservationAlerts, setConservationAlerts] = useState<ConservationAlert[]>([]);
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [anniversaryCount, setAnniversaryCount] = useState(0);
+  const [startedPolicyReviewPolicyIds, setStartedPolicyReviewPolicyIds] = useState<Set<string>>(new Set());
   const [stats, setStats] = useState<AgentAggregates | null>(null);
 
   const [fanOpen, setFanOpen] = useState(false);
@@ -195,6 +196,21 @@ export default function DashboardHomePage() {
   }, [user]);
 
   useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'agents', user.uid, 'policyReviews'));
+    return onSnapshot(q, (snap) => {
+      const policyIds = new Set<string>();
+      snap.docs.forEach((reviewDoc) => {
+        const data = reviewDoc.data() as { policyId?: unknown };
+        if (typeof data.policyId === 'string' && data.policyId.trim().length > 0) {
+          policyIds.add(data.policyId);
+        }
+      });
+      setStartedPolicyReviewPolicyIds(policyIds);
+    }, () => {});
+  }, [user]);
+
+  useEffect(() => {
     if (!user || clients.length === 0) {
       setAnniversaryCount(0);
       return;
@@ -213,7 +229,16 @@ export default function DashboardHomePage() {
               if (!res.ok) return;
               const { policies: data } = await res.json();
               (data as Policy[]).forEach((p) => {
-                if (getAnniversaryDate(p.createdAt, p.effectiveDate)) count++;
+                if (
+                  getUpcomingAnniversaryIfEligible({
+                    policyId: p.id,
+                    createdAt: p.createdAt,
+                    effectiveDate: p.effectiveDate,
+                    startedPolicyReviewPolicyIds,
+                  })
+                ) {
+                  count++;
+                }
               });
             } catch { /* skip */ }
           }),
@@ -222,7 +247,7 @@ export default function DashboardHomePage() {
       } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
-  }, [user, clients]);
+  }, [user, clients, startedPolicyReviewPolicyIds]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -532,7 +557,7 @@ export default function DashboardHomePage() {
           <div className="md:border-r border-b md:border-b-0 border-[#e0e0e0] px-4 py-3">
             <NavLink
               color="bg-amber-500"
-              label="Anniversaries"
+              label="Upcoming Anniversaries"
               count={anniversaryCount}
               onClick={() => router.push('/dashboard/policy-reviews')}
             />

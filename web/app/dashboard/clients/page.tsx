@@ -33,8 +33,7 @@ import {
   formatDate,
   getStatusColor,
   getPolicyTypeIcon,
-  getAnniversaryDate,
-  daysUntilAnniversary,
+  getUpcomingAnniversaryIfEligible,
 } from '../../../lib/policyUtils';
 import { isTimeoutError, withTimeout } from '../../../lib/timeout';
 import { captureEvent } from '../../../lib/posthog';
@@ -230,13 +229,6 @@ interface PolicyFormData {
 }
 
 type AddFlowStage = 'list' | 'upload' | 'review' | 'welcome';
-
-interface AnniversaryAlert {
-  clientName: string;
-  clientId: string;
-  policy: Policy;
-  anniversaryDate: Date;
-}
 
 interface ImportRow {
   name: string;
@@ -701,9 +693,9 @@ export default function ClientsPage() {
     };
   }, [isImportModalOpen]);
 
-  // ── Anniversary alerts ──
-  const [anniversaryAlerts, setAnniversaryAlerts] = useState<AnniversaryAlert[]>([]);
-  const [anniversaryDismissed, setAnniversaryDismissed] = useState(false);
+  // ── Anniversary visibility ──
+  const [clientUpcomingAnniversaryCounts, setClientUpcomingAnniversaryCounts] = useState<Record<string, number>>({});
+  const [startedPolicyReviewPolicyIds, setStartedPolicyReviewPolicyIds] = useState<Set<string>>(new Set());
 
   // ── Share toast state ──
   const [copiedClientId, setCopiedClientId] = useState<string | null>(null);
@@ -911,10 +903,26 @@ export default function ClientsPage() {
     setClientPushToken(selectedClient.pushToken || null);
   }, [selectedClient]);
 
-  // Fetch policy counts across all clients for anniversary detection
+  // Track policies with an existing rewrite campaign (started policy review)
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'agents', user.uid, 'policyReviews'));
+    return onSnapshot(q, (snap) => {
+      const policyIds = new Set<string>();
+      snap.docs.forEach((reviewDoc) => {
+        const data = reviewDoc.data() as { policyId?: unknown };
+        if (typeof data.policyId === 'string' && data.policyId.trim().length > 0) {
+          policyIds.add(data.policyId);
+        }
+      });
+      setStartedPolicyReviewPolicyIds(policyIds);
+    }, () => {});
+  }, [user]);
+
+  // Fetch per-client upcoming anniversary counts for subtle row badges
   useEffect(() => {
     if (!user || clients.length === 0) {
-      setAnniversaryAlerts([]);
+      setClientUpcomingAnniversaryCounts({});
       return;
     }
 
@@ -923,7 +931,7 @@ export default function ClientsPage() {
     (async () => {
       try {
         const token = await user.getIdToken();
-        const allAlerts: AnniversaryAlert[] = [];
+        const upcomingCounts: Record<string, number> = {};
 
         await Promise.all(
           clients.map(async (client) => {
@@ -933,17 +941,22 @@ export default function ClientsPage() {
               });
               if (!res.ok) return;
               const { policies: data } = await res.json();
+              let clientUpcomingCount = 0;
               (data as Policy[]).forEach((p) => {
-                const annivDate = getAnniversaryDate(p.createdAt, p.effectiveDate);
-                if (annivDate) {
-                  allAlerts.push({
-                    clientName: client.name,
-                    clientId: client.id,
-                    policy: p,
-                    anniversaryDate: annivDate,
-                  });
+                if (
+                  getUpcomingAnniversaryIfEligible({
+                    policyId: p.id,
+                    createdAt: p.createdAt,
+                    effectiveDate: p.effectiveDate,
+                    startedPolicyReviewPolicyIds,
+                  })
+                ) {
+                  clientUpcomingCount += 1;
                 }
               });
+              if (clientUpcomingCount > 0) {
+                upcomingCounts[client.id] = clientUpcomingCount;
+              }
             } catch {
               // skip this client on error
             }
@@ -951,9 +964,7 @@ export default function ClientsPage() {
         );
 
         if (!cancelled) {
-          setAnniversaryAlerts(
-            allAlerts.sort((a, b) => a.anniversaryDate.getTime() - b.anniversaryDate.getTime())
-          );
+          setClientUpcomingAnniversaryCounts(upcomingCounts);
         }
       } catch {
         // ignore
@@ -961,7 +972,7 @@ export default function ClientsPage() {
     })();
 
     return () => { cancelled = true; };
-  }, [user, clients]);
+  }, [user, clients, startedPolicyReviewPolicyIds]);
 
   // ─── Fetch policy summaries for client table ──────────────
   useEffect(() => {
@@ -3482,49 +3493,6 @@ export default function ClientsPage() {
         </div>
       )}
 
-      {/* Anniversary Alert Banner */}
-      {anniversaryAlerts.length > 0 && !anniversaryDismissed && (
-        <div className="mb-6 bg-amber-50 rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-4">
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 bg-amber-100 rounded-[5px] flex items-center justify-center shrink-0 mt-0.5">
-                <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-amber-900">Policy Anniversaries Coming Up</h3>
-                <div className="mt-2 space-y-1">
-                  {anniversaryAlerts.slice(0, 5).map((alert, i) => {
-                    const days = daysUntilAnniversary(alert.anniversaryDate);
-                    return (
-                      <p key={i} className="text-sm text-amber-800">
-                        <span className="font-medium">{alert.clientName}</span>
-                        {' — '}
-                        {alert.policy.policyType}
-                        {' — '}
-                        {days === 0 ? '1-year anniversary is today' : days === 1 ? '1-year anniversary tomorrow' : `1-year anniversary in ${days} days`}
-                      </p>
-                    );
-                  })}
-                  {anniversaryAlerts.length > 5 && (
-                    <p className="text-xs text-amber-600">+{anniversaryAlerts.length - 5} more</p>
-                  )}
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={() => setAnniversaryDismissed(true)}
-              className="text-amber-400 hover:text-amber-600 transition-colors shrink-0"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className={isImportModalOpen || isAddFlowActive ? 'overflow-x-visible' : 'overflow-x-clip'}>
         <div
           className="flex transition-transform duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
@@ -3838,9 +3806,8 @@ export default function ClientsPage() {
               ) : (
                 <>
                   <div className="rounded-[8px] border border-[#d0d0d0] bg-[#f8f8f8] px-4 py-2.5">
-                    <p className="text-xs text-[#5a5a5a]">
-                      Choose a source, add files, and review results before importing.
-                    </p>
+                    <p className="text-xs font-semibold text-[#5a5a5a]">Import clients in 3 steps</p>
+                    <p className="text-[11px] text-[#707070] mt-0.5">1) Add files  2) Review parsed records  3) Import</p>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -3879,7 +3846,7 @@ export default function ClientsPage() {
                           )}
                         </div>
                       </div>
-                      <p className="text-xs text-[#707070] mt-2">Import files directly from Google Drive.</p>
+                      <p className="text-xs text-[#707070] mt-2">Pick files from your Drive.</p>
                     </button>
 
                     <button
@@ -3896,7 +3863,7 @@ export default function ClientsPage() {
                         </div>
                         <span>Upload from Computer</span>
                       </div>
-                      <p className="text-xs text-[#707070] mt-2">Add one file or many at once.</p>
+                      <p className="text-xs text-[#707070] mt-2">Select files from your computer.</p>
                     </button>
                   </div>
 
@@ -3905,7 +3872,7 @@ export default function ClientsPage() {
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                         googleDriveConnected ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600'
                       }`}>
-                        {googleDriveLoading ? 'Checking connection' : googleDriveConnected ? 'Drive connected' : 'Drive not connected'}
+                        {googleDriveLoading ? 'Checking connection' : googleDriveConnected ? 'Drive connected' : 'Drive disconnected'}
                       </span>
                       {googleDriveConnected && googleDriveEmail && (
                         <span className="inline-flex items-center rounded-full bg-[#f3f7f7] px-2 py-0.5 text-[10px] font-medium text-[#005851]">
@@ -3916,7 +3883,7 @@ export default function ClientsPage() {
                     {!googleDriveConnected && (
                       <div className="rounded-[6px] border border-amber-200 bg-amber-50/70 px-3 py-2">
                         <p className="text-[11px] leading-relaxed text-amber-800">
-                          Google may show an "unverified app" warning while our OAuth review is in progress. You can continue by choosing
+                          Google may show an "unverified app" screen during review. You can continue by choosing
                           <span className="font-semibold"> Advanced</span> then
                           <span className="font-semibold"> Go to AgentForLife</span>.
                         </p>
@@ -3948,21 +3915,17 @@ export default function ClientsPage() {
                         : 'border-[#d0d0d0] bg-white'
                     }`}
                   >
-                    <p className="text-xs text-[#707070] text-center">
-                      Drag files here or use an upload option above.
-                    </p>
-                    <p className="text-[11px] text-[#999999] text-center mt-1">
-                      CSV, TSV, Excel, Google Sheets, PDF · Up to 50 files per import
-                    </p>
+                    <p className="text-xs text-[#707070] text-center">Drag and drop files here.</p>
+                    <p className="text-[11px] text-[#999999] text-center mt-1">CSV, TSV, Excel, PDF • Max 50 files</p>
                   </div>
 
                   {importFileStatuses.length > 0 && (
                     <div className="border border-[#d0d0d0] rounded-[5px] overflow-hidden">
                       <div className="bg-[#f8f8f8] px-4 py-2 border-b border-[#d0d0d0] flex items-center justify-between">
-                        <p className="text-xs font-semibold text-[#707070]">File Processing</p>
+                        <p className="text-xs font-semibold text-[#707070]">File status</p>
                         <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-green-50 text-green-700">{importFileStatusSummary.succeeded} ready</span>
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-700">{importFileStatusSummary.failed} review</span>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-green-50 text-green-700">{importFileStatusSummary.succeeded} ready to import</span>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-700">{importFileStatusSummary.failed} needs review</span>
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700">{importFileStatusSummary.parsing} processing</span>
                           {importFileStatusSummary.queued > 0 && (
                             <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-600">{importFileStatusSummary.queued} queued</span>
@@ -4030,13 +3993,11 @@ export default function ClientsPage() {
                         <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        <span className="font-semibold">Review before import</span>
+                        <span className="font-semibold">Some files need attention</span>
                       </div>
                       <div className="mt-2 space-y-1 max-w-2xl">
                         {(importWarningItems.length > 0 ? importWarningItems : [importWarning]).map((item, idx) => (
-                          <p key={`${item}-${idx}`} className="leading-relaxed">
-                            {item}
-                          </p>
+                          <p key={`${item}-${idx}`} className="leading-relaxed">- {item}</p>
                         ))}
                       </div>
                     </div>
@@ -4070,7 +4031,7 @@ export default function ClientsPage() {
                       <div className="border border-[#d0d0d0] rounded-[5px] overflow-hidden">
                         <div className="bg-[#f8f8f8] px-4 py-2 border-b border-[#d0d0d0]">
                           <p className="text-xs font-semibold text-[#707070]">
-                            Review ({importData.length} row{importData.length !== 1 ? 's' : ''})
+                            Review records ({importData.length})
                           </p>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-[1.15fr_1fr]">
@@ -4130,7 +4091,7 @@ export default function ClientsPage() {
                                 </div>
                               </div>
                             ) : (
-                              <p className="text-xs text-[#707070]">Select a row to review details.</p>
+                              <p className="text-xs text-[#707070]">Select a record to see details.</p>
                             )}
                           </div>
                         </div>
@@ -4164,7 +4125,7 @@ export default function ClientsPage() {
                           disabled={importing || parsingBob}
                           className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-100 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors text-sm"
                         >
-                          Clear
+                          Reset
                         </button>
                         <button
                           onClick={handleImportClients}
@@ -4180,7 +4141,7 @@ export default function ClientsPage() {
                               Importing...
                             </>
                           ) : (
-                            `Import ${importData.length} Record${importData.length !== 1 ? 's' : ''}`
+                            `Import ${importData.length} Client${importData.length !== 1 ? 's' : ''}`
                           )}
                         </button>
                       </div>
@@ -4260,6 +4221,7 @@ export default function ClientsPage() {
                 {paginatedClients.map((client) => {
                   const summary = clientPolicySummaries[client.id];
                   const hasLapsed = summary && summary.lapsed > 0;
+                  const upcomingAnniversaryCount = clientUpcomingAnniversaryCounts[client.id] || 0;
                   return (
                   <tr
                     key={client.id}
@@ -4272,7 +4234,17 @@ export default function ClientsPage() {
                           {client.name.charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0">
-                          <span className="text-sm font-medium text-[#000000] block truncate">{client.name}</span>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-sm font-medium text-[#000000] block truncate">{client.name}</span>
+                            {upcomingAnniversaryCount > 0 && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[10px] rounded-full font-semibold shrink-0">
+                                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                {upcomingAnniversaryCount} Upcoming
+                              </span>
+                            )}
+                          </div>
                           <span className="text-xs text-[#a0a0a0] truncate block">{client.email || client.phone || ''}</span>
                         </div>
                       </div>
@@ -4354,6 +4326,7 @@ export default function ClientsPage() {
             {paginatedClients.map((client) => {
               const summary = clientPolicySummaries[client.id];
               const hasLapsed = summary && summary.lapsed > 0;
+              const upcomingAnniversaryCount = clientUpcomingAnniversaryCounts[client.id] || 0;
               return (
               <div
                 key={client.id}
@@ -4367,6 +4340,14 @@ export default function ClientsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold text-[#000000] truncate">{client.name}</p>
+                      {upcomingAnniversaryCount > 0 && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[10px] rounded-full font-semibold shrink-0">
+                          <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Upcoming
+                        </span>
+                      )}
                       {hasLapsed && (
                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-red-50 text-red-600 text-[10px] rounded-full font-semibold shrink-0">
                           <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
