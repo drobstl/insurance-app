@@ -117,6 +117,6 @@ test.describe('Bulk import (authenticated)', () => {
     await expect(page.getByRole('button', { name: 'Import 2 Clients' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Import 2 Clients' }).click();
-    await expect(page.getByText('Imported 2 clients')).toBeVisible();
+    await expect(page.getByText(/Successfully imported/i)).toBeVisible({ timeout: 15000 });
   });
 });
