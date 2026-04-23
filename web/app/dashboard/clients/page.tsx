@@ -3329,12 +3329,10 @@ export default function ClientsPage() {
 
   if (loading) return null;
   const addFlowSlideIndex = (
-    isImportModalOpen
-      ? 1
-      : addFlowStage === 'list' ? 0
-        : addFlowStage === 'upload' ? 2
-          : addFlowStage === 'review' ? 3
-            : 4
+    addFlowStage === 'list' ? 0
+      : addFlowStage === 'upload' ? 1
+        : addFlowStage === 'review' ? 2
+          : 3
   );
 
   // ─── Render ──────────────────────────────────────────────
@@ -3471,13 +3469,14 @@ export default function ClientsPage() {
         </div>
       )}
 
-      <div className="overflow-x-clip">
+      <div className={isImportModalOpen ? 'overflow-x-visible' : 'overflow-x-clip'}>
         <div
           className="flex transition-transform duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
           style={{ transform: `translateX(-${addFlowSlideIndex * 100}%)` }}
         >
           <div className="w-full shrink-0">
       {/* Action Bar */}
+      {!isImportModalOpen && (
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">
           <div className="flex items-center gap-2">
             <button
@@ -3534,286 +3533,18 @@ export default function ClientsPage() {
             />
           </div>
       </div>
-
-      <div className="mb-6">
-      {/* Client Table */}
-      <div>
-      {clientsLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="flex flex-col items-center gap-4">
-            <svg className="animate-spin w-10 h-10 text-[#45bcaa]" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
-            <p className="text-[#707070]">Loading clients...</p>
-          </div>
-        </div>
-      ) : clients.length === 0 ? (
-        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-12 text-center">
-          <div className="w-16 h-16 bg-[#daf3f0] rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-[#005851]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-bold text-[#000000] mb-2">No clients yet</h3>
-          <p className="text-[#707070] text-sm mb-6 max-w-md mx-auto">
-            Add your first client to get started. Each client gets a unique code to connect with you through the app.
-          </p>
-          <button
-            onClick={handleOpenModal}
-            className="px-6 py-3 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors"
-          >
-            Add Your First Client
-          </button>
-        </div>
-      ) : filteredClients.length === 0 ? (
-        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-12 text-center">
-          <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-bold text-[#000000] mb-2">No results found</h3>
-          <p className="text-[#707070] text-sm">
-            No clients match &ldquo;{searchQuery}&rdquo;. Try a different search term.
-          </p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden">
-          {/* Desktop table */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-[#d0d0d0] bg-[#f8f8f8]">
-                  <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3 cursor-pointer select-none hover:text-[#005851] transition-colors" onClick={() => handleSort('name')}>
-                    Name<SortIcon column="name" />
-                  </th>
-                  <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3 cursor-pointer select-none hover:text-[#005851] transition-colors" onClick={() => handleSort('createdAt')}>
-                    Client Since<SortIcon column="createdAt" />
-                  </th>
-                  <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Policies</th>
-                  <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Status</th>
-                  <th className="text-right text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#f0f0f0]">
-                {paginatedClients.map((client) => {
-                  const summary = clientPolicySummaries[client.id];
-                  const hasLapsed = summary && summary.lapsed > 0;
-                  return (
-                  <tr
-                    key={client.id}
-                    className="hover:bg-[#f8f8f8] transition-colors cursor-pointer"
-                    onClick={() => handleSelectClient(client)}
-                  >
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-[#005851] rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0">
-                          {client.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <span className="text-sm font-medium text-[#000000] block truncate">{client.name}</span>
-                          <span className="text-xs text-[#a0a0a0] truncate block">{client.email || client.phone || ''}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-xs text-[#707070]">
-                      {formatClientSinceCell(client)}
-                    </td>
-                    <td className="px-5 py-3.5 text-sm text-[#707070]">
-                      {summary ? (
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {summary.active > 0 && <span className="px-2 py-0.5 bg-green-50 text-green-700 text-xs rounded-full font-medium">{summary.active} Active</span>}
-                          {summary.pending > 0 && <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs rounded-full font-medium">{summary.pending} Pending</span>}
-                          {summary.lapsed > 0 && <span className="px-2 py-0.5 bg-red-50 text-red-600 text-xs rounded-full font-medium">{summary.lapsed} Lapsed</span>}
-                          {summary.total === 0 && <span className="text-xs text-[#a0a0a0] italic">No policies</span>}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-[#d0d0d0]">—</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      {hasLapsed ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-50 text-red-600 text-xs rounded-full font-semibold">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                          </svg>
-                          At Risk
-                        </span>
-                      ) : summary && summary.total > 0 ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 text-xs rounded-full font-medium">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          Good
-                        </span>
-                      ) : (
-                        <span className="text-xs text-[#d0d0d0]">—</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3.5 text-right">
-                      <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => handleOpenFlagAtRisk(client)}
-                          className="p-1.5 rounded-[5px] hover:bg-amber-50 text-[#707070] hover:text-amber-600 transition-colors"
-                          title="Flag policy at risk"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleEditClient(client)}
-                          className="p-1.5 rounded-[5px] hover:bg-gray-100 text-[#707070] hover:text-[#000000] transition-colors"
-                          title="Edit client"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirmClient(client)}
-                          className="p-1.5 rounded-[5px] hover:bg-red-50 text-[#707070] hover:text-red-600 transition-colors"
-                          title="Delete client"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile card list */}
-          <div className="md:hidden divide-y divide-[#f0f0f0]">
-            {paginatedClients.map((client) => {
-              const summary = clientPolicySummaries[client.id];
-              const hasLapsed = summary && summary.lapsed > 0;
-              return (
-              <div
-                key={client.id}
-                className="p-4 hover:bg-[#f8f8f8] transition-colors cursor-pointer"
-                onClick={() => handleSelectClient(client)}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#005851] rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
-                    {client.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-[#000000] truncate">{client.name}</p>
-                      {hasLapsed && (
-                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-red-50 text-red-600 text-[10px] rounded-full font-semibold shrink-0">
-                          <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                          </svg>
-                          At Risk
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-[#707070] truncate">
-                      {summary ? (
-                        <>
-                          {summary.active > 0 && `${summary.active} Active`}
-                          {summary.active > 0 && summary.lapsed > 0 && ', '}
-                          {summary.lapsed > 0 && `${summary.lapsed} Lapsed`}
-                          {summary.total === 0 && 'No policies'}
-                        </>
-                      ) : (
-                        client.email || client.phone || 'No contact info'
-                      )}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={() => handleOpenFlagAtRisk(client)}
-                      className="p-1.5 rounded-[5px] hover:bg-amber-50 text-[#707070] hover:text-amber-600 transition-colors"
-                      title="Flag at risk"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => handleEditClient(client)}
-                      className="p-1.5 rounded-[5px] hover:bg-gray-100 text-[#707070] hover:text-[#000000] transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirmClient(client)}
-                      className="p-1.5 rounded-[5px] hover:bg-red-50 text-[#707070] hover:text-red-600 transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              );
-            })}
-          </div>
-
-          {/* Table footer with pagination */}
-          <div className="px-5 py-3 border-t border-[#d0d0d0] bg-[#f8f8f8] flex items-center justify-between">
-            <p className="text-xs text-[#707070]">
-              Showing {Math.min((currentPage - 1) * PAGE_SIZE + 1, filteredClients.length)}&ndash;{Math.min(currentPage * PAGE_SIZE, filteredClients.length)} of {filteredClients.length} client{filteredClients.length !== 1 ? 's' : ''}
-              {filteredClients.length !== clients.length && ` (filtered from ${clients.length})`}
-            </p>
-            {totalPages > 1 && (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="px-2.5 py-1 text-xs font-medium rounded-[5px] border border-[#d0d0d0] hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  Prev
-                </button>
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let page: number;
-                  if (totalPages <= 5) { page = i + 1; }
-                  else if (currentPage <= 3) { page = i + 1; }
-                  else if (currentPage >= totalPages - 2) { page = totalPages - 4 + i; }
-                  else { page = currentPage - 2 + i; }
-                  return (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`w-7 h-7 text-xs font-medium rounded-[5px] transition-colors ${
-                        currentPage === page
-                          ? 'bg-[#005851] text-white'
-                          : 'hover:bg-gray-100 text-[#707070]'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  );
-                })}
-                <button
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="px-2.5 py-1 text-xs font-medium rounded-[5px] border border-[#d0d0d0] hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  Next
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
       )}
-      </div>
-      </div>
-          </div>
-          <div className="w-full shrink-0">
-            <div className="mb-6">
+
+      <div className={`relative mb-6 overflow-visible ${isImportModalOpen ? 'min-h-[520px]' : ''}`}>
+      {/* ── Bulk Import Surface ── */}
+      <div
+        className={`absolute inset-x-0 top-0 z-20 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          isImportModalOpen
+            ? 'translate-x-0 opacity-100'
+            : 'translate-x-[112%] opacity-0 pointer-events-none'
+        }`}
+        aria-hidden={!isImportModalOpen}
+      >
         <div
           ref={importModalScrollRef}
           className="relative w-full max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] max-h-[82vh] overflow-y-auto"
@@ -4326,7 +4057,286 @@ export default function ClientsPage() {
               )}
             </div>
         </div>
-            </div>
+      </div>
+      {/* Client Table */}
+      <div className={`relative z-10 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        isImportModalOpen
+          ? '-translate-x-[calc(72%+14rem)] opacity-75 scale-[0.985] pointer-events-none select-none'
+          : 'translate-x-0 opacity-100 scale-100'
+      }`}>
+      {clientsLoading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="flex flex-col items-center gap-4">
+            <svg className="animate-spin w-10 h-10 text-[#45bcaa]" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+            <p className="text-[#707070]">Loading clients...</p>
+          </div>
+        </div>
+      ) : clients.length === 0 ? (
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-12 text-center">
+          <div className="w-16 h-16 bg-[#daf3f0] rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-[#005851]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-bold text-[#000000] mb-2">No clients yet</h3>
+          <p className="text-[#707070] text-sm mb-6 max-w-md mx-auto">
+            Add your first client to get started. Each client gets a unique code to connect with you through the app.
+          </p>
+          <button
+            onClick={handleOpenModal}
+            className="px-6 py-3 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors"
+          >
+            Add Your First Client
+          </button>
+        </div>
+      ) : filteredClients.length === 0 ? (
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-12 text-center">
+          <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-bold text-[#000000] mb-2">No results found</h3>
+          <p className="text-[#707070] text-sm">
+            No clients match &ldquo;{searchQuery}&rdquo;. Try a different search term.
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden">
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[#d0d0d0] bg-[#f8f8f8]">
+                  <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3 cursor-pointer select-none hover:text-[#005851] transition-colors" onClick={() => handleSort('name')}>
+                    Name<SortIcon column="name" />
+                  </th>
+                  <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3 cursor-pointer select-none hover:text-[#005851] transition-colors" onClick={() => handleSort('createdAt')}>
+                    Client Since<SortIcon column="createdAt" />
+                  </th>
+                  <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Policies</th>
+                  <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Status</th>
+                  <th className="text-right text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#f0f0f0]">
+                {paginatedClients.map((client) => {
+                  const summary = clientPolicySummaries[client.id];
+                  const hasLapsed = summary && summary.lapsed > 0;
+                  return (
+                  <tr
+                    key={client.id}
+                    className="hover:bg-[#f8f8f8] transition-colors cursor-pointer"
+                    onClick={() => handleSelectClient(client)}
+                  >
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-[#005851] rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0">
+                          {client.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-sm font-medium text-[#000000] block truncate">{client.name}</span>
+                          <span className="text-xs text-[#a0a0a0] truncate block">{client.email || client.phone || ''}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-xs text-[#707070]">
+                      {formatClientSinceCell(client)}
+                    </td>
+                    <td className="px-5 py-3.5 text-sm text-[#707070]">
+                      {summary ? (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {summary.active > 0 && <span className="px-2 py-0.5 bg-green-50 text-green-700 text-xs rounded-full font-medium">{summary.active} Active</span>}
+                          {summary.pending > 0 && <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs rounded-full font-medium">{summary.pending} Pending</span>}
+                          {summary.lapsed > 0 && <span className="px-2 py-0.5 bg-red-50 text-red-600 text-xs rounded-full font-medium">{summary.lapsed} Lapsed</span>}
+                          {summary.total === 0 && <span className="text-xs text-[#a0a0a0] italic">No policies</span>}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-[#d0d0d0]">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      {hasLapsed ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-50 text-red-600 text-xs rounded-full font-semibold">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                          At Risk
+                        </span>
+                      ) : summary && summary.total > 0 ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 text-xs rounded-full font-medium">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Good
+                        </span>
+                      ) : (
+                        <span className="text-xs text-[#d0d0d0]">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => handleOpenFlagAtRisk(client)}
+                          className="p-1.5 rounded-[5px] hover:bg-amber-50 text-[#707070] hover:text-amber-600 transition-colors"
+                          title="Flag policy at risk"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleEditClient(client)}
+                          className="p-1.5 rounded-[5px] hover:bg-gray-100 text-[#707070] hover:text-[#000000] transition-colors"
+                          title="Edit client"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirmClient(client)}
+                          className="p-1.5 rounded-[5px] hover:bg-red-50 text-[#707070] hover:text-red-600 transition-colors"
+                          title="Delete client"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile card list */}
+          <div className="md:hidden divide-y divide-[#f0f0f0]">
+            {paginatedClients.map((client) => {
+              const summary = clientPolicySummaries[client.id];
+              const hasLapsed = summary && summary.lapsed > 0;
+              return (
+              <div
+                key={client.id}
+                className="p-4 hover:bg-[#f8f8f8] transition-colors cursor-pointer"
+                onClick={() => handleSelectClient(client)}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-[#005851] rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
+                    {client.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-[#000000] truncate">{client.name}</p>
+                      {hasLapsed && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-red-50 text-red-600 text-[10px] rounded-full font-semibold shrink-0">
+                          <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                          At Risk
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-[#707070] truncate">
+                      {summary ? (
+                        <>
+                          {summary.active > 0 && `${summary.active} Active`}
+                          {summary.active > 0 && summary.lapsed > 0 && ', '}
+                          {summary.lapsed > 0 && `${summary.lapsed} Lapsed`}
+                          {summary.total === 0 && 'No policies'}
+                        </>
+                      ) : (
+                        client.email || client.phone || 'No contact info'
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => handleOpenFlagAtRisk(client)}
+                      className="p-1.5 rounded-[5px] hover:bg-amber-50 text-[#707070] hover:text-amber-600 transition-colors"
+                      title="Flag at risk"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleEditClient(client)}
+                      className="p-1.5 rounded-[5px] hover:bg-gray-100 text-[#707070] hover:text-[#000000] transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => setDeleteConfirmClient(client)}
+                      className="p-1.5 rounded-[5px] hover:bg-red-50 text-[#707070] hover:text-red-600 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              );
+            })}
+          </div>
+
+          {/* Table footer with pagination */}
+          <div className="px-5 py-3 border-t border-[#d0d0d0] bg-[#f8f8f8] flex items-center justify-between">
+            <p className="text-xs text-[#707070]">
+              Showing {Math.min((currentPage - 1) * PAGE_SIZE + 1, filteredClients.length)}&ndash;{Math.min(currentPage * PAGE_SIZE, filteredClients.length)} of {filteredClients.length} client{filteredClients.length !== 1 ? 's' : ''}
+              {filteredClients.length !== clients.length && ` (filtered from ${clients.length})`}
+            </p>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-2.5 py-1 text-xs font-medium rounded-[5px] border border-[#d0d0d0] hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Prev
+                </button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let page: number;
+                  if (totalPages <= 5) { page = i + 1; }
+                  else if (currentPage <= 3) { page = i + 1; }
+                  else if (currentPage >= totalPages - 2) { page = totalPages - 4 + i; }
+                  else { page = currentPage - 2 + i; }
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-7 h-7 text-xs font-medium rounded-[5px] transition-colors ${
+                        currentPage === page
+                          ? 'bg-[#005851] text-white'
+                          : 'hover:bg-gray-100 text-[#707070]'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-2.5 py-1 text-xs font-medium rounded-[5px] border border-[#d0d0d0] hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      </div>
+      </div>
           </div>
           <div className="w-full shrink-0">
             <div className="max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px]">
