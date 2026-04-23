@@ -3330,9 +3330,9 @@ export default function ClientsPage() {
   if (loading) return null;
   const addFlowSlideIndex = (
     addFlowStage === 'list' ? 0
-      : addFlowStage === 'upload' ? 1
-        : addFlowStage === 'review' ? 2
-          : 3
+      : addFlowStage === 'upload' ? 0.72
+        : addFlowStage === 'review' ? 1.72
+          : 2.72
   );
 
   // ─── Render ──────────────────────────────────────────────
@@ -3476,8 +3476,11 @@ export default function ClientsPage() {
         >
           <div className="w-full shrink-0">
       {/* Action Bar */}
-      {!isImportModalOpen && (
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">
+      <div className={`flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        isImportModalOpen
+          ? '-translate-x-[calc(72%+14rem)] opacity-75 pointer-events-none select-none'
+          : 'translate-x-0 opacity-100'
+      }`}>
           <div className="flex items-center gap-2">
             <button
               onClick={handleOpenModal}
@@ -3533,7 +3536,6 @@ export default function ClientsPage() {
             />
           </div>
       </div>
-      )}
 
       <div className={`relative mb-6 overflow-visible ${isImportModalOpen ? 'min-h-[520px]' : ''}`}>
       {/* ── Bulk Import Surface ── */}
