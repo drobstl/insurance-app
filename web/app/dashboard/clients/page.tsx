@@ -598,29 +598,6 @@ export default function ClientsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [addFlowStage, setAddFlowStage] = useState<AddFlowStage>('list');
   const [manualEntryExpanded, setManualEntryExpanded] = useState(false);
-  const reviewScrollRef = useRef<HTMLDivElement | null>(null);
-  const [reviewAtBottom, setReviewAtBottom] = useState(false);
-  const checkReviewScrollPosition = useCallback(() => {
-    const el = reviewScrollRef.current;
-    if (!el) return;
-    const hasOverflow = el.scrollHeight > el.clientHeight + 1;
-    const atBottom = !hasOverflow || el.scrollTop + el.clientHeight >= el.scrollHeight - 4;
-    setReviewAtBottom(atBottom);
-  }, []);
-  useEffect(() => {
-    if (addFlowStage !== 'review') return;
-    const el = reviewScrollRef.current;
-    if (el) {
-      // Always re-open review at the top instead of restoring prior scroll.
-      el.scrollTop = 0;
-    }
-    const raf = requestAnimationFrame(checkReviewScrollPosition);
-    window.addEventListener('resize', checkReviewScrollPosition);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('resize', checkReviewScrollPosition);
-    };
-  }, [addFlowStage, checkReviewScrollPosition]);
   const [addFlowPolicyForm, setAddFlowPolicyForm] = useState<PolicyFormData>({ ...emptyPolicyForm });
   const [welcomeDraft, setWelcomeDraft] = useState('');
   const [welcomeSending, setWelcomeSending] = useState(false);
@@ -3338,6 +3315,7 @@ export default function ClientsPage() {
   const incomingSurfaceMotionClass = 'absolute inset-x-0 top-0 z-20 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)]';
   const addFlowIncomingSurfaceMotionClass = 'absolute inset-x-0 top-[4rem] z-20 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)]';
   const incomingSurfaceShellClass = 'relative w-full max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] max-h-[82vh] overflow-y-auto';
+  const addFlowSurfaceShellClass = 'relative w-full max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden';
   const incomingSurfaceHeaderClass = 'flex items-center justify-between p-6 border-b border-gray-200 bg-white';
   const addFlowBeltStepPercent = 72;
   const addFlowBeltStepRem = 14;
@@ -3357,6 +3335,12 @@ export default function ClientsPage() {
           : -1
   );
   const addFlowBeltPosition = addFlowStageIndex + 1;
+  const addFlowSurfaceMinHeight = (
+    addFlowStage === 'review' ? 1050
+      : addFlowStage === 'welcome' ? 760
+        : addFlowStage === 'upload' ? 560
+          : 0
+  );
   const listSurfaceTransform = isImportModalOpen
     ? getBeltTranslate(-1, addFlowBeltStepRem + addFlowInterCardGapRem)
     : addFlowBeltPosition > 0
@@ -3574,7 +3558,16 @@ export default function ClientsPage() {
           </div>
       </div>
 
-      <div className={`relative mb-6 overflow-visible ${isImportModalOpen || isAddFlowActive ? 'min-h-[520px]' : ''}`}>
+      <div
+        className="relative mb-6 overflow-visible"
+        style={{
+          minHeight: isImportModalOpen
+            ? '520px'
+            : isAddFlowActive
+              ? `${addFlowSurfaceMinHeight}px`
+              : undefined,
+        }}
+      >
       {/* ── Bulk Import Surface ── */}
       <div
         className={`${incomingSurfaceMotionClass} ${
@@ -4383,7 +4376,7 @@ export default function ClientsPage() {
             style={getAddFlowSurfaceStyle(0)}
             aria-hidden={addFlowStage !== 'upload'}
           >
-            <div className={incomingSurfaceShellClass}>
+            <div className={addFlowSurfaceShellClass}>
               <div className={incomingSurfaceHeaderClass}>
                 <div>
                   <h3 className="text-xl font-bold text-[#000000]">Add Client</h3>
@@ -4463,7 +4456,7 @@ export default function ClientsPage() {
             style={getAddFlowSurfaceStyle(1)}
             aria-hidden={addFlowStage !== 'review'}
           >
-            <div className={incomingSurfaceShellClass}>
+            <div className={addFlowSurfaceShellClass}>
               <div className={incomingSurfaceHeaderClass}>
                 <div>
                   <h3 className="text-xl font-bold text-[#000000]">Review & Confirm</h3>
@@ -4471,52 +4464,26 @@ export default function ClientsPage() {
                 </div>
                 <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#45bcaa]" /><span className="h-2.5 w-2.5 rounded-full bg-[#d0d0d0]" /></div>
               </div>
-              <div className="relative">
-                <div
-                  ref={reviewScrollRef}
-                  onScroll={checkReviewScrollPosition}
-                  className="max-h-[60vh] overflow-y-auto overscroll-contain scrollbar-brand p-6 space-y-4"
-                >
-                  <div className="flex items-center gap-2 px-3 py-2 bg-[#daf3f0] border border-[#45bcaa]/30 rounded-[5px] text-xs text-[#005851]">
-                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    <span className="font-medium">Extraction complete. Review and confirm.</span>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <input type="text" value={formData.name} onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))} placeholder="Name *" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
-                    <input type="tel" value={formData.phone} onChange={(e) => setFormData((f) => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
-                    <input type="email" value={formData.email} onChange={(e) => setFormData((f) => ({ ...f, email: e.target.value }))} placeholder="Email" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
-                    <div className="flex flex-col">
-                      <label className="text-xs font-medium text-[#707070] mb-1">Date of Birth</label>
-                      <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))} className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
-                    </div>
-                  </div>
-                  {renderAddFlowPolicyInputs()}
-                  {formError && <p className="text-xs text-red-600">{formError}</p>}
-                  <div className="flex gap-3 pt-2">
-                    <button type="button" onClick={() => setAddFlowStage('upload')} className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-[5px] border border-gray-200 text-sm">Cancel</button>
-                    <button type="button" onClick={handleReviewConfirmAndCreate} disabled={submitting} className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] text-sm">{submitting ? 'Creating...' : 'Confirm & Create'}</button>
+              <div className="p-6 space-y-4">
+                <div className="flex items-center gap-2 px-3 py-2 bg-[#daf3f0] border border-[#45bcaa]/30 rounded-[5px] text-xs text-[#005851]">
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span className="font-medium">Extraction complete. Review and confirm.</span>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <input type="text" value={formData.name} onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))} placeholder="Name *" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                  <input type="tel" value={formData.phone} onChange={(e) => setFormData((f) => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                  <input type="email" value={formData.email} onChange={(e) => setFormData((f) => ({ ...f, email: e.target.value }))} placeholder="Email" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                  <div className="flex flex-col">
+                    <label className="text-xs font-medium text-[#707070] mb-1">Date of Birth</label>
+                    <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))} className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
                   </div>
                 </div>
-                <div
-                  aria-hidden
-                  className={`pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white via-white/80 to-transparent transition-opacity duration-200 ${reviewAtBottom ? 'opacity-0' : 'opacity-100'}`}
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const el = reviewScrollRef.current;
-                    if (!el) return;
-                    el.scrollBy({ top: el.clientHeight * 0.8, behavior: 'smooth' });
-                  }}
-                  aria-hidden={reviewAtBottom}
-                  tabIndex={reviewAtBottom ? -1 : 0}
-                  className={`absolute left-1/2 -translate-x-1/2 bottom-3 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white border border-[#45bcaa] text-[#005851] text-xs font-semibold shadow-[0_6px_16px_rgba(0,88,81,0.18)] hover:bg-[#daf3f0] transition-all duration-200 ${reviewAtBottom ? 'opacity-0 translate-y-2 pointer-events-none' : 'opacity-100 translate-y-0'}`}
-                >
-                  <span>Scroll for more</span>
-                  <svg className="w-3.5 h-3.5 animate-bounce-soft" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
+                {renderAddFlowPolicyInputs()}
+                {formError && <p className="text-xs text-red-600">{formError}</p>}
+                <div className="flex gap-3 pt-2">
+                  <button type="button" onClick={() => setAddFlowStage('upload')} className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-[5px] border border-gray-200 text-sm">Cancel</button>
+                  <button type="button" onClick={handleReviewConfirmAndCreate} disabled={submitting} className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] text-sm">{submitting ? 'Creating...' : 'Confirm & Create'}</button>
+                </div>
               </div>
             </div>
           </div>
@@ -4525,7 +4492,7 @@ export default function ClientsPage() {
             style={getAddFlowSurfaceStyle(2)}
             aria-hidden={addFlowStage !== 'welcome'}
           >
-            <div className={incomingSurfaceShellClass}>
+            <div className={addFlowSurfaceShellClass}>
               <div className={incomingSurfaceHeaderClass}>
                 <div>
                   <h3 className="text-xl font-bold text-[#000000]">Welcome Message</h3>
