@@ -43,7 +43,7 @@ test.describe('Bulk import (authenticated)', () => {
     });
 
     await page.getByRole('button', { name: 'Bulk Import' }).click();
-    await page.locator('input[type="file"]').setInputFiles(fixtureCsvPath);
+    await page.locator('input[type="file"][accept*=".csv"]').setInputFiles(fixtureCsvPath);
 
     await expect(page.getByText('Review records (2)')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Import 2 Clients' })).toBeVisible();
