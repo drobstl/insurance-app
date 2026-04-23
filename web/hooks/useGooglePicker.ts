@@ -177,6 +177,10 @@ export function useGooglePicker() {
             reject(new Error('Google Picker API unavailable.'));
             return;
           }
+          const scrollX = window.scrollX;
+          const scrollY = window.scrollY;
+          const pickerWidth = Math.max(820, Math.min(1120, window.innerWidth - 40));
+          const pickerHeight = Math.max(560, Math.min(760, window.innerHeight - 40));
 
           const docsView = new pickerApi.DocsView(pickerApi.ViewId.DOCS)
             .setIncludeFolders(true)
@@ -189,6 +193,7 @@ export function useGooglePicker() {
             .setOrigin(window.location.origin)
             .setSelectableMimeTypes(PICKER_SUPPORTED_MIMES_WITH_FOLDERS)
             .enableFeature(pickerApi.Feature.MULTISELECT_ENABLED)
+            .setSize(pickerWidth, pickerHeight)
             .addView(docsView)
             .setCallback((data: any) => {
               const action = data?.action;
@@ -203,6 +208,9 @@ export function useGooglePicker() {
             .build();
 
           picker.setVisible(true);
+          // Keep page position stable so the picker doesn't push the dashboard view.
+          requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
+          window.setTimeout(() => window.scrollTo(scrollX, scrollY), 120);
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to open Google Picker.';

@@ -3917,6 +3917,15 @@ export default function ClientsPage() {
                         </span>
                       )}
                     </div>
+                    {!googleDriveConnected && (
+                      <div className="rounded-[6px] border border-amber-200 bg-amber-50/70 px-3 py-2">
+                        <p className="text-[11px] leading-relaxed text-amber-800">
+                          Google may show an "unverified app" warning while our OAuth review is in progress. You can continue by choosing
+                          <span className="font-semibold"> Advanced</span> then
+                          <span className="font-semibold"> Go to AgentForLife</span>.
+                        </p>
+                      </div>
+                    )}
                     {googlePickerError && (
                       <p className="text-[11px] text-red-600">{googlePickerError}</p>
                     )}

@@ -132,7 +132,27 @@ export default function PrivacyPolicyPage() {
             </section>
 
             <section className="mb-8">
-              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">7. Your Rights and Choices</h2>
+              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">7. Google User Data (Google Drive Integration)</h2>
+              <p className="text-[#2D3748] leading-relaxed mb-4">
+                If you choose to connect Google Drive, AgentForLife requests read-only access to your Google Drive files using the
+                <code className="mx-1">https://www.googleapis.com/auth/drive.readonly</code>
+                scope.
+              </p>
+              <ul className="list-disc list-inside text-[#2D3748] space-y-2 mb-4">
+                <li><strong>What we access:</strong> File metadata (for example, file name, ID, mime type) and file content only for files or folders you select for import.</li>
+                <li><strong>How we use it:</strong> To let you browse and select files, import policy/application documents, and process those documents into client records and related workflows that you request.</li>
+                <li><strong>What we do not do:</strong> We do not sell Google user data. We do not use Google user data for advertising. We do not use Google user data to train generalized AI models.</li>
+                <li><strong>Sharing and disclosure:</strong> Google user data is shared only with service providers that help us deliver the requested feature (for example, cloud hosting, storage, and AI document processing) and only as needed to provide or improve user-facing functionality.</li>
+                <li><strong>Retention and deletion:</strong> We retain imported data only as long as needed to operate the Service and your account, subject to legal requirements. You can request deletion at any time by contacting support@agentforlife.app, and we will process deletion requests within 30 days as described in this policy.</li>
+                <li><strong>Revoking access:</strong> You can disconnect Google Drive from within AgentForLife settings and revoke access at any time in your Google account permissions.</li>
+              </ul>
+              <p className="text-[#2D3748] leading-relaxed">
+                AgentForLife&apos;s use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.
+              </p>
+            </section>
+
+            <section className="mb-8">
+              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">8. Your Rights and Choices</h2>
               <p className="text-[#2D3748] leading-relaxed mb-4">
                 You have the following rights regarding your personal information:
               </p>
@@ -145,42 +165,42 @@ export default function PrivacyPolicyPage() {
             </section>
 
             <section className="mb-8">
-              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">8. Data Retention</h2>
+              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">9. Data Retention</h2>
               <p className="text-[#2D3748] leading-relaxed">
                 We retain your personal information for as long as your account is active or as needed to provide you with our Service. If you delete your account, we will delete your personal information within 30 days, except where we are required to retain it for legal or regulatory purposes.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">9. Data Breach Notification</h2>
+              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">10. Data Breach Notification</h2>
               <p className="text-[#2D3748] leading-relaxed">
                 In the event of a data breach that compromises the security of your personal information, we will notify affected users within 72 hours of becoming aware of the breach. Notification will be sent via email and will include a description of the breach, the types of data affected, and the steps we are taking to address it.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">10. Cookies and Analytics</h2>
+              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">11. Cookies and Analytics</h2>
               <p className="text-[#2D3748] leading-relaxed">
                 The Service may use cookies and similar technologies for essential functionality such as authentication and session management. We may also use analytics tools to understand how the Service is used in order to improve it. We do not use cookies or analytics data for advertising purposes.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">11. Children's Privacy</h2>
+              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">12. Children&apos;s Privacy</h2>
               <p className="text-[#2D3748] leading-relaxed">
                 Our Service is not intended for children under 18 years of age. We do not knowingly collect personal information from children under 18. If we learn that we have collected personal information from a child under 18, we will delete that information promptly.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">12. Changes to This Privacy Policy</h2>
+              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">13. Changes to This Privacy Policy</h2>
               <p className="text-[#2D3748] leading-relaxed">
                 We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the "Last Updated" date. We encourage you to review this Privacy Policy periodically for any changes.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">13. Contact Us</h2>
+              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">14. Contact Us</h2>
               <p className="text-[#2D3748] leading-relaxed">
                 If you have any questions about this Privacy Policy or our data practices, please contact us at:
               </p>
