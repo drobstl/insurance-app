@@ -327,14 +327,14 @@ Dropdown label: **Transamerica - Whole Life**  •  Form type: `transamerica_icc
   - policyNumber: `null`
   - review_ready: true
 
-### SBLI Policy Packet (single-page pull)
+### SBLI Policy Packet (two-page pull)
 
 Dropdown label: **SBLI - Policy Packet**  •  Form type: `sbli_policy_packet`
 
 - [ ] **`Gable SBLI.pdf`**
-  - Uses page 14 only (`PAGE_MAP [14]`)
+  - Uses pages 14 and 36 (`PAGE_MAP [14, 36]`)
   - insuranceCompany: `SBLI`
-  - policyNumber, premium, frequency, and effectiveDate extracted only if visible on that page
+  - policyNumber, premium, frequency, effectiveDate, and contact/demographic fields extracted when visible across these two pages
   - Pipeline completes without crash: YES
   - review_ready: true
 

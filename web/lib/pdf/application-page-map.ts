@@ -8,7 +8,7 @@ export const APPLICATION_PAGE_MAP: Record<string, number[]> = {
   uhl_icc22_200_878a: [5, 6, 9, 10],
   transamerica_icc22_t_ap_wl11ic_0822: [6, 7, 8, 10, 11],
   corebridge_aig_icc15_108847: [1, 2],
-  sbli_policy_packet: [14],
+  sbli_policy_packet: [14, 36],
   fg_iul: [4, 5, 6, 7, 11],
   fg_icc18_1000: [4, 5, 6, 7, 11],
   fg_lapp1125: [4, 5, 6, 7, 11],

@@ -228,20 +228,21 @@ FIELD RULES:
 HARD RULES:
 - policyNumber: ALWAYS return null (application number/internal IDs are not policy numbers).
 - effectiveDate: ALWAYS return null (not explicitly assigned at application stage).`,
-    // PAGE_MAP: [14] -> single page pull from SBLI policy packet where payment authorization summary appears.
-    sbli_policy_packet: `CARRIER-SPECIFIC GUIDANCE - SBLI Policy Packet (single-page extraction)
-You are receiving 1 image from an SBLI in-force policy packet.
+    // PAGE_MAP: [14, 36] -> Image 1 = page 14 payment/policy summary, Image 2 = page 36 contact/demographic details.
+    sbli_policy_packet: `CARRIER-SPECIFIC GUIDANCE - SBLI Policy Packet (two-page extraction)
+You are receiving 2 images from an SBLI in-force policy packet.
 
 FIELD RULES:
 - insuranceCompany: ALWAYS return "SBLI".
-- policyNumber: extract when explicitly labeled on this page.
-- premiumAmount: extract from "Total Premium" when present.
-- premiumFrequency: extract from "Recurring Payment Frequency" when present.
+- policyNumber: extract when explicitly labeled on either page.
+- premiumAmount: extract from "Total Premium" when present (typically Image 1).
+- premiumFrequency: extract from "Recurring Payment Frequency" when present (typically Image 1).
 - effectiveDate: extract from "Policy effective date" when present.
 - insuredName / policyOwner: extract from Insured/Owner name fields when visible.
+- insuredPhone / insuredEmail / insuredDateOfBirth: extract when visible (commonly on Image 2).
 
 STRICT RULES:
-- If a field is not visible on this single page, return null (do not infer from memory or other pages).
+- If a field is not visible across these 2 images, return null (do not infer from memory or other pages).
 - Do not treat routing/account numbers as policy numbers.`,
     // PAGE_MAP: [4, 5, 6, 7, 11] -> Unified F&G IUL option for known F&G packet variants.
     fg_iul: `CARRIER-SPECIFIC GUIDANCE - Fidelity & Guaranty Life IUL
