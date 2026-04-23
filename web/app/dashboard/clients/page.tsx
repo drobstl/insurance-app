@@ -609,6 +609,11 @@ export default function ClientsPage() {
   }, []);
   useEffect(() => {
     if (addFlowStage !== 'review') return;
+    const el = reviewScrollRef.current;
+    if (el) {
+      // Always re-open review at the top instead of restoring prior scroll.
+      el.scrollTop = 0;
+    }
     const raf = requestAnimationFrame(checkReviewScrollPosition);
     window.addEventListener('resize', checkReviewScrollPosition);
     return () => {
@@ -3328,12 +3333,43 @@ export default function ClientsPage() {
   // ─── Loading State ───────────────────────────────────────
 
   if (loading) return null;
-  const addFlowSlideIndex = (
-    addFlowStage === 'list' ? 0
-      : addFlowStage === 'upload' ? 0.72
-        : addFlowStage === 'review' ? 1.72
-          : 2.72
+  const isAddFlowActive = addFlowStage !== 'list';
+  const addFlowSlideIndex = 0;
+  const incomingSurfaceMotionClass = 'absolute inset-x-0 top-0 z-20 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)]';
+  const addFlowIncomingSurfaceMotionClass = 'absolute inset-x-0 top-[4rem] z-20 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)]';
+  const incomingSurfaceShellClass = 'relative w-full max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] max-h-[82vh] overflow-y-auto';
+  const incomingSurfaceHeaderClass = 'flex items-center justify-between p-6 border-b border-gray-200 bg-white';
+  const addFlowBeltStepPercent = 72;
+  const addFlowBeltStepRem = 14;
+  const addFlowInterCardGapRem = 1.25;
+  const getBeltTranslate = (steps: number, remPerStep: number) => {
+    if (steps === 0) return 'translateX(0)';
+    const absSteps = Math.abs(steps);
+    const percent = absSteps * addFlowBeltStepPercent;
+    const rem = absSteps * remPerStep;
+    if (steps < 0) return `translateX(calc(-${percent}% - ${rem}rem))`;
+    return `translateX(calc(${percent}% + ${rem}rem))`;
+  };
+  const addFlowStageIndex = (
+    addFlowStage === 'upload' ? 0
+      : addFlowStage === 'review' ? 1
+        : addFlowStage === 'welcome' ? 2
+          : -1
   );
+  const addFlowBeltPosition = addFlowStageIndex + 1;
+  const listSurfaceTransform = isImportModalOpen
+    ? getBeltTranslate(-1, addFlowBeltStepRem + addFlowInterCardGapRem)
+    : addFlowBeltPosition > 0
+      ? getBeltTranslate(-addFlowBeltPosition, addFlowBeltStepRem + addFlowInterCardGapRem)
+      : 'translateX(0)';
+  const getAddFlowSurfaceStyle = (panelIndex: number) => {
+    const delta = panelIndex - addFlowStageIndex;
+    return {
+      transform: getBeltTranslate(delta, addFlowBeltStepRem + addFlowInterCardGapRem),
+      opacity: delta === 0 || delta === -1 ? 1 : 0,
+      pointerEvents: (delta === 0 ? 'auto' : 'none') as const,
+    };
+  };
 
   // ─── Render ──────────────────────────────────────────────
 
@@ -3469,7 +3505,7 @@ export default function ClientsPage() {
         </div>
       )}
 
-      <div className={isImportModalOpen ? 'overflow-x-visible' : 'overflow-x-clip'}>
+      <div className={isImportModalOpen || isAddFlowActive ? 'overflow-x-visible' : 'overflow-x-clip'}>
         <div
           className="flex transition-transform duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
           style={{ transform: `translateX(-${addFlowSlideIndex * 100}%)` }}
@@ -3477,10 +3513,11 @@ export default function ClientsPage() {
           <div className="w-full shrink-0">
       {/* Action Bar */}
       <div className={`flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-        isImportModalOpen
-          ? '-translate-x-[calc(72%+14rem)] opacity-75 pointer-events-none select-none'
+        isImportModalOpen || isAddFlowActive
+          ? 'opacity-75 pointer-events-none select-none'
           : 'translate-x-0 opacity-100'
-      }`}>
+      }`}
+      style={{ transform: listSurfaceTransform }}>
           <div className="flex items-center gap-2">
             <button
               onClick={handleOpenModal}
@@ -3537,10 +3574,10 @@ export default function ClientsPage() {
           </div>
       </div>
 
-      <div className={`relative mb-6 overflow-visible ${isImportModalOpen ? 'min-h-[520px]' : ''}`}>
+      <div className={`relative mb-6 overflow-visible ${isImportModalOpen || isAddFlowActive ? 'min-h-[520px]' : ''}`}>
       {/* ── Bulk Import Surface ── */}
       <div
-        className={`absolute inset-x-0 top-0 z-20 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        className={`${incomingSurfaceMotionClass} ${
           isImportModalOpen
             ? 'translate-x-0 opacity-100'
             : 'translate-x-[112%] opacity-0 pointer-events-none'
@@ -3549,9 +3586,9 @@ export default function ClientsPage() {
       >
         <div
           ref={importModalScrollRef}
-          className="relative w-full max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] max-h-[82vh] overflow-y-auto"
+          className={incomingSurfaceShellClass}
         >
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-white">
+            <div className={incomingSurfaceHeaderClass}>
               <div>
                 <h3 className="text-xl font-bold text-[#000000]">Bulk Import</h3>
                 <p className="text-xs text-[#707070] mt-0.5">Bring in spreadsheets and PDFs from Google Drive or your computer.</p>
@@ -4062,10 +4099,11 @@ export default function ClientsPage() {
       </div>
       {/* Client Table */}
       <div className={`relative z-10 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-        isImportModalOpen
-          ? '-translate-x-[calc(72%+14rem)] opacity-75 scale-[0.985] pointer-events-none select-none'
+        isImportModalOpen || isAddFlowActive
+          ? 'opacity-75 scale-[0.985] pointer-events-none select-none'
           : 'translate-x-0 opacity-100 scale-100'
-      }`}>
+      }`}
+      style={{ transform: listSurfaceTransform }}>
       {clientsLoading ? (
         <div className="flex items-center justify-center py-20">
           <div className="flex flex-col items-center gap-4">
@@ -4340,12 +4378,16 @@ export default function ClientsPage() {
       </div>
       </div>
           </div>
-          <div className="w-full shrink-0">
-            <div className="max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px]">
-              <div className="flex items-center justify-between p-6 border-b border-[#ececec]">
+          <div
+            className={addFlowIncomingSurfaceMotionClass}
+            style={getAddFlowSurfaceStyle(0)}
+            aria-hidden={addFlowStage !== 'upload'}
+          >
+            <div className={incomingSurfaceShellClass}>
+              <div className={incomingSurfaceHeaderClass}>
                 <div>
                   <h3 className="text-xl font-bold text-[#000000]">Add Client</h3>
-                  <p className="text-xs text-[#707070] mt-1">Upload an application or expand manual entry.</p>
+                  <p className="text-xs text-[#707070] mt-0.5">Upload an application or expand manual entry.</p>
                 </div>
                 <button type="button" onClick={handleCloseAddFlow} className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -4416,12 +4458,16 @@ export default function ClientsPage() {
               </div>
             </div>
           </div>
-          <div className="w-full shrink-0">
-            <div className="max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden">
-              <div className="bg-white border-b border-[#ececec] p-6 flex items-center justify-between">
+          <div
+            className={addFlowIncomingSurfaceMotionClass}
+            style={getAddFlowSurfaceStyle(1)}
+            aria-hidden={addFlowStage !== 'review'}
+          >
+            <div className={incomingSurfaceShellClass}>
+              <div className={incomingSurfaceHeaderClass}>
                 <div>
                   <h3 className="text-xl font-bold text-[#000000]">Review & Confirm</h3>
-                  <p className="text-xs text-[#707070] mt-1">Step 1 of 2</p>
+                  <p className="text-xs text-[#707070] mt-0.5">Step 1 of 2</p>
                 </div>
                 <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#45bcaa]" /><span className="h-2.5 w-2.5 rounded-full bg-[#d0d0d0]" /></div>
               </div>
@@ -4474,12 +4520,16 @@ export default function ClientsPage() {
               </div>
             </div>
           </div>
-          <div className="w-full shrink-0">
-            <div className="max-w-3xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px]">
-              <div className="p-6 border-b border-[#ececec] flex items-center justify-between">
+          <div
+            className={addFlowIncomingSurfaceMotionClass}
+            style={getAddFlowSurfaceStyle(2)}
+            aria-hidden={addFlowStage !== 'welcome'}
+          >
+            <div className={incomingSurfaceShellClass}>
+              <div className={incomingSurfaceHeaderClass}>
                 <div>
                   <h3 className="text-xl font-bold text-[#000000]">Welcome Message</h3>
-                  <p className="text-xs text-[#707070] mt-1">Step 2 of 2</p>
+                  <p className="text-xs text-[#707070] mt-0.5">Step 2 of 2</p>
                 </div>
                 <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#d0d0d0]" /><span className="h-2.5 w-2.5 rounded-full bg-[#45bcaa]" /></div>
               </div>
