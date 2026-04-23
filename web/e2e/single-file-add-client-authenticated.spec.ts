@@ -17,7 +17,7 @@ test.describe('Single-file add client flow (authenticated)', () => {
 
     await page.getByRole('button', { name: 'Expand Manual Entry' }).click();
     await expect(page.getByRole('button', { name: 'Hide Manual Entry' })).toBeVisible();
-    await expect(page.getByPlaceholder('Name *')).toBeVisible();
+    await expect(page.locator('input[placeholder="Name *"]').first()).toBeVisible();
     await expect(page.getByRole('button', { name: 'Create Client' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Hide Manual Entry' }).click();
