@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef, type CSSProperties } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   collection,
@@ -654,6 +654,7 @@ export default function ClientsPage() {
   const [importFileStatuses, setImportFileStatuses] = useState<ImportFileStatus[]>([]);
   const [importSessionStartedAt, setImportSessionStartedAt] = useState<number | null>(null);
   const [importDragActive, setImportDragActive] = useState(false);
+  const [selectedImportRowIndex, setSelectedImportRowIndex] = useState(0);
 
   // ── Background batch tracking (persists across modal open/close) ──
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
@@ -685,6 +686,29 @@ export default function ClientsPage() {
     error: googlePickerError,
     clearError: clearGooglePickerError,
   } = useGooglePicker();
+
+  useEffect(() => {
+    if (importData.length === 0) {
+      setSelectedImportRowIndex(0);
+      return;
+    }
+    setSelectedImportRowIndex((current) => Math.min(current, importData.length - 1));
+  }, [importData]);
+
+  useEffect(() => {
+    if (!isImportModalOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
+    };
+  }, [isImportModalOpen]);
 
   // ── Anniversary alerts ──
   const [anniversaryAlerts, setAnniversaryAlerts] = useState<AnniversaryAlert[]>([]);
@@ -3346,14 +3370,30 @@ export default function ClientsPage() {
     : addFlowBeltPosition > 0
       ? getBeltTranslate(-addFlowBeltPosition, addFlowBeltStepRem + addFlowInterCardGapRem)
       : 'translateX(0)';
-  const getAddFlowSurfaceStyle = (panelIndex: number) => {
+  const getAddFlowSurfaceStyle = (panelIndex: number): CSSProperties => {
     const delta = panelIndex - addFlowStageIndex;
     return {
       transform: getBeltTranslate(delta, addFlowBeltStepRem + addFlowInterCardGapRem),
       opacity: delta === 0 || delta === -1 ? 1 : 0,
-      pointerEvents: (delta === 0 ? 'auto' : 'none') as const,
+      pointerEvents: delta === 0 ? 'auto' : 'none',
     };
   };
+  const selectedImportRow = importData[selectedImportRowIndex] ?? null;
+  const importWarningItems = useMemo(() => {
+    if (!importWarning) return [];
+    const normalized = importWarning.replace(/^Warning:\s*/i, '').trim();
+    return normalized
+      .split(/(?<=[.!?])\s+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }, [importWarning]);
+  const importFileStatusSummary = useMemo(() => {
+    const succeeded = importFileStatuses.filter((s) => s.state === 'succeeded').length;
+    const failed = importFileStatuses.filter((s) => s.state === 'failed').length;
+    const parsing = importFileStatuses.filter((s) => s.state === 'parsing').length;
+    const queued = importFileStatuses.filter((s) => s.state === 'queued').length;
+    return { succeeded, failed, parsing, queued };
+  }, [importFileStatuses]);
 
   // ─── Render ──────────────────────────────────────────────
 
@@ -3522,6 +3562,7 @@ export default function ClientsPage() {
                 setImportProgress(0);
                 setImportFileStatuses([]);
                 setImportSessionStartedAt(null);
+                setSelectedImportRowIndex(0);
                 setJustImportedClients([]);
                 setIntroMessage(DEFAULT_INTRO_TEMPLATE);
                 setIntroSentCount(null);
@@ -3800,10 +3841,9 @@ export default function ClientsPage() {
                 </div>
               ) : (
                 <>
-                  <div className="rounded-[8px] border border-[#d0d0d0] bg-[#f8f8f8] px-4 py-3">
-                    <p className="text-[11px] font-semibold text-[#005851] uppercase tracking-wide">How this works</p>
-                    <p className="text-xs text-[#707070] mt-1">
-                      Pick files from Drive or your computer. We process each file in the background and show you exactly what was created, skipped, or failed.
+                  <div className="rounded-[8px] border border-[#d0d0d0] bg-[#f8f8f8] px-4 py-2.5">
+                    <p className="text-xs text-[#5a5a5a]">
+                      Choose a source, add files, and review results before importing.
                     </p>
                   </div>
 
@@ -3816,26 +3856,34 @@ export default function ClientsPage() {
                     >
                       <div className="inline-flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-[6px] bg-[#f5f5f5] border border-[#e5e5e5] flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 87.3 78" width="20" height="18" aria-hidden>
-                          <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
-                          <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0-1.2 4.5h27.5z" fill="#00ac47"/>
-                          <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.95 10.3z" fill="#ea4335"/>
-                          <path d="M43.65 25 57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
-                          <path d="M59.8 53H27.5L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h32.6c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
-                          <path d="M73.4 26.5 60.65 4.5c-.8-1.4-1.95-2.5-3.3-3.3L43.6 25l16.15 28h27.5c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
-                        </svg>
+                          <img
+                            src="https://www.gstatic.com/images/branding/product/2x/drive_2020q4_48dp.png"
+                            alt=""
+                            width={20}
+                            height={20}
+                            className="block"
+                            loading="lazy"
+                            decoding="async"
+                          />
                         </div>
-                        <span className="text-sm font-semibold text-[#005851]">
-                          {googleDriveActionLoading
-                            ? 'Connecting to Google Drive...'
-                            : googlePickerLoading
-                              ? 'Opening Google Drive...'
-                              : googleDriveConnected
-                                ? 'Choose from Google Drive'
-                                : 'Connect Google Drive'}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-[#005851]">
+                            {googleDriveActionLoading
+                              ? 'Connecting to Google Drive...'
+                              : googlePickerLoading
+                                ? 'Opening Google Drive...'
+                                : googleDriveConnected
+                                  ? 'Choose from Google Drive'
+                                  : 'Connect Google Drive'}
+                          </span>
+                          {!googleDriveActionLoading && !googlePickerLoading && googleDriveConnected && (
+                            <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700">
+                              Connected
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-xs text-[#707070] mt-2">Select CSV, Excel, Google Sheets, or PDF files from your Drive.</p>
+                      <p className="text-xs text-[#707070] mt-2">Import files directly from Google Drive.</p>
                     </button>
 
                     <button
@@ -3850,20 +3898,25 @@ export default function ClientsPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                           </svg>
                         </div>
-                        <span>Choose from Computer</span>
+                        <span>Upload from Computer</span>
                       </div>
-                      <p className="text-xs text-[#707070] mt-2">Select one file or many at once. We&apos;ll process everything in the background.</p>
+                      <p className="text-xs text-[#707070] mt-2">Add one file or many at once.</p>
                     </button>
                   </div>
 
                   <div className="border border-[#d0d0d0] rounded-[8px] bg-white p-3 space-y-2">
-                    <p className="text-[11px] text-[#707070]">
-                      {googleDriveLoading
-                        ? 'Checking Google Drive connection...'
-                        : googleDriveConnected
-                          ? `Connected${googleDriveEmail ? ` as ${googleDriveEmail}` : ''}.`
-                          : 'Google Drive not connected. Connect first to import files directly from Drive.'}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                        googleDriveConnected ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {googleDriveLoading ? 'Checking connection' : googleDriveConnected ? 'Drive connected' : 'Drive not connected'}
+                      </span>
+                      {googleDriveConnected && googleDriveEmail && (
+                        <span className="inline-flex items-center rounded-full bg-[#f3f7f7] px-2 py-0.5 text-[10px] font-medium text-[#005851]">
+                          {googleDriveEmail}
+                        </span>
+                      )}
+                    </div>
                     {googlePickerError && (
                       <p className="text-[11px] text-red-600">{googlePickerError}</p>
                     )}
@@ -3891,10 +3944,10 @@ export default function ClientsPage() {
                     }`}
                   >
                     <p className="text-xs text-[#707070] text-center">
-                      Drag and drop files here, or use one of the buttons above.
+                      Drag files here or use an upload option above.
                     </p>
                     <p className="text-[11px] text-[#999999] text-center mt-1">
-                      Supports CSV, TSV, Excel, Google Sheets (via Drive), and PDF. Up to 50 files per import.
+                      CSV, TSV, Excel, Google Sheets, PDF · Up to 50 files per import
                     </p>
                   </div>
 
@@ -3902,9 +3955,14 @@ export default function ClientsPage() {
                     <div className="border border-[#d0d0d0] rounded-[5px] overflow-hidden">
                       <div className="bg-[#f8f8f8] px-4 py-2 border-b border-[#d0d0d0] flex items-center justify-between">
                         <p className="text-xs font-semibold text-[#707070]">File Processing</p>
-                        <p className="text-[11px] text-[#707070]">
-                          {importFileStatuses.filter((s) => s.state === 'succeeded').length} succeeded · {importFileStatuses.filter((s) => s.state === 'failed').length} failed · {importFileStatuses.filter((s) => s.state === 'parsing').length} parsing
-                        </p>
+                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-green-50 text-green-700">{importFileStatusSummary.succeeded} ready</span>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-700">{importFileStatusSummary.failed} review</span>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700">{importFileStatusSummary.parsing} processing</span>
+                          {importFileStatusSummary.queued > 0 && (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-600">{importFileStatusSummary.queued} queued</span>
+                          )}
+                        </div>
                       </div>
                       <div className="max-h-48 overflow-y-auto divide-y divide-[#f0f0f0]">
                         {importFileStatuses.map((status) => (
@@ -3962,11 +4020,20 @@ export default function ClientsPage() {
                     </div>
                   )}
                   {importWarning && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-[5px] text-xs text-amber-700">
-                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {importWarning}
+                    <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-[5px] text-xs text-amber-700">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="font-semibold">Review before import</span>
+                      </div>
+                      <div className="mt-2 space-y-1 max-w-2xl">
+                        {(importWarningItems.length > 0 ? importWarningItems : [importWarning]).map((item, idx) => (
+                          <p key={`${item}-${idx}`} className="leading-relaxed">
+                            {item}
+                          </p>
+                        ))}
+                      </div>
                     </div>
                   )}
 
@@ -3998,41 +4065,69 @@ export default function ClientsPage() {
                       <div className="border border-[#d0d0d0] rounded-[5px] overflow-hidden">
                         <div className="bg-[#f8f8f8] px-4 py-2 border-b border-[#d0d0d0]">
                           <p className="text-xs font-semibold text-[#707070]">
-                            Preview ({importData.length} row{importData.length !== 1 ? 's' : ''})
+                            Review ({importData.length} row{importData.length !== 1 ? 's' : ''})
                           </p>
                         </div>
-                        <div className="max-h-72 overflow-y-auto divide-y divide-[#f0f0f0]">
-                          {importData.slice(0, 50).map((row, i) => {
-                            const hasPolicy = row.policyNumber || row.carrier || row.policyType;
-                            return (
-                              <div key={i} className="px-4 py-2.5 flex items-start gap-3">
-                                <span className="text-xs text-[#707070] w-6 pt-0.5 shrink-0">{i + 1}</span>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-[#000000] truncate">{row.name}</p>
-                                  <p className="text-xs text-[#707070] truncate">
-                                    {[row.email, row.phone].filter(Boolean).join(' · ') || 'No contact info'}
-                                  </p>
-                                  {hasPolicy && (
-                                    <div className="flex items-center gap-1.5 mt-1">
-                                      <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded font-medium">
+                        <div className="grid grid-cols-1 md:grid-cols-[1.15fr_1fr]">
+                          <div className="max-h-72 overflow-y-auto divide-y divide-[#f0f0f0] border-b md:border-b-0 md:border-r border-[#f0f0f0]">
+                            {importData.slice(0, 50).map((row, i) => {
+                              const hasPolicy = row.policyNumber || row.carrier || row.policyType;
+                              const isSelected = selectedImportRowIndex === i;
+                              return (
+                                <button
+                                  key={`${row.name}-${i}`}
+                                  type="button"
+                                  onClick={() => setSelectedImportRowIndex(i)}
+                                  className={`w-full px-4 py-2.5 flex items-start gap-3 text-left transition-colors ${
+                                    isSelected ? 'bg-[#daf3f0]/35' : 'hover:bg-[#f8f8f8]'
+                                  }`}
+                                >
+                                  <span className="text-xs text-[#707070] w-6 pt-0.5 shrink-0">{i + 1}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-[#000000] truncate">{row.name || 'Unnamed client'}</p>
+                                    <p className="text-xs text-[#707070] truncate">
+                                      {[row.email, row.phone].filter(Boolean).join(' · ') || 'No contact info'}
+                                    </p>
+                                    {hasPolicy && (
+                                      <p className="text-[10px] text-blue-700 truncate mt-1">
                                         {[row.policyType, row.carrier, row.policyNumber].filter(Boolean).join(' · ')}
-                                      </span>
-                                      {row.effectiveDate && (
-                                        <span className="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded font-medium">
-                                          Eff: {row.effectiveDate}
-                                        </span>
-                                      )}
-                                    </div>
-                                  )}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-[#f3f7f7] text-[#005851]">
+                                    {row.email || row.phone ? 'Ready' : 'Review'}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                            {importData.length > 50 && (
+                              <div className="px-4 py-2 text-xs text-[#707070] text-center">
+                                +{importData.length - 50} more rows
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="p-4 bg-white">
+                            {selectedImportRow ? (
+                              <div className="space-y-3">
+                                <p className="text-xs font-semibold text-[#707070] uppercase tracking-wide">Selected record</p>
+                                <div className="space-y-1.5 text-xs text-[#444] max-w-[34ch]">
+                                  <p><span className="font-semibold text-[#000]">Name:</span> {selectedImportRow.name || '—'}</p>
+                                  <p><span className="font-semibold text-[#000]">Email:</span> {selectedImportRow.email || '—'}</p>
+                                  <p><span className="font-semibold text-[#000]">Phone:</span> {selectedImportRow.phone || '—'}</p>
+                                  <p><span className="font-semibold text-[#000]">DOB:</span> {selectedImportRow.dateOfBirth || '—'}</p>
+                                  <p><span className="font-semibold text-[#000]">Policy #:</span> {selectedImportRow.policyNumber || '—'}</p>
+                                  <p><span className="font-semibold text-[#000]">Carrier:</span> {selectedImportRow.carrier || '—'}</p>
+                                  <p><span className="font-semibold text-[#000]">Policy type:</span> {selectedImportRow.policyType || '—'}</p>
+                                  <p><span className="font-semibold text-[#000]">Effective date:</span> {selectedImportRow.effectiveDate || '—'}</p>
+                                  <p><span className="font-semibold text-[#000]">Premium:</span> {selectedImportRow.premium || '—'}</p>
+                                  <p><span className="font-semibold text-[#000]">Coverage:</span> {selectedImportRow.coverageAmount || '—'}</p>
                                 </div>
                               </div>
-                            );
-                          })}
-                          {importData.length > 50 && (
-                            <div className="px-4 py-2 text-xs text-[#707070] text-center">
-                              +{importData.length - 50} more rows
-                            </div>
-                          )}
+                            ) : (
+                              <p className="text-xs text-[#707070]">Select a row to review details.</p>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -4059,6 +4154,7 @@ export default function ClientsPage() {
                             setImportError('');
                             setImportWarning('');
                             setImportFileStatuses([]);
+                            setSelectedImportRowIndex(0);
                           }}
                           disabled={importing || parsingBob}
                           className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-100 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors text-sm"

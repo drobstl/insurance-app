@@ -58,6 +58,11 @@ After implementing the change, update `CONTEXT.md` to reflect the new state. Thi
 - Linq for iMessage/SMS delivery
 - Stripe for billing
 
+## TypeScript deploy guardrail (Next.js / React style objects)
+- Do not use `as const` on conditional expressions (e.g., `cond ? 'auto' : 'none' as const`) — this can fail Vercel TypeScript builds.
+- When returning dynamic inline style objects for React elements, type helper return values as `CSSProperties` (or explicitly typed object literals) so properties like `pointerEvents` stay correctly narrowed.
+- Before finalizing work that touches typed UI helpers, run `npm --prefix web run build` and fix any TypeScript issues before commit/push.
+
 ## Domain knowledge
 - This product serves independent life insurance agents
 - AFL is becoming a paid add-on module within the Closr AI platform while retaining standalone access
