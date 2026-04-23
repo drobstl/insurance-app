@@ -45,7 +45,6 @@ import { buildWelcomeMessage, resolveClientLanguage, type SupportedLanguage } fr
 import { fireConfetti } from '../../../lib/confetti';
 import {
   renderFirstPdfPagesToJpegs,
-  renderSelectedPdfPagesToJpegs,
   renderSelectedPdfPagesToJpegsTolerant,
 } from '../../../lib/pdf/render-selected-pages-to-jpeg';
 import { APPLICATION_PAGE_MAP } from '../../../lib/pdf/application-page-map';
@@ -99,21 +98,6 @@ const APPLICATION_TYPE_OPTIONS: Array<{ label: string; value: ApplicationFormTyp
   { label: 'Banner/LGA - Term', value: 'banner_lga_icc17_lia' },
   { label: 'Other Carrier', value: 'unknown' },
 ];
-
-// Carrier form types whose PDFs ship in multiple page-count variants where the
-// requested PAGE_MAP pages may not all exist (e.g. short-form / extended-addendum
-// variants). These go through renderSelectedPdfPagesToJpegsTolerant so the renderer
-// clamps missing pages instead of hard-failing; the matching carrier prompt
-// supplement must be written to handle the variable image count.
-const SHORT_FORM_CARRIER_FORM_TYPES = new Set<ApplicationFormType>([
-  'americo_icc18_5160',
-  'amam_icc15_aa9466',
-  'amam_icc18_aa3487',
-  'moo_icc22_l683a',
-  'moo_icc23_l681a',
-  'moo_ma5981',
-  'banner_lga_icc17_lia',
-]);
 
 function getBulkPdfConcurrencyLimit(): number {
   const raw = process.env.NEXT_PUBLIC_IMPORT_PDF_CONCURRENCY;
@@ -317,6 +301,12 @@ interface ParseApplicationOptions {
   carrierFormType?: ApplicationFormType;
   signal?: AbortSignal;
   onJobId?: (jobId: string) => void;
+}
+
+interface ParseApplicationResult {
+  data: ExtractedApplicationData;
+  note?: string;
+  shortPdfWarning?: string;
 }
 
 interface GoogleDriveStatusResponse {
@@ -635,6 +625,7 @@ export default function ClientsPage() {
   const [pendingClientApplicationData, setPendingClientApplicationData] = useState<ExtractedApplicationData | null>(null);
   const [clientApplicationUploading, setClientApplicationUploading] = useState(false);
   const [clientApplicationNote, setClientApplicationNote] = useState<string | null>(null);
+  const [clientApplicationShortPdfWarning, setClientApplicationShortPdfWarning] = useState<string | null>(null);
   const [clientApplicationType, setClientApplicationType] = useState<ApplicationFormType>(DEFAULT_APPLICATION_TYPE);
   const [clientParseProgress, setClientParseProgress] = useState<ParseProgressState | null>(null);
   const [policyApplicationUploading, setPolicyApplicationUploading] = useState(false);
@@ -1188,6 +1179,7 @@ export default function ClientsPage() {
     setFormSuccess('');
     setPendingClientApplicationData(null);
     setClientApplicationNote(null);
+    setClientApplicationShortPdfWarning(null);
     setClientApplicationType(DEFAULT_APPLICATION_TYPE);
     setClientApplicationUploading(false);
     setClientParseProgress(null);
@@ -1788,11 +1780,14 @@ export default function ClientsPage() {
     file: File,
     onProgress?: (state: ParseProgressState) => void,
     options?: ParseApplicationOptions,
-  ): Promise<{ data: ExtractedApplicationData; note?: string }> => {
+  ): Promise<ParseApplicationResult> => {
     const signal = options?.signal;
     const carrierFormType = options?.carrierFormType ?? DEFAULT_APPLICATION_TYPE;
+    const applicationTypeLabel = APPLICATION_TYPE_OPTIONS.find((option) => option.value === carrierFormType)?.label || 'Selected carrier';
     let currentJobId: string | null = null;
     let token: string | null = null;
+    let shortPdfWarning: string | undefined;
+    let localInfoNote: string | undefined;
     const reportProgress = (progress: number, label: string) => {
       onProgress?.({
         fileName: file.name,
@@ -1820,7 +1815,7 @@ export default function ClientsPage() {
       throw new Error('File is too large. Maximum size is 13MB.');
     }
 
-    const runDirectParseFallback = async (): Promise<{ data: ExtractedApplicationData; note?: string }> => {
+    const runDirectParseFallback = async (): Promise<ParseApplicationResult> => {
       reportProgress(55, 'Retrying with direct parser...');
       const fallbackForm = new FormData();
       fallbackForm.append('file', file, file.name);
@@ -1839,7 +1834,8 @@ export default function ClientsPage() {
         throw new Error(fallbackBody.error || `Direct parser failed (${fallbackRes.status}).`);
       }
       reportProgress(100, 'Extraction complete');
-      return { data: fallbackBody.data, note: fallbackBody.note };
+      const mergedNote = [fallbackBody.note, localInfoNote].filter(Boolean).join(' ').trim();
+      return { data: fallbackBody.data, note: mergedNote || undefined, shortPdfWarning };
     };
 
     reportProgress(8, 'Preparing file...');
@@ -1849,29 +1845,26 @@ export default function ClientsPage() {
       const selectedPageNumbers = APPLICATION_PAGE_MAP[carrierFormType];
       let renderedPages: Array<{ pageNumber: number; blob: Blob }>;
       if (Array.isArray(selectedPageNumbers) && selectedPageNumbers.length) {
-        // Some carrier forms ship in multiple page-count variants where the requested
-        // PAGE_MAP pages may not all exist:
-        // - Americo Term/CBO (icc18_5160): 9-page with Bank Draft on p7, or 5-page short-form without.
-        // - AMAM ICC15-AA9466 (Mortgage Protection): 9/10-page with Bank Draft on p5 or p6,
-        //   or 8-page variant missing p6.
-        // Use the tolerant renderer so short-form PDFs don't hard-fail at render time;
-        // the matching carrier prompt supplement must handle the variable image count.
-        if (SHORT_FORM_CARRIER_FORM_TYPES.has(carrierFormType)) {
-          const tolerantResult = await renderSelectedPdfPagesToJpegsTolerant(file, selectedPageNumbers);
-          renderedPages = tolerantResult.rendered;
-          if (tolerantResult.skipped.length) {
-            captureEvent(ANALYTICS_EVENTS.INGESTION_V3_PAGE_MAP_CLAMPED, {
-              carrier_form_type: carrierFormType,
-              requested_count: tolerantResult.requested.length,
-              rendered_count: tolerantResult.rendered.length,
-              skipped_pages: tolerantResult.skipped.join(','),
-            });
+        const tolerantResult = await renderSelectedPdfPagesToJpegsTolerant(file, selectedPageNumbers);
+        renderedPages = tolerantResult.rendered;
+        if (tolerantResult.skipped.length) {
+          const warningMessage = `We need ${tolerantResult.requested.length} specific pages for "${applicationTypeLabel}", but only ${tolerantResult.rendered.length} were found in this PDF. We'll extract what we can, and you can fill missing fields in review.`;
+          const proceed = window.confirm(`${warningMessage}\n\nClick OK to Extract Anyway, or Cancel to change Application Type.`);
+          captureEvent(ANALYTICS_EVENTS.INGESTION_V3_PAGE_MAP_CLAMPED, {
+            carrier_form_type: carrierFormType,
+            requested_count: tolerantResult.requested.length,
+            rendered_count: tolerantResult.rendered.length,
+            skipped_pages: tolerantResult.skipped.join(','),
+            user_proceeded: proceed,
+          });
+          if (!proceed) {
+            throw new Error('Upload cancelled. You can change Application Type and retry.');
           }
-        } else {
-          renderedPages = await renderSelectedPdfPagesToJpegs(file, selectedPageNumbers);
+          shortPdfWarning = warningMessage;
         }
       } else {
         renderedPages = await renderFirstPdfPagesToJpegs(file, MAX_APPLICATION_RENDER_PAGES);
+        localInfoNote = `Using the first ${renderedPages.length} page(s) because carrier/form type is set to Other Carrier.`;
       }
       if (!renderedPages.length) {
         throw new Error('No pages could be rendered from this PDF.');
@@ -1985,7 +1978,8 @@ export default function ClientsPage() {
             throw new Error('Could not extract application data from this file. Please try another PDF.');
           }
           reportProgress(100, 'Extraction complete');
-          return { data, note: statusBody.job.result?.application?.note || undefined };
+          const mergedNote = [statusBody.job.result?.application?.note, localInfoNote].filter(Boolean).join(' ').trim();
+          return { data, note: mergedNote || undefined, shortPdfWarning };
         }
 
         if (statusBody.job.status === 'failed') {
@@ -2019,9 +2013,9 @@ export default function ClientsPage() {
         throw new Error('Cancelled by agent.');
       }
       const message = v3Error instanceof Error ? v3Error.message : String(v3Error);
-      if (message.includes('is missing from the uploaded PDF.')) {
+      if (message.includes('None of the requested pages exist in the uploaded PDF.')) {
         throw new Error(
-          'This PDF does not have enough pages for the selected application type. Verify the application type is correct, or choose "Other Carrier" to extract from the first pages.',
+          'This PDF does not include the key pages for the selected application type. Try a different Application Type, or choose "Other Carrier" to extract from the first pages.',
         );
       }
       const shouldFallback =
@@ -2042,6 +2036,7 @@ export default function ClientsPage() {
 
     setClientApplicationUploading(true);
     setClientApplicationNote(null);
+    setClientApplicationShortPdfWarning(null);
     setClientParseProgress({ fileName: file.name, progress: 5, label: 'Preparing file...' });
     setFormError('');
     setFormSuccess('');
@@ -2059,6 +2054,7 @@ export default function ClientsPage() {
       });
       handleClientApplicationExtracted(parsed.data);
       setClientApplicationNote(parsed.note || null);
+      setClientApplicationShortPdfWarning(parsed.shortPdfWarning || null);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to parse application PDF.');
     } finally {
@@ -4526,6 +4522,9 @@ export default function ClientsPage() {
                     <p className="mt-1 text-[11px] text-[#005851]/80">{clientParseProgress.label}</p>
                   </div>
                 )}
+                {clientApplicationNote && (
+                  <p className="text-xs text-[#707070]">{clientApplicationNote}</p>
+                )}
                 {formError && !manualEntryExpanded && (
                   <p className="text-xs text-red-600">{formError}</p>
                 )}
@@ -4570,10 +4569,17 @@ export default function ClientsPage() {
                 <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#45bcaa]" /><span className="h-2.5 w-2.5 rounded-full bg-[#d0d0d0]" /></div>
               </div>
               <div className="p-6 space-y-4">
-                <div className="flex items-center gap-2 px-3 py-2 bg-[#daf3f0] border border-[#45bcaa]/30 rounded-[5px] text-xs text-[#005851]">
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  <span className="font-medium">Extraction complete. Review and confirm.</span>
-                </div>
+                  {clientApplicationShortPdfWarning ? (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-[#fff7db] border border-[#f5c451]/50 rounded-[5px] text-xs text-[#8a5a00]">
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 4h.01M10.29 3.86l-8.5 14.5A1 1 0 002.64 20h16.72a1 1 0 00.85-1.64l-8.5-14.5a1 1 0 00-1.72 0z" /></svg>
+                      <span className="font-medium">Heads-up: this PDF was shorter than expected. Some fields may be missing - please verify before confirming.</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-[#daf3f0] border border-[#45bcaa]/30 rounded-[5px] text-xs text-[#005851]">
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <span className="font-medium">Extraction complete. Review and confirm.</span>
+                    </div>
+                  )}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <input type="text" value={formData.name} onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))} placeholder="Name *" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
                   <input type="tel" value={formData.phone} onChange={(e) => setFormData((f) => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
