@@ -7,7 +7,8 @@
     "build": "npm run test:ingestion-corpus && next build",
     "start": "next start",
     "lint": "eslint",
-    "test:ingestion-corpus": "node --import tsx ./tests/ingestion-corpus/run-corpus.ts"
+    "test:ingestion-corpus": "node --import tsx ./tests/ingestion-corpus/run-corpus.ts",
+    "test:bulk-import-smoke": "node --import tsx ./tests/bulk-import-smoke/run-smoke.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.77.0",
