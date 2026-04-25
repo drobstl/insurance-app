@@ -4246,6 +4246,10 @@ export default function ClientsPage() {
                     <p className="text-[11px] text-[#707070] mt-0.5">1) Add files  2) Review parsed records  3) Import</p>
                   </div>
 
+                  <div className="inline-flex max-w-full items-center rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-semibold leading-relaxed text-red-700">
+                    Encrypted or password-protected files? Remove protection or upload one at a time via +Add Client.
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <button
                       type="button"
