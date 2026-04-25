@@ -2,7 +2,7 @@
 # CONTEXT.md — AgentForLife (AFL)
 
 > Drop this in the repo root. Read it before any strategic or architectural decision.
-> Last updated: April 23, 2026 (evening)
+> Last updated: April 24, 2026 (evening)
 
 ## What This Is
 
@@ -242,6 +242,11 @@ Standalone pricing remains for agents who come directly. Founding member migrati
   - **Anniversary signal alignment shipped**:
     - anniversary counts/labels and client-level eligibility now use shared canonical logic that excludes policies already in active rewrite campaigns,
     - dashboard wording reflects "Upcoming Anniversaries" consistently.
+- Updated (April 24, 2026): Ingestion v3 Cloud Functions runtime upgraded to Node.js 22.
+  - `gcf/firebase.json` runtime moved from `nodejs20` to `nodejs22`.
+  - `gcf/ingestion-v3-processor/package.json` engines target moved from `20` to `22`.
+  - Deployed successfully in production for `ingestionv3:processIngestionV3Queued`, `ingestionv3:cleanupIngestionV3Zombies`, and `ingestionv3:reconcileStaleBatchJobs`.
+  - Node 20 deprecation warning is cleared for this codebase; separate maintenance follow-up remains to upgrade `firebase-functions` major version.
 - Known issues / next session:
   - "0 pages" metadata bug in extraction summary.
   - Bulk import intelligence notes are concatenated into an unreadable wall of text (needs per-file collapsible notes).

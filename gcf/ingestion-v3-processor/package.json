@@ -7,7 +7,7 @@
     "build": "tsc -p tsconfig.json"
   },
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
