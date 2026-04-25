@@ -4,7 +4,7 @@ import { OAuth2Client } from 'google-auth-library';
 
 export const GOOGLE_OAUTH_CLIENT_ID =
   '527695351928-3mkhjhni5spi4rd28n1cj617o4vm06cl.apps.googleusercontent.com';
-export const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
+export const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
 /** Shown when Google rejects a refresh token (revoked, expired, or app credentials changed). */
 export const GOOGLE_DRIVE_RECONNECT_USER_MESSAGE =

@@ -26,7 +26,7 @@ Build OAuth/token backend primitives and integration routes:
 - OAuth client id:
   - `527695351928-3mkhjhni5spi4rd28n1cj617o4vm06cl.apps.googleusercontent.com`
 - Scope:
-  - `https://www.googleapis.com/auth/drive.readonly`
+  - `https://www.googleapis.com/auth/drive.file`
 - Callback route:
   - `/api/integrations/google/callback`
 - Post-callback redirect:

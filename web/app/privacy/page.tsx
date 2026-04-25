@@ -134,8 +134,8 @@ export default function PrivacyPolicyPage() {
             <section className="mb-8">
               <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">7. Google User Data (Google Drive Integration)</h2>
               <p className="text-[#2D3748] leading-relaxed mb-4">
-                If you choose to connect Google Drive, AgentForLife requests read-only access to your Google Drive files using the
-                <code className="mx-1">https://www.googleapis.com/auth/drive.readonly</code>
+                If you choose to connect Google Drive, AgentForLife requests file-level access to Google Drive files you explicitly select using the
+                <code className="mx-1">https://www.googleapis.com/auth/drive.file</code>
                 scope.
               </p>
               <ul className="list-disc list-inside text-[#2D3748] space-y-2 mb-4">
