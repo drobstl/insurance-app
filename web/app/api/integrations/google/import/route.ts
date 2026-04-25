@@ -37,6 +37,7 @@ const DOWNLOAD_CONCURRENCY = 5;
 const MAX_FILES_PER_IMPORT = 50;
 const DOWNLOAD_MAX_RETRIES = 3;
 const DOWNLOAD_RETRY_DELAYS_MS = [500, 1500];
+const FILE_IMPORT_TRANSIENT_RETRY_DELAY_MS = 1200;
 const BULK_IMPORT_SPLIT_TYPE_MESSAGE =
   'Please import spreadsheets and PDFs in separate runs for faster, more reliable processing.';
 const BULK_ENCRYPTED_PDF_UNSUPPORTED_MESSAGE =
@@ -123,6 +124,24 @@ function getCallbackUrl(req: NextRequest): string {
 
 function sanitizeFileName(fileName: string): string {
   return fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+function isTransientImportFailureMessage(message: string): boolean {
+  const lower = (message || '').toLowerCase();
+  if (!lower) return false;
+  return (
+    lower.includes('connection error') ||
+    lower.includes('fetch failed') ||
+    lower.includes('network') ||
+    lower.includes('socket') ||
+    lower.includes('timeout') ||
+    lower.includes('econnreset') ||
+    lower.includes('etimedout') ||
+    lower.includes('drive download step failed') ||
+    lower.includes('storage upload step failed') ||
+    lower.includes('job queue step failed') ||
+    /\(5\d{2}\)/.test(lower)
+  );
 }
 
 async function requireAgentId(req: NextRequest): Promise<string> {
@@ -410,7 +429,13 @@ async function processOneFile(params: {
       }
     }
 
-    const downloaded = await downloadDriveFile(accessToken, file);
+    let downloaded: { buffer: Buffer; contentType: string };
+    try {
+      downloaded = await downloadDriveFile(accessToken, file);
+    } catch (downloadError) {
+      const reason = downloadError instanceof Error ? downloadError.message : 'Unknown download failure.';
+      throw new Error(`Drive download step failed. ${reason}`);
+    }
     const isPdf = file.mimeType === PDF_MIME;
     const route = isPdf ? routeHint || detectBulkPdfRoute(file.name) : null;
     const routedPdf = isPdf
@@ -449,13 +474,18 @@ async function processOneFile(params: {
     const safeName = sanitizeFileName(fileName);
     const gcsPath = `ingestion/v3/${purpose}/${Date.now()}-${randomUUID()}-${safeName}`;
 
-    await getAdminStorage()
-      .bucket()
-      .file(gcsPath)
-      .save(uploadBuffer, {
-        contentType: contentType || PDF_MIME,
-        resumable: false,
-      });
+    try {
+      await getAdminStorage()
+        .bucket()
+        .file(gcsPath)
+        .save(uploadBuffer, {
+          contentType: contentType || PDF_MIME,
+          resumable: false,
+        });
+    } catch (uploadError) {
+      const reason = uploadError instanceof Error ? uploadError.message : 'Unknown storage upload failure.';
+      throw new Error(`Storage upload step failed. ${reason}`);
+    }
 
     // Reserve and register the job ID in the batch doc BEFORE creating the
     // ingestion job so the processor can always report terminal status back.
@@ -467,17 +497,23 @@ async function processOneFile(params: {
       mimeType: file.mimeType,
     });
 
-    const created = await createIngestionV3Job({
-      jobId: reservedJobId,
-      mode: purpose,
-      gcsPath,
-      fileName,
-      contentType: contentType || file.mimeType || PDF_MIME,
-      maxAttempts: 4,
-      agentId,
-      idempotencyKey,
-      batchId,
-    });
+    let created;
+    try {
+      created = await createIngestionV3Job({
+        jobId: reservedJobId,
+        mode: purpose,
+        gcsPath,
+        fileName,
+        contentType: contentType || file.mimeType || PDF_MIME,
+        maxAttempts: 4,
+        agentId,
+        idempotencyKey,
+        batchId,
+      });
+    } catch (queueError) {
+      const reason = queueError instanceof Error ? queueError.message : 'Unknown queue failure.';
+      throw new Error(`Job queue step failed. ${reason}`);
+    }
 
     return {
       fileId: file.id,
@@ -576,13 +612,27 @@ export async function POST(req: NextRequest): Promise<NextResponse<GoogleDriveIm
         const currentIndex = nextIndex;
         nextIndex += 1;
         const file = resolvedFiles[currentIndex];
-        const result = await processOneFile({
+        let result = await processOneFile({
           agentId,
           purpose,
           accessToken,
           file,
           batchId,
         });
+        if (result.status === 'failed' && isTransientImportFailureMessage(result.error || '')) {
+          await new Promise((resolve) => setTimeout(resolve, FILE_IMPORT_TRANSIENT_RETRY_DELAY_MS));
+          const retryResult = await processOneFile({
+            agentId,
+            purpose,
+            accessToken,
+            file,
+            batchId,
+          });
+          if (retryResult.status !== 'failed') {
+            console.log(`[drive-import] Retry succeeded for ${file.name}`);
+          }
+          result = retryResult;
+        }
         results[currentIndex] = result;
 
         // Register this file in the batch doc with the correct status.

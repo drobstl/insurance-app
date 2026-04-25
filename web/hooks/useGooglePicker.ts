@@ -181,6 +181,20 @@ export function useGooglePicker() {
           const scrollY = window.scrollY;
           const pickerWidth = Math.max(820, Math.min(1120, window.innerWidth - 40));
           const pickerHeight = Math.max(560, Math.min(760, window.innerHeight - 40));
+          let settled = false;
+          let timeoutId: number | null = null;
+
+          const restoreScroll = () => window.scrollTo(scrollX, scrollY);
+
+          const settle = (fn: () => void) => {
+            if (settled) return;
+            settled = true;
+            if (timeoutId !== null) {
+              window.clearTimeout(timeoutId);
+            }
+            restoreScroll();
+            fn();
+          };
 
           const docsView = new pickerApi.DocsView(pickerApi.ViewId.DOCS)
             .setIncludeFolders(true)
@@ -198,19 +212,24 @@ export function useGooglePicker() {
             .setCallback((data: any) => {
               const action = data?.action;
               if (action === pickerApi.Action.PICKED) {
-                resolve(normalizeSelectedDocs(data?.docs));
+                settle(() => resolve(normalizeSelectedDocs(data?.docs)));
                 return;
               }
               if (action === pickerApi.Action.CANCEL) {
-                resolve([]);
+                settle(() => resolve([]));
               }
             })
             .build();
 
           picker.setVisible(true);
-          // Keep page position stable so the picker doesn't push the dashboard view.
-          requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
-          window.setTimeout(() => window.scrollTo(scrollX, scrollY), 120);
+          // Keep the dashboard viewport stable without forcing body fixed-position.
+          requestAnimationFrame(() => restoreScroll());
+          window.setTimeout(() => restoreScroll(), 120);
+          // Safety fallback: if picker callback never fires, don't leave scroll locked.
+          timeoutId = window.setTimeout(
+            () => settle(() => reject(new Error('Google Picker did not respond. Please try again.'))),
+            90_000,
+          );
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to open Google Picker.';

@@ -11,6 +11,9 @@ const TIERS = [
 
 type TierId = (typeof TIERS)[number]['id'];
 
+// Launch decision (April 2026): founding is closed to new signups.
+const CLOSED_TIERS: ReadonlySet<TierId> = new Set(['founding']);
+
 export async function GET() {
   try {
     const firestore = getAdminFirestore();
@@ -41,10 +44,13 @@ export async function GET() {
       inner_circle: innerCircleCount,
     };
 
+    const isTierOpen = (tier: (typeof TIERS)[number]) =>
+      !CLOSED_TIERS.has(tier.id) && counts[tier.id] < tier.total;
+
     // Determine which tier is currently open
     let activeTierIndex: number = TIERS.length; // default: all full → standard
     for (let i = 0; i < TIERS.length; i++) {
-      if (counts[TIERS[i].id] < TIERS[i].total) {
+      if (isTierOpen(TIERS[i])) {
         activeTierIndex = i;
         break;
       }
@@ -65,13 +71,13 @@ export async function GET() {
         tiers: TIERS.map((tier, i) => ({
           ...tier,
           status:
-            i === activeTierIndex
-              ? 'open'
-              : i < activeTierIndex
+            CLOSED_TIERS.has(tier.id) || i < activeTierIndex
                 ? 'full'
-                : 'upcoming',
+                : i === activeTierIndex
+                  ? 'open'
+                  : 'upcoming',
           spotsFilled: counts[tier.id],
-          spotsRemaining: Math.max(0, tier.total - counts[tier.id]),
+          spotsRemaining: CLOSED_TIERS.has(tier.id) ? 0 : Math.max(0, tier.total - counts[tier.id]),
         })),
       },
       {

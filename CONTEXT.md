@@ -2,7 +2,7 @@
 # CONTEXT.md — AgentForLife (AFL)
 
 > Drop this in the repo root. Read it before any strategic or architectural decision.
-> Last updated: April 18, 2026 (evening)
+> Last updated: April 23, 2026 (evening)
 
 ## What This Is
 
@@ -225,10 +225,26 @@ Standalone pricing remains for agents who come directly. Founding member migrati
   - `gcf/ingestion-v3-processor` now reports terminal ingestion outcomes back to Firestore batch docs (`agents/{agentId}/batchJobs/{batchId}`), so Drive imports can transition out of `processing` to `completed`/`partial` without manual cancellation.
   - Batch file status updates are now idempotent in `web/lib/ingestion-v3-batch-store.ts` to prevent double-increment counter drift from duplicate terminal updates.
   - GCF BOB mode no longer returns placeholder empty rows by default; it now performs real extraction (deterministic parsing for delimited/spreadsheet data with AI fallback, plus PDF AI extraction) and writes normalized `result.bob.rows`.
+- Added (April 23, 2026): Launch-readiness hardening for bulk import, OAuth review, and automated verification.
+  - **Bulk PDF routing guardrails** now apply consistently in local and Google Drive bulk paths:
+    - high-confidence mapped forms route to mapped pages,
+    - unknown/low-confidence PDFs are capped to first 5-6 pages (never full-document payload),
+    - mixed structured+PDF batches are blocked with explicit guidance,
+    - encrypted PDFs are surfaced with a clear single-file fallback message.
+  - **Automated regression checks expanded**:
+    - `web/tests/bulk-import-smoke/run-smoke.ts` validates routing behavior (including unknown caps and carrier detection),
+    - CI workflow `.github/workflows/web-bulk-import-smoke.yml` runs on `web/**` and workflow changes,
+    - Playwright E2E suite added under `web/e2e` with authenticated bulk/import/single-file coverage, plus CI workflow `.github/workflows/web-e2e.yml` (credential-gated via `AFL_E2E_EMAIL` / `AFL_E2E_PASSWORD`).
+  - **Google OAuth verification progress**:
+    - consent-screen/privacy disclosures and in-app helper messaging were added for the temporary unverified-app screen,
+    - reviewer access credentials were sent to Google’s verification team after they requested authorized login access,
+    - verification remains in-progress (external dependency).
+  - **Anniversary signal alignment shipped**:
+    - anniversary counts/labels and client-level eligibility now use shared canonical logic that excludes policies already in active rewrite campaigns,
+    - dashboard wording reflects "Upcoming Anniversaries" consistently.
 - Known issues / next session:
   - "0 pages" metadata bug in extraction summary.
   - Bulk import intelligence notes are concatenated into an unreadable wall of text (needs per-file collapsible notes).
-  - "Import Book of Business" naming is confusing for agents uploading a few PDFs (not a CSV dump).
   - Single-file Upload Application modal does not support multi-select.
   - Dashboard auth "Checking account access" spinner hangs on load.
   - PostHog instrumentation files for Closr AI are still uncommitted.

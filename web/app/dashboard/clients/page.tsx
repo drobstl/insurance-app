@@ -70,7 +70,7 @@ const BULK_IMPORT_SPLIT_TYPE_MESSAGE =
   'Please import spreadsheets and PDFs in separate runs for faster, more reliable processing.';
 const BULK_ENCRYPTED_PDF_UNSUPPORTED_MESSAGE =
   'This PDF is encrypted/password-protected. Please upload it using Add Client (single-file) or remove protection and retry.';
-const BULK_IMPORT_FUN_STATES = ['Baking your import...', 'Building client profiles...', 'Fusion-reactor-ing policy data...'] as const;
+const BULK_IMPORT_FUN_STATES = ['Processing your import...', 'Preparing client records...', 'Finalizing import data...'] as const;
 const DEFAULT_WELCOME_SMS_TEMPLATE =
   'Hey {{firstName}}! {{agentName}} here. Download the AgentForLife app and use code {{code}} to connect with me. https://agentforlife.app/app';
 const DEFAULT_INTRO_TEMPLATE =
@@ -249,6 +249,25 @@ interface ImportRow {
 type ImportSourceType = 'local';
 type ImportFileType = 'pdf' | 'spreadsheet' | 'text' | 'unknown';
 type ImportFileState = 'queued' | 'parsing' | 'succeeded' | 'failed';
+type ImportNoticeType = 'info' | 'warning' | 'error';
+type ImportNoticeCode =
+  | 'drive_connected'
+  | 'files_need_review'
+  | 'partial_parse'
+  | 'unsupported_files'
+  | 'encrypted_pdf'
+  | 'mixed_batch_blocked'
+  | 'row_limit'
+  | 'drive_connect_failed'
+  | 'drive_session_expired'
+  | 'picker_failed'
+  | 'upload_failed'
+  | 'parse_failed'
+  | 'import_failed'
+  | 'processing_started'
+  | 'ready_to_import'
+  | 'files_added'
+  | 'import_success';
 
 const BATCH_RESULT_FETCH_CONCURRENCY = 5;
 
@@ -268,6 +287,205 @@ interface ImportFileStatus {
   loadedRows: number;
   rejectedRows: number;
   error?: string;
+  notes?: string[];
+}
+
+interface ImportNotice {
+  type: ImportNoticeType;
+  code: ImportNoticeCode;
+  title: string;
+  items: string[];
+}
+
+type BatchFileStatusCounts = {
+  succeeded: number;
+  failed: number;
+  queued: number;
+  processing: number;
+};
+
+function countBatchFileStatuses(filesMap: Record<string, Record<string, unknown>>): BatchFileStatusCounts {
+  return Object.values(filesMap).reduce<BatchFileStatusCounts>(
+    (acc, file) => {
+      const fileStatus = typeof file.status === 'string' ? file.status : 'queued';
+      if (fileStatus === 'succeeded') acc.succeeded += 1;
+      else if (fileStatus === 'failed') acc.failed += 1;
+      else if (fileStatus === 'processing') acc.processing += 1;
+      else acc.queued += 1;
+      return acc;
+    },
+    { succeeded: 0, failed: 0, queued: 0, processing: 0 },
+  );
+}
+
+function toPlainEnglishImportFailureReason(rawReason: string): string {
+  const reason = (rawReason || '').trim();
+  const lower = reason.toLowerCase();
+
+  if (!reason) {
+    return 'This file could not be processed. Please retry this file.';
+  }
+  if (lower.includes('encrypted') || lower.includes('password-protected') || lower.includes('password protected')) {
+    return 'This PDF is password-protected. Use Add Client (single file) or upload an unlocked copy.';
+  }
+  if (lower.includes('unsupported file type')) {
+    return 'This file type is not supported for bulk import. Use PDF, CSV, TSV, Excel, or Google Sheets.';
+  }
+  if (lower.includes('unauthorized') || lower.includes('invalid_grant') || lower.includes('revoked') || lower.includes('expired')) {
+    return 'Google Drive authorization expired. Reconnect Google Drive in Settings, then retry this file.';
+  }
+  if (lower.includes('failed to list folder contents')) {
+    return 'We could not open one selected folder in Google Drive. Check sharing access and try again.';
+  }
+  if (lower.includes('drive download failed')) {
+    return 'We could not download this file from Google Drive. It may have moved, changed permissions, or timed out.';
+  }
+  if (lower.includes('drive download step failed')) {
+    return 'We could not retrieve this file from Google Drive right now. Please retry this file.';
+  }
+  if (lower.includes('storage upload step failed')) {
+    return 'We could not stage this file for processing due to a temporary system issue. Please retry.';
+  }
+  if (lower.includes('job queue step failed')) {
+    return 'We could not start processing this file yet due to a temporary queue issue. Please retry.';
+  }
+  if (lower.includes('google sheets export failed')) {
+    return 'We could not export this Google Sheet as CSV right now. Please retry.';
+  }
+  if (
+    lower === 'connection error.' ||
+    lower.includes('connection error') ||
+    lower.includes('fetch failed') ||
+    lower.includes('network') ||
+    lower.includes('socket') ||
+    lower.includes('timeout')
+  ) {
+    return 'Temporary connection issue while processing this file. Usually transient - retry this file.';
+  }
+
+  return reason;
+}
+
+function getImportRowReviewNotes(row: ImportRow): string[] {
+  const notes: string[] = [];
+  if (!row.policyNumber.trim()) notes.push('No policy number assigned yet (application stage).');
+  if (!row.effectiveDate.trim()) notes.push('No effective date found on the application.');
+  if (!row.premium.trim()) notes.push('No premium amount listed in the document.');
+  if (!row.email.trim()) notes.push('No email address provided.');
+  return notes;
+}
+
+const IMPORT_NOTICE_COPY: Record<ImportNoticeCode, Omit<ImportNotice, 'code'>> = {
+  drive_connected: {
+    type: 'info',
+    title: 'Google Drive connected',
+    items: ['Google Drive connected.', 'Choose files to import.'],
+  },
+  files_need_review: {
+    type: 'warning',
+    title: 'Some files need review',
+    items: ['A few files could not be fully processed. Review file status above and record notes below.'],
+  },
+  partial_parse: {
+    type: 'warning',
+    title: 'Partial results available',
+    items: ['We captured what we could. Please review records before importing.'],
+  },
+  unsupported_files: {
+    type: 'warning',
+    title: 'Unsupported file types',
+    items: ['Some files were skipped because this format is not supported.'],
+  },
+  encrypted_pdf: {
+    type: 'warning',
+    title: 'Protected PDF detected',
+    items: ['We cannot read password-protected PDFs. Upload an unlocked version.'],
+  },
+  mixed_batch_blocked: {
+    type: 'warning',
+    title: 'Separate this upload',
+    items: ['Please import spreadsheet files and PDF files in separate runs.'],
+  },
+  row_limit: {
+    type: 'warning',
+    title: 'Import limit reached',
+    items: ['This batch is over the row limit. Split into smaller imports to continue.'],
+  },
+  drive_connect_failed: {
+    type: 'error',
+    title: 'Could not connect Google Drive',
+    items: ['Connection failed. Try again. If it keeps failing, reconnect in Settings.'],
+  },
+  drive_session_expired: {
+    type: 'error',
+    title: 'Google Drive session expired',
+    items: ['Please reconnect Google Drive, then retry your import.'],
+  },
+  picker_failed: {
+    type: 'error',
+    title: 'Could not open Google Drive picker',
+    items: ['Please try again. If this continues, refresh and retry.'],
+  },
+  upload_failed: {
+    type: 'error',
+    title: 'Upload failed',
+    items: ['We could not upload one or more files. Please retry.'],
+  },
+  parse_failed: {
+    type: 'error',
+    title: 'File processing failed',
+    items: ['We could not process this file. Try re-uploading or use a different file.'],
+  },
+  import_failed: {
+    type: 'error',
+    title: 'Import failed',
+    items: ['No records were imported. Please retry after reviewing errors.'],
+  },
+  processing_started: {
+    type: 'info',
+    title: 'Processing files',
+    items: ['Please keep this tab open while we prepare your import.'],
+  },
+  ready_to_import: {
+    type: 'info',
+    title: 'Ready to import',
+    items: ['Your records are ready. Review and click Import when ready.'],
+  },
+  files_added: {
+    type: 'info',
+    title: 'Files added',
+    items: ['We added your files. Review results below before importing.'],
+  },
+  import_success: {
+    type: 'info',
+    title: 'Import complete',
+    items: ['Your clients were imported successfully.'],
+  },
+};
+
+function buildImportNotice(
+  code: ImportNoticeCode,
+  overrides?: Partial<Pick<ImportNotice, 'type' | 'title' | 'items'>>,
+): ImportNotice {
+  const base = IMPORT_NOTICE_COPY[code];
+  return {
+    code,
+    type: overrides?.type ?? base.type,
+    title: overrides?.title ?? base.title,
+    items: overrides?.items ?? base.items,
+  };
+}
+
+function formatImportNoticeItems(type: ImportNoticeType, items: string[]): string[] {
+  const cleanedItems = items
+    .map((item) => item.replace(/^Warning:\s*/i, '').trim())
+    .filter(Boolean)
+    .map((item) => (item.length > 180 ? `${item.slice(0, 177)}...` : item));
+
+  if (type !== 'warning') return cleanedItems;
+  if (cleanedItems.length === 0) return ['Review file and record details below.'];
+  if (cleanedItems.length === 1) return cleanedItems;
+  return [cleanedItems[0], `${cleanedItems.length - 1} additional notes are listed in file status and record details below.`];
 }
 
 interface ParseBobSourceResult {
@@ -629,8 +847,7 @@ export default function ClientsPage() {
   // ── Import state ──
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importData, setImportData] = useState<ImportRow[]>([]);
-  const [importError, setImportError] = useState('');
-  const [importWarning, setImportWarning] = useState('');
+  const [importNotice, setImportNotice] = useState<ImportNotice | null>(null);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [importSuccess, setImportSuccess] = useState('');
@@ -641,6 +858,15 @@ export default function ClientsPage() {
 
   // ── Background batch tracking (persists across modal open/close) ──
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
+  const [activeBatchProgress, setActiveBatchProgress] = useState<{
+    totalFiles: number;
+    completedFiles: number;
+    failedFiles: number;
+    queuedFiles: number;
+    processingFiles: number;
+    createdAtMs: number | null;
+  } | null>(null);
+  const [batchClockMs, setBatchClockMs] = useState<number>(() => Date.now());
   const [cancelingBatch, setCancelingBatch] = useState(false);
   const [batchStatusNotice, setBatchStatusNotice] = useState<{ type: 'info' | 'error'; message: string } | null>(null);
   const [batchNotification, setBatchNotification] = useState<{
@@ -648,6 +874,7 @@ export default function ClientsPage() {
     totalFiles: number;
     completedFiles: number;
     failedFiles: number;
+    failedFileReasons: Array<{ fileName: string; reason: string }>;
     totalRows: number;
     status: 'completed' | 'partial';
     succeededJobIds: string[];
@@ -670,6 +897,17 @@ export default function ClientsPage() {
     clearError: clearGooglePickerError,
   } = useGooglePicker();
 
+  const clearImportNotice = useCallback(() => {
+    setImportNotice(null);
+  }, []);
+
+  const showImportNotice = useCallback((
+    code: ImportNoticeCode,
+    overrides?: Partial<Pick<ImportNotice, 'type' | 'title' | 'items'>>,
+  ) => {
+    setImportNotice(buildImportNotice(code, overrides));
+  }, []);
+
   useEffect(() => {
     if (importData.length === 0) {
       setSelectedImportRowIndex(0);
@@ -679,19 +917,12 @@ export default function ClientsPage() {
   }, [importData]);
 
   useEffect(() => {
-    if (!isImportModalOpen) return;
-    const previousOverflow = document.body.style.overflow;
-    const previousPaddingRight = document.body.style.paddingRight;
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-    document.body.style.overflow = 'hidden';
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    if (!googlePickerError) {
+      setImportNotice((current) => (current?.code === 'picker_failed' ? null : current));
+      return;
     }
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.body.style.paddingRight = previousPaddingRight;
-    };
-  }, [isImportModalOpen]);
+    showImportNotice('picker_failed', { items: [googlePickerError] });
+  }, [googlePickerError, showImportNotice]);
 
   // ── Anniversary visibility ──
   const [clientUpcomingAnniversaryCounts, setClientUpcomingAnniversaryCounts] = useState<Record<string, number>>({});
@@ -728,6 +959,15 @@ export default function ClientsPage() {
   const emptyClientsStateTrackedRef = useRef(false);
   const emptyClientSearchTrackedRef = useRef<string | null>(null);
   const welcomeSmsTemplate = (agentProfile.welcomeSmsTemplate || '').trim() || DEFAULT_WELCOME_SMS_TEMPLATE;
+  useEffect(() => {
+    if (!activeBatchId) {
+      setBatchClockMs(Date.now());
+      return;
+    }
+    const timer = window.setInterval(() => setBatchClockMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [activeBatchId]);
+
 
   const buildWelcomeSms = useCallback((firstName: string, code: string, language: SupportedLanguage = 'en') => {
     const agentName = (agentProfile.name || 'your agent').trim() || 'your agent';
@@ -755,9 +995,30 @@ export default function ClientsPage() {
         if (!snap.exists()) return;
         const data = snap.data();
         const status = data.status as string;
+        const filesMap = (data.files || {}) as Record<string, Record<string, unknown>>;
+        const statusCounts = countBatchFileStatuses(filesMap);
+        const createdAt = data.createdAt?.toDate?.() ??
+          (typeof data.createdAt?.seconds === 'number' ? new Date(data.createdAt.seconds * 1000) : null);
+        setActiveBatchProgress({
+          totalFiles: typeof data.totalFiles === 'number' ? data.totalFiles : statusCounts.succeeded + statusCounts.failed + statusCounts.queued + statusCounts.processing,
+          completedFiles: typeof data.completedFiles === 'number' ? data.completedFiles : statusCounts.succeeded,
+          failedFiles: typeof data.failedFiles === 'number' ? data.failedFiles : statusCounts.failed,
+          queuedFiles: statusCounts.queued,
+          processingFiles: statusCounts.processing,
+          createdAtMs: createdAt ? createdAt.getTime() : null,
+        });
 
         if (status === 'completed' || status === 'partial') {
-          const filesMap = (data.files || {}) as Record<string, Record<string, unknown>>;
+          const failedFileReasons = Object.values(filesMap)
+            .filter((f) => f.status === 'failed')
+            .map((f) => ({
+              fileName: typeof f.fileName === 'string' ? f.fileName : 'Unnamed file',
+              reason: toPlainEnglishImportFailureReason(
+                typeof f.error === 'string' && f.error.trim().length > 0
+                  ? f.error.trim()
+                  : 'Processing failed before records could be extracted.',
+              ),
+            }));
           const succeededJobIds = Object.entries(filesMap)
             .filter(([, f]) => f.status === 'succeeded' && typeof f.jobId === 'string')
             .map(([, f]) => f.jobId as string);
@@ -767,16 +1028,20 @@ export default function ClientsPage() {
             totalFiles: typeof data.totalFiles === 'number' ? data.totalFiles : 0,
             completedFiles: typeof data.completedFiles === 'number' ? data.completedFiles : 0,
             failedFiles: typeof data.failedFiles === 'number' ? data.failedFiles : 0,
+            failedFileReasons,
             totalRows: typeof data.totalRows === 'number' ? data.totalRows : 0,
             status: status as 'completed' | 'partial',
             succeededJobIds,
           });
+          setActiveBatchProgress(null);
           setActiveBatchId(null);
         } else if (status === 'cancelled') {
           setBatchStatusNotice({ type: 'info', message: 'Import cancelled. You can start a new import anytime.' });
+          setActiveBatchProgress(null);
           setActiveBatchId(null);
         } else if (status === 'failed') {
           setBatchStatusNotice({ type: 'error', message: 'Import stopped because processing failed. Please try again.' });
+          setActiveBatchProgress(null);
           setActiveBatchId(null);
         }
       },
@@ -811,10 +1076,30 @@ export default function ClientsPage() {
 
         if (status === 'processing' && ageMs < STALE_THRESHOLD_MS) {
           // Still processing and recent — resume in-progress indicator
+          const filesMap = (data.files || {}) as Record<string, Record<string, unknown>>;
+          const statusCounts = countBatchFileStatuses(filesMap);
+          setActiveBatchProgress({
+            totalFiles: typeof data.totalFiles === 'number' ? data.totalFiles : statusCounts.succeeded + statusCounts.failed + statusCounts.queued + statusCounts.processing,
+            completedFiles: typeof data.completedFiles === 'number' ? data.completedFiles : statusCounts.succeeded,
+            failedFiles: typeof data.failedFiles === 'number' ? data.failedFiles : statusCounts.failed,
+            queuedFiles: statusCounts.queued,
+            processingFiles: statusCounts.processing,
+            createdAtMs: createdAt ? createdAt.getTime() : null,
+          });
           setActiveBatchId(latestDoc.id);
         } else if ((status === 'completed' || status === 'partial') && ageMs < STALE_THRESHOLD_MS) {
           // Recently finished — show the notification banner
           const filesMap = (data.files || {}) as Record<string, Record<string, unknown>>;
+          const failedFileReasons = Object.values(filesMap)
+            .filter((f) => f.status === 'failed')
+            .map((f) => ({
+              fileName: typeof f.fileName === 'string' ? f.fileName : 'Unnamed file',
+              reason: toPlainEnglishImportFailureReason(
+                typeof f.error === 'string' && f.error.trim().length > 0
+                  ? f.error.trim()
+                  : 'Processing failed before records could be extracted.',
+              ),
+            }));
           const succeededJobIds = Object.entries(filesMap)
             .filter(([, f]) => f.status === 'succeeded' && typeof f.jobId === 'string')
             .map(([, f]) => f.jobId as string);
@@ -824,6 +1109,7 @@ export default function ClientsPage() {
             totalFiles: typeof data.totalFiles === 'number' ? data.totalFiles : 0,
             completedFiles: typeof data.completedFiles === 'number' ? data.completedFiles : 0,
             failedFiles: typeof data.failedFiles === 'number' ? data.failedFiles : 0,
+            failedFileReasons,
             totalRows: typeof data.totalRows === 'number' ? data.totalRows : 0,
             status: status as 'completed' | 'partial',
             succeededJobIds,
@@ -2197,7 +2483,9 @@ export default function ClientsPage() {
     } catch (err) {
       setGoogleDriveConnected(false);
       setGoogleDriveEmail(null);
-      setImportError(err instanceof Error ? err.message : 'Failed to load Google Drive status.');
+      showImportNotice('drive_connect_failed', {
+        items: [err instanceof Error ? err.message : 'Failed to load Google Drive status.'],
+      });
     } finally {
       setGoogleDriveLoading(false);
     }
@@ -2211,7 +2499,7 @@ export default function ClientsPage() {
   const handleConnectGoogleDrive = useCallback(async () => {
     if (!user) return;
     setGoogleDriveActionLoading(true);
-    setImportError('');
+    clearImportNotice();
     clearGooglePickerError();
     try {
       const token = await user.getIdToken();
@@ -2231,10 +2519,12 @@ export default function ClientsPage() {
       }
       window.location.href = body.authUrl;
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : 'Failed to connect Google Drive.');
+      showImportNotice('drive_connect_failed', {
+        items: [err instanceof Error ? err.message : 'Failed to connect Google Drive.'],
+      });
       setGoogleDriveActionLoading(false);
     }
-  }, [clearGooglePickerError, user]);
+  }, [clearGooglePickerError, clearImportNotice, showImportNotice, user]);
 
   useEffect(() => {
     const shouldOpenBulkImport = searchParams.get('bulkImport') === '1';
@@ -2245,10 +2535,11 @@ export default function ClientsPage() {
 
     setIsImportModalOpen(true);
     if (driveStatus === 'success') {
-      setImportWarning('Google Drive connected. Choose files to import.');
+      showImportNotice('drive_connected');
       void loadGoogleDriveStatus();
     } else if (driveStatus === 'error') {
-      setImportError(reason ? `Google Drive connection failed: ${reason}` : 'Google Drive connection failed.');
+      const detail = reason ? `Google Drive connection failed: ${reason}` : 'Google Drive connection failed.';
+      showImportNotice('drive_connect_failed', { items: [detail] });
     }
 
     const params = new URLSearchParams(searchParams.toString());
@@ -2257,7 +2548,7 @@ export default function ClientsPage() {
     params.delete('reason');
     const next = params.toString();
     router.replace(next ? `${pathname}?${next}` : pathname);
-  }, [loadGoogleDriveStatus, pathname, router, searchParams]);
+  }, [loadGoogleDriveStatus, pathname, router, searchParams, showImportNotice]);
 
   const parseCsvLine = useCallback((line: string, delimiter: string = ','): string[] => {
     const result: string[] = [];
@@ -2591,13 +2882,26 @@ export default function ClientsPage() {
     );
   }, []);
 
+  const addImportFileNote = useCallback((sourceFileId: string, note: string) => {
+    const cleaned = note.trim();
+    if (!cleaned) return;
+    setImportFileStatuses((prev) =>
+      prev.map((status) => {
+        if (status.sourceFileId !== sourceFileId) return status;
+        const existing = status.notes || [];
+        if (existing.includes(cleaned)) return status;
+        return { ...status, notes: [...existing, cleaned] };
+      }),
+    );
+  }, []);
+
   const processImportSources = useCallback(async (sources: ImportSourceFile[]) => {
     if (!user || sources.length === 0) return;
 
     const startedAt = Date.now();
     setParsingBob(true);
-    setImportError('');
-    setImportWarning('');
+    clearImportNotice();
+    showImportNotice('processing_started');
     setImportSuccess('');
     setImportData([]);
     setImportProgress(0);
@@ -2610,6 +2914,7 @@ export default function ClientsPage() {
         state: 'queued',
         loadedRows: 0,
         rejectedRows: 0,
+        notes: [],
       })),
     );
 
@@ -2633,6 +2938,7 @@ export default function ClientsPage() {
     let failedFiles = 0;
     let loadedRows = 0;
     const warnings: string[] = [];
+    const warningFiles = new Set<string>();
 
     const bumpProgress = () => {
       completed += 1;
@@ -2696,12 +3002,16 @@ export default function ClientsPage() {
         }
 
         if (quality.rejected > 0) {
-          warnings.push(
-            `${source.file.name}: ${quality.rejected} row${quality.rejected !== 1 ? 's were' : ' was'} skipped due to low-confidence policy data.`,
-          );
+          const note = `${quality.rejected} row${quality.rejected !== 1 ? 's were' : ' was'} skipped due to low-confidence policy data.`;
+          warnings.push(note);
+          warningFiles.add(source.sourceFileId);
+          addImportFileNote(source.sourceFileId, note);
         }
         if (parseRouting?.subsetSkippedReason) {
-          warnings.push(`${source.file.name}: PDF preprocessing fallback (${parseRouting.subsetSkippedReason}).`);
+          const note = `PDF preprocessing fallback (${parseRouting.subsetSkippedReason}).`;
+          warnings.push(note);
+          warningFiles.add(source.sourceFileId);
+          addImportFileNote(source.sourceFileId, note);
         }
         setImportData((prev) => [...prev, ...quality.accepted]);
         loadedRows += quality.accepted.length;
@@ -2770,14 +3080,26 @@ export default function ClientsPage() {
       await Promise.all(workers);
     }
 
-    if (warnings.length > 0) {
-      setImportWarning(`Warning: ${warnings.join(' ')}`);
-    }
-
     if (parsedFiles === 0) {
-      setImportError('No valid rows found. Please review your files and try again.');
+      showImportNotice('import_failed', {
+        items: ['No valid rows found. Please review your files and try again.'],
+      });
     } else if (failedFiles > 0) {
-      setImportError(`${parsedFiles} of ${sources.length} file${sources.length !== 1 ? 's parsed' : ' parsed'} successfully. Review failed files below and retry them.`);
+      showImportNotice('files_need_review', {
+        items: [
+          `${parsedFiles} of ${sources.length} file${sources.length !== 1 ? 's parsed' : ' parsed'} successfully.`,
+          'Review failed files in the file status list above, then retry those files.',
+        ],
+      });
+    } else if (warnings.length > 0) {
+      showImportNotice('files_need_review', {
+        items: [
+          `${warningFiles.size} file${warningFiles.size !== 1 ? 's' : ''} have parser notes.`,
+          'Review file status above and record notes below before importing.',
+        ],
+      });
+    } else {
+      showImportNotice('ready_to_import');
     }
 
     captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_SESSION_COMPLETED, {
@@ -2790,7 +3112,7 @@ export default function ClientsPage() {
     });
 
     setParsingBob(false);
-  }, [bulkPdfConcurrencyLimit, parseBobSourceFile, parseSingleCsv, updateImportFileStatus, user]);
+  }, [addImportFileNote, bulkPdfConcurrencyLimit, clearImportNotice, parseBobSourceFile, parseSingleCsv, showImportNotice, updateImportFileStatus, user]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -2804,8 +3126,9 @@ export default function ClientsPage() {
     }));
     const mixValidationError = getBulkBatchMixValidationError(sources.map((source) => source.fileType));
     if (mixValidationError) {
-      setImportError(mixValidationError);
-      setImportWarning('');
+      showImportNotice('mixed_batch_blocked', {
+        items: [mixValidationError],
+      });
       setImportSuccess('');
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
@@ -2829,32 +3152,39 @@ export default function ClientsPage() {
     }));
     const mixValidationError = getBulkBatchMixValidationError(sources.map((source) => source.fileType));
     if (mixValidationError) {
-      setImportError(mixValidationError);
-      setImportWarning('');
+      showImportNotice('mixed_batch_blocked', {
+        items: [mixValidationError],
+      });
       setImportSuccess('');
       return;
     }
     await processImportSources(sources);
-  }, [getBulkBatchMixValidationError, getImportFileType, processImportSources]);
+  }, [getBulkBatchMixValidationError, getImportFileType, processImportSources, showImportNotice]);
 
   const handleImportFromGoogleDrive = useCallback(async () => {
     if (!user) return;
-    setImportError('');
-    setImportWarning('');
+    clearImportNotice();
     setImportSuccess('');
     setBatchStatusNotice(null);
     clearGooglePickerError();
 
     try {
       const token = await user.getIdToken();
+      showImportNotice('processing_started', {
+        title: 'Opening Google Drive',
+        items: ['Select one or more files to continue.'],
+      });
       const selectedFiles = await pickGoogleDriveFiles(token);
       if (selectedFiles.length === 0) return;
+      showImportNotice('files_added');
       const selectedFileTypes = selectedFiles
         .map((file) => getImportFileTypeFromGoogleMime(file.mimeType))
         .filter((value): value is ImportFileType => value !== null);
       const mixValidationError = getBulkBatchMixValidationError(selectedFileTypes);
       if (mixValidationError) {
-        setImportError(mixValidationError);
+        showImportNotice('mixed_batch_blocked', {
+          items: [mixValidationError],
+        });
         return;
       }
 
@@ -2889,12 +3219,22 @@ export default function ClientsPage() {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to import from Google Drive.';
-      setImportError(message);
+      const lower = message.toLowerCase();
       if (
-        message.toLowerCase().includes('invalid_grant') ||
-        message.toLowerCase().includes('reconnect') ||
-        message.toLowerCase().includes('revoked') ||
-        message.toLowerCase().includes('expired')
+        lower.includes('invalid_grant') ||
+        lower.includes('reconnect') ||
+        lower.includes('revoked') ||
+        lower.includes('expired')
+      ) {
+        showImportNotice('drive_session_expired');
+      } else {
+        showImportNotice('upload_failed', { items: [message] });
+      }
+      if (
+        lower.includes('invalid_grant') ||
+        lower.includes('reconnect') ||
+        lower.includes('revoked') ||
+        lower.includes('expired')
       ) {
         setGoogleDriveConnected(false);
         setGoogleDriveEmail(null);
@@ -2904,7 +3244,7 @@ export default function ClientsPage() {
       setParsingBob(false);
       setDriveImportInFlight(false);
     }
-  }, [clearGooglePickerError, getBulkBatchMixValidationError, getImportFileTypeFromGoogleMime, loadGoogleDriveStatus, pickGoogleDriveFiles, user]);
+  }, [clearGooglePickerError, clearImportNotice, getBulkBatchMixValidationError, getImportFileTypeFromGoogleMime, loadGoogleDriveStatus, pickGoogleDriveFiles, showImportNotice, user]);
 
   const handleDriveImportAction = useCallback(() => {
     if (googleDriveConnected) {
@@ -2916,7 +3256,7 @@ export default function ClientsPage() {
 
   const handleCancelActiveBatch = useCallback(async () => {
     if (!user || !activeBatchId || cancelingBatch) return;
-    setImportError('');
+    clearImportNotice();
     setCancelingBatch(true);
 
     try {
@@ -2948,20 +3288,26 @@ export default function ClientsPage() {
         setBatchStatusNotice({ type: 'info', message: 'Import is no longer running.' });
       }
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : 'Failed to cancel import.');
+      showImportNotice('import_failed', {
+        items: [err instanceof Error ? err.message : 'Failed to cancel import.'],
+      });
     } finally {
       setCancelingBatch(false);
     }
-  }, [user, activeBatchId, cancelingBatch]);
+  }, [user, activeBatchId, cancelingBatch, clearImportNotice, showImportNotice]);
 
   const handleReviewBatchResults = useCallback(async () => {
     if (!batchNotification || !user) return;
 
     setIsImportModalOpen(true);
+    setImportSuccess('');
     setParsingBob(true);
-    setImportError('');
-    setImportWarning(`Loading ${batchNotification.totalRows} row${batchNotification.totalRows !== 1 ? 's' : ''} from ${batchNotification.completedFiles} file${batchNotification.completedFiles !== 1 ? 's' : ''}...`);
+    showImportNotice('processing_started', {
+      title: 'Loading import results',
+      items: [`Loading ${batchNotification.totalRows} row${batchNotification.totalRows !== 1 ? 's' : ''} from ${batchNotification.completedFiles} file${batchNotification.completedFiles !== 1 ? 's' : ''}...`],
+    });
     setImportData([]);
+    setImportFileStatuses([]);
 
     try {
       const token = await user.getIdToken();
@@ -2993,34 +3339,71 @@ export default function ClientsPage() {
       await Promise.all(fetchWorkers);
 
       setImportData(allRows);
-      setImportWarning(warnings.length > 0 ? `Warning: ${warnings.join(' ')}` : '');
+      if (batchNotification.failedFileReasons.length > 0) {
+        setImportFileStatuses(
+          batchNotification.failedFileReasons.map((failed, idx) => ({
+            sourceFileId: `batch-failed-${idx}`,
+            name: failed.fileName,
+            fileType: 'pdf',
+            state: 'failed',
+            loadedRows: 0,
+            rejectedRows: 0,
+            error: failed.reason,
+            notes: [],
+          })),
+        );
+      }
+      if (warnings.length > 0) {
+        showImportNotice('partial_parse', {
+          items: [
+            `${warnings.length} parser note${warnings.length !== 1 ? 's' : ''} found while loading results.`,
+            'Review flagged records in the list below.',
+          ],
+        });
+      } else if (batchNotification.failedFileReasons.length > 0) {
+        showImportNotice('partial_parse', {
+          items: [
+            `${batchNotification.failedFileReasons.length} file${batchNotification.failedFileReasons.length !== 1 ? 's' : ''} failed during processing.`,
+            ...batchNotification.failedFileReasons
+              .slice(0, 3)
+              .map((failed) => `${failed.fileName}: ${failed.reason}`),
+          ],
+        });
+      } else {
+        showImportNotice('ready_to_import');
+      }
       setBatchNotification(null);
 
       if (allRows.length === 0) {
-        setImportError('No valid rows found. Please review your files and try again.');
+        showImportNotice('import_failed', {
+          items: ['No valid rows found. Please review your files and try again.'],
+        });
       }
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : 'Failed to load import results.');
+      showImportNotice('import_failed', {
+        items: [err instanceof Error ? err.message : 'Failed to load import results.'],
+      });
     } finally {
       setParsingBob(false);
     }
-  }, [batchNotification, user, waitForBobIngestionRows]);
+  }, [batchNotification, showImportNotice, user, waitForBobIngestionRows]);
 
   const handleImportClients = useCallback(async () => {
     if (!user || importData.length === 0) return;
     if (importData.length > MAX_IMPORT_ROWS) {
-      setImportError(`Maximum ${MAX_IMPORT_ROWS} clients per import. Split your file or import in multiple runs.`);
+      showImportNotice('row_limit');
       return;
     }
     const preflight = filterHighQualityImportRows(importData);
     if (preflight.accepted.length !== importData.length) {
-      setImportError('Some rows no longer meet quality checks. Please re-upload and review before importing.');
+      showImportNotice('partial_parse', {
+        items: ['Some rows no longer meet quality checks. Please re-upload and review before importing.'],
+      });
       return;
     }
     setImporting(true);
     setImportProgress(0);
-    setImportError('');
-    setImportWarning('');
+    clearImportNotice();
     setImportSuccess('');
     setJustImportedClients([]);
     setIntroSentCount(null);
@@ -3075,15 +3458,17 @@ export default function ClientsPage() {
       setShowIntroConfirm(false);
       setImportData([]);
       setImportFileStatuses([]);
-      setImportWarning('');
+      clearImportNotice();
       if (policyCount > 0) refreshSummaries();
     } catch (err) {
       console.error('Error importing clients:', err);
-      setImportError(err instanceof Error ? err.message : 'Failed to import some records. Please try again.');
+      showImportNotice('import_failed', {
+        items: [err instanceof Error ? err.message : 'Failed to import some records. Please try again.'],
+      });
     } finally {
       setImporting(false);
     }
-  }, [user, importData, importSessionStartedAt, refreshSummaries]);
+  }, [user, importData, importSessionStartedAt, refreshSummaries, clearImportNotice, showImportNotice]);
 
   useEffect(() => {
     if (importSuccess && importModalScrollRef.current) {
@@ -3114,11 +3499,13 @@ export default function ClientsPage() {
       setIntroSentCount(data.sent ?? 0);
     } catch (err) {
       console.error('Send bulk intro error:', err);
-      setImportError(err instanceof Error ? err.message : 'Failed to send intro messages.');
+      showImportNotice('import_failed', {
+        items: [err instanceof Error ? err.message : 'Failed to send intro messages.'],
+      });
     } finally {
       setSendingIntro(false);
     }
-  }, [user, justImportedClients, introMessage, selectedIntroClients]);
+  }, [user, justImportedClients, introMessage, selectedIntroClients, showImportNotice]);
 
   // ─── Share Code Handler ──────────────────────────────────
 
@@ -3345,9 +3732,9 @@ export default function ClientsPage() {
   const addFlowSlideIndex = 0;
   const incomingSurfaceMotionClass = 'absolute inset-x-0 top-0 z-20 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)]';
   const addFlowIncomingSurfaceMotionClass = 'absolute inset-x-0 top-[4rem] z-20 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)]';
-  const incomingSurfaceShellClass = 'relative w-full max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] max-h-[82vh] overflow-y-auto';
+  const incomingSurfaceShellClass = 'relative w-full max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-visible';
   const addFlowSurfaceShellClass = 'relative w-full max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden';
-  const incomingSurfaceHeaderClass = 'flex items-center justify-between p-6 border-b border-gray-200 bg-white';
+  const incomingSurfaceHeaderClass = 'sticky top-0 z-10 flex items-center justify-between p-6 border-b border-gray-200 bg-white';
   const addFlowBeltStepPercent = 72;
   const addFlowBeltStepRem = 14;
   const addFlowInterCardGapRem = 1.25;
@@ -3386,14 +3773,7 @@ export default function ClientsPage() {
     };
   };
   const selectedImportRow = importData[selectedImportRowIndex] ?? null;
-  const importWarningItems = useMemo(() => {
-    if (!importWarning) return [];
-    const normalized = importWarning.replace(/^Warning:\s*/i, '').trim();
-    return normalized
-      .split(/(?<=[.!?])\s+/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }, [importWarning]);
+  const selectedImportRowNotes = selectedImportRow ? getImportRowReviewNotes(selectedImportRow) : [];
   const importFileStatusSummary = useMemo(() => {
     const succeeded = importFileStatuses.filter((s) => s.state === 'succeeded').length;
     const failed = importFileStatuses.filter((s) => s.state === 'failed').length;
@@ -3401,6 +3781,28 @@ export default function ClientsPage() {
     const queued = importFileStatuses.filter((s) => s.state === 'queued').length;
     return { succeeded, failed, parsing, queued };
   }, [importFileStatuses]);
+  const importNoticeStyleByType: Record<ImportNoticeType, { shell: string; icon: string; title: string }> = {
+    info: {
+      shell: 'bg-[#daf3f0]/45 border border-[#45bcaa]/40 text-[#0D4D4D]',
+      icon: 'text-[#0D4D4D]',
+      title: 'text-[#0D4D4D]',
+    },
+    warning: {
+      shell: 'bg-amber-50 border border-amber-200 text-amber-800',
+      icon: 'text-amber-700',
+      title: 'text-amber-800',
+    },
+    error: {
+      shell: 'bg-red-50 border border-red-200 text-red-700',
+      icon: 'text-red-600',
+      title: 'text-red-700',
+    },
+  };
+  const importNoticeStyle = importNotice ? importNoticeStyleByType[importNotice.type] : null;
+  const displayedImportNoticeItems = useMemo(
+    () => (importNotice ? formatImportNoticeItems(importNotice.type, importNotice.items) : []),
+    [importNotice],
+  );
 
   // ─── Render ──────────────────────────────────────────────
 
@@ -3420,21 +3822,56 @@ export default function ClientsPage() {
 
       {/* Batch Processing In-Progress Banner */}
       {activeBatchId && !batchNotification && (
-        <div className="mb-4 flex items-center justify-between gap-3 px-4 py-3 bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[4px] border-b-[4px]">
-          <div className="flex items-center gap-3">
-            <svg className="w-5 h-5 text-[#45bcaa] shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            <p className="text-sm font-medium text-[#005851]">Processing your import&hellip; we&apos;ll notify you when it&apos;s ready.</p>
+        <div className="mb-4 px-4 py-3 bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[4px] border-b-[4px]">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <svg className="w-5 h-5 text-[#45bcaa] shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-[#005851]">Processing your import&hellip; we&apos;ll notify you when it&apos;s ready.</p>
+                {activeBatchProgress && (
+                  <p className="text-xs text-[#5f5f5f]">
+                    {activeBatchProgress.completedFiles + activeBatchProgress.failedFiles}/{Math.max(1, activeBatchProgress.totalFiles)} files finished
+                    {' · '}
+                    {activeBatchProgress.processingFiles} processing
+                    {' · '}
+                    {activeBatchProgress.queuedFiles} queued
+                    {' · '}
+                    {activeBatchProgress.failedFiles} failed
+                    {activeBatchProgress.createdAtMs
+                      ? ` · elapsed ${Math.max(0, Math.floor((batchClockMs - activeBatchProgress.createdAtMs) / 60_000))}:${String(Math.max(0, Math.floor((batchClockMs - activeBatchProgress.createdAtMs) / 1000) % 60)).padStart(2, '0')}`
+                      : ''}
+                  </p>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={handleCancelActiveBatch}
+              disabled={cancelingBatch}
+              className="px-3 py-1.5 rounded-[5px] text-xs font-semibold border border-[#1A1A1A] text-[#000000] bg-white hover:bg-[#f8f8f8] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            >
+              {cancelingBatch ? 'Cancelling...' : 'Cancel Import'}
+            </button>
           </div>
-          <button
-            onClick={handleCancelActiveBatch}
-            disabled={cancelingBatch}
-            className="px-3 py-1.5 rounded-[5px] text-xs font-semibold border border-[#1A1A1A] text-[#000000] bg-white hover:bg-[#f8f8f8] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-          >
-            {cancelingBatch ? 'Cancelling...' : 'Cancel Import'}
-          </button>
+          {!!activeBatchProgress && (
+            <div className="mt-3 h-2 bg-[#e8e8e8] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#45bcaa] rounded-full transition-all duration-500"
+                style={{
+                  width: `${Math.min(
+                    100,
+                    Math.max(
+                      0,
+                      ((activeBatchProgress.completedFiles + activeBatchProgress.failedFiles) /
+                        Math.max(1, activeBatchProgress.totalFiles)) * 100,
+                    ),
+                  )}%`,
+                }}
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -3520,8 +3957,7 @@ export default function ClientsPage() {
               onClick={() => {
                 setIsImportModalOpen(true);
                 setImportData([]);
-                setImportError('');
-                setImportWarning('');
+                clearImportNotice();
                 setImportSuccess('');
                 setImportProgress(0);
                 setImportFileStatuses([]);
@@ -3889,9 +4325,6 @@ export default function ClientsPage() {
                         </p>
                       </div>
                     )}
-                    {googlePickerError && (
-                      <p className="text-[11px] text-red-600">{googlePickerError}</p>
-                    )}
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -3932,18 +4365,30 @@ export default function ClientsPage() {
                           )}
                         </div>
                       </div>
-                      <div className="max-h-48 overflow-y-auto divide-y divide-[#f0f0f0]">
+                      <div className="divide-y divide-[#f0f0f0]">
                         {importFileStatuses.map((status) => (
-                          <div key={status.sourceFileId} className="px-4 py-2 flex items-center justify-between gap-3">
+                          <div key={status.sourceFileId} className="px-4 py-2 flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <p className="text-xs font-medium text-[#000000] truncate">{status.name}</p>
                               {status.error ? (
-                                <p className="text-[11px] text-red-600 truncate">{status.error}</p>
+                                <p className="text-[11px] text-red-600 leading-relaxed">{toPlainEnglishImportFailureReason(status.error)}</p>
                               ) : (
                                 <p className="text-[11px] text-[#707070]">
                                   {status.loadedRows > 0 ? `${status.loadedRows} rows loaded` : 'Awaiting parse'}
                                   {status.rejectedRows > 0 ? ` · ${status.rejectedRows} skipped` : ''}
                                 </p>
+                              )}
+                              {!!status.notes?.length && (
+                                <div className="mt-1.5 space-y-1">
+                                  {status.notes.slice(0, 2).map((note, noteIdx) => (
+                                    <p key={`${status.sourceFileId}-note-${noteIdx}`} className="text-[11px] text-amber-700 leading-relaxed">
+                                      - {note}
+                                    </p>
+                                  ))}
+                                  {status.notes.length > 2 && (
+                                    <p className="text-[11px] text-[#707070]">+{status.notes.length - 2} more note{status.notes.length - 2 !== 1 ? 's' : ''}</p>
+                                  )}
+                                </div>
                               )}
                             </div>
                             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
@@ -3979,24 +4424,16 @@ export default function ClientsPage() {
                     </div>
                   )}
 
-                  {importError && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-[5px] text-xs text-red-600">
-                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {importError}
-                    </div>
-                  )}
-                  {importWarning && (
-                    <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-[5px] text-xs text-amber-700">
+                  {importNotice && importNoticeStyle && importNotice.type !== 'warning' && (
+                    <div className={`px-3 py-2 rounded-[5px] text-xs ${importNoticeStyle.shell}`}>
                       <div className="flex items-center gap-2">
-                        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className={`w-4 h-4 shrink-0 ${importNoticeStyle.icon}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        <span className="font-semibold">Some files need attention</span>
+                        <span className={`font-semibold ${importNoticeStyle.title}`}>{importNotice.title}</span>
                       </div>
                       <div className="mt-2 space-y-1 max-w-2xl">
-                        {(importWarningItems.length > 0 ? importWarningItems : [importWarning]).map((item, idx) => (
+                        {displayedImportNoticeItems.map((item, idx) => (
                           <p key={`${item}-${idx}`} className="leading-relaxed">- {item}</p>
                         ))}
                       </div>
@@ -4035,9 +4472,10 @@ export default function ClientsPage() {
                           </p>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-[1.15fr_1fr]">
-                          <div className="max-h-72 overflow-y-auto divide-y divide-[#f0f0f0] border-b md:border-b-0 md:border-r border-[#f0f0f0]">
+                          <div className="min-h-[22rem] divide-y divide-[#f0f0f0] border-b md:border-b-0 md:border-r border-[#f0f0f0]">
                             {importData.slice(0, 50).map((row, i) => {
                               const hasPolicy = row.policyNumber || row.carrier || row.policyType;
+                              const rowNotes = getImportRowReviewNotes(row);
                               const isSelected = selectedImportRowIndex === i;
                               return (
                                 <button
@@ -4059,9 +4497,20 @@ export default function ClientsPage() {
                                         {[row.policyType, row.carrier, row.policyNumber].filter(Boolean).join(' · ')}
                                       </p>
                                     )}
+                                    {rowNotes.length > 0 && (
+                                      <p className="text-[10px] text-amber-700 truncate mt-1">
+                                        {rowNotes[0]}
+                                      </p>
+                                    )}
                                   </div>
-                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-[#f3f7f7] text-[#005851]">
-                                    {row.email || row.phone ? 'Ready' : 'Review'}
+                                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
+                                    rowNotes.length > 0
+                                      ? 'bg-amber-50 text-amber-700'
+                                      : 'bg-[#f3f7f7] text-[#005851]'
+                                  }`}>
+                                    {rowNotes.length > 0
+                                      ? `Needs review${rowNotes.length > 1 ? ` (${rowNotes.length})` : ''}`
+                                      : (row.email || row.phone ? 'Ready' : 'Review')}
                                   </span>
                                 </button>
                               );
@@ -4089,6 +4538,16 @@ export default function ClientsPage() {
                                   <p><span className="font-semibold text-[#000]">Premium:</span> {selectedImportRow.premium || '—'}</p>
                                   <p><span className="font-semibold text-[#000]">Coverage:</span> {selectedImportRow.coverageAmount || '—'}</p>
                                 </div>
+                                {selectedImportRowNotes.length > 0 && (
+                                  <div className="rounded-[5px] border border-amber-200 bg-amber-50 px-3 py-2.5">
+                                    <p className="text-[11px] font-semibold text-amber-800 mb-1">Record notes</p>
+                                    <div className="space-y-1">
+                                      {selectedImportRowNotes.map((note, noteIdx) => (
+                                        <p key={`selected-note-${noteIdx}`} className="text-[11px] text-amber-700 leading-relaxed">- {note}</p>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <p className="text-xs text-[#707070]">Select a record to see details.</p>
@@ -4117,8 +4576,7 @@ export default function ClientsPage() {
                           type="button"
                           onClick={() => {
                             setImportData([]);
-                            setImportError('');
-                            setImportWarning('');
+                            clearImportNotice();
                             setImportFileStatuses([]);
                             setSelectedImportRowIndex(0);
                           }}

@@ -36,6 +36,10 @@ function toSequentialPages(count: number): number[] {
 
 function buildBroaderMappedSubset(selectedPages: number[]): number[] {
   if (!selectedPages.length) return [];
+  // Sparse two-page mappings (for example SBLI [14, 36]) tend to be either
+  // sufficient as-is or too far apart for a useful "broader" retry. Returning
+  // an empty subset disables the expensive second pass in those cases.
+  if (selectedPages.length < 3) return [];
   const min = Math.min(...selectedPages);
   const max = Math.max(...selectedPages);
   const span = Math.max(max - min + 1, selectedPages.length);
