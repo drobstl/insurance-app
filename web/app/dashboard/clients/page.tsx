@@ -56,6 +56,8 @@ const POLICY_STATUSES = ['Active', 'Pending', 'Lapsed'];
 const CLIENT_APP_URL = 'https://agentforlife.app/app';
 const MAX_IMPORT_ROWS = 400;
 const IMPORT_BATCH_SIZE = 50;
+const MAX_FILES_PER_IMPORT = 50;
+const RECOMMENDED_FILES_PER_IMPORT = '10-20';
 const IMPORT_PARSE_TIMEOUT_MS = 120_000;
 const JOB_POLL_INTERVAL_MS = 1500;
 const MIN_IMPORT_ROW_QUALITY_RATIO = 0.65;
@@ -69,7 +71,7 @@ const DEFAULT_APPLICATION_TYPE = 'unknown';
 const BULK_IMPORT_SPLIT_TYPE_MESSAGE =
   'Please import spreadsheets and PDFs in separate runs for faster, more reliable processing.';
 const BULK_ENCRYPTED_PDF_UNSUPPORTED_MESSAGE =
-  'This PDF is encrypted/password-protected. Please upload it using Add Client (single-file) or remove protection and retry.';
+  'This PDF is encrypted/password-protected. Remove protection or upload one at a time with +Add Client one page back.';
 const BULK_IMPORT_FUN_STATES = ['Processing your import...', 'Preparing client records...', 'Finalizing import data...'] as const;
 const DEFAULT_WELCOME_SMS_TEMPLATE =
   'Hey {{firstName}}! {{agentName}} here. Download the AgentForLife app and use code {{code}} to connect with me. https://agentforlife.app/app';
@@ -257,6 +259,7 @@ type ImportNoticeCode =
   | 'unsupported_files'
   | 'encrypted_pdf'
   | 'mixed_batch_blocked'
+  | 'file_limit'
   | 'row_limit'
   | 'drive_connect_failed'
   | 'drive_session_expired'
@@ -326,7 +329,7 @@ function toPlainEnglishImportFailureReason(rawReason: string): string {
     return 'This file could not be processed. Please retry this file.';
   }
   if (lower.includes('encrypted') || lower.includes('password-protected') || lower.includes('password protected')) {
-    return 'This PDF is password-protected. Use Add Client (single file) or upload an unlocked copy.';
+    return 'This PDF is password-protected. Remove protection or upload one at a time with +Add Client one page back.';
   }
   if (lower.includes('unsupported file type')) {
     return 'This file type is not supported for bulk import. Use PDF, CSV, TSV, Excel, or Google Sheets.';
@@ -368,7 +371,6 @@ function toPlainEnglishImportFailureReason(rawReason: string): string {
 
 function getImportRowReviewNotes(row: ImportRow): string[] {
   const notes: string[] = [];
-  if (!row.policyNumber.trim()) notes.push('No policy number assigned yet (application stage).');
   if (!row.effectiveDate.trim()) notes.push('No effective date found on the application.');
   if (!row.premium.trim()) notes.push('No premium amount listed in the document.');
   if (!row.email.trim()) notes.push('No email address provided.');
@@ -399,12 +401,20 @@ const IMPORT_NOTICE_COPY: Record<ImportNoticeCode, Omit<ImportNotice, 'code'>> =
   encrypted_pdf: {
     type: 'warning',
     title: 'Protected PDF detected',
-    items: ['We cannot read password-protected PDFs. Upload an unlocked version.'],
+    items: ['Password-protected PDFs cannot be processed. Remove protection or upload one at a time with +Add Client one page back.'],
   },
   mixed_batch_blocked: {
     type: 'warning',
     title: 'Separate this upload',
     items: ['Please import spreadsheet files and PDF files in separate runs.'],
+  },
+  file_limit: {
+    type: 'warning',
+    title: 'File limit reached',
+    items: [
+      `You can upload up to ${MAX_FILES_PER_IMPORT} files per import.`,
+      `For fastest results, upload ${RECOMMENDED_FILES_PER_IMPORT} files at a time.`,
+    ],
   },
   row_limit: {
     type: 'warning',
@@ -563,7 +573,6 @@ interface CancelGoogleDriveImportResponse {
 
 function countPolicySignals(row: ImportRow): number {
   let signals = 0;
-  if (row.policyNumber?.trim()) signals++;
   if (row.carrier?.trim()) signals++;
   if (row.policyType?.trim()) signals++;
   if (row.premium?.toString().trim()) signals++;
@@ -667,7 +676,6 @@ const emptyPolicyForm: PolicyFormData = {
 function mapExtractedApplicationToPolicyFormData(data: ExtractedApplicationData): Partial<PolicyFormData> {
   const mapped: Partial<PolicyFormData> = {};
   if (data.policyType) mapped.policyType = data.policyType;
-  if (data.policyNumber) mapped.policyNumber = data.policyNumber;
   if (data.insuranceCompany) {
     const match = KNOWN_CARRIERS.find(
       (c) => c.toLowerCase() === data.insuranceCompany!.toLowerCase()
@@ -1709,7 +1717,6 @@ export default function ClientsPage() {
 
   const hasAddFlowPolicyInput = useCallback((data: PolicyFormData) => {
     if (data.policyType.trim()) return true;
-    if (data.policyNumber.trim()) return true;
     if (data.insuranceCompany.trim()) return true;
     if (data.otherCarrier.trim()) return true;
     if (data.policyOwner.trim()) return true;
@@ -1786,7 +1793,6 @@ export default function ClientsPage() {
     if (hasAddFlowPolicyInput(addFlowPolicyForm)) {
       const policyData: Record<string, unknown> = {
         policyType: addFlowPolicyForm.policyType.trim(),
-        policyNumber: addFlowPolicyForm.policyNumber.trim(),
         insuranceCompany: addFlowPolicyForm.insuranceCompany === 'Other'
           ? addFlowPolicyForm.otherCarrier.trim()
           : addFlowPolicyForm.insuranceCompany.trim(),
@@ -1997,7 +2003,6 @@ export default function ClientsPage() {
 
       const policyPayload: Record<string, unknown> = {
         policyType: policyFormData.policyType,
-        policyNumber: policyFormData.policyNumber.trim(),
         insuranceCompany: carrier,
         policyOwner: policyFormData.policyOwner.trim(),
         beneficiaries: policyFormData.beneficiaries.filter((b) => b.name.trim()),
@@ -2600,7 +2605,6 @@ export default function ClientsPage() {
     const emailIdx = match(['insured email address', 'email address', 'insured email', 'email', 'e-mail']);
     const phoneIdx = match(['insured party phone', 'insured phone', 'phone number', 'phone', 'mobile', 'cell', 'telephone']);
     const dobIdx = match(['insured dob', 'date of birth', 'birth date', 'birthdate', 'dob', 'birthday']);
-    const policyNumIdx = match(['policy number', 'policy no', 'policy num', 'policynumber', 'certificate number']);
     const carrierIdx = match(['carrier name', 'carrier', 'insurance company', 'company name', 'company', 'insurer', 'insurance carrier']);
     const policyTypeIdx = match(['product type nme', 'product desc', 'product type', 'policy type', 'product', 'plan type', 'line of business nme', 'line of business']);
     const effectiveDateIdx = match(['policy effective dte', 'policy issue dte', 'effective date', 'issue date', 'start date', 'policy date', 'effectivedate', 'inception date']);
@@ -2643,7 +2647,7 @@ export default function ClientsPage() {
         email: emailIdx !== -1 ? (cols[emailIdx] || '') : '',
         phone: phoneIdx !== -1 ? (cols[phoneIdx] || '') : '',
         dateOfBirth: dobIdx !== -1 ? (cols[dobIdx] || '') : '',
-        policyNumber: policyNumIdx !== -1 ? (cols[policyNumIdx] || '') : '',
+        policyNumber: '',
         carrier: carrierIdx !== -1 ? (cols[carrierIdx] || '') : '',
         policyType: policyTypeIdx !== -1 ? (cols[policyTypeIdx] || '') : '',
         effectiveDate: effectiveDateIdx !== -1 ? (cols[effectiveDateIdx] || '') : '',
@@ -2663,7 +2667,7 @@ export default function ClientsPage() {
       email: row.email || '',
       phone: row.phone || '',
       dateOfBirth: row.dateOfBirth || '',
-      policyNumber: row.policyNumber || '',
+      policyNumber: '',
       carrier: row.carrier || '',
       policyType: row.policyType || '',
       effectiveDate: '',
@@ -2897,6 +2901,11 @@ export default function ClientsPage() {
 
   const processImportSources = useCallback(async (sources: ImportSourceFile[]) => {
     if (!user || sources.length === 0) return;
+    if (sources.length > MAX_FILES_PER_IMPORT) {
+      showImportNotice('file_limit');
+      setImportSuccess('');
+      return;
+    }
 
     const startedAt = Date.now();
     setParsingBob(true);
@@ -3176,6 +3185,15 @@ export default function ClientsPage() {
       });
       const selectedFiles = await pickGoogleDriveFiles(token);
       if (selectedFiles.length === 0) return;
+      if (selectedFiles.length > MAX_FILES_PER_IMPORT) {
+        showImportNotice('file_limit', {
+          items: [
+            `You selected ${selectedFiles.length} files. You can import up to ${MAX_FILES_PER_IMPORT} files at a time.`,
+            `For fastest results, upload ${RECOMMENDED_FILES_PER_IMPORT} files per run.`,
+          ],
+        });
+        return;
+      }
       showImportNotice('files_added');
       const selectedFileTypes = selectedFiles
         .map((file) => getImportFileTypeFromGoogleMime(file.mimeType))
@@ -3558,13 +3576,6 @@ export default function ClientsPage() {
             <option key={type} value={type}>{type}</option>
           ))}
         </select>
-        <input
-          type="text"
-          value={addFlowPolicyForm.policyNumber}
-          onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, policyNumber: e.target.value }))}
-          placeholder="Policy Number"
-          className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm"
-        />
         <select
           value={addFlowPolicyForm.insuranceCompany}
           onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, insuranceCompany: e.target.value }))}
@@ -4241,13 +4252,15 @@ export default function ClientsPage() {
                 </div>
               ) : (
                 <>
-                  <div className="rounded-[8px] border border-[#d0d0d0] bg-[#f8f8f8] px-4 py-2.5">
-                    <p className="text-xs font-semibold text-[#5a5a5a]">Import clients in 3 steps</p>
-                    <p className="text-[11px] text-[#707070] mt-0.5">1) Add files  2) Review parsed records  3) Import</p>
+                  <div className="rounded-[8px] border border-[#d0d0d0] bg-[#f8f8f8] px-4 py-3">
+                    <p className="text-xs font-semibold text-[#5a5a5a]">Before you upload</p>
+                    <p className="text-[11px] text-[#707070] mt-1">Step 1: Add files (up to 50 per import).</p>
+                    <p className="text-[11px] text-[#707070] mt-0.5">For fastest results, upload 10-20 files at a time.</p>
+                    <p className="text-[11px] text-[#707070] mt-0.5">Accepted formats: CSV, TSV, Excel, PDF.</p>
                   </div>
 
                   <div className="inline-flex max-w-full items-center rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-semibold leading-relaxed text-red-700">
-                    Encrypted or password-protected files? Remove protection or upload one at a time via +Add Client.
+                    Password-protected files can&apos;t be processed. Remove protection or upload one at a time with +Add Client one page back.
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -4352,8 +4365,8 @@ export default function ClientsPage() {
                         : 'border-[#d0d0d0] bg-white'
                     }`}
                   >
-                    <p className="text-xs text-[#707070] text-center">Drag and drop files here.</p>
-                    <p className="text-[11px] text-[#999999] text-center mt-1">CSV, TSV, Excel, PDF • Max 50 files</p>
+                    <p className="text-xs text-[#707070] text-center">Drop up to 50 files here.</p>
+                    <p className="text-[11px] text-[#999999] text-center mt-1">CSV, TSV, Excel, PDF • Fastest with 10-20 files</p>
                   </div>
 
                   {importFileStatuses.length > 0 && (
@@ -4448,7 +4461,7 @@ export default function ClientsPage() {
                     <>
                       {/* Summary of detected fields */}
                       {(() => {
-                        const withPolicy = importData.filter(r => r.policyNumber || r.carrier || r.policyType || r.premium || r.coverageAmount).length;
+                        const withPolicy = importData.filter(r => r.carrier || r.policyType || r.premium || r.coverageAmount).length;
                         const withEffDate = importData.filter(r => r.effectiveDate).length;
                         return (
                           <div className="flex flex-wrap gap-2">
@@ -4478,7 +4491,7 @@ export default function ClientsPage() {
                         <div className="grid grid-cols-1 md:grid-cols-[1.15fr_1fr]">
                           <div className="min-h-[22rem] divide-y divide-[#f0f0f0] border-b md:border-b-0 md:border-r border-[#f0f0f0]">
                             {importData.slice(0, 50).map((row, i) => {
-                              const hasPolicy = row.policyNumber || row.carrier || row.policyType;
+                              const hasPolicy = row.carrier || row.policyType;
                               const rowNotes = getImportRowReviewNotes(row);
                               const isSelected = selectedImportRowIndex === i;
                               return (
@@ -4498,7 +4511,7 @@ export default function ClientsPage() {
                                     </p>
                                     {hasPolicy && (
                                       <p className="text-[10px] text-blue-700 truncate mt-1">
-                                        {[row.policyType, row.carrier, row.policyNumber].filter(Boolean).join(' · ')}
+                                        {[row.policyType, row.carrier].filter(Boolean).join(' · ')}
                                       </p>
                                     )}
                                     {rowNotes.length > 0 && (
@@ -4535,7 +4548,6 @@ export default function ClientsPage() {
                                   <p><span className="font-semibold text-[#000]">Email:</span> {selectedImportRow.email || '—'}</p>
                                   <p><span className="font-semibold text-[#000]">Phone:</span> {selectedImportRow.phone || '—'}</p>
                                   <p><span className="font-semibold text-[#000]">DOB:</span> {selectedImportRow.dateOfBirth || '—'}</p>
-                                  <p><span className="font-semibold text-[#000]">Policy #:</span> {selectedImportRow.policyNumber || '—'}</p>
                                   <p><span className="font-semibold text-[#000]">Carrier:</span> {selectedImportRow.carrier || '—'}</p>
                                   <p><span className="font-semibold text-[#000]">Policy type:</span> {selectedImportRow.policyType || '—'}</p>
                                   <p><span className="font-semibold text-[#000]">Effective date:</span> {selectedImportRow.effectiveDate || '—'}</p>
@@ -4583,6 +4595,8 @@ export default function ClientsPage() {
                             clearImportNotice();
                             setImportFileStatuses([]);
                             setSelectedImportRowIndex(0);
+                            batchDismissedRef.current = true;
+                            setBatchNotification(null);
                           }}
                           disabled={importing || parsingBob}
                           className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-100 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors text-sm"
@@ -5316,18 +5330,6 @@ export default function ClientsPage() {
                 </select>
               </div>
 
-              {/* Policy Number */}
-              <div>
-                <label className="block text-sm font-medium text-[#000000] mb-1">Policy Number</label>
-                <input
-                  type="text"
-                  value={policyFormData.policyNumber}
-                  onChange={(e) => setPolicyFormData((f) => ({ ...f, policyNumber: e.target.value }))}
-                  className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
-                  placeholder="e.g. POL-123456"
-                />
-              </div>
-
               {/* Insurance Company */}
               <div>
                 <label className="block text-sm font-medium text-[#000000] mb-1">Insurance Company</label>
@@ -5635,7 +5637,7 @@ export default function ClientsPage() {
               </div>
               <h3 className="text-lg font-bold text-[#000000] mb-2">Delete Policy</h3>
               <p className="text-sm text-[#707070] mb-6">
-                Are you sure you want to delete the <span className="font-semibold">{deleteConfirmPolicy.policyType}</span> policy (#{deleteConfirmPolicy.policyNumber})? This action cannot be undone.
+                Are you sure you want to delete the <span className="font-semibold">{deleteConfirmPolicy.policyType}</span> policy? This action cannot be undone.
               </p>
               <div className="flex gap-3">
                 <button
@@ -5823,7 +5825,7 @@ export default function ClientsPage() {
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="text-sm font-medium text-[#000000]">{p.policyType}</p>
-                              <p className="text-xs text-[#707070]">{p.insuranceCompany} &middot; #{p.policyNumber}</p>
+                              <p className="text-xs text-[#707070]">{p.insuranceCompany}</p>
                             </div>
                             <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
                               p.status === 'Active' ? 'bg-green-50 text-green-700' :
@@ -5840,7 +5842,7 @@ export default function ClientsPage() {
                 {flagAtRiskPolicies.length === 1 && (
                   <div className="px-4 py-3 bg-[#f8f8f8] rounded-[5px] border border-[#d0d0d0]">
                     <p className="text-sm font-medium text-[#000000]">{flagAtRiskPolicies[0].policyType}</p>
-                    <p className="text-xs text-[#707070]">{flagAtRiskPolicies[0].insuranceCompany} &middot; #{flagAtRiskPolicies[0].policyNumber}</p>
+                    <p className="text-xs text-[#707070]">{flagAtRiskPolicies[0].insuranceCompany}</p>
                   </div>
                 )}
 
