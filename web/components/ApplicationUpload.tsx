@@ -84,7 +84,7 @@ function normalizeBeneficiaryList(beneficiaries: Beneficiary[] | null | undefine
 function normalizeExtractedData(data: ExtractedApplicationData): ExtractedApplicationData {
   return {
     policyType: data.policyType,
-    policyNumber: normalizeText(data.policyNumber),
+    policyNumber: null,
     insuranceCompany: normalizeText(data.insuranceCompany),
     policyOwner: normalizeText(data.policyOwner),
     insuredName: normalizeText(data.insuredName),
@@ -579,7 +579,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
 
   const updateNullableTextField = useCallback((key: keyof Pick<
     ExtractedApplicationData,
-    | 'policyNumber' | 'insuranceCompany' | 'policyOwner' | 'insuredName' | 'insuredEmail' | 'insuredPhone'
+    | 'insuranceCompany' | 'policyOwner' | 'insuredName' | 'insuredEmail' | 'insuredPhone'
     | 'insuredDateOfBirth' | 'insuredState' | 'effectiveDate' | 'applicationSignedDate' | 'renewalDate'
   >, value: string) => {
     updatePolicyFields((current) => ({
@@ -828,7 +828,6 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
                     options={POLICY_TYPE_OPTIONS}
                   />
                   <EditableField label="Insurance Company" value={editablePolicy.insuranceCompany || ''} onChange={(v) => updateNullableTextField('insuranceCompany', v)} placeholder="Carrier name" />
-                  <EditableField label="Policy Number" value={editablePolicy.policyNumber || ''} onChange={(v) => updateNullableTextField('policyNumber', v)} />
                   <EditableField label="Policy Owner" value={editablePolicy.policyOwner || ''} onChange={(v) => updateNullableTextField('policyOwner', v)} />
                   <EditableField label="Insured" value={editablePolicy.insuredName || ''} onChange={(v) => updateNullableTextField('insuredName', v)} />
                   {beneficiaries.length > 0 ? (

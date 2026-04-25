@@ -76,7 +76,7 @@ FIELD RULES:
 - coverageAmount: face amount/death benefit as a number.
 - premiumAmount: modal/planned/scheduled premium as a number.
 - premiumFrequency: map to monthly/quarterly/semi-annual/annual.
-- policyNumber: policy/application/certificate/case number (not SSN, DL, agent ID, or form ID).
+- policyNumber: always null (policy number extraction is disabled for now).
 - policyType: classify into IUL, Term Life, Whole Life, Mortgage Protection, Accidental, Other.
 - insuranceCompany: carrier short/common name.
 - insuredDateOfBirth/effectiveDate/applicationSignedDate: return YYYY-MM-DD only when clearly visible.
@@ -1535,7 +1535,7 @@ function normalizeApplication(parsed: Record<string, unknown>): ExtractedApplica
   const effectiveDate = extractedEffectiveDate ?? applicationSignedDate;
   return {
     policyType: toPolicyType(parsed.policyType),
-    policyNumber: toStringOrNull(parsed.policyNumber),
+    policyNumber: null,
     insuranceCompany: toStringOrNull(parsed.insuranceCompany),
     policyOwner: toStringOrNull(parsed.policyOwner),
     insuredName: toStringOrNull(parsed.insuredName),

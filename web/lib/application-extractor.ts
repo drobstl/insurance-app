@@ -40,7 +40,7 @@ FIELD EXTRACTION RULES:
 
 "premiumFrequency": Determined by the payment mode. Common indicators: "Monthly"/"Bank Draft"/"MON" = "monthly", "Quarterly"/"QTR" = "quarterly", "Semi-Annual"/"SA" = "semi-annual", "Annual"/"ANN" = "annual".
 
-"policyNumber": The application/case/policy/certificate number. Often a repeating reference number on multiple pages or near "Policy Number:", "Application Number:", "Certificate Number:". Do NOT confuse with SS#, DL#, agent numbers, or form numbers (like "ICC18-AA3487").
+"policyNumber": ALWAYS return null. Policy number extraction is disabled for now.
 
 "policyType": Classify the product:
   - "Mortgage Protection" = plans named "Home Certainty", "Mortgage Protection", "MP", or applications with mortgage sections
@@ -341,7 +341,7 @@ function buildResult(parsed: Record<string, unknown>): { data: ExtractedApplicat
 
   const data: ExtractedApplicationData = {
     policyType: validatePolicyType(parsed.policyType),
-    policyNumber: toStringOrNull(parsed.policyNumber),
+    policyNumber: null,
     insuranceCompany: toStringOrNull(parsed.insuranceCompany),
     policyOwner: toStringOrNull(parsed.policyOwner),
     insuredName: toStringOrNull(parsed.insuredName),
@@ -364,7 +364,6 @@ function buildResult(parsed: Record<string, unknown>): { data: ExtractedApplicat
     'insuredPhone',
     'policyType',
     'insuranceCompany',
-    'policyNumber',
     'coverageAmount',
     'premiumAmount',
     'applicationSignedDate',
@@ -444,7 +443,6 @@ function countExtractionSignals(data: ExtractedApplicationData): number {
   let signals = 0;
   if (data.insuredName) signals++;
   if (data.policyType) signals++;
-  if (data.policyNumber) signals++;
   if (data.insuranceCompany) signals++;
   if (data.coverageAmount != null) signals++;
   if (data.premiumAmount != null) signals++;
@@ -458,7 +456,7 @@ function isFastPassAcceptable(data: ExtractedApplicationData): boolean {
   }
 
   const hasIdentity = !!data.insuredName;
-  const hasPolicyAnchor = !!data.policyType || !!data.policyNumber || !!data.insuranceCompany;
+  const hasPolicyAnchor = !!data.policyType || !!data.insuranceCompany;
   const hasFinancialAnchor = data.coverageAmount != null || data.premiumAmount != null;
 
   return hasIdentity && hasPolicyAnchor && hasFinancialAnchor;

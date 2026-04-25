@@ -1172,7 +1172,6 @@ export default function ClientDetailModal({
                         </div>
                         <div>
                           <h4 className="font-semibold text-[#000000]">{policy.policyType}</h4>
-                          <p className="text-gray-500 text-sm">#{policy.policyNumber}</p>
                         </div>
                       </div>
                       <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(policy.status)}`}>
