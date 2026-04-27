@@ -247,6 +247,11 @@ Standalone pricing remains for agents who come directly. Founding member migrati
   - `gcf/ingestion-v3-processor/package.json` engines target moved from `20` to `22`.
   - Deployed successfully in production for `ingestionv3:processIngestionV3Queued`, `ingestionv3:cleanupIngestionV3Zombies`, and `ingestionv3:reconcileStaleBatchJobs`.
   - Node 20 deprecation warning is cleared for this codebase; separate maintenance follow-up remains to upgrade `firebase-functions` major version.
+- Added (April 26, 2026): Milestone-driven onboarding revamp to improve early activation on the dashboard.
+  - Replaced the static onboarding modal with a guided, persisted coachmark flow that resumes at the saved step and highlights concrete UI targets (Settings, Clients, Send Welcome, Patch).
+  - Added structured onboarding state in agent profile (`onboarding.version`, `currentStep`, `requiredMilestones`) with explicit milestone completion writes and `onboardingComplete` only after all required actions are done.
+  - Wired onboarding milestones to real behaviors (profile completion, first client created, first welcome text sent, first Patch prompt sent), including admin reset support for both legacy and new onboarding fields.
+  - Expanded PostHog onboarding instrumentation with `onboarding_step_viewed`, `onboarding_step_blocked`, `onboarding_resumed`, `onboarding_completed`, `onboarding_patch_prompt_sent`, and `onboarding_manual_correction_used`.
 - Known issues / next session:
   - "0 pages" metadata bug in extraction summary.
   - Bulk import intelligence notes are concatenated into an unreadable wall of text (needs per-file collapsible notes).
