@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import Cropper from 'react-easy-crop';
 import type { Area } from 'react-easy-crop';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -121,6 +121,7 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('profile');
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   // Password change
   const [showPasswordSection, setShowPasswordSection] = useState(false);
@@ -157,6 +158,10 @@ export default function SettingsPage() {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const cardInputRef = useRef<HTMLInputElement>(null);
+  const saveInFlightRef = useRef(false);
+  const autoSaveTimerRef = useRef<number | null>(null);
+  const autosaveHydratedRef = useRef(false);
+  const lastSavedSnapshotRef = useRef('');
 
   const updateField = useCallback(
     <K extends keyof typeof agentProfile>(key: K, value: (typeof agentProfile)[K]) => {
@@ -164,6 +169,52 @@ export default function SettingsPage() {
     },
     [setAgentProfile],
   );
+
+  const settingsSnapshot = useMemo(() => JSON.stringify({
+    name: agentProfile.name || '',
+    phoneNumber: agentProfile.phoneNumber || '',
+    schedulingUrl: agentProfile.schedulingUrl || '',
+    agencyName: agentProfile.agencyName || '',
+    agencyLogoBase64: agentProfile.agencyLogoBase64 || null,
+    businessCardBase64: agentProfile.businessCardBase64 || null,
+    photoBase64: agentProfile.photoBase64 || null,
+    aiAssistantEnabled: agentProfile.aiAssistantEnabled ?? true,
+    referralMessage: agentProfile.referralMessage || '',
+    autoHolidayCards: agentProfile.autoHolidayCards ?? false,
+    anniversaryMessageStyle: agentProfile.anniversaryMessageStyle || 'check_in',
+    anniversaryMessageCustom: agentProfile.anniversaryMessageCustom || '',
+    anniversaryMessageCustomTitle: agentProfile.anniversaryMessageCustomTitle || '',
+    policyReviewAIEnabled: agentProfile.policyReviewAIEnabled ?? true,
+    welcomeSmsTemplate: agentProfile.welcomeSmsTemplate || '',
+    beneficiaryWelcomeTemplateEn: agentProfile.beneficiaryWelcomeTemplateEn || '',
+    beneficiaryWelcomeTemplateEs: agentProfile.beneficiaryWelcomeTemplateEs || '',
+    beneficiaryHolidayTouchpointsEnabled: agentProfile.beneficiaryHolidayTouchpointsEnabled ?? false,
+    beneficiaryAIFollowupsEnabled: agentProfile.beneficiaryAIFollowupsEnabled ?? false,
+    beneficiaryMaxTouchesPer30Days: agentProfile.beneficiaryMaxTouchesPer30Days ?? 3,
+    skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
+  }), [
+    agentProfile.name,
+    agentProfile.phoneNumber,
+    agentProfile.schedulingUrl,
+    agentProfile.agencyName,
+    agentProfile.agencyLogoBase64,
+    agentProfile.businessCardBase64,
+    agentProfile.photoBase64,
+    agentProfile.aiAssistantEnabled,
+    agentProfile.referralMessage,
+    agentProfile.autoHolidayCards,
+    agentProfile.anniversaryMessageStyle,
+    agentProfile.anniversaryMessageCustom,
+    agentProfile.anniversaryMessageCustomTitle,
+    agentProfile.policyReviewAIEnabled,
+    agentProfile.welcomeSmsTemplate,
+    agentProfile.beneficiaryWelcomeTemplateEn,
+    agentProfile.beneficiaryWelcomeTemplateEs,
+    agentProfile.beneficiaryHolidayTouchpointsEnabled,
+    agentProfile.beneficiaryAIFollowupsEnabled,
+    agentProfile.beneficiaryMaxTouchesPer30Days,
+    agentProfile.skipWelcomeSmsConfirmation,
+  ]);
 
   const loadGoogleDriveStatus = useCallback(async () => {
     if (!user) return;
@@ -297,10 +348,20 @@ export default function SettingsPage() {
     }
   }, [cropImageSrc, croppedAreaPixels, updateField]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async (mode: 'manual' | 'auto' = 'manual', snapshot = settingsSnapshot) => {
     if (!user) return;
+    if (autoSaveTimerRef.current) {
+      window.clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+    if (saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
     setSaving(true);
-    setSaveMessage(null);
+    if (mode === 'manual') {
+      setSaveMessage(null);
+    } else {
+      setAutoSaveStatus('saving');
+    }
     try {
       const newPhone = (agentProfile.phoneNumber || '').trim();
       const agentRef = doc(db, 'agents', user.uid);
@@ -309,6 +370,7 @@ export default function SettingsPage() {
       const isFirstTimePhone = !previousPhone.trim() && !!newPhone;
 
       await setDoc(agentRef, {
+        name: agentProfile.name || '',
         phoneNumber: agentProfile.phoneNumber || '',
         schedulingUrl: agentProfile.schedulingUrl || '',
         agencyName: agentProfile.agencyName || '',
@@ -323,6 +385,15 @@ export default function SettingsPage() {
         anniversaryMessageCustomTitle: agentProfile.anniversaryMessageCustomTitle || '',
         policyReviewAIEnabled: agentProfile.policyReviewAIEnabled ?? true,
         welcomeSmsTemplate: agentProfile.welcomeSmsTemplate || '',
+        beneficiaryWelcomeTemplateEn: agentProfile.beneficiaryWelcomeTemplateEn || '',
+        beneficiaryWelcomeTemplateEs: agentProfile.beneficiaryWelcomeTemplateEs || '',
+        beneficiaryHolidayTouchpointsEnabled: agentProfile.beneficiaryHolidayTouchpointsEnabled ?? false,
+        beneficiaryAIFollowupsEnabled: agentProfile.beneficiaryAIFollowupsEnabled ?? false,
+        beneficiaryMaxTouchesPer30Days: (() => {
+          const parsed = Number(agentProfile.beneficiaryMaxTouchesPer30Days ?? 3);
+          if (!Number.isFinite(parsed)) return 3;
+          return Math.min(10, Math.max(1, Math.round(parsed)));
+        })(),
         skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
       }, { merge: true });
 
@@ -338,24 +409,73 @@ export default function SettingsPage() {
         }
       }
 
-      captureEvent(ANALYTICS_EVENTS.SETTINGS_UPDATED, {
-        setting_changed: activeTab,
-      });
-
-      setSaveMessage({ type: 'success', text: 'Settings saved successfully.' });
-      setTimeout(() => setSaveMessage(null), 3000);
+      if (mode === 'manual') {
+        captureEvent(ANALYTICS_EVENTS.SETTINGS_UPDATED, {
+          setting_changed: activeTab,
+        });
+      }
+      lastSavedSnapshotRef.current = snapshot;
+      window.dispatchEvent(new CustomEvent('afl:settings-saved'));
+      if (mode === 'manual') {
+        setSaveMessage({ type: 'success', text: 'Settings saved successfully.' });
+        setTimeout(() => setSaveMessage(null), 3000);
+      } else {
+        setAutoSaveStatus('saved');
+      }
     } catch (err) {
       console.error('Save error:', err);
-      captureEvent(ANALYTICS_EVENTS.ACTION_FAILED, {
-        action: 'save_settings',
-        surface: 'settings',
-        reason: 'save_failed',
-      });
-      setSaveMessage({ type: 'error', text: 'Failed to save settings. Please try again.' });
+      if (mode === 'manual') {
+        captureEvent(ANALYTICS_EVENTS.ACTION_FAILED, {
+          action: 'save_settings',
+          surface: 'settings',
+          reason: 'save_failed',
+        });
+        setSaveMessage({ type: 'error', text: 'Failed to save settings. Please try again.' });
+      } else {
+        setAutoSaveStatus('error');
+      }
     } finally {
+      saveInFlightRef.current = false;
       setSaving(false);
     }
-  };
+  }, [activeTab, agentProfile, settingsSnapshot, user]);
+
+  useEffect(() => {
+    if (loading || !user) return;
+    if (!autosaveHydratedRef.current) {
+      autosaveHydratedRef.current = true;
+      lastSavedSnapshotRef.current = settingsSnapshot;
+      setAutoSaveStatus('idle');
+      return;
+    }
+    if (settingsSnapshot === lastSavedSnapshotRef.current) {
+      if (autoSaveStatus !== 'saving') {
+        setAutoSaveStatus('idle');
+      }
+      return;
+    }
+
+    if (autoSaveTimerRef.current) {
+      window.clearTimeout(autoSaveTimerRef.current);
+    }
+    setAutoSaveStatus('saving');
+    const snapshotAtSchedule = settingsSnapshot;
+    autoSaveTimerRef.current = window.setTimeout(() => {
+      void handleSave('auto', snapshotAtSchedule);
+    }, 700);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        window.clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [autoSaveStatus, handleSave, loading, settingsSnapshot, user]);
+
+  useEffect(() => () => {
+    if (autoSaveTimerRef.current) {
+      window.clearTimeout(autoSaveTimerRef.current);
+    }
+  }, []);
 
   const handlePasswordChange = async () => {
     setPasswordError('');
@@ -481,6 +601,7 @@ export default function SettingsPage() {
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
+            data-onboarding-target={tab.key === 'profile' ? 'settings-tab-profile' : tab.key === 'branding' ? 'settings-tab-branding' : undefined}
             className={`flex-1 py-2 px-3 text-sm font-semibold rounded-[4px] transition-colors ${
               activeTab === tab.key
                 ? 'bg-[#005851] text-white'
@@ -531,6 +652,7 @@ export default function SettingsPage() {
                   }}
                 />
                 <button
+                  data-onboarding-target="settings-photo-upload"
                   onClick={() => photoInputRef.current?.click()}
                   className="px-4 py-2 text-sm font-medium text-[#005851] border border-[#005851] rounded-[5px] hover:bg-[#005851] hover:text-white transition-colors"
                 >
@@ -548,10 +670,12 @@ export default function SettingsPage() {
               <div>
                 <label className="block text-sm font-medium text-[#000000] mb-1">Name</label>
                 <input
+                  data-onboarding-target="settings-name-input"
                   type="text"
                   value={agentProfile.name || ''}
-                  readOnly
-                  className="w-full px-3 py-2 rounded-[5px] border border-gray-200 bg-[#f5f5f5] text-[#707070] text-sm cursor-not-allowed"
+                  onChange={(e) => updateField('name', e.target.value)}
+                  placeholder="Your full name"
+                  className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
                 />
               </div>
               <div>
@@ -574,6 +698,7 @@ export default function SettingsPage() {
               <div>
                 <label className="block text-sm font-medium text-[#000000] mb-1">Phone Number</label>
                 <input
+                  data-onboarding-target="settings-phone-input"
                   type="tel"
                   value={agentProfile.phoneNumber || ''}
                   onChange={(e) => updateField('phoneNumber', formatPhoneNumber(e.target.value))}
@@ -619,6 +744,7 @@ export default function SettingsPage() {
           <div className="bg-white rounded-[5px] border border-gray-200 p-5">
             <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Agency Name</h3>
             <input
+              data-onboarding-target="settings-agency-input"
               type="text"
               value={agentProfile.agencyName || ''}
               onChange={(e) => updateField('agencyName', e.target.value)}
@@ -649,6 +775,7 @@ export default function SettingsPage() {
                     }}
                   />
                   <button
+                    data-onboarding-target="settings-logo-upload"
                     onClick={() => logoInputRef.current?.click()}
                     className="px-4 py-2 text-sm font-medium text-[#005851] border border-[#005851] rounded-[5px] hover:bg-[#005851] hover:text-white transition-colors"
                   >
@@ -675,6 +802,7 @@ export default function SettingsPage() {
                   }}
                 />
                 <button
+                  data-onboarding-target="settings-logo-upload"
                   onClick={() => logoInputRef.current?.click()}
                   className="w-full py-8 border-2 border-dashed border-gray-300 rounded-[5px] text-[#707070] text-sm hover:border-[#45bcaa] hover:text-[#005851] transition-colors flex flex-col items-center gap-2"
                 >
@@ -846,6 +974,106 @@ export default function SettingsPage() {
                     }`}
                   />
                 </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Beneficiary Welcome Message */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Beneficiary Welcome Message</h3>
+            <p className="text-xs text-[#707070] mb-3">
+              This template is used when sending a message to beneficiaries (not the insured client).
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[#000000] mb-1.5">English Template</label>
+                <textarea
+                  value={agentProfile.beneficiaryWelcomeTemplateEn || ''}
+                  onChange={(e) => updateField('beneficiaryWelcomeTemplateEn', e.target.value)}
+                  placeholder="Hi {{beneficiaryFirstName}}, this is {{agentName}}. You are listed as a beneficiary for {{insuredFirstName}}. Use code {{beneficiaryCode}} in AgentForLife: {{appUrl}}"
+                  rows={4}
+                  className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa] resize-y"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#000000] mb-1.5">Spanish Template</label>
+                <textarea
+                  value={agentProfile.beneficiaryWelcomeTemplateEs || ''}
+                  onChange={(e) => updateField('beneficiaryWelcomeTemplateEs', e.target.value)}
+                  placeholder="Hola {{beneficiaryFirstName}}, soy {{agentName}}. Fuiste registrado(a) como beneficiario(a) de {{insuredFirstName}}. Usa el codigo {{beneficiaryCode}} en AgentForLife: {{appUrl}}"
+                  rows={4}
+                  className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa] resize-y"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {['{{beneficiaryFirstName}}', '{{insuredFirstName}}', '{{agentName}}', '{{beneficiaryCode}}', '{{appUrl}}'].map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center px-2 py-0.5 rounded bg-[#daf3f0] text-[#005851] text-xs font-medium"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Beneficiary Relationship Automation */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Beneficiary Relationship Automation</h3>
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-[#000000]">Auto-Send Beneficiary Holiday Touchpoints</p>
+                  <p className="text-xs text-[#707070] mt-1">
+                    Sends role-aware holiday check-ins to beneficiaries using SMS first with email fallback.
+                  </p>
+                </div>
+                <button
+                  onClick={() => updateField('beneficiaryHolidayTouchpointsEnabled', !(agentProfile.beneficiaryHolidayTouchpointsEnabled ?? false))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
+                    (agentProfile.beneficiaryHolidayTouchpointsEnabled ?? false) ? 'bg-[#44bbaa]' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
+                      (agentProfile.beneficiaryHolidayTouchpointsEnabled ?? false) ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-[#000000]">Enable AI Follow-up Sequence (Day 2/5/10)</p>
+                  <p className="text-xs text-[#707070] mt-1">
+                    After a beneficiary intro is sent, queue staged follow-ups with safe caps and automatic stop on failed contact.
+                  </p>
+                </div>
+                <button
+                  onClick={() => updateField('beneficiaryAIFollowupsEnabled', !(agentProfile.beneficiaryAIFollowupsEnabled ?? false))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
+                    (agentProfile.beneficiaryAIFollowupsEnabled ?? false) ? 'bg-[#44bbaa]' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
+                      (agentProfile.beneficiaryAIFollowupsEnabled ?? false) ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#000000] mb-1.5">Max Beneficiary Touches per 30 Days</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={agentProfile.beneficiaryMaxTouchesPer30Days ?? 3}
+                  onChange={(e) => updateField('beneficiaryMaxTouchesPer30Days', Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
+                />
               </div>
             </div>
           </div>
@@ -1254,7 +1482,10 @@ export default function SettingsPage() {
           )}
         </div>
         <button
-          onClick={handleSave}
+          data-onboarding-target="settings-save-button"
+          onClick={() => {
+            void handleSave('manual');
+          }}
           disabled={saving}
           className="px-6 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors disabled:opacity-50 flex items-center gap-2"
         >
@@ -1266,6 +1497,17 @@ export default function SettingsPage() {
           )}
           {saving ? 'Saving...' : 'Save Settings'}
         </button>
+      </div>
+      <div className="mt-2 flex justify-end">
+        {autoSaveStatus === 'saving' && (
+          <p className="text-xs text-[#707070]">Autosaving...</p>
+        )}
+        {autoSaveStatus === 'saved' && (
+          <p className="text-xs text-[#0D4D4D]">All changes saved</p>
+        )}
+        {autoSaveStatus === 'error' && (
+          <p className="text-xs text-red-600">Autosave failed. Use Save Settings to retry.</p>
+        )}
       </div>
 
       {showCancelWarning && (

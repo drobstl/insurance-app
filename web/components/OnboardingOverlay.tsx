@@ -12,6 +12,7 @@ import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 interface OnboardingOverlayProps {
   agentName: string;
   onComplete: () => void;
+  onPause?: () => void;
 }
 
 interface OnboardingStep {
@@ -26,9 +27,21 @@ interface OnboardingStep {
 type TargetName =
   | 'nav-settings'
   | 'nav-clients'
+  | 'settings-tab-profile'
+  | 'settings-tab-branding'
+  | 'settings-name-input'
+  | 'settings-phone-input'
+  | 'settings-photo-upload'
+  | 'settings-agency-input'
+  | 'settings-logo-upload'
+  | 'settings-save-button'
   | 'clients-add-client'
+  | 'clients-addflow-create-client'
+  | 'clients-addflow-confirm-create'
   | 'clients-send-welcome'
   | 'patch-launcher';
+
+type ProfileSubStep = 'name' | 'agency' | 'phone' | 'visual' | 'save';
 
 const STEPS: OnboardingStep[] = [
   {
@@ -75,16 +88,52 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function findTarget(name: TargetName): HTMLElement | null {
-  const target = document.querySelector<HTMLElement>(`[data-onboarding-target="${name}"]`);
-  if (!target) return null;
-  const rect = target.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0) return null;
-  return target;
+  const targets = Array.from(document.querySelectorAll<HTMLElement>(`[data-onboarding-target="${name}"]`));
+  for (const target of targets) {
+    const rect = target.getBoundingClientRect();
+    const style = window.getComputedStyle(target);
+    const isInteractable = style.display !== 'none'
+      && style.visibility !== 'hidden'
+      && style.pointerEvents !== 'none'
+      && Number.parseFloat(style.opacity || '1') > 0.05;
+    if (rect.width > 0 && rect.height > 0 && isInteractable) {
+      return target;
+    }
+  }
+  return null;
+}
+
+function getFirstIncompleteProfileSubStep(agentProfile: {
+  name?: string;
+  agencyName?: string;
+  phoneNumber?: string;
+  photoBase64?: string | null;
+  photoURL?: string | null;
+  agencyLogoBase64?: string | null;
+}): ProfileSubStep {
+  if ((agentProfile.name || '').trim().length === 0) return 'name';
+  if ((agentProfile.agencyName || '').trim().length === 0) return 'agency';
+  if ((agentProfile.phoneNumber || '').trim().length === 0) return 'phone';
+  if (!(agentProfile.photoBase64 || agentProfile.photoURL || agentProfile.agencyLogoBase64)) return 'visual';
+  return 'save';
+}
+
+function getProfileGuidedTargets(baseStep: ProfileSubStep): TargetName[] {
+  if (baseStep === 'name') {
+    return ['settings-name-input', 'settings-tab-branding', 'settings-agency-input', 'settings-tab-profile', 'settings-phone-input', 'settings-photo-upload'];
+  }
+  if (baseStep === 'agency') {
+    return ['settings-tab-branding', 'settings-agency-input', 'settings-tab-profile', 'settings-phone-input', 'settings-photo-upload'];
+  }
+  if (baseStep === 'phone') return ['settings-tab-profile', 'settings-phone-input', 'settings-photo-upload'];
+  if (baseStep === 'visual') return ['settings-photo-upload'];
+  return [];
 }
 
 export default function OnboardingOverlay({
   agentName,
   onComplete,
+  onPause,
 }: OnboardingOverlayProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -95,8 +144,13 @@ export default function OnboardingOverlay({
     completeOnboarding,
   } = useDashboard();
   const [currentStep, setCurrentStep] = useState(agentProfile.onboarding?.currentStep ?? 0);
-  const [started, setStarted] = useState((agentProfile.onboarding?.currentStep ?? 0) > 0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+  const [activeTargetName, setActiveTargetName] = useState<TargetName | null>(null);
+  const [guidedIndex, setGuidedIndex] = useState(0);
+  const [profileFlowStart, setProfileFlowStart] = useState<ProfileSubStep | null>(null);
+  const [focusedProfileTarget, setFocusedProfileTarget] = useState<TargetName | null>(null);
+  const [activeTargetDisabled, setActiveTargetDisabled] = useState(false);
+  const [actionAck, setActionAck] = useState<string | null>(null);
 
   const firstName = agentName?.split(' ')[0] || 'there';
 
@@ -105,34 +159,37 @@ export default function OnboardingOverlay({
     const hasVisual = Boolean(agentProfile.photoBase64 || agentProfile.photoURL || agentProfile.agencyLogoBase64);
     return hasIdentity && hasVisual;
   }, [agentProfile.name, agentProfile.agencyName, agentProfile.phoneNumber, agentProfile.photoBase64, agentProfile.photoURL, agentProfile.agencyLogoBase64]);
+  const isOnSettingsRoute = pathname.startsWith('/dashboard/settings');
+  const profileSubStep = useMemo<ProfileSubStep>(() => getFirstIncompleteProfileSubStep(agentProfile), [
+    agentProfile.name,
+    agentProfile.agencyName,
+    agentProfile.phoneNumber,
+    agentProfile.photoBase64,
+    agentProfile.photoURL,
+    agentProfile.agencyLogoBase64,
+  ]);
 
   const milestones = useMemo(() => {
     const required = agentProfile.onboarding?.requiredMilestones;
     return {
-      profileCompleted: profileLooksComplete || required?.profileCompleted === true,
+      profileCompleted: required?.profileCompleted === true,
       firstClientCreated: required?.firstClientCreated === true,
       firstWelcomeSent: required?.firstWelcomeSent === true,
       firstPatchPromptSent: required?.firstPatchPromptSent === true,
     };
-  }, [agentProfile.onboarding?.requiredMilestones, profileLooksComplete]);
+  }, [agentProfile.onboarding?.requiredMilestones]);
 
   const allRequiredDone = milestones.profileCompleted
     && milestones.firstClientCreated
     && milestones.firstWelcomeSent
     && milestones.firstPatchPromptSent;
+  const step = STEPS[currentStep];
 
   useEffect(() => {
     const persistedStep = agentProfile.onboarding?.currentStep;
     if (typeof persistedStep !== 'number' || !Number.isFinite(persistedStep)) return;
     setCurrentStep(Math.max(0, Math.min(STEPS.length - 1, persistedStep)));
-    if (persistedStep > 0) setStarted(true);
   }, [agentProfile.onboarding?.currentStep]);
-
-  useEffect(() => {
-    if (profileLooksComplete && !agentProfile.onboarding?.requiredMilestones?.profileCompleted) {
-      void markOnboardingMilestone('profileCompleted');
-    }
-  }, [profileLooksComplete, agentProfile.onboarding?.requiredMilestones?.profileCompleted, markOnboardingMilestone]);
 
   useEffect(() => {
     captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_VIEWED, {
@@ -149,18 +206,80 @@ export default function OnboardingOverlay({
     captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_COMPLETED, { step_name: 'patch' });
   }, [allRequiredDone, currentStep]);
 
-  const step = STEPS[currentStep];
-  const primaryTargetCandidates = useMemo<TargetName[]>(() => {
-    if (step.id === 'profile') return ['nav-settings'];
-    if (step.id === 'firstClient') {
-      return pathname.startsWith('/dashboard/clients') ? ['clients-add-client'] : ['nav-clients'];
+  useEffect(() => {
+    setGuidedIndex(0);
+    setProfileFlowStart(null);
+  }, [step.id, pathname]);
+
+  useEffect(() => {
+    if (step.id !== 'profile' || !isOnSettingsRoute || milestones.profileCompleted) return;
+    if (profileFlowStart) return;
+    setProfileFlowStart(profileSubStep);
+  }, [step.id, isOnSettingsRoute, milestones.profileCompleted, profileFlowStart, profileSubStep]);
+
+  useEffect(() => {
+    const editableTargets = new Set<TargetName>([
+      'settings-name-input',
+      'settings-agency-input',
+      'settings-phone-input',
+    ]);
+    const syncFocusedTarget = () => {
+      const active = document.activeElement;
+      if (!(active instanceof HTMLElement)) {
+        setFocusedProfileTarget(null);
+        return;
+      }
+      const targetName = active.getAttribute('data-onboarding-target') as TargetName | null;
+      setFocusedProfileTarget(targetName && editableTargets.has(targetName) ? targetName : null);
+    };
+    const handleFocusIn = () => syncFocusedTarget();
+    const handleFocusOut = () => window.setTimeout(syncFocusedTarget, 0);
+    document.addEventListener('focusin', handleFocusIn);
+    document.addEventListener('focusout', handleFocusOut);
+    return () => {
+      document.removeEventListener('focusin', handleFocusIn);
+      document.removeEventListener('focusout', handleFocusOut);
+    };
+  }, []);
+
+  const guidedTargets = useMemo<TargetName[]>(() => {
+    if (step.id === 'profile') {
+      if (!isOnSettingsRoute) return ['nav-settings'];
+      const baseStep = profileFlowStart ?? profileSubStep;
+      return getProfileGuidedTargets(baseStep);
     }
-    if (step.id === 'firstWelcome') return ['clients-send-welcome', 'clients-add-client', 'nav-clients'];
+    if (step.id === 'firstClient') {
+      return pathname.startsWith('/dashboard/clients')
+        ? ['clients-add-client', 'clients-addflow-create-client', 'clients-addflow-confirm-create']
+        : ['nav-clients'];
+    }
+    if (step.id === 'firstWelcome') {
+      return pathname.startsWith('/dashboard/clients')
+        ? ['clients-send-welcome']
+        : ['nav-clients'];
+    }
     if (step.id === 'patch') return ['patch-launcher'];
     return [];
-  }, [step.id, pathname]);
-  const activeTargetName = primaryTargetCandidates[0];
-  const stepComplete = step.milestone ? milestones[step.milestone] : started;
+  }, [step.id, isOnSettingsRoute, pathname, profileFlowStart, profileSubStep]);
+  const activeGuidedTarget = guidedTargets[Math.min(guidedIndex, Math.max(0, guidedTargets.length - 1))] ?? null;
+  const displayedGuidedTarget = focusedProfileTarget ?? activeGuidedTarget;
+  const hasGuidedSequence = (step.id === 'profile' || step.id === 'firstClient') && step.milestone && !milestones[step.milestone];
+  const guidedProgressText = hasGuidedSequence && guidedTargets.length > 0
+    ? `Guide ${Math.min(guidedIndex + 1, guidedTargets.length)} of ${guidedTargets.length}`
+    : null;
+
+  const primaryTargetCandidates = useMemo<TargetName[]>(() => {
+    if (focusedProfileTarget) return [focusedProfileTarget];
+    if (activeGuidedTarget) return [activeGuidedTarget];
+    if (step.id === 'profile') {
+      if (!isOnSettingsRoute) return ['nav-settings'];
+      if (profileSubStep === 'save') return ['settings-save-button'];
+      return [];
+    }
+    if (step.id === 'firstClient' || step.id === 'firstWelcome') return ['nav-clients'];
+    if (step.id === 'patch') return ['patch-launcher'];
+    return [];
+  }, [focusedProfileTarget, activeGuidedTarget, step.id, isOnSettingsRoute, profileSubStep]);
   const needsTarget = step.id !== 'welcome';
 
   useEffect(() => {
@@ -171,10 +290,19 @@ export default function OnboardingOverlay({
 
     let frame = 0;
     const sync = () => {
-      const element = primaryTargetCandidates
-        .map((name) => findTarget(name))
-        .find((candidate): candidate is HTMLElement => candidate !== null);
-      setTargetRect(element ? element.getBoundingClientRect() : null);
+      const resolved = primaryTargetCandidates
+        .map((name) => ({ name, element: findTarget(name) }))
+        .find((candidate): candidate is { name: TargetName; element: HTMLElement } => candidate.element !== null);
+      setTargetRect(resolved?.element.getBoundingClientRect() ?? null);
+      setActiveTargetName(resolved?.name ?? null);
+      const isDisabled = Boolean(
+        resolved?.element
+        && (
+          resolved.element.matches(':disabled')
+          || resolved.element.getAttribute('aria-disabled') === 'true'
+        )
+      );
+      setActiveTargetDisabled(isDisabled);
     };
 
     const queueSync = () => {
@@ -195,10 +323,73 @@ export default function OnboardingOverlay({
     };
   }, [primaryTargetCandidates, needsTarget]);
 
+  useEffect(() => {
+    if (!hasGuidedSequence || !activeGuidedTarget) return;
+
+    const clickAdvanceTargets = new Set<TargetName>([
+      'nav-settings',
+      'nav-clients',
+      'settings-tab-branding',
+      'settings-tab-profile',
+      'clients-add-client',
+    ]);
+
+    const handleDocumentClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const clicked = target.closest<HTMLElement>('[data-onboarding-target]');
+      if (!clicked) return;
+      const clickedTarget = clicked.getAttribute('data-onboarding-target') as TargetName | null;
+      if (!clickedTarget) return;
+      if (clickedTarget !== activeGuidedTarget) return;
+      if (!clickAdvanceTargets.has(clickedTarget)) return;
+
+      const nextIndex = guidedIndex + 1;
+      if (nextIndex < guidedTargets.length) {
+        // Move one guidance step after the real UI click.
+        setGuidedIndex(nextIndex);
+        setActionAck('Nice - moving to next action.');
+      }
+    };
+
+    document.addEventListener('click', handleDocumentClick);
+    return () => document.removeEventListener('click', handleDocumentClick);
+  }, [activeGuidedTarget, guidedIndex, guidedTargets, hasGuidedSequence]);
+
+  useEffect(() => {
+    if (!actionAck) return;
+    const timer = window.setTimeout(() => setActionAck(null), 1100);
+    return () => window.clearTimeout(timer);
+  }, [actionAck]);
+
   const goToNextStep = () => {
     if (currentStep >= STEPS.length - 1) return;
     setCurrentStep((prev) => Math.min(STEPS.length - 1, prev + 1));
   };
+  const goToPreviousStep = () => {
+    if (guidedTargets.length > 0 && guidedIndex > 0) {
+      setGuidedIndex((prev) => Math.max(0, prev - 1));
+      return;
+    }
+    setCurrentStep((prev) => Math.max(0, prev - 1));
+  };
+
+  useEffect(() => {
+    if (step.id === 'profile' && milestones.profileCompleted) {
+      captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_COMPLETED, { step_name: 'profile' });
+      goToNextStep();
+      return;
+    }
+    if (step.id === 'firstClient' && milestones.firstClientCreated) {
+      captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_COMPLETED, { step_name: 'firstClient' });
+      goToNextStep();
+      return;
+    }
+    if (step.id === 'firstWelcome' && milestones.firstWelcomeSent) {
+      captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_COMPLETED, { step_name: 'firstWelcome' });
+      goToNextStep();
+    }
+  }, [step.id, milestones.profileCompleted, milestones.firstClientCreated, milestones.firstWelcomeSent]);
 
   const handleFinish = async () => {
     if (!allRequiredDone) return;
@@ -211,9 +402,23 @@ export default function OnboardingOverlay({
 
   const handlePrimary = async () => {
     if (step.id === 'welcome') {
-      setStarted(true);
       captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_COMPLETED, { step_name: 'welcome' });
       goToNextStep();
+      return;
+    }
+
+    if (step.id === 'profile' && !milestones.profileCompleted && !isOnSettingsRoute) {
+      router.push('/dashboard/settings');
+      return;
+    }
+
+    if (step.id === 'firstClient' && !milestones.firstClientCreated && !pathname.startsWith('/dashboard/clients')) {
+      router.push('/dashboard/clients');
+      return;
+    }
+
+    if (step.id === 'firstWelcome' && !milestones.firstWelcomeSent && !pathname.startsWith('/dashboard/clients')) {
+      router.push('/dashboard/clients');
       return;
     }
 
@@ -227,8 +432,20 @@ export default function OnboardingOverlay({
     }
 
     if (step.milestone && !milestones[step.milestone]) {
-      if (step.route) {
-        router.push(step.route);
+      if (step.id === 'profile' || step.id === 'firstClient') {
+        const nextIndex = guidedIndex + 1;
+        if (nextIndex < guidedTargets.length) {
+          const nextTarget = findTarget(guidedTargets[nextIndex]);
+          if (nextTarget) {
+            setGuidedIndex(nextIndex);
+          } else {
+            captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_BLOCKED, {
+              step_name: step.id,
+              reason: 'next_target_not_ready',
+            });
+          }
+          return;
+        }
       }
       captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_BLOCKED, {
         step_name: step.id,
@@ -246,11 +463,102 @@ export default function OnboardingOverlay({
     goToNextStep();
   };
 
+  useEffect(() => {
+    const handleSettingsSaved = async () => {
+      if (step.id !== 'profile') return;
+      if (!isOnSettingsRoute) return;
+      if (!profileLooksComplete) return;
+
+      if (!milestones.profileCompleted) {
+        await markOnboardingMilestone('profileCompleted');
+      }
+      captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_COMPLETED, { step_name: 'profile' });
+      goToNextStep();
+    };
+
+    window.addEventListener('afl:settings-saved', handleSettingsSaved);
+    return () => window.removeEventListener('afl:settings-saved', handleSettingsSaved);
+  }, [
+    step.id,
+    isOnSettingsRoute,
+    profileLooksComplete,
+    milestones.profileCompleted,
+    markOnboardingMilestone,
+  ]);
+
   const primaryLabel = (() => {
     if (step.id === 'welcome') return step.buttonLabel;
+    if (step.id === 'profile' && !milestones.profileCompleted) return 'Next';
+    if (step.id === 'firstClient' && !milestones.firstClientCreated) return 'Next';
+    if (step.id === 'firstWelcome' && !milestones.firstWelcomeSent) return 'Next';
+    if (step.milestone && !milestones[step.milestone]) return 'Next';
     if (step.id === 'patch') return milestones.firstPatchPromptSent ? 'Finish Setup' : step.buttonLabel;
     if (step.milestone && milestones[step.milestone]) return 'Continue';
     return step.buttonLabel;
+  })();
+  const allowNextTargets: TargetName[] = [
+    'settings-name-input',
+    'settings-agency-input',
+    'settings-phone-input',
+    'clients-addflow-create-client',
+  ];
+  const showPrimaryButton = (() => {
+    if (step.id === 'welcome') return true;
+    if (step.id === 'patch') return true;
+    if (step.id === 'profile' && !milestones.profileCompleted) {
+      if (profileSubStep === 'save') return false;
+      return displayedGuidedTarget ? allowNextTargets.includes(displayedGuidedTarget) : false;
+    }
+    if (step.id === 'firstClient' && !milestones.firstClientCreated) {
+      return displayedGuidedTarget ? allowNextTargets.includes(displayedGuidedTarget) : false;
+    }
+    if (step.id === 'firstWelcome' && !milestones.firstWelcomeSent) return false;
+    return true;
+  })();
+  const stepDescription = (() => {
+    if (step.id !== 'profile' || !isOnSettingsRoute || milestones.profileCompleted) return step.description;
+    if (displayedGuidedTarget === 'settings-name-input') return 'Enter your full name in the highlighted field.';
+    if (displayedGuidedTarget === 'settings-tab-branding') return 'Click Branding to continue to the next setup item.';
+    if (displayedGuidedTarget === 'settings-agency-input') return 'Enter your agency name in the highlighted field.';
+    if (displayedGuidedTarget === 'settings-tab-profile') return 'Click Profile to continue to the next setup item.';
+    if (displayedGuidedTarget === 'settings-phone-input') return 'Enter your phone number in Personal Info.';
+    if (displayedGuidedTarget === 'settings-photo-upload' || displayedGuidedTarget === 'settings-logo-upload') {
+      return 'Upload a profile photo or agency logo.';
+    }
+    return 'Click Save Settings to complete this step.';
+  })();
+  const contextualDescription = (() => {
+    if (step.id === 'profile' && !milestones.profileCompleted) {
+      if (!isOnSettingsRoute) return 'Click Settings in the left sidebar.';
+      if (displayedGuidedTarget === 'settings-name-input') return 'Enter your full name, then click Next.';
+      if (displayedGuidedTarget === 'settings-tab-branding') return 'Click Branding.';
+      if (displayedGuidedTarget === 'settings-agency-input') return 'Enter your agency name, then click Next.';
+      if (displayedGuidedTarget === 'settings-tab-profile') return 'Click Profile.';
+      if (displayedGuidedTarget === 'settings-phone-input') return 'Enter your phone number, then click Next.';
+      if (displayedGuidedTarget === 'settings-photo-upload' || displayedGuidedTarget === 'settings-logo-upload') {
+        return 'Upload a photo or logo, then wait for autosave.';
+      }
+      return 'Wait for autosave to complete this profile step.';
+    }
+    if (step.id === 'firstClient' && !milestones.firstClientCreated) {
+      if (!pathname.startsWith('/dashboard/clients')) return 'Go to Clients to start this step.';
+      if (activeGuidedTarget === 'clients-add-client') return 'Click Add Client to open the guided create flow.';
+      if (activeGuidedTarget === 'clients-addflow-create-client') return 'Fill the required client fields, then click Next.';
+      if (activeGuidedTarget === 'clients-addflow-confirm-create') return 'Click Confirm & Create, then this step auto-completes.';
+      return 'Create one client to unlock the next onboarding step.';
+    }
+    if (step.id === 'firstWelcome' && !milestones.firstWelcomeSent) {
+      if (!pathname.startsWith('/dashboard/clients')) return 'Go to Clients to send your first welcome text.';
+      if (activeGuidedTarget === 'clients-send-welcome' && activeTargetDisabled) {
+        return 'Send Welcome Text is disabled because this client has no phone number. Add a phone, then return here.';
+      }
+      if (activeGuidedTarget === 'clients-send-welcome') return 'Review the draft and send the welcome text.';
+      return 'Finish creating a client first, then send the welcome text.';
+    }
+    if (step.id === 'patch' && !milestones.firstPatchPromptSent) {
+      return 'Open Patch and send one message. Once sent, this step unlocks automatically.';
+    }
+    return stepDescription;
   })();
 
   const spotlight = useMemo(() => {
@@ -291,14 +599,29 @@ export default function OnboardingOverlay({
 
   return (
     <div className="fixed inset-0 z-[60] pointer-events-none">
+      {!spotlight && (
+        <div className="fixed inset-0 bg-black/50 pointer-events-auto" />
+      )}
       {spotlight && (
         <>
-          <div className="fixed left-0 right-0 top-0 bg-black/40 pointer-events-auto" style={{ height: spotlight.top }} />
-          <div className="fixed left-0 bg-black/40 pointer-events-auto" style={{ top: spotlight.top, width: spotlight.left, height: spotlight.height }} />
-          <div className="fixed right-0 bg-black/40 pointer-events-auto" style={{ top: spotlight.top, width: Math.max(0, spotlight.viewportWidth - spotlight.right), height: spotlight.height }} />
-          <div className="fixed left-0 right-0 bottom-0 bg-black/40 pointer-events-auto" style={{ top: spotlight.bottom }} />
           <div
-            className="fixed rounded-xl border-2 border-[#3DD6C3] shadow-[0_0_0_9999px_rgba(0,0,0,0.05)] pointer-events-none"
+            className="fixed left-0 right-0 top-0 bg-black/55 pointer-events-auto transition-[height] duration-300 ease-out"
+            style={{ height: spotlight.top }}
+          />
+          <div
+            className="fixed left-0 bg-black/55 pointer-events-auto transition-[top,width,height] duration-300 ease-out"
+            style={{ top: spotlight.top, width: spotlight.left, height: spotlight.height }}
+          />
+          <div
+            className="fixed right-0 bg-black/55 pointer-events-auto transition-[top,width,height] duration-300 ease-out"
+            style={{ top: spotlight.top, width: Math.max(0, spotlight.viewportWidth - spotlight.right), height: spotlight.height }}
+          />
+          <div
+            className="fixed left-0 right-0 bottom-0 bg-black/55 pointer-events-auto transition-[top] duration-300 ease-out"
+            style={{ top: spotlight.bottom }}
+          />
+          <div
+            className="fixed rounded-xl border-2 border-[#3DD6C3] shadow-[0_0_0_9999px_rgba(0,0,0,0.06),0_0_0_3px_rgba(61,214,195,0.25)] pointer-events-none transition-[left,top,width,height] duration-300 ease-out"
             style={{
               left: spotlight.left,
               top: spotlight.top,
@@ -306,11 +629,21 @@ export default function OnboardingOverlay({
               height: spotlight.height,
             }}
           />
+          <div
+            className="fixed rounded-xl border-2 border-[#3DD6C3] animate-[pulse_0.85s_ease-out_infinite] pointer-events-none transition-[left,top,width,height] duration-300 ease-out"
+            style={{
+              left: spotlight.left,
+              top: spotlight.top,
+              width: spotlight.width,
+              height: spotlight.height,
+              boxShadow: '0 0 0 8px rgba(61,214,195,0.40), 0 0 26px rgba(61,214,195,0.60)',
+            }}
+          />
         </>
       )}
 
       <div
-        className="fixed w-[min(360px,calc(100vw-24px))] rounded-xl border border-black/10 bg-white shadow-xl pointer-events-auto"
+        className="fixed w-[min(380px,calc(100vw-24px))] rounded-xl border-2 border-[#0D4D4D]/20 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.5)] pointer-events-auto transition-[left,top,transform] duration-300 ease-out"
         style={{
           left: coachmarkStyle.left,
           top: coachmarkStyle.top,
@@ -325,6 +658,17 @@ export default function OnboardingOverlay({
         </div>
 
         <div className="px-4 py-4">
+          <div className="inline-flex items-center gap-1.5 mb-2 px-2 py-1 rounded-full bg-[#0D4D4D] text-[#3DD6C3] text-[10px] font-semibold uppercase tracking-wide">
+            Onboarding
+          </div>
+          {onPause && (
+            <button
+              onClick={onPause}
+              className="ml-2 text-[11px] font-semibold text-[#727272] hover:text-[#0D4D4D] transition-colors"
+            >
+              Pause
+            </button>
+          )}
           {currentStep === 0 && (
             <p className="text-sm font-semibold text-[#0D4D4D] mb-1">Welcome, {firstName}</p>
           )}
@@ -332,22 +676,22 @@ export default function OnboardingOverlay({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-[#3DD6C3]">
               Step {currentStep + 1} of {STEPS.length}
             </span>
-            {needsTarget && activeTargetName && (
+            {guidedProgressText && (
+              <span className="text-[11px] text-[#727272]">Action {Math.min(guidedIndex + 1, guidedTargets.length)} of {guidedTargets.length}</span>
+            )}
+            {needsTarget && targetRect && (
               <span className="text-[11px] text-[#727272]">Click highlighted target</span>
             )}
           </div>
           <h3 className="text-base font-bold text-[#0D4D4D]">{step.title}</h3>
-          <p className="text-sm text-[#4b4b4b] mt-1 leading-snug">{step.description}</p>
-
-          {needsTarget && !targetRect && (
-            <p className="text-xs text-[#8a5a00] bg-[#fff7db] border border-[#f5c451]/50 rounded px-2 py-1.5 mt-2">
-              Waiting for target. Navigate if needed.
-            </p>
+          <p className="text-sm text-[#4b4b4b] mt-1 leading-snug">{contextualDescription}</p>
+          {actionAck && (
+            <p className="text-xs text-[#0D4D4D] font-semibold mt-1">{actionAck}</p>
           )}
 
           <div className="mt-3 flex items-center justify-between gap-2">
             <button
-              onClick={() => setCurrentStep((prev) => Math.max(0, prev - 1))}
+              onClick={goToPreviousStep}
               disabled={currentStep === 0}
               className={`px-3 py-1.5 rounded text-xs font-semibold border ${
                 currentStep === 0
@@ -357,14 +701,18 @@ export default function OnboardingOverlay({
             >
               Back
             </button>
-            <button
-              onClick={() => {
-                void handlePrimary();
-              }}
-              className="px-3 py-1.5 rounded text-xs font-semibold bg-[#3DD6C3] hover:bg-[#32c4b2] text-[#0D4D4D]"
-            >
-              {primaryLabel}
-            </button>
+            {showPrimaryButton ? (
+              <button
+                onClick={() => {
+                  void handlePrimary();
+                }}
+                className="px-3 py-1.5 rounded text-xs font-semibold bg-[#3DD6C3] hover:bg-[#32c4b2] text-[#0D4D4D]"
+              >
+                {primaryLabel}
+              </button>
+            ) : (
+              <div className="text-[11px] text-[#727272] font-medium">Use the highlighted UI action to continue</div>
+            )}
           </div>
         </div>
 
@@ -383,7 +731,7 @@ export default function OnboardingOverlay({
 
       {spotlight && coachmarkStyle.placement !== 'floating' && (
         <div
-          className="fixed pointer-events-none"
+          className="fixed pointer-events-none transition-[left,top,height] duration-300 ease-out"
           style={{
             left: spotlight.centerX - 1,
             top: coachmarkStyle.placement === 'below' ? coachmarkStyle.top - 10 : spotlight.bottom + 6,

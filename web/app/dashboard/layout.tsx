@@ -634,7 +634,16 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         <OnboardingOverlay
           agentName={agentProfile.name || user.displayName || ''}
           onComplete={() => setShowOnboarding(false)}
+          onPause={() => setShowOnboarding(false)}
         />
+      )}
+      {!showOnboarding && user && agentProfile.onboardingComplete !== true && (
+        <button
+          onClick={() => setShowOnboarding(true)}
+          className="fixed bottom-24 md:bottom-6 left-4 z-[70] px-3 py-2 rounded-[5px] bg-white border border-[#d0d0d0] text-xs font-semibold text-[#0D4D4D] shadow-[0_8px_20px_rgba(0,0,0,0.15)] hover:bg-[#f8f8f8] transition-colors"
+        >
+          Resume onboarding
+        </button>
       )}
 
       <LoomVideoModal isOpen={showWorkflowVideo} onClose={() => setShowWorkflowVideo(false)} videoUrl="https://www.loom.com/embed/88422effb7ca4cdc8ae88646490fed00" />

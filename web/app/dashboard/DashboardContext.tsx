@@ -81,6 +81,11 @@ export interface AgentProfile {
   anniversaryMessageCustomTitle?: string;
   policyReviewAIEnabled?: boolean;
   welcomeSmsTemplate?: string;
+  beneficiaryWelcomeTemplateEn?: string;
+  beneficiaryWelcomeTemplateEs?: string;
+  beneficiaryHolidayTouchpointsEnabled?: boolean;
+  beneficiaryAIFollowupsEnabled?: boolean;
+  beneficiaryMaxTouchesPer30Days?: number;
   skipWelcomeSmsConfirmation?: boolean;
   onboardingComplete?: boolean;
   onboarding?: OnboardingState;
@@ -170,6 +175,11 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           anniversaryMessageCustomTitle: data.anniversaryMessageCustomTitle,
           policyReviewAIEnabled: data.policyReviewAIEnabled,
           welcomeSmsTemplate: data.welcomeSmsTemplate,
+          beneficiaryWelcomeTemplateEn: data.beneficiaryWelcomeTemplateEn,
+          beneficiaryWelcomeTemplateEs: data.beneficiaryWelcomeTemplateEs,
+          beneficiaryHolidayTouchpointsEnabled: data.beneficiaryHolidayTouchpointsEnabled,
+          beneficiaryAIFollowupsEnabled: data.beneficiaryAIFollowupsEnabled,
+          beneficiaryMaxTouchesPer30Days: data.beneficiaryMaxTouchesPer30Days,
           skipWelcomeSmsConfirmation: data.skipWelcomeSmsConfirmation,
           onboardingComplete: data.onboardingComplete,
           onboarding: normalizeOnboardingState(data.onboarding),

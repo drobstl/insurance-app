@@ -1,5 +1,11 @@
 export type SupportedLanguage = 'en' | 'es';
 export type HolidayCardKey = 'newyear' | 'valentines' | 'july4th' | 'thanksgiving' | 'christmas';
+export type BeneficiaryRole = 'primary' | 'contingent';
+
+export const DEFAULT_BENEFICIARY_WELCOME_TEMPLATE_EN =
+  'Hi {{beneficiaryFirstName}}, this is {{agentName}}. You were listed as a beneficiary for {{insuredFirstName}}. You can access your beneficiary view in AgentForLife with code {{beneficiaryCode}}: {{appUrl}}';
+export const DEFAULT_BENEFICIARY_WELCOME_TEMPLATE_ES =
+  'Hola {{beneficiaryFirstName}}, soy {{agentName}}. Fuiste registrado(a) como beneficiario(a) de {{insuredFirstName}}. Puedes acceder a tu vista de beneficiario en AgentForLife con este codigo {{beneficiaryCode}}: {{appUrl}}';
 
 export function resolveClientLanguage(value: unknown): SupportedLanguage {
   if (typeof value !== 'string') return 'en';
@@ -30,6 +36,97 @@ export function buildWelcomeMessage(params: {
     return `Hola ${firstName}. Soy ${agentName}. Descarga la app de AgentForLife y usa el codigo ${params.code} para conectarte conmigo. ${params.appUrl}`;
   }
   return `Hey ${firstName}! ${agentName} here. Download the AgentForLife app and use code ${params.code} to connect with me. ${params.appUrl}`;
+}
+
+export function buildBeneficiaryWelcomeMessage(params: {
+  beneficiaryFirstName: string;
+  insuredFirstName: string;
+  agentName: string;
+  beneficiaryCode: string;
+  appUrl: string;
+  language: SupportedLanguage;
+  template?: string | null;
+}): string {
+  const fallbackTemplate = params.language === 'es'
+    ? DEFAULT_BENEFICIARY_WELCOME_TEMPLATE_ES
+    : DEFAULT_BENEFICIARY_WELCOME_TEMPLATE_EN;
+  const template = (params.template || '').trim() || fallbackTemplate;
+  const replacements: Record<string, string> = {
+    beneficiaryFirstName: params.beneficiaryFirstName || 'there',
+    insuredFirstName: params.insuredFirstName || 'your loved one',
+    agentName: params.agentName || 'your AFL agent',
+    beneficiaryCode: params.beneficiaryCode || '',
+    appUrl: params.appUrl || 'https://agentforlife.app/app',
+  };
+  return template.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => {
+    return replacements[key] ?? '';
+  }).trim();
+}
+
+export function buildBeneficiaryFollowupMessage(params: {
+  step: 1 | 2 | 3;
+  beneficiaryFirstName: string;
+  insuredFirstName: string;
+  agentName: string;
+  beneficiaryCode: string;
+  appUrl: string;
+  role: BeneficiaryRole;
+  language: SupportedLanguage;
+}): string {
+  const firstName = params.beneficiaryFirstName || 'there';
+  const insured = params.insuredFirstName || 'your loved one';
+  const roleLabel = params.role === 'contingent'
+    ? (params.language === 'es' ? 'beneficiario contingente' : 'contingent beneficiary')
+    : (params.language === 'es' ? 'beneficiario principal' : 'primary beneficiary');
+  if (params.language === 'es') {
+    if (params.step === 1) {
+      return `Hola ${firstName}, solo queria confirmar que pudiste entrar a AgentForLife con tu codigo ${params.beneficiaryCode}. Estas registrado(a) como ${roleLabel} de ${insured}. Si quieres, te lo reenvio aqui: ${params.appUrl}`;
+    }
+    if (params.step === 2) {
+      return `Hola ${firstName}, estoy disponible para ayudarte a revisar lo que significa tu rol como ${roleLabel} y donde ver la informacion en la app. Si te sirve, coordinamos una llamada corta. -- ${params.agentName}`;
+    }
+    return `Hola ${firstName}, ultimo mensaje para no molestarte. Si necesitas acceso o tienes dudas sobre tu rol de beneficiario(a) de ${insured}, aqui estoy para ayudarte. -- ${params.agentName}`;
+  }
+
+  if (params.step === 1) {
+    return `Hi ${firstName}, quick check-in to make sure you were able to open AgentForLife with code ${params.beneficiaryCode}. You are listed as a ${roleLabel} for ${insured}. If helpful, here is the link again: ${params.appUrl}`;
+  }
+  if (params.step === 2) {
+    return `Hi ${firstName}, I can walk you through what your ${roleLabel} status means and where to find those details in the app. Happy to do a quick call if useful. -- ${params.agentName}`;
+  }
+  return `Hi ${firstName}, last follow-up so I do not keep pinging you. If you need help with access or questions about your beneficiary role for ${insured}, I am here when you need me. -- ${params.agentName}`;
+}
+
+export function buildBeneficiaryHolidayMessage(params: {
+  holiday: HolidayCardKey;
+  beneficiaryFirstName: string;
+  insuredFirstName: string;
+  role: BeneficiaryRole;
+  agentSignature: string;
+  language: SupportedLanguage;
+}): { title: string; body: string } {
+  const firstName = params.beneficiaryFirstName || 'there';
+  const insured = params.insuredFirstName || 'your loved one';
+  const roleLabel = params.role === 'contingent'
+    ? (params.language === 'es' ? 'beneficiario contingente' : 'contingent beneficiary')
+    : (params.language === 'es' ? 'beneficiario principal' : 'primary beneficiary');
+
+  const base = buildHolidayCardMessage({
+    holiday: params.holiday,
+    firstName,
+    agentSignature: params.agentSignature,
+    language: params.language,
+  });
+  if (params.language === 'es') {
+    return {
+      title: base.title,
+      body: `${base.body} Gracias por ser ${roleLabel} de ${insured}.`,
+    };
+  }
+  return {
+    title: base.title,
+    body: `${base.body} Thank you for being listed as a ${roleLabel} for ${insured}.`,
+  };
 }
 
 export function buildReferralDripMessage(params: {

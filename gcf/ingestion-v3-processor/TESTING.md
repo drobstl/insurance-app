@@ -311,6 +311,19 @@ Dropdown label: **United Home Life - Term**  •  Form type: `uhl_icc22_200_878a
   - policyNumber: `null`
   - review_ready: true
 
+### United Home Life GIWL (ICC20 200-854A)
+
+Dropdown label: **United Home Life - GIWL**  •  Form type: `uhl_icc20_200_854a_giwl`
+
+- [ ] **`Rodney Smith - UHL GIWL.pdf`**
+  - Uses pages `[4, 5, 8, 12]` from PAGE_MAP.
+  - insuranceCompany: `United Home Life`
+  - policyType: `Whole Life`
+  - policyNumber: `null`
+  - beneficiaries: extracted from Section 5 and overflow page when present
+  - applicationSignedDate: extracted from signature section on mapped page 8
+  - review_ready: true
+
 ### Transamerica Whole Life (ICC22 T-AP-WL11IC-0822)
 
 Dropdown label: **Transamerica - Whole Life**  •  Form type: `transamerica_icc22_t_ap_wl11ic_0822`

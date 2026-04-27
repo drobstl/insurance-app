@@ -89,6 +89,7 @@ const APPLICATION_TYPE_OPTIONS: Array<{ label: string; value: ApplicationFormTyp
   { label: 'American-Amicable - Term', value: 'amam_icc18_aa3487' },
   { label: 'Foresters - Term Life', value: 'foresters_icc15_770825' },
   { label: 'United Home Life - Term', value: 'uhl_icc22_200_878a' },
+  { label: 'United Home Life - GIWL', value: 'uhl_icc20_200_854a_giwl' },
   { label: 'Transamerica - Whole Life', value: 'transamerica_icc22_t_ap_wl11ic_0822' },
   { label: 'Corebridge/AIG', value: 'corebridge_aig_icc15_108847' },
   { label: 'SBLI - Policy Packet', value: 'sbli_policy_packet' },
@@ -219,7 +220,15 @@ interface PolicyFormData {
   insuranceCompany: string;
   otherCarrier: string;
   policyOwner: string;
-  beneficiaries: { name: string; type: 'primary' | 'contingent'; relationship?: string; percentage?: number }[];
+  beneficiaries: {
+    name: string;
+    type: 'primary' | 'contingent';
+    relationship?: string;
+    percentage?: number;
+    phone?: string;
+    email?: string;
+    accessCode?: string;
+  }[];
   coverageAmount: string;
   premiumAmount: string;
   premiumFrequency: string;
@@ -656,13 +665,46 @@ function generateClientCode(): string {
   return code;
 }
 
+function generateBeneficiaryCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = 'B';
+  for (let i = 0; i < 7; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+function normalizeBeneficiaryForSave(beneficiary: {
+  name: string;
+  type: 'primary' | 'contingent';
+  relationship?: string;
+  percentage?: number;
+  phone?: string;
+  email?: string;
+  accessCode?: string;
+}) {
+  const trimmedName = beneficiary.name.trim();
+  const phone = beneficiary.phone?.trim() || '';
+  const email = beneficiary.email?.trim() || '';
+  const accessCode = (beneficiary.accessCode || generateBeneficiaryCode()).trim().toUpperCase();
+  return {
+    name: trimmedName,
+    type: beneficiary.type,
+    relationship: beneficiary.relationship?.trim() || '',
+    ...(typeof beneficiary.percentage === 'number' ? { percentage: beneficiary.percentage } : {}),
+    ...(phone ? { phone } : {}),
+    ...(email ? { email } : {}),
+    accessCode,
+  };
+}
+
 const emptyPolicyForm: PolicyFormData = {
   policyType: '',
   policyNumber: '',
   insuranceCompany: '',
   otherCarrier: '',
   policyOwner: '',
-  beneficiaries: [{ name: '', type: 'primary', relationship: '', percentage: undefined }],
+  beneficiaries: [{ name: '', type: 'primary', relationship: '', percentage: undefined, phone: '', email: '', accessCode: '' }],
   coverageAmount: '',
   premiumAmount: '',
   premiumFrequency: 'monthly',
@@ -694,6 +736,9 @@ function mapExtractedApplicationToPolicyFormData(data: ExtractedApplicationData)
       type: b.type,
       relationship: b.relationship || '',
       percentage: b.percentage,
+      phone: b.phone || '',
+      email: b.email || '',
+      accessCode: b.accessCode || '',
     }));
   }
   if (data.coverageAmount != null) mapped.coverageAmount = String(data.coverageAmount);
@@ -1724,7 +1769,14 @@ export default function ClientsPage() {
     if (data.policyOwner.trim()) return true;
     if (data.coverageAmount.trim()) return true;
     if (data.premiumAmount.trim()) return true;
-    return data.beneficiaries.some((b) => b.name.trim() || (b.relationship || '').trim() || typeof b.percentage === 'number');
+    return data.beneficiaries.some(
+      (b) =>
+        b.name.trim()
+        || (b.relationship || '').trim()
+        || (b.phone || '').trim()
+        || (b.email || '').trim()
+        || typeof b.percentage === 'number',
+    );
   }, []);
 
   const createClientFromAddFlow = useCallback(async (
@@ -1802,12 +1854,7 @@ export default function ClientsPage() {
         policyOwner: addFlowPolicyForm.policyOwner.trim() || trimmedName,
         beneficiaries: addFlowPolicyForm.beneficiaries
           .filter((b) => b.name.trim())
-          .map((b) => ({
-            name: b.name.trim(),
-            type: b.type,
-            relationship: b.relationship?.trim() || '',
-            ...(typeof b.percentage === 'number' ? { percentage: b.percentage } : {}),
-          })),
+          .map(normalizeBeneficiaryForSave),
         coverageAmount: addFlowPolicyForm.coverageAmount ? parseFloat(addFlowPolicyForm.coverageAmount) : 0,
         premiumAmount: addFlowPolicyForm.premiumAmount ? parseFloat(addFlowPolicyForm.premiumAmount) : 0,
         premiumFrequency: addFlowPolicyForm.premiumFrequency || 'monthly',
@@ -1816,7 +1863,12 @@ export default function ClientsPage() {
         status: 'Active',
       };
       const token = await user.getIdToken();
-      await apiCreatePolicy(token, docRef.id, policyData);
+      const createdPolicyId = await apiCreatePolicy(token, docRef.id, policyData);
+      await syncBeneficiaryCodeIndex(
+        docRef.id,
+        createdPolicyId,
+        (policyData.beneficiaries as Array<{ name: string; type: 'primary' | 'contingent'; accessCode?: string }>) || [],
+      );
       refreshSummaries();
     }
 
@@ -1826,7 +1878,7 @@ export default function ClientsPage() {
       phone: formData.phone.trim(),
       code,
     };
-  }, [user, formData, pendingClientApplicationData, hasAddFlowPolicyInput, addFlowPolicyForm, refreshSummaries, markOnboardingMilestone]);
+  }, [user, formData, pendingClientApplicationData, hasAddFlowPolicyInput, addFlowPolicyForm, refreshSummaries, markOnboardingMilestone, syncBeneficiaryCodeIndex]);
 
   const handleManualCreateAndContinue = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1963,6 +2015,42 @@ export default function ClientsPage() {
     setPolicies([]);
   }, []);
 
+  async function syncBeneficiaryCodeIndex(
+    clientId: string,
+    policyId: string,
+    beneficiaries: Array<{ name: string; type: 'primary' | 'contingent'; accessCode?: string }>,
+    staleCodes: string[] = [],
+  ) {
+    if (!user) return;
+    const writes: Promise<void>[] = [];
+    for (const beneficiary of beneficiaries) {
+      const code = (beneficiary.accessCode || '').trim().toUpperCase();
+      if (!code) continue;
+      writes.push(
+        setDoc(
+          doc(db, 'beneficiaryCodes', code),
+          {
+            agentId: user.uid,
+            clientId,
+            policyId,
+            beneficiaryName: beneficiary.name,
+            beneficiaryType: beneficiary.type,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        ),
+      );
+    }
+    for (const stale of staleCodes) {
+      const code = stale.trim().toUpperCase();
+      if (!code) continue;
+      writes.push(deleteDoc(doc(db, 'beneficiaryCodes', code)));
+    }
+    if (writes.length > 0) {
+      await Promise.allSettled(writes);
+    }
+  }
+
   // ─── Policy Handlers ─────────────────────────────────────
 
   const handleOpenPolicyModal = useCallback((options?: { openUploadPicker?: boolean }) => {
@@ -2020,7 +2108,7 @@ export default function ClientsPage() {
         policyType: policyFormData.policyType,
         insuranceCompany: carrier,
         policyOwner: policyFormData.policyOwner.trim(),
-        beneficiaries: policyFormData.beneficiaries.filter((b) => b.name.trim()),
+        beneficiaries: policyFormData.beneficiaries.filter((b) => b.name.trim()).map(normalizeBeneficiaryForSave),
         coverageAmount: policyFormData.coverageAmount ? parseFloat(policyFormData.coverageAmount) : 0,
         premiumAmount: policyFormData.premiumAmount ? parseFloat(policyFormData.premiumAmount) : 0,
         premiumFrequency: policyFormData.premiumFrequency,
@@ -2038,10 +2126,28 @@ export default function ClientsPage() {
 
       const token = await user.getIdToken();
       if (editingPolicy) {
+        const existingCodes = (editingPolicy.beneficiaries || [])
+          .map((b) => (b.accessCode || '').trim().toUpperCase())
+          .filter(Boolean);
+        const newCodes = ((policyPayload.beneficiaries as Array<{ accessCode?: string }>) || [])
+          .map((b) => (b.accessCode || '').trim().toUpperCase())
+          .filter(Boolean);
+        const staleCodes = existingCodes.filter((code) => !newCodes.includes(code));
         await apiUpdatePolicy(token, selectedClient.id, editingPolicy.id, policyPayload);
+        await syncBeneficiaryCodeIndex(
+          selectedClient.id,
+          editingPolicy.id,
+          (policyPayload.beneficiaries as Array<{ name: string; type: 'primary' | 'contingent'; accessCode?: string }>) || [],
+          staleCodes,
+        );
         setPolicyFormSuccess('Policy updated!');
       } else {
-        await apiCreatePolicy(token, selectedClient.id, policyPayload);
+        const createdPolicyId = await apiCreatePolicy(token, selectedClient.id, policyPayload);
+        await syncBeneficiaryCodeIndex(
+          selectedClient.id,
+          createdPolicyId,
+          (policyPayload.beneficiaries as Array<{ name: string; type: 'primary' | 'contingent'; accessCode?: string }>) || [],
+        );
         setPolicyFormSuccess('Policy added!');
       }
       refreshPolicies();
@@ -2053,14 +2159,22 @@ export default function ClientsPage() {
     } finally {
       setPolicySubmitting(false);
     }
-  }, [user, selectedClient, policyFormData, editingPolicy, handleClosePolicyModal, refreshPolicies]);
+  }, [user, selectedClient, policyFormData, editingPolicy, handleClosePolicyModal, refreshPolicies, refreshSummaries, syncBeneficiaryCodeIndex]);
 
   const handleDeletePolicy = useCallback(async () => {
     if (!user || !selectedClient || !deleteConfirmPolicy) return;
     setDeleting(true);
     try {
       const token = await user.getIdToken();
+      const beneficiaryCodes = (deleteConfirmPolicy.beneficiaries || [])
+        .map((b) => (b.accessCode || '').trim().toUpperCase())
+        .filter(Boolean);
       await apiDeletePolicy(token, selectedClient.id, deleteConfirmPolicy.id);
+      if (beneficiaryCodes.length > 0) {
+        await Promise.allSettled(
+          beneficiaryCodes.map((code) => deleteDoc(doc(db, 'beneficiaryCodes', code))),
+        );
+      }
       setDeleteConfirmPolicy(null);
       refreshPolicies();
     } catch (err) {
@@ -3679,7 +3793,7 @@ export default function ClientsPage() {
             onClick={() => {
               setAddFlowPolicyForm((f) => ({
                 ...f,
-                beneficiaries: [...f.beneficiaries, { name: '', type: 'primary', relationship: '', percentage: undefined }],
+                beneficiaries: [...f.beneficiaries, { name: '', type: 'primary', relationship: '', percentage: undefined, phone: '', email: '', accessCode: '' }],
               }));
             }}
             className="text-xs text-[#005851] font-semibold hover:underline"
@@ -3690,7 +3804,7 @@ export default function ClientsPage() {
         <div className="space-y-2">
           {addFlowPolicyForm.beneficiaries.map((beneficiary, index) => (
             <div key={index} className="rounded-[5px] border border-[#d0d0d0] bg-[#f8f8f8] p-3">
-              <div className="grid gap-2 sm:grid-cols-4">
+              <div className="grid gap-2 sm:grid-cols-6">
                 <input
                   type="text"
                   value={beneficiary.name}
@@ -3726,6 +3840,28 @@ export default function ClientsPage() {
                   }}
                   placeholder="%"
                   className="px-2 py-1.5 border border-[#d0d0d0] rounded-[5px] text-xs"
+                />
+                <input
+                  type="tel"
+                  value={beneficiary.phone || ''}
+                  onChange={(e) => {
+                    const next = [...addFlowPolicyForm.beneficiaries];
+                    next[index] = { ...next[index], phone: e.target.value };
+                    setAddFlowPolicyForm((f) => ({ ...f, beneficiaries: next }));
+                  }}
+                  placeholder="Phone (optional)"
+                  className="px-2 py-1.5 border border-[#d0d0d0] rounded-[5px] text-xs sm:col-span-2"
+                />
+                <input
+                  type="email"
+                  value={beneficiary.email || ''}
+                  onChange={(e) => {
+                    const next = [...addFlowPolicyForm.beneficiaries];
+                    next[index] = { ...next[index], email: e.target.value };
+                    setAddFlowPolicyForm((f) => ({ ...f, beneficiaries: next }));
+                  }}
+                  placeholder="Email (optional)"
+                  className="px-2 py-1.5 border border-[#d0d0d0] rounded-[5px] text-xs sm:col-span-2"
                 />
               </div>
               <div className="mt-2 flex items-center justify-between">
@@ -5051,7 +5187,7 @@ export default function ClientsPage() {
                       {formError && <p className="text-xs text-red-600">{formError}</p>}
                       <div className="flex gap-3">
                         <button type="button" onClick={handleCloseAddFlow} className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-[5px] border border-gray-200 text-sm">Cancel</button>
-                        <button type="submit" disabled={submitting} className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] text-sm">{submitting ? 'Saving...' : 'Create Client'}</button>
+                        <button data-onboarding-target="clients-addflow-create-client" type="submit" disabled={submitting} className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] text-sm">{submitting ? 'Saving...' : 'Create Client'}</button>
                       </div>
                     </form>
                   )}
@@ -5097,7 +5233,7 @@ export default function ClientsPage() {
                 {formError && <p className="text-xs text-red-600">{formError}</p>}
                 <div className="flex gap-3 pt-2">
                   <button type="button" onClick={() => setAddFlowStage('upload')} className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-[5px] border border-gray-200 text-sm">Cancel</button>
-                  <button type="button" onClick={handleReviewConfirmAndCreate} disabled={submitting} className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] text-sm">{submitting ? 'Creating...' : 'Confirm & Create'}</button>
+                  <button data-onboarding-target="clients-addflow-confirm-create" type="button" onClick={handleReviewConfirmAndCreate} disabled={submitting} className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] text-sm">{submitting ? 'Creating...' : 'Confirm & Create'}</button>
                 </div>
               </div>
             </div>
@@ -5427,7 +5563,7 @@ export default function ClientsPage() {
                     onClick={() =>
                       setPolicyFormData((f) => ({
                         ...f,
-                        beneficiaries: [...f.beneficiaries, { name: '', type: 'primary', relationship: '', percentage: undefined }],
+                        beneficiaries: [...f.beneficiaries, { name: '', type: 'primary', relationship: '', percentage: undefined, phone: '', email: '', accessCode: '' }],
                       }))
                     }
                     className="text-xs text-[#005851] font-semibold hover:underline"
@@ -5489,6 +5625,30 @@ export default function ClientsPage() {
                             placeholder="%"
                             min="0"
                             max="100"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="tel"
+                            value={ben.phone || ''}
+                            onChange={(e) => {
+                              const newBens = [...policyFormData.beneficiaries];
+                              newBens[idx] = { ...newBens[idx], phone: e.target.value };
+                              setPolicyFormData((f) => ({ ...f, beneficiaries: newBens }));
+                            }}
+                            className="px-2 py-1.5 bg-white border border-[#d0d0d0] rounded-[5px] text-xs text-[#000000] focus:outline-none focus:border-[#45bcaa]"
+                            placeholder="Phone (optional)"
+                          />
+                          <input
+                            type="email"
+                            value={ben.email || ''}
+                            onChange={(e) => {
+                              const newBens = [...policyFormData.beneficiaries];
+                              newBens[idx] = { ...newBens[idx], email: e.target.value };
+                              setPolicyFormData((f) => ({ ...f, beneficiaries: newBens }));
+                            }}
+                            className="px-2 py-1.5 bg-white border border-[#d0d0d0] rounded-[5px] text-xs text-[#000000] focus:outline-none focus:border-[#45bcaa]"
+                            placeholder="Email (optional)"
                           />
                         </div>
                       </div>
@@ -5788,8 +5948,11 @@ export default function ClientsPage() {
                       type: b.type,
                       relationship: b.relationship || '',
                       percentage: b.percentage,
+                      phone: b.phone || '',
+                      email: b.email || '',
+                      accessCode: b.accessCode || '',
                     }))
-                  : [{ name: '', type: 'primary', relationship: '', percentage: undefined }],
+                  : [{ name: '', type: 'primary', relationship: '', percentage: undefined, phone: '', email: '', accessCode: '' }],
               coverageAmount: policy.coverageAmount ? String(policy.coverageAmount) : '',
               premiumAmount: policy.premiumAmount ? String(policy.premiumAmount) : '',
               premiumFrequency: policy.premiumFrequency || 'monthly',

@@ -5,6 +5,9 @@ export interface Beneficiary {
   name: string;
   relationship?: string;  // e.g. "Spouse", "Child" -- optional
   percentage?: number;     // e.g. 25 -- optional
+  phone?: string;
+  email?: string;
+  accessCode?: string;
   irrevocable?: boolean | null;
   type: 'primary' | 'contingent';
 }

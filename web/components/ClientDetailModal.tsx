@@ -6,12 +6,14 @@ import { getAuth } from 'firebase/auth';
 import { formatCurrency, formatDate, formatDateLong, getStatusColor, getPolicyTypeIcon, getAnniversaryDate, daysUntilAnniversary } from '../lib/policyUtils';
 import type { Beneficiary } from '../lib/types';
 import {
+  buildBeneficiaryWelcomeMessage,
   buildHolidayCardMessage,
   buildWelcomeMessage,
   resolveClientLanguage,
   type HolidayCardKey,
   type SupportedLanguage,
 } from '../lib/client-language';
+import { useDashboard } from '../app/dashboard/DashboardContext';
 
 interface Client {
   id: string;
@@ -93,6 +95,7 @@ export default function ClientDetailModal({
   hasSchedulingUrl,
   clientPushToken,
 }: ClientDetailModalProps) {
+  const { agentProfile } = useDashboard();
   const formatPremiumCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -135,6 +138,10 @@ export default function ClientDetailModal({
   const [sendingCode, setSendingCode] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
   const [codeSendError, setCodeSendError] = useState<string | null>(null);
+  const [activeBeneficiaryKey, setActiveBeneficiaryKey] = useState<string | null>(null);
+  const [beneficiaryDraft, setBeneficiaryDraft] = useState('');
+  const [beneficiarySending, setBeneficiarySending] = useState(false);
+  const [beneficiarySendResult, setBeneficiarySendResult] = useState<string | null>(null);
 
   // ── Flag at risk inline state ──
   const [flaggingPolicyId, setFlaggingPolicyId] = useState<string | null>(null);
@@ -312,6 +319,79 @@ export default function ClientDetailModal({
     }
   }, [client, agentName]);
 
+  const handleOpenBeneficiaryComposer = useCallback((
+    entryKey: string,
+    beneficiary: Beneficiary,
+  ) => {
+    setActiveBeneficiaryKey(entryKey);
+    setBeneficiarySendResult(null);
+    const preferredLanguage = resolveClientLanguage(client?.preferredLanguage);
+    const template =
+      preferredLanguage === 'es'
+        ? (agentProfile.beneficiaryWelcomeTemplateEs || '').trim()
+        : (agentProfile.beneficiaryWelcomeTemplateEn || '').trim();
+    const draft = buildBeneficiaryWelcomeMessage({
+      beneficiaryFirstName: (beneficiary.name || 'there').split(' ')[0],
+      insuredFirstName: (client?.name || 'your loved one').split(' ')[0],
+      agentName: (agentName || 'your AFL agent').trim() || 'your AFL agent',
+      beneficiaryCode: beneficiary.accessCode || '',
+      appUrl: 'https://agentforlife.app/app',
+      language: preferredLanguage,
+      template,
+    });
+    setBeneficiaryDraft(draft);
+  }, [agentName, agentProfile.beneficiaryWelcomeTemplateEn, agentProfile.beneficiaryWelcomeTemplateEs, client?.name, client?.preferredLanguage]);
+
+  const handleSendBeneficiaryIntro = useCallback(async (beneficiary: Beneficiary) => {
+    if (!beneficiary.accessCode) {
+      setBeneficiarySendResult('Beneficiary is missing an access code. Save the policy first.');
+      return;
+    }
+    if (!beneficiary.phone?.trim() && !beneficiary.email?.trim()) {
+      setBeneficiarySendResult('Beneficiary needs a phone or email before sending.');
+      return;
+    }
+    setBeneficiarySending(true);
+    setBeneficiarySendResult(null);
+    try {
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Not authenticated');
+      const token = await currentUser.getIdToken();
+      const preferredLanguage = resolveClientLanguage(client?.preferredLanguage);
+      const res = await fetch('/api/beneficiary/send-intro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          beneficiaryName: beneficiary.name,
+          beneficiaryPhone: beneficiary.phone || '',
+          beneficiaryEmail: beneficiary.email || '',
+          beneficiaryCode: beneficiary.accessCode,
+          beneficiaryRole: beneficiary.type,
+          insuredName: client?.name || '',
+          preferredLanguage,
+          messageTemplate: beneficiaryDraft,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || `Failed to send (${res.status})`);
+      }
+      const channel = typeof data.channel === 'string' ? data.channel : 'sms';
+      setBeneficiarySendResult(
+        channel === 'email_fallback'
+          ? 'SMS failed — sent by email.'
+          : channel === 'email'
+            ? 'Sent by email.'
+            : 'Sent by SMS.',
+      );
+    } catch (err) {
+      setBeneficiarySendResult(err instanceof Error ? err.message : 'Failed to send beneficiary intro.');
+    } finally {
+      setBeneficiarySending(false);
+    }
+  }, [beneficiaryDraft, client?.name, client?.preferredLanguage]);
+
   const handleFlagAtRisk = useCallback(async (policyId: string) => {
     if (!onFlagAtRisk) return;
     setFlagSubmitting(true);
@@ -360,7 +440,12 @@ export default function ClientDetailModal({
       setHolidayStatus('idle');
       setHolidayError('');
       setCodeSent(false);
+      setCodeSendError(null);
       setSendingCode(false);
+      setActiveBeneficiaryKey(null);
+      setBeneficiaryDraft('');
+      setBeneficiarySending(false);
+      setBeneficiarySendResult(null);
       setFlaggingPolicyId(null);
       setFlagResult(null);
       setEditingClientInline(false);
@@ -1201,25 +1286,151 @@ export default function ClientDetailModal({
                             {policy.beneficiaries.filter(b => b.type === 'primary').length > 0 && (
                               <div>
                                 <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Primary Beneficiaries</p>
-                                {policy.beneficiaries.filter(b => b.type === 'primary').map((b, i) => (
-                                  <p key={i} className="text-[#000000] text-sm">
-                                    {b.name}
-                                    {b.relationship && <span className="text-gray-400 text-xs ml-1">({b.relationship})</span>}
-                                    {b.percentage != null && <span className="text-gray-400 text-xs ml-1">{b.percentage}%</span>}
-                                  </p>
-                                ))}
+                                {policy.beneficiaries.filter(b => b.type === 'primary').map((b, i) => {
+                                  const entryKey = `${policy.id}:${b.name}:${b.type}:${i}`;
+                                  const isActiveComposer = activeBeneficiaryKey === entryKey;
+                                  return (
+                                    <div key={entryKey} className="text-sm mb-2 last:mb-0">
+                                      <p className="text-[#000000]">
+                                        {b.name}
+                                        {b.relationship && <span className="text-gray-400 text-xs ml-1">({b.relationship})</span>}
+                                        {b.percentage != null && <span className="text-gray-400 text-xs ml-1">{b.percentage}%</span>}
+                                      </p>
+                                      {(b.phone || b.email) ? (
+                                        <p className="text-[11px] text-[#707070] mt-0.5">
+                                          {b.phone ? `Phone: ${b.phone}` : ''}
+                                          {b.phone && b.email ? ' · ' : ''}
+                                          {b.email ? `Email: ${b.email}` : ''}
+                                        </p>
+                                      ) : (
+                                        <p className="text-[11px] text-amber-700 mt-0.5">No phone/email on file</p>
+                                      )}
+                                      {b.accessCode && (
+                                        <p className="text-[11px] text-[#337973] mt-0.5">Code: {b.accessCode}</p>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenBeneficiaryComposer(entryKey, b)}
+                                        className="mt-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-[5px] border border-[#45bcaa]/40 text-[#005851] hover:bg-[#daf3f0]"
+                                      >
+                                        Send Beneficiary Intro
+                                      </button>
+                                      {isActiveComposer && (
+                                        <div className="mt-2 p-2 border border-[#45bcaa]/35 rounded-[5px] bg-[#f8fdfc]">
+                                          <p className="text-[11px] font-semibold text-[#005851] mb-1">Message to beneficiary (not the insured)</p>
+                                          <textarea
+                                            value={beneficiaryDraft}
+                                            onChange={(e) => setBeneficiaryDraft(e.target.value)}
+                                            rows={4}
+                                            className="w-full px-2 py-1.5 border border-[#d0d0d0] rounded-[5px] text-xs text-[#000000] focus:outline-none focus:border-[#45bcaa]"
+                                          />
+                                          <div className="mt-2 flex items-center gap-2">
+                                            <button
+                                              type="button"
+                                              disabled={beneficiarySending}
+                                              onClick={() => {
+                                                void handleSendBeneficiaryIntro(b);
+                                              }}
+                                              className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] bg-[#005851] text-white hover:bg-[#004540] disabled:opacity-60"
+                                            >
+                                              {beneficiarySending ? 'Sending...' : 'Send'}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              disabled={beneficiarySending}
+                                              onClick={() => {
+                                                setActiveBeneficiaryKey(null);
+                                                setBeneficiaryDraft('');
+                                                setBeneficiarySendResult(null);
+                                              }}
+                                              className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] border border-gray-200 text-[#707070] hover:bg-gray-50"
+                                            >
+                                              Cancel
+                                            </button>
+                                          </div>
+                                          {beneficiarySendResult && (
+                                            <p className="mt-1.5 text-[11px] text-[#337973]">{beneficiarySendResult}</p>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                             {policy.beneficiaries.filter(b => b.type === 'contingent').length > 0 && (
                               <div>
                                 <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Contingent Beneficiaries</p>
-                                {policy.beneficiaries.filter(b => b.type === 'contingent').map((b, i) => (
-                                  <p key={i} className="text-[#000000] text-sm">
-                                    {b.name}
-                                    {b.relationship && <span className="text-gray-400 text-xs ml-1">({b.relationship})</span>}
-                                    {b.percentage != null && <span className="text-gray-400 text-xs ml-1">{b.percentage}%</span>}
-                                  </p>
-                                ))}
+                                {policy.beneficiaries.filter(b => b.type === 'contingent').map((b, i) => {
+                                  const entryKey = `${policy.id}:${b.name}:${b.type}:${i}`;
+                                  const isActiveComposer = activeBeneficiaryKey === entryKey;
+                                  return (
+                                    <div key={entryKey} className="text-sm mb-2 last:mb-0">
+                                      <p className="text-[#000000]">
+                                        {b.name}
+                                        {b.relationship && <span className="text-gray-400 text-xs ml-1">({b.relationship})</span>}
+                                        {b.percentage != null && <span className="text-gray-400 text-xs ml-1">{b.percentage}%</span>}
+                                      </p>
+                                      {(b.phone || b.email) ? (
+                                        <p className="text-[11px] text-[#707070] mt-0.5">
+                                          {b.phone ? `Phone: ${b.phone}` : ''}
+                                          {b.phone && b.email ? ' · ' : ''}
+                                          {b.email ? `Email: ${b.email}` : ''}
+                                        </p>
+                                      ) : (
+                                        <p className="text-[11px] text-amber-700 mt-0.5">No phone/email on file</p>
+                                      )}
+                                      {b.accessCode && (
+                                        <p className="text-[11px] text-[#337973] mt-0.5">Code: {b.accessCode}</p>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenBeneficiaryComposer(entryKey, b)}
+                                        className="mt-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-[5px] border border-[#45bcaa]/40 text-[#005851] hover:bg-[#daf3f0]"
+                                      >
+                                        Send Beneficiary Intro
+                                      </button>
+                                      {isActiveComposer && (
+                                        <div className="mt-2 p-2 border border-[#45bcaa]/35 rounded-[5px] bg-[#f8fdfc]">
+                                          <p className="text-[11px] font-semibold text-[#005851] mb-1">Message to beneficiary (not the insured)</p>
+                                          <textarea
+                                            value={beneficiaryDraft}
+                                            onChange={(e) => setBeneficiaryDraft(e.target.value)}
+                                            rows={4}
+                                            className="w-full px-2 py-1.5 border border-[#d0d0d0] rounded-[5px] text-xs text-[#000000] focus:outline-none focus:border-[#45bcaa]"
+                                          />
+                                          <div className="mt-2 flex items-center gap-2">
+                                            <button
+                                              type="button"
+                                              disabled={beneficiarySending}
+                                              onClick={() => {
+                                                void handleSendBeneficiaryIntro(b);
+                                              }}
+                                              className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] bg-[#005851] text-white hover:bg-[#004540] disabled:opacity-60"
+                                            >
+                                              {beneficiarySending ? 'Sending...' : 'Send'}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              disabled={beneficiarySending}
+                                              onClick={() => {
+                                                setActiveBeneficiaryKey(null);
+                                                setBeneficiaryDraft('');
+                                                setBeneficiarySendResult(null);
+                                              }}
+                                              className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] border border-gray-200 text-[#707070] hover:bg-gray-50"
+                                            >
+                                              Cancel
+                                            </button>
+                                          </div>
+                                          {beneficiarySendResult && (
+                                            <p className="mt-1.5 text-[11px] text-[#337973]">{beneficiarySendResult}</p>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>

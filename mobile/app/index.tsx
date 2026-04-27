@@ -30,6 +30,7 @@ type LookupResult = {
   clientId: string;
   clientData: Record<string, unknown>;
   agentData: Record<string, unknown>;
+  accessType?: 'client' | 'beneficiary';
 };
 
 class InvalidCodeError extends Error {
@@ -90,6 +91,7 @@ async function lookupClientCode(clientCode: string): Promise<LookupResult> {
     clientId: data.clientId,
     clientData: data.clientData ?? {},
     agentData: data.agentData ?? {},
+    accessType: data.accessType === 'beneficiary' ? 'beneficiary' : 'client',
   };
 }
 
@@ -141,11 +143,14 @@ function navigateToProfile(
   clientId: string,
   clientData: Record<string, unknown>,
   agentData: Record<string, unknown>,
+  accessType: 'client' | 'beneficiary' = 'client',
 ) {
   const clientCode = (clientData.clientCode as string) || '';
-  registerAndSavePushToken(clientCode).catch((err) =>
-    console.warn('Push token registration failed:', err),
-  );
+  if (accessType === 'client') {
+    registerAndSavePushToken(clientCode).catch((err) =>
+      console.warn('Push token registration failed:', err),
+    );
+  }
 
   router.replace({
     pathname: '/agent-profile',
@@ -212,7 +217,7 @@ export default function LoginScreen() {
         if (!result) {
           const cached = await getProfileCache();
           if (cached) {
-            navigateToProfile(cached.agentId, cached.clientId, cached.clientData, cached.agentData);
+            navigateToProfile(cached.agentId, cached.clientId, cached.clientData, cached.agentData, cached.accessType || 'client');
             return;
           }
           setCheckingSession(false);
@@ -220,12 +225,12 @@ export default function LoginScreen() {
         }
 
         await saveProfileCache(result);
-        navigateToProfile(result.agentId, result.clientId, result.clientData, result.agentData);
+        navigateToProfile(result.agentId, result.clientId, result.clientData, result.agentData, result.accessType || 'client');
       } catch (err) {
         console.error('Auto-login error:', err);
         const cached = await getProfileCache();
         if (cached) {
-          navigateToProfile(cached.agentId, cached.clientId, cached.clientData, cached.agentData);
+          navigateToProfile(cached.agentId, cached.clientId, cached.clientData, cached.agentData, cached.accessType || 'client');
           return;
         }
         setCheckingSession(false);
@@ -252,7 +257,7 @@ export default function LoginScreen() {
       });
       await saveProfileCache(result);
 
-      navigateToProfile(result.agentId, result.clientId, result.clientData, result.agentData);
+      navigateToProfile(result.agentId, result.clientId, result.clientData, result.agentData, result.accessType || 'client');
     } catch (err) {
       if (err instanceof InvalidCodeError) {
         setError('Invalid client code. Please check and try again.');

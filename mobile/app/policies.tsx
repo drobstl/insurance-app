@@ -19,6 +19,9 @@ interface Beneficiary {
   name: string;
   relationship?: string;
   percentage?: number;
+  phone?: string;
+  email?: string;
+  accessCode?: string;
   type: 'primary' | 'contingent';
 }
 

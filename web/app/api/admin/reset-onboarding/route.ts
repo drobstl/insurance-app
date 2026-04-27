@@ -1,9 +1,46 @@
 import 'server-only';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
 import { isAdminEmail } from '../../../../lib/admin';
+
+async function findAgentDocByEmail(
+  normalizedEmail: string,
+): Promise<QueryDocumentSnapshot | null> {
+  const firestore = getAdminFirestore();
+  const auth = getAdminAuth();
+
+  const byEmail = await firestore
+    .collection('agents')
+    .where('email', '==', normalizedEmail)
+    .limit(1)
+    .get();
+  if (!byEmail.empty) {
+    return byEmail.docs[0];
+  }
+
+  const byEmailLower = await firestore
+    .collection('agents')
+    .where('emailLower', '==', normalizedEmail)
+    .limit(1)
+    .get();
+  if (!byEmailLower.empty) {
+    return byEmailLower.docs[0];
+  }
+
+  try {
+    const authUser = await auth.getUserByEmail(normalizedEmail);
+    const byUid = await firestore.collection('agents').doc(authUser.uid).get();
+    if (byUid.exists) {
+      return byUid as QueryDocumentSnapshot;
+    }
+  } catch {
+    // Ignore auth miss and continue to null response below.
+  }
+
+  return null;
+}
 
 /**
  * POST /api/admin/reset-onboarding
@@ -33,18 +70,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing email' }, { status: 400 });
     }
 
-    const firestore = getAdminFirestore();
-    const snapshot = await firestore
-      .collection('agents')
-      .where('email', '==', email)
-      .limit(1)
-      .get();
-
-    if (snapshot.empty) {
-      return NextResponse.json({ error: 'Agent not found for that email' }, { status: 404 });
+    const agentDoc = await findAgentDocByEmail(email);
+    if (!agentDoc) {
+      return NextResponse.json(
+        {
+          error:
+            'Agent not found for that email. If the user can sign in, their profile may be missing an email field; use their exact auth email and try again.',
+        },
+        { status: 404 },
+      );
     }
 
-    const agentRef = snapshot.docs[0].ref;
+    const agentRef = agentDoc.ref;
     await agentRef.update({
       onboardingComplete: FieldValue.delete(),
       onboarding: FieldValue.delete(),

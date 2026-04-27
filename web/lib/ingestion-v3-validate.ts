@@ -87,6 +87,8 @@ function normalizeBeneficiaries(beneficiaries: Beneficiary[] | null): Beneficiar
       name: toNullableString(b.name),
       relationship: toNullableString(b.relationship ?? null) ?? undefined,
       percentage: toNullableNumber(b.percentage),
+      phone: toNullableString(b.phone ?? null) ?? undefined,
+      email: toNullableString(b.email ?? null) ?? undefined,
       irrevocable: typeof b.irrevocable === 'boolean' ? b.irrevocable : null,
       type: b.type === 'contingent' ? 'contingent' : 'primary',
     }))
@@ -98,6 +100,8 @@ function normalizeBeneficiaries(beneficiaries: Beneficiary[] | null): Beneficiar
     name: b.name as string,
     relationship: b.relationship,
     percentage: b.percentage ?? undefined,
+    phone: b.phone,
+    email: b.email,
     irrevocable: b.irrevocable,
     type: b.type as 'primary' | 'contingent',
   }));

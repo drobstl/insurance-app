@@ -184,6 +184,35 @@ HARD RULES:
 - policyNumber: ALWAYS return null. Internal IDs and bank account/routing numbers are not policy numbers.
 - effectiveDate: ALWAYS return null (pipeline fallback can use signed date).`,
 
+  // PAGE_MAP: [4, 5, 8, 12] -> Image 1 = PDF page 4, Image 2 = PDF page 5, Image 3 = PDF page 8, Image 4 = PDF page 12
+  // United Home Life Guaranteed Issue Whole Life packet based on ICC20 200-854A and related signature/beneficiary pages.
+  uhl_icc20_200_854a_giwl: `CARRIER-SPECIFIC GUIDANCE - United Home Life ICC20 200-854A (Guaranteed Issue Whole Life)
+You are receiving 4 images from a United Home Life GIWL application packet.
+
+IMAGE MAPPING:
+- Image 1 (PDF page 4): Section 1 Proposed Insured demographics/contact; Sections 2-3 Owner/Payor.
+- Image 2 (PDF page 5): Section 5 Beneficiary(ies), Section 6 Plan of Insurance, Section 7 Payment Information.
+- Image 3 (PDF page 8): Section 16 signatures with signed city/state/date.
+- Image 4 (PDF page 12): beneficiary overflow copy (used when beneficiary rows continue beyond page 5).
+
+FIELD RULES:
+- policyType: ALWAYS return "Whole Life".
+- insuranceCompany: ALWAYS return "United Home Life".
+- insuredName, insuredDateOfBirth, insuredPhone, insuredEmail, insuredState: from Image 1 Proposed Insured fields.
+- insuredState: use mailing/street address state, not place of birth.
+- policyOwner: return null unless Owner fields on Image 1 clearly name a different person.
+- beneficiaries: primarily from Image 2 Section 5 rows. If rows are blank or partial, use Image 4 overflow beneficiary rows.
+- beneficiary phone/email: include only if explicitly shown in beneficiary rows/sections; otherwise null/omit.
+- coverageAmount: from Image 2 "Face Amount".
+- premiumAmount: from Image 2 "Modal Premium Amount".
+- premiumFrequency: from Image 2 payment mode checkboxes (Annual/Semi-Annual/Quarterly/Monthly EFT).
+- applicationSignedDate: from Image 3 Section 16 signed date.
+
+HARD RULES:
+- policyNumber: ALWAYS return null for application-stage extraction.
+- effectiveDate: ALWAYS return null unless an explicit effective/issue date is clearly shown on these images.
+- Do NOT treat EFT account/routing numbers as policy numbers.`,
+
   // PAGE_MAP: [6, 7, 8, 10, 11] -> Image 1 = PDF page 6, Image 2 = PDF page 7, Image 3 = PDF page 8, Image 4 = PDF page 10, Image 5 = PDF page 11
   // Transamerica WL app starts after electronic consent pages.
   transamerica_icc22_t_ap_wl11ic_0822: `CARRIER-SPECIFIC GUIDANCE - Transamerica ICC22 T-AP-WL11IC-0822 (Whole Life)

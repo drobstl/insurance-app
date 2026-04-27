@@ -32,7 +32,7 @@ FIELD EXTRACTION RULES:
 
 "policyOwner": The "Owner" of the policy. Often the same person as the insured.
 
-"beneficiaries": The "Primary Beneficiary" and/or "Contingent Beneficiary". Each must have a proper NAME (not just "Brother" or "Spouse"). The relationship label goes in the "relationship" field. Look in the main application AND any addendum pages with structured beneficiary tables.
+"beneficiaries": The "Primary Beneficiary" and/or "Contingent Beneficiary". Each must have a proper NAME (not just "Brother" or "Spouse"). The relationship label goes in the "relationship" field. If beneficiary-specific phone/email is visibly tied to that beneficiary row/section, include it; otherwise leave null/blank. Do NOT copy insured or owner contact info into beneficiary contact fields unless the form explicitly shows that person as a beneficiary. Look in the main application AND any addendum pages with structured beneficiary tables.
 
 "coverageAmount": The "Face Amount", "Death Benefit", "Coverage Amount", or "Specified Amount" in dollars. This is the actual policy coverage, NOT any maximum limit in legal disclaimers. Return as a number (e.g. 191000).
 
@@ -108,6 +108,8 @@ const EXTRACTION_SCHEMA = {
           name: { type: 'string' as const },
           relationship: { type: 'string' as const },
           percentage: { type: 'number' as const },
+          phone: { type: 'string' as const },
+          email: { type: 'string' as const },
           irrevocable: { type: 'boolean' as const },
           type: { type: 'string' as const, enum: ['primary', 'contingent'] },
         },
@@ -431,9 +433,11 @@ function parseBeneficiaries(val: unknown): Beneficiary[] | null {
     const benefType = obj.type === 'contingent' ? 'contingent' : 'primary';
     const relationship = toStringOrNull(obj.relationship) || undefined;
     const percentage = toNumberOrNull(obj.percentage) ?? undefined;
+    const phone = toStringOrNull(obj.phone) || undefined;
+    const email = toStringOrNull(obj.email) || undefined;
     const irrevocable = toBooleanOrNull(obj.irrevocable);
 
-    result.push({ name, type: benefType, relationship, percentage, irrevocable });
+    result.push({ name, type: benefType, relationship, percentage, phone, email, irrevocable });
   }
 
   return result.length > 0 ? result : null;

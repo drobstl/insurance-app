@@ -3,6 +3,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { checkRateLimit, getClientIp } from '../../../../lib/rate-limit';
+import { findBeneficiaryByCode } from '../../../../lib/beneficiary-code-lookup';
 
 /**
  * GET /api/mobile/policies?agentId=...&clientId=...&clientCode=...
@@ -46,8 +47,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
+    const normalizedCode = clientCode.trim().toUpperCase();
     const storedCode = clientDoc.data()?.clientCode;
-    if (!storedCode || storedCode !== clientCode.trim().toUpperCase()) {
+    const isClientCode = !!storedCode && storedCode === normalizedCode;
+    const beneficiaryMatch = isClientCode ? null : await findBeneficiaryByCode(normalizedCode);
+    const isBeneficiaryCode = !!beneficiaryMatch
+      && beneficiaryMatch.agentId === agentId
+      && beneficiaryMatch.clientId === clientId;
+    if (!isClientCode && !isBeneficiaryCode) {
       return NextResponse.json({ error: 'Invalid client code' }, { status: 403 });
     }
 
@@ -60,13 +67,25 @@ export async function GET(request: NextRequest) {
       .orderBy('createdAt', 'desc')
       .get();
 
-    const policies = snap.docs.map((d) => {
+    const policies = snap.docs
+      .map((d) => {
       const data = d.data();
+      if (isBeneficiaryCode) {
+        const beneficiaries = Array.isArray(data.beneficiaries) ? data.beneficiaries : [];
+        const filteredBeneficiaries = beneficiaries.filter((entry) => {
+          if (!entry || typeof entry !== 'object') return false;
+          const accessCode = (entry as Record<string, unknown>).accessCode;
+          return typeof accessCode === 'string' && accessCode.trim().toUpperCase() === normalizedCode;
+        });
+        if (filteredBeneficiaries.length === 0) return null;
+        data.beneficiaries = filteredBeneficiaries;
+      }
       const createdAt = data.createdAt
         ? { seconds: data.createdAt.seconds, nanoseconds: data.createdAt.nanoseconds }
         : null;
       return { id: d.id, ...data, createdAt };
-    });
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
 
     return NextResponse.json({ policies });
   } catch (error) {

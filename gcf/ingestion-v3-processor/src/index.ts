@@ -36,6 +36,7 @@ const CARRIER_FORM_TYPE_OVERRIDES: Record<
   amam_icc18_aa3487: { policyType: 'Term Life', insuranceCompany: 'American-Amicable' },
   foresters_icc15_770825: { policyType: 'Term Life', insuranceCompany: 'Foresters' },
   uhl_icc22_200_878a: { policyType: 'Term Life', insuranceCompany: 'United Home Life' },
+  uhl_icc20_200_854a_giwl: { policyType: 'Whole Life', insuranceCompany: 'United Home Life' },
   transamerica_icc22_t_ap_wl11ic_0822: { policyType: 'Whole Life', insuranceCompany: 'Transamerica' },
   corebridge_aig_icc15_108847: { policyType: 'Whole Life', insuranceCompany: 'Corebridge/AIG' },
   sbli_policy_packet: { insuranceCompany: 'SBLI' },
@@ -72,7 +73,7 @@ FIELD RULES:
 - insuredState: state of residence of the proposed insured. Extract from mailing address or signing state.
 - renewalDate: renewal or expiration date of the policy term, if visible.
 - policyOwner: policy owner name.
-- beneficiaries: use actual person names; relationship label in relationship field.
+- beneficiaries: use actual person names; relationship label in relationship field. If beneficiary-specific phone/email is clearly shown in that beneficiary row/section, include it; otherwise omit/null. Never copy insured/owner contact fields into beneficiary contacts unless explicitly tied to beneficiary rows.
 - coverageAmount: face amount/death benefit as a number.
 - premiumAmount: modal/planned/scheduled premium as a number.
 - premiumFrequency: map to monthly/quarterly/semi-annual/annual.
@@ -177,6 +178,8 @@ const APPLICATION_EXTRACTION_SCHEMA = {
           name: { type: 'string' },
           relationship: { type: 'string' },
           percentage: { type: 'number' },
+          phone: { type: 'string' },
+          email: { type: 'string' },
           irrevocable: { type: 'boolean' },
           type: { type: 'string', enum: ['primary', 'contingent'] },
         },
@@ -212,6 +215,8 @@ interface ExtractedApplicationData {
     name: string;
     relationship?: string;
     percentage?: number;
+    phone?: string;
+    email?: string;
     irrevocable?: boolean | null;
     type: 'primary' | 'contingent';
   }> | null;
@@ -1610,11 +1615,23 @@ function parseBeneficiaries(value: unknown): ExtractedApplicationData['beneficia
     const name = toStringOrNull(raw.name);
     if (!name) continue;
     const type = raw.type === 'contingent' ? 'contingent' : 'primary';
-    const entry: { name: string; type: 'primary' | 'contingent'; relationship?: string; percentage?: number; irrevocable?: boolean | null } = { name, type };
+    const entry: {
+      name: string;
+      type: 'primary' | 'contingent';
+      relationship?: string;
+      percentage?: number;
+      phone?: string;
+      email?: string;
+      irrevocable?: boolean | null;
+    } = { name, type };
     const relationship = toStringOrNull(raw.relationship);
     if (relationship) entry.relationship = relationship;
     const percentage = toNumberOrNull(raw.percentage);
     if (percentage != null) entry.percentage = percentage;
+    const phone = toStringOrNull(raw.phone);
+    if (phone) entry.phone = phone;
+    const email = toStringOrNull(raw.email);
+    if (email) entry.email = email;
     const irrevocable = toBooleanOrNull(raw.irrevocable);
     if (irrevocable != null) entry.irrevocable = irrevocable;
     result.push(entry);
