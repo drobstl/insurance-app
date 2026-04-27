@@ -216,7 +216,7 @@ function SignupPageInner() {
                 <svg className="w-4 h-4 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                <span>Only $9.99/month after signup</span>
+                <span>Only $25/month after signup</span>
               </div>
             </div>
 

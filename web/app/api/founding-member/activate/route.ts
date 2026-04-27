@@ -3,6 +3,9 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
 
+// Launch decision (April 2026): founding is closed to new signups.
+const FOUNDING_SIGNUPS_OPEN = false;
+
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization') || '';
@@ -26,6 +29,11 @@ export async function POST(req: NextRequest) {
     const agentDoc = await db.collection('agents').doc(userId).get();
     if (agentDoc.exists && agentDoc.data()?.subscriptionStatus === 'active') {
       return NextResponse.json({ activated: true, alreadyActive: true });
+    }
+
+    // Do not allow new free activations while founding is closed.
+    if (!FOUNDING_SIGNUPS_OPEN) {
+      return NextResponse.json({ activated: false, reason: 'founding_closed' });
     }
 
     // Look for an approved founding member application with this email.

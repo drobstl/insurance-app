@@ -120,8 +120,8 @@ export function useTierCTA(): TierCTAData {
     isFoundingOpen,
     loaded: data !== null,
 
-    ctaHref: isFoundingOpen ? '/founding-member' : '/subscribe',
-    ctaMobileHref: isFoundingOpen ? '/founding-member/m' : '/subscribe',
+    ctaHref: isFoundingOpen ? '/founding-member' : '/signup',
+    ctaMobileHref: isFoundingOpen ? '/founding-member/m' : '/signup',
     ctaText: copy.ctaText,
     ctaSubtext: buildSubtext(activeTier, spots),
     bannerText: buildBannerText(activeTier, spots, filledTiers),

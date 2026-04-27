@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../firebase';
 
 export default function LoginPage() {
@@ -12,6 +12,19 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) {
+        router.replace('/dashboard');
+        return;
+      }
+      setAuthChecking(false);
+    });
+
+    return () => unsubscribe();
+  }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,6 +55,17 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  if (authChecking) {
+    return (
+      <div className="min-h-screen bg-[#e4e4e4] flex items-center justify-center">
+        <div className="flex items-center gap-3">
+          <div className="w-6 h-6 border-2 border-[#45bcaa] border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-[#2D3748]">Checking your session...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#e4e4e4] relative overflow-hidden">

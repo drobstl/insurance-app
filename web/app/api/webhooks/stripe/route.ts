@@ -4,40 +4,6 @@ import { stripe } from '../../../../lib/stripe';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import Stripe from 'stripe';
 
-function generateInviteCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = '';
-  for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  return code;
-}
-
-async function getOrCreateInviteUrl(
-  db: ReturnType<typeof getAdminFirestore>,
-  agentId: string,
-): Promise<string | null> {
-  const agentRef = db.collection('agents').doc(agentId);
-  const agentSnap = await agentRef.get();
-  if (!agentSnap.exists) return null;
-  const data = agentSnap.data()!;
-  let inviteCode = data.inviteCode as string | undefined;
-  if (!inviteCode) {
-    let attempts = 0;
-    while (attempts < 10) {
-      const candidate = generateInviteCode();
-      const existing = await db.collection('agentInviteCodes').doc(candidate).get();
-      if (!existing.exists) {
-        inviteCode = candidate;
-        break;
-      }
-      attempts++;
-    }
-    if (!inviteCode) return null;
-    await db.collection('agentInviteCodes').doc(inviteCode).set({ agentId });
-    await agentRef.update({ inviteCode });
-  }
-  return `https://agentforlife.app/signup?ref=${inviteCode}`;
-}
-
 // Disable body parsing, need raw body for webhook signature verification
 export const dynamic = 'force-dynamic';
 
@@ -153,43 +119,16 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     }
   }
 
-  // ── Credit the referrer with a one-month balance adjustment ──
-  // TODO: Re-enable when public $49/mo tier launches
-  const REFERRAL_CREDIT_ENABLED = false;
-  const referrerAgentUid = session.metadata?.referredByAgent;
-  if (REFERRAL_CREDIT_ENABLED && referrerAgentUid) {
-    try {
-      const referrerDoc = await db.collection('agents').doc(referrerAgentUid).get();
-      const referrerCustomerId = referrerDoc.data()?.stripeCustomerId as string | undefined;
-      if (referrerCustomerId) {
-        const unitAmount = subscription.items?.data?.[0]?.price?.unit_amount;
-        const monthlyPrice = typeof unitAmount === 'number' && unitAmount > 0 ? unitAmount : 999;
-        await stripe.customers.createBalanceTransaction(referrerCustomerId, {
-          amount: -monthlyPrice,
-          currency: 'usd',
-          description: 'Referral reward: 1 free month for referring a new agent',
-        });
-        await db.collection('agents').doc(referrerAgentUid).set(
-          { referralRewardsGiven: (referrerDoc.data()?.referralRewardsGiven ?? 0) + 1 },
-          { merge: true },
-        );
-        console.log(`Referral credit applied for referrer ${referrerAgentUid}`);
-      }
-    } catch (e) {
-      console.error('Failed to credit referrer:', e);
-    }
-  }
-
-  // ── Send welcome email with personalized invite link ──
+  // ── Send standard welcome email ──
   const email = agentDoc.data()?.email as string | undefined;
   const agentName = agentDoc.data()?.name as string | undefined;
   if (email) {
     try {
-      const inviteUrl = await getOrCreateInviteUrl(db, userId);
       const key = process.env.RESEND_API_KEY;
-      if (key && inviteUrl) {
+      if (key) {
         const resend = new Resend(key);
         const firstName = agentName?.split(' ')[0] || 'there';
+        const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://agentforlife.app').replace(/\/+$/, '');
         await resend.emails.send({
           from: 'Daniel Roberts — AgentForLife™ <support@agentforlife.app>',
           to: email,
@@ -197,9 +136,16 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
           html: `
             <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; color: #2D3748; line-height: 1.7;">
               <p style="font-size: 16px;">Hey ${firstName},</p>
-              <p style="font-size: 16px;">Thanks for subscribing. You're all set — start adding clients and let the app handle retention and referrals.</p>
-              <p style="font-size: 16px;">Share your personal invite link — when another agent signs up, you both earn a referral badge:</p>
-              <p style="font-size: 16px;"><a href="${inviteUrl}" style="color: #0D4D4D; font-weight: 600;">${inviteUrl}</a></p>
+              <p style="font-size: 16px;">Welcome to AgentForLife. Your account is active and your dashboard is ready.</p>
+              <p style="font-size: 16px;">Best next steps:</p>
+              <ul style="font-size: 16px; margin: 8px 0 16px 20px; padding: 0;">
+                <li>Add your first client</li>
+                <li>Upload your business card in Settings</li>
+                <li>Turn on AI referral assistant</li>
+              </ul>
+              <p style="margin: 20px 0;">
+                <a href="${appUrl}/dashboard" style="display:inline-block;padding:12px 20px;background:#005851;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open your dashboard</a>
+              </p>
               <p style="font-size: 16px;">Questions? Just reply to this email.</p>
               <p style="font-size: 16px;">— Daniel</p>
             </div>

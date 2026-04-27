@@ -29,9 +29,21 @@ const getAuthUser = async (request: NextRequest) => {
   return getAdminAuth().verifyIdToken(token);
 };
 
+function resolveAppOrigin(request: NextRequest): string {
+  const rawEnvUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (rawEnvUrl) {
+    try {
+      return new URL(rawEnvUrl).origin;
+    } catch {
+      console.warn('NEXT_PUBLIC_APP_URL is invalid. Falling back to request origin.');
+    }
+  }
+  return request.nextUrl.origin;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { plan = 'monthly', referralCode } = await request.json();
+    const { plan = 'monthly' } = await request.json();
 
     const authUser = await getAuthUser(request);
     if (!authUser) {
@@ -92,7 +104,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const appOrigin = resolveAppOrigin(request);
 
     // Create or retrieve customer for this Firebase user
     const customers = await stripe.customers.list({
@@ -113,17 +125,6 @@ export async function POST(request: NextRequest) {
           },
         });
 
-    // Resolve referral info if a valid code was provided
-    let referredByAgent: string | undefined;
-    const referralCouponId = process.env.STRIPE_REFERRAL_COUPON_ID;
-    if (referralCode && typeof referralCode === 'string' && referralCouponId) {
-      const db = getAdminFirestore();
-      const codeDoc = await db.collection('agentInviteCodes').doc(referralCode.toUpperCase()).get();
-      if (codeDoc.exists) {
-        referredByAgent = codeDoc.data()!.agentId as string;
-      }
-    }
-
     const session = await stripe.checkout.sessions.create({
       customer: customer.id,
       payment_method_types: ['card'],
@@ -134,13 +135,12 @@ export async function POST(request: NextRequest) {
         },
       ],
       mode: 'subscription',
-      success_url: `${appUrl}/dashboard?subscription=success`,
-      cancel_url: `${appUrl}/subscribe?canceled=true`,
+      success_url: `${appOrigin}/dashboard?subscription=success`,
+      cancel_url: `${appOrigin}/subscribe?canceled=true`,
       metadata: {
         firebaseUserId: userId,
         plan: plan,
         membershipTier,
-        ...(referredByAgent ? { referredByAgent } : {}),
       },
       subscription_data: {
         metadata: {
@@ -149,9 +149,7 @@ export async function POST(request: NextRequest) {
           membershipTier,
         },
       },
-      ...(referredByAgent && referralCouponId
-        ? { discounts: [{ coupon: referralCouponId }] }
-        : { allow_promotion_codes: true }),
+      allow_promotion_codes: true,
     });
 
     return NextResponse.json({ sessionId: session.id, url: session.url });
