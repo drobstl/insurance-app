@@ -10,7 +10,13 @@ export const ANALYTICS_EVENTS = {
   CLIENT_ADDED: 'client_added',
   CLIENT_REMOVED: 'client_removed',
   ANNIVERSARY_REWRITE_INITIATED: 'anniversary_rewrite_initiated',
+  ONBOARDING_STEP_VIEWED: 'onboarding_step_viewed',
   ONBOARDING_STEP_COMPLETED: 'onboarding_step_completed',
+  ONBOARDING_STEP_BLOCKED: 'onboarding_step_blocked',
+  ONBOARDING_RESUMED: 'onboarding_resumed',
+  ONBOARDING_COMPLETED: 'onboarding_completed',
+  ONBOARDING_PATCH_PROMPT_SENT: 'onboarding_patch_prompt_sent',
+  ONBOARDING_MANUAL_CORRECTION_USED: 'onboarding_manual_correction_used',
   SETTINGS_UPDATED: 'settings_updated',
   PATCH_CONVERSATION_STARTED: 'patch_conversation_started',
   PATCH_MESSAGE_SENT: 'patch_message_sent',
@@ -78,8 +84,27 @@ export type AnalyticsEventPropertiesMap = {
   } & GenericEventProperties;
   client_removed: GenericEventProperties;
   anniversary_rewrite_initiated: GenericEventProperties;
+  onboarding_step_viewed: {
+    step_name?: string;
+  } & GenericEventProperties;
   onboarding_step_completed: {
     step_name?: string;
+  } & GenericEventProperties;
+  onboarding_step_blocked: {
+    step_name?: string;
+    reason?: string;
+  } & GenericEventProperties;
+  onboarding_resumed: {
+    step_name?: string;
+  } & GenericEventProperties;
+  onboarding_completed: {
+    total_steps?: number;
+  } & GenericEventProperties;
+  onboarding_patch_prompt_sent: {
+    prompt_length?: number;
+  } & GenericEventProperties;
+  onboarding_manual_correction_used: {
+    source?: 'application_review';
   } & GenericEventProperties;
   settings_updated: {
     setting_changed?: string;

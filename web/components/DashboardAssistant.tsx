@@ -13,6 +13,10 @@ interface Message {
   content: string;
 }
 
+interface DashboardAssistantProps {
+  onFirstUserMessage?: (message: string) => void;
+}
+
 const SUGGESTED_QUESTIONS = [
   'How do I add clients?',
   'How do referrals work?',
@@ -112,7 +116,7 @@ function randomBetween(min: number, max: number) {
   return min + Math.random() * (max - min);
 }
 
-export default function DashboardAssistant() {
+export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssistantProps) {
   const { user } = useDashboard();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -127,6 +131,7 @@ export default function DashboardAssistant() {
   const suppressClickRef = useRef(false);
   const [fabOffset, setFabOffset] = useState({ x: 0, y: 0 });
   const [dragArmed, setDragArmed] = useState(false);
+  const firstUserMessageReportedRef = useRef(false);
 
   // Tilt: two 10deg nods back-to-back, then rest, then random delay and repeat
   useEffect(() => {
@@ -242,12 +247,28 @@ export default function DashboardAssistant() {
     }
   }, [open]);
 
+  useEffect(() => {
+    const handleOpenEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ prompt?: string }>).detail;
+      setOpen(true);
+      if (detail?.prompt) {
+        setInput(detail.prompt);
+      }
+    };
+    window.addEventListener('afl:open-patch-assistant', handleOpenEvent as EventListener);
+    return () => window.removeEventListener('afl:open-patch-assistant', handleOpenEvent as EventListener);
+  }, []);
+
   const sendMessage = useCallback(
     async (text: string) => {
       if (!user || !text.trim() || streaming) return;
 
       const userMsg: Message = { role: 'user', content: text.trim() };
       captureEvent(ANALYTICS_EVENTS.PATCH_MESSAGE_SENT, { message_length: text.trim().length });
+      if (!firstUserMessageReportedRef.current) {
+        firstUserMessageReportedRef.current = true;
+        onFirstUserMessage?.(text.trim());
+      }
       const newMessages = [...messages, userMsg];
       setMessages(newMessages);
       setInput('');
@@ -327,7 +348,7 @@ export default function DashboardAssistant() {
         abortRef.current = null;
       }
     },
-    [user, messages, streaming],
+    [user, messages, streaming, onFirstUserMessage],
   );
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -360,6 +381,7 @@ export default function DashboardAssistant() {
     <>
       {/* Floating mascot button */}
       <motion.button
+        data-onboarding-target="patch-launcher"
         onClick={() => {
           if (suppressClickRef.current) {
             suppressClickRef.current = false;

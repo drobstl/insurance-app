@@ -3,10 +3,61 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import { isAdminEmail } from '../../lib/admin';
 import { identifyAgent, resetPostHog } from '../../lib/posthog';
+
+export interface OnboardingMilestones {
+  profileCompleted: boolean;
+  firstClientCreated: boolean;
+  firstWelcomeSent: boolean;
+  firstPatchPromptSent: boolean;
+}
+
+export interface OnboardingState {
+  version: number;
+  currentStep: number;
+  requiredMilestones: OnboardingMilestones;
+}
+
+export type OnboardingMilestoneKey = keyof OnboardingMilestones;
+
+const DEFAULT_ONBOARDING_MILESTONES: OnboardingMilestones = {
+  profileCompleted: false,
+  firstClientCreated: false,
+  firstWelcomeSent: false,
+  firstPatchPromptSent: false,
+};
+
+const DEFAULT_ONBOARDING_STATE: OnboardingState = {
+  version: 1,
+  currentStep: 0,
+  requiredMilestones: DEFAULT_ONBOARDING_MILESTONES,
+};
+
+function normalizeOnboardingState(raw: unknown): OnboardingState {
+  const source = typeof raw === 'object' && raw ? (raw as Record<string, unknown>) : {};
+  const milestonesRaw =
+    typeof source.requiredMilestones === 'object' && source.requiredMilestones
+      ? (source.requiredMilestones as Record<string, unknown>)
+      : {};
+
+  return {
+    version: typeof source.version === 'number' && Number.isFinite(source.version) ? source.version : 1,
+    currentStep: typeof source.currentStep === 'number' && Number.isFinite(source.currentStep) ? source.currentStep : 0,
+    requiredMilestones: {
+      profileCompleted: milestonesRaw.profileCompleted === true,
+      firstClientCreated: milestonesRaw.firstClientCreated === true,
+      firstWelcomeSent: milestonesRaw.firstWelcomeSent === true,
+      firstPatchPromptSent: milestonesRaw.firstPatchPromptSent === true,
+    },
+  };
+}
+
+function areAllOnboardingMilestonesComplete(milestones: OnboardingMilestones): boolean {
+  return Object.values(milestones).every(Boolean);
+}
 
 export interface AgentProfile {
   name?: string;
@@ -32,6 +83,7 @@ export interface AgentProfile {
   welcomeSmsTemplate?: string;
   skipWelcomeSmsConfirmation?: boolean;
   onboardingComplete?: boolean;
+  onboarding?: OnboardingState;
   tipsSeen?: Record<string, boolean>;
   celebratedBadgeIds?: string[];
   inviteCode?: string;
@@ -48,6 +100,9 @@ interface DashboardContextValue {
   handleLogout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   dismissTip: (sectionKey: string) => Promise<void>;
+  markOnboardingMilestone: (milestone: OnboardingMilestoneKey) => Promise<void>;
+  setOnboardingCurrentStep: (step: number) => Promise<void>;
+  completeOnboarding: () => Promise<void>;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
@@ -117,6 +172,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           welcomeSmsTemplate: data.welcomeSmsTemplate,
           skipWelcomeSmsConfirmation: data.skipWelcomeSmsConfirmation,
           onboardingComplete: data.onboardingComplete,
+          onboarding: normalizeOnboardingState(data.onboarding),
           tipsSeen: data.tipsSeen || {},
           celebratedBadgeIds: data.celebratedBadgeIds || [],
         });
@@ -176,6 +232,103 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
+  const markOnboardingMilestone = useCallback(async (milestone: OnboardingMilestoneKey) => {
+    if (!user) return;
+
+    const currentOnboarding = normalizeOnboardingState(agentProfile.onboarding);
+    if (currentOnboarding.requiredMilestones[milestone]) {
+      return;
+    }
+
+    const nextMilestones: OnboardingMilestones = {
+      ...currentOnboarding.requiredMilestones,
+      [milestone]: true,
+    };
+    const nextOnboarding: OnboardingState = {
+      ...currentOnboarding,
+      requiredMilestones: nextMilestones,
+    };
+    try {
+      await setDoc(
+        doc(db, 'agents', user.uid),
+        {
+          onboarding: {
+            ...nextOnboarding,
+            updatedAt: serverTimestamp(),
+          },
+        },
+        { merge: true },
+      );
+      setAgentProfile((prev) => ({
+        ...prev,
+        onboarding: nextOnboarding,
+      }));
+    } catch (error) {
+      console.error('Error marking onboarding milestone:', error);
+    }
+  }, [user, agentProfile.onboarding]);
+
+  const setOnboardingCurrentStep = useCallback(async (step: number) => {
+    if (!user) return;
+    const safeStep = Number.isFinite(step) ? Math.max(0, Math.round(step)) : 0;
+    const currentOnboarding = normalizeOnboardingState(agentProfile.onboarding);
+
+    if (currentOnboarding.currentStep === safeStep) return;
+
+    const nextOnboarding: OnboardingState = {
+      ...currentOnboarding,
+      currentStep: safeStep,
+    };
+
+    try {
+      await setDoc(
+        doc(db, 'agents', user.uid),
+        {
+          onboarding: {
+            ...nextOnboarding,
+            updatedAt: serverTimestamp(),
+          },
+        },
+        { merge: true },
+      );
+      setAgentProfile((prev) => ({
+        ...prev,
+        onboarding: nextOnboarding,
+      }));
+    } catch (error) {
+      console.error('Error setting onboarding step:', error);
+    }
+  }, [user, agentProfile.onboarding]);
+
+  const completeOnboarding = useCallback(async () => {
+    if (!user) return;
+    const currentOnboarding = normalizeOnboardingState(agentProfile.onboarding);
+    const completed = areAllOnboardingMilestonesComplete(currentOnboarding.requiredMilestones);
+    if (!completed) return;
+
+    try {
+      await setDoc(
+        doc(db, 'agents', user.uid),
+        {
+          onboarding: {
+            ...currentOnboarding,
+            updatedAt: serverTimestamp(),
+            completedAt: serverTimestamp(),
+          },
+          onboardingComplete: true,
+        },
+        { merge: true },
+      );
+      setAgentProfile((prev) => ({
+        ...prev,
+        onboarding: currentOnboarding,
+        onboardingComplete: true,
+      }));
+    } catch (error) {
+      console.error('Error completing onboarding:', error);
+    }
+  }, [user, agentProfile.onboarding]);
+
   const isAdmin = isAdminEmail(user?.email);
 
   return (
@@ -190,6 +343,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         handleLogout,
         refreshProfile: fetchProfile,
         dismissTip,
+        markOnboardingMilestone,
+        setOnboardingCurrentStep,
+        completeOnboarding,
       }}
     >
       {children}

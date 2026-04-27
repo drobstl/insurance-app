@@ -266,7 +266,13 @@ const ADMIN_NAV_ITEMS = [
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, agentProfile, isAdmin, handleLogout } = useDashboard();
+  const {
+    user,
+    agentProfile,
+    isAdmin,
+    handleLogout,
+    markOnboardingMilestone,
+  } = useDashboard();
 
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
@@ -297,10 +303,21 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   useEffect(() => {
-    if (agentProfile.onboardingComplete === undefined && user) {
-      setShowOnboarding(!agentProfile.onboardingComplete);
+    if (!user) {
+      setShowOnboarding(false);
+      return;
     }
+    const shouldShow = agentProfile.onboardingComplete !== true;
+    setShowOnboarding(shouldShow);
   }, [agentProfile.onboardingComplete, user]);
+
+  useEffect(() => {
+    if (!showOnboarding) return;
+    const resumedStep = agentProfile.onboarding?.currentStep ?? 0;
+    captureEvent(ANALYTICS_EVENTS.ONBOARDING_RESUMED, {
+      step_name: `step_${resumedStep + 1}`,
+    });
+  }, [showOnboarding, agentProfile.onboarding?.currentStep]);
 
   useEffect(() => {
     if (pathname.startsWith('/dashboard/admin')) {
@@ -355,6 +372,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <span className="text-[#005851] text-sm font-bold">AgentForLife</span>
         </div>
         <button
+          data-onboarding-target="nav-settings"
           onClick={() => router.push('/dashboard/settings')}
           className="w-8 h-8 rounded-[5px] bg-[#f1f1f1] text-[#005851] flex items-center justify-center"
           aria-label="Open settings"
@@ -381,6 +399,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           {NAV_ITEMS.map((item) => (
             <button
               key={item.key}
+              data-onboarding-target={item.key === 'clients' ? 'nav-clients' : undefined}
               onClick={() => router.push(item.path)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
                 activeKey === item.key
@@ -451,6 +470,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           )}
 
           <button
+            data-onboarding-target="nav-settings"
             onClick={() => router.push('/dashboard/settings')}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 ${
               activeKey === 'settings'
@@ -582,6 +602,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             return (
               <button
                 key={item.key}
+                data-onboarding-target={item.key === 'clients' ? 'nav-clients' : undefined}
                 onClick={() => router.push(item.path)}
                 className={`py-2 px-1 flex flex-col items-center justify-center gap-1 ${
                   active ? 'text-[#005851]' : 'text-[#707070]'
@@ -593,6 +614,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             );
           })}
           <button
+            data-onboarding-target="nav-settings"
             onClick={() => router.push('/dashboard/settings')}
             className={`py-2 px-1 flex flex-col items-center justify-center gap-1 ${
               activeKey === 'settings' ? 'text-[#005851]' : 'text-[#707070]'
@@ -610,7 +632,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       {/* Onboarding */}
       {showOnboarding && user && (
         <OnboardingOverlay
-          agentUid={user.uid}
           agentName={agentProfile.name || user.displayName || ''}
           onComplete={() => setShowOnboarding(false)}
         />
@@ -668,7 +689,17 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <DashboardAssistant />
+      <DashboardAssistant
+        onFirstUserMessage={(message) => {
+          if (agentProfile.onboardingComplete === true || agentProfile.onboarding?.requiredMilestones?.firstPatchPromptSent) {
+            return;
+          }
+          captureEvent(ANALYTICS_EVENTS.ONBOARDING_PATCH_PROMPT_SENT, {
+            prompt_length: message.length,
+          });
+          void markOnboardingMilestone('firstPatchPromptSent');
+        }}
+      />
     </div>
   );
 }

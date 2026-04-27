@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
     const agentRef = snapshot.docs[0].ref;
     await agentRef.update({
       onboardingComplete: FieldValue.delete(),
+      onboarding: FieldValue.delete(),
       tipsSeen: {},
     });
 

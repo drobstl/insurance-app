@@ -762,7 +762,7 @@ async function apiCancelIngestionV3Job(
 // ─── Component ─────────────────────────────────────────────
 
 export default function ClientsPage() {
-  const { user, agentProfile, loading, dismissTip } = useDashboard();
+  const { user, agentProfile, loading, dismissTip, markOnboardingMilestone } = useDashboard();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -1760,6 +1760,7 @@ export default function ClientsPage() {
 
     const docRef = await addDoc(collection(db, 'agents', user.uid, 'clients'), newClient);
     captureEvent(ANALYTICS_EVENTS.CLIENT_ADDED, { method: source });
+    await markOnboardingMilestone('firstClientCreated');
 
     try {
       await Promise.all([
@@ -1825,7 +1826,7 @@ export default function ClientsPage() {
       phone: formData.phone.trim(),
       code,
     };
-  }, [user, formData, pendingClientApplicationData, hasAddFlowPolicyInput, addFlowPolicyForm, refreshSummaries]);
+  }, [user, formData, pendingClientApplicationData, hasAddFlowPolicyInput, addFlowPolicyForm, refreshSummaries, markOnboardingMilestone]);
 
   const handleManualCreateAndContinue = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1853,7 +1854,18 @@ export default function ClientsPage() {
     setFormSuccess('');
     setSubmitting(true);
     try {
+      const editedExtractedCoreFields = Boolean(pendingClientApplicationData) && (
+        formData.name.trim() !== (pendingClientApplicationData?.insuredName || '').trim()
+        || formData.phone.trim() !== (pendingClientApplicationData?.insuredPhone || '').trim()
+        || formData.email.trim() !== (pendingClientApplicationData?.insuredEmail || '').trim()
+        || formData.dateOfBirth !== (pendingClientApplicationData?.insuredDateOfBirth || '')
+      );
       const created = await createClientFromAddFlow('pdf_parse');
+      if (editedExtractedCoreFields) {
+        captureEvent(ANALYTICS_EVENTS.ONBOARDING_MANUAL_CORRECTION_USED, {
+          source: 'application_review',
+        });
+      }
       const firstName = created.name.split(' ')[0] || created.name;
       setCreatedClientContext({ id: created.id, name: created.name, phone: created.phone });
       setWelcomeDraft(buildWelcomeSms(firstName, created.code, formData.preferredLanguage));
@@ -1864,7 +1876,7 @@ export default function ClientsPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [submitting, createClientFromAddFlow, buildWelcomeSms, formData.preferredLanguage]);
+  }, [submitting, createClientFromAddFlow, buildWelcomeSms, formData.preferredLanguage, formData.name, formData.phone, formData.email, formData.dateOfBirth, pendingClientApplicationData]);
 
   const finishAddFlow = useCallback((message: string, celebrate: boolean) => {
     handleCloseAddFlow();
@@ -1897,13 +1909,14 @@ export default function ClientsPage() {
           message: welcomeDraft.trim(),
         }),
       });
+      await markOnboardingMilestone('firstWelcomeSent');
       finishAddFlow(`${createdClientContext.name} added successfully!`, true);
     } catch (err) {
       setWelcomeError(err instanceof Error ? err.message : 'Failed to send welcome text.');
     } finally {
       setWelcomeSending(false);
     }
-  }, [user, createdClientContext, welcomeDraft, welcomeSending, handleSkipWelcome, finishAddFlow]);
+  }, [user, createdClientContext, welcomeDraft, welcomeSending, handleSkipWelcome, finishAddFlow, markOnboardingMilestone]);
 
   const handleDeleteClient = useCallback(async () => {
     if (!user || !deleteConfirmClient) return;
@@ -3968,6 +3981,7 @@ export default function ClientsPage() {
       style={{ transform: listSurfaceTransform }}>
           <div className="flex items-center gap-2">
             <button
+              data-onboarding-target="clients-add-client"
               onClick={handleOpenModal}
               className="px-4 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors flex items-center gap-2 text-sm"
             >
@@ -4971,7 +4985,7 @@ export default function ClientsPage() {
               <div className={incomingSurfaceHeaderClass}>
                 <div>
                   <h3 className="text-xl font-bold text-[#000000]">Add Client</h3>
-                  <p className="text-xs text-[#707070] mt-0.5">Upload an application or expand manual entry.</p>
+                  <p className="text-xs text-[#707070] mt-0.5">Upload an application for an AI draft, or expand manual entry. You can edit every field before saving.</p>
                 </div>
                 <button type="button" onClick={handleCloseAddFlow} className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -5054,7 +5068,7 @@ export default function ClientsPage() {
               <div className={incomingSurfaceHeaderClass}>
                 <div>
                   <h3 className="text-xl font-bold text-[#000000]">Review & Confirm</h3>
-                  <p className="text-xs text-[#707070] mt-0.5">Step 1 of 2</p>
+                  <p className="text-xs text-[#707070] mt-0.5">Step 2 of 2</p>
                 </div>
                 <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#45bcaa]" /><span className="h-2.5 w-2.5 rounded-full bg-[#d0d0d0]" /></div>
               </div>
@@ -5062,12 +5076,12 @@ export default function ClientsPage() {
                   {clientApplicationShortPdfWarning ? (
                     <div className="flex items-center gap-2 px-3 py-2 bg-[#fff7db] border border-[#f5c451]/50 rounded-[5px] text-xs text-[#8a5a00]">
                       <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 4h.01M10.29 3.86l-8.5 14.5A1 1 0 002.64 20h16.72a1 1 0 00.85-1.64l-8.5-14.5a1 1 0 00-1.72 0z" /></svg>
-                      <span className="font-medium">Heads-up: this PDF was shorter than expected. Some fields may be missing - please verify before confirming.</span>
+                      <span className="font-medium">Heads-up: this PDF was shorter than expected. Some fields may be missing. You can type in anything AgentForLife did not capture before confirming.</span>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 px-3 py-2 bg-[#daf3f0] border border-[#45bcaa]/30 rounded-[5px] text-xs text-[#005851]">
                       <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      <span className="font-medium">Extraction complete. Review and confirm.</span>
+                      <span className="font-medium">AI draft ready. Review and edit any field before confirming.</span>
                     </div>
                   )}
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -5107,7 +5121,7 @@ export default function ClientsPage() {
                 {welcomeError && <p className="text-xs text-red-600">{welcomeError}</p>}
                 <div className="flex gap-3">
                   <button type="button" onClick={handleSkipWelcome} className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-[5px] border border-gray-200 text-sm">Skip</button>
-                  <button type="button" onClick={handleSendWelcome} disabled={welcomeSending || !createdClientContext?.phone} className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] text-sm">{welcomeSending ? 'Sending...' : 'Send Welcome Text'}</button>
+                  <button data-onboarding-target="clients-send-welcome" type="button" onClick={handleSendWelcome} disabled={welcomeSending || !createdClientContext?.phone} className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] text-sm">{welcomeSending ? 'Sending...' : 'Send Welcome Text'}</button>
                 </div>
               </div>
             </div>
