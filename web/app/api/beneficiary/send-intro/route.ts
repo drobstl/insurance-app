@@ -20,6 +20,56 @@ function getResend() {
   return new Resend(key);
 }
 
+async function queueBeneficiaryFollowups(params: {
+  db: FirebaseFirestore.Firestore;
+  agentId: string;
+  beneficiaryCode: string;
+  beneficiaryName: string;
+  role: BeneficiaryRole;
+  insuredName: string;
+  phone: string;
+  email: string;
+  language: 'en' | 'es';
+  agentName: string;
+}) {
+  const baseRef = params.db.collection('agents').doc(params.agentId).collection('beneficiaryFollowups');
+  const base = {
+    beneficiaryCode: params.beneficiaryCode,
+    beneficiaryName: params.beneficiaryName || '',
+    beneficiaryRole: params.role,
+    insuredName: params.insuredName || '',
+    beneficiaryPhone: params.phone,
+    beneficiaryEmail: params.email,
+    preferredLanguage: params.language,
+    campaignType: 'beneficiary_followup',
+    campaignContext: {
+      trigger: 'intro',
+    },
+    status: 'queued',
+    createdAt: new Date().toISOString(),
+  };
+  const offsets = [2, 5, 10] as const;
+  for (const [idx, dayOffset] of offsets.entries()) {
+    const sendAt = new Date();
+    sendAt.setUTCDate(sendAt.getUTCDate() + dayOffset);
+    await baseRef.doc(`${params.beneficiaryCode}_${idx + 1}`).set({
+      ...base,
+      step: (idx + 1) as 1 | 2 | 3,
+      sendAt: sendAt.toISOString(),
+      message: buildBeneficiaryFollowupMessage({
+        step: (idx + 1) as 1 | 2 | 3,
+        beneficiaryFirstName: (params.beneficiaryName || 'there').split(' ')[0],
+        insuredFirstName: (params.insuredName || 'your loved one').split(' ')[0],
+        agentName: params.agentName,
+        beneficiaryCode: params.beneficiaryCode,
+        appUrl: 'https://agentforlife.app/app',
+        role: params.role,
+        language: params.language,
+      }),
+    }, { merge: true });
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('Authorization');
@@ -91,43 +141,24 @@ export async function POST(req: NextRequest) {
         await createChat({ to: normalizedPhone, text: finalMessage });
         await db.collection('agents').doc(uid).collection('beneficiaryOutreachByCode').doc(code).collection('events').add({
           category: 'intro',
+          campaignType: 'beneficiary_intro',
           channel: 'sms',
           status: 'sent',
           sentAt: new Date().toISOString(),
         });
         if (agentData.beneficiaryAIFollowupsEnabled === true) {
-          const baseRef = db.collection('agents').doc(uid).collection('beneficiaryFollowups');
-          const base = {
+          await queueBeneficiaryFollowups({
+            db,
+            agentId: uid,
             beneficiaryCode: code,
             beneficiaryName: beneficiaryName || '',
-            beneficiaryRole: role,
+            role,
             insuredName: insuredName || '',
-            beneficiaryPhone: validPhone ? normalizedPhone : '',
-            beneficiaryEmail: validEmail ? email : '',
-            preferredLanguage: language,
-            status: 'queued',
-            createdAt: new Date().toISOString(),
-          };
-          const offsets = [2, 5, 10] as const;
-          for (const [idx, dayOffset] of offsets.entries()) {
-            const sendAt = new Date();
-            sendAt.setUTCDate(sendAt.getUTCDate() + dayOffset);
-            await baseRef.doc(`${code}_${idx + 1}`).set({
-              ...base,
-              step: (idx + 1) as 1 | 2 | 3,
-              sendAt: sendAt.toISOString(),
-              message: buildBeneficiaryFollowupMessage({
-                step: (idx + 1) as 1 | 2 | 3,
-                beneficiaryFirstName: (beneficiaryName || 'there').split(' ')[0],
-                insuredFirstName: (insuredName || 'your loved one').split(' ')[0],
-                agentName,
-                beneficiaryCode: code,
-                appUrl: 'https://agentforlife.app/app',
-                role,
-                language,
-              }),
-            }, { merge: true });
-          }
+            phone: validPhone ? normalizedPhone : '',
+            email: validEmail ? email : '',
+            language,
+            agentName,
+          });
         }
         return NextResponse.json({ success: true, channel: 'sms' });
       } catch (smsError) {
@@ -151,43 +182,24 @@ export async function POST(req: NextRequest) {
     });
     await db.collection('agents').doc(uid).collection('beneficiaryOutreachByCode').doc(code).collection('events').add({
       category: 'intro',
+      campaignType: 'beneficiary_intro',
       channel: validPhone ? 'email_fallback' : 'email',
       status: 'sent',
       sentAt: new Date().toISOString(),
     });
     if (agentData.beneficiaryAIFollowupsEnabled === true) {
-      const baseRef = db.collection('agents').doc(uid).collection('beneficiaryFollowups');
-      const base = {
+      await queueBeneficiaryFollowups({
+        db,
+        agentId: uid,
         beneficiaryCode: code,
         beneficiaryName: beneficiaryName || '',
-        beneficiaryRole: role,
+        role,
         insuredName: insuredName || '',
-        beneficiaryPhone: validPhone ? normalizedPhone : '',
-        beneficiaryEmail: validEmail ? email : '',
-        preferredLanguage: language,
-        status: 'queued',
-        createdAt: new Date().toISOString(),
-      };
-      const offsets = [2, 5, 10] as const;
-      for (const [idx, dayOffset] of offsets.entries()) {
-        const sendAt = new Date();
-        sendAt.setUTCDate(sendAt.getUTCDate() + dayOffset);
-        await baseRef.doc(`${code}_${idx + 1}`).set({
-          ...base,
-          step: (idx + 1) as 1 | 2 | 3,
-          sendAt: sendAt.toISOString(),
-          message: buildBeneficiaryFollowupMessage({
-            step: (idx + 1) as 1 | 2 | 3,
-            beneficiaryFirstName: (beneficiaryName || 'there').split(' ')[0],
-            insuredFirstName: (insuredName || 'your loved one').split(' ')[0],
-            agentName,
-            beneficiaryCode: code,
-            appUrl: 'https://agentforlife.app/app',
-            role,
-            language,
-          }),
-        }, { merge: true });
-      }
+        phone: validPhone ? normalizedPhone : '',
+        email: validEmail ? email : '',
+        language,
+        agentName,
+      });
     }
     return NextResponse.json({ success: true, channel: validPhone ? 'email_fallback' : 'email' });
   } catch (error) {

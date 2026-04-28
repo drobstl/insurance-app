@@ -7,7 +7,10 @@ export interface Beneficiary {
   percentage?: number;     // e.g. 25 -- optional
   phone?: string;
   email?: string;
+  dateOfBirth?: string;
+  address?: string;
   accessCode?: string;
+  optOutOutreach?: boolean;
   irrevocable?: boolean | null;
   type: 'primary' | 'contingent';
 }

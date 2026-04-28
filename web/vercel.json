@@ -13,8 +13,16 @@
       "schedule": "0 14 * * *"
     },
     {
+      "path": "/api/cron/beneficiary-holiday-check",
+      "schedule": "5 14 * * *"
+    },
+    {
       "path": "/api/cron/referral-drip",
       "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/cron/beneficiary-followups",
+      "schedule": "15 */4 * * *"
     },
     {
       "path": "/api/cron/conservation-outreach",

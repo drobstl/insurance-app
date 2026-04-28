@@ -89,6 +89,10 @@ function normalizeBeneficiaries(beneficiaries: Beneficiary[] | null): Beneficiar
       percentage: toNullableNumber(b.percentage),
       phone: toNullableString(b.phone ?? null) ?? undefined,
       email: toNullableString(b.email ?? null) ?? undefined,
+      dateOfBirth: toNullableString(b.dateOfBirth ?? null) ?? undefined,
+      address: toNullableString(b.address ?? null) ?? undefined,
+      accessCode: toNullableString(b.accessCode ?? null) ?? undefined,
+      optOutOutreach: b.optOutOutreach === true,
       irrevocable: typeof b.irrevocable === 'boolean' ? b.irrevocable : null,
       type: b.type === 'contingent' ? 'contingent' : 'primary',
     }))
@@ -102,6 +106,10 @@ function normalizeBeneficiaries(beneficiaries: Beneficiary[] | null): Beneficiar
     percentage: b.percentage ?? undefined,
     phone: b.phone,
     email: b.email,
+    dateOfBirth: b.dateOfBirth,
+    address: b.address,
+    accessCode: b.accessCode,
+    optOutOutreach: b.optOutOutreach,
     irrevocable: b.irrevocable,
     type: b.type as 'primary' | 'contingent',
   }));

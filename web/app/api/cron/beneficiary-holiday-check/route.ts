@@ -175,6 +175,7 @@ export async function GET(req: NextRequest) {
                 .collection('events')
                 .add({
                   category: 'holiday',
+                  campaignType: 'beneficiary_holiday',
                   holiday,
                   channel,
                   status: 'sent',
@@ -189,6 +190,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    console.log('[beneficiary-holiday-check] complete', { holiday, sent, skipped, failed });
     return NextResponse.json({ success: true, holiday, sent, skipped, failed });
   } catch (error) {
     return NextResponse.json(

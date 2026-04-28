@@ -84,8 +84,14 @@ export async function GET(req: NextRequest) {
         if (!sendAt || sendAt > nowIso) continue;
 
         const beneficiaryCode = typeof data.beneficiaryCode === 'string' ? data.beneficiaryCode : '';
+        const campaignType = typeof data.campaignType === 'string' ? data.campaignType : 'beneficiary_followup';
         if (!beneficiaryCode) {
-          await followupDoc.ref.set({ status: 'failed', error: 'missing_beneficiary_code', processedAt: nowIso }, { merge: true });
+          await followupDoc.ref.set({
+            status: 'failed',
+            error: 'missing_beneficiary_code',
+            campaignType,
+            processedAt: nowIso,
+          }, { merge: true });
           failed += 1;
           continue;
         }
@@ -101,14 +107,24 @@ export async function GET(req: NextRequest) {
           .get();
 
         if (eventsSnap.size >= maxTouches) {
-          await followupDoc.ref.set({ status: 'skipped', reason: 'touch_cap_reached', processedAt: nowIso }, { merge: true });
+          await followupDoc.ref.set({
+            status: 'skipped',
+            reason: 'touch_cap_reached',
+            campaignType,
+            processedAt: nowIso,
+          }, { merge: true });
           skipped += 1;
           continue;
         }
 
         const message = typeof data.message === 'string' ? data.message.trim() : '';
         if (!message) {
-          await followupDoc.ref.set({ status: 'failed', error: 'missing_message', processedAt: nowIso }, { merge: true });
+          await followupDoc.ref.set({
+            status: 'failed',
+            error: 'missing_message',
+            campaignType,
+            processedAt: nowIso,
+          }, { merge: true });
           failed += 1;
           continue;
         }
@@ -120,7 +136,12 @@ export async function GET(req: NextRequest) {
             email: typeof data.beneficiaryEmail === 'string' ? data.beneficiaryEmail : '',
             language: typeof data.preferredLanguage === 'string' ? data.preferredLanguage : 'en',
           });
-          await followupDoc.ref.set({ status: 'sent', channel, processedAt: nowIso }, { merge: true });
+          await followupDoc.ref.set({
+            status: 'sent',
+            campaignType,
+            channel,
+            processedAt: nowIso,
+          }, { merge: true });
           await db
             .collection('agents')
             .doc(agentDoc.id)
@@ -129,6 +150,7 @@ export async function GET(req: NextRequest) {
             .collection('events')
             .add({
               category: 'followup',
+              campaignType,
               channel,
               status: 'sent',
               sentAt: nowIso,
@@ -138,6 +160,7 @@ export async function GET(req: NextRequest) {
           await followupDoc.ref.set(
             {
               status: 'failed',
+              campaignType,
               error: error instanceof Error ? error.message : 'send_failed',
               processedAt: nowIso,
             },
@@ -148,6 +171,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    console.log('[beneficiary-followups] complete', { sent, skipped, failed });
     return NextResponse.json({ success: true, sent, skipped, failed });
   } catch (error) {
     return NextResponse.json(
