@@ -786,6 +786,15 @@ export default function OnboardingOverlay({
     }
 
     if (step.milestone && !milestones[step.milestone]) {
+      if (step.id === 'profile' && profileLooksComplete) {
+        try {
+          await markOnboardingMilestone('profileCompleted');
+          openProfileCelebration();
+        } catch {
+          blockStep('profile_complete_failed', 'Could not save profile completion yet. Please try Next again.');
+        }
+        return;
+      }
       if (step.id === 'profile' || step.id === 'firstClient') {
         if (!displayedGuidedTarget) {
           blockStep('guided_target_missing', 'Waiting for the highlighted action to load.');
@@ -811,17 +820,7 @@ export default function OnboardingOverlay({
           }
           return;
         }
-
         if (step.id === 'profile') {
-          if (profileLooksComplete) {
-            try {
-              await markOnboardingMilestone('profileCompleted');
-              openProfileCelebration();
-            } catch {
-              blockStep('profile_complete_failed', 'Could not save profile completion yet. Please try Next again.');
-            }
-            return;
-          }
           blockStep('profile_autosave_pending', 'Waiting for autosave to finish this profile step.');
           return;
         }
@@ -869,9 +868,9 @@ export default function OnboardingOverlay({
     if (step.id === 'welcome') return true;
     if (step.id === 'patch') return true;
     if (step.id === 'profile' && !milestones.profileCompleted) {
+      if (profileLooksComplete) return true;
       if (!displayedGuidedTarget) return false;
       if (activeTargetName !== displayedGuidedTarget) return false;
-      if (profileSubStep === 'save') return false;
       if (TARGET_BEHAVIORS[displayedGuidedTarget].mode === 'next'
         && activeTargetElement
         && isTextEntryElement(activeTargetElement)
