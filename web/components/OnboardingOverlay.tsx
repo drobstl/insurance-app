@@ -12,8 +12,6 @@ import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 interface OnboardingOverlayProps {
   agentName: string;
   onComplete: () => void;
-  onPause?: () => void;
-  onSkip?: () => void;
 }
 
 interface OnboardingStep {
@@ -38,6 +36,9 @@ type TargetName =
   | 'settings-save-button'
   | 'clients-add-client'
   | 'clients-addflow-expand-manual'
+  | 'clients-addflow-carrier-select'
+  | 'clients-addflow-upload-pdf'
+  | 'clients-addflow-review-name'
   | 'clients-addflow-create-client'
   | 'clients-addflow-confirm-create'
   | 'clients-send-welcome'
@@ -57,6 +58,14 @@ function isTextEntryElement(element: HTMLElement): element is HTMLInputElement |
   if (!(element instanceof HTMLInputElement)) return false;
   const nonTextTypes = new Set(['button', 'submit', 'checkbox', 'radio', 'file', 'hidden', 'range', 'color']);
   return !nonTextTypes.has(element.type);
+}
+
+function hasManualClientEntryStarted(createClientButton: HTMLElement | null): boolean {
+  if (!createClientButton) return false;
+  const form = createClientButton.closest('form');
+  if (!form) return false;
+  const fields = Array.from(form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea'));
+  return fields.some((field) => field.value.trim().length > 0);
 }
 
 const TARGET_BEHAVIORS: Record<TargetName, TargetBehavior> = {
@@ -91,9 +100,9 @@ const TARGET_BEHAVIORS: Record<TargetName, TargetBehavior> = {
     blockedMessage: 'Enter your phone number, then click Next.',
   },
   'settings-photo-upload': {
-    mode: 'click',
-    blockedReason: 'settings_photo_click_required',
-    blockedMessage: 'Upload a photo or logo to continue.',
+    mode: 'next',
+    blockedReason: 'settings_photo_optional',
+    blockedMessage: 'Adding a photo is optional - click Next to continue.',
   },
   'settings-agency-input': {
     mode: 'next',
@@ -101,9 +110,9 @@ const TARGET_BEHAVIORS: Record<TargetName, TargetBehavior> = {
     blockedMessage: 'Enter your agency name, then click Next.',
   },
   'settings-logo-upload': {
-    mode: 'click',
-    blockedReason: 'settings_logo_click_required',
-    blockedMessage: 'Upload a photo or logo to continue.',
+    mode: 'next',
+    blockedReason: 'settings_logo_optional',
+    blockedMessage: 'Adding a logo is optional - click Next to continue.',
   },
   'settings-save-button': {
     mode: 'click',
@@ -120,10 +129,25 @@ const TARGET_BEHAVIORS: Record<TargetName, TargetBehavior> = {
     blockedReason: 'clients_expand_manual_click_required',
     blockedMessage: 'Upload an application or click Expand Manual Entry to continue.',
   },
-  'clients-addflow-create-client': {
+  'clients-addflow-carrier-select': {
+    mode: 'click',
+    blockedReason: 'clients_carrier_select_required',
+    blockedMessage: 'Choose an application type to continue.',
+  },
+  'clients-addflow-upload-pdf': {
+    mode: 'click',
+    blockedReason: 'clients_upload_pdf_click_required',
+    blockedMessage: 'Upload the client application PDF to continue.',
+  },
+  'clients-addflow-review-name': {
     mode: 'next',
+    blockedReason: 'clients_review_fields_pending',
+    blockedMessage: 'Review extracted fields, make any edits needed, then click Next.',
+  },
+  'clients-addflow-create-client': {
+    mode: 'click',
     blockedReason: 'clients_create_fields_pending',
-    blockedMessage: 'Fill required client fields, then click Next.',
+    blockedMessage: 'Fill required client fields, then click Create Client.',
   },
   'clients-addflow-confirm-create': {
     mode: 'click',
@@ -152,7 +176,7 @@ const STEPS: OnboardingStep[] = [
   {
     id: 'profile',
     title: 'Set up your profile',
-    description: 'Complete name, agency, phone, and photo/logo.',
+    description: 'Complete name, phone, and agency. You can add a photo/logo later.',
     buttonLabel: 'Open Settings',
     route: '/dashboard/settings',
     milestone: 'profileCompleted',
@@ -186,9 +210,35 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function normalizeInstructionText(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[.!]+$/g, '');
+}
+
 function findTarget(name: TargetName): HTMLElement | null {
   const targets = Array.from(document.querySelectorAll<HTMLElement>(`[data-onboarding-target="${name}"]`));
   for (const target of targets) {
+    if (target.closest('[aria-hidden="true"]')) continue;
+    let blockedByAncestor = false;
+    let current: HTMLElement | null = target;
+    while (current) {
+      const currentStyle = window.getComputedStyle(current);
+      const currentOpacity = Number.parseFloat(currentStyle.opacity || '1');
+      if (
+        currentStyle.display === 'none'
+        || currentStyle.visibility === 'hidden'
+        || currentStyle.pointerEvents === 'none'
+        || currentOpacity <= 0.05
+      ) {
+        blockedByAncestor = true;
+        break;
+      }
+      current = current.parentElement;
+    }
+    if (blockedByAncestor) continue;
+
     const rect = target.getBoundingClientRect();
     const style = window.getComputedStyle(target);
     const isInteractable = style.display !== 'none'
@@ -211,29 +261,26 @@ function getFirstIncompleteProfileSubStep(agentProfile: {
   agencyLogoBase64?: string | null;
 }): ProfileSubStep {
   if ((agentProfile.name || '').trim().length === 0) return 'name';
-  if ((agentProfile.agencyName || '').trim().length === 0) return 'agency';
   if ((agentProfile.phoneNumber || '').trim().length === 0) return 'phone';
-  if (!(agentProfile.photoBase64 || agentProfile.photoURL || agentProfile.agencyLogoBase64)) return 'visual';
+  if ((agentProfile.agencyName || '').trim().length === 0) return 'agency';
   return 'save';
 }
 
 function getProfileGuidedTargets(baseStep: ProfileSubStep): TargetName[] {
   if (baseStep === 'name') {
-    return ['settings-name-input', 'settings-tab-branding', 'settings-agency-input', 'settings-tab-profile', 'settings-phone-input', 'settings-photo-upload'];
+    return ['settings-name-input', 'settings-phone-input', 'settings-tab-branding', 'settings-agency-input', 'settings-logo-upload'];
   }
   if (baseStep === 'agency') {
-    return ['settings-tab-branding', 'settings-agency-input', 'settings-tab-profile', 'settings-phone-input', 'settings-photo-upload'];
+    return ['settings-tab-branding', 'settings-agency-input', 'settings-logo-upload'];
   }
-  if (baseStep === 'phone') return ['settings-tab-profile', 'settings-phone-input', 'settings-photo-upload'];
-  if (baseStep === 'visual') return ['settings-photo-upload'];
+  if (baseStep === 'phone') return ['settings-tab-profile', 'settings-phone-input', 'settings-tab-branding', 'settings-agency-input', 'settings-logo-upload'];
+  if (baseStep === 'visual') return ['settings-logo-upload'];
   return [];
 }
 
 export default function OnboardingOverlay({
   agentName,
   onComplete,
-  onPause,
-  onSkip,
 }: OnboardingOverlayProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -248,22 +295,24 @@ export default function OnboardingOverlay({
   const [activeTargetName, setActiveTargetName] = useState<TargetName | null>(null);
   const [activeTargetElement, setActiveTargetElement] = useState<HTMLElement | null>(null);
   const [guidedIndex, setGuidedIndex] = useState(0);
+  const [firstClientFlowChoice, setFirstClientFlowChoice] = useState<'manual' | 'auto' | null>(null);
   const [profileFlowStart, setProfileFlowStart] = useState<ProfileSubStep | null>(null);
   const [focusedProfileTarget, setFocusedProfileTarget] = useState<TargetName | null>(null);
   const [activeTargetDisabled, setActiveTargetDisabled] = useState(false);
   const [actionAck, setActionAck] = useState<string | null>(null);
+  const [showProfileCelebration, setShowProfileCelebration] = useState(false);
   const [typedSinceFocusTarget, setTypedSinceFocusTarget] = useState<TargetName | null>(null);
+  const [manualEntryStarted, setManualEntryStarted] = useState(false);
   const profileAutoCompleteInFlightRef = useRef(false);
   const lastAutoScrollKeyRef = useRef<string | null>(null);
   const prevProfileCompletedRef = useRef<boolean>(false);
+  const uploadExtractionAckShownRef = useRef(false);
 
   const firstName = agentName?.split(' ')[0] || 'there';
 
   const profileLooksComplete = useMemo(() => {
-    const hasIdentity = Boolean(agentProfile.name?.trim() && agentProfile.agencyName?.trim() && agentProfile.phoneNumber?.trim());
-    const hasVisual = Boolean(agentProfile.photoBase64 || agentProfile.photoURL || agentProfile.agencyLogoBase64);
-    return hasIdentity && hasVisual;
-  }, [agentProfile.name, agentProfile.agencyName, agentProfile.phoneNumber, agentProfile.photoBase64, agentProfile.photoURL, agentProfile.agencyLogoBase64]);
+    return Boolean(agentProfile.name?.trim() && agentProfile.agencyName?.trim() && agentProfile.phoneNumber?.trim());
+  }, [agentProfile.name, agentProfile.agencyName, agentProfile.phoneNumber]);
   const isOnSettingsRoute = pathname.startsWith('/dashboard/settings');
   const profileSubStep = useMemo<ProfileSubStep>(() => getFirstIncompleteProfileSubStep(agentProfile), [
     agentProfile.name,
@@ -315,6 +364,10 @@ export default function OnboardingOverlay({
   useEffect(() => {
     setGuidedIndex(0);
     setProfileFlowStart(null);
+    setManualEntryStarted(false);
+    if (step.id !== 'firstClient' || !pathname.startsWith('/dashboard/clients')) {
+      setFirstClientFlowChoice(null);
+    }
   }, [step.id, pathname]);
 
   useEffect(() => {
@@ -355,9 +408,11 @@ export default function OnboardingOverlay({
       return getProfileGuidedTargets(baseStep);
     }
     if (step.id === 'firstClient') {
-      return pathname.startsWith('/dashboard/clients')
-        ? ['clients-add-client', 'clients-addflow-expand-manual', 'clients-addflow-create-client', 'clients-addflow-confirm-create']
-        : ['nav-clients'];
+      if (!pathname.startsWith('/dashboard/clients')) return ['nav-clients'];
+      if (firstClientFlowChoice === 'auto') {
+        return ['clients-add-client', 'clients-addflow-carrier-select', 'clients-addflow-upload-pdf', 'clients-addflow-review-name', 'clients-addflow-confirm-create'];
+      }
+      return ['clients-add-client', 'clients-addflow-expand-manual', 'clients-addflow-create-client'];
     }
     if (step.id === 'firstWelcome') {
       return pathname.startsWith('/dashboard/clients')
@@ -366,10 +421,15 @@ export default function OnboardingOverlay({
     }
     if (step.id === 'patch') return ['patch-launcher'];
     return [];
-  }, [step.id, isOnSettingsRoute, pathname, profileFlowStart, profileSubStep]);
+  }, [step.id, isOnSettingsRoute, pathname, profileFlowStart, profileSubStep, firstClientFlowChoice]);
   const activeGuidedTarget = guidedTargets[Math.min(guidedIndex, Math.max(0, guidedTargets.length - 1))] ?? null;
   const displayedGuidedTarget = focusedProfileTarget ?? activeGuidedTarget;
   const hasGuidedSequence = (step.id === 'profile' || step.id === 'firstClient') && step.milestone && !milestones[step.milestone];
+  const firstClientPathChoiceReady = step.id === 'firstClient'
+    && !milestones.firstClientCreated
+    && pathname.startsWith('/dashboard/clients')
+    && firstClientFlowChoice === null
+    && Boolean(findTarget('clients-addflow-expand-manual'));
 
   const primaryTargetCandidates = useMemo<TargetName[]>(() => {
     if (focusedProfileTarget) return [focusedProfileTarget];
@@ -383,7 +443,7 @@ export default function OnboardingOverlay({
     if (step.id === 'patch') return ['patch-launcher'];
     return [];
   }, [focusedProfileTarget, activeGuidedTarget, step.id, isOnSettingsRoute, profileSubStep]);
-  const needsTarget = step.id !== 'welcome';
+  const needsTarget = step.id !== 'welcome' && !firstClientPathChoiceReady;
 
   useEffect(() => {
     if (!needsTarget) {
@@ -432,8 +492,10 @@ export default function OnboardingOverlay({
     if (!activeTargetName || !activeTargetElement || !currentMilestoneIncomplete || activeTargetDisabled) {
       return;
     }
+    if (firstClientPathChoiceReady) return;
     const behavior = TARGET_BEHAVIORS[activeTargetName];
     if (behavior.mode !== 'click') return;
+    if (activeTargetName === 'clients-addflow-create-client' && !manualEntryStarted) return;
     activeTargetElement.classList.add('afl-onboarding-click-pulse');
     return () => {
       activeTargetElement.classList.remove('afl-onboarding-click-pulse');
@@ -443,6 +505,8 @@ export default function OnboardingOverlay({
     activeTargetElement,
     currentMilestoneIncomplete,
     activeTargetDisabled,
+    manualEntryStarted,
+    firstClientPathChoiceReady,
   ]);
 
   useEffect(() => {
@@ -459,6 +523,23 @@ export default function OnboardingOverlay({
     activeTargetElement.addEventListener('input', handleInput);
     return () => activeTargetElement.removeEventListener('input', handleInput);
   }, [displayedGuidedTarget, activeTargetName, activeTargetElement]);
+
+  useEffect(() => {
+    if (activeTargetName !== 'clients-addflow-create-client' || !activeTargetElement) {
+      setManualEntryStarted(false);
+      return;
+    }
+    const form = activeTargetElement.closest('form');
+    const syncStarted = () => setManualEntryStarted(hasManualClientEntryStarted(activeTargetElement));
+    syncStarted();
+    if (!form) return;
+    form.addEventListener('input', syncStarted);
+    form.addEventListener('change', syncStarted);
+    return () => {
+      form.removeEventListener('input', syncStarted);
+      form.removeEventListener('change', syncStarted);
+    };
+  }, [activeTargetName, activeTargetElement]);
 
   useEffect(() => {
     if (!activeTargetElement || !displayedGuidedTarget) return;
@@ -480,7 +561,6 @@ export default function OnboardingOverlay({
         block: 'center',
         inline: 'nearest',
       });
-      setActionAck('Bringing the next action into view...');
       return;
     }
 
@@ -511,13 +591,27 @@ export default function OnboardingOverlay({
       if (nextIndex < guidedTargets.length) {
         // Move one guidance step after the real UI click.
         setGuidedIndex(nextIndex);
-        setActionAck('Nice - moving to next action.');
       }
     };
 
     document.addEventListener('click', handleDocumentClick);
     return () => document.removeEventListener('click', handleDocumentClick);
   }, [activeGuidedTarget, guidedIndex, guidedTargets, hasGuidedSequence]);
+
+  useEffect(() => {
+    if (step.id !== 'firstClient' || firstClientFlowChoice !== 'auto') {
+      uploadExtractionAckShownRef.current = false;
+      return;
+    }
+    if (activeGuidedTarget !== 'clients-addflow-upload-pdf') {
+      uploadExtractionAckShownRef.current = false;
+      return;
+    }
+    if (!activeTargetDisabled || uploadExtractionAckShownRef.current) return;
+
+    uploadExtractionAckShownRef.current = true;
+    setActionAck('Extracting data now - this can take around 15 seconds.');
+  }, [step.id, firstClientFlowChoice, activeGuidedTarget, activeTargetDisabled]);
 
   useEffect(() => {
     if (!hasGuidedSequence || !activeGuidedTarget) return;
@@ -533,7 +627,6 @@ export default function OnboardingOverlay({
     if (nextAvailableIndex <= guidedIndex) return;
 
     setGuidedIndex(nextAvailableIndex);
-    setActionAck('Adjusted to the next available action.');
   }, [
     hasGuidedSequence,
     activeGuidedTarget,
@@ -543,8 +636,22 @@ export default function OnboardingOverlay({
   ]);
 
   useEffect(() => {
+    if (step.id !== 'firstClient') return;
+    if (firstClientFlowChoice !== 'auto') return;
+    if (activeGuidedTarget !== 'clients-addflow-upload-pdf') return;
+
+    const reviewTarget = findTarget('clients-addflow-review-name');
+    if (!reviewTarget) return;
+    const reviewIndex = guidedTargets.indexOf('clients-addflow-review-name');
+    if (reviewIndex <= guidedIndex) return;
+
+    setGuidedIndex(reviewIndex);
+    setActionAck('AI draft ready. Review and edit fields as needed, then click Next.');
+  }, [step.id, firstClientFlowChoice, activeGuidedTarget, guidedTargets, guidedIndex]);
+
+  useEffect(() => {
     if (!actionAck) return;
-    const timer = window.setTimeout(() => setActionAck(null), 1100);
+    const timer = window.setTimeout(() => setActionAck(null), 4200);
     return () => window.clearTimeout(timer);
   }, [actionAck]);
 
@@ -552,12 +659,19 @@ export default function OnboardingOverlay({
     if (currentStep >= STEPS.length - 1) return;
     setCurrentStep((prev) => Math.min(STEPS.length - 1, prev + 1));
   };
+
+  const openProfileCelebration = () => {
+    setShowProfileCelebration(true);
+    setActionAck(null);
+  };
+
+  const advanceFromProfileCelebration = () => {
+    setShowProfileCelebration(false);
+    captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_COMPLETED, { step_name: 'profile' });
+    goToNextStep();
+  };
+
   useEffect(() => {
-    if (step.id === 'profile' && milestones.profileCompleted) {
-      captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_COMPLETED, { step_name: 'profile' });
-      goToNextStep();
-      return;
-    }
     if (step.id === 'firstClient' && milestones.firstClientCreated) {
       captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_COMPLETED, { step_name: 'firstClient' });
       goToNextStep();
@@ -571,22 +685,11 @@ export default function OnboardingOverlay({
 
   useEffect(() => {
     const wasProfileCompleted = prevProfileCompletedRef.current;
-    if (!wasProfileCompleted && milestones.profileCompleted) {
-      const remainingSteps = [
-        milestones.firstClientCreated,
-        milestones.firstWelcomeSent,
-        milestones.firstPatchPromptSent,
-      ].filter((done) => !done).length;
-      const stepWord = remainingSteps === 1 ? 'step' : 'steps';
-      setActionAck(`Profile complete. Just ${remainingSteps} more ${stepWord} to go - you're an onboarding all-star.`);
+    if (wasProfileCompleted && !milestones.profileCompleted) {
+      setShowProfileCelebration(false);
     }
     prevProfileCompletedRef.current = milestones.profileCompleted;
-  }, [
-    milestones.profileCompleted,
-    milestones.firstClientCreated,
-    milestones.firstWelcomeSent,
-    milestones.firstPatchPromptSent,
-  ]);
+  }, [milestones.profileCompleted]);
 
   useEffect(() => {
     if (step.id !== 'profile') {
@@ -629,6 +732,14 @@ export default function OnboardingOverlay({
     });
   };
 
+  const chooseFirstClientPath = (choice: 'manual' | 'auto') => {
+    setFirstClientFlowChoice(choice);
+    setGuidedIndex(1);
+    setActionAck(choice === 'manual'
+      ? 'Manual path selected. Fill client details, then create.'
+      : 'Auto-extract selected. Choose carrier, then upload PDF.');
+  };
+
   const handlePrimary = async () => {
     if (step.id === 'welcome') {
       captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_COMPLETED, { step_name: 'welcome' });
@@ -640,9 +751,17 @@ export default function OnboardingOverlay({
       router.push('/dashboard/settings');
       return;
     }
+    if (step.id === 'profile' && milestones.profileCompleted) {
+      openProfileCelebration();
+      return;
+    }
 
     if (step.id === 'firstClient' && !milestones.firstClientCreated && !pathname.startsWith('/dashboard/clients')) {
       router.push('/dashboard/clients');
+      return;
+    }
+    if (step.id === 'firstClient' && firstClientPathChoiceReady) {
+      blockStep('first_client_path_choice_required', 'Choose Manual entry or Auto-extract from PDF to continue.');
       return;
     }
 
@@ -685,6 +804,15 @@ export default function OnboardingOverlay({
         }
 
         if (step.id === 'profile') {
+          if (profileLooksComplete) {
+            try {
+              await markOnboardingMilestone('profileCompleted');
+              openProfileCelebration();
+            } catch {
+              blockStep('profile_complete_failed', 'Could not save profile completion yet. Please try Next again.');
+            }
+            return;
+          }
           blockStep('profile_autosave_pending', 'Waiting for autosave to finish this profile step.');
           return;
         }
@@ -711,8 +839,7 @@ export default function OnboardingOverlay({
       if (!milestones.profileCompleted) {
         await markOnboardingMilestone('profileCompleted');
       }
-      captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_COMPLETED, { step_name: 'profile' });
-      goToNextStep();
+      setActionAck('Profile saved. Click Next when you are ready for your step-1 celebration.');
     };
 
     window.addEventListener('afl:settings-saved', handleSettingsSaved);
@@ -751,11 +878,14 @@ export default function OnboardingOverlay({
       return TARGET_BEHAVIORS[displayedGuidedTarget].mode === 'next';
     }
     if (step.id === 'firstClient' && !milestones.firstClientCreated) {
+      if (firstClientPathChoiceReady) return false;
       if (!displayedGuidedTarget) return false;
       if (activeTargetName !== displayedGuidedTarget) return false;
+      const skipTypingGateForNextTargets = new Set<TargetName>(['clients-addflow-review-name']);
       if (TARGET_BEHAVIORS[displayedGuidedTarget].mode === 'next'
         && activeTargetElement
         && isTextEntryElement(activeTargetElement)
+        && !skipTypingGateForNextTargets.has(displayedGuidedTarget)
         && typedSinceFocusTarget !== displayedGuidedTarget) {
         return false;
       }
@@ -785,28 +915,49 @@ export default function OnboardingOverlay({
       if (displayedGuidedTarget === 'settings-tab-profile') return 'Click Profile.';
       if (displayedGuidedTarget === 'settings-phone-input') return 'Enter your phone number, then click Next.';
       if (displayedGuidedTarget === 'settings-photo-upload' || displayedGuidedTarget === 'settings-logo-upload') {
-        return 'Upload a photo or logo, then wait for autosave.';
+        return 'Optional: add a profile photo or agency logo now, or click Next and do it later in Settings.';
       }
-      if (profileLooksComplete) return 'Profile already complete. Finalizing this step now.';
+      if (profileLooksComplete) return 'Profile basics complete. Finalizing this step now.';
       return 'Wait for autosave to complete this profile step.';
     }
     if (step.id === 'firstClient' && !milestones.firstClientCreated) {
       if (!pathname.startsWith('/dashboard/clients')) return 'Go to Clients to start this step.';
       if (activeGuidedTarget === 'clients-add-client') return 'Click Add Client to open the guided create flow.';
-      if (activeGuidedTarget === 'clients-addflow-expand-manual') {
-        return 'Upload an application PDF or click Expand Manual Entry.';
+      if (firstClientPathChoiceReady) {
+        return 'Choose how you want to create this client: Manual entry or Auto-extract from PDF.';
       }
-      if (activeGuidedTarget === 'clients-addflow-create-client') return 'Fill the required client fields, then click Next.';
-      if (activeGuidedTarget === 'clients-addflow-confirm-create') return 'Click Confirm & Create, then this step auto-completes.';
+      if (activeGuidedTarget === 'clients-addflow-carrier-select') {
+        return 'Choose the carrier/application type first so extraction uses the right pages.';
+      }
+      if (activeGuidedTarget === 'clients-addflow-upload-pdf') {
+        if (activeTargetDisabled) {
+          return 'Extracting data now - this usually takes around 15 seconds. Review and confirm appears automatically next.';
+        }
+        return 'Upload the client application PDF. Extraction usually takes around 15 seconds, then you can review and confirm.';
+      }
+      if (activeGuidedTarget === 'clients-addflow-review-name') {
+        return 'Review the extracted information now. Edit any fields you want, then click Next.';
+      }
+      if (activeGuidedTarget === 'clients-addflow-expand-manual') {
+        return 'Click Expand Manual Entry to type details yourself.';
+      }
+      if (activeGuidedTarget === 'clients-addflow-create-client') {
+        return manualEntryStarted
+          ? 'Create Client is ready. Click it when the required fields look right.'
+          : 'Start typing in client details. Create Client will glow when ready.';
+      }
+      if (activeGuidedTarget === 'clients-addflow-confirm-create') {
+        return 'Review the extracted fields, make any edits needed, then click Confirm & Create.';
+      }
       return 'Create one client to unlock the next onboarding step.';
     }
     if (step.id === 'firstWelcome' && !milestones.firstWelcomeSent) {
-      if (!pathname.startsWith('/dashboard/clients')) return 'Go to Clients to send your first welcome text.';
+      if (!pathname.startsWith('/dashboard/clients')) return 'Go to Clients to send your first welcome message.';
       if (activeGuidedTarget === 'clients-send-welcome' && activeTargetDisabled) {
-        return 'Send Welcome Text is disabled because this client has no phone number. Add a phone, then return here.';
+        return 'This sends a real SMS when a phone exists. If no phone is available, add one now before sending.';
       }
-      if (activeGuidedTarget === 'clients-send-welcome') return 'Review the draft and send the welcome text.';
-      return 'Finish creating a client first, then send the welcome text.';
+      if (activeGuidedTarget === 'clients-send-welcome') return 'Review the draft and send: this goes out to the client immediately.';
+      return 'Finish creating a client first, then send the first welcome message.';
     }
     if (step.id === 'patch' && !milestones.firstPatchPromptSent) {
       return 'Open Patch and send one message. Once sent, this step unlocks automatically.';
@@ -814,6 +965,17 @@ export default function OnboardingOverlay({
     return stepDescription;
   })();
   const blockedUiHint = (() => {
+    if (step.id === 'firstClient' && firstClientPathChoiceReady) {
+      return 'Choose Manual entry or Auto-extract from PDF.';
+    }
+    if (
+      step.id === 'firstClient'
+      && firstClientFlowChoice === 'auto'
+      && (activeGuidedTarget === 'clients-addflow-review-name' || activeGuidedTarget === 'clients-addflow-confirm-create')
+      && !activeTargetName
+    ) {
+      return 'Extraction is still running. This can take around 15 seconds.';
+    }
     if (displayedGuidedTarget && activeTargetName === displayedGuidedTarget) {
       const behavior = TARGET_BEHAVIORS[displayedGuidedTarget];
       if (behavior.mode === 'next'
@@ -821,6 +983,12 @@ export default function OnboardingOverlay({
         && isTextEntryElement(activeTargetElement)
         && typedSinceFocusTarget !== displayedGuidedTarget) {
         return 'Start typing in the highlighted field to enable Next.';
+      }
+      if (displayedGuidedTarget === 'clients-addflow-create-client' && !manualEntryStarted) {
+        return 'Start entering client details. Create Client will glow when ready.';
+      }
+      if (displayedGuidedTarget === 'clients-addflow-review-name') {
+        return 'Review/edit fields if needed, then click Next.';
       }
       if (behavior.mode === 'click') return behavior.blockedMessage;
     }
@@ -834,11 +1002,20 @@ export default function OnboardingOverlay({
     }
     return 'Use the highlighted UI action to continue';
   })();
+  const shouldShowBlockedUiHint = Boolean(
+    blockedUiHint
+      && normalizeInstructionText(blockedUiHint) !== normalizeInstructionText(contextualDescription),
+  );
   const topActionHint = (() => {
+    if (showProfileCelebration) return null;
     if (!needsTarget || !targetRect || !displayedGuidedTarget || activeTargetName !== displayedGuidedTarget) return null;
     const behavior = TARGET_BEHAVIORS[displayedGuidedTarget];
     return behavior.mode === 'next' ? 'Use highlighted field' : 'Click highlighted target';
   })();
+  const hideContextualDescription = Boolean(
+    topActionHint === 'Click highlighted target'
+      && /^click\b/i.test(contextualDescription.trim()),
+  );
 
   const spotlight = useMemo(() => {
     if (!targetRect || typeof window === 'undefined') return null;
@@ -878,10 +1055,27 @@ export default function OnboardingOverlay({
 
   return (
     <div className="fixed inset-0 z-[60] pointer-events-none">
-      {!spotlight && (
+      {showProfileCelebration && step.id === 'profile' ? (
+        <div className="fixed inset-0 z-[75] bg-black/65 pointer-events-auto flex items-center justify-center px-4">
+          <div className="w-[min(460px,calc(100vw-24px))] rounded-2xl border-2 border-[#3DD6C3] bg-white shadow-[0_24px_72px_rgba(0,0,0,0.4)] p-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.11em] text-[#0D4D4D]/70">Step 1 Complete</p>
+            <h3 className="mt-1 text-2xl font-black text-[#0D4D4D]">Profile complete. Looking sharp.</h3>
+            <p className="mt-2 text-sm leading-relaxed text-[#305858]">
+              You just finished your first onboarding win. Next up, let&apos;s add your first client and make AgentForLife feel real.
+            </p>
+            <button
+              onClick={advanceFromProfileCelebration}
+              className="mt-4 inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-semibold bg-[#3DD6C3] hover:bg-[#32c4b2] text-[#0D4D4D]"
+            >
+              Next: Add first client
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {!showProfileCelebration && !spotlight && (
         <div className="fixed inset-0 bg-black/50 pointer-events-auto" />
       )}
-      {spotlight && (
+      {!showProfileCelebration && spotlight && (
         <>
           <div
             className="fixed left-0 right-0 top-0 bg-black/55 pointer-events-auto transition-[height] duration-300 ease-out"
@@ -927,6 +1121,8 @@ export default function OnboardingOverlay({
           left: coachmarkStyle.left,
           top: coachmarkStyle.top,
           transform: coachmarkStyle.transform,
+          opacity: showProfileCelebration ? 0 : 1,
+          pointerEvents: showProfileCelebration ? 'none' : 'auto',
         }}
       >
         <div className="px-4 py-4">
@@ -940,9 +1136,27 @@ export default function OnboardingOverlay({
             {topActionHint && <span className="text-[11px] text-[#727272]">{topActionHint}</span>}
           </div>
           <h3 className="text-base font-bold text-[#0D4D4D]">{step.title}</h3>
-          <p className="text-sm text-[#4b4b4b] mt-1 leading-snug">{contextualDescription}</p>
+          {!hideContextualDescription && (
+            <p className="text-sm text-[#4b4b4b] mt-1 leading-snug">{contextualDescription}</p>
+          )}
           {actionAck && (
             <p className="text-xs text-[#0D4D4D] font-semibold mt-1">{actionAck}</p>
+          )}
+          {step.id === 'firstClient' && firstClientPathChoiceReady && (
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                onClick={() => chooseFirstClientPath('manual')}
+                className="px-3 py-2 rounded text-xs font-semibold border border-[#d0d0d0] bg-white hover:bg-[#f8f8f8] text-[#0D4D4D]"
+              >
+                Manual entry
+              </button>
+              <button
+                onClick={() => chooseFirstClientPath('auto')}
+                className="px-3 py-2 rounded text-xs font-semibold border border-[#45bcaa]/50 bg-[#daf3f0]/60 hover:bg-[#daf3f0] text-[#005851]"
+              >
+                Auto-extract from PDF
+              </button>
+            </div>
           )}
 
           <div className={`mt-3 flex items-center gap-2 ${currentStep > 0 ? 'justify-end' : 'justify-center'}`}>
@@ -956,29 +1170,11 @@ export default function OnboardingOverlay({
                 {primaryLabel}
               </button>
             ) : (
-              <div className="text-[11px] text-[#727272] font-medium">{blockedUiHint}</div>
+              shouldShowBlockedUiHint
+                ? <div className="text-[11px] text-[#727272] font-medium">{blockedUiHint}</div>
+                : null
             )}
           </div>
-          {(onPause || onSkip) && (
-            <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#ececec] pt-3">
-              {onPause ? (
-                <button
-                  onClick={onPause}
-                  className="px-3 py-1.5 rounded text-xs font-semibold border border-[#d0d0d0] bg-[#f8f8f8] text-[#0D4D4D] hover:bg-white"
-                >
-                  Pause
-                </button>
-              ) : <span />}
-              {onSkip ? (
-                <button
-                  onClick={onSkip}
-                  className="px-3 py-1.5 rounded text-xs font-semibold border border-[#ffd7d7] bg-[#fff5f5] text-[#b42318] hover:bg-[#ffecec]"
-                >
-                  Skip tutorial
-                </button>
-              ) : null}
-            </div>
-          )}
         </div>
 
         {spotlight && coachmarkStyle.placement !== 'floating' && (
