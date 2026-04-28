@@ -149,7 +149,7 @@ Standalone pricing remains for agents who come directly. Founding member migrati
 - Fixed (April 2026): Google `invalid_grant` during token refresh (revoked/expired refresh token, OAuth Testing-mode limits, or rotated client secret) left Firestore showing “connected” while the Picker failed. Token and import routes now detect `invalid_grant`, clear the stale `integrations/{agentId}/google/drive` doc, return a clear reconnect message, and the Clients import modal refetches Drive status so the UI matches reality.
 - Added (April 2026): Spanish messaging support for client lifecycle flows. Clients can now be marked with a preferred language (`en`/`es`), and outbound automated messaging paths use Spanish when set (welcome text/resend, referral follow-ups, conservation/review AI prompts, and birthday push copy).
 - Added (April 2026): Beneficiary outreach + access groundwork.
-  - Beneficiary records on policies now support optional `phone` and `email`, plus generated beneficiary access codes.
+  - Beneficiary records on policies now support optional `phone`, `email`, `dateOfBirth`, and `address`, plus generated beneficiary access codes.
   - Added configurable beneficiary welcome templates in Settings (English/Spanish) and dashboard send flow with editable pre-send messaging.
   - Mobile code lookup/policies endpoints now accept beneficiary codes and scope policy responses to matching beneficiary rows.
   - Added new carrier form type `uhl_icc20_200_854a_giwl` ("United Home Life - GIWL") with dedicated PAGE_MAP and carrier extraction supplement.

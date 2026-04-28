@@ -6,6 +6,7 @@ import { doc, collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { DashboardProvider, useDashboard } from './DashboardContext';
 import OnboardingOverlay from '../../components/OnboardingOverlay';
+import OnboardingChecklistRail from '../../components/OnboardingChecklistRail';
 import LoomVideoModal from '../../components/LoomVideoModal';
 import DashboardAssistant from '../../components/DashboardAssistant';
 import DashboardTicker from '../../components/DashboardTicker';
@@ -271,6 +272,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     agentProfile,
     isAdmin,
     handleLogout,
+    completeOnboarding,
     markOnboardingMilestone,
   } = useDashboard();
 
@@ -279,6 +281,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const [showCancelWarning, setShowCancelWarning] = useState(false);
 
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingUiSuppressed, setOnboardingUiSuppressed] = useState(false);
   const [showWorkflowVideo, setShowWorkflowVideo] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [adminOpen, setAdminOpen] = useState(() => pathname.startsWith('/dashboard/admin'));
@@ -305,11 +308,18 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) {
       setShowOnboarding(false);
+      setOnboardingUiSuppressed(false);
       return;
     }
     const shouldShow = agentProfile.onboardingComplete !== true;
+    if (!shouldShow) {
+      setShowOnboarding(false);
+      setOnboardingUiSuppressed(false);
+      return;
+    }
+    if (onboardingUiSuppressed) return;
     setShowOnboarding(shouldShow);
-  }, [agentProfile.onboardingComplete, user]);
+  }, [agentProfile.onboardingComplete, onboardingUiSuppressed, user]);
 
   useEffect(() => {
     if (!showOnboarding) return;
@@ -363,6 +373,23 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const mobileNavItems = NAV_ITEMS.filter((item) =>
     ['home', 'clients', 'referrals', 'conservation'].includes(item.key),
   );
+  const onboardingMilestones = agentProfile.onboarding?.requiredMilestones ?? {
+    profileCompleted: false,
+    firstClientCreated: false,
+    firstWelcomeSent: false,
+    firstPatchPromptSent: false,
+  };
+  const handleSkipTutorial = async () => {
+    setShowOnboarding(false);
+    setOnboardingUiSuppressed(true);
+    try {
+      await completeOnboarding();
+    } catch (error) {
+      console.error('Failed to skip onboarding:', error);
+      setOnboardingUiSuppressed(false);
+      setShowOnboarding(true);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#e4e4e4] flex">
@@ -634,13 +661,21 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         <OnboardingOverlay
           agentName={agentProfile.name || user.displayName || ''}
           onComplete={() => setShowOnboarding(false)}
-          onPause={() => setShowOnboarding(false)}
         />
       )}
-      {!showOnboarding && user && agentProfile.onboardingComplete !== true && (
+      {user && !onboardingUiSuppressed && agentProfile.onboardingComplete !== true && (
+        <OnboardingChecklistRail
+          milestones={onboardingMilestones}
+          onboardingVisible={showOnboarding}
+          onPause={() => setShowOnboarding(false)}
+          onResume={() => setShowOnboarding(true)}
+          onSkip={() => { void handleSkipTutorial(); }}
+        />
+      )}
+      {!showOnboarding && user && !onboardingUiSuppressed && agentProfile.onboardingComplete !== true && (
         <button
           onClick={() => setShowOnboarding(true)}
-          className="fixed bottom-24 md:bottom-6 left-4 z-[70] px-3 py-2 rounded-[5px] bg-white border border-[#d0d0d0] text-xs font-semibold text-[#0D4D4D] shadow-[0_8px_20px_rgba(0,0,0,0.15)] hover:bg-[#f8f8f8] transition-colors"
+          className="fixed bottom-24 left-4 z-[70] md:hidden px-3 py-2 rounded-[5px] bg-white border border-[#d0d0d0] text-xs font-semibold text-[#0D4D4D] shadow-[0_8px_20px_rgba(0,0,0,0.15)] hover:bg-[#f8f8f8] transition-colors"
         >
           Resume onboarding
         </button>

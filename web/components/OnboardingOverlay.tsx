@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   type OnboardingMilestoneKey,
@@ -12,7 +12,6 @@ import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 interface OnboardingOverlayProps {
   agentName: string;
   onComplete: () => void;
-  onPause?: () => void;
 }
 
 interface OnboardingStep {
@@ -36,12 +35,110 @@ type TargetName =
   | 'settings-logo-upload'
   | 'settings-save-button'
   | 'clients-add-client'
+  | 'clients-addflow-expand-manual'
   | 'clients-addflow-create-client'
   | 'clients-addflow-confirm-create'
   | 'clients-send-welcome'
   | 'patch-launcher';
 
 type ProfileSubStep = 'name' | 'agency' | 'phone' | 'visual' | 'save';
+type TargetAdvanceMode = 'next' | 'click';
+
+interface TargetBehavior {
+  mode: TargetAdvanceMode;
+  blockedReason: string;
+  blockedMessage: string;
+}
+
+function isTextEntryElement(element: HTMLElement): element is HTMLInputElement | HTMLTextAreaElement {
+  if (element instanceof HTMLTextAreaElement) return true;
+  if (!(element instanceof HTMLInputElement)) return false;
+  const nonTextTypes = new Set(['button', 'submit', 'checkbox', 'radio', 'file', 'hidden', 'range', 'color']);
+  return !nonTextTypes.has(element.type);
+}
+
+const TARGET_BEHAVIORS: Record<TargetName, TargetBehavior> = {
+  'nav-settings': {
+    mode: 'click',
+    blockedReason: 'nav_settings_click_required',
+    blockedMessage: 'Click Settings in the left sidebar.',
+  },
+  'nav-clients': {
+    mode: 'click',
+    blockedReason: 'nav_clients_click_required',
+    blockedMessage: 'Click Clients in the left sidebar.',
+  },
+  'settings-tab-profile': {
+    mode: 'click',
+    blockedReason: 'settings_tab_profile_click_required',
+    blockedMessage: 'Click Profile to continue.',
+  },
+  'settings-tab-branding': {
+    mode: 'click',
+    blockedReason: 'settings_tab_branding_click_required',
+    blockedMessage: 'Click Branding to continue.',
+  },
+  'settings-name-input': {
+    mode: 'next',
+    blockedReason: 'settings_name_pending',
+    blockedMessage: 'Enter your full name, then click Next.',
+  },
+  'settings-phone-input': {
+    mode: 'next',
+    blockedReason: 'settings_phone_pending',
+    blockedMessage: 'Enter your phone number, then click Next.',
+  },
+  'settings-photo-upload': {
+    mode: 'click',
+    blockedReason: 'settings_photo_click_required',
+    blockedMessage: 'Upload a photo or logo to continue.',
+  },
+  'settings-agency-input': {
+    mode: 'next',
+    blockedReason: 'settings_agency_pending',
+    blockedMessage: 'Enter your agency name, then click Next.',
+  },
+  'settings-logo-upload': {
+    mode: 'click',
+    blockedReason: 'settings_logo_click_required',
+    blockedMessage: 'Upload a photo or logo to continue.',
+  },
+  'settings-save-button': {
+    mode: 'click',
+    blockedReason: 'settings_save_click_required',
+    blockedMessage: 'Wait for autosave or use Save Settings.',
+  },
+  'clients-add-client': {
+    mode: 'click',
+    blockedReason: 'clients_add_client_click_required',
+    blockedMessage: 'Click Add Client to continue.',
+  },
+  'clients-addflow-expand-manual': {
+    mode: 'click',
+    blockedReason: 'clients_expand_manual_click_required',
+    blockedMessage: 'Upload an application or click Expand Manual Entry to continue.',
+  },
+  'clients-addflow-create-client': {
+    mode: 'next',
+    blockedReason: 'clients_create_fields_pending',
+    blockedMessage: 'Fill required client fields, then click Next.',
+  },
+  'clients-addflow-confirm-create': {
+    mode: 'click',
+    blockedReason: 'clients_confirm_create_click_required',
+    blockedMessage: 'Click Confirm & Create to continue.',
+  },
+  'clients-send-welcome': {
+    mode: 'click',
+    blockedReason: 'clients_send_welcome_click_required',
+    blockedMessage: 'Use Send Welcome Text to continue.',
+  },
+  'patch-launcher': {
+    mode: 'click',
+    blockedReason: 'patch_launcher_click_required',
+    blockedMessage: 'Open Patch and send one message to continue.',
+  },
+};
 
 const STEPS: OnboardingStep[] = [
   {
@@ -133,7 +230,6 @@ function getProfileGuidedTargets(baseStep: ProfileSubStep): TargetName[] {
 export default function OnboardingOverlay({
   agentName,
   onComplete,
-  onPause,
 }: OnboardingOverlayProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -146,11 +242,16 @@ export default function OnboardingOverlay({
   const [currentStep, setCurrentStep] = useState(agentProfile.onboarding?.currentStep ?? 0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [activeTargetName, setActiveTargetName] = useState<TargetName | null>(null);
+  const [activeTargetElement, setActiveTargetElement] = useState<HTMLElement | null>(null);
   const [guidedIndex, setGuidedIndex] = useState(0);
   const [profileFlowStart, setProfileFlowStart] = useState<ProfileSubStep | null>(null);
   const [focusedProfileTarget, setFocusedProfileTarget] = useState<TargetName | null>(null);
   const [activeTargetDisabled, setActiveTargetDisabled] = useState(false);
   const [actionAck, setActionAck] = useState<string | null>(null);
+  const [typedSinceFocusTarget, setTypedSinceFocusTarget] = useState<TargetName | null>(null);
+  const profileAutoCompleteInFlightRef = useRef(false);
+  const lastAutoScrollKeyRef = useRef<string | null>(null);
+  const prevProfileCompletedRef = useRef<boolean>(false);
 
   const firstName = agentName?.split(' ')[0] || 'there';
 
@@ -184,6 +285,7 @@ export default function OnboardingOverlay({
     && milestones.firstWelcomeSent
     && milestones.firstPatchPromptSent;
   const step = STEPS[currentStep];
+  const currentMilestoneIncomplete = step.milestone ? !milestones[step.milestone] : false;
 
   useEffect(() => {
     const persistedStep = agentProfile.onboarding?.currentStep;
@@ -250,7 +352,7 @@ export default function OnboardingOverlay({
     }
     if (step.id === 'firstClient') {
       return pathname.startsWith('/dashboard/clients')
-        ? ['clients-add-client', 'clients-addflow-create-client', 'clients-addflow-confirm-create']
+        ? ['clients-add-client', 'clients-addflow-expand-manual', 'clients-addflow-create-client', 'clients-addflow-confirm-create']
         : ['nav-clients'];
     }
     if (step.id === 'firstWelcome') {
@@ -264,9 +366,6 @@ export default function OnboardingOverlay({
   const activeGuidedTarget = guidedTargets[Math.min(guidedIndex, Math.max(0, guidedTargets.length - 1))] ?? null;
   const displayedGuidedTarget = focusedProfileTarget ?? activeGuidedTarget;
   const hasGuidedSequence = (step.id === 'profile' || step.id === 'firstClient') && step.milestone && !milestones[step.milestone];
-  const guidedProgressText = hasGuidedSequence && guidedTargets.length > 0
-    ? `Guide ${Math.min(guidedIndex + 1, guidedTargets.length)} of ${guidedTargets.length}`
-    : null;
 
   const primaryTargetCandidates = useMemo<TargetName[]>(() => {
     if (focusedProfileTarget) return [focusedProfileTarget];
@@ -285,6 +384,7 @@ export default function OnboardingOverlay({
   useEffect(() => {
     if (!needsTarget) {
       setTargetRect(null);
+      setActiveTargetElement(null);
       return;
     }
 
@@ -295,6 +395,7 @@ export default function OnboardingOverlay({
         .find((candidate): candidate is { name: TargetName; element: HTMLElement } => candidate.element !== null);
       setTargetRect(resolved?.element.getBoundingClientRect() ?? null);
       setActiveTargetName(resolved?.name ?? null);
+      setActiveTargetElement(resolved?.element ?? null);
       const isDisabled = Boolean(
         resolved?.element
         && (
@@ -324,15 +425,73 @@ export default function OnboardingOverlay({
   }, [primaryTargetCandidates, needsTarget]);
 
   useEffect(() => {
-    if (!hasGuidedSequence || !activeGuidedTarget) return;
+    if (!activeTargetName || !activeTargetElement || !currentMilestoneIncomplete || activeTargetDisabled) {
+      return;
+    }
+    const behavior = TARGET_BEHAVIORS[activeTargetName];
+    if (behavior.mode !== 'click') return;
+    activeTargetElement.classList.add('afl-onboarding-click-pulse');
+    return () => {
+      activeTargetElement.classList.remove('afl-onboarding-click-pulse');
+    };
+  }, [
+    activeTargetName,
+    activeTargetElement,
+    currentMilestoneIncomplete,
+    activeTargetDisabled,
+  ]);
 
-    const clickAdvanceTargets = new Set<TargetName>([
-      'nav-settings',
-      'nav-clients',
-      'settings-tab-branding',
-      'settings-tab-profile',
-      'clients-add-client',
-    ]);
+  useEffect(() => {
+    if (!displayedGuidedTarget || activeTargetName !== displayedGuidedTarget || !activeTargetElement) {
+      return;
+    }
+    if (TARGET_BEHAVIORS[displayedGuidedTarget].mode !== 'next') return;
+    if (!isTextEntryElement(activeTargetElement)) return;
+
+    setTypedSinceFocusTarget((prev) => (prev === displayedGuidedTarget ? prev : null));
+    const handleInput = () => {
+      setTypedSinceFocusTarget(displayedGuidedTarget);
+    };
+    activeTargetElement.addEventListener('input', handleInput);
+    return () => activeTargetElement.removeEventListener('input', handleInput);
+  }, [displayedGuidedTarget, activeTargetName, activeTargetElement]);
+
+  useEffect(() => {
+    if (!activeTargetElement || !displayedGuidedTarget) return;
+    if (activeTargetName !== displayedGuidedTarget) return;
+    if (focusedProfileTarget) return;
+
+    const scrollKey = `${step.id}:${guidedIndex}:${displayedGuidedTarget}`;
+    if (lastAutoScrollKeyRef.current === scrollKey) return;
+
+    const rect = activeTargetElement.getBoundingClientRect();
+    const topClearance = 86;
+    const bottomClearance = 170;
+    const isComfortablyVisible = rect.top >= topClearance && rect.bottom <= (window.innerHeight - bottomClearance);
+
+    if (!isComfortablyVisible) {
+      lastAutoScrollKeyRef.current = scrollKey;
+      activeTargetElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+        inline: 'nearest',
+      });
+      setActionAck('Bringing the next action into view...');
+      return;
+    }
+
+    lastAutoScrollKeyRef.current = scrollKey;
+  }, [
+    activeTargetElement,
+    activeTargetName,
+    displayedGuidedTarget,
+    focusedProfileTarget,
+    guidedIndex,
+    step.id,
+  ]);
+
+  useEffect(() => {
+    if (!hasGuidedSequence || !activeGuidedTarget) return;
 
     const handleDocumentClick = (event: MouseEvent) => {
       const target = event.target;
@@ -342,7 +501,7 @@ export default function OnboardingOverlay({
       const clickedTarget = clicked.getAttribute('data-onboarding-target') as TargetName | null;
       if (!clickedTarget) return;
       if (clickedTarget !== activeGuidedTarget) return;
-      if (!clickAdvanceTargets.has(clickedTarget)) return;
+      if (TARGET_BEHAVIORS[clickedTarget].mode !== 'click') return;
 
       const nextIndex = guidedIndex + 1;
       if (nextIndex < guidedTargets.length) {
@@ -357,6 +516,29 @@ export default function OnboardingOverlay({
   }, [activeGuidedTarget, guidedIndex, guidedTargets, hasGuidedSequence]);
 
   useEffect(() => {
+    if (!hasGuidedSequence || !activeGuidedTarget) return;
+    if (activeTargetName === activeGuidedTarget) return;
+
+    const currentExists = Boolean(findTarget(activeGuidedTarget));
+    if (currentExists) return;
+
+    const nextAvailableIndex = guidedTargets.findIndex((target, index) => {
+      if (index <= guidedIndex) return false;
+      return Boolean(findTarget(target));
+    });
+    if (nextAvailableIndex <= guidedIndex) return;
+
+    setGuidedIndex(nextAvailableIndex);
+    setActionAck('Adjusted to the next available action.');
+  }, [
+    hasGuidedSequence,
+    activeGuidedTarget,
+    activeTargetName,
+    guidedTargets,
+    guidedIndex,
+  ]);
+
+  useEffect(() => {
     if (!actionAck) return;
     const timer = window.setTimeout(() => setActionAck(null), 1100);
     return () => window.clearTimeout(timer);
@@ -366,14 +548,6 @@ export default function OnboardingOverlay({
     if (currentStep >= STEPS.length - 1) return;
     setCurrentStep((prev) => Math.min(STEPS.length - 1, prev + 1));
   };
-  const goToPreviousStep = () => {
-    if (guidedTargets.length > 0 && guidedIndex > 0) {
-      setGuidedIndex((prev) => Math.max(0, prev - 1));
-      return;
-    }
-    setCurrentStep((prev) => Math.max(0, prev - 1));
-  };
-
   useEffect(() => {
     if (step.id === 'profile' && milestones.profileCompleted) {
       captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_COMPLETED, { step_name: 'profile' });
@@ -391,6 +565,49 @@ export default function OnboardingOverlay({
     }
   }, [step.id, milestones.profileCompleted, milestones.firstClientCreated, milestones.firstWelcomeSent]);
 
+  useEffect(() => {
+    const wasProfileCompleted = prevProfileCompletedRef.current;
+    if (!wasProfileCompleted && milestones.profileCompleted) {
+      const remainingSteps = [
+        milestones.firstClientCreated,
+        milestones.firstWelcomeSent,
+        milestones.firstPatchPromptSent,
+      ].filter((done) => !done).length;
+      const stepWord = remainingSteps === 1 ? 'step' : 'steps';
+      setActionAck(`Profile complete. Just ${remainingSteps} more ${stepWord} to go - you're an onboarding all-star.`);
+    }
+    prevProfileCompletedRef.current = milestones.profileCompleted;
+  }, [
+    milestones.profileCompleted,
+    milestones.firstClientCreated,
+    milestones.firstWelcomeSent,
+    milestones.firstPatchPromptSent,
+  ]);
+
+  useEffect(() => {
+    if (step.id !== 'profile') {
+      profileAutoCompleteInFlightRef.current = false;
+      return;
+    }
+    if (milestones.profileCompleted) return;
+    if (!profileLooksComplete) return;
+    if (profileAutoCompleteInFlightRef.current) return;
+    profileAutoCompleteInFlightRef.current = true;
+
+    void markOnboardingMilestone('profileCompleted')
+      .then(() => {
+        setActionAck('Profile already complete - moving on.');
+      })
+      .catch(() => {
+        profileAutoCompleteInFlightRef.current = false;
+      });
+  }, [
+    step.id,
+    milestones.profileCompleted,
+    profileLooksComplete,
+    markOnboardingMilestone,
+  ]);
+
   const handleFinish = async () => {
     if (!allRequiredDone) return;
     await completeOnboarding();
@@ -398,6 +615,14 @@ export default function OnboardingOverlay({
       total_steps: STEPS.length,
     });
     onComplete();
+  };
+
+  const blockStep = (reason: string, message: string) => {
+    setActionAck(message);
+    captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_BLOCKED, {
+      step_name: step.id,
+      reason,
+    });
   };
 
   const handlePrimary = async () => {
@@ -424,33 +649,43 @@ export default function OnboardingOverlay({
 
     if (step.id === 'patch' && !milestones.firstPatchPromptSent) {
       window.dispatchEvent(new CustomEvent('afl:open-patch-assistant', { detail: { prompt: 'What should I do next?' } }));
-      captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_BLOCKED, {
-        step_name: step.id,
-        reason: 'awaiting_patch_prompt',
-      });
+      blockStep('awaiting_patch_prompt', 'Patch opened. Send one message to continue.');
       return;
     }
 
     if (step.milestone && !milestones[step.milestone]) {
       if (step.id === 'profile' || step.id === 'firstClient') {
+        if (!displayedGuidedTarget) {
+          blockStep('guided_target_missing', 'Waiting for the highlighted action to load.');
+          return;
+        }
+        if (activeTargetName !== displayedGuidedTarget) {
+          blockStep('guided_target_not_ready', 'Complete the highlighted action first.');
+          return;
+        }
+        const targetBehavior = TARGET_BEHAVIORS[displayedGuidedTarget];
+        if (targetBehavior.mode !== 'next') {
+          blockStep(targetBehavior.blockedReason, targetBehavior.blockedMessage);
+          return;
+        }
+
         const nextIndex = guidedIndex + 1;
         if (nextIndex < guidedTargets.length) {
           const nextTarget = findTarget(guidedTargets[nextIndex]);
           if (nextTarget) {
             setGuidedIndex(nextIndex);
           } else {
-            captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_BLOCKED, {
-              step_name: step.id,
-              reason: 'next_target_not_ready',
-            });
+            blockStep('next_target_not_ready', 'Use the highlighted action first.');
           }
           return;
         }
+
+        if (step.id === 'profile') {
+          blockStep('profile_autosave_pending', 'Waiting for autosave to finish this profile step.');
+          return;
+        }
       }
-      captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_BLOCKED, {
-        step_name: step.id,
-        reason: 'milestone_pending',
-      });
+      blockStep('milestone_pending', 'Finish the highlighted action to continue.');
       return;
     }
 
@@ -496,21 +731,31 @@ export default function OnboardingOverlay({
     if (step.milestone && milestones[step.milestone]) return 'Continue';
     return step.buttonLabel;
   })();
-  const allowNextTargets: TargetName[] = [
-    'settings-name-input',
-    'settings-agency-input',
-    'settings-phone-input',
-    'clients-addflow-create-client',
-  ];
   const showPrimaryButton = (() => {
     if (step.id === 'welcome') return true;
     if (step.id === 'patch') return true;
     if (step.id === 'profile' && !milestones.profileCompleted) {
+      if (!displayedGuidedTarget) return false;
+      if (activeTargetName !== displayedGuidedTarget) return false;
       if (profileSubStep === 'save') return false;
-      return displayedGuidedTarget ? allowNextTargets.includes(displayedGuidedTarget) : false;
+      if (TARGET_BEHAVIORS[displayedGuidedTarget].mode === 'next'
+        && activeTargetElement
+        && isTextEntryElement(activeTargetElement)
+        && typedSinceFocusTarget !== displayedGuidedTarget) {
+        return false;
+      }
+      return TARGET_BEHAVIORS[displayedGuidedTarget].mode === 'next';
     }
     if (step.id === 'firstClient' && !milestones.firstClientCreated) {
-      return displayedGuidedTarget ? allowNextTargets.includes(displayedGuidedTarget) : false;
+      if (!displayedGuidedTarget) return false;
+      if (activeTargetName !== displayedGuidedTarget) return false;
+      if (TARGET_BEHAVIORS[displayedGuidedTarget].mode === 'next'
+        && activeTargetElement
+        && isTextEntryElement(activeTargetElement)
+        && typedSinceFocusTarget !== displayedGuidedTarget) {
+        return false;
+      }
+      return TARGET_BEHAVIORS[displayedGuidedTarget].mode === 'next';
     }
     if (step.id === 'firstWelcome' && !milestones.firstWelcomeSent) return false;
     return true;
@@ -538,11 +783,15 @@ export default function OnboardingOverlay({
       if (displayedGuidedTarget === 'settings-photo-upload' || displayedGuidedTarget === 'settings-logo-upload') {
         return 'Upload a photo or logo, then wait for autosave.';
       }
+      if (profileLooksComplete) return 'Profile already complete. Finalizing this step now.';
       return 'Wait for autosave to complete this profile step.';
     }
     if (step.id === 'firstClient' && !milestones.firstClientCreated) {
       if (!pathname.startsWith('/dashboard/clients')) return 'Go to Clients to start this step.';
       if (activeGuidedTarget === 'clients-add-client') return 'Click Add Client to open the guided create flow.';
+      if (activeGuidedTarget === 'clients-addflow-expand-manual') {
+        return 'Upload an application PDF or click Expand Manual Entry.';
+      }
       if (activeGuidedTarget === 'clients-addflow-create-client') return 'Fill the required client fields, then click Next.';
       if (activeGuidedTarget === 'clients-addflow-confirm-create') return 'Click Confirm & Create, then this step auto-completes.';
       return 'Create one client to unlock the next onboarding step.';
@@ -559,6 +808,32 @@ export default function OnboardingOverlay({
       return 'Open Patch and send one message. Once sent, this step unlocks automatically.';
     }
     return stepDescription;
+  })();
+  const blockedUiHint = (() => {
+    if (displayedGuidedTarget && activeTargetName === displayedGuidedTarget) {
+      const behavior = TARGET_BEHAVIORS[displayedGuidedTarget];
+      if (behavior.mode === 'next'
+        && activeTargetElement
+        && isTextEntryElement(activeTargetElement)
+        && typedSinceFocusTarget !== displayedGuidedTarget) {
+        return 'Start typing in the highlighted field to enable Next.';
+      }
+      if (behavior.mode === 'click') return behavior.blockedMessage;
+    }
+    if (step.id === 'profile' || step.id === 'firstClient') {
+      if (displayedGuidedTarget && activeTargetName !== displayedGuidedTarget) {
+        return 'Waiting for the highlighted target to be available.';
+      }
+      if (step.id === 'profile' && profileLooksComplete && !milestones.profileCompleted) {
+        return 'Finalizing profile step...';
+      }
+    }
+    return 'Use the highlighted UI action to continue';
+  })();
+  const topActionHint = (() => {
+    if (!needsTarget || !targetRect || !displayedGuidedTarget || activeTargetName !== displayedGuidedTarget) return null;
+    const behavior = TARGET_BEHAVIORS[displayedGuidedTarget];
+    return behavior.mode === 'next' ? 'Use highlighted field' : 'Click highlighted target';
   })();
 
   const spotlight = useMemo(() => {
@@ -650,38 +925,15 @@ export default function OnboardingOverlay({
           transform: coachmarkStyle.transform,
         }}
       >
-        <div className="h-1.5 bg-gray-100 rounded-t-xl">
-          <div
-            className="h-full bg-[#3DD6C3] transition-all duration-500 ease-out rounded-t-xl"
-            style={{ width: `${((currentStep + 1) / STEPS.length) * 100}%` }}
-          />
-        </div>
-
         <div className="px-4 py-4">
           <div className="inline-flex items-center gap-1.5 mb-2 px-2 py-1 rounded-full bg-[#0D4D4D] text-[#3DD6C3] text-[10px] font-semibold uppercase tracking-wide">
             Onboarding
           </div>
-          {onPause && (
-            <button
-              onClick={onPause}
-              className="ml-2 text-[11px] font-semibold text-[#727272] hover:text-[#0D4D4D] transition-colors"
-            >
-              Pause
-            </button>
-          )}
           {currentStep === 0 && (
             <p className="text-sm font-semibold text-[#0D4D4D] mb-1">Welcome, {firstName}</p>
           )}
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-[#3DD6C3]">
-              Step {currentStep + 1} of {STEPS.length}
-            </span>
-            {guidedProgressText && (
-              <span className="text-[11px] text-[#727272]">Action {Math.min(guidedIndex + 1, guidedTargets.length)} of {guidedTargets.length}</span>
-            )}
-            {needsTarget && targetRect && (
-              <span className="text-[11px] text-[#727272]">Click highlighted target</span>
-            )}
+          <div className="flex items-center gap-2 mb-1 min-h-[14px]">
+            {topActionHint && <span className="text-[11px] text-[#727272]">{topActionHint}</span>}
           </div>
           <h3 className="text-base font-bold text-[#0D4D4D]">{step.title}</h3>
           <p className="text-sm text-[#4b4b4b] mt-1 leading-snug">{contextualDescription}</p>
@@ -689,29 +941,18 @@ export default function OnboardingOverlay({
             <p className="text-xs text-[#0D4D4D] font-semibold mt-1">{actionAck}</p>
           )}
 
-          <div className="mt-3 flex items-center justify-between gap-2">
-            <button
-              onClick={goToPreviousStep}
-              disabled={currentStep === 0}
-              className={`px-3 py-1.5 rounded text-xs font-semibold border ${
-                currentStep === 0
-                  ? 'text-gray-300 border-gray-200 cursor-not-allowed'
-                  : 'text-[#0D4D4D] border-[#d0d0d0] hover:bg-[#f8f8f8]'
-              }`}
-            >
-              Back
-            </button>
+          <div className={`mt-3 flex items-center gap-2 ${currentStep > 0 ? 'justify-end' : 'justify-center'}`}>
             {showPrimaryButton ? (
               <button
                 onClick={() => {
                   void handlePrimary();
                 }}
-                className="px-3 py-1.5 rounded text-xs font-semibold bg-[#3DD6C3] hover:bg-[#32c4b2] text-[#0D4D4D]"
+                className="px-3 py-1.5 rounded text-xs font-semibold bg-[#3DD6C3] hover:bg-[#32c4b2] text-[#0D4D4D] afl-onboarding-primary-pulse"
               >
                 {primaryLabel}
               </button>
             ) : (
-              <div className="text-[11px] text-[#727272] font-medium">Use the highlighted UI action to continue</div>
+              <div className="text-[11px] text-[#727272] font-medium">{blockedUiHint}</div>
             )}
           </div>
         </div>
@@ -742,6 +983,36 @@ export default function OnboardingOverlay({
           }}
         />
       )}
+      <style jsx global>{`
+        @keyframes aflOnboardingClickPulse {
+          0% {
+            box-shadow: 0 0 0 0 rgba(61, 214, 195, 0.75);
+          }
+          70% {
+            box-shadow: 0 0 0 11px rgba(61, 214, 195, 0);
+          }
+          100% {
+            box-shadow: 0 0 0 0 rgba(61, 214, 195, 0);
+          }
+        }
+        @keyframes aflOnboardingPrimaryPulse {
+          0% {
+            box-shadow: 0 0 0 0 rgba(61, 214, 195, 0.65);
+          }
+          70% {
+            box-shadow: 0 0 0 9px rgba(61, 214, 195, 0);
+          }
+          100% {
+            box-shadow: 0 0 0 0 rgba(61, 214, 195, 0);
+          }
+        }
+        .afl-onboarding-click-pulse {
+          animation: aflOnboardingClickPulse 0.95s ease-out infinite;
+        }
+        .afl-onboarding-primary-pulse {
+          animation: aflOnboardingPrimaryPulse 1s ease-out infinite;
+        }
+      `}</style>
     </div>
   );
 }

@@ -227,6 +227,8 @@ interface PolicyFormData {
     percentage?: number;
     phone?: string;
     email?: string;
+    dateOfBirth?: string;
+    address?: string;
     accessCode?: string;
   }[];
   coverageAmount: string;
@@ -681,11 +683,15 @@ function normalizeBeneficiaryForSave(beneficiary: {
   percentage?: number;
   phone?: string;
   email?: string;
+  dateOfBirth?: string;
+  address?: string;
   accessCode?: string;
 }) {
   const trimmedName = beneficiary.name.trim();
   const phone = beneficiary.phone?.trim() || '';
   const email = beneficiary.email?.trim() || '';
+  const dateOfBirth = beneficiary.dateOfBirth?.trim() || '';
+  const address = beneficiary.address?.trim() || '';
   const accessCode = (beneficiary.accessCode || generateBeneficiaryCode()).trim().toUpperCase();
   return {
     name: trimmedName,
@@ -694,6 +700,8 @@ function normalizeBeneficiaryForSave(beneficiary: {
     ...(typeof beneficiary.percentage === 'number' ? { percentage: beneficiary.percentage } : {}),
     ...(phone ? { phone } : {}),
     ...(email ? { email } : {}),
+    ...(dateOfBirth ? { dateOfBirth } : {}),
+    ...(address ? { address } : {}),
     accessCode,
   };
 }
@@ -704,7 +712,7 @@ const emptyPolicyForm: PolicyFormData = {
   insuranceCompany: '',
   otherCarrier: '',
   policyOwner: '',
-  beneficiaries: [{ name: '', type: 'primary', relationship: '', percentage: undefined, phone: '', email: '', accessCode: '' }],
+  beneficiaries: [{ name: '', type: 'primary', relationship: '', percentage: undefined, phone: '', email: '', dateOfBirth: '', address: '', accessCode: '' }],
   coverageAmount: '',
   premiumAmount: '',
   premiumFrequency: 'monthly',
@@ -738,6 +746,8 @@ function mapExtractedApplicationToPolicyFormData(data: ExtractedApplicationData)
       percentage: b.percentage,
       phone: b.phone || '',
       email: b.email || '',
+      dateOfBirth: b.dateOfBirth || '',
+      address: b.address || '',
       accessCode: b.accessCode || '',
     }));
   }
@@ -1786,6 +1796,8 @@ export default function ClientsPage() {
         || (b.relationship || '').trim()
         || (b.phone || '').trim()
         || (b.email || '').trim()
+        || (b.dateOfBirth || '').trim()
+        || (b.address || '').trim()
         || typeof b.percentage === 'number',
     );
   }, []);
@@ -3838,7 +3850,7 @@ export default function ClientsPage() {
             onClick={() => {
               setAddFlowPolicyForm((f) => ({
                 ...f,
-                beneficiaries: [...f.beneficiaries, { name: '', type: 'primary', relationship: '', percentage: undefined, phone: '', email: '', accessCode: '' }],
+                beneficiaries: [...f.beneficiaries, { name: '', type: 'primary', relationship: '', percentage: undefined, phone: '', email: '', dateOfBirth: '', address: '', accessCode: '' }],
               }));
             }}
             className="text-xs text-[#005851] font-semibold hover:underline"
@@ -3907,6 +3919,27 @@ export default function ClientsPage() {
                   }}
                   placeholder="Email (optional)"
                   className="px-2 py-1.5 border border-[#d0d0d0] rounded-[5px] text-xs sm:col-span-2"
+                />
+                <input
+                  type="date"
+                  value={beneficiary.dateOfBirth || ''}
+                  onChange={(e) => {
+                    const next = [...addFlowPolicyForm.beneficiaries];
+                    next[index] = { ...next[index], dateOfBirth: e.target.value };
+                    setAddFlowPolicyForm((f) => ({ ...f, beneficiaries: next }));
+                  }}
+                  className="px-2 py-1.5 border border-[#d0d0d0] rounded-[5px] text-xs"
+                />
+                <input
+                  type="text"
+                  value={beneficiary.address || ''}
+                  onChange={(e) => {
+                    const next = [...addFlowPolicyForm.beneficiaries];
+                    next[index] = { ...next[index], address: e.target.value };
+                    setAddFlowPolicyForm((f) => ({ ...f, beneficiaries: next }));
+                  }}
+                  placeholder="Address (optional)"
+                  className="px-2 py-1.5 border border-[#d0d0d0] rounded-[5px] text-xs sm:col-span-3"
                 />
               </div>
               <div className="mt-2 flex items-center justify-between">
@@ -4884,7 +4917,7 @@ export default function ClientsPage() {
         isImportModalOpen || isAddFlowActive
           ? 'opacity-75 scale-[0.985] pointer-events-none select-none'
           : 'translate-x-0 opacity-100 scale-100'
-      }`}
+      } ${selectedClient ? 'xl:pr-[32rem]' : ''}`}
       style={{ transform: listSurfaceTransform }}>
       {clientsLoading ? (
         <div className="flex items-center justify-center py-20">
@@ -5255,7 +5288,7 @@ export default function ClientsPage() {
                   <p className="text-xs text-red-600">{formError}</p>
                 )}
                 <div className="border-t border-[#ececec] pt-4">
-                  <button type="button" onClick={() => setManualEntryExpanded((prev) => !prev)} className="w-full px-4 py-2.5 bg-white hover:bg-gray-50 text-[#000000] font-semibold rounded-[5px] border border-[#d0d0d0] text-sm">
+                  <button data-onboarding-target="clients-addflow-expand-manual" type="button" onClick={() => setManualEntryExpanded((prev) => !prev)} className="w-full px-4 py-2.5 bg-white hover:bg-gray-50 text-[#000000] font-semibold rounded-[5px] border border-[#d0d0d0] text-sm">
                     {manualEntryExpanded ? 'Hide Manual Entry' : 'Expand Manual Entry'}
                   </button>
                   {manualEntryExpanded && (
@@ -5649,7 +5682,7 @@ export default function ClientsPage() {
                     onClick={() =>
                       setPolicyFormData((f) => ({
                         ...f,
-                        beneficiaries: [...f.beneficiaries, { name: '', type: 'primary', relationship: '', percentage: undefined, phone: '', email: '', accessCode: '' }],
+                        beneficiaries: [...f.beneficiaries, { name: '', type: 'primary', relationship: '', percentage: undefined, phone: '', email: '', dateOfBirth: '', address: '', accessCode: '' }],
                       }))
                     }
                     className="text-xs text-[#005851] font-semibold hover:underline"
@@ -5735,6 +5768,27 @@ export default function ClientsPage() {
                             }}
                             className="px-2 py-1.5 bg-white border border-[#d0d0d0] rounded-[5px] text-xs text-[#000000] focus:outline-none focus:border-[#45bcaa]"
                             placeholder="Email (optional)"
+                          />
+                          <input
+                            type="date"
+                            value={ben.dateOfBirth || ''}
+                            onChange={(e) => {
+                              const newBens = [...policyFormData.beneficiaries];
+                              newBens[idx] = { ...newBens[idx], dateOfBirth: e.target.value };
+                              setPolicyFormData((f) => ({ ...f, beneficiaries: newBens }));
+                            }}
+                            className="px-2 py-1.5 bg-white border border-[#d0d0d0] rounded-[5px] text-xs text-[#000000] focus:outline-none focus:border-[#45bcaa]"
+                          />
+                          <input
+                            type="text"
+                            value={ben.address || ''}
+                            onChange={(e) => {
+                              const newBens = [...policyFormData.beneficiaries];
+                              newBens[idx] = { ...newBens[idx], address: e.target.value };
+                              setPolicyFormData((f) => ({ ...f, beneficiaries: newBens }));
+                            }}
+                            className="px-2 py-1.5 bg-white border border-[#d0d0d0] rounded-[5px] text-xs text-[#000000] focus:outline-none focus:border-[#45bcaa] col-span-2"
+                            placeholder="Address (optional)"
                           />
                         </div>
                       </div>
@@ -6009,58 +6063,122 @@ export default function ClientsPage() {
 
       {/* ── Client Detail Modal ── */}
       {selectedClient && (
-        <ClientDetailModal
-          client={selectedClient}
-          policies={policies}
-          policiesLoading={policiesLoading}
-          onClose={handleCloseClientView}
-          onAddPolicy={handleOpenPolicyModal}
-          onEditPolicy={(policy) => {
-            setEditingPolicy(policy);
-            setPolicyFormData({
-              policyType: policy.policyType || '',
-              policyNumber: policy.policyNumber || '',
-              insuranceCompany: KNOWN_CARRIERS.includes(policy.insuranceCompany)
-                ? policy.insuranceCompany
-                : policy.insuranceCompany
-                ? 'Other'
-                : '',
-              otherCarrier: !KNOWN_CARRIERS.includes(policy.insuranceCompany) ? (policy.insuranceCompany || '') : '',
-              policyOwner: policy.policyOwner || '',
-              beneficiaries:
-                policy.beneficiaries && policy.beneficiaries.length > 0
-                  ? policy.beneficiaries.map((b) => ({
-                      name: b.name,
-                      type: b.type,
-                      relationship: b.relationship || '',
-                      percentage: b.percentage,
-                      phone: b.phone || '',
-                      email: b.email || '',
-                      accessCode: b.accessCode || '',
-                    }))
-                  : [{ name: '', type: 'primary', relationship: '', percentage: undefined, phone: '', email: '', accessCode: '' }],
-              coverageAmount: policy.coverageAmount ? String(policy.coverageAmount) : '',
-              premiumAmount: policy.premiumAmount ? String(policy.premiumAmount) : '',
-              premiumFrequency: policy.premiumFrequency || 'monthly',
-              renewalDate: policy.renewalDate || '',
-              effectiveDate: policy.effectiveDate || '',
-              amountOfProtection: policy.amountOfProtection ? String(policy.amountOfProtection) : '',
-              protectionUnit: policy.protectionUnit || 'years',
-              status: policy.status || 'Active',
-            });
-            setPolicyFormError('');
-            setPolicyFormSuccess('');
-            setIsPolicyModalOpen(true);
-          }}
-          onDeletePolicy={(policy) => setDeleteConfirmPolicy(policy)}
-          onUploadApplication={() => handleOpenPolicyModal({ openUploadPicker: true })}
-          onEditClient={handleEditClient}
-          onUpdateClient={handleInlineUpdateClient}
-          onFlagAtRisk={() => { refreshPolicies(); }}
-          agentName={agentProfile.name}
-          hasSchedulingUrl={!!agentProfile.schedulingUrl}
-          clientPushToken={clientPushToken === undefined ? null : clientPushToken}
-        />
+        <>
+          <div className="hidden xl:block fixed right-0 top-0 z-40 h-screen w-[32rem] bg-white border-l border-gray-200 shadow-2xl">
+            <ClientDetailModal
+              displayMode="pane"
+              client={selectedClient}
+              policies={policies}
+              policiesLoading={policiesLoading}
+              onClose={handleCloseClientView}
+              onAddPolicy={handleOpenPolicyModal}
+              onEditPolicy={(policy) => {
+                setEditingPolicy(policy);
+                setPolicyFormData({
+                  policyType: policy.policyType || '',
+                  policyNumber: policy.policyNumber || '',
+                  insuranceCompany: KNOWN_CARRIERS.includes(policy.insuranceCompany)
+                    ? policy.insuranceCompany
+                    : policy.insuranceCompany
+                    ? 'Other'
+                    : '',
+                  otherCarrier: !KNOWN_CARRIERS.includes(policy.insuranceCompany) ? (policy.insuranceCompany || '') : '',
+                  policyOwner: policy.policyOwner || '',
+                  beneficiaries:
+                    policy.beneficiaries && policy.beneficiaries.length > 0
+                      ? policy.beneficiaries.map((b) => ({
+                          name: b.name,
+                          type: b.type,
+                          relationship: b.relationship || '',
+                          percentage: b.percentage,
+                          phone: b.phone || '',
+                          email: b.email || '',
+                          dateOfBirth: b.dateOfBirth || '',
+                          address: b.address || '',
+                          accessCode: b.accessCode || '',
+                        }))
+                      : [{ name: '', type: 'primary', relationship: '', percentage: undefined, phone: '', email: '', dateOfBirth: '', address: '', accessCode: '' }],
+                  coverageAmount: policy.coverageAmount ? String(policy.coverageAmount) : '',
+                  premiumAmount: policy.premiumAmount ? String(policy.premiumAmount) : '',
+                  premiumFrequency: policy.premiumFrequency || 'monthly',
+                  renewalDate: policy.renewalDate || '',
+                  effectiveDate: policy.effectiveDate || '',
+                  amountOfProtection: policy.amountOfProtection ? String(policy.amountOfProtection) : '',
+                  protectionUnit: policy.protectionUnit || 'years',
+                  status: policy.status || 'Active',
+                });
+                setPolicyFormError('');
+                setPolicyFormSuccess('');
+                setIsPolicyModalOpen(true);
+              }}
+              onDeletePolicy={(policy) => setDeleteConfirmPolicy(policy)}
+              onUploadApplication={() => handleOpenPolicyModal({ openUploadPicker: true })}
+              onEditClient={handleEditClient}
+              onUpdateClient={handleInlineUpdateClient}
+              onFlagAtRisk={() => { refreshPolicies(); }}
+              agentName={agentProfile.name}
+              hasSchedulingUrl={!!agentProfile.schedulingUrl}
+              clientPushToken={clientPushToken === undefined ? null : clientPushToken}
+            />
+          </div>
+          <div className="xl:hidden">
+            <ClientDetailModal
+              displayMode="modal"
+              client={selectedClient}
+              policies={policies}
+              policiesLoading={policiesLoading}
+              onClose={handleCloseClientView}
+              onAddPolicy={handleOpenPolicyModal}
+              onEditPolicy={(policy) => {
+                setEditingPolicy(policy);
+                setPolicyFormData({
+                  policyType: policy.policyType || '',
+                  policyNumber: policy.policyNumber || '',
+                  insuranceCompany: KNOWN_CARRIERS.includes(policy.insuranceCompany)
+                    ? policy.insuranceCompany
+                    : policy.insuranceCompany
+                    ? 'Other'
+                    : '',
+                  otherCarrier: !KNOWN_CARRIERS.includes(policy.insuranceCompany) ? (policy.insuranceCompany || '') : '',
+                  policyOwner: policy.policyOwner || '',
+                  beneficiaries:
+                    policy.beneficiaries && policy.beneficiaries.length > 0
+                      ? policy.beneficiaries.map((b) => ({
+                          name: b.name,
+                          type: b.type,
+                          relationship: b.relationship || '',
+                          percentage: b.percentage,
+                          phone: b.phone || '',
+                          email: b.email || '',
+                          dateOfBirth: b.dateOfBirth || '',
+                          address: b.address || '',
+                          accessCode: b.accessCode || '',
+                        }))
+                      : [{ name: '', type: 'primary', relationship: '', percentage: undefined, phone: '', email: '', dateOfBirth: '', address: '', accessCode: '' }],
+                  coverageAmount: policy.coverageAmount ? String(policy.coverageAmount) : '',
+                  premiumAmount: policy.premiumAmount ? String(policy.premiumAmount) : '',
+                  premiumFrequency: policy.premiumFrequency || 'monthly',
+                  renewalDate: policy.renewalDate || '',
+                  effectiveDate: policy.effectiveDate || '',
+                  amountOfProtection: policy.amountOfProtection ? String(policy.amountOfProtection) : '',
+                  protectionUnit: policy.protectionUnit || 'years',
+                  status: policy.status || 'Active',
+                });
+                setPolicyFormError('');
+                setPolicyFormSuccess('');
+                setIsPolicyModalOpen(true);
+              }}
+              onDeletePolicy={(policy) => setDeleteConfirmPolicy(policy)}
+              onUploadApplication={() => handleOpenPolicyModal({ openUploadPicker: true })}
+              onEditClient={handleEditClient}
+              onUpdateClient={handleInlineUpdateClient}
+              onFlagAtRisk={() => { refreshPolicies(); }}
+              agentName={agentProfile.name}
+              hasSchedulingUrl={!!agentProfile.schedulingUrl}
+              clientPushToken={clientPushToken === undefined ? null : clientPushToken}
+            />
+          </div>
+        </>
       )}
 
       {/* ── Flag At Risk Modal ── */}

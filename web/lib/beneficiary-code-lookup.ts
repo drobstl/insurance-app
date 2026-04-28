@@ -14,6 +14,8 @@ export interface BeneficiaryCodeMatch {
     percentage?: number;
     phone?: string;
     email?: string;
+    dateOfBirth?: string;
+    address?: string;
     accessCode: string;
   };
 }
@@ -56,6 +58,14 @@ function findBeneficiaryIndexByCode(
         email:
           typeof entry.email === 'string' && entry.email.trim()
             ? entry.email.trim()
+            : undefined,
+        dateOfBirth:
+          typeof entry.dateOfBirth === 'string' && entry.dateOfBirth.trim()
+            ? entry.dateOfBirth.trim()
+            : undefined,
+        address:
+          typeof entry.address === 'string' && entry.address.trim()
+            ? entry.address.trim()
             : undefined,
         accessCode,
       },

@@ -45,8 +45,9 @@ async function findAgentDocByEmail(
 /**
  * POST /api/admin/reset-onboarding
  * Body: { email: string }
- * Resets onboarding state for the given agent email so they see the
- * first-time tutorial again. Caller must be an admin (Bearer token).
+ * Resets onboarding + profile setup state for the given agent email so they
+ * see the true first-time onboarding flow again. Caller must be an admin
+ * (Bearer token).
  */
 export async function POST(req: NextRequest) {
   try {
@@ -86,9 +87,18 @@ export async function POST(req: NextRequest) {
       onboardingComplete: FieldValue.delete(),
       onboarding: FieldValue.delete(),
       tipsSeen: {},
+      name: FieldValue.delete(),
+      agencyName: FieldValue.delete(),
+      phoneNumber: FieldValue.delete(),
+      photoBase64: FieldValue.delete(),
+      photoURL: FieldValue.delete(),
+      agencyLogoBase64: FieldValue.delete(),
     });
 
-    return NextResponse.json({ ok: true, message: 'Onboarding reset. Have the agent refresh the dashboard.' });
+    return NextResponse.json({
+      ok: true,
+      message: 'Onboarding and profile setup reset. Have the agent refresh the dashboard.',
+    });
   } catch (error) {
     console.error('Reset onboarding error:', error);
     return NextResponse.json(

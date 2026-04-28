@@ -87,6 +87,7 @@ interface ClientDetailModalProps {
   agentName?: string;
   hasSchedulingUrl?: boolean;
   clientPushToken?: string | null;
+  displayMode?: 'modal' | 'pane';
 }
 
 export default function ClientDetailModal({
@@ -104,7 +105,9 @@ export default function ClientDetailModal({
   agentName,
   hasSchedulingUrl,
   clientPushToken,
+  displayMode = 'modal',
 }: ClientDetailModalProps) {
+  const isPane = displayMode === 'pane';
   const { agentProfile } = useDashboard();
   const formatPremiumCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -156,6 +159,32 @@ export default function ClientDetailModal({
   const [beneficiaryJumpInSending, setBeneficiaryJumpInSending] = useState<string | null>(null);
   const [beneficiaryTimelineLoading, setBeneficiaryTimelineLoading] = useState(false);
   const [beneficiaryEventsByCode, setBeneficiaryEventsByCode] = useState<Record<string, BeneficiaryEvent[]>>({});
+  const [beneficiaryDrawerOpen, setBeneficiaryDrawerOpen] = useState(false);
+  const [beneficiaryDrawerTitle, setBeneficiaryDrawerTitle] = useState('');
+  const [beneficiarySendContext, setBeneficiarySendContext] = useState<Beneficiary | null>(null);
+  const [beneficiaryProfileDrawerOpen, setBeneficiaryProfileDrawerOpen] = useState(false);
+  const [beneficiaryProfileContext, setBeneficiaryProfileContext] = useState<{
+    policy: Policy;
+    beneficiary: Beneficiary;
+    index: number;
+  } | null>(null);
+  const [beneficiaryProfileDraft, setBeneficiaryProfileDraft] = useState<{
+    name: string;
+    relationship: string;
+    percentage: string;
+    phone: string;
+    email: string;
+    dateOfBirth: string;
+    address: string;
+  }>({
+    name: '',
+    relationship: '',
+    percentage: '',
+    phone: '',
+    email: '',
+    dateOfBirth: '',
+    address: '',
+  });
 
   // ── Flag at risk inline state ──
   const [flaggingPolicyId, setFlaggingPolicyId] = useState<string | null>(null);
@@ -188,27 +217,28 @@ export default function ClientDetailModal({
 
   // Animate in on mount
   useEffect(() => {
-    if (client) {
+    if (client && !isPane) {
       // Small delay to allow CSS transition to trigger
       requestAnimationFrame(() => {
         setIsVisible(true);
       });
       setIsClosing(false);
     }
-  }, [client]);
+  }, [client, isPane]);
 
   // Lock body scroll when open
   useEffect(() => {
-    if (client) {
+    if (client && !isPane) {
       document.body.style.overflow = 'hidden';
       return () => {
         document.body.style.overflow = '';
       };
     }
-  }, [client]);
+  }, [client, isPane]);
 
   // Handle Escape key
   useEffect(() => {
+    if (isPane) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         handleClose();
@@ -218,7 +248,7 @@ export default function ClientDetailModal({
       document.addEventListener('keydown', handleKeyDown);
       return () => document.removeEventListener('keydown', handleKeyDown);
     }
-  }, [client]);
+  }, [client, isPane]);
 
   // Fetch referral name when sourceReferralId is set
   useEffect(() => {
@@ -267,6 +297,10 @@ export default function ClientDetailModal({
   }, [client]);
 
   const handleClose = useCallback(() => {
+    if (isPane) {
+      onClose();
+      return;
+    }
     setIsClosing(true);
     setIsVisible(false);
     // Wait for animation to complete before actually closing
@@ -274,7 +308,7 @@ export default function ClientDetailModal({
       onClose();
       setIsClosing(false);
     }, 200);
-  }, [onClose]);
+  }, [isPane, onClose]);
 
   const handleCopyCode = useCallback(async () => {
     if (!client?.clientCode) return;
@@ -338,6 +372,8 @@ export default function ClientDetailModal({
     beneficiary: Beneficiary,
   ) => {
     setActiveBeneficiaryKey(entryKey);
+    setBeneficiarySendContext(beneficiary);
+    setBeneficiaryDrawerOpen(true);
     setBeneficiarySendResult(null);
     const preferredLanguage = resolveClientLanguage(client?.preferredLanguage);
     const template =
@@ -354,6 +390,7 @@ export default function ClientDetailModal({
       template,
     });
     setBeneficiaryDraft(draft);
+    setBeneficiaryDrawerTitle(`Send Intro: ${beneficiary.name || 'Beneficiary'}`);
   }, [agentName, agentProfile.beneficiaryWelcomeTemplateEn, agentProfile.beneficiaryWelcomeTemplateEs, client?.name, client?.preferredLanguage]);
 
   const refreshBeneficiaryEvents = useCallback(async () => {
@@ -397,6 +434,20 @@ export default function ClientDetailModal({
       setBeneficiaryTimelineLoading(false);
     }
   }, [client, policies]);
+
+  const handleOpenBeneficiaryProfileDrawer = useCallback((policy: Policy, beneficiary: Beneficiary, index: number) => {
+    setBeneficiaryProfileContext({ policy, beneficiary, index });
+    setBeneficiaryProfileDrawerOpen(true);
+    setBeneficiaryProfileDraft({
+      name: beneficiary.name || '',
+      relationship: beneficiary.relationship || '',
+      percentage: beneficiary.percentage != null ? String(beneficiary.percentage) : '',
+      phone: beneficiary.phone || '',
+      email: beneficiary.email || '',
+      dateOfBirth: beneficiary.dateOfBirth || '',
+      address: beneficiary.address || '',
+    });
+  }, []);
 
   const handleSendBeneficiaryIntro = useCallback(async (beneficiary: Beneficiary) => {
     if (!beneficiary.accessCode) {
@@ -502,6 +553,46 @@ export default function ClientDetailModal({
     }
   }, [beneficiaryJumpInDrafts, client?.preferredLanguage, refreshBeneficiaryEvents]);
 
+  const handleApplyBeneficiaryProfileEdits = useCallback(() => {
+    if (!beneficiaryProfileContext) return;
+    const { policy, index } = beneficiaryProfileContext;
+    const existing = Array.isArray(policy.beneficiaries) ? policy.beneficiaries : [];
+    const updatedBeneficiaries = existing.map((entry, entryIndex) => {
+      if (entryIndex !== index) return entry;
+      const parsedPct = beneficiaryProfileDraft.percentage.trim() === ''
+        ? undefined
+        : Number(beneficiaryProfileDraft.percentage);
+      return {
+        ...entry,
+        name: beneficiaryProfileDraft.name.trim() || entry.name,
+        relationship: beneficiaryProfileDraft.relationship.trim() || undefined,
+        percentage: Number.isFinite(parsedPct) ? parsedPct : undefined,
+        phone: beneficiaryProfileDraft.phone.trim() || undefined,
+        email: beneficiaryProfileDraft.email.trim() || undefined,
+        dateOfBirth: beneficiaryProfileDraft.dateOfBirth.trim() || undefined,
+        address: beneficiaryProfileDraft.address.trim() || undefined,
+      };
+    });
+
+    onEditPolicy({
+      ...policy,
+      beneficiaries: updatedBeneficiaries,
+    });
+    setBeneficiaryProfileDrawerOpen(false);
+    setBeneficiaryProfileContext(null);
+  }, [beneficiaryProfileContext, beneficiaryProfileDraft, onEditPolicy]);
+
+  const getBeneficiaryStateChip = useCallback((beneficiary: Beneficiary) => {
+    const hasContact = Boolean(beneficiary.phone?.trim() || beneficiary.email?.trim());
+    if (!hasContact) {
+      return { label: 'Missing Contact', className: 'bg-amber-50 text-amber-700 border-amber-200' };
+    }
+    if (beneficiary.accessCode?.trim()) {
+      return { label: 'Ready to Intro', className: 'bg-blue-50 text-blue-700 border-blue-200' };
+    }
+    return { label: 'Needs Review', className: 'bg-gray-100 text-gray-700 border-gray-200' };
+  }, []);
+
   const handleFlagAtRisk = useCallback(async (policyId: string) => {
     if (!onFlagAtRisk) return;
     setFlagSubmitting(true);
@@ -560,6 +651,11 @@ export default function ClientDetailModal({
       setBeneficiaryJumpInSending(null);
       setBeneficiaryEventsByCode({});
       setBeneficiaryTimelineLoading(false);
+      setBeneficiaryDrawerOpen(false);
+      setBeneficiaryDrawerTitle('');
+      setBeneficiarySendContext(null);
+      setBeneficiaryProfileDrawerOpen(false);
+      setBeneficiaryProfileContext(null);
       setFlaggingPolicyId(null);
       setFlagResult(null);
       setEditingClientInline(false);
@@ -765,24 +861,24 @@ export default function ClientDetailModal({
     .map(([status, count]) => `${count} ${status}`)
     .join(', ');
 
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      {/* Backdrop */}
-      <div
-        className={`absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${
-          isVisible && !isClosing ? 'opacity-100' : 'opacity-0'
-        }`}
-        onClick={handleClose}
-      />
+  const panelClassName = isPane
+    ? 'relative w-full bg-white border-l border-gray-200 flex flex-col h-full overflow-hidden'
+    : `relative w-full max-w-xl bg-white border-l border-gray-200 shadow-2xl flex flex-col h-full transition-transform duration-300 ease-out ${
+        isVisible && !isClosing ? 'translate-x-0' : 'translate-x-full'
+      }`;
 
-      {/* Slide-over Panel */}
-      <div
-        className={`relative w-full max-w-xl bg-white border-l border-gray-200 shadow-2xl flex flex-col h-full transition-transform duration-300 ease-out ${
-          isVisible && !isClosing
-            ? 'translate-x-0'
-            : 'translate-x-full'
-        }`}
-      >
+  return (
+    <div className={isPane ? 'h-full min-h-0 flex flex-col' : 'fixed inset-0 z-50 flex justify-end'}>
+      {!isPane && (
+        <div
+          className={`absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${
+            isVisible && !isClosing ? 'opacity-100' : 'opacity-0'
+          }`}
+          onClick={handleClose}
+        />
+      )}
+
+      <div className={panelClassName}>
         {/* ── Header ── */}
         <div className="p-6 border-b border-gray-200 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
@@ -1407,24 +1503,35 @@ export default function ClientDetailModal({
                                 <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Primary Beneficiaries</p>
                                 {policy.beneficiaries.filter(b => b.type === 'primary').map((b, i) => {
                                   const entryKey = `${policy.id}:${b.name}:${b.type}:${i}`;
-                                  const isActiveComposer = activeBeneficiaryKey === entryKey;
+                                  const stateChip = getBeneficiaryStateChip(b);
+                                  const beneficiaryIndexRaw = policy.beneficiaries ? policy.beneficiaries.indexOf(b) : i;
+                                  const beneficiaryIndex = beneficiaryIndexRaw >= 0 ? beneficiaryIndexRaw : i;
                                   const beneficiaryCode = (b.accessCode || '').trim().toUpperCase();
                                   const timelineEvents = beneficiaryCode ? (beneficiaryEventsByCode[beneficiaryCode] || []) : [];
                                   return (
                                     <div key={entryKey} className="text-sm mb-2 last:mb-0">
-                                      <p className="text-[#000000]">
-                                        {b.name}
-                                        {b.relationship && <span className="text-gray-400 text-xs ml-1">({b.relationship})</span>}
-                                        {b.percentage != null && <span className="text-gray-400 text-xs ml-1">{b.percentage}%</span>}
-                                      </p>
-                                      {(b.phone || b.email) ? (
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="text-[#000000]">
+                                          {b.name}
+                                          {b.relationship && <span className="text-gray-400 text-xs ml-1">({b.relationship})</span>}
+                                          {b.percentage != null && <span className="text-gray-400 text-xs ml-1">{b.percentage}%</span>}
+                                        </p>
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${stateChip.className}`}>
+                                          {stateChip.label}
+                                        </span>
+                                      </div>
+                                      {(b.phone || b.email || b.dateOfBirth || b.address) ? (
                                         <p className="text-[11px] text-[#707070] mt-0.5">
                                           {b.phone ? `Phone: ${b.phone}` : ''}
                                           {b.phone && b.email ? ' · ' : ''}
                                           {b.email ? `Email: ${b.email}` : ''}
+                                          {(b.phone || b.email) && b.dateOfBirth ? ' · ' : ''}
+                                          {b.dateOfBirth ? `DOB: ${b.dateOfBirth}` : ''}
+                                          {(b.phone || b.email || b.dateOfBirth) && b.address ? ' · ' : ''}
+                                          {b.address ? `Address: ${b.address}` : ''}
                                         </p>
                                       ) : (
-                                        <p className="text-[11px] text-amber-700 mt-0.5">No phone/email on file</p>
+                                        <p className="text-[11px] text-amber-700 mt-0.5">No contact or profile details on file</p>
                                       )}
                                       {b.accessCode && (
                                         <p className="text-[11px] text-[#337973] mt-0.5">Code: {b.accessCode}</p>
@@ -1483,44 +1590,22 @@ export default function ClientDetailModal({
                                           </button>
                                         </div>
                                       </div>
-                                      {isActiveComposer && (
-                                        <div className="mt-2 p-2 border border-[#45bcaa]/35 rounded-[5px] bg-[#f8fdfc]">
-                                          <p className="text-[11px] font-semibold text-[#005851] mb-1">Message to beneficiary (not the insured)</p>
-                                          <textarea
-                                            value={beneficiaryDraft}
-                                            onChange={(e) => setBeneficiaryDraft(e.target.value)}
-                                            rows={4}
-                                            className="w-full px-2 py-1.5 border border-[#d0d0d0] rounded-[5px] text-xs text-[#000000] focus:outline-none focus:border-[#45bcaa]"
-                                          />
-                                          <div className="mt-2 flex items-center gap-2">
-                                            <button
-                                              type="button"
-                                              disabled={beneficiarySending}
-                                              onClick={() => {
-                                                void handleSendBeneficiaryIntro(b);
-                                              }}
-                                              className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] bg-[#005851] text-white hover:bg-[#004540] disabled:opacity-60"
-                                            >
-                                              {beneficiarySending ? 'Sending...' : 'Send'}
-                                            </button>
-                                            <button
-                                              type="button"
-                                              disabled={beneficiarySending}
-                                              onClick={() => {
-                                                setActiveBeneficiaryKey(null);
-                                                setBeneficiaryDraft('');
-                                                setBeneficiarySendResult(null);
-                                              }}
-                                              className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] border border-gray-200 text-[#707070] hover:bg-gray-50"
-                                            >
-                                              Cancel
-                                            </button>
-                                          </div>
-                                          {beneficiarySendResult && (
-                                            <p className="mt-1.5 text-[11px] text-[#337973]">{beneficiarySendResult}</p>
-                                          )}
-                                        </div>
-                                      )}
+                                      <div className="mt-1.5 flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenBeneficiaryProfileDrawer(policy, b, beneficiaryIndex)}
+                                          className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] border border-gray-300 text-[#374151] hover:bg-gray-50"
+                                        >
+                                          Edit Profile
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenBeneficiaryComposer(entryKey, b)}
+                                          className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] border border-[#45bcaa]/40 text-[#005851] hover:bg-[#daf3f0]"
+                                        >
+                                          Send Intro
+                                        </button>
+                                      </div>
                                     </div>
                                   );
                                 })}
@@ -1531,24 +1616,35 @@ export default function ClientDetailModal({
                                 <p className="text-gray-500 text-xs uppercase tracking-wide mb-1">Contingent Beneficiaries</p>
                                 {policy.beneficiaries.filter(b => b.type === 'contingent').map((b, i) => {
                                   const entryKey = `${policy.id}:${b.name}:${b.type}:${i}`;
-                                  const isActiveComposer = activeBeneficiaryKey === entryKey;
+                                  const stateChip = getBeneficiaryStateChip(b);
+                                  const beneficiaryIndexRaw = policy.beneficiaries ? policy.beneficiaries.indexOf(b) : i;
+                                  const beneficiaryIndex = beneficiaryIndexRaw >= 0 ? beneficiaryIndexRaw : i;
                                   const beneficiaryCode = (b.accessCode || '').trim().toUpperCase();
                                   const timelineEvents = beneficiaryCode ? (beneficiaryEventsByCode[beneficiaryCode] || []) : [];
                                   return (
                                     <div key={entryKey} className="text-sm mb-2 last:mb-0">
-                                      <p className="text-[#000000]">
-                                        {b.name}
-                                        {b.relationship && <span className="text-gray-400 text-xs ml-1">({b.relationship})</span>}
-                                        {b.percentage != null && <span className="text-gray-400 text-xs ml-1">{b.percentage}%</span>}
-                                      </p>
-                                      {(b.phone || b.email) ? (
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="text-[#000000]">
+                                          {b.name}
+                                          {b.relationship && <span className="text-gray-400 text-xs ml-1">({b.relationship})</span>}
+                                          {b.percentage != null && <span className="text-gray-400 text-xs ml-1">{b.percentage}%</span>}
+                                        </p>
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${stateChip.className}`}>
+                                          {stateChip.label}
+                                        </span>
+                                      </div>
+                                      {(b.phone || b.email || b.dateOfBirth || b.address) ? (
                                         <p className="text-[11px] text-[#707070] mt-0.5">
                                           {b.phone ? `Phone: ${b.phone}` : ''}
                                           {b.phone && b.email ? ' · ' : ''}
                                           {b.email ? `Email: ${b.email}` : ''}
+                                          {(b.phone || b.email) && b.dateOfBirth ? ' · ' : ''}
+                                          {b.dateOfBirth ? `DOB: ${b.dateOfBirth}` : ''}
+                                          {(b.phone || b.email || b.dateOfBirth) && b.address ? ' · ' : ''}
+                                          {b.address ? `Address: ${b.address}` : ''}
                                         </p>
                                       ) : (
-                                        <p className="text-[11px] text-amber-700 mt-0.5">No phone/email on file</p>
+                                        <p className="text-[11px] text-amber-700 mt-0.5">No contact or profile details on file</p>
                                       )}
                                       {b.accessCode && (
                                         <p className="text-[11px] text-[#337973] mt-0.5">Code: {b.accessCode}</p>
@@ -1607,44 +1703,22 @@ export default function ClientDetailModal({
                                           </button>
                                         </div>
                                       </div>
-                                      {isActiveComposer && (
-                                        <div className="mt-2 p-2 border border-[#45bcaa]/35 rounded-[5px] bg-[#f8fdfc]">
-                                          <p className="text-[11px] font-semibold text-[#005851] mb-1">Message to beneficiary (not the insured)</p>
-                                          <textarea
-                                            value={beneficiaryDraft}
-                                            onChange={(e) => setBeneficiaryDraft(e.target.value)}
-                                            rows={4}
-                                            className="w-full px-2 py-1.5 border border-[#d0d0d0] rounded-[5px] text-xs text-[#000000] focus:outline-none focus:border-[#45bcaa]"
-                                          />
-                                          <div className="mt-2 flex items-center gap-2">
-                                            <button
-                                              type="button"
-                                              disabled={beneficiarySending}
-                                              onClick={() => {
-                                                void handleSendBeneficiaryIntro(b);
-                                              }}
-                                              className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] bg-[#005851] text-white hover:bg-[#004540] disabled:opacity-60"
-                                            >
-                                              {beneficiarySending ? 'Sending...' : 'Send'}
-                                            </button>
-                                            <button
-                                              type="button"
-                                              disabled={beneficiarySending}
-                                              onClick={() => {
-                                                setActiveBeneficiaryKey(null);
-                                                setBeneficiaryDraft('');
-                                                setBeneficiarySendResult(null);
-                                              }}
-                                              className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] border border-gray-200 text-[#707070] hover:bg-gray-50"
-                                            >
-                                              Cancel
-                                            </button>
-                                          </div>
-                                          {beneficiarySendResult && (
-                                            <p className="mt-1.5 text-[11px] text-[#337973]">{beneficiarySendResult}</p>
-                                          )}
-                                        </div>
-                                      )}
+                                      <div className="mt-1.5 flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenBeneficiaryProfileDrawer(policy, b, beneficiaryIndex)}
+                                          className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] border border-gray-300 text-[#374151] hover:bg-gray-50"
+                                        >
+                                          Edit Profile
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenBeneficiaryComposer(entryKey, b)}
+                                          className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] border border-[#45bcaa]/40 text-[#005851] hover:bg-[#daf3f0]"
+                                        >
+                                          Send Intro
+                                        </button>
+                                      </div>
                                     </div>
                                   );
                                 })}
@@ -1802,7 +1876,7 @@ export default function ClientDetailModal({
         </div>
 
         {/* ── Action Footer ── */}
-        <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-[5px] shrink-0">
+        <div className="p-4 border-t border-gray-200 bg-gray-50 shrink-0">
           {client && (
             <div className="flex items-center justify-between mb-3 px-1">
               <div className="flex items-center gap-2">
@@ -1853,6 +1927,101 @@ export default function ClientDetailModal({
           </div>
         </div>
       </div>
+
+      {beneficiaryDrawerOpen && activeBeneficiaryKey && (
+        <div className="absolute inset-0 z-20 flex justify-end">
+          <div className="absolute inset-0 bg-black/20" onClick={() => setBeneficiaryDrawerOpen(false)} />
+          <div className="relative w-full max-w-md bg-white border-l border-gray-200 shadow-2xl h-full flex flex-col">
+            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+              <h4 className="text-sm font-bold text-[#000000]">{beneficiaryDrawerTitle || 'Send Beneficiary Intro'}</h4>
+              <button
+                type="button"
+                onClick={() => setBeneficiaryDrawerOpen(false)}
+                className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 text-gray-500"
+              >
+                <svg className="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 space-y-3 overflow-y-auto">
+              <p className="text-xs font-semibold text-[#005851]">Message to beneficiary (not the insured)</p>
+              <textarea
+                value={beneficiaryDraft}
+                onChange={(e) => setBeneficiaryDraft(e.target.value)}
+                rows={8}
+                className="w-full px-3 py-2 border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa]"
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={beneficiarySending || !beneficiarySendContext}
+                  onClick={() => {
+                    if (!beneficiarySendContext) return;
+                    void handleSendBeneficiaryIntro(beneficiarySendContext);
+                  }}
+                  className="px-3 py-2 text-sm font-semibold rounded-[5px] bg-[#005851] text-white hover:bg-[#004540] disabled:opacity-60"
+                >
+                  {beneficiarySending ? 'Sending...' : 'Send Intro'}
+                </button>
+                <button
+                  type="button"
+                  disabled={beneficiarySending}
+                  onClick={() => {
+                    setBeneficiaryDrawerOpen(false);
+                    setActiveBeneficiaryKey(null);
+                    setBeneficiarySendResult(null);
+                  }}
+                  className="px-3 py-2 text-sm font-semibold rounded-[5px] border border-gray-200 text-[#707070] hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+              {beneficiarySendResult && (
+                <p className="text-xs text-[#337973]">{beneficiarySendResult}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {beneficiaryProfileDrawerOpen && beneficiaryProfileContext && (
+        <div className="absolute inset-0 z-20 flex justify-end">
+          <div className="absolute inset-0 bg-black/20" onClick={() => setBeneficiaryProfileDrawerOpen(false)} />
+          <div className="relative w-full max-w-md bg-white border-l border-gray-200 shadow-2xl h-full flex flex-col">
+            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+              <h4 className="text-sm font-bold text-[#000000]">Edit Beneficiary Profile</h4>
+              <button
+                type="button"
+                onClick={() => setBeneficiaryProfileDrawerOpen(false)}
+                className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 text-gray-500"
+              >
+                <svg className="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 space-y-3 overflow-y-auto">
+              <input value={beneficiaryProfileDraft.name} onChange={(e) => setBeneficiaryProfileDraft((p) => ({ ...p, name: e.target.value }))} placeholder="Full name" className="w-full px-3 py-2 border border-[#d0d0d0] rounded-[5px] text-sm" />
+              <div className="grid grid-cols-2 gap-2">
+                <input value={beneficiaryProfileDraft.relationship} onChange={(e) => setBeneficiaryProfileDraft((p) => ({ ...p, relationship: e.target.value }))} placeholder="Relationship" className="w-full px-3 py-2 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                <input value={beneficiaryProfileDraft.percentage} onChange={(e) => setBeneficiaryProfileDraft((p) => ({ ...p, percentage: e.target.value }))} placeholder="% share" className="w-full px-3 py-2 border border-[#d0d0d0] rounded-[5px] text-sm" />
+              </div>
+              <input value={beneficiaryProfileDraft.phone} onChange={(e) => setBeneficiaryProfileDraft((p) => ({ ...p, phone: e.target.value }))} placeholder="Phone" className="w-full px-3 py-2 border border-[#d0d0d0] rounded-[5px] text-sm" />
+              <input value={beneficiaryProfileDraft.email} onChange={(e) => setBeneficiaryProfileDraft((p) => ({ ...p, email: e.target.value }))} placeholder="Email" className="w-full px-3 py-2 border border-[#d0d0d0] rounded-[5px] text-sm" />
+              <div className="grid grid-cols-2 gap-2">
+                <input value={beneficiaryProfileDraft.dateOfBirth} onChange={(e) => setBeneficiaryProfileDraft((p) => ({ ...p, dateOfBirth: e.target.value }))} placeholder="YYYY-MM-DD" className="w-full px-3 py-2 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                <input value={beneficiaryProfileDraft.address} onChange={(e) => setBeneficiaryProfileDraft((p) => ({ ...p, address: e.target.value }))} placeholder="Address" className="w-full px-3 py-2 border border-[#d0d0d0] rounded-[5px] text-sm" />
+              </div>
+              <p className="text-xs text-[#707070]">Saving opens the policy editor with these values prefilled so you can confirm and persist.</p>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={handleApplyBeneficiaryProfileEdits} className="px-3 py-2 text-sm font-semibold rounded-[5px] bg-[#005851] text-white hover:bg-[#004540]">Continue in Policy Editor</button>
+                <button type="button" onClick={() => setBeneficiaryProfileDrawerOpen(false)} className="px-3 py-2 text-sm font-semibold rounded-[5px] border border-gray-200 text-[#707070] hover:bg-gray-50">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

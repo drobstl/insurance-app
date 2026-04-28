@@ -102,7 +102,7 @@ FIELD RULES:
 - insuredState: state of residence of the proposed insured. Extract from mailing address or signing state.
 - renewalDate: renewal or expiration date of the policy term, if visible.
 - policyOwner: policy owner name.
-- beneficiaries: use actual person names; relationship label in relationship field. If beneficiary-specific phone/email is clearly shown in that beneficiary row/section, include it; otherwise omit/null. Never copy insured/owner contact fields into beneficiary contacts unless explicitly tied to beneficiary rows.
+- beneficiaries: use actual person names; relationship label in relationship field. If beneficiary-specific phone/email/date of birth/address is clearly shown in that beneficiary row/section, include it; otherwise omit/null. Never copy insured/owner contact or demographic fields into beneficiary fields unless explicitly tied to beneficiary rows.
 - coverageAmount: face amount/death benefit as a number.
 - premiumAmount: modal/planned/scheduled premium as a number.
 - premiumFrequency: map to monthly/quarterly/semi-annual/annual.
@@ -206,6 +206,8 @@ const APPLICATION_EXTRACTION_SCHEMA = {
                     percentage: { type: 'number' },
                     phone: { type: 'string' },
                     email: { type: 'string' },
+                    dateOfBirth: { type: 'string' },
+                    address: { type: 'string' },
                     irrevocable: { type: 'boolean' },
                     type: { type: 'string', enum: ['primary', 'contingent'] },
                 },
@@ -1477,6 +1479,12 @@ function parseBeneficiaries(value) {
         const email = toStringOrNull(raw.email);
         if (email)
             entry.email = email;
+        const dateOfBirth = toIsoDateStringOrNull(raw.dateOfBirth);
+        if (dateOfBirth)
+            entry.dateOfBirth = dateOfBirth;
+        const address = toStringOrNull(raw.address);
+        if (address)
+            entry.address = address;
         const irrevocable = toBooleanOrNull(raw.irrevocable);
         if (irrevocable != null)
             entry.irrevocable = irrevocable;

@@ -88,6 +88,8 @@ export async function POST(req: NextRequest) {
             policyId: beneficiaryMatch.policyId,
             role: beneficiaryMatch.beneficiary.type,
             relationship: beneficiaryMatch.beneficiary.relationship ?? null,
+            dateOfBirth: beneficiaryMatch.beneficiary.dateOfBirth ?? null,
+            address: beneficiaryMatch.beneficiary.address ?? null,
             insuredName: clientData.name ?? '',
           }
         : null,

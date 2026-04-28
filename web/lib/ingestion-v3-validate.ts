@@ -89,7 +89,7 @@ function normalizeBeneficiaries(beneficiaries: Beneficiary[] | null): Beneficiar
       percentage: toNullableNumber(b.percentage),
       phone: toNullableString(b.phone ?? null) ?? undefined,
       email: toNullableString(b.email ?? null) ?? undefined,
-      dateOfBirth: toNullableString(b.dateOfBirth ?? null) ?? undefined,
+      dateOfBirth: toIsoDateOrNull(b.dateOfBirth ?? null) ?? undefined,
       address: toNullableString(b.address ?? null) ?? undefined,
       accessCode: toNullableString(b.accessCode ?? null) ?? undefined,
       optOutOutreach: b.optOutOutreach === true,
