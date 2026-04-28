@@ -661,6 +661,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         <OnboardingOverlay
           agentName={agentProfile.name || user.displayName || ''}
           onComplete={() => setShowOnboarding(false)}
+          onPause={() => setShowOnboarding(false)}
+          onSkip={() => { void handleSkipTutorial(); }}
         />
       )}
       {user && !onboardingUiSuppressed && agentProfile.onboardingComplete !== true && (

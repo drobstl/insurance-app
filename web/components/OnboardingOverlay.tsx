@@ -12,6 +12,8 @@ import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 interface OnboardingOverlayProps {
   agentName: string;
   onComplete: () => void;
+  onPause?: () => void;
+  onSkip?: () => void;
 }
 
 interface OnboardingStep {
@@ -230,6 +232,8 @@ function getProfileGuidedTargets(baseStep: ProfileSubStep): TargetName[] {
 export default function OnboardingOverlay({
   agentName,
   onComplete,
+  onPause,
+  onSkip,
 }: OnboardingOverlayProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -955,6 +959,26 @@ export default function OnboardingOverlay({
               <div className="text-[11px] text-[#727272] font-medium">{blockedUiHint}</div>
             )}
           </div>
+          {(onPause || onSkip) && (
+            <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#ececec] pt-3">
+              {onPause ? (
+                <button
+                  onClick={onPause}
+                  className="px-3 py-1.5 rounded text-xs font-semibold border border-[#d0d0d0] bg-[#f8f8f8] text-[#0D4D4D] hover:bg-white"
+                >
+                  Pause
+                </button>
+              ) : <span />}
+              {onSkip ? (
+                <button
+                  onClick={onSkip}
+                  className="px-3 py-1.5 rounded text-xs font-semibold border border-[#ffd7d7] bg-[#fff5f5] text-[#b42318] hover:bg-[#ffecec]"
+                >
+                  Skip tutorial
+                </button>
+              ) : null}
+            </div>
+          )}
         </div>
 
         {spotlight && coachmarkStyle.placement !== 'floating' && (

@@ -39,7 +39,7 @@ export default function OnboardingChecklistRail({
   const completedCount = CHECKLIST_ITEMS.filter((item) => milestones[item.key]).length;
 
   return (
-    <aside className="hidden md:block fixed right-4 top-20 z-[65] w-[280px]">
+    <aside className="hidden md:block fixed right-4 top-20 z-[90] w-[280px]">
       <div className="rounded-xl border border-[#d0d0d0] bg-white shadow-[0_16px_32px_rgba(0,0,0,0.16)]">
         <div className="px-4 py-3 border-b border-[#ececec]">
           <div className="flex items-center justify-between gap-3">
