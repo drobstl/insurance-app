@@ -262,6 +262,13 @@ Standalone pricing remains for agents who come directly. Founding member migrati
   - Added structured onboarding state in agent profile (`onboarding.version`, `currentStep`, `requiredMilestones`) with explicit milestone completion writes and `onboardingComplete` only after all required actions are done.
   - Wired onboarding milestones to real behaviors (profile completion, first client created, first welcome text sent, first Patch prompt sent), including admin reset support for both legacy and new onboarding fields.
   - Expanded PostHog onboarding instrumentation with `onboarding_step_viewed`, `onboarding_step_blocked`, `onboarding_resumed`, `onboarding_completed`, `onboarding_patch_prompt_sent`, and `onboarding_manual_correction_used`.
+- Updated (April 27, 2026): Onboarding UX hardening pass and production rollout.
+  - Added a persistent right-side onboarding checklist rail with milestone statuses and integrated `Pause onboarding` / `Resume onboarding` controls.
+  - Added `Skip tutorial` control and wired immediate UI suppression so overlay + checklist hide instantly on skip while completion persists in the background.
+  - Hardened guided target behavior to reduce stuck states: stale-target auto-heal, auto-scroll target into view, stronger target visibility gating, and explicit blocked-state messaging instead of silent no-op.
+  - Removed onboarding back navigation in the coachmark to keep a single forward action and avoid dead/ambiguous controls.
+  - Added typed-field gating so `Next` for text-entry steps only appears after actual input starts in the highlighted field.
+  - Updated reset behavior so admin onboarding reset can fully clear onboarding + profile setup fields for true first-time walkthrough testing.
 - Known issues / next session:
   - "0 pages" metadata bug in extraction summary.
   - Bulk import intelligence notes are concatenated into an unreadable wall of text (needs per-file collapsible notes).
