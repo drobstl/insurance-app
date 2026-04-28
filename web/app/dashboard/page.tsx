@@ -378,7 +378,6 @@ export default function DashboardHomePage() {
           in the bottom-right corner.
         </SectionTipCard>
       )}
-
       {isAdmin && (
         <button
           type="button"

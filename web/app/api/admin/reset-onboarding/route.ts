@@ -5,6 +5,8 @@ import { FieldValue, type QueryDocumentSnapshot } from 'firebase-admin/firestore
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
 import { isAdminEmail } from '../../../../lib/admin';
 
+const SELF_TEST_RESET_EMAIL = 'deardanielroberts@gmail.com';
+
 async function findAgentDocByEmail(
   normalizedEmail: string,
 ): Promise<QueryDocumentSnapshot | null> {
@@ -60,8 +62,10 @@ export async function POST(req: NextRequest) {
     const adminAuth = getAdminAuth();
     const decoded = await adminAuth.verifyIdToken(token);
     const callerEmail = decoded.email as string | undefined;
+    const normalizedCallerEmail = callerEmail?.trim().toLowerCase() ?? '';
 
-    if (!isAdminEmail(callerEmail)) {
+    const isAllowedSelfTestResetCaller = normalizedCallerEmail === SELF_TEST_RESET_EMAIL;
+    if (!isAdminEmail(callerEmail) && !isAllowedSelfTestResetCaller) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -69,6 +73,12 @@ export async function POST(req: NextRequest) {
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     if (!email) {
       return NextResponse.json({ error: 'Missing email' }, { status: 400 });
+    }
+    if (isAllowedSelfTestResetCaller && email !== normalizedCallerEmail) {
+      return NextResponse.json(
+        { error: 'You can only reset onboarding for your own account.' },
+        { status: 403 },
+      );
     }
 
     const agentDoc = await findAgentDocByEmail(email);

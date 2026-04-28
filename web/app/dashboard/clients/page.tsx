@@ -5250,6 +5250,7 @@ export default function ClientsPage() {
                 <div>
                   <label className="block text-sm font-medium text-[#000000] mb-1">Application Type</label>
                   <select
+                    data-onboarding-target="clients-addflow-carrier-select"
                     value={clientApplicationType}
                     onChange={(e) => setClientApplicationType(e.target.value as ApplicationFormType)}
                     className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
@@ -5261,6 +5262,7 @@ export default function ClientsPage() {
                   </select>
                 </div>
                 <button
+                  data-onboarding-target="clients-addflow-upload-pdf"
                   type="button"
                   onClick={handleClickClientApplicationUpload}
                   disabled={clientApplicationUploading}
@@ -5340,7 +5342,7 @@ export default function ClientsPage() {
                     </div>
                   )}
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <input type="text" value={formData.name} onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))} placeholder="Name *" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
+                  <input data-onboarding-target="clients-addflow-review-name" type="text" value={formData.name} onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))} placeholder="Name *" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
                   <input type="tel" value={formData.phone} onChange={(e) => setFormData((f) => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
                   <input type="email" value={formData.email} onChange={(e) => setFormData((f) => ({ ...f, email: e.target.value }))} placeholder="Email" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
                   <div className="flex flex-col">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   type OnboardingMilestoneKey,
@@ -52,6 +52,40 @@ interface TargetBehavior {
   blockedReason: string;
   blockedMessage: string;
 }
+
+interface MiniCelebrationParticle {
+  emoji: string;
+  x: number;
+  y: number;
+  delayMs: number;
+  durationMs: number;
+  rotateDeg: number;
+  scale: number;
+}
+
+type MiniCelebrationParticleStyle = CSSProperties & {
+  '--afl-x': string;
+  '--afl-y': string;
+  '--afl-delay': string;
+  '--afl-duration': string;
+  '--afl-rotate': string;
+  '--afl-scale': string;
+};
+
+const MINI_CELEBRATION_PARTICLES: MiniCelebrationParticle[] = [
+  { emoji: '✨', x: -110, y: -70, delayMs: 0, durationMs: 760, rotateDeg: -12, scale: 1 },
+  { emoji: '✨', x: -86, y: -114, delayMs: 40, durationMs: 780, rotateDeg: 8, scale: 0.95 },
+  { emoji: '✨', x: -42, y: -132, delayMs: 90, durationMs: 780, rotateDeg: -4, scale: 0.9 },
+  { emoji: '✨', x: 6, y: -138, delayMs: 130, durationMs: 800, rotateDeg: 5, scale: 0.95 },
+  { emoji: '✨', x: 48, y: -128, delayMs: 80, durationMs: 760, rotateDeg: -8, scale: 0.92 },
+  { emoji: '✨', x: 86, y: -96, delayMs: 120, durationMs: 760, rotateDeg: 6, scale: 0.9 },
+  { emoji: '🙌', x: -126, y: -18, delayMs: 40, durationMs: 820, rotateDeg: -8, scale: 1.05 },
+  { emoji: '✨', x: -96, y: 22, delayMs: 80, durationMs: 780, rotateDeg: 14, scale: 0.92 },
+  { emoji: '✨', x: -48, y: 40, delayMs: 120, durationMs: 760, rotateDeg: -10, scale: 0.88 },
+  { emoji: '✨', x: 6, y: 46, delayMs: 160, durationMs: 760, rotateDeg: 6, scale: 0.9 },
+  { emoji: '✨', x: 56, y: 34, delayMs: 100, durationMs: 760, rotateDeg: -12, scale: 0.88 },
+  { emoji: '🙌', x: 112, y: -8, delayMs: 60, durationMs: 820, rotateDeg: 10, scale: 1.02 },
+];
 
 function isTextEntryElement(element: HTMLElement): element is HTMLInputElement | HTMLTextAreaElement {
   if (element instanceof HTMLTextAreaElement) return true;
@@ -1057,18 +1091,46 @@ export default function OnboardingOverlay({
     <div className="fixed inset-0 z-[60] pointer-events-none">
       {showProfileCelebration && step.id === 'profile' ? (
         <div className="fixed inset-0 z-[75] bg-black/65 pointer-events-auto flex items-center justify-center px-4">
-          <div className="w-[min(460px,calc(100vw-24px))] rounded-2xl border-2 border-[#3DD6C3] bg-white shadow-[0_24px_72px_rgba(0,0,0,0.4)] p-5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.11em] text-[#0D4D4D]/70">Step 1 Complete</p>
-            <h3 className="mt-1 text-2xl font-black text-[#0D4D4D]">Profile complete. Looking sharp.</h3>
-            <p className="mt-2 text-sm leading-relaxed text-[#305858]">
-              You just finished your first onboarding win. Next up, let&apos;s add your first client and make AgentForLife feel real.
-            </p>
-            <button
-              onClick={advanceFromProfileCelebration}
-              className="mt-4 inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-semibold bg-[#3DD6C3] hover:bg-[#32c4b2] text-[#0D4D4D]"
-            >
-              Next: Add first client
-            </button>
+          <div className="relative w-[min(460px,calc(100vw-24px))] rounded-2xl border-2 border-[#3DD6C3] bg-white shadow-[0_24px_72px_rgba(0,0,0,0.4)] p-5 overflow-hidden">
+            <div className="pointer-events-none absolute inset-0">
+              <div className="afl-mini-celebration-ring absolute left-1/2 top-[44%] h-12 w-12 rounded-full border-2 border-[#3DD6C3]/75" />
+              {MINI_CELEBRATION_PARTICLES.map((particle, index) => {
+                const particleStyle: MiniCelebrationParticleStyle = {
+                  '--afl-x': `${particle.x}px`,
+                  '--afl-y': `${particle.y}px`,
+                  '--afl-delay': `${particle.delayMs}ms`,
+                  '--afl-duration': `${particle.durationMs}ms`,
+                  '--afl-rotate': `${particle.rotateDeg}deg`,
+                  '--afl-scale': `${particle.scale}`,
+                };
+                return (
+                  <span
+                    key={`${particle.emoji}-${index}`}
+                    className="afl-mini-celebration-particle absolute left-1/2 top-[44%] text-xl select-none"
+                    style={particleStyle}
+                    aria-hidden="true"
+                  >
+                    {particle.emoji}
+                  </span>
+                );
+              })}
+            </div>
+            <div className="relative">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.11em] text-[#0D4D4D]/70">Step 1 Complete</p>
+              <div className="mt-1 flex items-center gap-2">
+                <span className="afl-mini-hero-emoji text-[22px] leading-none" aria-hidden="true">🙌</span>
+                <h3 className="text-2xl font-black text-[#0D4D4D]">Profile complete. Looking sharp.</h3>
+              </div>
+              <p className="mt-2 text-sm leading-relaxed text-[#305858]">
+                You just finished your first onboarding win. Next up, let&apos;s add your first client and make AgentForLife feel real.
+              </p>
+              <button
+                onClick={advanceFromProfileCelebration}
+                className="mt-4 inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-semibold bg-[#3DD6C3] hover:bg-[#32c4b2] text-[#0D4D4D]"
+              >
+                Next: Add first client
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -1231,6 +1293,54 @@ export default function OnboardingOverlay({
         }
         .afl-onboarding-primary-pulse {
           animation: aflOnboardingPrimaryPulse 1s ease-out infinite;
+        }
+        @keyframes aflMiniCelebrationParticle {
+          0% {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.4) rotate(0deg);
+          }
+          18% {
+            opacity: 1;
+          }
+          100% {
+            opacity: 0;
+            transform: translate(calc(-50% + var(--afl-x)), calc(-50% + var(--afl-y)))
+              scale(var(--afl-scale)) rotate(var(--afl-rotate));
+          }
+        }
+        @keyframes aflMiniCelebrationRing {
+          0% {
+            opacity: 0.55;
+            transform: translate(-50%, -50%) scale(0.5);
+          }
+          100% {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(2.2);
+          }
+        }
+        @keyframes aflMiniHeroBounce {
+          0%, 100% {
+            transform: translateY(0);
+          }
+          50% {
+            transform: translateY(-4px);
+          }
+        }
+        .afl-mini-celebration-particle {
+          animation: aflMiniCelebrationParticle var(--afl-duration) ease-out var(--afl-delay) 1 both;
+        }
+        .afl-mini-celebration-ring {
+          animation: aflMiniCelebrationRing 780ms ease-out 1 both;
+        }
+        .afl-mini-hero-emoji {
+          animation: aflMiniHeroBounce 1.2s ease-in-out 3;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .afl-mini-celebration-particle,
+          .afl-mini-celebration-ring,
+          .afl-mini-hero-emoji {
+            animation: none !important;
+          }
         }
       `}</style>
     </div>

@@ -88,6 +88,7 @@ export interface AgentProfile {
   beneficiaryMaxTouchesPer30Days?: number;
   skipWelcomeSmsConfirmation?: boolean;
   onboardingComplete?: boolean;
+  pendingSubscriptionCelebration?: boolean;
   onboarding?: OnboardingState;
   tipsSeen?: Record<string, boolean>;
   celebratedBadgeIds?: string[];
@@ -137,7 +138,12 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         setProfileLoading(false);
         resetPostHog();
-        router.push('/login');
+        const pathname = window.location.pathname;
+        const params = new URLSearchParams(window.location.search);
+        const cameFromStripeSuccess = pathname.startsWith('/dashboard') && params.get('subscription') === 'success';
+        router.push(cameFromStripeSuccess
+          ? '/login?reason=session-expired-after-checkout'
+          : '/login');
       }
     });
     return () => unsubscribe();
@@ -182,6 +188,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           beneficiaryMaxTouchesPer30Days: data.beneficiaryMaxTouchesPer30Days,
           skipWelcomeSmsConfirmation: data.skipWelcomeSmsConfirmation,
           onboardingComplete: data.onboardingComplete,
+          pendingSubscriptionCelebration: data.pendingSubscriptionCelebration === true,
           onboarding: normalizeOnboardingState(data.onboarding),
           tipsSeen: data.tipsSeen || {},
           celebratedBadgeIds: data.celebratedBadgeIds || [],

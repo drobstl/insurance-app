@@ -13,6 +13,16 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
+  const [sessionMessage, setSessionMessage] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('reason') === 'session-expired-after-checkout') {
+      setSessionMessage('Your checkout completed, but your session expired. Sign in to continue to your dashboard.');
+    } else {
+      setSessionMessage('');
+    }
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -95,6 +105,11 @@ export default function LoginPage() {
               <h1 className="text-2xl font-bold text-[#005851]">Welcome Back</h1>
               <p className="text-[#707070] mt-2">Sign in to manage your clients</p>
             </div>
+            {sessionMessage && (
+              <div className="mb-5 bg-[#eef8ff] border border-[#b8dfff] rounded-[5px] p-3 text-sm text-[#124b75]">
+                {sessionMessage}
+              </div>
+            )}
 
             <form onSubmit={handleLogin} className="space-y-5">
               {error && (

@@ -54,12 +54,15 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
   // Update Firestore using Admin SDK (bypasses security rules)
   const db = getAdminFirestore();
+  const preActivationAgentDoc = await db.collection('agents').doc(userId).get();
+  const wasAlreadyActive = preActivationAgentDoc.data()?.subscriptionStatus === 'active';
   await db.collection('agents').doc(userId).set(
     {
       subscriptionStatus: 'active',
       stripeCustomerId: customerId,
       subscriptionId: subscriptionId,
       membershipTier,
+      pendingSubscriptionCelebration: !wasAlreadyActive,
       subscriptionStartDate: subscription.current_period_start
         ? new Date(subscription.current_period_start * 1000)
         : new Date(),
