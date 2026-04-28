@@ -337,7 +337,6 @@ export default function OnboardingOverlay({
   const [showProfileCelebration, setShowProfileCelebration] = useState(false);
   const [typedSinceFocusTarget, setTypedSinceFocusTarget] = useState<TargetName | null>(null);
   const [manualEntryStarted, setManualEntryStarted] = useState(false);
-  const profileAutoCompleteInFlightRef = useRef(false);
   const lastAutoScrollKeyRef = useRef<string | null>(null);
   const prevProfileCompletedRef = useRef<boolean>(false);
   const uploadExtractionAckShownRef = useRef(false);
@@ -725,30 +724,6 @@ export default function OnboardingOverlay({
     prevProfileCompletedRef.current = milestones.profileCompleted;
   }, [milestones.profileCompleted]);
 
-  useEffect(() => {
-    if (step.id !== 'profile') {
-      profileAutoCompleteInFlightRef.current = false;
-      return;
-    }
-    if (milestones.profileCompleted) return;
-    if (!profileLooksComplete) return;
-    if (profileAutoCompleteInFlightRef.current) return;
-    profileAutoCompleteInFlightRef.current = true;
-
-    void markOnboardingMilestone('profileCompleted')
-      .then(() => {
-        setActionAck('Profile already complete - moving on.');
-      })
-      .catch(() => {
-        profileAutoCompleteInFlightRef.current = false;
-      });
-  }, [
-    step.id,
-    milestones.profileCompleted,
-    profileLooksComplete,
-    markOnboardingMilestone,
-  ]);
-
   const handleFinish = async () => {
     if (!allRequiredDone) return;
     await completeOnboarding();
@@ -865,15 +840,11 @@ export default function OnboardingOverlay({
   };
 
   useEffect(() => {
-    const handleSettingsSaved = async () => {
+    const handleSettingsSaved = () => {
       if (step.id !== 'profile') return;
       if (!isOnSettingsRoute) return;
       if (!profileLooksComplete) return;
-
-      if (!milestones.profileCompleted) {
-        await markOnboardingMilestone('profileCompleted');
-      }
-      setActionAck('Profile saved. Click Next when you are ready for your step-1 celebration.');
+      setActionAck('Profile saved. When you are ready, click Next to lock in step 1.');
     };
 
     window.addEventListener('afl:settings-saved', handleSettingsSaved);
@@ -882,8 +853,6 @@ export default function OnboardingOverlay({
     step.id,
     isOnSettingsRoute,
     profileLooksComplete,
-    milestones.profileCompleted,
-    markOnboardingMilestone,
   ]);
 
   const primaryLabel = (() => {
@@ -951,7 +920,7 @@ export default function OnboardingOverlay({
       if (displayedGuidedTarget === 'settings-photo-upload' || displayedGuidedTarget === 'settings-logo-upload') {
         return 'Optional: add a profile photo or agency logo now, or click Next and do it later in Settings.';
       }
-      if (profileLooksComplete) return 'Profile basics complete. Finalizing this step now.';
+      if (profileLooksComplete) return 'Profile basics are complete. Click Next when you are ready for your mini celebration.';
       return 'Wait for autosave to complete this profile step.';
     }
     if (step.id === 'firstClient' && !milestones.firstClientCreated) {
@@ -1031,7 +1000,7 @@ export default function OnboardingOverlay({
         return 'Waiting for the highlighted target to be available.';
       }
       if (step.id === 'profile' && profileLooksComplete && !milestones.profileCompleted) {
-        return 'Finalizing profile step...';
+        return 'Looks good. Click Next to complete this step.';
       }
     }
     return 'Use the highlighted UI action to continue';
