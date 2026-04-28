@@ -38,7 +38,7 @@ type TargetName =
   | 'clients-addflow-expand-manual'
   | 'clients-addflow-carrier-select'
   | 'clients-addflow-upload-pdf'
-  | 'clients-addflow-review-name'
+  | 'clients-addflow-review-panel'
   | 'clients-addflow-create-client'
   | 'clients-addflow-confirm-create'
   | 'clients-send-welcome'
@@ -173,10 +173,10 @@ const TARGET_BEHAVIORS: Record<TargetName, TargetBehavior> = {
     blockedReason: 'clients_upload_pdf_click_required',
     blockedMessage: 'Upload the client application PDF to continue.',
   },
-  'clients-addflow-review-name': {
-    mode: 'next',
+  'clients-addflow-review-panel': {
+    mode: 'click',
     blockedReason: 'clients_review_fields_pending',
-    blockedMessage: 'Review extracted fields, make any edits needed, then click Next.',
+    blockedMessage: 'Review extracted details, edit anything needed, then click Confirm & Create.',
   },
   'clients-addflow-create-client': {
     mode: 'click',
@@ -443,7 +443,7 @@ export default function OnboardingOverlay({
     if (step.id === 'firstClient') {
       if (!pathname.startsWith('/dashboard/clients')) return ['nav-clients'];
       if (firstClientFlowChoice === 'auto') {
-        return ['clients-add-client', 'clients-addflow-carrier-select', 'clients-addflow-upload-pdf', 'clients-addflow-review-name', 'clients-addflow-confirm-create'];
+        return ['clients-add-client', 'clients-addflow-carrier-select', 'clients-addflow-upload-pdf', 'clients-addflow-review-panel'];
       }
       return ['clients-add-client', 'clients-addflow-expand-manual', 'clients-addflow-create-client'];
     }
@@ -673,13 +673,13 @@ export default function OnboardingOverlay({
     if (firstClientFlowChoice !== 'auto') return;
     if (activeGuidedTarget !== 'clients-addflow-upload-pdf') return;
 
-    const reviewTarget = findTarget('clients-addflow-review-name');
+    const reviewTarget = findTarget('clients-addflow-review-panel');
     if (!reviewTarget) return;
-    const reviewIndex = guidedTargets.indexOf('clients-addflow-review-name');
+    const reviewIndex = guidedTargets.indexOf('clients-addflow-review-panel');
     if (reviewIndex <= guidedIndex) return;
 
     setGuidedIndex(reviewIndex);
-    setActionAck('AI draft ready. Review and edit fields as needed, then click Next.');
+    setActionAck('AI draft ready. Review any details you want, then click Confirm & Create when ready.');
   }, [step.id, firstClientFlowChoice, activeGuidedTarget, guidedTargets, guidedIndex]);
 
   useEffect(() => {
@@ -883,7 +883,7 @@ export default function OnboardingOverlay({
       if (firstClientPathChoiceReady) return false;
       if (!displayedGuidedTarget) return false;
       if (activeTargetName !== displayedGuidedTarget) return false;
-      const skipTypingGateForNextTargets = new Set<TargetName>(['clients-addflow-review-name']);
+      const skipTypingGateForNextTargets = new Set<TargetName>([]);
       if (TARGET_BEHAVIORS[displayedGuidedTarget].mode === 'next'
         && activeTargetElement
         && isTextEntryElement(activeTargetElement)
@@ -937,8 +937,8 @@ export default function OnboardingOverlay({
         }
         return 'Upload the client application PDF. Extraction usually takes around 15 seconds, then you can review and confirm.';
       }
-      if (activeGuidedTarget === 'clients-addflow-review-name') {
-        return 'Review the extracted information now. Edit any fields you want, then click Next.';
+      if (activeGuidedTarget === 'clients-addflow-review-panel') {
+        return 'Review extracted details in this card. Edit anything you want, then click Confirm & Create when ready.';
       }
       if (activeGuidedTarget === 'clients-addflow-expand-manual') {
         return 'Click Expand Manual Entry to type details yourself.';
@@ -973,7 +973,7 @@ export default function OnboardingOverlay({
     if (
       step.id === 'firstClient'
       && firstClientFlowChoice === 'auto'
-      && (activeGuidedTarget === 'clients-addflow-review-name' || activeGuidedTarget === 'clients-addflow-confirm-create')
+      && activeGuidedTarget === 'clients-addflow-review-panel'
       && !activeTargetName
     ) {
       return 'Extraction is still running. This can take around 15 seconds.';
@@ -989,8 +989,8 @@ export default function OnboardingOverlay({
       if (displayedGuidedTarget === 'clients-addflow-create-client' && !manualEntryStarted) {
         return 'Start entering client details. Create Client will glow when ready.';
       }
-      if (displayedGuidedTarget === 'clients-addflow-review-name') {
-        return 'Review/edit fields if needed, then click Next.';
+      if (displayedGuidedTarget === 'clients-addflow-review-panel') {
+        return 'Review/edit any fields as needed, then click Confirm & Create.';
       }
       if (behavior.mode === 'click') return behavior.blockedMessage;
     }
@@ -1011,6 +1011,7 @@ export default function OnboardingOverlay({
   const topActionHint = (() => {
     if (showProfileCelebration) return null;
     if (!needsTarget || !targetRect || !displayedGuidedTarget || activeTargetName !== displayedGuidedTarget) return null;
+    if (displayedGuidedTarget === 'clients-addflow-review-panel') return 'Review details in this card';
     const behavior = TARGET_BEHAVIORS[displayedGuidedTarget];
     return behavior.mode === 'next' ? 'Use highlighted field' : 'Click highlighted target';
   })();
