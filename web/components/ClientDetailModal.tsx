@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { formatCurrency, formatDate, formatDateLong, getStatusColor, getPolicyTypeIcon, getAnniversaryDate, daysUntilAnniversary } from '../lib/policyUtils';
 import type { Beneficiary } from '../lib/types';
@@ -50,6 +50,16 @@ interface Policy {
   createdAt: Timestamp;
   anniversaryAgentNotifiedAt?: string;
   anniversaryClientNotifiedAt?: string;
+}
+
+interface BeneficiaryEvent {
+  id: string;
+  category: 'intro' | 'followup' | 'holiday' | 'manual' | string;
+  campaignType?: string;
+  channel?: string;
+  status?: string;
+  sentAt?: string;
+  messagePreview?: string;
 }
 
 interface ClientDetailModalProps {
@@ -142,6 +152,10 @@ export default function ClientDetailModal({
   const [beneficiaryDraft, setBeneficiaryDraft] = useState('');
   const [beneficiarySending, setBeneficiarySending] = useState(false);
   const [beneficiarySendResult, setBeneficiarySendResult] = useState<string | null>(null);
+  const [beneficiaryJumpInDrafts, setBeneficiaryJumpInDrafts] = useState<Record<string, string>>({});
+  const [beneficiaryJumpInSending, setBeneficiaryJumpInSending] = useState<string | null>(null);
+  const [beneficiaryTimelineLoading, setBeneficiaryTimelineLoading] = useState(false);
+  const [beneficiaryEventsByCode, setBeneficiaryEventsByCode] = useState<Record<string, BeneficiaryEvent[]>>({});
 
   // ── Flag at risk inline state ──
   const [flaggingPolicyId, setFlaggingPolicyId] = useState<string | null>(null);
@@ -342,6 +356,48 @@ export default function ClientDetailModal({
     setBeneficiaryDraft(draft);
   }, [agentName, agentProfile.beneficiaryWelcomeTemplateEn, agentProfile.beneficiaryWelcomeTemplateEs, client?.name, client?.preferredLanguage]);
 
+  const refreshBeneficiaryEvents = useCallback(async () => {
+    if (!client) {
+      setBeneficiaryEventsByCode({});
+      return;
+    }
+    const codes = Array.from(
+      new Set(
+        policies
+          .flatMap((policy) => policy.beneficiaries || [])
+          .map((b) => (b.accessCode || '').trim().toUpperCase())
+          .filter((code) => code.length > 0),
+      ),
+    );
+    if (codes.length === 0) {
+      setBeneficiaryEventsByCode({});
+      return;
+    }
+    setBeneficiaryTimelineLoading(true);
+    try {
+      const entries = await Promise.all(
+        codes.map(async (code) => {
+          const eventsRef = collection(
+            (await import('../firebase')).db,
+            'agents',
+            client.agentId,
+            'beneficiaryOutreachByCode',
+            code,
+            'events',
+          );
+          const snap = await getDocs(query(eventsRef, orderBy('sentAt', 'desc'), limit(6)));
+          const events = snap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<BeneficiaryEvent, 'id'>) }));
+          return [code, events] as const;
+        }),
+      );
+      setBeneficiaryEventsByCode(Object.fromEntries(entries));
+    } catch (error) {
+      console.error('Failed to load beneficiary timeline events:', error);
+    } finally {
+      setBeneficiaryTimelineLoading(false);
+    }
+  }, [client, policies]);
+
   const handleSendBeneficiaryIntro = useCallback(async (beneficiary: Beneficiary) => {
     if (!beneficiary.accessCode) {
       setBeneficiarySendResult('Beneficiary is missing an access code. Save the policy first.');
@@ -385,12 +441,66 @@ export default function ClientDetailModal({
             ? 'Sent by email.'
             : 'Sent by SMS.',
       );
+      void refreshBeneficiaryEvents();
     } catch (err) {
       setBeneficiarySendResult(err instanceof Error ? err.message : 'Failed to send beneficiary intro.');
     } finally {
       setBeneficiarySending(false);
     }
-  }, [beneficiaryDraft, client?.name, client?.preferredLanguage]);
+  }, [beneficiaryDraft, client?.name, client?.preferredLanguage, refreshBeneficiaryEvents]);
+
+  const handleSendBeneficiaryManual = useCallback(async (entryKey: string, beneficiary: Beneficiary) => {
+    const draft = (beneficiaryJumpInDrafts[entryKey] || '').trim();
+    if (!beneficiary.accessCode) {
+      setBeneficiarySendResult('Beneficiary is missing an access code. Save the policy first.');
+      return;
+    }
+    if (!beneficiary.phone?.trim() && !beneficiary.email?.trim()) {
+      setBeneficiarySendResult('Beneficiary needs a phone or email before sending.');
+      return;
+    }
+    if (!draft) {
+      setBeneficiarySendResult('Message cannot be empty.');
+      return;
+    }
+    setBeneficiaryJumpInSending(entryKey);
+    setBeneficiarySendResult(null);
+    try {
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Not authenticated');
+      const token = await currentUser.getIdToken();
+      const preferredLanguage = resolveClientLanguage(client?.preferredLanguage);
+      const res = await fetch('/api/beneficiary/send-manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          beneficiaryCode: beneficiary.accessCode,
+          beneficiaryName: beneficiary.name,
+          beneficiaryPhone: beneficiary.phone || '',
+          beneficiaryEmail: beneficiary.email || '',
+          preferredLanguage,
+          message: draft,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Failed to send (${res.status})`);
+      const channel = typeof data.channel === 'string' ? data.channel : 'sms';
+      setBeneficiarySendResult(
+        channel === 'email_fallback'
+          ? 'Manual SMS failed — sent by email.'
+          : channel === 'email'
+            ? 'Manual message sent by email.'
+            : 'Manual message sent by SMS.',
+      );
+      setBeneficiaryJumpInDrafts((prev) => ({ ...prev, [entryKey]: '' }));
+      void refreshBeneficiaryEvents();
+    } catch (err) {
+      setBeneficiarySendResult(err instanceof Error ? err.message : 'Failed to send beneficiary message.');
+    } finally {
+      setBeneficiaryJumpInSending(null);
+    }
+  }, [beneficiaryJumpInDrafts, client?.preferredLanguage, refreshBeneficiaryEvents]);
 
   const handleFlagAtRisk = useCallback(async (policyId: string) => {
     if (!onFlagAtRisk) return;
@@ -446,6 +556,10 @@ export default function ClientDetailModal({
       setBeneficiaryDraft('');
       setBeneficiarySending(false);
       setBeneficiarySendResult(null);
+      setBeneficiaryJumpInDrafts({});
+      setBeneficiaryJumpInSending(null);
+      setBeneficiaryEventsByCode({});
+      setBeneficiaryTimelineLoading(false);
       setFlaggingPolicyId(null);
       setFlagResult(null);
       setEditingClientInline(false);
@@ -462,6 +576,11 @@ export default function ClientDetailModal({
       setSavingClientInline(false);
     }
   }, [client?.id]);
+
+  useEffect(() => {
+    if (!client) return;
+    void refreshBeneficiaryEvents();
+  }, [client?.id, policies, refreshBeneficiaryEvents]);
 
   const startInlineClientEdit = useCallback(() => {
     if (!client) return;
@@ -1289,6 +1408,8 @@ export default function ClientDetailModal({
                                 {policy.beneficiaries.filter(b => b.type === 'primary').map((b, i) => {
                                   const entryKey = `${policy.id}:${b.name}:${b.type}:${i}`;
                                   const isActiveComposer = activeBeneficiaryKey === entryKey;
+                                  const beneficiaryCode = (b.accessCode || '').trim().toUpperCase();
+                                  const timelineEvents = beneficiaryCode ? (beneficiaryEventsByCode[beneficiaryCode] || []) : [];
                                   return (
                                     <div key={entryKey} className="text-sm mb-2 last:mb-0">
                                       <p className="text-[#000000]">
@@ -1308,6 +1429,31 @@ export default function ClientDetailModal({
                                       {b.accessCode && (
                                         <p className="text-[11px] text-[#337973] mt-0.5">Code: {b.accessCode}</p>
                                       )}
+                                      <div className="mt-1.5 rounded-[5px] border border-gray-200 bg-[#fafafa] p-2">
+                                        <p className="text-[10px] uppercase tracking-wide text-[#707070] font-semibold mb-1">
+                                          Outreach timeline
+                                        </p>
+                                        {beneficiaryTimelineLoading ? (
+                                          <p className="text-[11px] text-[#707070]">Loading timeline...</p>
+                                        ) : timelineEvents.length > 0 ? (
+                                          <div className="space-y-1">
+                                            {timelineEvents.slice(0, 4).map((event) => (
+                                              <div key={event.id} className="text-[11px] text-[#444] flex items-center justify-between gap-2">
+                                                <span>
+                                                  <span className="font-semibold capitalize">{event.category || 'event'}</span>
+                                                  {event.channel ? ` · ${event.channel}` : ''}
+                                                  {event.status ? ` · ${event.status}` : ''}
+                                                </span>
+                                                <span className="text-[#707070]">
+                                                  {event.sentAt ? formatDate(event.sentAt) : '—'}
+                                                </span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <p className="text-[11px] text-[#707070]">No outreach events yet.</p>
+                                        )}
+                                      </div>
                                       <button
                                         type="button"
                                         onClick={() => handleOpenBeneficiaryComposer(entryKey, b)}
@@ -1315,6 +1461,28 @@ export default function ClientDetailModal({
                                       >
                                         Send Beneficiary Intro
                                       </button>
+                                      <div className="mt-2 rounded-[5px] border border-[#d0d0d0] bg-white p-2">
+                                        <p className="text-[11px] font-semibold text-[#000000] mb-1">Jump in manually</p>
+                                        <textarea
+                                          value={beneficiaryJumpInDrafts[entryKey] || ''}
+                                          onChange={(e) => setBeneficiaryJumpInDrafts((prev) => ({ ...prev, [entryKey]: e.target.value }))}
+                                          rows={2}
+                                          placeholder="Send a direct manual message to this beneficiary..."
+                                          className="w-full px-2 py-1.5 border border-[#d0d0d0] rounded-[5px] text-xs text-[#000000] focus:outline-none focus:border-[#45bcaa]"
+                                        />
+                                        <div className="mt-1.5 flex items-center gap-2">
+                                          <button
+                                            type="button"
+                                            disabled={beneficiaryJumpInSending === entryKey}
+                                            onClick={() => {
+                                              void handleSendBeneficiaryManual(entryKey, b);
+                                            }}
+                                            className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] bg-[#0D4D4D] text-white hover:bg-[#0B3E3E] disabled:opacity-60"
+                                          >
+                                            {beneficiaryJumpInSending === entryKey ? 'Sending...' : 'Send Manual Message'}
+                                          </button>
+                                        </div>
+                                      </div>
                                       {isActiveComposer && (
                                         <div className="mt-2 p-2 border border-[#45bcaa]/35 rounded-[5px] bg-[#f8fdfc]">
                                           <p className="text-[11px] font-semibold text-[#005851] mb-1">Message to beneficiary (not the insured)</p>
@@ -1364,6 +1532,8 @@ export default function ClientDetailModal({
                                 {policy.beneficiaries.filter(b => b.type === 'contingent').map((b, i) => {
                                   const entryKey = `${policy.id}:${b.name}:${b.type}:${i}`;
                                   const isActiveComposer = activeBeneficiaryKey === entryKey;
+                                  const beneficiaryCode = (b.accessCode || '').trim().toUpperCase();
+                                  const timelineEvents = beneficiaryCode ? (beneficiaryEventsByCode[beneficiaryCode] || []) : [];
                                   return (
                                     <div key={entryKey} className="text-sm mb-2 last:mb-0">
                                       <p className="text-[#000000]">
@@ -1383,6 +1553,31 @@ export default function ClientDetailModal({
                                       {b.accessCode && (
                                         <p className="text-[11px] text-[#337973] mt-0.5">Code: {b.accessCode}</p>
                                       )}
+                                      <div className="mt-1.5 rounded-[5px] border border-gray-200 bg-[#fafafa] p-2">
+                                        <p className="text-[10px] uppercase tracking-wide text-[#707070] font-semibold mb-1">
+                                          Outreach timeline
+                                        </p>
+                                        {beneficiaryTimelineLoading ? (
+                                          <p className="text-[11px] text-[#707070]">Loading timeline...</p>
+                                        ) : timelineEvents.length > 0 ? (
+                                          <div className="space-y-1">
+                                            {timelineEvents.slice(0, 4).map((event) => (
+                                              <div key={event.id} className="text-[11px] text-[#444] flex items-center justify-between gap-2">
+                                                <span>
+                                                  <span className="font-semibold capitalize">{event.category || 'event'}</span>
+                                                  {event.channel ? ` · ${event.channel}` : ''}
+                                                  {event.status ? ` · ${event.status}` : ''}
+                                                </span>
+                                                <span className="text-[#707070]">
+                                                  {event.sentAt ? formatDate(event.sentAt) : '—'}
+                                                </span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <p className="text-[11px] text-[#707070]">No outreach events yet.</p>
+                                        )}
+                                      </div>
                                       <button
                                         type="button"
                                         onClick={() => handleOpenBeneficiaryComposer(entryKey, b)}
@@ -1390,6 +1585,28 @@ export default function ClientDetailModal({
                                       >
                                         Send Beneficiary Intro
                                       </button>
+                                      <div className="mt-2 rounded-[5px] border border-[#d0d0d0] bg-white p-2">
+                                        <p className="text-[11px] font-semibold text-[#000000] mb-1">Jump in manually</p>
+                                        <textarea
+                                          value={beneficiaryJumpInDrafts[entryKey] || ''}
+                                          onChange={(e) => setBeneficiaryJumpInDrafts((prev) => ({ ...prev, [entryKey]: e.target.value }))}
+                                          rows={2}
+                                          placeholder="Send a direct manual message to this beneficiary..."
+                                          className="w-full px-2 py-1.5 border border-[#d0d0d0] rounded-[5px] text-xs text-[#000000] focus:outline-none focus:border-[#45bcaa]"
+                                        />
+                                        <div className="mt-1.5 flex items-center gap-2">
+                                          <button
+                                            type="button"
+                                            disabled={beneficiaryJumpInSending === entryKey}
+                                            onClick={() => {
+                                              void handleSendBeneficiaryManual(entryKey, b);
+                                            }}
+                                            className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] bg-[#0D4D4D] text-white hover:bg-[#0B3E3E] disabled:opacity-60"
+                                          >
+                                            {beneficiaryJumpInSending === entryKey ? 'Sending...' : 'Send Manual Message'}
+                                          </button>
+                                        </div>
+                                      </div>
                                       {isActiveComposer && (
                                         <div className="mt-2 p-2 border border-[#45bcaa]/35 rounded-[5px] bg-[#f8fdfc]">
                                           <p className="text-[11px] font-semibold text-[#005851] mb-1">Message to beneficiary (not the insured)</p>

@@ -1000,6 +1000,14 @@ export default function ClientsPage() {
   const [clientPolicySummaries, setClientPolicySummaries] = useState<Record<string, { active: number; pending: number; lapsed: number; total: number }>>({});
   const [summaryVersion, setSummaryVersion] = useState(0);
   const refreshSummaries = useCallback(() => setSummaryVersion((v) => v + 1), []);
+  const [beneficiaryQueueOnly, setBeneficiaryQueueOnly] = useState(false);
+  const [beneficiaryQueueSummary, setBeneficiaryQueueSummary] = useState<{
+    totalNeedsAttention: number;
+    totalDueQueued: number;
+    totalFailed: number;
+    clientsWithAttention: number;
+    byClient: Record<string, { dueQueued: number; failed: number; totalNeedsAttention: number }>;
+  } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const clientApplicationFileInputRef = useRef<HTMLInputElement>(null);
@@ -1423,6 +1431,9 @@ export default function ClientsPage() {
 
   const filteredClients = useMemo(() => {
     let result = clients;
+    if (beneficiaryQueueOnly && beneficiaryQueueSummary) {
+      result = result.filter((client) => (beneficiaryQueueSummary.byClient?.[client.id]?.totalNeedsAttention || 0) > 0);
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(
@@ -1445,7 +1456,7 @@ export default function ClientsPage() {
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return result;
-  }, [clients, searchQuery, sortKey, sortDir]);
+  }, [clients, searchQuery, sortKey, sortDir, beneficiaryQueueOnly, beneficiaryQueueSummary]);
 
   const totalPages = Math.max(1, Math.ceil(filteredClients.length / PAGE_SIZE));
   const paginatedClients = useMemo(() => {
@@ -2683,6 +2694,40 @@ export default function ClientsPage() {
     const next = params.toString();
     router.replace(next ? `${pathname}?${next}` : pathname);
   }, [loadGoogleDriveStatus, pathname, router, searchParams, showImportNotice]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch('/api/beneficiary/queue-summary', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data?.success) {
+          setBeneficiaryQueueSummary({
+            totalNeedsAttention: Number(data.totalNeedsAttention || 0),
+            totalDueQueued: Number(data.totalDueQueued || 0),
+            totalFailed: Number(data.totalFailed || 0),
+            clientsWithAttention: Number(data.clientsWithAttention || 0),
+            byClient: (data.byClient || {}) as Record<string, { dueQueued: number; failed: number; totalNeedsAttention: number }>,
+          });
+        }
+      } catch {
+        // ignore queue summary load failures
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, summaryVersion, policiesVersion]);
+
+  useEffect(() => {
+    const enabled = searchParams.get('beneficiaryQueue') === '1';
+    if (enabled) setBeneficiaryQueueOnly(true);
+  }, [searchParams]);
 
   const parseCsvLine = useCallback((line: string, delimiter: string = ','): string[] => {
     const result: string[] = [];
@@ -4147,6 +4192,18 @@ export default function ClientsPage() {
               </svg>
               Bulk Import
             </button>
+            {beneficiaryQueueSummary && beneficiaryQueueSummary.totalNeedsAttention > 0 && (
+              <button
+                onClick={() => setBeneficiaryQueueOnly((prev) => !prev)}
+                className={`px-3 py-2.5 text-sm font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors ${
+                  beneficiaryQueueOnly
+                    ? 'bg-[#0D4D4D] text-white hover:bg-[#0B3E3E]'
+                    : 'bg-[#f0f8ff] text-[#0D4D4D] hover:bg-[#e7f2ff]'
+                }`}
+              >
+                Beneficiary Queue ({beneficiaryQueueSummary.totalNeedsAttention})
+              </button>
+            )}
             {addFlowToast && (
               <div className={`px-3 py-2 rounded-[5px] border text-xs font-medium ${
                 addFlowToast.celebrate
@@ -4171,6 +4228,17 @@ export default function ClientsPage() {
             />
           </div>
       </div>
+      {beneficiaryQueueOnly && (
+        <div className="mb-3 rounded-[5px] border border-[#9fc5f8] bg-[#f0f8ff] px-3 py-2 text-xs text-[#0D4D4D]">
+          Showing clients with beneficiaries needing attention now.
+          <button
+            onClick={() => setBeneficiaryQueueOnly(false)}
+            className="ml-2 underline font-semibold"
+          >
+            Clear filter
+          </button>
+        </div>
+      )}
 
       <div
         className="relative mb-6 overflow-visible"
@@ -4881,6 +4949,7 @@ export default function ClientsPage() {
                   const summary = clientPolicySummaries[client.id];
                   const hasLapsed = summary && summary.lapsed > 0;
                   const upcomingAnniversaryCount = clientUpcomingAnniversaryCounts[client.id] || 0;
+                  const beneficiaryAttentionCount = beneficiaryQueueSummary?.byClient?.[client.id]?.totalNeedsAttention || 0;
                   return (
                   <tr
                     key={client.id}
@@ -4901,6 +4970,14 @@ export default function ClientsPage() {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 {upcomingAnniversaryCount} Upcoming
+                              </span>
+                            )}
+                            {beneficiaryAttentionCount > 0 && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 text-blue-700 text-[10px] rounded-full font-semibold shrink-0">
+                                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-4l-4 4v-4z" />
+                                </svg>
+                                {beneficiaryAttentionCount} Queue
                               </span>
                             )}
                           </div>
@@ -4986,6 +5063,7 @@ export default function ClientsPage() {
               const summary = clientPolicySummaries[client.id];
               const hasLapsed = summary && summary.lapsed > 0;
               const upcomingAnniversaryCount = clientUpcomingAnniversaryCounts[client.id] || 0;
+              const beneficiaryAttentionCount = beneficiaryQueueSummary?.byClient?.[client.id]?.totalNeedsAttention || 0;
               return (
               <div
                 key={client.id}
@@ -5005,6 +5083,14 @@ export default function ClientsPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                           Upcoming
+                        </span>
+                      )}
+                      {beneficiaryAttentionCount > 0 && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-50 text-blue-700 text-[10px] rounded-full font-semibold shrink-0">
+                          <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-4l-4 4v-4z" />
+                          </svg>
+                          Queue
                         </span>
                       )}
                       {hasLapsed && (

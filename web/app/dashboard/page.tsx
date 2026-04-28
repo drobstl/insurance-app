@@ -123,6 +123,12 @@ export default function DashboardHomePage() {
   const [fanOpen, setFanOpen] = useState(false);
   const [weeklyItems, setWeeklyItems] = useState<ActivityItem[]>([]);
   const [fanLoading, setFanLoading] = useState(false);
+  const [beneficiaryQueueSummary, setBeneficiaryQueueSummary] = useState<{
+    totalNeedsAttention: number;
+    totalDueQueued: number;
+    totalFailed: number;
+    clientsWithAttention: number;
+  } | null>(null);
   const [ingestionSigningHealth, setIngestionSigningHealth] = useState<IngestionSigningHealth>({
     status: 'checking',
     errorCode: null,
@@ -159,6 +165,34 @@ export default function DashboardHomePage() {
     if (!user) return;
     void fetchWeeklyActivity();
   }, [user, fetchWeeklyActivity]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch('/api/beneficiary/queue-summary', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data?.success) {
+          setBeneficiaryQueueSummary({
+            totalNeedsAttention: Number(data.totalNeedsAttention || 0),
+            totalDueQueued: Number(data.totalDueQueued || 0),
+            totalFailed: Number(data.totalFailed || 0),
+            clientsWithAttention: Number(data.clientsWithAttention || 0),
+          });
+        }
+      } catch {
+        // ignore for dashboard load resilience
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -533,6 +567,23 @@ export default function DashboardHomePage() {
             </button>
           )}
         </div>
+      )}
+
+      {beneficiaryQueueSummary && beneficiaryQueueSummary.totalNeedsAttention > 0 && (
+        <button
+          onClick={() => router.push('/dashboard/clients?beneficiaryQueue=1')}
+          className="w-full flex items-center gap-3 bg-[#f0f8ff] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] px-4 py-2.5 mb-2 hover:bg-[#e7f2ff] transition-colors text-left"
+        >
+          <span className="w-2 h-2 rounded-full bg-[#2563eb] shrink-0" />
+          <span className="text-sm text-[#000000] flex-1">
+            {beneficiaryQueueSummary.totalNeedsAttention} beneficiary touch
+            {beneficiaryQueueSummary.totalNeedsAttention !== 1 ? 'es' : ''} need attention
+            {' · '}
+            {beneficiaryQueueSummary.clientsWithAttention} client
+            {beneficiaryQueueSummary.clientsWithAttention !== 1 ? 's' : ''}
+          </span>
+          <span className="text-sm font-medium text-[#005851] shrink-0">Open Queue →</span>
+        </button>
       )}
 
       {/* ── Nav Grid ───────────────────────────────────────────── */}

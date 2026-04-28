@@ -310,7 +310,10 @@ async function handleDirectMessage(data: LinqWebhookMessageData) {
   }
 
   if (!referralResult) {
-    // No referral match -- try policy reviews, then conservation alerts
+    // No referral match -- try policy reviews, then conservation alerts.
+    // Phase 2 hook: beneficiary inbound threading can branch here by resolving
+    // senderHandle against beneficiary access-code context and writing into
+    // beneficiaryOutreachByCode/{beneficiaryCode}/events (no-op in V1).
     const policyReviewResult = await findPolicyReviewByChatId(db, chatId);
     if (policyReviewResult) {
       await handlePolicyReviewReply(policyReviewResult, text, chatId, senderHandle);
