@@ -5373,13 +5373,13 @@ export default function ClientsPage() {
                 </div>
                 <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#d0d0d0]" /><span className="h-2.5 w-2.5 rounded-full bg-[#45bcaa]" /></div>
               </div>
-              <div className="p-6 space-y-4">
+              <div className="p-6 space-y-4" data-onboarding-target="clients-send-welcome">
                 <p className="text-sm text-[#444]"><span className="font-semibold">Client:</span> {createdClientContext?.name || '—'}<br /><span className="font-semibold">Phone:</span> {createdClientContext?.phone || '—'}</p>
                 <textarea value={welcomeDraft} onChange={(e) => setWelcomeDraft(e.target.value)} rows={7} className="w-full px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
                 {welcomeError && <p className="text-xs text-red-600">{welcomeError}</p>}
                 <div className="flex gap-3">
                   <button type="button" onClick={handleSkipWelcome} className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-[5px] border border-gray-200 text-sm">Skip</button>
-                  <button data-onboarding-target="clients-send-welcome" type="button" onClick={handleSendWelcome} disabled={welcomeSending || !createdClientContext?.phone} className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] text-sm">{welcomeSending ? 'Sending...' : 'Send Welcome Text'}</button>
+                  <button data-onboarding-send-welcome-button="true" type="button" onClick={handleSendWelcome} disabled={welcomeSending || !createdClientContext?.phone} className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] text-sm">{welcomeSending ? 'Sending...' : 'Send Welcome Text'}</button>
                 </div>
               </div>
             </div>

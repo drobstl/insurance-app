@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import type { OnboardingMilestones } from '../app/dashboard/DashboardContext';
 
 type ChecklistKey = keyof OnboardingMilestones;
@@ -13,12 +14,13 @@ const CHECKLIST_ITEMS: ChecklistItem[] = [
   { key: 'profileCompleted', label: 'Set up profile' },
   { key: 'firstClientCreated', label: 'Add first client' },
   { key: 'firstWelcomeSent', label: 'Send first welcome text' },
-  { key: 'firstPatchPromptSent', label: 'Send first Patch message' },
+  { key: 'firstPatchPromptSent', label: 'Open Patch' },
 ];
 
 interface OnboardingChecklistRailProps {
   milestones: OnboardingMilestones;
   onboardingVisible: boolean;
+  collapseOptionalByDefault?: boolean;
   onPause: () => void;
   onResume: () => void;
   onSkip: () => void;
@@ -37,6 +39,7 @@ function getActiveChecklistKey(milestones: OnboardingMilestones): ChecklistKey |
 export default function OnboardingChecklistRail({
   milestones,
   onboardingVisible,
+  collapseOptionalByDefault = false,
   onPause,
   onResume,
   onSkip,
@@ -49,6 +52,13 @@ export default function OnboardingChecklistRail({
 }: OnboardingChecklistRailProps) {
   const activeKey = getActiveChecklistKey(milestones);
   const completedCount = CHECKLIST_ITEMS.filter((item) => milestones[item.key]).length;
+  const [optionalExpanded, setOptionalExpanded] = useState(!collapseOptionalByDefault);
+
+  useEffect(() => {
+    if (collapseOptionalByDefault) {
+      setOptionalExpanded(false);
+    }
+  }, [collapseOptionalByDefault]);
 
   return (
     <aside className="hidden md:block fixed right-4 top-20 z-[90] w-[280px]">
@@ -100,12 +110,21 @@ export default function OnboardingChecklistRail({
 
         {milestones.profileCompleted && (
           <div className="mx-3 mb-3 rounded-[7px] border border-[#e8e8e8] bg-[#fafafa] px-3 py-2.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#5f5f5f]">Recommended next (optional)</p>
-            <div className="mt-2 space-y-1.5">
-              <p className="text-[11px] text-[#4f4f4f]">{profilePhotoAdded ? '✓' : '•'} Add your profile photo in Settings {'>'} Profile</p>
-              <p className="text-[11px] text-[#4f4f4f]">{agencyLogoAdded ? '✓' : '•'} Add your agency logo in Settings {'>'} Branding</p>
-              <p className="text-[11px] text-[#4f4f4f]">• Review preferences in Settings {'>'} Referral &amp; AI</p>
-            </div>
+            <button
+              type="button"
+              onClick={() => setOptionalExpanded((prev) => !prev)}
+              className="w-full flex items-center justify-between gap-2 text-left"
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#5f5f5f]">Recommended next (optional)</p>
+              <span className="text-[11px] font-semibold text-[#5f5f5f]">{optionalExpanded ? 'Hide' : 'Show'}</span>
+            </button>
+            {optionalExpanded ? (
+              <div className="mt-2 space-y-1.5">
+                <p className="text-[11px] text-[#4f4f4f]">{profilePhotoAdded ? '✓' : '•'} Add your profile photo in Settings {'>'} Profile</p>
+                <p className="text-[11px] text-[#4f4f4f]">{agencyLogoAdded ? '✓' : '•'} Add your agency logo in Settings {'>'} Branding</p>
+                <p className="text-[11px] text-[#4f4f4f]">• Review preferences in Settings {'>'} Referral &amp; AI</p>
+              </div>
+            ) : null}
           </div>
         )}
 

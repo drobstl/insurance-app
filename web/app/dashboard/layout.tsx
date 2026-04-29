@@ -276,7 +276,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     handleLogout,
     refreshProfile,
     completeOnboarding,
-    markOnboardingMilestone,
   } = useDashboard();
 
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
@@ -781,6 +780,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         <OnboardingChecklistRail
           milestones={onboardingMilestones}
           onboardingVisible={showOnboarding}
+          collapseOptionalByDefault={showOnboarding}
           onPause={() => setShowOnboarding(false)}
           onResume={() => setShowOnboarding(true)}
           onSkip={() => { void handleSkipTutorial(); }}
@@ -872,17 +872,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <DashboardAssistant
-        onFirstUserMessage={(message) => {
-          if (agentProfile.onboardingComplete === true || agentProfile.onboarding?.requiredMilestones?.firstPatchPromptSent) {
-            return;
-          }
-          captureEvent(ANALYTICS_EVENTS.ONBOARDING_PATCH_PROMPT_SENT, {
-            prompt_length: message.length,
-          });
-          void markOnboardingMilestone('firstPatchPromptSent');
-        }}
-      />
+      <DashboardAssistant />
     </div>
   );
 }

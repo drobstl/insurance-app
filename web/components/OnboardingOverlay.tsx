@@ -191,12 +191,12 @@ const TARGET_BEHAVIORS: Record<TargetName, TargetBehavior> = {
   'clients-send-welcome': {
     mode: 'click',
     blockedReason: 'clients_send_welcome_click_required',
-    blockedMessage: 'Use Send Welcome Text to continue.',
+    blockedMessage: 'Review the welcome draft, then send when ready.',
   },
   'patch-launcher': {
     mode: 'click',
     blockedReason: 'patch_launcher_click_required',
-    blockedMessage: 'Open Patch and send one message to continue.',
+    blockedMessage: 'Open Patch to continue.',
   },
 };
 
@@ -234,7 +234,7 @@ const STEPS: OnboardingStep[] = [
   {
     id: 'patch',
     title: 'Say hi to Patch',
-    description: 'Open Patch and send one quick message.',
+    description: 'Open Patch so you know where to ask quick questions anytime.',
     buttonLabel: 'Open Patch',
     milestone: 'firstPatchPromptSent',
   },
@@ -496,8 +496,16 @@ export default function OnboardingOverlay({
       const isDisabled = Boolean(
         resolved?.element
         && (
-          resolved.element.matches(':disabled')
-          || resolved.element.getAttribute('aria-disabled') === 'true'
+          resolved.name === 'clients-send-welcome'
+            ? (() => {
+              const sendButton = resolved.element.querySelector<HTMLElement>('[data-onboarding-send-welcome-button="true"]');
+              if (!sendButton) return false;
+              return sendButton.matches(':disabled') || sendButton.getAttribute('aria-disabled') === 'true';
+            })()
+            : (
+              resolved.element.matches(':disabled')
+              || resolved.element.getAttribute('aria-disabled') === 'true'
+            )
         )
       );
       setActiveTargetDisabled(isDisabled);
@@ -630,6 +638,21 @@ export default function OnboardingOverlay({
     document.addEventListener('click', handleDocumentClick);
     return () => document.removeEventListener('click', handleDocumentClick);
   }, [activeGuidedTarget, guidedIndex, guidedTargets, hasGuidedSequence]);
+
+  useEffect(() => {
+    if (step.id !== 'patch' || milestones.firstPatchPromptSent) return;
+
+    const handleDocumentClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const clicked = target.closest<HTMLElement>('[data-onboarding-target="patch-launcher"]');
+      if (!clicked) return;
+      void markOnboardingMilestone('firstPatchPromptSent');
+    };
+
+    document.addEventListener('click', handleDocumentClick);
+    return () => document.removeEventListener('click', handleDocumentClick);
+  }, [step.id, milestones.firstPatchPromptSent, markOnboardingMilestone]);
 
   useEffect(() => {
     if (step.id !== 'firstClient' || firstClientFlowChoice !== 'auto') {
@@ -780,8 +803,12 @@ export default function OnboardingOverlay({
     }
 
     if (step.id === 'patch' && !milestones.firstPatchPromptSent) {
-      window.dispatchEvent(new CustomEvent('afl:open-patch-assistant', { detail: { prompt: 'What should I do next?' } }));
-      blockStep('awaiting_patch_prompt', 'Patch opened. Send one message to continue.');
+      window.dispatchEvent(new CustomEvent('afl:open-patch-assistant'));
+      try {
+        await markOnboardingMilestone('firstPatchPromptSent');
+      } catch {
+        blockStep('patch_open_failed', 'Patch opened, but completion did not save yet. Please try once more.');
+      }
       return;
     }
 
@@ -962,7 +989,7 @@ export default function OnboardingOverlay({
       return 'Finish creating a client first, then send the first welcome message.';
     }
     if (step.id === 'patch' && !milestones.firstPatchPromptSent) {
-      return 'Open Patch and send one message. Once sent, this step unlocks automatically.';
+      return 'Open Patch once so you know where it lives. You can ask your first question any time.';
     }
     return stepDescription;
   })();
