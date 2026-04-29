@@ -37,6 +37,9 @@ import { normalizePhone } from '../../../../lib/phone';
 import { FieldValue } from 'firebase-admin/firestore';
 import { resolveClientLanguage } from '../../../../lib/client-language';
 
+const DEFAULT_WEBHOOK_AI_REPLY_COOLDOWN_MS = 45_000;
+const DEFAULT_WEBHOOK_AI_SIMILARITY_THRESHOLD = 0.9;
+
 /**
  * POST /api/linq/webhook
  *
@@ -424,6 +427,14 @@ async function handleDirectMessage(data: LinqWebhookMessageData) {
 
   if (aiResponse) {
     const directChatId = (referralData.directChatId as string) || chatId;
+    const guard = await checkAndClaimAiReplyGuardrail(db, directChatId, aiResponse);
+    if (!guard.allowed) {
+      console.warn('[Linq Webhook] Suppressed referral AI reply', {
+        chatId: directChatId,
+        reason: guard.reason,
+      });
+      return;
+    }
 
     const newOutgoing: ConversationMessage = {
       role: 'agent-ai',
@@ -483,6 +494,94 @@ async function handleDirectMessage(data: LinqWebhookMessageData) {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function getWebhookAiReplyCooldownMs(): number {
+  const raw = process.env.WEBHOOK_AI_REPLY_COOLDOWN_MS;
+  if (!raw) return DEFAULT_WEBHOOK_AI_REPLY_COOLDOWN_MS;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return DEFAULT_WEBHOOK_AI_REPLY_COOLDOWN_MS;
+  }
+  return Math.floor(parsed);
+}
+
+function getWebhookAiSimilarityThreshold(): number {
+  const raw = process.env.WEBHOOK_AI_SIMILARITY_THRESHOLD;
+  if (!raw) return DEFAULT_WEBHOOK_AI_SIMILARITY_THRESHOLD;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return DEFAULT_WEBHOOK_AI_SIMILARITY_THRESHOLD;
+  return Math.min(1, Math.max(0, parsed));
+}
+
+function normalizeForSimilarity(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function calculateTextSimilarity(a: string, b: string): number {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+
+  const aWords = new Set(a.split(' ').filter(Boolean));
+  const bWords = new Set(b.split(' ').filter(Boolean));
+  if (aWords.size === 0 || bWords.size === 0) return 0;
+
+  let intersection = 0;
+  for (const token of aWords) {
+    if (bWords.has(token)) intersection += 1;
+  }
+  const union = new Set([...aWords, ...bWords]).size;
+  return union === 0 ? 0 : intersection / union;
+}
+
+async function checkAndClaimAiReplyGuardrail(
+  db: FirebaseFirestore.Firestore,
+  chatId: string,
+  aiResponse: string,
+): Promise<{ allowed: boolean; reason?: 'cooldown' | 'similarity' }> {
+  const cooldownMs = getWebhookAiReplyCooldownMs();
+  const similarityThreshold = getWebhookAiSimilarityThreshold();
+  const now = new Date();
+  const nowMs = now.getTime();
+  const normalized = normalizeForSimilarity(aiResponse);
+  const ref = db.collection('linqWebhookAiGuardrails').doc(chatId);
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (snap.exists) {
+      const data = snap.data() as Record<string, unknown>;
+      const lastSentAtRaw = typeof data.lastSentAt === 'string' ? data.lastSentAt : '';
+      const lastSentAtMs = lastSentAtRaw ? Date.parse(lastSentAtRaw) : NaN;
+      if (Number.isFinite(lastSentAtMs) && cooldownMs > 0 && nowMs - lastSentAtMs < cooldownMs) {
+        return { allowed: false, reason: 'cooldown' as const };
+      }
+
+      const lastSentNorm = typeof data.lastSentNorm === 'string' ? data.lastSentNorm : '';
+      if (lastSentNorm && normalized) {
+        const similarity = calculateTextSimilarity(lastSentNorm, normalized);
+        if (similarity >= similarityThreshold) {
+          return { allowed: false, reason: 'similarity' as const };
+        }
+      }
+    }
+
+    tx.set(
+      ref,
+      {
+        chatId,
+        lastSentAt: now.toISOString(),
+        lastSentNorm: normalized,
+        updatedAt: now.toISOString(),
+      },
+      { merge: true },
+    );
+    return { allowed: true };
+  });
+}
 
 function isAlreadyExistsError(error: unknown): boolean {
   const err = error as { code?: unknown; message?: unknown } | null;
@@ -659,6 +758,7 @@ async function handleConservationReply(
   senderHandle: string,
 ) {
   const { agentId, alertId, alertData, agentData, alertRef } = result;
+  const db = getAdminFirestore();
 
   const resolvedStatuses = ['saved', 'lost'];
   if (resolvedStatuses.includes(alertData.status as string)) return;
@@ -722,6 +822,15 @@ async function handleConservationReply(
   } catch { /* non-critical */ }
 
   if (aiResponse) {
+    const guard = await checkAndClaimAiReplyGuardrail(db, chatId, aiResponse);
+    if (!guard.allowed) {
+      console.warn('[Linq Webhook] Suppressed conservation AI reply', {
+        chatId,
+        reason: guard.reason,
+      });
+      return;
+    }
+
     const newOutgoing: ConservationMsg = {
       role: 'agent-ai',
       body: aiResponse,
@@ -795,6 +904,7 @@ async function handlePolicyReviewReply(
   senderHandle: string,
 ) {
   const { reviewId, reviewData, agentData, reviewRef } = result;
+  const db = getAdminFirestore();
 
   const terminalStatuses = ['booked', 'closed', 'opted-out'];
   if (terminalStatuses.includes(reviewData.status as string)) return;
@@ -853,6 +963,15 @@ async function handlePolicyReviewReply(
   try { await stopTypingIndicator(chatId); } catch { /* non-critical */ }
 
   if (aiResponse) {
+    const guard = await checkAndClaimAiReplyGuardrail(db, chatId, aiResponse);
+    if (!guard.allowed) {
+      console.warn('[Linq Webhook] Suppressed policy-review AI reply', {
+        chatId,
+        reason: guard.reason,
+      });
+      return;
+    }
+
     const newOutgoing: PolicyReviewMessage = {
       role: 'agent-ai',
       body: aiResponse,
