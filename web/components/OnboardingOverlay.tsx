@@ -1086,7 +1086,7 @@ export default function OnboardingOverlay({
   return (
     <div className="fixed inset-0 z-[60] pointer-events-none">
       {showProfileCelebration && step.id === 'profile' ? (
-        <div className="fixed inset-0 z-[75] bg-black/65 pointer-events-auto flex items-center justify-center px-4">
+        <div className="fixed inset-0 z-[75] bg-black/50 pointer-events-auto flex items-center justify-center px-4">
           <div className="relative w-[min(460px,calc(100vw-24px))] rounded-2xl border-2 border-[#3DD6C3] bg-white shadow-[0_24px_72px_rgba(0,0,0,0.4)] p-5 overflow-hidden">
             <div className="pointer-events-none absolute inset-0">
               <div className="afl-mini-celebration-ring absolute left-1/2 top-[44%] h-12 w-12 rounded-full border-2 border-[#3DD6C3]/75" />
@@ -1131,24 +1131,24 @@ export default function OnboardingOverlay({
         </div>
       ) : null}
       {!showProfileCelebration && !spotlight && (
-        <div className="fixed inset-0 bg-black/50 pointer-events-auto" />
+        <div className="fixed inset-0 bg-black/38 pointer-events-auto" />
       )}
       {!showProfileCelebration && spotlight && (
         <>
           <div
-            className="fixed left-0 right-0 top-0 bg-black/55 pointer-events-auto transition-[height] duration-300 ease-out"
+            className="fixed left-0 right-0 top-0 bg-black/42 pointer-events-auto transition-[height] duration-300 ease-out"
             style={{ height: spotlight.top }}
           />
           <div
-            className="fixed left-0 bg-black/55 pointer-events-auto transition-[top,width,height] duration-300 ease-out"
+            className="fixed left-0 bg-black/42 pointer-events-auto transition-[top,width,height] duration-300 ease-out"
             style={{ top: spotlight.top, width: spotlight.left, height: spotlight.height }}
           />
           <div
-            className="fixed right-0 bg-black/55 pointer-events-auto transition-[top,width,height] duration-300 ease-out"
+            className="fixed right-0 bg-black/42 pointer-events-auto transition-[top,width,height] duration-300 ease-out"
             style={{ top: spotlight.top, width: Math.max(0, spotlight.viewportWidth - spotlight.right), height: spotlight.height }}
           />
           <div
-            className="fixed left-0 right-0 bottom-0 bg-black/55 pointer-events-auto transition-[top] duration-300 ease-out"
+            className="fixed left-0 right-0 bottom-0 bg-black/42 pointer-events-auto transition-[top] duration-300 ease-out"
             style={{ top: spotlight.bottom }}
           />
           <div
