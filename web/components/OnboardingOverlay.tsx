@@ -843,7 +843,7 @@ export default function OnboardingOverlay({
       if (step.id !== 'profile') return;
       if (!isOnSettingsRoute) return;
       if (!profileLooksComplete) return;
-      setActionAck('Profile saved. When you are ready, click Next to lock in step 1.');
+      setActionAck('Profile essentials saved. Click Next when you are ready to continue.');
     };
 
     window.addEventListener('afl:settings-saved', handleSettingsSaved);
@@ -906,7 +906,7 @@ export default function OnboardingOverlay({
     if (displayedGuidedTarget === 'settings-photo-upload' || displayedGuidedTarget === 'settings-logo-upload') {
       return 'Upload a profile photo or agency logo.';
     }
-    return 'Click Save Settings to complete this step.';
+    return 'Click Save Settings to lock in your profile essentials.';
   })();
   const contextualDescription = (() => {
     if (step.id === 'profile' && !milestones.profileCompleted) {
@@ -919,7 +919,7 @@ export default function OnboardingOverlay({
       if (displayedGuidedTarget === 'settings-photo-upload' || displayedGuidedTarget === 'settings-logo-upload') {
         return 'Optional: add a profile photo or agency logo now, or click Next and do it later in Settings.';
       }
-      if (profileLooksComplete) return 'Profile basics are complete. Click Next when you are ready for your mini celebration.';
+      if (profileLooksComplete) return 'Profile essentials are complete. Click Next when you are ready to continue.';
       return 'Wait for autosave to complete this profile step.';
     }
     if (step.id === 'firstClient' && !milestones.firstClientCreated) {
@@ -999,7 +999,7 @@ export default function OnboardingOverlay({
         return 'Waiting for the highlighted target to be available.';
       }
       if (step.id === 'profile' && profileLooksComplete && !milestones.profileCompleted) {
-        return 'Looks good. Click Next to complete this step.';
+        return 'Looks good. Click Next to complete your profile essentials.';
       }
     }
     return 'Use the highlighted UI action to continue';
@@ -1088,10 +1088,10 @@ export default function OnboardingOverlay({
               <p className="text-[11px] font-semibold uppercase tracking-[0.11em] text-[#0D4D4D]/70">Step 1 Complete</p>
               <div className="mt-1 flex items-center gap-2">
                 <span className="afl-mini-hero-emoji text-[22px] leading-none" aria-hidden="true">🙌</span>
-                <h3 className="text-2xl font-black text-[#0D4D4D]">Profile complete. Looking sharp.</h3>
+                <h3 className="text-2xl font-black text-[#0D4D4D]">Profile essentials complete. Looking sharp.</h3>
               </div>
               <p className="mt-2 text-sm leading-relaxed text-[#305858]">
-                You just finished your first onboarding win. Next up, let&apos;s add your first client and make AgentForLife feel real.
+                You finished the critical setup. You can still add a photo, logo, and tune Referral & AI settings anytime in Settings.
               </p>
               <button
                 onClick={advanceFromProfileCelebration}

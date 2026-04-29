@@ -784,6 +784,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           onPause={() => setShowOnboarding(false)}
           onResume={() => setShowOnboarding(true)}
           onSkip={() => { void handleSkipTutorial(); }}
+          profilePhotoAdded={Boolean(agentProfile.photoBase64)}
+          agencyLogoAdded={Boolean(agentProfile.agencyLogoBase64)}
           showTestingReset={canUseOnboardingTestingReset}
           onTestingReset={() => { void handleTestingResetOnboarding(); }}
           testingResetStatus={testingResetStatus}

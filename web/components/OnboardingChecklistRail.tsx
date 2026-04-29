@@ -22,6 +22,8 @@ interface OnboardingChecklistRailProps {
   onPause: () => void;
   onResume: () => void;
   onSkip: () => void;
+  profilePhotoAdded?: boolean;
+  agencyLogoAdded?: boolean;
   showTestingReset?: boolean;
   onTestingReset?: () => void;
   testingResetStatus?: 'idle' | 'loading' | 'success' | 'error';
@@ -38,6 +40,8 @@ export default function OnboardingChecklistRail({
   onPause,
   onResume,
   onSkip,
+  profilePhotoAdded = false,
+  agencyLogoAdded = false,
   showTestingReset = false,
   onTestingReset,
   testingResetStatus = 'idle',
@@ -93,6 +97,17 @@ export default function OnboardingChecklistRail({
             );
           })}
         </div>
+
+        {milestones.profileCompleted && (
+          <div className="mx-3 mb-3 rounded-[7px] border border-[#e8e8e8] bg-[#fafafa] px-3 py-2.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#5f5f5f]">Recommended next (optional)</p>
+            <div className="mt-2 space-y-1.5">
+              <p className="text-[11px] text-[#4f4f4f]">{profilePhotoAdded ? '✓' : '•'} Add your profile photo in Settings {'>'} Profile</p>
+              <p className="text-[11px] text-[#4f4f4f]">{agencyLogoAdded ? '✓' : '•'} Add your agency logo in Settings {'>'} Branding</p>
+              <p className="text-[11px] text-[#4f4f4f]">• Review preferences in Settings {'>'} Referral &amp; AI</p>
+            </div>
+          </div>
+        )}
 
         <div className="px-3 pb-3">
           <button
