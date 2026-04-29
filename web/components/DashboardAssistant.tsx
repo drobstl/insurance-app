@@ -449,6 +449,7 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+            data-onboarding-surface="patch-panel"
             className="fixed bottom-[128px] md:bottom-[60px] right-4 md:right-5 z-50 w-[calc(100vw-2rem)] max-w-[380px] max-h-[60vh] md:max-h-[520px] bg-white rounded-[12px] shadow-2xl border border-[#e0e0e0] flex flex-col overflow-hidden"
           >
             {/* Header */}

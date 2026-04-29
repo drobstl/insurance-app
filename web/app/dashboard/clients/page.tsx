@@ -5322,7 +5322,11 @@ export default function ClientsPage() {
             style={getAddFlowSurfaceStyle(1)}
             aria-hidden={addFlowStage !== 'review'}
           >
-            <div className={addFlowSurfaceShellClass}>
+            <div
+              className={addFlowSurfaceShellClass}
+              data-onboarding-target="clients-addflow-review-panel"
+              data-onboarding-surface="clients-addflow-review-shell"
+            >
               <div className={incomingSurfaceHeaderClass}>
                 <div>
                   <h3 className="text-xl font-bold text-[#000000]">Review & Confirm</h3>
@@ -5330,7 +5334,7 @@ export default function ClientsPage() {
                 </div>
                 <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#45bcaa]" /><span className="h-2.5 w-2.5 rounded-full bg-[#d0d0d0]" /></div>
               </div>
-              <div className="p-6 space-y-4" data-onboarding-target="clients-addflow-review-panel">
+              <div className="p-6 space-y-4">
                   {clientApplicationShortPdfWarning ? (
                     <div className="flex items-center gap-2 px-3 py-2 bg-[#fff7db] border border-[#f5c451]/50 rounded-[5px] text-xs text-[#8a5a00]">
                       <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 4h.01M10.29 3.86l-8.5 14.5A1 1 0 002.64 20h16.72a1 1 0 00.85-1.64l-8.5-14.5a1 1 0 00-1.72 0z" /></svg>

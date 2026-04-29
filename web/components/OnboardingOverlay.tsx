@@ -288,6 +288,33 @@ function findTarget(name: TargetName): HTMLElement | null {
   return null;
 }
 
+function resolveAnchorRect(name: TargetName, element: HTMLElement): DOMRect {
+  if (name === 'clients-addflow-review-panel') {
+    const reviewShell = element.closest<HTMLElement>('[data-onboarding-surface="clients-addflow-review-shell"]');
+    if (reviewShell) return reviewShell.getBoundingClientRect();
+  }
+  return element.getBoundingClientRect();
+}
+
+function shouldLogOnboardingGeometry(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (process.env.NODE_ENV !== 'development') return false;
+  try {
+    return window.localStorage.getItem('afl:onboarding-debug') === '1';
+  } catch {
+    return false;
+  }
+}
+
+function getOverlapArea(
+  a: { left: number; top: number; right: number; bottom: number },
+  b: { left: number; top: number; right: number; bottom: number },
+): number {
+  const overlapWidth = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+  const overlapHeight = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+  return overlapWidth * overlapHeight;
+}
+
 function getFirstIncompleteProfileSubStep(agentProfile: {
   name?: string;
   agencyName?: string;
@@ -341,9 +368,11 @@ export default function OnboardingOverlay({
   const [skipInFlight, setSkipInFlight] = useState(false);
   const [typedSinceFocusTarget, setTypedSinceFocusTarget] = useState<TargetName | null>(null);
   const [manualEntryStarted, setManualEntryStarted] = useState(false);
+  const [coachmarkMeasuredSize, setCoachmarkMeasuredSize] = useState({ width: 360, height: 228 });
   const lastAutoScrollKeyRef = useRef<string | null>(null);
   const prevProfileCompletedRef = useRef<boolean>(false);
   const uploadExtractionAckShownRef = useRef(false);
+  const coachmarkRef = useRef<HTMLDivElement | null>(null);
 
   const firstName = agentName?.split(' ')[0] || 'there';
 
@@ -492,7 +521,7 @@ export default function OnboardingOverlay({
       const resolved = primaryTargetCandidates
         .map((name) => ({ name, element: findTarget(name) }))
         .find((candidate): candidate is { name: TargetName; element: HTMLElement } => candidate.element !== null);
-      setTargetRect(resolved?.element.getBoundingClientRect() ?? null);
+      setTargetRect(resolved ? resolveAnchorRect(resolved.name, resolved.element) : null);
       setActiveTargetName(resolved?.name ?? null);
       setActiveTargetElement(resolved?.element ?? null);
       const isDisabled = Boolean(
@@ -536,6 +565,36 @@ export default function OnboardingOverlay({
       window.clearInterval(interval);
     };
   }, [primaryTargetCandidates, needsTarget]);
+
+  useEffect(() => {
+    if (!shouldLogOnboardingGeometry()) return;
+    if (step.id !== 'firstClient') return;
+    if (activeGuidedTarget !== 'clients-addflow-review-panel') return;
+    if (!activeTargetName || !activeTargetElement || !targetRect) return;
+
+    const elementRect = activeTargetElement.getBoundingClientRect();
+    console.debug('[afl-onboarding-geometry]', {
+      stepId: step.id,
+      activeGuidedTarget,
+      activeTargetName,
+      elementRect: {
+        left: Math.round(elementRect.left),
+        top: Math.round(elementRect.top),
+        width: Math.round(elementRect.width),
+        height: Math.round(elementRect.height),
+      },
+      anchorRect: {
+        left: Math.round(targetRect.left),
+        top: Math.round(targetRect.top),
+        width: Math.round(targetRect.width),
+        height: Math.round(targetRect.height),
+      },
+      viewport: {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      },
+    });
+  }, [step.id, activeGuidedTarget, activeTargetName, activeTargetElement, targetRect]);
 
   useEffect(() => {
     if (!activeTargetName || !activeTargetElement || !currentMilestoneIncomplete || activeTargetDisabled) {
@@ -595,6 +654,14 @@ export default function OnboardingOverlay({
     if (!activeTargetElement || !displayedGuidedTarget) return;
     if (activeTargetName !== displayedGuidedTarget) return;
     if (focusedProfileTarget) return;
+    const skipAutoScrollTargets = new Set<TargetName>([
+      'clients-addflow-review-panel',
+      'clients-send-welcome',
+      'patch-launcher',
+    ]);
+    if (skipAutoScrollTargets.has(displayedGuidedTarget)) {
+      return;
+    }
 
     const scrollKey = `${step.id}:${guidedIndex}:${displayedGuidedTarget}`;
     if (lastAutoScrollKeyRef.current === scrollKey) return;
@@ -712,6 +779,25 @@ export default function OnboardingOverlay({
     setGuidedIndex(reviewIndex);
     setActionAck('AI draft ready. Review any details you want, then click Confirm & Create when ready.');
   }, [step.id, activeGuidedTarget, guidedTargets, guidedIndex]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const element = coachmarkRef.current;
+    if (!element) return;
+    const sync = () => {
+      const rect = element.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setCoachmarkMeasuredSize({
+          width: rect.width,
+          height: rect.height,
+        });
+      }
+    };
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [step.id, showProfileCelebration]);
 
   useEffect(() => {
     if (step.id !== 'firstClient') return;
@@ -1078,18 +1164,106 @@ export default function OnboardingOverlay({
     if (!spotlight || typeof window === 'undefined') {
       return { left: '50%', top: 70, transform: 'translateX(-50%)', placement: 'floating' as const };
     }
-    const cardWidth = Math.min(360, window.innerWidth - 24);
-    const belowTop = spotlight.bottom + 14;
-    const aboveTop = spotlight.top - 14 - 170;
-    const canPlaceBelow = belowTop + 170 <= window.innerHeight - 12;
-    const left = clamp(spotlight.centerX - cardWidth / 2, 12, window.innerWidth - cardWidth - 12);
-    return {
-      left,
-      top: canPlaceBelow ? belowTop : Math.max(12, aboveTop),
-      transform: 'none',
-      placement: canPlaceBelow ? ('below' as const) : ('above' as const),
+    // Never place the coachmark over the active target hotspot.
+    const viewportPadding = 12;
+    const gap = 14;
+    const cardWidth = Math.min(coachmarkMeasuredSize.width, window.innerWidth - viewportPadding * 2);
+    const cardHeight = Math.min(coachmarkMeasuredSize.height, window.innerHeight - viewportPadding * 2);
+    const targetBox = {
+      left: spotlight.left - 6,
+      top: spotlight.top - 6,
+      right: spotlight.right + 6,
+      bottom: spotlight.bottom + 6,
     };
-  }, [spotlight]);
+    const patchPanelElement = step.id === 'patch'
+      ? document.querySelector<HTMLElement>('[data-onboarding-surface="patch-panel"]')
+      : null;
+    const patchPanelBox = patchPanelElement
+      ? {
+        left: patchPanelElement.getBoundingClientRect().left,
+        top: patchPanelElement.getBoundingClientRect().top,
+        right: patchPanelElement.getBoundingClientRect().right,
+        bottom: patchPanelElement.getBoundingClientRect().bottom,
+      }
+      : null;
+
+    type Candidate = { left: number; top: number; placement: 'above' | 'below' | 'floating' };
+    const buildRect = (candidate: Candidate) => ({
+      left: candidate.left,
+      top: candidate.top,
+      right: candidate.left + cardWidth,
+      bottom: candidate.top + cardHeight,
+    });
+    const clampTop = (value: number) => clamp(value, viewportPadding, window.innerHeight - cardHeight - viewportPadding);
+    const clampLeft = (value: number) => clamp(value, viewportPadding, window.innerWidth - cardWidth - viewportPadding);
+
+    const candidates: Candidate[] = [
+      {
+        left: clampLeft(spotlight.centerX - cardWidth / 2),
+        top: clampTop(spotlight.bottom + gap),
+        placement: 'below',
+      },
+      {
+        left: clampLeft(spotlight.centerX - cardWidth / 2),
+        top: clampTop(spotlight.top - gap - cardHeight),
+        placement: 'above',
+      },
+      {
+        left: clampLeft(spotlight.right + gap),
+        top: clampTop(spotlight.top),
+        placement: 'floating',
+      },
+      {
+        left: clampLeft(spotlight.left - gap - cardWidth),
+        top: clampTop(spotlight.top),
+        placement: 'floating',
+      },
+      {
+        left: clampLeft((window.innerWidth - cardWidth) / 2),
+        top: clampTop(viewportPadding),
+        placement: 'floating',
+      },
+    ];
+    if (patchPanelBox) {
+      candidates.unshift(
+        {
+          left: clampLeft(patchPanelBox.left - gap - cardWidth),
+          top: clampTop(patchPanelBox.top + 12),
+          placement: 'floating',
+        },
+        {
+          left: clampLeft(patchPanelBox.left - gap - cardWidth),
+          top: clampTop(patchPanelBox.bottom - cardHeight - 12),
+          placement: 'floating',
+        },
+      );
+    }
+
+    const avoidBoxes = [targetBox, ...(patchPanelBox ? [patchPanelBox] : [])];
+    const totalOverlap = (candidate: Candidate) => avoidBoxes.reduce(
+      (acc, box) => acc + getOverlapArea(buildRect(candidate), box),
+      0,
+    );
+    const nonOverlapping = candidates.find((candidate) => totalOverlap(candidate) === 0);
+    if (nonOverlapping) {
+      return {
+        left: nonOverlapping.left,
+        top: nonOverlapping.top,
+        transform: 'none',
+        placement: nonOverlapping.placement,
+      };
+    }
+
+    const leastOverlap = candidates
+      .map((candidate) => ({ candidate, overlap: totalOverlap(candidate) }))
+      .sort((a, b) => a.overlap - b.overlap)[0]?.candidate;
+    return {
+      left: leastOverlap?.left ?? viewportPadding,
+      top: leastOverlap?.top ?? viewportPadding,
+      transform: 'none',
+      placement: leastOverlap?.placement ?? ('floating' as const),
+    };
+  }, [spotlight, coachmarkMeasuredSize.width, coachmarkMeasuredSize.height, step.id]);
 
   return (
     <div className="fixed inset-0 z-[60] pointer-events-none">
@@ -1182,6 +1356,7 @@ export default function OnboardingOverlay({
       )}
 
       <div
+        ref={coachmarkRef}
         className="fixed w-[min(380px,calc(100vw-24px))] rounded-xl border-2 border-[#0D4D4D]/20 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.5)] pointer-events-auto transition-[left,top,transform] duration-300 ease-out"
         style={{
           left: coachmarkStyle.left,
