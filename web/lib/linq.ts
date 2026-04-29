@@ -4,6 +4,43 @@ import crypto from 'crypto';
 import { normalizePhone } from './phone';
 
 const LINQ_BASE_URL = 'https://api.linqapp.com/api/partner/v3';
+const DEFAULT_MIN_SEND_INTERVAL_MS = 1000;
+
+function getMinSendIntervalMs(): number {
+  const raw = process.env.LINQ_MIN_SEND_INTERVAL_MS;
+  if (!raw) return DEFAULT_MIN_SEND_INTERVAL_MS;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return DEFAULT_MIN_SEND_INTERVAL_MS;
+  }
+  return Math.floor(parsed);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Per-instance outbound throttling for Linq send operations.
+ * This guards against burst traffic and keeps us away from
+ * high-velocity spikes that can trigger number limitations.
+ */
+async function enforceOutboundThrottle(): Promise<void> {
+  const minIntervalMs = getMinSendIntervalMs();
+  if (minIntervalMs <= 0) return;
+
+  const state = globalThis as typeof globalThis & {
+    __aflLinqNextAllowedAtMs?: number;
+  };
+  const now = Date.now();
+  const scheduledAt = Math.max(now, state.__aflLinqNextAllowedAtMs ?? 0);
+  state.__aflLinqNextAllowedAtMs = scheduledAt + minIntervalMs;
+
+  const waitMs = scheduledAt - now;
+  if (waitMs > 0) {
+    await sleep(waitMs);
+  }
+}
 
 function getLinqToken(): string {
   const token = process.env.LINQ_API_TOKEN;
@@ -197,6 +234,7 @@ export async function createChat(opts: {
     message.idempotency_key = opts.idempotencyKey;
   }
 
+  await enforceOutboundThrottle();
   const res = await linqFetch('/chats', {
     method: 'POST',
     body: JSON.stringify({ from, to: toArray, message }),
@@ -234,6 +272,7 @@ export async function sendMessage(opts: {
     message.idempotency_key = opts.idempotencyKey;
   }
 
+  await enforceOutboundThrottle();
   const res = await linqFetch(`/chats/${opts.chatId}/messages`, {
     method: 'POST',
     body: JSON.stringify({ message }),
