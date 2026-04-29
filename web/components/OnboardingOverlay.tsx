@@ -12,6 +12,8 @@ import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 interface OnboardingOverlayProps {
   agentName: string;
   onComplete: () => void;
+  onPause: () => void;
+  onSkip: () => void | Promise<void>;
 }
 
 interface OnboardingStep {
@@ -315,6 +317,8 @@ function getProfileGuidedTargets(baseStep: ProfileSubStep): TargetName[] {
 export default function OnboardingOverlay({
   agentName,
   onComplete,
+  onPause,
+  onSkip,
 }: OnboardingOverlayProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -334,6 +338,7 @@ export default function OnboardingOverlay({
   const [activeTargetDisabled, setActiveTargetDisabled] = useState(false);
   const [actionAck, setActionAck] = useState<string | null>(null);
   const [showProfileCelebration, setShowProfileCelebration] = useState(false);
+  const [skipInFlight, setSkipInFlight] = useState(false);
   const [typedSinceFocusTarget, setTypedSinceFocusTarget] = useState<TargetName | null>(null);
   const [manualEntryStarted, setManualEntryStarted] = useState(false);
   const lastAutoScrollKeyRef = useRef<string | null>(null);
@@ -369,6 +374,13 @@ export default function OnboardingOverlay({
     && milestones.firstClientCreated
     && milestones.firstWelcomeSent
     && milestones.firstPatchPromptSent;
+  const requiredMilestoneCount = 4;
+  const completedRequiredCount = [
+    milestones.profileCompleted,
+    milestones.firstClientCreated,
+    milestones.firstWelcomeSent,
+    milestones.firstPatchPromptSent,
+  ].filter(Boolean).length;
   const step = STEPS[currentStep];
   const currentMilestoneIncomplete = step.milestone ? !milestones[step.milestone] : false;
 
@@ -761,6 +773,16 @@ export default function OnboardingOverlay({
       total_steps: STEPS.length,
     });
     onComplete();
+  };
+
+  const handleSkipTutorial = async () => {
+    if (skipInFlight) return;
+    setSkipInFlight(true);
+    try {
+      await onSkip();
+    } finally {
+      setSkipInFlight(false);
+    }
   };
 
   const blockStep = (reason: string, message: string) => {
@@ -1173,6 +1195,10 @@ export default function OnboardingOverlay({
           <div className="inline-flex items-center gap-1.5 mb-2 px-2 py-1 rounded-full bg-[#0D4D4D] text-[#3DD6C3] text-[10px] font-semibold uppercase tracking-wide">
             Onboarding
           </div>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold text-[#0D4D4D]/80">Step {Math.min(currentStep + 1, STEPS.length)}/{STEPS.length}</span>
+            <span className="text-[11px] font-semibold text-[#0D4D4D]/80">Progress {completedRequiredCount}/{requiredMilestoneCount}</span>
+          </div>
           {currentStep === 0 && (
             <p className="text-sm font-semibold text-[#0D4D4D] mb-1">Welcome, {firstName}</p>
           )}
@@ -1202,6 +1228,25 @@ export default function OnboardingOverlay({
                 : null
             )}
           </div>
+          {currentStep > 0 && (
+            <div className="mt-2 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={onPause}
+                className="px-2.5 py-1.5 rounded text-[11px] font-semibold border border-[#d0d0d0] bg-[#f8f8f8] text-[#0D4D4D] hover:bg-white transition-colors"
+              >
+                Pause onboarding
+              </button>
+              <button
+                type="button"
+                onClick={() => { void handleSkipTutorial(); }}
+                disabled={skipInFlight}
+                className="px-2.5 py-1.5 rounded text-[11px] font-semibold border border-[#ffd7d7] bg-[#fff5f5] text-[#b42318] hover:bg-[#ffecec] disabled:opacity-60 transition-colors"
+              >
+                {skipInFlight ? 'Skipping...' : 'Skip tutorial'}
+              </button>
+            </div>
+          )}
         </div>
 
         {spotlight && coachmarkStyle.placement !== 'floating' && (
