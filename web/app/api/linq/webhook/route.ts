@@ -47,6 +47,7 @@ import { resolveClientLanguage } from '../../../../lib/client-language';
  * Webhook signature is verified via HMAC-SHA256.
  */
 export async function POST(req: NextRequest) {
+  let dedupeRef: FirebaseFirestore.DocumentReference | null = null;
   try {
     const rawBody = await req.text();
     const timestamp = req.headers.get('X-Webhook-Timestamp') || '';
@@ -68,14 +69,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    const db = getAdminFirestore();
+    const dedupeClaim = await claimWebhookEvent(db, envelope);
+    if (!dedupeClaim.acquired) {
+      return NextResponse.json({ ok: true, duplicate: true });
+    }
+    dedupeRef = dedupeClaim.ref;
+
     if (data.chat.is_group === true) {
       await handleGroupMessage(data);
     } else {
       await handleDirectMessage(data);
     }
 
+    if (dedupeRef) {
+      await dedupeRef.set(
+        {
+          status: 'processed',
+          processedAt: new Date().toISOString(),
+        },
+        { merge: true },
+      );
+    }
+
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (dedupeRef) {
+      await dedupeRef.delete().catch(() => {});
+    }
     console.error('[Linq Webhook] Error:', error);
     return NextResponse.json({ ok: true });
   }
@@ -462,6 +483,42 @@ async function handleDirectMessage(data: LinqWebhookMessageData) {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function isAlreadyExistsError(error: unknown): boolean {
+  const err = error as { code?: unknown; message?: unknown } | null;
+  const code = err?.code;
+  if (code === 6 || code === '6' || code === 'already-exists') {
+    return true;
+  }
+  const message = typeof err?.message === 'string' ? err.message : '';
+  return message.includes('ALREADY_EXISTS');
+}
+
+async function claimWebhookEvent(
+  db: FirebaseFirestore.Firestore,
+  envelope: LinqWebhookEnvelope,
+): Promise<{ acquired: boolean; ref: FirebaseFirestore.DocumentReference }> {
+  const messageId = envelope.data?.id || 'unknown-message';
+  const dedupeId = (envelope.event_id || '').trim() || `${envelope.event_type}:${messageId}`;
+  const ref = db.collection('linqWebhookEvents').doc(dedupeId);
+  try {
+    await ref.create({
+      eventId: envelope.event_id || null,
+      eventType: envelope.event_type,
+      messageId,
+      chatId: envelope.data?.chat?.id || null,
+      direction: envelope.data?.direction || null,
+      receivedAt: new Date().toISOString(),
+      status: 'processing',
+    });
+    return { acquired: true, ref };
+  } catch (error) {
+    if (isAlreadyExistsError(error)) {
+      return { acquired: false, ref };
+    }
+    throw error;
+  }
+}
 
 async function findReferralByChatId(
   db: FirebaseFirestore.Firestore,
