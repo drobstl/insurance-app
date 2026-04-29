@@ -5295,7 +5295,7 @@ export default function ClientsPage() {
                     {manualEntryExpanded ? 'Hide Manual Entry' : 'Expand Manual Entry'}
                   </button>
                   {manualEntryExpanded && (
-                    <form onSubmit={handleManualCreateAndContinue} className="mt-4 space-y-3">
+                    <form data-onboarding-target="clients-addflow-create-client" onSubmit={handleManualCreateAndContinue} className="mt-4 space-y-3">
                       <div className="grid gap-3 sm:grid-cols-2">
                         <input type="text" value={formData.name} onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))} placeholder="Name *" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
                         <input type="tel" value={formData.phone} onChange={(e) => setFormData((f) => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
@@ -5309,7 +5309,7 @@ export default function ClientsPage() {
                       {formError && <p className="text-xs text-red-600">{formError}</p>}
                       <div className="flex gap-3">
                         <button type="button" onClick={handleCloseAddFlow} className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-[5px] border border-gray-200 text-sm">Cancel</button>
-                        <button data-onboarding-target="clients-addflow-create-client" type="submit" disabled={submitting} className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] text-sm">{submitting ? 'Saving...' : 'Create Client'}</button>
+                        <button data-onboarding-create-client-button="true" type="submit" disabled={submitting} className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] text-sm">{submitting ? 'Saving...' : 'Create Client'}</button>
                       </div>
                     </form>
                   )}

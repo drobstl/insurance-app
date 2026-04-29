@@ -329,7 +329,6 @@ export default function OnboardingOverlay({
   const [activeTargetName, setActiveTargetName] = useState<TargetName | null>(null);
   const [activeTargetElement, setActiveTargetElement] = useState<HTMLElement | null>(null);
   const [guidedIndex, setGuidedIndex] = useState(0);
-  const [firstClientFlowChoice, setFirstClientFlowChoice] = useState<'manual' | 'auto' | null>(null);
   const [profileFlowStart, setProfileFlowStart] = useState<ProfileSubStep | null>(null);
   const [focusedProfileTarget, setFocusedProfileTarget] = useState<TargetName | null>(null);
   const [activeTargetDisabled, setActiveTargetDisabled] = useState(false);
@@ -398,9 +397,6 @@ export default function OnboardingOverlay({
     setGuidedIndex(0);
     setProfileFlowStart(null);
     setManualEntryStarted(false);
-    if (step.id !== 'firstClient' || !pathname.startsWith('/dashboard/clients')) {
-      setFirstClientFlowChoice(null);
-    }
   }, [step.id, pathname]);
 
   useEffect(() => {
@@ -442,10 +438,9 @@ export default function OnboardingOverlay({
     }
     if (step.id === 'firstClient') {
       if (!pathname.startsWith('/dashboard/clients')) return ['nav-clients'];
-      if (firstClientFlowChoice === 'auto') {
-        return ['clients-add-client', 'clients-addflow-carrier-select', 'clients-addflow-upload-pdf', 'clients-addflow-review-panel'];
-      }
-      return ['clients-add-client', 'clients-addflow-expand-manual', 'clients-addflow-create-client'];
+      const manualEntryVisible = Boolean(findTarget('clients-addflow-create-client'));
+      if (manualEntryVisible) return ['clients-add-client', 'clients-addflow-expand-manual', 'clients-addflow-create-client'];
+      return ['clients-add-client', 'clients-addflow-carrier-select', 'clients-addflow-upload-pdf', 'clients-addflow-review-panel'];
     }
     if (step.id === 'firstWelcome') {
       return pathname.startsWith('/dashboard/clients')
@@ -454,15 +449,10 @@ export default function OnboardingOverlay({
     }
     if (step.id === 'patch') return ['patch-launcher'];
     return [];
-  }, [step.id, isOnSettingsRoute, pathname, profileFlowStart, profileSubStep, firstClientFlowChoice]);
+  }, [step.id, isOnSettingsRoute, pathname, profileFlowStart, profileSubStep]);
   const activeGuidedTarget = guidedTargets[Math.min(guidedIndex, Math.max(0, guidedTargets.length - 1))] ?? null;
   const displayedGuidedTarget = focusedProfileTarget ?? activeGuidedTarget;
   const hasGuidedSequence = (step.id === 'profile' || step.id === 'firstClient') && step.milestone && !milestones[step.milestone];
-  const firstClientPathChoiceReady = step.id === 'firstClient'
-    && !milestones.firstClientCreated
-    && pathname.startsWith('/dashboard/clients')
-    && firstClientFlowChoice === null
-    && Boolean(findTarget('clients-addflow-expand-manual'));
 
   const primaryTargetCandidates = useMemo<TargetName[]>(() => {
     if (focusedProfileTarget) return [focusedProfileTarget];
@@ -476,7 +466,7 @@ export default function OnboardingOverlay({
     if (step.id === 'patch') return ['patch-launcher'];
     return [];
   }, [focusedProfileTarget, activeGuidedTarget, step.id, isOnSettingsRoute, profileSubStep]);
-  const needsTarget = step.id !== 'welcome' && !firstClientPathChoiceReady;
+  const needsTarget = step.id !== 'welcome';
 
   useEffect(() => {
     if (!needsTarget) {
@@ -502,6 +492,12 @@ export default function OnboardingOverlay({
               if (!sendButton) return false;
               return sendButton.matches(':disabled') || sendButton.getAttribute('aria-disabled') === 'true';
             })()
+            : resolved.name === 'clients-addflow-create-client'
+              ? (() => {
+                const createButton = resolved.element.querySelector<HTMLElement>('[data-onboarding-create-client-button="true"]');
+                if (!createButton) return false;
+                return createButton.matches(':disabled') || createButton.getAttribute('aria-disabled') === 'true';
+              })()
             : (
               resolved.element.matches(':disabled')
               || resolved.element.getAttribute('aria-disabled') === 'true'
@@ -533,13 +529,15 @@ export default function OnboardingOverlay({
     if (!activeTargetName || !activeTargetElement || !currentMilestoneIncomplete || activeTargetDisabled) {
       return;
     }
-    if (firstClientPathChoiceReady) return;
     const behavior = TARGET_BEHAVIORS[activeTargetName];
     if (behavior.mode !== 'click') return;
     if (activeTargetName === 'clients-addflow-create-client' && !manualEntryStarted) return;
-    activeTargetElement.classList.add('afl-onboarding-click-pulse');
+    const pulseTarget = activeTargetName === 'clients-addflow-create-client'
+      ? activeTargetElement.querySelector<HTMLElement>('[data-onboarding-create-client-button="true"]') ?? activeTargetElement
+      : activeTargetElement;
+    pulseTarget.classList.add('afl-onboarding-click-pulse');
     return () => {
-      activeTargetElement.classList.remove('afl-onboarding-click-pulse');
+      pulseTarget.classList.remove('afl-onboarding-click-pulse');
     };
   }, [
     activeTargetName,
@@ -547,7 +545,6 @@ export default function OnboardingOverlay({
     currentMilestoneIncomplete,
     activeTargetDisabled,
     manualEntryStarted,
-    firstClientPathChoiceReady,
   ]);
 
   useEffect(() => {
@@ -655,7 +652,7 @@ export default function OnboardingOverlay({
   }, [step.id, milestones.firstPatchPromptSent, markOnboardingMilestone]);
 
   useEffect(() => {
-    if (step.id !== 'firstClient' || firstClientFlowChoice !== 'auto') {
+    if (step.id !== 'firstClient') {
       uploadExtractionAckShownRef.current = false;
       return;
     }
@@ -667,7 +664,7 @@ export default function OnboardingOverlay({
 
     uploadExtractionAckShownRef.current = true;
     setActionAck('Extracting data now - this can take around 15 seconds.');
-  }, [step.id, firstClientFlowChoice, activeGuidedTarget, activeTargetDisabled]);
+  }, [step.id, activeGuidedTarget, activeTargetDisabled]);
 
   useEffect(() => {
     if (!hasGuidedSequence || !activeGuidedTarget) return;
@@ -693,7 +690,6 @@ export default function OnboardingOverlay({
 
   useEffect(() => {
     if (step.id !== 'firstClient') return;
-    if (firstClientFlowChoice !== 'auto') return;
     if (activeGuidedTarget !== 'clients-addflow-upload-pdf') return;
 
     const reviewTarget = findTarget('clients-addflow-review-panel');
@@ -703,7 +699,18 @@ export default function OnboardingOverlay({
 
     setGuidedIndex(reviewIndex);
     setActionAck('AI draft ready. Review any details you want, then click Confirm & Create when ready.');
-  }, [step.id, firstClientFlowChoice, activeGuidedTarget, guidedTargets, guidedIndex]);
+  }, [step.id, activeGuidedTarget, guidedTargets, guidedIndex]);
+
+  useEffect(() => {
+    if (step.id !== 'firstClient') return;
+    if (activeGuidedTarget !== 'clients-addflow-expand-manual') return;
+
+    const manualFormTarget = findTarget('clients-addflow-create-client');
+    if (!manualFormTarget) return;
+    const createIndex = guidedTargets.indexOf('clients-addflow-create-client');
+    if (createIndex <= guidedIndex) return;
+    setGuidedIndex(createIndex);
+  }, [step.id, activeGuidedTarget, guidedTargets, guidedIndex]);
 
   useEffect(() => {
     if (!actionAck) return;
@@ -764,14 +771,6 @@ export default function OnboardingOverlay({
     });
   };
 
-  const chooseFirstClientPath = (choice: 'manual' | 'auto') => {
-    setFirstClientFlowChoice(choice);
-    setGuidedIndex(1);
-    setActionAck(choice === 'manual'
-      ? 'Manual path selected. Fill client details, then create.'
-      : 'Auto-extract selected. Choose carrier, then upload PDF.');
-  };
-
   const handlePrimary = async () => {
     if (step.id === 'welcome') {
       captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_COMPLETED, { step_name: 'welcome' });
@@ -792,11 +791,6 @@ export default function OnboardingOverlay({
       router.push('/dashboard/clients');
       return;
     }
-    if (step.id === 'firstClient' && firstClientPathChoiceReady) {
-      blockStep('first_client_path_choice_required', 'Choose Manual entry or Auto-extract from PDF to continue.');
-      return;
-    }
-
     if (step.id === 'firstWelcome' && !milestones.firstWelcomeSent && !pathname.startsWith('/dashboard/clients')) {
       router.push('/dashboard/clients');
       return;
@@ -907,7 +901,6 @@ export default function OnboardingOverlay({
       return TARGET_BEHAVIORS[displayedGuidedTarget].mode === 'next';
     }
     if (step.id === 'firstClient' && !milestones.firstClientCreated) {
-      if (firstClientPathChoiceReady) return false;
       if (!displayedGuidedTarget) return false;
       if (activeTargetName !== displayedGuidedTarget) return false;
       const skipTypingGateForNextTargets = new Set<TargetName>([]);
@@ -952,9 +945,6 @@ export default function OnboardingOverlay({
     if (step.id === 'firstClient' && !milestones.firstClientCreated) {
       if (!pathname.startsWith('/dashboard/clients')) return 'Go to Clients to start this step.';
       if (activeGuidedTarget === 'clients-add-client') return 'Click Add Client to open the guided create flow.';
-      if (firstClientPathChoiceReady) {
-        return 'Choose how you want to create this client: Manual entry or Auto-extract from PDF.';
-      }
       if (activeGuidedTarget === 'clients-addflow-carrier-select') {
         return 'Choose the carrier/application type first so extraction uses the right pages.';
       }
@@ -994,12 +984,8 @@ export default function OnboardingOverlay({
     return stepDescription;
   })();
   const blockedUiHint = (() => {
-    if (step.id === 'firstClient' && firstClientPathChoiceReady) {
-      return 'Choose Manual entry or Auto-extract from PDF.';
-    }
     if (
       step.id === 'firstClient'
-      && firstClientFlowChoice === 'auto'
       && activeGuidedTarget === 'clients-addflow-review-panel'
       && !activeTargetName
     ) {
@@ -1200,23 +1186,6 @@ export default function OnboardingOverlay({
           {actionAck && (
             <p className="text-xs text-[#0D4D4D] font-semibold mt-1">{actionAck}</p>
           )}
-          {step.id === 'firstClient' && firstClientPathChoiceReady && (
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button
-                onClick={() => chooseFirstClientPath('manual')}
-                className="px-3 py-2 rounded text-xs font-semibold border border-[#d0d0d0] bg-white hover:bg-[#f8f8f8] text-[#0D4D4D]"
-              >
-                Manual entry
-              </button>
-              <button
-                onClick={() => chooseFirstClientPath('auto')}
-                className="px-3 py-2 rounded text-xs font-semibold border border-[#45bcaa]/50 bg-[#daf3f0]/60 hover:bg-[#daf3f0] text-[#005851]"
-              >
-                Auto-extract from PDF
-              </button>
-            </div>
-          )}
-
           <div className={`mt-3 flex items-center gap-2 ${currentStep > 0 ? 'justify-end' : 'justify-center'}`}>
             {showPrimaryButton ? (
               <button
