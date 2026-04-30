@@ -51,7 +51,6 @@ export function buildGoogleConsentUrl(params: {
     access_type: 'offline',
     prompt: 'consent',
     scope: [GOOGLE_DRIVE_SCOPE],
-    include_granted_scopes: true,
     state: params.state,
   });
 }
