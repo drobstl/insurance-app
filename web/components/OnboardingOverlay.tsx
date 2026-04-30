@@ -1300,7 +1300,7 @@ export default function OnboardingOverlay({
                 <h3 className="text-2xl font-black text-[#0D4D4D]">Profile essentials complete. Looking sharp.</h3>
               </div>
               <p className="mt-2 text-sm leading-relaxed text-[#305858]">
-                You finished the critical setup. You can still add a photo, logo, and tune Referral & AI settings anytime in Settings.
+                You finished the critical setup. After onboarding, you can come back to Settings to add a photo, tune Referral & AI settings, and more.
               </p>
               <button
                 onClick={advanceFromProfileCelebration}
