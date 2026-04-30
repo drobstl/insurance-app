@@ -5,6 +5,7 @@ import { normalizePhone } from './phone';
 
 const LINQ_BASE_URL = 'https://api.linqapp.com/api/partner/v3';
 const DEFAULT_MIN_SEND_INTERVAL_MS = 1000;
+const URL_REGEX = /\bhttps?:\/\/[^\s]+/gi;
 
 function getMinSendIntervalMs(): number {
   const raw = process.env.LINQ_MIN_SEND_INTERVAL_MS;
@@ -212,6 +213,14 @@ function buildParts(
   return parts;
 }
 
+function stripLinksFromText(text: string): string {
+  return text.replace(URL_REGEX, ' ').replace(/\s{2,}/g, ' ').trim();
+}
+
+function hasLink(text: string): boolean {
+  return /\bhttps?:\/\/[^\s]+/i.test(text);
+}
+
 /**
  * Create a new chat and send the first message.
  * `to` accepts a single phone or an array — multiple recipients create a group chat.
@@ -226,9 +235,18 @@ export async function createChat(opts: {
 }): Promise<CreateChatResult> {
   const from = normalizePhone(opts.from || getLinqPhoneNumber());
   const toArray = (Array.isArray(opts.to) ? opts.to : [opts.to]).map(normalizePhone);
+  const hasMedia = Boolean(opts.mediaUrls?.length || opts.attachmentIds?.length);
+  const textHasLink = hasLink(opts.text);
+  const textWithoutLinks = textHasLink ? stripLinksFromText(opts.text) : opts.text.trim();
+  const needsSafeFirstMessage = textHasLink || hasMedia;
+  const safeFirstText = textWithoutLinks || 'Hi there.';
 
   const message: Record<string, unknown> = {
-    parts: buildParts(opts.text, opts.mediaUrls, opts.attachmentIds),
+    parts: buildParts(
+      needsSafeFirstMessage ? safeFirstText : opts.text,
+      needsSafeFirstMessage ? undefined : opts.mediaUrls,
+      needsSafeFirstMessage ? undefined : opts.attachmentIds,
+    ),
   };
   if (opts.idempotencyKey) {
     message.idempotency_key = opts.idempotencyKey;
@@ -246,6 +264,18 @@ export async function createChat(opts: {
     is_group: boolean;
     message: LinqSentMessage;
   };
+
+  if (needsSafeFirstMessage) {
+    await sendMessage({
+      chatId: chat.id,
+      text: opts.text,
+      mediaUrls: opts.mediaUrls,
+      attachmentIds: opts.attachmentIds,
+      idempotencyKey: opts.idempotencyKey
+        ? `${opts.idempotencyKey}:followup`
+        : undefined,
+    });
+  }
 
   return {
     chatId: chat.id,
