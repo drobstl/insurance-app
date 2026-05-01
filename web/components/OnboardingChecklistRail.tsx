@@ -26,10 +26,6 @@ interface OnboardingChecklistRailProps {
   onSkip: () => void;
   profilePhotoAdded?: boolean;
   agencyLogoAdded?: boolean;
-  showTestingReset?: boolean;
-  onTestingReset?: () => void;
-  testingResetStatus?: 'idle' | 'loading' | 'success' | 'error';
-  testingResetMessage?: string;
 }
 
 function getActiveChecklistKey(milestones: OnboardingMilestones): ChecklistKey | null {
@@ -45,10 +41,6 @@ export default function OnboardingChecklistRail({
   onSkip,
   profilePhotoAdded = false,
   agencyLogoAdded = false,
-  showTestingReset = false,
-  onTestingReset,
-  testingResetStatus = 'idle',
-  testingResetMessage = '',
 }: OnboardingChecklistRailProps) {
   const activeKey = getActiveChecklistKey(milestones);
   const completedCount = CHECKLIST_ITEMS.filter((item) => milestones[item.key]).length;
@@ -141,22 +133,6 @@ export default function OnboardingChecklistRail({
           >
             Skip tutorial
           </button>
-          {showTestingReset && onTestingReset ? (
-            <>
-              <button
-                onClick={onTestingReset}
-                disabled={testingResetStatus === 'loading'}
-                className="mt-2 w-full rounded-[7px] border border-[#c9d6ff] bg-[#f4f7ff] px-3 py-2 text-xs font-semibold text-[#1d3f9f] hover:bg-[#eaf0ff] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-              >
-                {testingResetStatus === 'loading' ? 'Resetting onboarding...' : 'Test: Full reset onboarding'}
-              </button>
-              {testingResetMessage ? (
-                <p className={`mt-1 text-[11px] ${testingResetStatus === 'success' ? 'text-green-600' : 'text-red-600'}`}>
-                  {testingResetMessage}
-                </p>
-              ) : null}
-            </>
-          ) : null}
         </div>
       </div>
     </aside>

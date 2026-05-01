@@ -285,8 +285,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingUiSuppressed, setOnboardingUiSuppressed] = useState(false);
   const [showSubscriptionCelebration, setShowSubscriptionCelebration] = useState(false);
-  const [testingResetStatus, setTestingResetStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [testingResetMessage, setTestingResetMessage] = useState('');
   const [showWorkflowVideo, setShowWorkflowVideo] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [adminOpen, setAdminOpen] = useState(() => pathname.startsWith('/dashboard/admin'));
@@ -315,8 +313,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       setShowOnboarding(false);
       setOnboardingUiSuppressed(false);
       setShowSubscriptionCelebration(false);
-      setTestingResetStatus('idle');
-      setTestingResetMessage('');
       return;
     }
     const shouldShow = agentProfile.onboardingComplete !== true;
@@ -402,12 +398,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     firstWelcomeSent: false,
     firstPatchPromptSent: false,
   };
-  const canUseOnboardingTestingReset = Boolean(
-    user?.email && (
-      isAdmin
-      || user.email.trim().toLowerCase() === 'deardanielroberts@gmail.com'
-    ),
-  );
   const handleSkipTutorial = async () => {
     setShowOnboarding(false);
     setOnboardingUiSuppressed(true);
@@ -417,44 +407,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       console.error('Failed to skip onboarding:', error);
       setOnboardingUiSuppressed(false);
       setShowOnboarding(true);
-    }
-  };
-  const handleTestingResetOnboarding = async () => {
-    if (!user?.email) {
-      setTestingResetStatus('error');
-      setTestingResetMessage('Missing account email. Cannot run reset.');
-      return;
-    }
-    const confirmed = window.confirm('Full test reset will clear onboarding progress and profile setup fields for this account. Continue?');
-    if (!confirmed) return;
-
-    setTestingResetStatus('loading');
-    setTestingResetMessage('');
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch('/api/admin/reset-onboarding', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ email: user.email }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setTestingResetStatus('error');
-        setTestingResetMessage(typeof data.error === 'string' ? data.error : 'Reset failed');
-        return;
-      }
-
-      await refreshProfile();
-      setOnboardingUiSuppressed(false);
-      setShowOnboarding(true);
-      setTestingResetStatus('success');
-      setTestingResetMessage('Reset complete. Onboarding restarted.');
-      if (pathname !== '/dashboard') {
-        router.push('/dashboard');
-      }
-    } catch (error) {
-      setTestingResetStatus('error');
-      setTestingResetMessage(error instanceof Error ? error.message : 'Reset request failed');
     }
   };
   const dismissSubscriptionCelebration = () => {
@@ -788,10 +740,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           onSkip={() => { void handleSkipTutorial(); }}
           profilePhotoAdded={Boolean(agentProfile.photoBase64)}
           agencyLogoAdded={Boolean(agentProfile.agencyLogoBase64)}
-          showTestingReset={canUseOnboardingTestingReset}
-          onTestingReset={() => { void handleTestingResetOnboarding(); }}
-          testingResetStatus={testingResetStatus}
-          testingResetMessage={testingResetMessage}
         />
       )}
       {!showOnboarding && user && !showSubscriptionCelebration && !onboardingUiSuppressed && agentProfile.onboardingComplete !== true && (
@@ -802,26 +750,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           Resume onboarding
         </button>
       )}
-      {canUseOnboardingTestingReset && user && agentProfile.onboardingComplete === true && (
-        <div className="hidden md:block fixed right-4 top-20 z-[90] w-[280px]">
-          <div className="rounded-xl border border-[#d0d0d0] bg-white shadow-[0_16px_32px_rgba(0,0,0,0.16)] p-3">
-            <p className="text-xs font-bold text-[#0D4D4D] mb-2">Onboarding testing</p>
-            <button
-              onClick={() => { void handleTestingResetOnboarding(); }}
-              disabled={testingResetStatus === 'loading'}
-              className="w-full rounded-[7px] border border-[#c9d6ff] bg-[#f4f7ff] px-3 py-2 text-xs font-semibold text-[#1d3f9f] hover:bg-[#eaf0ff] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-            >
-              {testingResetStatus === 'loading' ? 'Resetting onboarding...' : 'Test: Full reset onboarding'}
-            </button>
-            {testingResetMessage ? (
-              <p className={`mt-1 text-[11px] ${testingResetStatus === 'success' ? 'text-green-600' : 'text-red-600'}`}>
-                {testingResetMessage}
-              </p>
-            ) : null}
-          </div>
-        </div>
-      )}
-
       <LoomVideoModal isOpen={showWorkflowVideo} onClose={() => setShowWorkflowVideo(false)} videoUrl="https://www.loom.com/embed/88422effb7ca4cdc8ae88646490fed00" />
 
       {showCancelWarning && (
