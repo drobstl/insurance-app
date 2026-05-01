@@ -269,6 +269,15 @@ Standalone pricing remains for agents who come directly. Founding member migrati
   - Removed onboarding back navigation in the coachmark to keep a single forward action and avoid dead/ambiguous controls.
   - Added typed-field gating so `Next` for text-entry steps only appears after actual input starts in the highlighted field.
   - Updated reset behavior so admin onboarding reset can fully clear onboarding + profile setup fields for true first-time walkthrough testing.
+- Added (May 1, 2026): Deterministic conversation routing foundation for Linq inbound/outbound classification.
+  - Introduced canonical conversation thread registry primitives (`conversationThreads` + resolver entries by provider thread and phone) under `web/lib/conversation-thread-registry.ts` with strict lane/purpose typing in `web/lib/conversation-routing-types.ts`.
+  - Wired registry upserts into outbound referral, conservation, policy-review, and beneficiary send paths (AI and manual) so inbound messages can resolve against a single source of truth instead of campaign-specific heuristics.
+  - Added feature-flagged webhook routing controls in `web/app/api/linq/webhook/route.ts`:
+    - `THREAD_ROUTER_ENABLED` (registry-first routing),
+    - `PHONE_FALLBACK_STRICT_MODE` (disable secondary phone fallback),
+    - `BENEFICIARY_AUTO_REPLY_ENABLED` (default false).
+  - Added beneficiary hard-fence behavior when routed in beneficiary lane (no automatic non-beneficiary AI response) plus unresolved inbound lead inbox creation path.
+  - Added migration tooling: `web/scripts/backfill-conversation-thread-registry.ts` (`npm --prefix web run backfill:thread-registry`) to seed registry records from existing referral/conservation/policy review chat IDs before enabling strict routing in production.
 - Known issues / next session:
   - "0 pages" metadata bug in extraction summary.
   - Bulk import intelligence notes are concatenated into an unreadable wall of text (needs per-file collapsible notes).

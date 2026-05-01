@@ -5,6 +5,7 @@ import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin'
 import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { FieldValue } from 'firebase-admin/firestore';
+import { upsertThreadFromOutbound } from '../../../../lib/conversation-thread-registry';
 
 /**
  * POST /api/conservation/send-message
@@ -105,6 +106,20 @@ export async function POST(req: NextRequest) {
     }
 
     await alertRef.update(update);
+
+    await upsertThreadFromOutbound({
+      db,
+      agentId,
+      providerThreadId: result.chatId,
+      providerType: 'sms_direct',
+      lane: 'conservation',
+      purpose: 'conservation',
+      linkedEntityType: 'conservationAlert',
+      linkedEntityId: alertId,
+      participantPhonesE164: [clientPhone],
+      allowAutoReply: false,
+      allowedResponder: 'manual_only',
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

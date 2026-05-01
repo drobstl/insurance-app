@@ -36,9 +36,18 @@ import {
 import { normalizePhone } from '../../../../lib/phone';
 import { FieldValue } from 'firebase-admin/firestore';
 import { resolveClientLanguage } from '../../../../lib/client-language';
+import {
+  appendLeadInbox,
+  markThreadActivity,
+  resolveThreadForInbound,
+} from '../../../../lib/conversation-thread-registry';
+import { canAutoReplyInLane, responderForLane } from '../../../../lib/conversation-lane-guard';
 
 const DEFAULT_WEBHOOK_AI_REPLY_COOLDOWN_MS = 45_000;
 const DEFAULT_WEBHOOK_AI_SIMILARITY_THRESHOLD = 0.9;
+const THREAD_ROUTER_ENABLED = process.env.THREAD_ROUTER_ENABLED === 'true';
+const BENEFICIARY_AUTO_REPLY_ENABLED = process.env.BENEFICIARY_AUTO_REPLY_ENABLED === 'true';
+const PHONE_FALLBACK_STRICT_MODE = process.env.PHONE_FALLBACK_STRICT_MODE === 'true';
 
 /**
  * POST /api/linq/webhook
@@ -327,6 +336,137 @@ async function handleDirectMessage(data: LinqWebhookMessageData) {
 
   const db = getAdminFirestore();
 
+  if (THREAD_ROUTER_ENABLED) {
+    const resolved = await resolveThreadForInbound({
+      db,
+      providerThreadId: chatId,
+      fromPhoneE164: senderHandle,
+      strictPhoneFallback: PHONE_FALLBACK_STRICT_MODE,
+    });
+
+    if (resolved) {
+      const expectedResponder = responderForLane(resolved.thread.lane);
+      const autoReplyAllowed = canAutoReplyInLane({
+        thread: resolved.thread,
+        responder: expectedResponder,
+      });
+
+      await markThreadActivity({
+        db,
+        agentId: resolved.agentId,
+        threadId: resolved.threadId,
+        direction: 'inbound',
+      });
+
+      if (resolved.thread.lane === 'beneficiary') {
+        console.log('[thread-routing] beneficiary_fenced', {
+          agentId: resolved.agentId,
+          threadId: resolved.threadId,
+          providerThreadId: chatId,
+          linkedEntityType: resolved.thread.linkedEntityType,
+          linkedEntityId: resolved.thread.linkedEntityId,
+        });
+
+        if (!BENEFICIARY_AUTO_REPLY_ENABLED || !autoReplyAllowed) {
+          return;
+        }
+      }
+
+      if (resolved.thread.lane === 'conservation') {
+        if (!autoReplyAllowed) {
+          console.warn('[thread-routing] misroute_blocked', {
+            expectedLane: resolved.thread.lane,
+            providerThreadId: chatId,
+            agentId: resolved.agentId,
+            reason: 'auto_reply_disabled',
+          });
+          return;
+        }
+        const conservationResult =
+          resolved.thread.linkedEntityType === 'conservationAlert' && resolved.thread.linkedEntityId
+            ? await findConservationAlertByEntity(db, resolved.agentId, resolved.thread.linkedEntityId)
+            : await findConservationAlertByChatId(db, chatId);
+        if (conservationResult) {
+          await handleConservationReply(conservationResult, text, chatId, senderHandle);
+        }
+        return;
+      }
+
+      if (resolved.thread.lane === 'policy_review') {
+        if (!autoReplyAllowed) {
+          console.warn('[thread-routing] misroute_blocked', {
+            expectedLane: resolved.thread.lane,
+            providerThreadId: chatId,
+            agentId: resolved.agentId,
+            reason: 'auto_reply_disabled',
+          });
+          return;
+        }
+        const policyReviewResult =
+          resolved.thread.linkedEntityType === 'policyReview' && resolved.thread.linkedEntityId
+            ? await findPolicyReviewByEntity(db, resolved.agentId, resolved.thread.linkedEntityId)
+            : await findPolicyReviewByChatId(db, chatId);
+        if (policyReviewResult) {
+          await handlePolicyReviewReply(policyReviewResult, text, chatId, senderHandle);
+        }
+        return;
+      }
+
+      if (resolved.thread.lane === 'referral') {
+        if (!autoReplyAllowed) {
+          console.warn('[thread-routing] misroute_blocked', {
+            expectedLane: resolved.thread.lane,
+            providerThreadId: chatId,
+            agentId: resolved.agentId,
+            reason: 'auto_reply_disabled',
+          });
+          return;
+        }
+        const referralResult =
+          resolved.thread.linkedEntityType === 'referral' && resolved.thread.linkedEntityId
+            ? await findReferralByEntity(db, resolved.agentId, resolved.thread.linkedEntityId)
+            : await findReferralByChatId(db, chatId);
+
+        if (referralResult) {
+          await handleReferralReply(referralResult, text, chatId, senderHandle);
+          return;
+        }
+
+        console.warn('[thread-routing] misroute_blocked', {
+          expectedLane: resolved.thread.lane,
+          providerThreadId: chatId,
+          agentId: resolved.agentId,
+          linkedEntityType: resolved.thread.linkedEntityType,
+          linkedEntityId: resolved.thread.linkedEntityId,
+        });
+        return;
+      }
+
+      // lead/manual lanes do not auto-respond.
+      return;
+    }
+
+    // Unresolved inbound: create lead inbox item scoped to owner line.
+    const ownerHandle = normalizePhone(data.chat.owner_handle?.handle || '');
+    if (ownerHandle) {
+      const agentId = await findAgentIdByOwnerHandle(db, ownerHandle);
+      if (agentId) {
+        await appendLeadInbox({
+          db,
+          agentId,
+          providerThreadId: chatId,
+          fromPhoneE164: senderHandle || null,
+          firstMessageText: text,
+        });
+        console.log('[thread-routing] lead_inbox_created', {
+          agentId,
+          providerThreadId: chatId,
+        });
+      }
+    }
+    return;
+  }
+
   // Find the referral by directChatId first, then by phone
   let referralResult = await findReferralByChatId(db, chatId);
   if (!referralResult) {
@@ -354,7 +494,24 @@ async function handleDirectMessage(data: LinqWebhookMessageData) {
     return;
   }
 
-  const { agentId, referralId, referralData, agentData, referralRef } = referralResult;
+  await handleReferralReply(referralResult, text, chatId, senderHandle);
+}
+
+async function handleReferralReply(
+  referralResult: {
+    agentId: string;
+    referralId: string;
+    referralData: Record<string, unknown>;
+    agentData: Record<string, unknown>;
+    referralRef: FirebaseFirestore.DocumentReference;
+  },
+  text: string,
+  chatId: string,
+  senderHandle: string,
+) {
+  const db = getAdminFirestore();
+
+  const { referralId, referralData, agentData, referralRef } = referralResult;
 
   // Persist the incoming message immediately
   const newIncoming: ConversationMessage = {
@@ -670,6 +827,28 @@ async function findReferralByPhone(
   };
 }
 
+async function findReferralByEntity(
+  db: FirebaseFirestore.Firestore,
+  agentId: string,
+  referralId: string,
+) {
+  const ref = db
+    .collection('agents')
+    .doc(agentId)
+    .collection('referrals')
+    .doc(referralId);
+  const doc = await ref.get();
+  if (!doc.exists) return null;
+  const agentDoc = await db.collection('agents').doc(agentId).get();
+  return {
+    agentId,
+    referralId,
+    referralData: doc.data() as Record<string, unknown>,
+    agentData: (agentDoc.data() as Record<string, unknown>) || {},
+    referralRef: ref,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Conservation alert lookup + reply handling
 // ---------------------------------------------------------------------------
@@ -751,13 +930,35 @@ async function findConservationAlertByPhone(
   return null;
 }
 
+async function findConservationAlertByEntity(
+  db: FirebaseFirestore.Firestore,
+  agentId: string,
+  alertId: string,
+): Promise<ConservationAlertResult | null> {
+  const alertRef = db
+    .collection('agents')
+    .doc(agentId)
+    .collection('conservationAlerts')
+    .doc(alertId);
+  const alertSnap = await alertRef.get();
+  if (!alertSnap.exists) return null;
+  const agentDoc = await db.collection('agents').doc(agentId).get();
+  return {
+    agentId,
+    alertId,
+    alertData: alertSnap.data() as Record<string, unknown>,
+    agentData: (agentDoc.data() as Record<string, unknown>) || {},
+    alertRef,
+  };
+}
+
 async function handleConservationReply(
   result: ConservationAlertResult,
   text: string,
   chatId: string,
   senderHandle: string,
 ) {
-  const { agentId, alertId, alertData, agentData, alertRef } = result;
+  const { alertId, alertData, agentData, alertRef } = result;
   const db = getAdminFirestore();
 
   const resolvedStatuses = ['saved', 'lost'];
@@ -895,6 +1096,41 @@ async function findPolicyReviewByChatId(
     agentData: (agentDoc.data() as Record<string, unknown>) || {},
     reviewRef: doc.ref,
   };
+}
+
+async function findPolicyReviewByEntity(
+  db: FirebaseFirestore.Firestore,
+  agentId: string,
+  reviewId: string,
+): Promise<PolicyReviewResult | null> {
+  const reviewRef = db
+    .collection('agents')
+    .doc(agentId)
+    .collection('policyReviews')
+    .doc(reviewId);
+  const reviewSnap = await reviewRef.get();
+  if (!reviewSnap.exists) return null;
+  const agentDoc = await db.collection('agents').doc(agentId).get();
+  return {
+    agentId,
+    reviewId,
+    reviewData: reviewSnap.data() as Record<string, unknown>,
+    agentData: (agentDoc.data() as Record<string, unknown>) || {},
+    reviewRef,
+  };
+}
+
+async function findAgentIdByOwnerHandle(
+  db: FirebaseFirestore.Firestore,
+  ownerHandle: string,
+): Promise<string | null> {
+  const snap = await db
+    .collection('agents')
+    .where('linqPhoneNumber', '==', ownerHandle)
+    .limit(1)
+    .get();
+  if (snap.empty) return null;
+  return snap.docs[0].id;
 }
 
 async function handlePolicyReviewReply(

@@ -19,6 +19,7 @@ import {
   REVIEW_STAGE_FALLBACK_ORDER,
   REVIEW_STAGE_COMPLEMENT_EMAIL,
 } from '../../../../lib/conservation-types';
+import { upsertThreadFromOutbound } from '../../../../lib/conversation-thread-registry';
 
 /**
  * Cron: runs every 4 hours.
@@ -277,6 +278,21 @@ export async function GET() {
           }
 
           await reviewDoc.ref.update(update);
+          if (chatId) {
+            await upsertThreadFromOutbound({
+              db,
+              agentId: agentDoc.id,
+              providerThreadId: chatId,
+              providerType: 'sms_direct',
+              lane: 'policy_review',
+              purpose: 'policy_review',
+              linkedEntityType: 'policyReview',
+              linkedEntityId: reviewDoc.id,
+              participantPhonesE164: hasPhone ? [clientPhone!] : [],
+              allowAutoReply: true,
+              allowedResponder: 'policy_review',
+            });
+          }
           sent++;
         }
       }

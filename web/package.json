@@ -9,6 +9,8 @@
     "lint": "eslint",
     "test:ingestion-corpus": "node --import tsx ./tests/ingestion-corpus/run-corpus.ts",
     "test:bulk-import-smoke": "node --import tsx ./tests/bulk-import-smoke/run-smoke.ts",
+    "test:thread-routing": "node --import tsx ./tests/thread-routing/run-smoke.ts",
+    "backfill:thread-registry": "node --import tsx ./scripts/backfill-conversation-thread-registry.ts",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui"

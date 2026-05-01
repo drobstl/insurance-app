@@ -6,6 +6,7 @@ import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin'
 import { createChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { resolveClientLanguage } from '../../../../lib/client-language';
+import { upsertThreadFromOutbound } from '../../../../lib/conversation-thread-registry';
 
 function getResend() {
   const key = process.env.RESEND_API_KEY;
@@ -18,7 +19,7 @@ async function sendWithFallback(params: {
   phone?: string;
   email?: string;
   language: 'en' | 'es';
-}): Promise<'sms' | 'email' | 'email_fallback'> {
+}): Promise<{ channel: 'sms' | 'email' | 'email_fallback'; chatId: string | null; normalizedPhone: string | null }> {
   const rawPhone = (params.phone || '').trim();
   const normalizedPhone = rawPhone ? normalizePhone(rawPhone) : '';
   const validPhone = normalizedPhone && isValidE164(normalizedPhone);
@@ -31,8 +32,8 @@ async function sendWithFallback(params: {
 
   if (validPhone) {
     try {
-      await createChat({ to: normalizedPhone, text: params.message });
-      return 'sms';
+      const result = await createChat({ to: normalizedPhone, text: params.message });
+      return { channel: 'sms', chatId: result.chatId, normalizedPhone };
     } catch (error) {
       if (!validEmail) throw error;
     }
@@ -45,7 +46,7 @@ async function sendWithFallback(params: {
     subject: params.language === 'es' ? 'Mensaje de tu agente' : 'A message from your agent',
     text: params.message,
   });
-  return validPhone ? 'email_fallback' : 'email';
+  return { channel: validPhone ? 'email_fallback' : 'email', chatId: null, normalizedPhone: validPhone ? normalizedPhone : null };
 }
 
 export async function POST(req: NextRequest) {
@@ -78,7 +79,7 @@ export async function POST(req: NextRequest) {
     }
 
     const language = resolveClientLanguage(preferredLanguage);
-    const channel = await sendWithFallback({
+    const delivery = await sendWithFallback({
       message: body,
       phone: typeof beneficiaryPhone === 'string' ? beneficiaryPhone : '',
       email: typeof beneficiaryEmail === 'string' ? beneficiaryEmail : '',
@@ -95,14 +96,30 @@ export async function POST(req: NextRequest) {
       .add({
         category: 'manual',
         campaignType: 'beneficiary_manual',
-        channel,
+        channel: delivery.channel,
         status: 'sent',
         messagePreview: body.slice(0, 180),
         beneficiaryName: typeof beneficiaryName === 'string' ? beneficiaryName : '',
         sentAt: new Date().toISOString(),
       });
 
-    return NextResponse.json({ success: true, channel });
+    if (delivery.chatId && delivery.normalizedPhone) {
+      await upsertThreadFromOutbound({
+        db,
+        agentId: uid,
+        providerThreadId: delivery.chatId,
+        providerType: 'sms_direct',
+        lane: 'beneficiary',
+        purpose: 'beneficiary_manual',
+        linkedEntityType: 'beneficiary',
+        linkedEntityId: code,
+        participantPhonesE164: [delivery.normalizedPhone],
+        allowAutoReply: false,
+        allowedResponder: 'none',
+      });
+    }
+
+    return NextResponse.json({ success: true, channel: delivery.channel });
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Failed to send beneficiary message.';
     if (msg.includes('Firebase ID token')) {

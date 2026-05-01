@@ -18,6 +18,7 @@ import { getLinqAttachmentId } from '../../../../lib/business-card-url';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { FieldValue } from 'firebase-admin/firestore';
 import { resolveClientLanguage } from '../../../../lib/client-language';
+import { upsertThreadFromOutbound } from '../../../../lib/conversation-thread-registry';
 
 export const maxDuration = 120;
 
@@ -125,6 +126,20 @@ export async function POST(req: NextRequest) {
         conversation: FieldValue.arrayUnion(groupMsg),
         updatedAt: FieldValue.serverTimestamp(),
       });
+
+      await upsertThreadFromOutbound({
+        db,
+        agentId,
+        providerThreadId: groupChatId,
+        providerType: 'sms_group',
+        lane: 'referral',
+        purpose: 'referral_group_intro',
+        linkedEntityType: 'referral',
+        linkedEntityId: referralId,
+        participantPhonesE164: [referralPhone].filter(Boolean),
+        allowAutoReply: true,
+        allowedResponder: 'referral',
+      });
     }
 
     // -----------------------------------------------------------------------
@@ -180,6 +195,20 @@ export async function POST(req: NextRequest) {
       lastDripAt: FieldValue.serverTimestamp(),
       dripCount: 0,
       updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    await upsertThreadFromOutbound({
+      db,
+      agentId,
+      providerThreadId: dmResult.chatId,
+      providerType: 'sms_direct',
+      lane: 'referral',
+      purpose: 'referral_outreach',
+      linkedEntityType: 'referral',
+      linkedEntityId: referralId,
+      participantPhonesE164: [referralPhone],
+      allowAutoReply: true,
+      allowedResponder: 'referral',
     });
 
     return NextResponse.json({ success: true });

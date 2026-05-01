@@ -15,6 +15,7 @@ import { getCarrierServicePhone } from '../../../../lib/carriers';
 import { ensureAgentBookingSlug, buildBrandedBookingUrl } from '../../../../lib/booking-link';
 import type { ConservationOutreachContext, ConservationChannel } from '../../../../lib/conservation-types';
 import { resolveClientLanguage } from '../../../../lib/client-language';
+import { upsertThreadFromOutbound } from '../../../../lib/conversation-thread-registry';
 import {
   type TouchStage,
   TOUCH_STAGE_TO_STATUS,
@@ -446,6 +447,22 @@ export async function GET(req: NextRequest) {
             initialSendLockAt: FieldValue.delete(),
           });
 
+          if (result.chatId) {
+            await upsertThreadFromOutbound({
+              db,
+              agentId: agentDoc.id,
+              providerThreadId: result.chatId,
+              providerType: 'sms_direct',
+              lane: 'conservation',
+              purpose: 'conservation',
+              linkedEntityType: 'conservationAlert',
+              linkedEntityId: alertDoc.id,
+              participantPhonesE164: avail.sms ? [avail.normalizedPhone] : [],
+              allowAutoReply: true,
+              allowedResponder: 'conservation',
+            });
+          }
+
           outreachFired++;
         }
       }
@@ -619,6 +636,22 @@ export async function GET(req: NextRequest) {
           }
 
           await alertDoc.ref.update(updateData);
+
+          if (sendResult.chatId) {
+            await upsertThreadFromOutbound({
+              db,
+              agentId: agentDoc.id,
+              providerThreadId: sendResult.chatId,
+              providerType: 'sms_direct',
+              lane: 'conservation',
+              purpose: 'conservation',
+              linkedEntityType: 'conservationAlert',
+              linkedEntityId: alertDoc.id,
+              participantPhonesE164: avail.sms ? [avail.normalizedPhone] : [],
+              allowAutoReply: true,
+              allowedResponder: 'conservation',
+            });
+          }
           followUpsSent++;
         }
       }

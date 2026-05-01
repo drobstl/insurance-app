@@ -5,6 +5,7 @@ import { Resend } from 'resend';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { createChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
+import { upsertThreadFromOutbound } from '../../../../lib/conversation-thread-registry';
 
 function getResend() {
   const key = process.env.RESEND_API_KEY;
@@ -17,7 +18,7 @@ async function sendWithFallback(params: {
   phone?: string;
   email?: string;
   language?: string;
-}): Promise<'sms' | 'email' | 'email_fallback'> {
+}): Promise<{ channel: 'sms' | 'email' | 'email_fallback'; chatId: string | null; normalizedPhone: string | null }> {
   const rawPhone = (params.phone || '').trim();
   const normalizedPhone = rawPhone ? normalizePhone(rawPhone) : '';
   const validPhone = normalizedPhone && isValidE164(normalizedPhone);
@@ -29,8 +30,8 @@ async function sendWithFallback(params: {
 
   if (validPhone) {
     try {
-      await createChat({ to: normalizedPhone, text: params.message });
-      return 'sms';
+      const result = await createChat({ to: normalizedPhone, text: params.message });
+      return { channel: 'sms', chatId: result.chatId, normalizedPhone };
     } catch (err) {
       if (!validEmail) throw err;
     }
@@ -46,7 +47,7 @@ async function sendWithFallback(params: {
         : 'Follow-up on your beneficiary access',
     text: params.message,
   });
-  return validPhone ? 'email_fallback' : 'email';
+  return { channel: validPhone ? 'email_fallback' : 'email', chatId: null, normalizedPhone: validPhone ? normalizedPhone : null };
 }
 
 export async function GET(req: NextRequest) {
@@ -130,7 +131,7 @@ export async function GET(req: NextRequest) {
         }
 
         try {
-          const channel = await sendWithFallback({
+          const delivery = await sendWithFallback({
             message,
             phone: typeof data.beneficiaryPhone === 'string' ? data.beneficiaryPhone : '',
             email: typeof data.beneficiaryEmail === 'string' ? data.beneficiaryEmail : '',
@@ -139,7 +140,7 @@ export async function GET(req: NextRequest) {
           await followupDoc.ref.set({
             status: 'sent',
             campaignType,
-            channel,
+            channel: delivery.channel,
             processedAt: nowIso,
           }, { merge: true });
           await db
@@ -151,10 +152,25 @@ export async function GET(req: NextRequest) {
             .add({
               category: 'followup',
               campaignType,
-              channel,
+              channel: delivery.channel,
               status: 'sent',
               sentAt: nowIso,
             });
+          if (delivery.chatId && delivery.normalizedPhone) {
+            await upsertThreadFromOutbound({
+              db,
+              agentId: agentDoc.id,
+              providerThreadId: delivery.chatId,
+              providerType: 'sms_direct',
+              lane: 'beneficiary',
+              purpose: 'beneficiary_followup',
+              linkedEntityType: 'beneficiary',
+              linkedEntityId: beneficiaryCode,
+              participantPhonesE164: [delivery.normalizedPhone],
+              allowAutoReply: false,
+              allowedResponder: 'none',
+            });
+          }
           sent += 1;
         } catch (error) {
           await followupDoc.ref.set(

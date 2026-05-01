@@ -5,6 +5,7 @@ import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { FieldValue } from 'firebase-admin/firestore';
+import { upsertThreadFromOutbound } from '../../../../lib/conversation-thread-registry';
 
 /**
  * POST /api/referral/send-message
@@ -78,6 +79,20 @@ export async function POST(req: NextRequest) {
         update.directChatId = result.chatId;
       }
       await referralRef.update(update);
+
+      await upsertThreadFromOutbound({
+        db,
+        agentId,
+        providerThreadId: result.chatId,
+        providerType: 'sms_direct',
+        lane: 'referral',
+        purpose: 'referral_outreach',
+        linkedEntityType: 'referral',
+        linkedEntityId: referralId,
+        participantPhonesE164: [referralPhone],
+        allowAutoReply: false,
+        allowedResponder: 'manual_only',
+      });
     } catch (dbError) {
       console.error(
         'Linq send succeeded but Firestore update failed for referral',

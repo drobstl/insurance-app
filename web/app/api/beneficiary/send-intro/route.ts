@@ -13,6 +13,7 @@ import {
   DEFAULT_BENEFICIARY_WELCOME_TEMPLATE_EN,
   DEFAULT_BENEFICIARY_WELCOME_TEMPLATE_ES,
 } from '../../../../lib/client-language';
+import { upsertThreadFromOutbound } from '../../../../lib/conversation-thread-registry';
 
 function getResend() {
   const key = process.env.RESEND_API_KEY;
@@ -138,13 +139,26 @@ export async function POST(req: NextRequest) {
 
     if (validPhone) {
       try {
-        await createChat({ to: normalizedPhone, text: finalMessage });
+        const chatResult = await createChat({ to: normalizedPhone, text: finalMessage });
         await db.collection('agents').doc(uid).collection('beneficiaryOutreachByCode').doc(code).collection('events').add({
           category: 'intro',
           campaignType: 'beneficiary_intro',
           channel: 'sms',
           status: 'sent',
           sentAt: new Date().toISOString(),
+        });
+        await upsertThreadFromOutbound({
+          db,
+          agentId: uid,
+          providerThreadId: chatResult.chatId,
+          providerType: 'sms_direct',
+          lane: 'beneficiary',
+          purpose: 'beneficiary_intro',
+          linkedEntityType: 'beneficiary',
+          linkedEntityId: code,
+          participantPhonesE164: [normalizedPhone],
+          allowAutoReply: false,
+          allowedResponder: 'none',
         });
         if (agentData.beneficiaryAIFollowupsEnabled === true) {
           await queueBeneficiaryFollowups({
