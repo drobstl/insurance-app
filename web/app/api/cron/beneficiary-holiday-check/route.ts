@@ -1,17 +1,8 @@
 import 'server-only';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { Resend } from 'resend';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
-import { createChat } from '../../../../lib/linq';
-import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { buildBeneficiaryHolidayMessage, resolveClientLanguage, type HolidayCardKey } from '../../../../lib/client-language';
-
-function getResend() {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error('RESEND_API_KEY is not configured');
-  return new Resend(key);
-}
 
 function getHolidayForDate(date: Date): HolidayCardKey | null {
   const month = date.getUTCMonth();
@@ -24,41 +15,30 @@ function getHolidayForDate(date: Date): HolidayCardKey | null {
   return null;
 }
 
-async function sendWithFallback(params: {
-  message: string;
-  phone?: string;
-  email?: string;
-  language?: string;
-}): Promise<'sms' | 'email' | 'email_fallback'> {
-  const rawPhone = (params.phone || '').trim();
-  const normalizedPhone = rawPhone ? normalizePhone(rawPhone) : '';
-  const validPhone = normalizedPhone && isValidE164(normalizedPhone);
-  const email = (params.email || '').trim();
-  const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  if (!validPhone && !validEmail) {
-    throw new Error('No valid phone or email available.');
+async function sendPushNotification(pushToken: string, title: string, body: string, data: Record<string, unknown>): Promise<boolean> {
+  try {
+    const res = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'Accept-Encoding': 'gzip, deflate',
+      },
+      body: JSON.stringify({
+        to: pushToken,
+        title,
+        body,
+        sound: 'default',
+        badge: 1,
+        priority: 'high',
+        data,
+      }),
+    });
+    const result = await res.json();
+    return result?.data?.status === 'ok';
+  } catch {
+    return false;
   }
-
-  if (validPhone) {
-    try {
-      await createChat({ to: normalizedPhone, text: params.message });
-      return 'sms';
-    } catch (err) {
-      if (!validEmail) throw err;
-    }
-  }
-
-  const resend = getResend();
-  await resend.emails.send({
-    from: 'AgentForLife™ <support@agentforlife.app>',
-    to: [email],
-    subject:
-      params.language === 'es'
-        ? 'Saludos festivos de tu agente'
-        : 'Holiday greetings from your agent',
-    text: params.message,
-  });
-  return validPhone ? 'email_fallback' : 'email';
 }
 
 export async function GET(req: NextRequest) {
@@ -141,6 +121,13 @@ export async function GET(req: NextRequest) {
               continue;
             }
 
+            const pushToken = typeof clientData.pushToken === 'string' ? clientData.pushToken.trim() : '';
+            if (!pushToken) {
+              // Holiday beneficiary outreach is now push-only.
+              skipped += 1;
+              continue;
+            }
+
             const beneficiaryName = typeof beneficiary.name === 'string' ? beneficiary.name.trim() : '';
             const role = beneficiary.type === 'contingent' ? 'contingent' : 'primary';
             const localized = buildBeneficiaryHolidayMessage({
@@ -152,19 +139,24 @@ export async function GET(req: NextRequest) {
               language: clientsLang,
             });
             try {
-              const channel = await sendWithFallback({
-                message: localized.body,
-                phone: typeof beneficiary.phone === 'string' ? beneficiary.phone : '',
-                email: typeof beneficiary.email === 'string' ? beneficiary.email : '',
-                language: clientsLang,
+              const ok = await sendPushNotification(pushToken, localized.title, localized.body, {
+                type: 'beneficiary_holiday',
+                agentId: agentDoc.id,
+                clientId: clientDoc.id,
+                beneficiaryCode: code,
+                holiday,
               });
+              if (!ok) {
+                failed += 1;
+                continue;
+              }
               await holidayDedupeDoc.set({
                 holiday,
                 beneficiaryCode: code,
                 beneficiaryName,
                 policyId: policyDoc.id,
                 clientId: clientDoc.id,
-                channel,
+                channel: 'push',
                 sentAt: nowIso,
               });
               await db
@@ -177,7 +169,7 @@ export async function GET(req: NextRequest) {
                   category: 'holiday',
                   campaignType: 'beneficiary_holiday',
                   holiday,
-                  channel,
+                  channel: 'push',
                   status: 'sent',
                   sentAt: nowIso,
                 });

@@ -5,6 +5,19 @@ import { getAdminAuth } from '../../../../lib/firebase-admin';
 import { createChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 
+const DELIVERY_CONFIRMATION_PROMPT =
+  'Could you confirm you got this by replying or giving a thumbs up here?';
+
+function ensureConversationalConfirmationPrompt(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return DELIVERY_CONFIRMATION_PROMPT;
+  if (/thumbs?\s*up|confirm you got this|confirm.*received|got this/i.test(trimmed)) {
+    return trimmed;
+  }
+  const needsPunctuation = !/[.!?]$/.test(trimmed);
+  return `${trimmed}${needsPunctuation ? '.' : ''} ${DELIVERY_CONFIRMATION_PROMPT}`;
+}
+
 /**
  * POST /api/client/welcome-sms
  *
@@ -48,7 +61,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await createChat({ to: normalizedPhone, text: message });
+    const welcomeMessage = ensureConversationalConfirmationPrompt(message);
+    const result = await createChat({ to: normalizedPhone, text: welcomeMessage });
 
     console.log('[welcome-sms] Linq createChat success:', { chatId: result.chatId, service: result.service });
 

@@ -6,8 +6,6 @@ import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin'
 import { createChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import {
-  buildBeneficiaryFollowupMessage,
-  type BeneficiaryRole,
   buildBeneficiaryWelcomeMessage,
   resolveClientLanguage,
   DEFAULT_BENEFICIARY_WELCOME_TEMPLATE_EN,
@@ -15,60 +13,13 @@ import {
 } from '../../../../lib/client-language';
 import { upsertThreadFromOutbound } from '../../../../lib/conversation-thread-registry';
 
+const BENEFICIARY_CONFIRMATION_PROMPT =
+  'Could you confirm you got this by replying or giving a thumbs up here?';
+
 function getResend() {
   const key = process.env.RESEND_API_KEY;
   if (!key) throw new Error('RESEND_API_KEY is not configured');
   return new Resend(key);
-}
-
-async function queueBeneficiaryFollowups(params: {
-  db: FirebaseFirestore.Firestore;
-  agentId: string;
-  beneficiaryCode: string;
-  beneficiaryName: string;
-  role: BeneficiaryRole;
-  insuredName: string;
-  phone: string;
-  email: string;
-  language: 'en' | 'es';
-  agentName: string;
-}) {
-  const baseRef = params.db.collection('agents').doc(params.agentId).collection('beneficiaryFollowups');
-  const base = {
-    beneficiaryCode: params.beneficiaryCode,
-    beneficiaryName: params.beneficiaryName || '',
-    beneficiaryRole: params.role,
-    insuredName: params.insuredName || '',
-    beneficiaryPhone: params.phone,
-    beneficiaryEmail: params.email,
-    preferredLanguage: params.language,
-    campaignType: 'beneficiary_followup',
-    campaignContext: {
-      trigger: 'intro',
-    },
-    status: 'queued',
-    createdAt: new Date().toISOString(),
-  };
-  const offsets = [2, 5, 10] as const;
-  for (const [idx, dayOffset] of offsets.entries()) {
-    const sendAt = new Date();
-    sendAt.setUTCDate(sendAt.getUTCDate() + dayOffset);
-    await baseRef.doc(`${params.beneficiaryCode}_${idx + 1}`).set({
-      ...base,
-      step: (idx + 1) as 1 | 2 | 3,
-      sendAt: sendAt.toISOString(),
-      message: buildBeneficiaryFollowupMessage({
-        step: (idx + 1) as 1 | 2 | 3,
-        beneficiaryFirstName: (params.beneficiaryName || 'there').split(' ')[0],
-        insuredFirstName: (params.insuredName || 'your loved one').split(' ')[0],
-        agentName: params.agentName,
-        beneficiaryCode: params.beneficiaryCode,
-        appUrl: 'https://agentforlife.app/app',
-        role: params.role,
-        language: params.language,
-      }),
-    }, { merge: true });
-  }
 }
 
 export async function POST(req: NextRequest) {
@@ -89,7 +40,6 @@ export async function POST(req: NextRequest) {
       insuredName,
       preferredLanguage,
       messageTemplate,
-      beneficiaryRole,
     } = await req.json();
 
     const code = typeof beneficiaryCode === 'string' ? beneficiaryCode.trim().toUpperCase() : '';
@@ -98,7 +48,6 @@ export async function POST(req: NextRequest) {
     }
 
     const language = resolveClientLanguage(preferredLanguage);
-    const role: BeneficiaryRole = beneficiaryRole === 'contingent' ? 'contingent' : 'primary';
     const db = getAdminFirestore();
     const agentDoc = await db.collection('agents').doc(uid).get();
     const agentData = agentDoc.data() || {};
@@ -114,7 +63,7 @@ export async function POST(req: NextRequest) {
         ? DEFAULT_BENEFICIARY_WELCOME_TEMPLATE_ES
         : DEFAULT_BENEFICIARY_WELCOME_TEMPLATE_EN);
 
-    const finalMessage = buildBeneficiaryWelcomeMessage({
+    const welcomeMessage = buildBeneficiaryWelcomeMessage({
       beneficiaryFirstName: (beneficiaryName || 'there').split(' ')[0],
       insuredFirstName: (insuredName || 'your loved one').split(' ')[0],
       agentName,
@@ -123,6 +72,7 @@ export async function POST(req: NextRequest) {
       language,
       template: resolvedTemplate,
     });
+    const finalMessage = `${welcomeMessage} ${BENEFICIARY_CONFIRMATION_PROMPT}`.trim();
 
     const rawPhone = typeof beneficiaryPhone === 'string' ? beneficiaryPhone.trim() : '';
     const normalizedPhone = rawPhone ? normalizePhone(rawPhone) : '';
@@ -160,20 +110,6 @@ export async function POST(req: NextRequest) {
           allowAutoReply: false,
           allowedResponder: 'none',
         });
-        if (agentData.beneficiaryAIFollowupsEnabled === true) {
-          await queueBeneficiaryFollowups({
-            db,
-            agentId: uid,
-            beneficiaryCode: code,
-            beneficiaryName: beneficiaryName || '',
-            role,
-            insuredName: insuredName || '',
-            phone: validPhone ? normalizedPhone : '',
-            email: validEmail ? email : '',
-            language,
-            agentName,
-          });
-        }
         return NextResponse.json({ success: true, channel: 'sms' });
       } catch (smsError) {
         if (!validEmail) {
@@ -201,20 +137,6 @@ export async function POST(req: NextRequest) {
       status: 'sent',
       sentAt: new Date().toISOString(),
     });
-    if (agentData.beneficiaryAIFollowupsEnabled === true) {
-      await queueBeneficiaryFollowups({
-        db,
-        agentId: uid,
-        beneficiaryCode: code,
-        beneficiaryName: beneficiaryName || '',
-        role,
-        insuredName: insuredName || '',
-        phone: validPhone ? normalizedPhone : '',
-        email: validEmail ? email : '',
-        language,
-        agentName,
-      });
-    }
     return NextResponse.json({ success: true, channel: validPhone ? 'email_fallback' : 'email' });
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Failed to send beneficiary intro.';
