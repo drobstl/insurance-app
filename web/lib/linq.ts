@@ -221,6 +221,10 @@ function hasLink(text: string): boolean {
   return /\bhttps?:\/\/[^\s]+/i.test(text);
 }
 
+function extractLinks(text: string): string[] {
+  return text.match(URL_REGEX) ?? [];
+}
+
 /**
  * Create a new chat and send the first message.
  * `to` accepts a single phone or an array — multiple recipients create a group chat.
@@ -237,6 +241,7 @@ export async function createChat(opts: {
   const toArray = (Array.isArray(opts.to) ? opts.to : [opts.to]).map(normalizePhone);
   const hasMedia = Boolean(opts.mediaUrls?.length || opts.attachmentIds?.length);
   const textHasLink = hasLink(opts.text);
+  const linksInText = textHasLink ? extractLinks(opts.text) : [];
   const textWithoutLinks = textHasLink ? stripLinksFromText(opts.text) : opts.text.trim();
   const needsSafeFirstMessage = textHasLink || hasMedia;
   const safeFirstText = textWithoutLinks || 'Hi there.';
@@ -266,15 +271,24 @@ export async function createChat(opts: {
   };
 
   if (needsSafeFirstMessage) {
+    const followupText = linksInText.length > 0
+      ? `Here is the link: ${linksInText.join(' ')}`
+      : '';
+    const hasFollowupContent = Boolean(
+      followupText || opts.mediaUrls?.length || opts.attachmentIds?.length,
+    );
+
+    if (hasFollowupContent) {
     await sendMessage({
       chatId: chat.id,
-      text: opts.text,
+      text: followupText,
       mediaUrls: opts.mediaUrls,
       attachmentIds: opts.attachmentIds,
       idempotencyKey: opts.idempotencyKey
         ? `${opts.idempotencyKey}:followup`
         : undefined,
     });
+    }
   }
 
   return {
