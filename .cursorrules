@@ -69,3 +69,29 @@ After implementing the change, update `CONTEXT.md` to reflect the new state. Thi
 - NEPQ = Neuro-Emotional Persuasion Questioning (the sales methodology underpinning all AI messaging)
 - The call-to-client pipeline receives structured JSON from Closr AI when a sale closes — any changes to the client creation endpoint or data model must stay compatible with Closr AI's entity extraction output
 - Founding members have a free-for-life commitment that must be honored through any migration
+
+## Context-Use Guardrail (mandatory)
+
+Before giving recommendations, templates, or implementation plans, run a short context preflight and cite sources.
+
+### Required preflight output (in chat)
+- List the critical constraints you are using.
+- For each constraint, include where it comes from:
+  - user message (quote/paraphrase),
+  - repo file path (for example: `web/lib/ai-voice.ts`, `web/app/api/referral/group-response/route.ts`, `CONTEXT.md`),
+  - or both.
+- If any high-impact assumption is not source-backed, label it as an assumption and ask before proceeding.
+
+### Messaging-specific checklist (must pass before drafting copy)
+- Confirm channel identity and framing (for example, not the agent's direct line unless explicitly true).
+- Confirm flow stage (for example, referral 3-way handoff before 1:1 DM opener).
+- Confirm live context timing (for example, client first message may happen during or right after a call).
+- Confirm voice rules from `web/lib/ai-voice.ts` are being applied.
+
+### Conflict stop rule
+- If a proposed recommendation conflicts with any known context, stop and ask a clarifying question instead of improvising.
+
+### Final self-audit (required for recommendation-style responses)
+- Include two short bullets at the end:
+  - `Constraints used: ...`
+  - `Sources checked: ...`
