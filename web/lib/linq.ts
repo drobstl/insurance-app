@@ -6,6 +6,7 @@ import { normalizePhone } from './phone';
 const LINQ_BASE_URL = 'https://api.linqapp.com/api/partner/v3';
 const DEFAULT_MIN_SEND_INTERVAL_MS = 1000;
 const URL_REGEX = /\bhttps?:\/\/[^\s]+/gi;
+const TRAILING_URL_PUNCTUATION_REGEX = /[).,!?:;]+$/;
 
 function getMinSendIntervalMs(): number {
   const raw = process.env.LINQ_MIN_SEND_INTERVAL_MS;
@@ -222,7 +223,10 @@ function hasLink(text: string): boolean {
 }
 
 function extractLinks(text: string): string[] {
-  return text.match(URL_REGEX) ?? [];
+  const matches = text.match(URL_REGEX) ?? [];
+  return matches
+    .map((url) => url.replace(TRAILING_URL_PUNCTUATION_REGEX, ''))
+    .filter(Boolean);
 }
 
 /**

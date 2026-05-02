@@ -7,12 +7,17 @@ import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 
 const DELIVERY_CONFIRMATION_PROMPT =
   'Could you confirm you got this by replying or giving a thumbs up here?';
+const URL_AT_END_REGEX = /https?:\/\/[^\s]+$/i;
 
 function ensureConversationalConfirmationPrompt(text: string): string {
   const trimmed = text.trim();
   if (!trimmed) return DELIVERY_CONFIRMATION_PROMPT;
   if (/thumbs?\s*up|confirm you got this|confirm.*received|got this/i.test(trimmed)) {
     return trimmed;
+  }
+  if (URL_AT_END_REGEX.test(trimmed)) {
+    // Avoid appending punctuation directly to terminal URLs (it can break click-through).
+    return `${trimmed} ${DELIVERY_CONFIRMATION_PROMPT}`;
   }
   const needsPunctuation = !/[.!?]$/.test(trimmed);
   return `${trimmed}${needsPunctuation ? '.' : ''} ${DELIVERY_CONFIRMATION_PROMPT}`;
