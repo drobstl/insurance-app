@@ -35,6 +35,7 @@ const DEFAULT_ONBOARDING_STATE: OnboardingState = {
   currentStep: 0,
   requiredMilestones: DEFAULT_ONBOARDING_MILESTONES,
 };
+const PROFILE_FETCH_TIMEOUT_MS = 12000;
 
 function normalizeOnboardingState(raw: unknown): OnboardingState {
   const source = typeof raw === 'object' && raw ? (raw as Record<string, unknown>) : {};
@@ -155,8 +156,14 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       return;
     }
     setProfileLoading(true);
+    let profileTimeout: ReturnType<typeof setTimeout> | null = null;
     try {
-      const agentDoc = await getDoc(doc(db, 'agents', user.uid));
+      const agentDoc = await Promise.race([
+        getDoc(doc(db, 'agents', user.uid)),
+        new Promise<never>((_, reject) => {
+          profileTimeout = setTimeout(() => reject(new Error('agent_profile_timeout')), PROFILE_FETCH_TIMEOUT_MS);
+        }),
+      ]);
       if (agentDoc.exists()) {
         const data = agentDoc.data();
         setAgentProfile({
@@ -199,6 +206,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Error fetching agent profile:', error);
     } finally {
+      if (profileTimeout) clearTimeout(profileTimeout);
       setProfileLoading(false);
     }
   }, [user]);

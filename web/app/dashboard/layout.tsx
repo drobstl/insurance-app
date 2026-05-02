@@ -15,35 +15,45 @@ import { ANALYTICS_EVENTS } from '../../lib/analytics-events';
 import { captureEvent } from '../../lib/posthog';
 
 const FOUNDING_ACTIVATION_TIMEOUT_MS = 12000;
+const ACCESS_GATE_ERROR_MESSAGE = 'We could not verify account access automatically. You can retry now or continue below.';
 
 function SubscriptionGate({ children }: { children: React.ReactNode }) {
   const { user, loading, profileLoading, agentProfile, handleLogout, refreshProfile } = useDashboard();
   const router = useRouter();
   const [activatingFounding, setActivatingFounding] = useState(false);
+  const [activationError, setActivationError] = useState<string | null>(null);
+  const [activationRetryNonce, setActivationRetryNonce] = useState(0);
   const activationAttemptedForUserRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!user || loading || profileLoading) return;
     const status = agentProfile.subscriptionStatus;
-    if (status === 'active') return;
+    if (status === 'active') {
+      setActivationError(null);
+      return;
+    }
     // Only auto-check founding activation for unknown/new account states.
     if (status && status !== 'inactive' && status !== 'none') return;
-    if (activationAttemptedForUserRef.current === user.uid) return;
+    const attemptKey = `${user.uid}:${activationRetryNonce}`;
+    if (activationAttemptedForUserRef.current === attemptKey) return;
 
-    activationAttemptedForUserRef.current = user.uid;
+    activationAttemptedForUserRef.current = attemptKey;
     let cancelled = false;
     const failSafeTimeout = window.setTimeout(() => {
       if (!cancelled) {
         console.warn('Founding activation check timed out (UI fail-safe).');
         setActivatingFounding(false);
+        setActivationError(ACCESS_GATE_ERROR_MESSAGE);
       }
     }, FOUNDING_ACTIVATION_TIMEOUT_MS + 1000);
 
     const tryFoundingActivation = async () => {
       setActivatingFounding(true);
+      setActivationError(null);
       const startedAt = performance.now();
       let timedOut = false;
       let requestTimeout: ReturnType<typeof setTimeout> | null = null;
+      let tokenTimeout: ReturnType<typeof setTimeout> | null = null;
       const statusBefore = status || 'unknown';
 
       captureEvent(ANALYTICS_EVENTS.DASHBOARD_ACCESS_GATE_CHECK, {
@@ -52,7 +62,21 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
       });
 
       try {
-        const token = await user.getIdToken();
+        const token = await Promise.race<string>([
+          user.getIdToken(),
+          new Promise<string>((_, reject) => {
+            tokenTimeout = setTimeout(() => {
+              timedOut = true;
+              captureEvent(ANALYTICS_EVENTS.DASHBOARD_ACCESS_GATE_CHECK, {
+                stage: 'timeout',
+                status_before: statusBefore,
+                reason: 'id_token_timeout',
+                duration_ms: Math.round(performance.now() - startedAt),
+              });
+              reject(new Error('id_token_timeout'));
+            }, FOUNDING_ACTIVATION_TIMEOUT_MS);
+          }),
+        ]);
         const controller = new AbortController();
         requestTimeout = setTimeout(() => {
           timedOut = true;
@@ -62,6 +86,7 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
             status_before: statusBefore,
             duration_ms: Math.round(performance.now() - startedAt),
           });
+          setActivationError(ACCESS_GATE_ERROR_MESSAGE);
         }, FOUNDING_ACTIVATION_TIMEOUT_MS);
         const res = await fetch('/api/founding-member/activate', {
           method: 'POST',
@@ -89,6 +114,9 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
           });
         }
       } catch (error) {
+        if (error instanceof Error && (error.name === 'AbortError' || error.message === 'id_token_timeout')) {
+          setActivationError(ACCESS_GATE_ERROR_MESSAGE);
+        }
         if (!timedOut) {
           captureEvent(ANALYTICS_EVENTS.DASHBOARD_ACCESS_GATE_CHECK, {
             stage: 'error',
@@ -100,6 +128,7 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
         console.error('Founding activation check failed:', error);
       } finally {
         if (requestTimeout) clearTimeout(requestTimeout);
+        if (tokenTimeout) clearTimeout(tokenTimeout);
         clearTimeout(failSafeTimeout);
         if (!cancelled) setActivatingFounding(false);
       }
@@ -110,7 +139,7 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
       cancelled = true;
       clearTimeout(failSafeTimeout);
     };
-  }, [user, loading, profileLoading, agentProfile.subscriptionStatus, refreshProfile]);
+  }, [user, loading, profileLoading, agentProfile.subscriptionStatus, refreshProfile, activationRetryNonce]);
 
   if (loading || profileLoading) {
     return (
@@ -169,6 +198,20 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
                 </svg>
               </div>
               <h2 className="text-2xl font-bold text-[#005851] mb-3">Subscription Required</h2>
+              {activationError && (
+                <div className="mb-4 rounded-[5px] border border-[#FCD34D] bg-[#FFFBEB] px-4 py-3 text-left">
+                  <p className="text-sm text-[#92400E]">{activationError}</p>
+                  <button
+                    onClick={() => {
+                      activationAttemptedForUserRef.current = null;
+                      setActivationRetryNonce((prev) => prev + 1);
+                    }}
+                    className="mt-2 text-sm font-semibold text-[#0F766E] hover:text-[#115E59] transition-colors"
+                  >
+                    Retry account check
+                  </button>
+                </div>
+              )}
               <p className="text-[#6B7280] mb-6">
                 {agentProfile.subscriptionStatus === 'canceled'
                   ? 'Your subscription has been canceled. Please resubscribe to continue using the dashboard.'
