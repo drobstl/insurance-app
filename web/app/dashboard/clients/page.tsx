@@ -4206,25 +4206,16 @@ export default function ClientsPage() {
               Add Client
             </button>
             <button
-              onClick={() => {
-                setIsImportModalOpen(true);
-                setImportData([]);
-                clearImportNotice();
-                setImportSuccess('');
-                setImportProgress(0);
-                setImportFileStatuses([]);
-                setImportSessionStartedAt(null);
-                setSelectedImportRowIndex(0);
-                setJustImportedClients([]);
-                setIntroMessage(DEFAULT_INTRO_TEMPLATE);
-                setIntroSentCount(null);
-              }}
-              className="px-4 py-2.5 bg-white hover:bg-gray-50 text-[#000000] font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors flex items-center gap-2 text-sm"
+              type="button"
+              disabled
+              title="Currently under construction"
+              className="px-4 py-2.5 bg-[#f6f6f6] text-[#7a7a7a] font-semibold rounded-lg border-2 border-[#b4b4b4] border-r-[3px] border-b-[3px] transition-colors flex items-center gap-2 text-sm cursor-not-allowed"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
-              Bulk Import
+              <span className="text-red-600 line-through decoration-red-600 decoration-2">Bulk Import</span>
+              <span className="text-red-700">Currently under construction</span>
             </button>
             {beneficiaryQueueSummary && beneficiaryQueueSummary.totalNeedsAttention > 0 && (
               <button
