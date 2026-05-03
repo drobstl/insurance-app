@@ -284,12 +284,27 @@ Standalone pricing remains for agents who come directly. Founding member migrati
   - Beneficiary holiday outreach is now push-only in `/api/cron/beneficiary-holiday-check`; no SMS/email fallback when push is unavailable.
   - Beneficiary lane auto-reply remains feature-flagged and default-off (`BENEFICIARY_AUTO_REPLY_ENABLED=false`) behind thread-lane routing checks in the Linq webhook.
   - Documentation alignment: Linq's "50 unique new conversations per line per day" is recorded as a **recommended ceiling** (not a hard cap), and undocumented numeric limits are no longer represented as Linq requirements. See `docs/linq-messaging-safety-policy.md` (v2) for source-labeled guidance.
+- Added (May 2, 2026): Linq scale playbook draft committed at `docs/linq-scale-playbook.md`.
+  - Captures the core scaling tension (must keep reaching non-responders without damaging line health), lane priority framework with new-client activation elevated, bulk-import pressure controls, response-aware retry cadence, automatic slowdown rules, and product packaging options including per-agent monthly SMS allowance, tiered/overage capacity, and book-size-aware baselines.
+  - Includes a one-tap agent-owned welcome-send workflow proposal and a 30-day pilot plan.
+  - Codifies multi-line scale assumption and a near-90% gross margin guardrail for pricing/operational decisions.
+- Added (May 2, 2026): Linq operator-expert briefing pre-read pattern.
+  - Brief intentionally separates Linq-stated guidance (recommended ceiling 50 unique new conversations/line/day, reciprocity targets `1:2`, ideal 30-40% first-message reply rate, minimum 15%) from AFL internal guardrails.
+  - Records source assumptions explicitly: line cost is currently $250/month per line, reputation likely scored per-number, account assumed dedicated, and several deliverability variables (10DLC/TCR posture, per-carrier metrics, segment pass-throughs, formal consent provenance ledger) are still unknown.
+- Updated (May 3, 2026): Bulk Import temporarily disabled in dashboard UI.
+  - The "Bulk Import" CTA in `web/app/dashboard/clients/page.tsx` is now visually struck through with a red `Currently under construction` label and is non-interactive (`disabled` button + `cursor-not-allowed`).
+  - Underlying import pipeline code remains in place; only the entry point is gated while the messaging operating model and bulk-release policy are being finalized.
+- Active design-in-progress (May 3, 2026): Two new source-of-truth documents are expected next session and should land under `docs/` once received:
+  - `Messaging Operating Model` — channel-by-lane allocation, per-channel safe volumes, and slowdown triggers; serves as the single source of truth for messaging delivery rules across engineering and operations.
+  - `Pricing & Packaging Playbook` — tiers, founding-member treatment, overage mechanics, pricing-page design, behavioral edge cases, and rollout. Standalone but cross-referenced with the operating model.
+  - Both should reconcile with `docs/linq-scale-playbook.md`, `docs/linq-messaging-safety-policy.md`, and `docs/linq-decision-record-2026-05.md` rather than duplicate them.
 - Known issues / next session:
   - "0 pages" metadata bug in extraction summary.
-  - Bulk import intelligence notes are concatenated into an unreadable wall of text (needs per-file collapsible notes).
+  - Bulk import intelligence notes are concatenated into an unreadable wall of text (needs per-file collapsible notes). Note: import entry point is currently disabled in the UI.
   - Single-file Upload Application modal does not support multi-select.
   - Dashboard auth "Checking account access" spinner hangs on load.
   - PostHog instrumentation files for Closr AI are still uncommitted.
+  - Pending intake: Messaging Operating Model and Pricing & Packaging Playbook documents from product owner; once received, file under `docs/` and cross-link from `CONTEXT.md` plus existing Linq docs.
 
 **Founding Member Program:** First 50 agents free for life. This commitment needs a migration path as AFL becomes a Closr AI module.
 
