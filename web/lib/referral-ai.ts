@@ -85,6 +85,16 @@ export function filterConversationToGroupOnly(
   return conversation.filter((msg) => msg.body.includes('[Group -'));
 }
 
+const REFERRAL_SOURCE_DISCLOSURE_REGEX =
+  /\b(gave me your number|shared your number|passed (?:me )?your number|told me to text you|told me i should text you|pointed me your way)\b/i;
+
+function fallbackReferralFirstMessage(ctx: ReferralContext): string {
+  if (ctx.preferredLanguage === 'es') {
+    return `Hola ${ctx.referralName}, bueno seguir por aqui despues del chat en grupo con ${ctx.clientFirstName}. Te hago una pregunta rapida: te haria sentido hablar unos minutos para ver si hay algo en lo que te pueda ayudar?`;
+  }
+  return `Hey ${ctx.referralName}, glad we could continue here after the group chat with ${ctx.clientFirstName}. Quick question: would it make sense to chat for a few minutes and see if there is anything I might be able to help with?`;
+}
+
 function buildNEPQSystemPrompt(ctx: ReferralContext): string {
   return `You are ${ctx.agentFirstName}, an insurance professional, texting naturally from your phone.
 
@@ -113,6 +123,7 @@ These are not steps to march through. Read the conversation and flow where it go
 
 OPENING (first 1-on-1 message):
 You were just introduced in the group chat — ${ctx.referralName} already knows who you are. Keep it warm and brief. Mention ${ctx.clientFirstName} naturally (first name only — they know each other personally). Don't pitch. Don't assume interest. Just open the door for a conversation. Be curious about whether there's even anything you could help with.
+DO NOT frame the opener like a list handoff or contact-source disclosure. Never say phrases like "gave me your number", "shared your number", "told me to text you", or "pointed me your way."
 
 ENGAGEMENT — where the real work happens:
 
@@ -205,14 +216,19 @@ export async function generateFirstMessage(ctx: ReferralContext): Promise<string
       messages: [
         {
           role: 'user',
-          content: `Write your first 1-on-1 text to ${ctx.referralName}. You were just introduced in the group chat by ${ctx.clientFirstName}. Keep it warm, brief, and natural. Mention ${ctx.clientFirstName} (first name only — they know each other). Don't pitch anything. Don't assume ${ctx.referralName} needs or wants anything. Do NOT mention or reference any life event (engagement, wedding, job, etc.) — you have not been told any of that in this conversation. Just open the door with genuine curiosity about whether there's something you could help with. No scheduling link. 1-3 sentences max.`,
+          content: `Write your first 1-on-1 text to ${ctx.referralName}. You were just introduced in the group chat by ${ctx.clientFirstName}. Keep it warm, brief, and natural. Mention ${ctx.clientFirstName} (first name only — they know each other). Don't pitch anything. Don't assume ${ctx.referralName} needs or wants anything. Do NOT mention or reference any life event (engagement, wedding, job, etc.) — you have not been told any of that in this conversation. Do NOT use any contact-source wording like "gave me your number", "shared your number", "told me to text you", or "pointed me your way." Just open the door with genuine curiosity about whether there's something you could help with. No scheduling link. 1-3 sentences max.`,
         },
       ],
     }),
   );
 
   const block = message.content[0];
-  return block.type === 'text' ? block.text.trim() : '';
+  const raw = block.type === 'text' ? block.text.trim() : '';
+  if (!raw) return '';
+  if (REFERRAL_SOURCE_DISCLOSURE_REGEX.test(raw)) {
+    return fallbackReferralFirstMessage(ctx);
+  }
+  return raw;
 }
 
 export interface GroupIntroContext {

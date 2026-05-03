@@ -7,6 +7,7 @@ import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { ensureAgentBookingSlug, buildBrandedBookingUrl } from '../../../../lib/booking-link';
 import { enforceOutreachBookingCta } from '../../../../lib/conservation-ai';
+import { ensureSmsFirstTouchConfirmation } from '../../../../lib/sms-first-touch';
 import {
   type TouchStage,
   type ConservationChannel,
@@ -154,6 +155,7 @@ export async function POST(req: NextRequest) {
 
     let sentChannel: ConservationChannel | null = null;
     let chatId: string | null = (alertData.chatId as string) || null;
+    let sentMessage = messageWithBooking;
 
     for (const ch of fallbackOrder) {
       if (!avail[ch]) continue;
@@ -201,13 +203,18 @@ export async function POST(req: NextRequest) {
 
       if (ch === 'sms') {
         try {
+          const smsMessageWithConfirmation = ensureSmsFirstTouchConfirmation(
+            messageWithBooking,
+            resolveClientLanguage(alertData.preferredLanguage ?? clientData.preferredLanguage),
+          );
           const result = await sendOrCreateChat({
             to: normalizedPhone,
             chatId,
-            text: messageWithBooking,
+            text: smsMessageWithConfirmation,
           });
           chatId = result.chatId;
           sentChannel = 'sms';
+          sentMessage = smsMessageWithConfirmation;
           break;
         } catch (smsError) {
           console.error('Failed to send conservation SMS via Linq:', smsError);
@@ -227,7 +234,7 @@ export async function POST(req: NextRequest) {
     await clientRef.collection('notifications').add({
       type: 'conservation',
       title: `Message from ${agentName}`,
-      body: messageWithBooking,
+      body: sentMessage,
       includeBookingLink: !!schedulingUrl,
       schedulingUrl: schedulingUrl || null,
       sentAt: FieldValue.serverTimestamp(),
@@ -250,7 +257,7 @@ export async function POST(req: NextRequest) {
     if (sentChannel) {
       alertUpdate.conversation = FieldValue.arrayUnion({
         role: 'agent-ai' as const,
-        body: messageWithBooking,
+        body: sentMessage,
         timestamp: nowIso,
         channels: [sentChannel],
       });

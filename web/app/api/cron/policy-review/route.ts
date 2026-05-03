@@ -8,6 +8,7 @@ import { generateInitialOutreach, type PolicyReviewOutreachContext } from '../..
 import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { resolveClientLanguage } from '../../../../lib/client-language';
+import { ensureSmsFirstTouchConfirmation } from '../../../../lib/sms-first-touch';
 import {
   type ConservationChannel,
   type ReviewTouchStage,
@@ -300,7 +301,16 @@ export async function GET(req: NextRequest) {
               } else if (ch === 'sms' && hasPhone) {
                 try {
                   const idempotencyKey = `policy-review-${hit.policyId}-initial`;
-                  const result = await sendOrCreateChat({ to: phone!, text: outreachMessage, idempotencyKey });
+                  const smsOutreachMessage = ensureSmsFirstTouchConfirmation(
+                    outreachMessage,
+                    resolveClientLanguage(hit.preferredLanguage),
+                  );
+                  const result = await sendOrCreateChat({
+                    to: phone!,
+                    text: smsOutreachMessage,
+                    idempotencyKey,
+                  });
+                  outreachMessage = smsOutreachMessage;
                   chatId = result.chatId;
                   usedChannel = 'sms';
                   break;

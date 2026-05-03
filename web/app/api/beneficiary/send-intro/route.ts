@@ -12,9 +12,7 @@ import {
   DEFAULT_BENEFICIARY_WELCOME_TEMPLATE_ES,
 } from '../../../../lib/client-language';
 import { upsertThreadFromOutbound } from '../../../../lib/conversation-thread-registry';
-
-const BENEFICIARY_CONFIRMATION_PROMPT =
-  'Could you confirm you got this by replying or giving a thumbs up here?';
+import { ensureSmsFirstTouchConfirmation } from '../../../../lib/sms-first-touch';
 
 function getResend() {
   const key = process.env.RESEND_API_KEY;
@@ -72,7 +70,7 @@ export async function POST(req: NextRequest) {
       language,
       template: resolvedTemplate,
     });
-    const finalMessage = `${welcomeMessage} ${BENEFICIARY_CONFIRMATION_PROMPT}`.trim();
+    const smsMessage = ensureSmsFirstTouchConfirmation(welcomeMessage, language);
 
     const rawPhone = typeof beneficiaryPhone === 'string' ? beneficiaryPhone.trim() : '';
     const normalizedPhone = rawPhone ? normalizePhone(rawPhone) : '';
@@ -89,7 +87,7 @@ export async function POST(req: NextRequest) {
 
     if (validPhone) {
       try {
-        const chatResult = await createChat({ to: normalizedPhone, text: finalMessage });
+        const chatResult = await createChat({ to: normalizedPhone, text: smsMessage });
         await db.collection('agents').doc(uid).collection('beneficiaryOutreachByCode').doc(code).collection('events').add({
           category: 'intro',
           campaignType: 'beneficiary_intro',
@@ -128,7 +126,7 @@ export async function POST(req: NextRequest) {
         language === 'es'
           ? 'Detalles de tu acceso como beneficiario'
           : 'Your Beneficiary Access Details',
-      text: finalMessage,
+      text: welcomeMessage,
     });
     await db.collection('agents').doc(uid).collection('beneficiaryOutreachByCode').doc(code).collection('events').add({
       category: 'intro',

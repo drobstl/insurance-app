@@ -11,6 +11,7 @@ import {
   generateConservationEmail,
   enforceOutreachBookingCta,
 } from '../../../../lib/conservation-ai';
+import { ensureSmsFirstTouchConfirmation } from '../../../../lib/sms-first-touch';
 import { getCarrierServicePhone } from '../../../../lib/carriers';
 import { ensureAgentBookingSlug, buildBrandedBookingUrl } from '../../../../lib/booking-link';
 import type { ConservationOutreachContext, ConservationChannel } from '../../../../lib/conservation-types';
@@ -130,9 +131,11 @@ function isChannelAvailable(channel: ConservationChannel, avail: ChannelAvailabi
 interface SendResult {
   channel: ConservationChannel;
   chatId: string | null;
+  body: string;
 }
 
 async function sendOnChannel(
+  stage: TouchStage,
   channel: ConservationChannel,
   opts: {
     message: string;
@@ -166,18 +169,24 @@ async function sendOnChannel(
       pushData.includeBookingLink = true;
     }
     const ok = await sendPushNotification(avail.pushToken, agentName, message, pushData);
-    return ok ? { channel: 'push', chatId: existingChatId } : null;
+    return ok ? { channel: 'push', chatId: existingChatId, body: message } : null;
   }
 
   if (channel === 'sms') {
     if (!avail.sms) return null;
     try {
+      const smsBody = stage === 'initial'
+        ? ensureSmsFirstTouchConfirmation(
+          message,
+          resolveClientLanguage(opts.alertData.preferredLanguage ?? opts.outreachCtx.preferredLanguage),
+        )
+        : message;
       const result = await sendOrCreateChat({
         to: avail.normalizedPhone,
         chatId: existingChatId,
-        text: message,
+        text: smsBody,
       });
-      return { channel: 'sms', chatId: result.chatId };
+      return { channel: 'sms', chatId: result.chatId, body: smsBody };
     } catch (e) {
       console.error('Conservation Linq error:', e);
       return null;
@@ -199,7 +208,7 @@ async function sendOnChannel(
       `${opts.agentFirstName} here -- about your ${policyType} policy`,
       emailBody,
     );
-    return ok ? { channel: 'email', chatId: existingChatId } : null;
+    return ok ? { channel: 'email', chatId: existingChatId, body: message } : null;
   }
 
   return null;
@@ -212,12 +221,12 @@ async function sendOnChannel(
 async function sendWithFallback(
   stage: TouchStage,
   avail: ChannelAvailability,
-  opts: Parameters<typeof sendOnChannel>[1],
+  opts: Parameters<typeof sendOnChannel>[2],
 ): Promise<SendResult | null> {
   const order = STAGE_FALLBACK_ORDER[stage];
   for (const ch of order) {
     if (!isChannelAvailable(ch, avail)) continue;
-    const result = await sendOnChannel(ch, opts);
+    const result = await sendOnChannel(stage, ch, opts);
     if (result) return result;
   }
   return null;
@@ -418,7 +427,7 @@ export async function GET(req: NextRequest) {
             .add({
               type: 'conservation',
               title: `Message from ${agentName}`,
-              body: sendOpts.message,
+              body: result.body,
               includeBookingLink: !!schedulingUrl,
               schedulingUrl: schedulingUrl || null,
               sentAt: FieldValue.serverTimestamp(),
@@ -428,7 +437,7 @@ export async function GET(req: NextRequest) {
 
           const conversationEntry = {
             role: 'agent-ai' as const,
-            body: sendOpts.message,
+            body: result.body,
             timestamp: nowIso,
             channels: [result.channel],
           };
@@ -599,7 +608,7 @@ export async function GET(req: NextRequest) {
             .add({
               type: 'conservation',
               title: `Message from ${agentName}`,
-              body: followUpWithBooking,
+              body: sendResult.body,
               includeBookingLink: !!schedulingUrl,
               sentAt: FieldValue.serverTimestamp(),
               readAt: null,
@@ -608,7 +617,7 @@ export async function GET(req: NextRequest) {
 
           const conversationEntry = {
             role: 'agent-ai' as const,
-            body: followUpWithBooking,
+            body: sendResult.body,
             timestamp: nowIso,
             channels: [sendResult.channel],
           };
@@ -627,7 +636,7 @@ export async function GET(req: NextRequest) {
             channelsUsed: [...existingChannelsUsed, sendResult.channel],
             dripCount: (alertData.dripCount || 0) + 1,
             lastDripAt: nowIso,
-            dripMessages: [...existingDripMessages, followUpWithBooking],
+            dripMessages: [...existingDripMessages, sendResult.body],
             conversation: FieldValue.arrayUnion(conversationEntry),
           };
 
