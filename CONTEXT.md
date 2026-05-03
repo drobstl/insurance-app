@@ -283,6 +283,7 @@ Standalone pricing remains for agents who come directly. Founding member migrati
   - `/api/cron/beneficiary-followups` is now a disabler path that marks queued follow-ups as `skipped` with `reason: followups_disabled`.
   - Beneficiary holiday outreach is now push-only in `/api/cron/beneficiary-holiday-check`; no SMS/email fallback when push is unavailable.
   - Beneficiary lane auto-reply remains feature-flagged and default-off (`BENEFICIARY_AUTO_REPLY_ENABLED=false`) behind thread-lane routing checks in the Linq webhook.
+  - Documentation alignment: Linq's "50 unique new conversations per line per day" is recorded as a **recommended ceiling** (not a hard cap), and undocumented numeric limits are no longer represented as Linq requirements. See `docs/linq-messaging-safety-policy.md` (v2) for source-labeled guidance.
 - Known issues / next session:
   - "0 pages" metadata bug in extraction summary.
   - Bulk import intelligence notes are concatenated into an unreadable wall of text (needs per-file collapsible notes).

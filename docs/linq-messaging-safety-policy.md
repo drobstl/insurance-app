@@ -1,8 +1,8 @@
-# Linq Messaging Safety Policy (v1)
+# Linq Messaging Safety Policy (v2)
 
 ## Purpose
 
-Protect outbound deliverability and prevent `Limited` or flagged number states while running insurance-agent outreach at scale.
+Protect outbound deliverability and prevent `Limited` or flagged number states while running insurance-agent outreach at scale, using Linq's published guidance as the source of truth.
 
 ## Scope
 
@@ -12,42 +12,56 @@ This policy applies to all outbound Linq traffic from AgentForLife, including:
 - drips and follow-ups
 - manual sends triggered from dashboard workflows
 
-## 1) Non-Negotiable Limits
+## 1) Linq-Provided Guidance (Source Facts)
 
-- Per-line new conversation cap: **50/day max**
-- Per-line first-touch cap: **6/hour max**
-- Burst guardrail: no more than **2 first-touch** sends in any **60-second** window per line
-- Keep **25% daily headroom** per line (do not operate at maximum capacity)
+From Linq Partner Guide screenshots shared May 2, 2026:
 
-## 2) First-Message Content Rules
+- **50 unique new conversations per line per day** is the **recommended ceiling** (not stated as a hard cap).
+- Reciprocity targets:
+  - target ratio: **1 reply for every 2 sends** (`1:2`)
+  - ideal first-message reply rate: **30-40%**
+  - minimum first-message reply rate to maintain line performance: **15%**
+- First-touch quality guidance:
+  - lead with short, conversational text
+  - personalize and use recipient name when possible
+  - end with an easy, low-friction reply question
+  - avoid links/attachments/media in the opener
+  - give recipients time to respond before sending again
+- Keep call and text numbers separate to avoid "Spam Likely" risk from mixed usage.
+- Linq frames this as a **partnership calibration process**, not a rigid one-size-fits-all policy.
 
-- First message must not include:
-  - links (unless prior engagement/context exists)
-  - attachments
-  - sales-heavy copy
-- First message should be:
-  - short and conversational
-  - personalized (name/context token)
-  - reply-oriented (light question)
-- Template anti-repetition:
-  - at least 5 rotating variants per campaign
-  - avoid identical copy sent repeatedly in short windows
+## 2) AFL Policy Interpretation (Internal)
 
-## 3) Traffic Shaping Rules
+The following are AFL operating rules built from Linq guidance plus risk tolerance:
 
-- Distribute sends across recipient-local daytime hours
-- Add jitter between sends (20-120 seconds)
-- Avoid overnight cold first-touch
-- Prioritize warm/contextual recipients over low-context recipients
+- Treat **50 new conversations/line/day** as a planning threshold for steady-state operations unless Linq approves higher limits for our traffic profile.
+- Do not represent any hourly first-touch value as a Linq requirement unless documented by Linq in writing.
+- Maintain opener rules:
+  - no links/media/attachments in first message
+  - conversational tone (not campaign tone)
+  - clear personalization + easy reply ask
+- Avoid stacked follow-ups to non-responders; enforce waiting windows between attempts.
 
-## 4) Number Pooling Strategy
+## 3) Message Types Not Meant for iMessage (Per Linq)
+
+Avoid using iMessage first-touch for:
+
+- long, cold-email-style paragraphs
+- links in opener (not clickable until reply)
+- images/PDFs/videos as first message
+- mass-marketing-first language
+- templated automated-feeling copy
+- "big news" promotional blasts
+- generic openers that do not name the recipient
+
+## 4) Number Pooling Strategy (AFL)
 
 - Use a minimum of **2 active lines** (primary + secondary)
 - Route recipients by stable shard key (avoid random thread switching)
 - Maintain one spare line for failover/warm-up
 - Never run production on a single line
 
-## 5) New Number Warm-Up
+## 5) New Number Warm-Up (AFL; Adjustable with Linq)
 
 - Day 1-2: up to 20 new conversations/day
 - Day 3-4: up to 30/day
@@ -63,7 +77,7 @@ Ramp only when all conditions hold:
 
 Pre-send checks:
 - line health is acceptable
-- line is below hourly/daily cap
+- line is below daily planning threshold and current warm-up allowance
 - first-message content passes policy checks
 
 Auto-pause triggers (per line):
@@ -114,8 +128,8 @@ Review weekly:
 
 Engineering:
 - [ ] Add line health check before every Linq send
-- [ ] Enforce per-line hourly and daily caps in API layer
-- [ ] Add send jitter and burst controls
+- [ ] Enforce per-line daily planning threshold in API layer
+- [ ] Add send pacing controls (timing + non-responder wait windows)
 - [ ] Add template variant rotation + first-message linting (no link/attachment)
 - [ ] Ingest and persist `message.failed` and `phone_number.status_updated` events
 - [ ] Add auto-pause kill switch for degraded lines
@@ -131,3 +145,10 @@ Operations:
 ## 11) Enforcement
 
 Any feature that bypasses this policy is blocked from release until compliant.
+
+## 12) Source-of-Truth Notes
+
+- If this document conflicts with direct Linq guidance, Linq guidance wins.
+- Any numeric threshold must be labeled as one of:
+  - `Linq-provided recommendation`, or
+  - `AFL internal conservative guardrail`.
