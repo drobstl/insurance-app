@@ -7,6 +7,7 @@ import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { ensureAgentBookingSlug, buildBrandedBookingUrl } from '../../../../lib/booking-link';
 import { enforceOutreachBookingCta } from '../../../../lib/conservation-ai';
+import { resolveClientLanguage } from '../../../../lib/client-language';
 import { ensureSmsFirstTouchConfirmation } from '../../../../lib/sms-first-touch';
 import {
   type TouchStage,
