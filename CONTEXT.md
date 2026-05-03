@@ -153,11 +153,10 @@ Standalone pricing remains for agents who come directly. Founding member migrati
   - Added configurable beneficiary welcome templates in Settings (English/Spanish) and dashboard send flow with editable pre-send messaging.
   - Mobile code lookup/policies endpoints now accept beneficiary codes and scope policy responses to matching beneficiary rows.
   - Added new carrier form type `uhl_icc20_200_854a_giwl` ("United Home Life - GIWL") with dedicated PAGE_MAP and carrier extraction supplement.
-- Added (April 2026): Beneficiary relationship automation phase 1.
-  - Agent settings now include beneficiary automation controls: holiday touchpoints toggle, AI follow-up toggle, and max touches per 30 days cap.
-  - Intro sends can queue Day 2 / 5 / 10 beneficiary follow-ups when enabled.
-  - New cron routes added: `/api/cron/beneficiary-followups` and `/api/cron/beneficiary-holiday-check`.
-  - Beneficiary holiday and follow-up sends use SMS-first with email fallback and record outreach events per beneficiary code for cap enforcement.
+- Added (April 2026): Beneficiary relationship automation phase 1 (initial rollout).
+  - Agent settings include beneficiary automation controls: holiday touchpoints toggle, AI follow-up toggle, and max touches per 30 days cap.
+  - Intro send + cron infrastructure shipped: `/api/cron/beneficiary-followups` and `/api/cron/beneficiary-holiday-check`.
+  - Note: this initial SMS/email-first design was later tightened by the May 2026 Linq policy hardening updates below.
 - Added (April 2026): Mobile-first responsive dashboard shell for agents on phones (mobile top bar + bottom nav + mobile breakpoint layout tuning on core pages). Desktop/laptop layout is intentionally preserved with no design changes outside the new language controls.
 - Added (April 2026): Ingestion signing resiliency + observability hardening. Implemented signed-upload canary checks (`/api/health/ingestion-signing` for UptimeRobot/monitoring, `/api/cron/ingestion-signing-canary` every 15m with `CRON_SECRET`), structured alert logs (`[ingestion-v3-alert]`) with typed error codes (`SIGNATURE_MISMATCH`, `INVALID_JWT_SIGNATURE`, etc.), processor-level failure classification (`diagnosticCategory` on terminal v3 failures for PostHog + `[ingestion-v3-alert] process failed`), and automatic fallback from the v3 pipeline to **`POST /api/parse-application`** when signed PUT fails with known signing errors or when the v3 job fails with `INTERNAL_ERROR` / `CLAUDE_SCHEMA_INVALID` (some carrier PDFs parse successfully on the direct path even when the async processor errors). Operational detail is in `OPERATIONS.md`.
 - Added (April 2026): **Admin-only** “Upload Signing Health” strip on the dashboard home page: only users whose email appears in `NEXT_PUBLIC_ADMIN_EMAILS` (same mechanism as the Admin sidebar) see the indicator or poll the health route from the browser; external uptime checks still hit the public health URL unauthenticated.
@@ -278,6 +277,12 @@ Standalone pricing remains for agents who come directly. Founding member migrati
     - `BENEFICIARY_AUTO_REPLY_ENABLED` (default false).
   - Added beneficiary hard-fence behavior when routed in beneficiary lane (no automatic non-beneficiary AI response) plus unresolved inbound lead inbox creation path.
   - Added migration tooling: `web/scripts/backfill-conversation-thread-registry.ts` (`npm --prefix web run backfill:thread-registry`) to seed registry records from existing referral/conservation/policy review chat IDs before enabling strict routing in production.
+- Updated (May 2, 2026): Linq messaging policy hardening + beneficiary outreach guardrails.
+  - Welcome and invite SMS flows now append a conversational delivery confirmation prompt to improve reciprocity ("Could you confirm you got this by replying or giving a thumbs up here?").
+  - Beneficiary intro messages now send as single-touch intros only (no automatic Day 2/5/10 follow-up queueing from intro sends).
+  - `/api/cron/beneficiary-followups` is now a disabler path that marks queued follow-ups as `skipped` with `reason: followups_disabled`.
+  - Beneficiary holiday outreach is now push-only in `/api/cron/beneficiary-holiday-check`; no SMS/email fallback when push is unavailable.
+  - Beneficiary lane auto-reply remains feature-flagged and default-off (`BENEFICIARY_AUTO_REPLY_ENABLED=false`) behind thread-lane routing checks in the Linq webhook.
 - Known issues / next session:
   - "0 pages" metadata bug in extraction summary.
   - Bulk import intelligence notes are concatenated into an unreadable wall of text (needs per-file collapsible notes).
@@ -360,10 +365,13 @@ The four fields insuredPhone, insuredEmail, insuredState, and renewalDate were a
 
 ### Open Items (Priority Order)
 
-1. Re-test Whole Life with updated PAGE_MAP `[1, 2, 3, 4, 5]` and scanning supplement. Use Barbara Seaton PDF (Bank Draft on page 3, expected policy number `AM02488865`).
-2. Re-test IUL Conditional Receipt fallback. Robin Howard's page 5 signature date was blank - verify that Image 5 (Conditional Receipt, page 22) now provides the date `11/18/2025`.
-3. Document `unknown` carrier handling. Current behavior works (renders first N pages, no supplement, base prompt does best-effort). Just needs to be intentional and documented.
-4. Production validation pass across the newly-added carriers (AMAM Mortgage Protection, AMAM Term, Foresters, all three MOO forms, Banner/LGA) — each currently has supplement + PAGE_MAP shipped but limited real-world sample coverage.
+1. Finalize Linq sender-identity policy for outbound AI messages (speak as agent vs named assistant on behalf of agent) and lock compliance-safe default language.
+2. Lock the production routing strictness plan (`THREAD_ROUTER_ENABLED` rollout, `PHONE_FALLBACK_STRICT_MODE` posture, and beneficiary auto-reply policy).
+3. Define line-capacity operating policy for pooled Linq lines (daily unique-new-conversation caps, warm-up, and bulk-import throttles).
+4. Re-test Whole Life with updated PAGE_MAP `[1, 2, 3, 4, 5]` and scanning supplement. Use Barbara Seaton PDF (Bank Draft on page 3, expected policy number `AM02488865`).
+5. Re-test IUL Conditional Receipt fallback. Robin Howard's page 5 signature date was blank - verify that Image 5 (Conditional Receipt, page 22) now provides the date `11/18/2025`.
+6. Document `unknown` carrier handling. Current behavior works (renders first N pages, no supplement, base prompt does best-effort). Just needs to be intentional and documented.
+7. Production validation pass across the newly-added carriers (AMAM Mortgage Protection, AMAM Term, Foresters, all three MOO forms, Banner/LGA) — each currently has supplement + PAGE_MAP shipped but limited real-world sample coverage.
 
 ### Key files
 
@@ -385,6 +393,8 @@ The canonical working repo is `/Users/danielroberts/Developer/insurance-app`. Th
 - How do founding members transition? (Free-for-life commitment + new platform structure)
 - Should the referral pipeline be accessible from the Closr AI dashboard directly, or only through AFL?
 - What drove low activation? Onboarding friction? Data entry burden? Unclear value prop? Need agent interviews.
+- Should AFL default to agent-voice identity or assistant-voice identity in SMS, and what explicit disclosure standard should be required per lane/use case?
+- What KPI contract should define Linq health in production (first-message reply %, reply:send ratio, per-line unique-new/day, line-limit incidents)?
 
 ## IP & Legal
 
