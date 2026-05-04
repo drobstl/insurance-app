@@ -131,16 +131,34 @@ export const REVIEW_STAGE_DELAY: Record<ReviewTouchStage, number> = {
   followup_14d: 14 * MS_PER_DAY,
 };
 
+/**
+ * Anniversary (policy review) outreach channels.
+ *
+ * ARCHITECTURAL RULE — May 4, 2026 (strategy decisions §1, §6 + CONTEXT.md
+ * `Channel Rules`): Anniversary is push only, no fallback. If push is
+ * unavailable for a client, the cycle ends silently for that client until
+ * the next scheduled anniversary. Do NOT add `'sms'` or `'email'` to any
+ * stage. Do NOT introduce a feature flag. The rule lives in the docs;
+ * implementation must conform.
+ *
+ * If you believe a fallback is needed, surface the question against
+ * `docs/AFL_Strategy_Decisions_2026-05-04.md` rather than editing this
+ * constant. Holiday/birthday lanes already operate under the same rule via
+ * different code paths and are not affected by changes here.
+ */
 export const REVIEW_STAGE_FALLBACK_ORDER: Record<ReviewTouchStage, ConservationChannel[]> = {
-  initial: ['push', 'sms'],
-  followup_3d: ['sms', 'push'],
-  followup_7d: ['push', 'sms'],
-  followup_14d: ['sms', 'push'],
+  initial: ['push'],
+  followup_3d: ['push'],
+  followup_7d: ['push'],
+  followup_14d: ['push'],
 };
 
-export const REVIEW_STAGE_COMPLEMENT_EMAIL: Partial<Record<ReviewTouchStage, boolean>> = {
-  followup_14d: true,
-};
+/**
+ * Anniversary email complement is disabled under the May 4, 2026 architectural
+ * rule (see `REVIEW_STAGE_FALLBACK_ORDER` above). Intentionally empty — no
+ * stage may add an email touch.
+ */
+export const REVIEW_STAGE_COMPLEMENT_EMAIL: Partial<Record<ReviewTouchStage, boolean>> = {};
 
 // ─── Shared Types ────────────────────────────────────────────────────────────
 

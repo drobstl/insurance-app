@@ -97,6 +97,7 @@ export async function GET() {
     const now = Date.now();
     const nowIso = new Date().toISOString();
     let sent = 0;
+    let skipped = 0;
 
     const agentsSnap = await db.collection('agents').get();
 
@@ -193,8 +194,16 @@ export async function GET() {
 
           const pushTitle = dripCtx.dripNumber <= 1 ? 'Policy Check-In' : 'Quick Reminder';
 
+          // Anniversary is push-only with no fallback (May 4, 2026
+          // architectural rule, see strategy decisions §1/§6 +
+          // CONTEXT.md `Channel Rules`). REVIEW_STAGE_FALLBACK_ORDER is
+          // ['push'] for every stage. The SMS branch below is dead for
+          // anniversary and intentionally retained as shared vocabulary —
+          // do not extend it back to SMS for this lane.
+          let pushSendAttempted = false;
           for (const ch of REVIEW_STAGE_FALLBACK_ORDER[nextStage]) {
             if (ch === 'push' && pushToken) {
+              pushSendAttempted = true;
               const ok = await sendPush(pushToken, pushTitle, message, {
                 type: 'policy-review',
                 agentId: agentDoc.id,
@@ -218,7 +227,39 @@ export async function GET() {
             }
           }
 
-          if (!usedChannel) continue;
+          if (!usedChannel) {
+            // Push unavailable (no token) or push send failed.
+            // Anniversary has no fallback channel — terminate the campaign
+            // so the drip cron stops re-attempting every 4 hours.
+            const skipReason: 'push_unavailable' | 'push_send_failed' =
+              pushSendAttempted ? 'push_send_failed' : 'push_unavailable';
+            try {
+              await reviewDoc.ref.update({
+                status: 'drip-complete',
+                touchStage: 'followup_14d',
+                nextTouchAt: null,
+                pushSkippedAt: FieldValue.serverTimestamp(),
+                pushSkippedReason: skipReason,
+                updatedAt: FieldValue.serverTimestamp(),
+              });
+            } catch (markErr) {
+              console.error(
+                `Failed to mark review ${reviewDoc.id} as skipped:`,
+                markErr,
+              );
+            }
+            skipped++;
+            console.log('[policy-review-drip] skipped (push unavailable)', {
+              agentId: agentDoc.id,
+              reviewId: reviewDoc.id,
+              clientId: data.clientId,
+              stage: nextStage,
+              reason: skipReason,
+              hasPushToken: !!pushToken,
+              lane: 'anniversary',
+            });
+            continue;
+          }
 
           // Email complement on final stage
           if (REVIEW_STAGE_COMPLEMENT_EMAIL[nextStage]) {
@@ -298,7 +339,7 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ success: true, dripsSent: sent });
+    return NextResponse.json({ success: true, dripsSent: sent, dripsSkipped: skipped });
   } catch (error) {
     console.error('Policy review drip cron error:', error);
     return NextResponse.json({ error: 'Drip cron failed' }, { status: 500 });

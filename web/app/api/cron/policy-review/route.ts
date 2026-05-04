@@ -78,6 +78,7 @@ export async function GET(req: NextRequest) {
     let totalAgentEmails = 0;
     let totalCampaignsCreated = 0;
     let totalSkipped = 0;
+    let totalClientOutreachSkipped = 0;
 
     const agentsSnap = await db.collection('agents').get();
 
@@ -262,14 +263,22 @@ export async function GET(req: NextRequest) {
               pushTitleForHit = messageStyle === 'lower_price' ? 'Rate Review' : 'Policy Check-In';
             }
 
-            // Try channels in fallback order (push preferred, then SMS)
+            // Anniversary is push-only with no fallback (May 4, 2026
+            // architectural rule, see strategy decisions §1/§6 +
+            // CONTEXT.md `Channel Rules`). REVIEW_STAGE_FALLBACK_ORDER
+            // ['initial'] === ['push']. The SMS branch below is dead for
+            // anniversary and intentionally retained only because the channel
+            // loop is shared vocabulary with other lanes; do not extend it
+            // back to SMS for this lane.
             const phone = hit.clientPhone ? normalizePhone(hit.clientPhone) : null;
             const hasPhone = phone ? isValidE164(phone) : false;
             let usedChannel: ConservationChannel | null = null;
+            let pushSendAttempted = false;
             let chatId: string | null = null;
 
             for (const ch of REVIEW_STAGE_FALLBACK_ORDER['initial']) {
               if (ch === 'push' && hit.clientPushToken) {
+                pushSendAttempted = true;
                 try {
                   const res = await fetch('https://exp.host/--/api/v2/push/send', {
                     method: 'POST',
@@ -320,7 +329,37 @@ export async function GET(req: NextRequest) {
               }
             }
 
-            if (!usedChannel) continue;
+            if (!usedChannel) {
+              // Push unavailable (no token) or push send failed.
+              // Anniversary is push-only with no fallback — end the cycle
+              // silently for this client until the next anniversary.
+              // Strict semantics: write `policyReviewNotifiedAt` so this
+              // policy is not re-attempted on subsequent days within the
+              // current Day +1 window (~365 days until next anniversary).
+              const skipReason: 'push_unavailable' | 'push_send_failed' =
+                pushSendAttempted ? 'push_send_failed' : 'push_unavailable';
+              try {
+                await db.doc(hit.policyPath).update({
+                  policyReviewNotifiedAt: now.toISOString(),
+                  policyReviewSkippedReason: skipReason,
+                });
+              } catch (markErr) {
+                console.error(
+                  `Failed to mark policy ${hit.policyId} as skipped:`,
+                  markErr,
+                );
+              }
+              totalClientOutreachSkipped++;
+              console.log('[policy-review] skipped (push unavailable)', {
+                agentId: agentDoc.id,
+                clientId: hit.clientId,
+                policyId: hit.policyId,
+                reason: skipReason,
+                hasPushToken: !!hit.clientPushToken,
+                lane: 'anniversary',
+              });
+              continue;
+            }
 
             // Compute next stage timing
             const nextStage = NEXT_REVIEW_STAGE['initial'] as ReviewTouchStage;
@@ -397,6 +436,7 @@ export async function GET(req: NextRequest) {
       agentEmailsSent: totalAgentEmails,
       campaignsCreated: totalCampaignsCreated,
       policiesSkipped: totalSkipped,
+      clientOutreachSkipped: totalClientOutreachSkipped,
     });
   } catch (error) {
     console.error('Policy review cron error:', error);
