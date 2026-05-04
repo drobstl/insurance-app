@@ -1,0 +1,83 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ═══ AGENTS ═══
+    // Mobile app reads agent profiles during login.
+    // Agents read/write their own profile from the dashboard.
+    match /agents/{agentId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == agentId;
+      // ─── CLIENTS (subcollection) ───
+      // Mobile app queries by clientCode and reads client docs.
+      // Agents manage their own clients from the dashboard.
+      match /clients/{clientId} {
+        allow read: if true;
+        allow write: if request.auth != null && request.auth.uid == agentId;
+        // ─── NOTIFICATIONS (under clients) ───
+        // Mobile app reads and marks notifications as read.
+        // Server creates them via Admin SDK (bypasses rules).
+        match /notifications/{notificationId} {
+          allow read: if true;
+          allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt']);
+          allow create, delete: if false;
+        }
+        // ─── POLICIES (under clients) ───
+        // Mobile app reads policies. Agents manage via dashboard/API.
+        match /policies/{policyId} {
+          allow read: if true;
+          allow write: if request.auth != null && request.auth.uid == agentId;
+        }
+      }
+      // ─── POLICIES (agent-level) ───
+      match /policies/{policyId} {
+        allow read, write: if request.auth != null && request.auth.uid == agentId;
+      }
+      // ─── CONSERVATION ALERTS ───
+      match /conservationAlerts/{alertId} {
+        allow read, write: if request.auth != null && request.auth.uid == agentId;
+      }
+      // ─── REFERRALS ───
+      match /referrals/{referralId} {
+        allow read, write: if request.auth != null && request.auth.uid == agentId;
+      }
+      // ─── POLICY REVIEWS (anniversary rewrites) ───
+      match /policyReviews/{reviewId} {
+        allow read, write: if request.auth != null && request.auth.uid == agentId;
+      }
+      // ─── STATS (aggregates, written by server crons/API) ───
+      match /stats/{docId} {
+        allow read: if request.auth != null && request.auth.uid == agentId;
+        allow write: if false;
+      }
+      // ─── BATCH JOBS (Drive import progress tracking) ───
+      // Server writes via Admin SDK (bypasses rules).
+      // Client reads via onSnapshot for real-time progress.
+      match /batchJobs/{batchId} {
+        allow read: if request.auth != null && request.auth.uid == agentId;
+        allow write: if false;
+      }
+    }
+    // ═══ TOP-LEVEL MIRRORS (for mobile app) ═══
+    match /clients/{clientId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    match /clientCodes/{code} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    // ═══ FEEDBACK & SURVEYS (dashboard) ═══
+    match /surveyResponses/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    match /featureIdeas/{ideaId} {
+      allow read, write: if request.auth != null;
+    }
+    match /featureIdeaVotes/{voteId} {
+      allow read, write: if request.auth != null;
+    }
+    match /bugReports/{reportId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
