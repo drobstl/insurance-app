@@ -2,7 +2,21 @@
 # CONTEXT.md — AgentForLife (AFL)
 
 > Drop this in the repo root. Read it before any strategic or architectural decision.
-> Last updated: April 24, 2026 (evening)
+> Last updated: May 4, 2026
+
+## Source-of-Truth Documents
+
+These three documents are authoritative for the operating model and pricing. When they conflict with each other, the precedence order is:
+
+1. `docs/AFL_Strategy_Decisions_2026-05-04.md` — the May 4, 2026 strategy session decisions. Wins over v3.1 and v3 wherever they conflict.
+2. `docs/AFL_Messaging_Operating_Model_v3.1.md` — channel architecture, lane rules, capacity model, KPI tier system, phased rollout.
+3. `docs/AFL_Pricing_Packaging_Playbook_v3.md` — tier structure, founding-member treatment, overage mechanics, pricing-page design, Concierge add-on.
+
+Supporting Linq documents (compatible with the above):
+
+- `docs/linq-messaging-safety-policy.md` — source-labeled deliverability guidance.
+- `docs/linq-scale-playbook.md` — scaling tension, lane priorities, pilot plan, near-90% gross margin guardrail.
+- `docs/linq-decision-record-2026-05.md` — Linq operator confirmations record.
 
 ## What This Is
 
@@ -41,10 +55,12 @@ Independent life insurance agents selling mortgage protection, final expense, an
 - Auto-flags policies approaching 1-year anniversary
 - Two message styles: "check in" (relationship) or "lower price" (savings)
 - AI-drafted outreach with drip follow-ups
+- **Channel rule (May 4, 2026):** push only, no fallback. See `Channel Rules` section. The current `REVIEW_STAGE_FALLBACK_ORDER` still lists SMS — this is the Phase 0 hotfix.
 
 ### Automated Touchpoints (Cron-Driven)
 - Birthday messages (daily 1 PM), holiday cards (daily 2 PM), policy anniversaries (daily 2 PM)
 - Sent via push notifications to the client's mobile app
+- **Channel rule:** birthday and holiday cards are already push-only with no fallback in production today; anniversary will be aligned via the Phase 0 hotfix.
 
 ### Branded Client Mobile App
 - White-labeled with agent's name, photo, logo
@@ -77,20 +93,239 @@ AFL is being integrated as the post-sale module of Closr AI, an agency intellige
 - Auth will unify under Clerk org model (Closr AI already uses Clerk)
 - AFL subscription becomes a toggle within Closr AI's Stripe billing
 - AFL retains standalone functionality for agents not using Closr AI
+- **Pricing for the Closr AI bundle is deferred** until Closr AI exits MVP. AFL standalone pricing (see `Business Model`) launches independently.
+
+## Channel Rules
+
+These rules apply to every outbound flow. They are the single source of truth for which channel a given lane uses; lane-specific code paths must conform. Source: strategy decisions §1–§2 and v3.1 §3–§4.
+
+### Universal precedence
+1. **Push** if the client has the app installed AND notifications are allowed (and the token is valid and not revoked — see `Push permission lifecycle` below). Used for every lane that supports push delivery.
+2. **Agent-phone SMS via one-tap** for the welcome lane (the client doesn't have the app yet).
+3. **Linq pooled-line SMS** only when push is unavailable (notifications off or app uninstalled), or when push has been delivered and didn't resolve a retention attempt within 5 days. Always subject to KPI tier thresholds.
+4. **Email** as fallback or third-touch step. Always available; never gated by line health.
+
+The rule is about behavioral consent, not behavioral activity. App dormancy is **not** a disqualifier — most clients won't open the AFL app for months at a time, and that's correct product behavior. Permission is.
+
+### Per-lane channel matrix
+
+| Lane | Primary | Escalation | Fallback | Pooled-line SMS allowed? |
+|------|---------|------------|----------|--------------------------|
+| New client activation (welcome) — Step 1 | Agent-phone one-tap (app link + login code) | Email at day 7 if no agent send | — | No for the welcome itself |
+| New client activation — Step 2 | Client-initiated inbound to Linq via in-app Activate button; Linq first response includes agent vCard + thumbs-up ask | — | — | Inbound only |
+| Anniversary policy review | Push | Email | — | **Never. Architectural, not tunable.** |
+| Lapse / Retention | Push | Linq SMS (max 2 / 30d per non-responder) | Mandatory email at third touch; 60-day quiet period | Yes (escalation only) |
+| Referral | Existing client one-tap from their app → group SMS to prospect from referrer's personal phone | AI on Linq line continues qualification 1:1 | — | Yes (continuation) |
+| Beneficiary | **Push primary for cold contact.** No cold outreach via any channel. SMS/email available for **activated** beneficiaries as future tools (strategy §2 preserves channel flexibility — not push-only locked). | Push only today; SMS/email reserved for Phase 2/3 testing | — | Inbound only today |
+| Holiday cards | Push | — | — | **Never.** |
+| Birthday cards | Push | — | — | **Never.** |
+| Bulk import (onboarding ceremony) | Agent-phone one-tap (drip) or email blast | — | — | **Never** (architectural, confirmed by Linq) |
+
+**Anniversary, holiday cards, birthday cards = push only, no fallback.** If the client does not have push enabled, the cycle ends silently for that client until the next scheduled cycle. This is the May 4, 2026 strategy decision (§1) and overrides v3.1 §3.2 / §4.2's email fallback for anniversary.
+
+### The two-step welcome flow
+
+This is the single most consequential mechanism in the operating model.
+
+- **Step 1 — Agent's personal phone (one-tap).** After PDF auto-extract creates the client profile, the dashboard surfaces a "Send from my phone" button. Tapping it opens native iMessage with a pre-filled draft from the agent's own number. The message contains a personal greeting, the AFL app download link, the client's login code, and the instruction: *"Open it up and tap Activate so we're all connected — and turn on notifications so I can reach you when it matters."*
+- **Step 2 — Client taps Activate in the app.** The Activate button uses the `sms:` URL scheme to compose a pre-filled text **from the client to the Linq line** (e.g., *"Hi [Agent], it's [Client] — I'm set up on the app!"*). The client initiates the Linq-side conversation themselves.
+- **Linq line first response.** Includes the agent's vCard (MMS attachment) and a thumbs-up reciprocity ask: *"Save my contact so you'll always know it's me — and shoot back a thumbs up so I know we're connected. Carriers sometimes block messages and that's how I'll know you're getting them."*
+
+Why this works: client-initiated inbound is the gold standard for carrier deliverability and consent provenance. Linq has confirmed (May 2026) that **client-initiated inbound conversations do not count against the 50-per-day outbound new-conversation cap**.
+
+### Identity on the Linq line
+
+Automated messages on the Linq line are **signed under the agent's name** (NEPQ-tuned voice). EA-persona framing was considered and **deferred** as a future architectural option. The agent's office line is framed in client-facing copy as "my office line." Triggers for revisiting EA framing: AFL grows past ~100 active agents and per-agent voice consistency becomes a maintenance burden, regulatory inquiry, or AFL pursues direct AMB registration with Apple.
+
+### Thumbs-up reciprocity mechanic
+
+Used deliberately, not on every message:
+
+- **Use it on:** first Linq response after activation, anniversary check-ins via SMS (when push wasn't available), time-sensitive sends (call confirmations, scheduling).
+- **Don't use it on:** routine FYI messages (holiday/birthday cards), conversation continuation in active threads, every message reflexively.
+
+### vCard generation
+
+Server-side, per-agent, regenerated when the agent's name or photo changes. Embedded JPEG photo at ~400×400, 75–80% quality, kept under 60 KB so the MMS payload stays safely under 100 KB. Two photo derivatives stored on agent profile photo upload — display version (dashboard / in-app profile) and vCard version (compressed). The vCard rides with the Linq line's first response after activation; the `sms:` URL scheme cannot attach files, so the agent-phone welcome is text-only.
+
+### Beneficiary invite mechanic
+
+Architecturally identical to client activation, with the policyholder as initiator:
+
+1. Each adult beneficiary on a policy has an Invite button in the policyholder's app.
+2. Policyholder taps Invite → iMessage opens with a pre-filled welcome from the policyholder's phone (download link + login code tied to a beneficiary profile).
+3. Beneficiary downloads, enters code, lands on a screen that surfaces their role on the policy and the agent's contact info.
+4. Beneficiary taps Activate → `sms:` URL scheme composes a pre-filled outbound to the Linq line.
+5. Linq line responds with the agent's vCard, a thumbs-up ask, and a brief plain-English claim-time note.
+
+Three invite prompts run in parallel: during policyholder activation, during annual beneficiary verification, and always-on access from the policyholder's app.
+
+**Hard rule:** no cold beneficiary outreach via any channel. Beneficiaries enter the AFL contact graph only via policyholder invite + activation. `BENEFICIARY_AUTO_REPLY_ENABLED` defaults to `false`. Cold beneficiary outreach today is push-only post-activation; the channel-flexibility extension in strategy §2 applies to **activated** beneficiaries only and is reserved for Phase 2/3 testing.
+
+### Bulk import — three paths
+
+A once-per-agent-lifecycle ceremony, never an ongoing feature. Linq has confirmed bulk import cannot run through the Linq line under any circumstances.
+
+| Path | Mechanism | Best fit | Cost |
+|------|-----------|----------|------|
+| Path 1 — Onboarding Ceremony | Agent self-serve drip; ≤15 sends/day from agent personal phone for ~14 days | Books under 100; agents who want every client onboarded | Included in Growth/Pro/Agency |
+| Path 3 — Hybrid (Email-Then-Invite) | Platform sends a one-time email blast; engaged subset pulled into agent-phone drip queue | Default for 100–300-client books | Included in Growth/Pro/Agency |
+| Concierge | AFL operator imports list and runs welcome touches as the agent | 300+ client books | One-time fee: $1,500 email-only / $2,500 email + SMS |
+
+Drip rules: max 15 conversations/day from any single new-agent import; 9am–6pm recipient-local; no weekends or Fri-after-4pm sends; at least three pre-approved content variants.
+
+### Push permission lifecycle
+
+Today's check (`if (pushToken !== undefined)`) conflates "ever opted in" with "currently allows notifications." That breaks the push-only rule for anniversary/holiday/birthday whenever a client has revoked notifications in iOS settings. Required behavior (ships with Phase 1 welcome flow, per strategy §4):
+
+- When Expo's response indicates an invalid token (`DeviceNotRegistered` or similar), AFL invalidates the token in Firestore.
+- A separate field (`pushPermissionRevokedAt` or equivalent) records when the token was invalidated, distinguishing "never opted in" from "opted in then revoked."
+- Routing logic checks for a *valid, non-revoked* token, not just token presence.
+- Lanes with a fallback (welcome, retention, beneficiary post-activation) fall back. Lanes without a fallback (anniversary, holiday, birthday) end the cycle silently.
+
+## Phased Roadmap
+
+This sequence supersedes the Phase 1 plan in v3.1 §11. Source: strategy decisions §5.
+
+### Phase 0 — Anniversary hotfix (this week)
+- Edit `REVIEW_STAGE_FALLBACK_ORDER` in `web/lib/conservation-types.ts` to remove `'sms'` from all four stages (`initial`, `followup_3d`, `followup_7d`, `followup_14d`). Only acceptable channel is `'push'`.
+- Verify `policy-review-drip` cron marks the stage as skipped when push is unavailable rather than falling through.
+- Half-day effort including verification and CONTEXT.md update.
+- **Why now:** today's order lists SMS as the *primary* channel on the day-3 and day-14 anniversary stages. Every anniversary check-in for a client without push permission is currently being routed through the Linq line. Single largest active bleed point on line reputation.
+
+### Phase 1 — Welcome flow + new pricing (next 6 weeks)
+- New welcome flow (agent personal-phone one-tap + in-app Activate + Linq line vCard response + thumbs-up reciprocity ask).
+- Push permission lifecycle management (Expo error → token invalidation, `pushPermissionRevokedAt`, lane-aware fallback).
+- vCard generation pipeline (server-side per agent, compressed photo, MMS attachment from Linq line).
+- Welcome flow analytics in PostHog (agent send compliance, app activation rate, thumbs-up rate).
+- New conversation-based pricing tiers in Stripe (Starter $29 / Growth $59 / Pro $119 / Agency $199 + $39/seat).
+- Conversation counter (per-agent monthly bucket).
+- Founding 34 grandfathered at Growth-equivalent.
+- Pricing page rebuild.
+
+### Phase 2 — KPI tiers, beneficiary, retention, supporting infrastructure (months 3–4)
+- KPI tier system (5 tiers, 7-day rolling, line-level — see `KPI Tier System` below).
+- Line-health dashboard widget.
+- Auto-throttle at Tier 1 and Tier 2 (provisional — may downgrade to manual triage if Tier 1 events are rare).
+- Beneficiary invite mechanic (parallel to client activation, three invite prompts).
+- Bulk import onboarding ceremony (re-enable UI, drip release rules).
+- Lapse/retention cadence rewrite (push first, max 2 SMS / 30 days, mandatory email at third touch, 60-day quiet).
+- Email infrastructure cleanup (centralize Resend usages, bounce/complaint webhook, suppression list).
+- Engineering dependency for Phase 3 Agency tier: pooled-capacity logic, team admin dashboard, per-seat dashboard.
+
+### Phase 3 — Concierge launch + pricing rollout completion (months 5–6)
+- Concierge add-on (operator dashboard role with scoped data access, $1,500 / $2,500 SKUs). Available to any tier; gated by book size and willingness to pay.
+- Pricing rollout completion and overage billing validation with a small cohort (5–10 agents) before general release.
+- Book-size-aware multi-line eligibility unlocked for Pro tier.
+
+### Phase 4 — Provider abstraction, multi-line, contingencies (months 7–12)
+- Provider abstraction layer (`MessagingProvider` interface, `LinqProvider` adapter). **Deferred from v3.1's Phase 1** per strategy §3.
+- Twilio as warm-standby once line count reaches 5.
+- Multi-line provisioning with lane specialization.
+- AMB evaluated as direct-Apple registration if branded sender becomes strategically important. (Linq has confirmed they do not run AMB.)
+- Number replacement playbook activated only if a second Limited episode occurs under the new operating model.
+- Pause functionality if churn data shows seasonal patterns. Annual prepay if customer demand emerges. Native iOS/Android agent app evaluated against PWA usage data.
+
+### Phase 2 success metrics
+- Agent welcome-send compliance > 80%.
+- Client app activation rate (download + Activate tap) > 70%.
+- Thumbs-up response rate to first Linq line response > 60%.
+- Lapse/retention reply rate stable above 18% on whatever escalates to Linq SMS.
+- Zero pooled-line anniversary outbound sends in trailing 30 days.
+
+## Capacity Model
+
+Source: v3.1 §5, with Linq operator confirmations from §13.1 / §12.6.
+
+- **Linq line cost:** $250/line/month (assumed fully loaded; carrier pass-through fees still unconfirmed — see `Open Linq Questions`).
+- **Linq recommended ceiling:** 50 unique new outbound conversations per line per day (~1,500/month).
+- **Steady-state operating target:** 35 outbound new conversations per line per day (~1,050/month, 70% utilization). Reserved 30% serves as headroom for bursts, replies, and recovery from any KPI tier event.
+- **Reciprocity targets (Linq guidance):** 1 reply per 2 sends; 30–40% ideal first-message reply rate; 15% minimum.
+- **Per-line operating target:** **70 agents per line steady state**, with **100 agents/line as the optimization ceiling**. Ramp 70 → 100 over 60–90 days based on reply rate and opt-out rate; behavior-based, no formal milestone checklist.
+- **Client-initiated inbound is NOT counted** against the 50/day cap (Linq confirmed, May 2026).
+
+## KPI Tier System
+
+Line-level, trailing 7-day windows. Platform-enforced; agents do not opt out of throttling. Source: v3.1 §6.
+
+| Tier | Trigger | Automated Action | Exit Criteria |
+|------|---------|------------------|---------------|
+| Tier 0 — Healthy | Reply rate ≥ 25%, reply:send ≥ 1:2, no Linq warnings | Normal operation | — |
+| Tier 1 — Watch | Reply rate < 25% or reply:send < 1:2.5 | Surface in dashboard. New bulk imports require manual approval. No automated throttle. | 3 consecutive days back above thresholds |
+| Tier 2 — Throttle | Reply rate < 20% or reply:send < 1:3, OR 3 consecutive days at Tier 1 | Daily line capacity reduced 50%. Lapse/retention lane suspended. New bulk imports blocked. | 3 consecutive days back above Tier 1 thresholds |
+| Tier 3 — Pause | Reply rate < 15% or reply:send < 1:4, OR Linq downgrade | All automated outreach halted. Agent-initiated single sends allowed. 7-day cooldown. | 7 consecutive days clean window |
+| Tier 4 — Lockdown | Linq Limited or worse, OR repeat Tier 3 within 30 days | Full pause. Mandatory review. Number replacement playbook considered. | Linq confirmation + 7-day clean window + decision on number replacement |
+
+Carrier-level overlays (when per-carrier metrics are available): STOP rate > 1% → Tier 2 trigger; 30007 (carrier filtered) > 5% → Tier 3 trigger; 30008 (unknown error) > 3% → Tier 1 trigger; T-Mobile delivery rate < 80% → Tier 1 trigger.
+
+**Number replacement** is a Phase 4 contingency, not a Phase 1 action. Trigger is a second Limited episode under the new operating model.
 
 ## Business Model
 
-**As Closr AI add-on (primary distribution):** $29/agent/month. Available on automated seats only ($59/seat). Agency owner adds AFL to individual agents who are closing deals and need client lifecycle management. COGS: ~$3/agent (SMS, push, Claude). Margin: 90%.
+### As Closr AI add-on (primary distribution, deferred)
+Pricing for the Closr AI bundle is **deferred until Closr AI is post-MVP**. The historical $29/agent/month assumption is no longer authoritative.
 
-**As standalone (legacy):**
-| Tier | Price |
-|------|-------|
-| Founding | Free for life (limited, closed) |
-| Charter | $25/mo or $250/yr |
-| Inner Circle | $35/mo or $350/yr |
-| Standard | $49/mo or $490/yr |
+### As standalone (AFL pricing v3 — launches in Phase 1)
 
-Standalone pricing remains for agents who come directly. Founding member migration path TBD.
+Source: `docs/AFL_Pricing_Packaging_Playbook_v3.md`. Conversation-based pricing, not message-based or seat-based.
+
+| Tier | Price | Convs/mo (Linq line only) | Daily cap | Overage | Buyer |
+|------|-------|---------------------------|-----------|---------|-------|
+| Starter | $29/mo | 30 | 3 | $0.50/conv | Year-1 agent, small book |
+| Growth | $59/mo | 75 | 8 | $0.50/conv | Established producer (anchor tier) |
+| Pro | $119/mo | 200 | 20 | $0.50/conv | Top producer, large book |
+| Agency | $199/mo + $39/seat | 100/seat pooled | 10/seat | $0.50/conv against pool | Agency owner with downline |
+
+All tiers include unlimited push, agent-phone one-tap, and email. The conversation count is a budget for Linq pooled-line SMS only. Client-initiated inbound activation messages do NOT count against agent allowances. Bulk import (Onboarding Ceremony) included on Growth, Pro, and Agency. Advanced analytics on Pro and Agency. Priority support on Pro and Agency. Team admin tools only on Agency.
+
+**Founding 34 ("free for life"):**
+- Grandfathered at Growth-equivalent (75 convs/mo, 8/day cap). Free seat is permanent and exempt from base-tier price increases.
+- Overage at full price ($0.50/conv) — no discount, no exemption.
+- All channel features available (push, agent-phone, email) with no limit.
+- Bulk-import onboarding ceremony available once per agent if not already used.
+- Founding agency owners: $199 platform fee waived; pay $39/seat for downline. Pooled capacity = 75 + (100 × downline seats).
+- Subject to the same KPI throttling rules as paid tiers — no reputation immunity.
+
+**Concierge add-on (one-time service, available now / Phase 2-aligned):**
+- $1,500 email-only / $2,500 email + SMS. One-time fee billed at engagement start.
+- Operator imports the agent's client list and runs welcome touches as the agent. Sends signed in agent's name from agent's account.
+- Operator scope: mechanical send work only — import + welcome. No qualifying, no quoting, no advice.
+- Operator role with scoped data access: client list (names, phone numbers, basic context). Not policy details, financial info, or beneficiary data.
+- Available to any agent on any paid tier. Gated by book size and willingness to pay, not subscription level.
+- Recommended by book size: under 100 → Onboarding Ceremony; 100–300 → Hybrid; 300+ → Concierge.
+
+**Trial and refund:**
+- 14-day free trial on Starter and Growth. No trial on Pro or Agency.
+- No CC required to start trial; CC required day 7 to continue.
+- 14-day money-back guarantee on initial signup post-trial. No refunds after 14 days except for AFL technical failures.
+- Cancellations effective at end of current billing period. No prorated refunds.
+
+**Tier change mechanics:**
+- Upgrades effective immediately, prorated for current period.
+- Downgrades effective at end of current period.
+- Maximum 1 downgrade per quarter without friction; additional downgrades trigger a support conversation.
+
+**Pricing adjustment mechanism:**
+- Pricing locked from Phase 3 launch through Phase 3 + 90 days. No ad-hoc changes during this window.
+- 60 days notice for base-tier price changes; 30 days notice for overage rate changes.
+- Annual review in Q4 with adjustments effective February 1.
+- Loyalty grandfathering: existing customers retain old price for 12 months after a tier price increase.
+- Founding members exempt from base-tier price increases. Overage rate increases apply normally.
+
+**Annual prepay** is deferred to Phase 4+ pending demand signal. **Pause functionality** is deferred to Phase 4 pending churn pattern data.
+
+### Margin model
+
+At 70 agents/line and $250/line/month, per-agent line cost = $3.57/month.
+
+| Tier | Price | Cost basis | Gross margin |
+|------|-------|------------|--------------|
+| Starter | $29 | $3.57 | 87.7% |
+| Growth | $59 | $3.57 | 93.9% |
+| Pro | $119 | $3.57 | 97.0% |
+| Agency (5 seats) | $394 | $17.85 | 95.5% |
+
+Overage GM (~66%) is acceptable as overflow protection, not a profit center. Aggregate overage as % of platform revenue should sit between 5% and 15%; outside that band signals tiers are mis-provisioned. Near-90% blended gross margin is the operational guardrail (also captured in `docs/linq-scale-playbook.md`).
 
 ## Stack
 
@@ -103,6 +338,9 @@ Standalone pricing remains for agents who come directly. Founding member migrati
 | Billing | Stripe |
 | Auth | Currently Firebase Auth — migrating to Clerk for Closr AI unification |
 | Analytics | Firebase Analytics + PostHog (web dashboard product analytics/session replay/heatmaps) |
+| Agent tooling | PWA-first (mobile-optimized agent dashboard with `sms:` URL-scheme one-tap and Web Push). Native deferred to Phase 4 pending usage data. |
+
+**Provider strategy:** stay on Linq through Phase 1–2. Provider abstraction (`MessagingProvider` interface — `sendMessage`, `getLineHealth`, `subscribeReplies`, `registerNumber`) **deferred to Phase 4** per strategy §3. Twilio added as warm-standby at 5+ lines if needed. AMB confirmed unavailable through Linq; Phase 4 contingency only. No SendBlue or other iMessage-relay services (Apple TOS / continuity / compliance risk).
 
 ## AI Architecture
 
@@ -156,7 +394,7 @@ Standalone pricing remains for agents who come directly. Founding member migrati
 - Added (April 2026): Beneficiary relationship automation phase 1 (initial rollout).
   - Agent settings include beneficiary automation controls: holiday touchpoints toggle, AI follow-up toggle, and max touches per 30 days cap.
   - Intro send + cron infrastructure shipped: `/api/cron/beneficiary-followups` and `/api/cron/beneficiary-holiday-check`.
-  - Note: this initial SMS/email-first design was later tightened by the May 2026 Linq policy hardening updates below.
+  - Note: this initial SMS/email-first design was later tightened by the May 2026 Linq policy hardening updates below and is now superseded by the v3.1 invite-only beneficiary architecture (see `Channel Rules` → Beneficiary).
 - Added (April 2026): Mobile-first responsive dashboard shell for agents on phones (mobile top bar + bottom nav + mobile breakpoint layout tuning on core pages). Desktop/laptop layout is intentionally preserved with no design changes outside the new language controls.
 - Added (April 2026): Ingestion signing resiliency + observability hardening. Implemented signed-upload canary checks (`/api/health/ingestion-signing` for UptimeRobot/monitoring, `/api/cron/ingestion-signing-canary` every 15m with `CRON_SECRET`), structured alert logs (`[ingestion-v3-alert]`) with typed error codes (`SIGNATURE_MISMATCH`, `INVALID_JWT_SIGNATURE`, etc.), processor-level failure classification (`diagnosticCategory` on terminal v3 failures for PostHog + `[ingestion-v3-alert] process failed`), and automatic fallback from the v3 pipeline to **`POST /api/parse-application`** when signed PUT fails with known signing errors or when the v3 job fails with `INTERNAL_ERROR` / `CLAUDE_SCHEMA_INVALID` (some carrier PDFs parse successfully on the direct path even when the async processor errors). Operational detail is in `OPERATIONS.md`.
 - Added (April 2026): **Admin-only** “Upload Signing Health” strip on the dashboard home page: only users whose email appears in `NEXT_PUBLIC_ADMIN_EMAILS` (same mechanism as the Admin sidebar) see the indicator or poll the health route from the browser; external uptime checks still hit the public health URL unauthenticated.
@@ -284,38 +522,100 @@ Standalone pricing remains for agents who come directly. Founding member migrati
   - Beneficiary holiday outreach is now push-only in `/api/cron/beneficiary-holiday-check`; no SMS/email fallback when push is unavailable.
   - Beneficiary lane auto-reply remains feature-flagged and default-off (`BENEFICIARY_AUTO_REPLY_ENABLED=false`) behind thread-lane routing checks in the Linq webhook.
   - Documentation alignment: Linq's "50 unique new conversations per line per day" is recorded as a **recommended ceiling** (not a hard cap), and undocumented numeric limits are no longer represented as Linq requirements. See `docs/linq-messaging-safety-policy.md` (v2) for source-labeled guidance.
-- Added (May 2, 2026): Linq scale playbook draft committed at `docs/linq-scale-playbook.md`.
-  - Captures the core scaling tension (must keep reaching non-responders without damaging line health), lane priority framework with new-client activation elevated, bulk-import pressure controls, response-aware retry cadence, automatic slowdown rules, and product packaging options including per-agent monthly SMS allowance, tiered/overage capacity, and book-size-aware baselines.
-  - Includes a one-tap agent-owned welcome-send workflow proposal and a 30-day pilot plan.
-  - Codifies multi-line scale assumption and a near-90% gross margin guardrail for pricing/operational decisions.
-- Added (May 2, 2026): Linq operator-expert briefing pre-read pattern.
-  - Brief intentionally separates Linq-stated guidance (recommended ceiling 50 unique new conversations/line/day, reciprocity targets `1:2`, ideal 30-40% first-message reply rate, minimum 15%) from AFL internal guardrails.
-  - Records source assumptions explicitly: line cost is currently $250/month per line, reputation likely scored per-number, account assumed dedicated, and several deliverability variables (10DLC/TCR posture, per-carrier metrics, segment pass-throughs, formal consent provenance ledger) are still unknown.
+- Added (May 2, 2026): Linq scale playbook draft committed at `docs/linq-scale-playbook.md`. Captures scaling tension, lane priority framework, response-aware retry cadence, packaging options, and a near-90% gross margin guardrail. Now superseded as primary source-of-truth by `docs/AFL_Messaging_Operating_Model_v3.1.md` for capacity/lane decisions; retained as supporting reference.
 - Updated (May 3, 2026): Bulk Import temporarily disabled in dashboard UI.
   - The "Bulk Import" CTA in `web/app/dashboard/clients/page.tsx` is now visually struck through with a red `Currently under construction` label and is non-interactive (`disabled` button + `cursor-not-allowed`).
-  - Underlying import pipeline code remains in place; only the entry point is gated while the messaging operating model and bulk-release policy are being finalized.
-- Active design-in-progress (May 3, 2026): Two new source-of-truth documents are expected next session and should land under `docs/` once received:
-  - `Messaging Operating Model` — channel-by-lane allocation, per-channel safe volumes, and slowdown triggers; serves as the single source of truth for messaging delivery rules across engineering and operations.
-  - `Pricing & Packaging Playbook` — tiers, founding-member treatment, overage mechanics, pricing-page design, behavioral edge cases, and rollout. Standalone but cross-referenced with the operating model.
-  - Both should reconcile with `docs/linq-scale-playbook.md`, `docs/linq-messaging-safety-policy.md`, and `docs/linq-decision-record-2026-05.md` rather than duplicate them.
-- Known issues / next session:
-  - "0 pages" metadata bug in extraction summary.
-  - Bulk import intelligence notes are concatenated into an unreadable wall of text (needs per-file collapsible notes). Note: import entry point is currently disabled in the UI.
-  - Single-file Upload Application modal does not support multi-select.
-  - Dashboard auth "Checking account access" spinner hangs on load.
-  - PostHog instrumentation files for Closr AI are still uncommitted.
-  - Pending intake: Messaging Operating Model and Pricing & Packaging Playbook documents from product owner; once received, file under `docs/` and cross-link from `CONTEXT.md` plus existing Linq docs.
+  - Underlying import pipeline code remains in place; only the entry point is gated until the Phase 2 onboarding ceremony re-enables it under the new drip rules.
+- Added (May 4, 2026): Three new source-of-truth documents committed under `docs/`.
+  - **Architectural rule established: anniversary, holiday cards, and birthday cards = push only, no fallback.** If push is unavailable for a client (notifications off, app uninstalled, or token revoked), the cycle ends silently for that client until the next scheduled cycle. No SMS fallback. No email fallback. No outreach attempt at all. This overrides v3.1 §3.2 / §4.2's anniversary email fallback. Holiday and birthday cards already operate this way in production today; anniversary requires the Phase 0 hotfix to `REVIEW_STAGE_FALLBACK_ORDER` in `web/lib/conservation-types.ts`.
+  - `docs/AFL_Strategy_Decisions_2026-05-04.md` (highest precedence; locks the anniversary/holiday/birthday push-only-no-fallback rule, beneficiary channel flexibility for activated beneficiaries, provider abstraction → Phase 4, push permission lifecycle in Phase 1, and the Phase 0 → Phase 4 sequence).
+  - `docs/AFL_Messaging_Operating_Model_v3.1.md` (channel architecture, lane rules, capacity model, KPI tier system, two-step welcome flow with Activate button + vCard + thumbs-up, beneficiary invite mechanic, three bulk-import paths, Concierge add-on).
+  - `docs/AFL_Pricing_Packaging_Playbook_v3.md` (Starter/Growth/Pro/Agency at $29/$59/$119/$199+$39, founding 34 grandfathered at Growth-equivalent, $0.50/conv overage, Concierge $1,500/$2,500, 14-day trial, pricing locked through Phase 3 + 90 days, Q4 annual review, 12-month loyalty grandfather).
+  - CONTEXT.md updated to reconcile all three: new top-level `Channel Rules`, `Phased Roadmap`, `Capacity Model`, `KPI Tier System`, and rebuilt `Business Model` sections; Open Questions pruned (sender identity and line-capacity policy are now answered); Key Decisions Made appended with v3.1 §14.1 architectural decisions.
 
-**Founding Member Program:** First 50 agents free for life. This commitment needs a migration path as AFL becomes a Closr AI module.
+**Founding Member Program:** 34 founding agents are grandfathered at Growth-equivalent capacity (75 conversations/month, 8/day cap) free for life under the v3 pricing model. Free seat is permanent and exempt from base-tier price increases; overage is at the full $0.50/conv rate. Founding agency owners get the $199 platform fee waived and pay $39/seat for downline. Founding members are subject to the same KPI throttling rules as paid tiers. Full terms in `Business Model → Founding 34`.
 
 ## Key Decisions Made
 
-- AFL will become a Closr AI add-on module (not merged/rebranded — retains its identity)
-- The call-to-client pipeline is the integration priority
-- Auth migration from Firebase to Clerk is required for unification
-- Standalone access remains available for agents not on Closr AI
-- NEPQ methodology is the foundation for all AI-generated messaging
-- Linq handles iMessage/SMS (migrated from SendBlue)
+### Strategic
+- AFL will become a Closr AI add-on module (not merged/rebranded — retains its identity).
+- The call-to-client pipeline is the integration priority.
+- Auth migration from Firebase to Clerk is required for unification.
+- Standalone access remains available for agents not on Closr AI.
+- NEPQ methodology is the foundation for all AI-generated messaging.
+- Linq handles iMessage/SMS (migrated from SendBlue).
+- Closr AI bundle pricing is **deferred** until Closr AI is post-MVP. AFL standalone pricing launches independently.
+
+### Channel architecture (per v3.1 §14.1 + strategy §1, §2)
+- **Push is the universal first-choice channel** for every lane that supports push delivery (anniversary, retention, holiday/birthday, beneficiary). App dormancy is **not** a disqualifier — permission is.
+- **Anniversary, holiday cards, birthday cards = push only, NO fallback.** Architectural, not tunable. (Strategy §1 overrides v3.1 §3.2 / §4.2 anniversary email fallback.)
+- **Welcome flow is two-step:** (1) agent sends from personal phone via one-tap, including app download link AND login code; (2) client downloads, logs in with code, taps Activate → `sms:` URL scheme composes pre-filled outbound to Linq line. Linq line's first response includes vCard + thumbs-up ask.
+- **Identity on Linq line:** agent identity preserved (NEPQ-tuned voice signed under agent's name). EA framing considered and **deferred**.
+- **Thumbs-up reciprocity mechanic** used on activation, anniversary check-ins via SMS fallback, and time-sensitive sends — not on every message.
+- **vCard generation** is server-side, per-agent, with embedded compressed photo (<60 KB JPEG, ~400×400). Two photo derivatives stored — display and vCard — generated on agent profile photo upload. Delivered as MMS attachment from the Linq line.
+- **Beneficiary invite mechanic** parallels client activation, initiated by the policyholder. Three invite prompts: during policyholder activation, annual beneficiary verification, always-on access. **No cold beneficiary outreach** via any channel.
+- **Beneficiary lane stays channel-flexible** for activated beneficiaries (push primary for cold contact, SMS/email available as future tools). Strategy §2 overrides any push-only-locked reading of v3.1 §4.5.
+- **Lapse/retention cadence:** push first → max 2 SMS per non-responder per 30 days if push unavailable → mandatory email at third touch → 60-day quiet period.
+- **Bulk import is a once-per-agent-lifecycle ceremony.** Three paths (Onboarding Ceremony / Hybrid / Concierge). Never bulk through the Linq line (Linq confirmed).
+- **Number replacement is a Phase 4 contingency**, triggered by a second Limited episode under the new operating model.
+- **Push permission lifecycle management** ships with the welcome flow build (Phase 1): token invalidation on Expo errors, `pushPermissionRevokedAt` field, lane-aware fallback. Strategy §4.
+
+### Capacity & pricing (per v3.1 §14.2 + v3 §15)
+- Per-line operating target: 70 agents/line steady state. Optimization ceiling: 100 agents/line. Ramp 70 → 100 over 60–90 days based on reply rate and opt-out rate.
+- Linq has confirmed: 50/day applies to outbound new conversations only; client-initiated inbound does not count.
+- Unit of sale: conversations, not messages.
+- Tiers: Starter $29 / Growth $59 / Pro $119 / Agency $199 + $39/seat. Conversation budgets pool at the agency level for Agency.
+- Overage: $0.50/conversation across all individual tiers and the Agency pool.
+- Founding 34 grandfathered at Growth-equivalent (75 convs/mo); free seat permanent; overage at full price.
+- Founding agency owners: $199 platform fee waived; $39/seat for downline.
+- Concierge add-on: $1,500 email-only / $2,500 email + SMS. Available now to any tier.
+- 14-day trial on Starter/Growth; no trial on Pro/Agency. Pricing locked through Phase 3 + 90 days. Q4 annual review, Feb 1 effective. 12-month loyalty grandfather on price increases. Founding members exempt from base-tier increases.
+
+### Technology (per v3.1 §14.3 + strategy §3)
+- **Provider abstraction layer (`MessagingProvider` interface) deferred to Phase 4.** Strategy §3 overrides v3.1 §10.2 / §14.3 ("implemented in code before any Phase 2 work begins") — at one Linq line and one provider, the abstraction is engineering effort that does not move toward shipping welcome flow or pricing tiers. AFL absorbs the refactor cost only if a Linq outage or pricing dispute forces a switch before Phase 4.
+- Stay on Linq through Phase 1–2; add Twilio as warm-standby at 5+ lines.
+- Agent tooling: PWA-first (mobile-optimized agent dashboard with `sms:` URL scheme one-tap and Web Push). Native app deferred to Phase 4 pending usage data.
+- One-tap mechanic is mobile-primary. Desktop dashboard surfaces queues but actual sends route through agent's phone.
+- Confirm device mix among founding 34 in Phase 1; produce Phone Link onboarding doc if Android contingent is meaningful.
+- vCard delivered as MMS attachment from the Linq line (the `sms:` URL scheme cannot attach files).
+- AMB confirmed unavailable through Linq. Direct registration with Apple is the only path; Phase 4 contingency only.
+- No SendBlue, Beeper-style relays, or other iMessage-bridge services.
+- Concierge operator dashboard role with scoped data access: client list (names, phone numbers, basic context). Sends originate from agent's account.
+
+### Operational (per v3.1 §14.4)
+- KPI tier system: five tiers (Tier 0 Healthy → Tier 4 Lockdown), 7-day rolling, line-level.
+- Steady-state per-line operating target: 35 outbound new conversations per day (70% of Linq's 50/day recommended ceiling).
+- Re-consent flow for lapse/retention: built in Phase 2, deployed in Phase 3 if consent audit findings warrant.
+- Push opt-in rate is a top-three operational metric; tracked from Phase 1; influences Phase 4 capacity planning.
+- Three Phase 2 success metrics: (a) agent welcome-send compliance > 80%, (b) client app activation rate > 70%, (c) thumbs-up response rate to first Linq line response > 60%.
+
+## Linq Confirmations (May 2026)
+
+From v3.1 §13.1 / §12.6, recorded in `docs/linq-decision-record-2026-05.md`:
+
+- **Client-initiated inbound is NOT counted** against the 50/day outbound new-conversation cap. Validates the Activate-button welcome flow architecture.
+- **Capacity definition and ramp.** The 50/day new outbound conversation cap is the real ceiling. Start at 70 agents/line, watch reply rate and opt-out rate for 60–90 days, push toward 100 if both stay clean. Behavior-based, no formal milestone checklist.
+- **AMB is not available through Linq.** Their lines are standard P2P iMessage on dedicated hardware. Direct registration with Apple is the only path.
+- **Bulk import** cannot run through the Linq line under any circumstances. Confirmed agent-personal-phone only.
+
+## Open Questions
+
+### Product / strategy
+- Is the mobile app essential at launch of the Closr AI integration, or can client lifecycle features work via SMS/email/web first?
+- How do founding members transition into the Closr AI module distribution (their AFL standalone status is preserved under the new pricing v3 — but the Closr AI bundle implications are still TBD)?
+- Should the referral pipeline be accessible from the Closr AI dashboard directly, or only through AFL?
+- What drove low activation? Onboarding friction? Data entry burden? Unclear value prop? Need agent interviews. (Phase 2 milestone-driven onboarding revamp is the current intervention.)
+- Closr AI bundle pricing: deferred until Closr AI is post-MVP.
+
+### Open Linq questions (still pending Linq response, from v3.1 §13.2)
+1. **Reputation scope.** Per-number, per-tenant (across AFL agents), or per-platform (across Linq customers)? Determines §12.1–12.2 sensitivities in v3.1.
+2. **10DLC brand vetting score.** Current score determines per-carrier throughput tier and risk tolerance.
+3. **Per-carrier reputation visibility post-recovery.** Especially T-Mobile. Determines whether number replacement should activate sooner or later.
+4. **TCR campaign use-case classifications.** How is each lane currently registered? Lapse/retention specifically — Account Notification, Customer Care, or Marketing?
+5. **Per-carrier delivery rates (ongoing).** Especially T-Mobile.
+6. **STOP rate, 30007 rate, 30008 rate.** Required to layer carrier-level KPI triggers into the tier system.
+7. **Carrier pass-through fees.** Whether $250/line/month is fully loaded or whether CCMI/AT&T/T-Mobile fees apply on top.
+8. **Account isolation guarantees.** Specifically, is AFL's account architecturally isolated from other Linq tenants?
 
 ## PDF Application Extraction Pipeline (April 14, 2026)
 
@@ -381,13 +681,11 @@ The four fields insuredPhone, insuredEmail, insuredState, and renewalDate were a
 
 ### Open Items (Priority Order)
 
-1. Finalize Linq sender-identity policy for outbound AI messages (speak as agent vs named assistant on behalf of agent) and lock compliance-safe default language.
-2. Lock the production routing strictness plan (`THREAD_ROUTER_ENABLED` rollout, `PHONE_FALLBACK_STRICT_MODE` posture, and beneficiary auto-reply policy).
-3. Define line-capacity operating policy for pooled Linq lines (daily unique-new-conversation caps, warm-up, and bulk-import throttles).
-4. Re-test Whole Life with updated PAGE_MAP `[1, 2, 3, 4, 5]` and scanning supplement. Use Barbara Seaton PDF (Bank Draft on page 3, expected policy number `AM02488865`).
-5. Re-test IUL Conditional Receipt fallback. Robin Howard's page 5 signature date was blank - verify that Image 5 (Conditional Receipt, page 22) now provides the date `11/18/2025`.
-6. Document `unknown` carrier handling. Current behavior works (renders first N pages, no supplement, base prompt does best-effort). Just needs to be intentional and documented.
-7. Production validation pass across the newly-added carriers (AMAM Mortgage Protection, AMAM Term, Foresters, all three MOO forms, Banner/LGA) — each currently has supplement + PAGE_MAP shipped but limited real-world sample coverage.
+1. Lock the production routing strictness plan (`THREAD_ROUTER_ENABLED` rollout, `PHONE_FALLBACK_STRICT_MODE` posture, and beneficiary auto-reply policy under the v3.1 invite-only beneficiary model).
+2. Re-test Whole Life with updated PAGE_MAP `[1, 2, 3, 4, 5]` and scanning supplement. Use Barbara Seaton PDF (Bank Draft on page 3, expected policy number `AM02488865`).
+3. Re-test IUL Conditional Receipt fallback. Robin Howard's page 5 signature date was blank - verify that Image 5 (Conditional Receipt, page 22) now provides the date `11/18/2025`.
+4. Document `unknown` carrier handling. Current behavior works (renders first N pages, no supplement, base prompt does best-effort). Just needs to be intentional and documented.
+5. Production validation pass across the newly-added carriers (AMAM Mortgage Protection, AMAM Term, Foresters, all three MOO forms, Banner/LGA) — each currently has supplement + PAGE_MAP shipped but limited real-world sample coverage.
 
 ### Key files
 
@@ -402,15 +700,13 @@ The four fields insuredPhone, insuredEmail, insuredState, and renewalDate were a
 
 The canonical working repo is `/Users/danielroberts/Developer/insurance-app`. The iCloud Desktop copy (`~/Library/Mobile Documents/com~apple~CloudDocs/Desktop/insurance-app`) is stale and must not be used for development. Always verify you are in the Developer path before making changes.
 
-## Open Questions
+## Known Issues / Next Session
 
-- Is the mobile app essential at launch of the Closr AI integration, or can client lifecycle features work via SMS/email/web first?
-- What's the right AFL add-on price point within Closr AI? ($25 vs $35 vs $49)
-- How do founding members transition? (Free-for-life commitment + new platform structure)
-- Should the referral pipeline be accessible from the Closr AI dashboard directly, or only through AFL?
-- What drove low activation? Onboarding friction? Data entry burden? Unclear value prop? Need agent interviews.
-- Should AFL default to agent-voice identity or assistant-voice identity in SMS, and what explicit disclosure standard should be required per lane/use case?
-- What KPI contract should define Linq health in production (first-message reply %, reply:send ratio, per-line unique-new/day, line-limit incidents)?
+- "0 pages" metadata bug in extraction summary.
+- Bulk import intelligence notes are concatenated into an unreadable wall of text (needs per-file collapsible notes). Note: import entry point is currently disabled in the UI.
+- Single-file Upload Application modal does not support multi-select.
+- Dashboard auth "Checking account access" spinner hangs on load.
+- PostHog instrumentation files for Closr AI are still uncommitted.
 
 ## IP & Legal
 
