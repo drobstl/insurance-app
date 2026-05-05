@@ -29,6 +29,8 @@ export const ANALYTICS_EVENTS = {
   DASHBOARD_EXIT_AFTER_EMPTY_STATE: 'dashboard_exit_after_empty_state',
   CHURN_RISK_FLAGGED: 'churn_risk_flagged',
   DASHBOARD_ACCESS_GATE_CHECK: 'dashboard_access_gate_check',
+  DASHBOARD_AUTH_GATE_RESOLVED: 'dashboard_auth_gate_resolved',
+  DASHBOARD_AUTH_GATE_TIMEOUT: 'dashboard_auth_gate_timeout',
   BULK_IMPORT_SESSION_STARTED: 'bulk_import_session_started',
   BULK_IMPORT_FILE_PARSED: 'bulk_import_file_parsed',
   BULK_IMPORT_SESSION_COMPLETED: 'bulk_import_session_completed',
@@ -158,6 +160,19 @@ export type AnalyticsEventPropertiesMap = {
     reason?: string;
     http_status?: number;
     duration_ms?: number;
+  } & GenericEventProperties;
+  dashboard_auth_gate_resolved: {
+    outcome?: 'authenticated' | 'redirect_signin' | 'redirect_onboarding' | 'error' | 'timeout';
+    duration_ms?: number;
+  } & GenericEventProperties;
+  dashboard_auth_gate_timeout: {
+    phase?: 'activation' | 'overall';
+    duration_ms?: number;
+    was_loading?: boolean;
+    was_profile_loading?: boolean;
+    was_activating_founding?: boolean;
+    had_user?: boolean;
+    subscription_status_known?: boolean;
   } & GenericEventProperties;
   bulk_import_session_started: {
     source?: 'local_bulk' | 'drive';

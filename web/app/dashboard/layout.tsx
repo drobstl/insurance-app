@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { doc, collection, onSnapshot, query, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -15,7 +15,17 @@ import { ANALYTICS_EVENTS } from '../../lib/analytics-events';
 import { captureEvent } from '../../lib/posthog';
 
 const FOUNDING_ACTIVATION_TIMEOUT_MS = 12000;
+// Hard ceiling for the activation spinner: if `activatingFounding` is still true
+// after this many ms, force-resolve and surface a user-visible error. Lifetime
+// is tied solely to `activatingFounding`, not to the activation effect's deps,
+// so it cannot be cleared by `profileLoading` flicker during `refreshProfile()`.
+const ACCESS_GATE_ACTIVATION_HARD_TIMEOUT_MS = 13000;
+// Top-level gate ceiling: if any loading state has been continuously true for
+// this long, the gate is considered hung. Independent of `activatingFounding`
+// so it also catches `loading` / `profileLoading` regressions.
+const ACCESS_GATE_OVERALL_HARD_TIMEOUT_MS = 15000;
 const ACCESS_GATE_ERROR_MESSAGE = 'We could not verify account access automatically. You can retry now or continue below.';
+const GATE_HARD_TIMEOUT_MESSAGE = 'Account access is taking longer than expected. Try refreshing, or sign out and try again.';
 
 function SubscriptionGate({ children }: { children: React.ReactNode }) {
   const { user, loading, profileLoading, agentProfile, handleLogout, refreshProfile } = useDashboard();
@@ -23,7 +33,27 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
   const [activatingFounding, setActivatingFounding] = useState(false);
   const [activationError, setActivationError] = useState<string | null>(null);
   const [activationRetryNonce, setActivationRetryNonce] = useState(0);
+  const [gateHardTimedOut, setGateHardTimedOut] = useState(false);
   const activationAttemptedForUserRef = useRef<string | null>(null);
+  const gateStartedAtRef = useRef<number>(typeof performance !== 'undefined' ? performance.now() : 0);
+  const resolutionEmittedRef = useRef(false);
+
+  // Mirror latest gate-state values into a ref so timer callbacks can read fresh
+  // values without triggering effect re-runs (which would reset their timers).
+  const gateStateRef = useRef({
+    loading,
+    profileLoading,
+    activatingFounding,
+    hasUser: Boolean(user),
+    subscriptionStatus: agentProfile.subscriptionStatus,
+  });
+  gateStateRef.current = {
+    loading,
+    profileLoading,
+    activatingFounding,
+    hasUser: Boolean(user),
+    subscriptionStatus: agentProfile.subscriptionStatus,
+  };
 
   useEffect(() => {
     if (!user || loading || profileLoading) return;
@@ -38,14 +68,6 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
     if (activationAttemptedForUserRef.current === attemptKey) return;
 
     activationAttemptedForUserRef.current = attemptKey;
-    let cancelled = false;
-    const failSafeTimeout = window.setTimeout(() => {
-      if (!cancelled) {
-        console.warn('Founding activation check timed out (UI fail-safe).');
-        setActivatingFounding(false);
-        setActivationError(ACCESS_GATE_ERROR_MESSAGE);
-      }
-    }, FOUNDING_ACTIVATION_TIMEOUT_MS + 1000);
 
     const tryFoundingActivation = async () => {
       setActivatingFounding(true);
@@ -129,17 +151,160 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
       } finally {
         if (requestTimeout) clearTimeout(requestTimeout);
         if (tokenTimeout) clearTimeout(tokenTimeout);
-        clearTimeout(failSafeTimeout);
-        if (!cancelled) setActivatingFounding(false);
+        // Always exit the spinner state. Previously this was guarded by a
+        // `cancelled` flag set by the effect's cleanup function — but
+        // `refreshProfile()` flicks `profileLoading` to true synchronously,
+        // which re-runs this effect and triggers cleanup mid-flight, leaving
+        // `activatingFounding` permanently true on the success path. Setting
+        // state on a stale closure is a React 18+ no-op; the unconditional
+        // call is what makes the spinner exit hang-proof.
+        setActivatingFounding(false);
       }
     };
 
-    tryFoundingActivation();
-    return () => {
-      cancelled = true;
-      clearTimeout(failSafeTimeout);
-    };
+    void tryFoundingActivation();
+    // No cleanup function: in-flight activation must run its `finally` block.
+    // Hang protection is provided by the activation hard-timeout effect below
+    // (keyed on `activatingFounding`) and the gate ceiling effect, both of
+    // which have lifetimes independent of this effect's deps.
   }, [user, loading, profileLoading, agentProfile.subscriptionStatus, refreshProfile, activationRetryNonce]);
+
+  // Activation hard timeout — keyed solely on `activatingFounding` so its
+  // lifetime is tied to the spinner being shown, not to the activation
+  // effect's deps. Cannot be inadvertently cleared by `profileLoading`
+  // flicker during `refreshProfile()`.
+  useEffect(() => {
+    if (!activatingFounding) return;
+    const startedAt = performance.now();
+    const timer = window.setTimeout(() => {
+      console.warn('Founding activation check timed out (activation hard timeout).');
+      setActivatingFounding(false);
+      setActivationError(ACCESS_GATE_ERROR_MESSAGE);
+      const snapshot = gateStateRef.current;
+      captureEvent(ANALYTICS_EVENTS.DASHBOARD_AUTH_GATE_TIMEOUT, {
+        phase: 'activation',
+        duration_ms: Math.round(performance.now() - startedAt),
+        was_loading: snapshot.loading,
+        was_profile_loading: snapshot.profileLoading,
+        was_activating_founding: snapshot.activatingFounding,
+        had_user: snapshot.hasUser,
+        subscription_status_known: Boolean(snapshot.subscriptionStatus),
+      });
+    }, ACCESS_GATE_ACTIVATION_HARD_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [activatingFounding]);
+
+  // Top-level gate ceiling — fires if the gate is continuously in any loading
+  // state past the bound, surfacing a user-visible recovery UI. Independent of
+  // every other timer; this is the backstop for hypothetical regressions in
+  // `loading` or `profileLoading` paths.
+  const isAnyLoading = loading || profileLoading || activatingFounding;
+  useEffect(() => {
+    if (!isAnyLoading) {
+      setGateHardTimedOut(false);
+      return;
+    }
+    const startedAt = performance.now();
+    const timer = window.setTimeout(() => {
+      const snapshot = gateStateRef.current;
+      console.warn('Dashboard auth gate hard timeout reached.', snapshot);
+      setGateHardTimedOut(true);
+      captureEvent(ANALYTICS_EVENTS.DASHBOARD_AUTH_GATE_TIMEOUT, {
+        phase: 'overall',
+        duration_ms: Math.round(performance.now() - startedAt),
+        was_loading: snapshot.loading,
+        was_profile_loading: snapshot.profileLoading,
+        was_activating_founding: snapshot.activatingFounding,
+        had_user: snapshot.hasUser,
+        subscription_status_known: Boolean(snapshot.subscriptionStatus),
+      });
+    }, ACCESS_GATE_OVERALL_HARD_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [isAnyLoading]);
+
+  // Emit `dashboard_auth_gate_resolved` exactly once per gate cycle. A new
+  // cycle begins on retry (handled in the retry button) or on user change.
+  const userKey = user?.uid ?? null;
+  useEffect(() => {
+    resolutionEmittedRef.current = false;
+    gateStartedAtRef.current = performance.now();
+  }, [userKey]);
+
+  useEffect(() => {
+    if (resolutionEmittedRef.current) return;
+    if (gateHardTimedOut) {
+      resolutionEmittedRef.current = true;
+      captureEvent(ANALYTICS_EVENTS.DASHBOARD_AUTH_GATE_RESOLVED, {
+        outcome: 'timeout',
+        duration_ms: Math.round(performance.now() - gateStartedAtRef.current),
+      });
+      return;
+    }
+    if (loading || profileLoading || activatingFounding) return;
+    if (activationError) {
+      resolutionEmittedRef.current = true;
+      captureEvent(ANALYTICS_EVENTS.DASHBOARD_AUTH_GATE_RESOLVED, {
+        outcome: 'error',
+        duration_ms: Math.round(performance.now() - gateStartedAtRef.current),
+      });
+      return;
+    }
+    if (agentProfile.subscriptionStatus === 'active') {
+      resolutionEmittedRef.current = true;
+      captureEvent(ANALYTICS_EVENTS.DASHBOARD_AUTH_GATE_RESOLVED, {
+        outcome: 'authenticated',
+        duration_ms: Math.round(performance.now() - gateStartedAtRef.current),
+      });
+    }
+  }, [
+    gateHardTimedOut,
+    loading,
+    profileLoading,
+    activatingFounding,
+    activationError,
+    agentProfile.subscriptionStatus,
+  ]);
+
+  const handleRetryActivation = useCallback(() => {
+    activationAttemptedForUserRef.current = null;
+    setActivationError(null);
+    setGateHardTimedOut(false);
+    resolutionEmittedRef.current = false;
+    gateStartedAtRef.current = performance.now();
+    setActivationRetryNonce((prev) => prev + 1);
+  }, []);
+
+  if (gateHardTimedOut) {
+    return (
+      <div className="min-h-screen bg-[#e4e4e4] flex items-center justify-center p-4">
+        <div className="max-w-md w-full">
+          <div className="bg-white rounded-[5px] shadow-xl p-8 text-center">
+            <div className="w-16 h-16 bg-[#FEF3C7] rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg className="w-8 h-8 text-[#D97706]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-[#005851] mb-3">We&apos;re having trouble loading your dashboard</h2>
+            <p className="text-[#6B7280] mb-6">{GATE_HARD_TIMEOUT_MESSAGE}</p>
+            <div className="space-y-2">
+              <button
+                onClick={() => { window.location.reload(); }}
+                className="w-full py-3 px-6 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors"
+              >
+                Refresh page
+              </button>
+              <button
+                onClick={() => { void handleLogout(); }}
+                className="w-full py-3 px-6 border border-[#005851] text-[#005851] hover:bg-[#f0faf8] font-semibold rounded-[5px] transition-colors"
+              >
+                Sign out and try again
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading || profileLoading) {
     return (
@@ -202,10 +367,7 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
                 <div className="mb-4 rounded-[5px] border border-[#FCD34D] bg-[#FFFBEB] px-4 py-3 text-left">
                   <p className="text-sm text-[#92400E]">{activationError}</p>
                   <button
-                    onClick={() => {
-                      activationAttemptedForUserRef.current = null;
-                      setActivationRetryNonce((prev) => prev + 1);
-                    }}
+                    onClick={handleRetryActivation}
                     className="mt-2 text-sm font-semibold text-[#0F766E] hover:text-[#115E59] transition-colors"
                   >
                     Retry account check

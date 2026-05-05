@@ -1,12 +1,13 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import { isAdminEmail } from '../../lib/admin';
-import { identifyAgent, resetPostHog } from '../../lib/posthog';
+import { identifyAgent, resetPostHog, captureEvent } from '../../lib/posthog';
+import { ANALYTICS_EVENTS } from '../../lib/analytics-events';
 
 export interface OnboardingMilestones {
   profileCompleted: boolean;
@@ -126,6 +127,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(true);
   const [agentProfile, setAgentProfile] = useState<AgentProfile>({});
+  const providerStartedAtRef = useRef<number>(typeof performance !== 'undefined' ? performance.now() : 0);
+  const signinRedirectEmittedRef = useRef(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -138,6 +141,13 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         setAgentProfile({});
         setLoading(false);
         setProfileLoading(false);
+        if (!signinRedirectEmittedRef.current) {
+          signinRedirectEmittedRef.current = true;
+          captureEvent(ANALYTICS_EVENTS.DASHBOARD_AUTH_GATE_RESOLVED, {
+            outcome: 'redirect_signin',
+            duration_ms: Math.round(performance.now() - providerStartedAtRef.current),
+          });
+        }
         resetPostHog();
         const pathname = window.location.pathname;
         const params = new URLSearchParams(window.location.search);
