@@ -16,6 +16,11 @@ import {
   TOUCH_STAGE_DELAY,
   STAGE_FALLBACK_ORDER,
 } from '../../../../lib/conservation-types';
+import {
+  isPushEligible,
+  readValidPushToken,
+  sendExpoPush,
+} from '../../../../lib/push-permission-lifecycle';
 
 /**
  * POST /api/conservation/outreach
@@ -114,7 +119,9 @@ export async function POST(req: NextRequest) {
     }
 
     const clientData = clientDoc.data()!;
-    const pushToken = clientData.pushToken as string | undefined;
+    // Push permission lifecycle (strategy decisions §4): only treat the token
+    // as usable when present AND not revoked.
+    const pushToken = readValidPushToken(clientData) ?? undefined;
     const clientPhone = (clientData.phone as string) || '';
     const normalizedPhone = normalizePhone(clientPhone);
 
@@ -149,7 +156,7 @@ export async function POST(req: NextRequest) {
     // Walk the stage-1 fallback order: push -> sms -> email
     const fallbackOrder = STAGE_FALLBACK_ORDER['initial'];
     const avail: Record<ConservationChannel, boolean> = {
-      push: !!pushToken,
+      push: isPushEligible(clientData),
       sms: isValidE164(normalizedPhone),
       email: !!(clientData.email as string),
     };
@@ -162,6 +169,7 @@ export async function POST(req: NextRequest) {
       if (!avail[ch]) continue;
 
       if (ch === 'push') {
+        if (!pushToken) continue;
         const pushData: Record<string, unknown> = {
           type: 'conservation',
           agentId,
@@ -172,34 +180,29 @@ export async function POST(req: NextRequest) {
           pushData.includeBookingLink = true;
         }
 
-        try {
-          const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Accept: 'application/json',
-              'Accept-Encoding': 'gzip, deflate',
-            },
-            body: JSON.stringify({
-              to: pushToken,
-              title: `Message from ${agentName}`,
-              body: messageWithBooking,
-              sound: 'default',
-              badge: 1,
-              priority: 'high',
-              data: pushData,
-              ...(schedulingUrl ? { categoryId: 'BOOK_APPOINTMENT' } : {}),
-            }),
-          });
-          const expoResult = await expoResponse.json();
-          if (expoResult?.data?.status === 'ok') {
-            sentChannel = 'push';
-            break;
-          }
-          console.error('Expo push error for conservation outreach:', expoResult?.data?.message);
-        } catch (pushError) {
-          console.error('Failed to send conservation push:', pushError);
+        const outcome = await sendExpoPush(
+          {
+            to: pushToken,
+            title: `Message from ${agentName}`,
+            body: messageWithBooking,
+            sound: 'default',
+            badge: 1,
+            priority: 'high',
+            data: pushData,
+            ...(schedulingUrl ? { categoryId: 'BOOK_APPOINTMENT' } : {}),
+          },
+          {
+            ref: clientRef,
+            agentId,
+            clientId,
+          },
+        );
+        if (outcome.status === 'ok') {
+          sentChannel = 'push';
+          break;
         }
+        // Otherwise fall through to the next channel — retention is a
+        // fallback-eligible lane (strategy §1, channel matrix).
       }
 
       if (ch === 'sms') {

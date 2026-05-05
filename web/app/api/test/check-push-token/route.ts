@@ -31,6 +31,10 @@ export async function GET(req: NextRequest) {
         clientName: data.name || '(no name)',
         pushToken: data.pushToken ?? null,
         pushTokenType: data.pushToken === undefined ? 'undefined (field missing)' : typeof data.pushToken,
+        pushPermissionRevokedAt: data.pushPermissionRevokedAt ?? null,
+        pushPermissionStatus: data.pushToken
+          ? (data.pushPermissionRevokedAt ? 'revoked-with-stale-token' : 'eligible')
+          : (data.pushPermissionRevokedAt ? 'revoked' : 'never_opted_in'),
         clientCode: data.clientCode || null,
       });
     }
@@ -56,6 +60,10 @@ export async function GET(req: NextRequest) {
             clientName: data.name,
             pushToken: data.pushToken ?? null,
             pushTokenType: data.pushToken === undefined ? 'undefined (field missing)' : typeof data.pushToken,
+            pushPermissionRevokedAt: data.pushPermissionRevokedAt ?? null,
+            pushPermissionStatus: data.pushToken
+              ? (data.pushPermissionRevokedAt ? 'revoked-with-stale-token' : 'eligible')
+              : (data.pushPermissionRevokedAt ? 'revoked' : 'never_opted_in'),
             clientCode: data.clientCode || null,
             phone: data.phone || null,
           });

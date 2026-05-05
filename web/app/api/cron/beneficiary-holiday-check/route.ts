@@ -3,6 +3,11 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { buildBeneficiaryHolidayMessage, resolveClientLanguage, type HolidayCardKey } from '../../../../lib/client-language';
+import {
+  getPushPermissionStatus,
+  readValidPushToken,
+  sendExpoPush,
+} from '../../../../lib/push-permission-lifecycle';
 
 function getHolidayForDate(date: Date): HolidayCardKey | null {
   const month = date.getUTCMonth();
@@ -13,32 +18,6 @@ function getHolidayForDate(date: Date): HolidayCardKey | null {
   if (month === 10 && date.getUTCDay() === 4 && day >= 22 && day <= 28) return 'thanksgiving';
   if (month === 11 && day === 25) return 'christmas';
   return null;
-}
-
-async function sendPushNotification(pushToken: string, title: string, body: string, data: Record<string, unknown>): Promise<boolean> {
-  try {
-    const res = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        'Accept-Encoding': 'gzip, deflate',
-      },
-      body: JSON.stringify({
-        to: pushToken,
-        title,
-        body,
-        sound: 'default',
-        badge: 1,
-        priority: 'high',
-        data,
-      }),
-    });
-    const result = await res.json();
-    return result?.data?.status === 'ok';
-  } catch {
-    return false;
-  }
 }
 
 export async function GET(req: NextRequest) {
@@ -64,6 +43,8 @@ export async function GET(req: NextRequest) {
     let sent = 0;
     let skipped = 0;
     let failed = 0;
+    let pushSkippedRevoked = 0;
+    let tokensInvalidated = 0;
 
     const agentsSnap = await db.collection('agents').get();
     for (const agentDoc of agentsSnap.docs) {
@@ -121,10 +102,17 @@ export async function GET(req: NextRequest) {
               continue;
             }
 
-            const pushToken = typeof clientData.pushToken === 'string' ? clientData.pushToken.trim() : '';
+            // Push permission lifecycle (strategy decisions §4): beneficiary
+            // holiday outreach is push-only with no fallback. Eligibility
+            // requires a non-revoked token on the parent client doc (we ride
+            // the policyholder's token; beneficiaries do not currently store
+            // their own).
+            const pushToken = readValidPushToken(clientData);
             if (!pushToken) {
-              // Holiday beneficiary outreach is now push-only.
               skipped += 1;
+              if (getPushPermissionStatus(clientData) === 'revoked') {
+                pushSkippedRevoked += 1;
+              }
               continue;
             }
 
@@ -139,14 +127,31 @@ export async function GET(req: NextRequest) {
               language: clientsLang,
             });
             try {
-              const ok = await sendPushNotification(pushToken, localized.title, localized.body, {
-                type: 'beneficiary_holiday',
-                agentId: agentDoc.id,
-                clientId: clientDoc.id,
-                beneficiaryCode: code,
-                holiday,
-              });
-              if (!ok) {
+              const outcome = await sendExpoPush(
+                {
+                  to: pushToken,
+                  title: localized.title,
+                  body: localized.body,
+                  sound: 'default',
+                  badge: 1,
+                  priority: 'high',
+                  data: {
+                    type: 'beneficiary_holiday',
+                    agentId: agentDoc.id,
+                    clientId: clientDoc.id,
+                    beneficiaryCode: code,
+                    holiday,
+                  },
+                },
+                {
+                  ref: clientDoc.ref,
+                  agentId: agentDoc.id,
+                  clientId: clientDoc.id,
+                  beneficiaryId: code,
+                },
+              );
+              if (outcome.status === 'token_invalidated') tokensInvalidated += 1;
+              if (outcome.status !== 'ok') {
                 failed += 1;
                 continue;
               }
@@ -182,8 +187,23 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    console.log('[beneficiary-holiday-check] complete', { holiday, sent, skipped, failed });
-    return NextResponse.json({ success: true, holiday, sent, skipped, failed });
+    console.log('[beneficiary-holiday-check] complete', {
+      holiday,
+      sent,
+      skipped,
+      failed,
+      pushSkippedRevoked,
+      tokensInvalidated,
+    });
+    return NextResponse.json({
+      success: true,
+      holiday,
+      sent,
+      skipped,
+      failed,
+      pushSkippedRevoked,
+      tokensInvalidated,
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },

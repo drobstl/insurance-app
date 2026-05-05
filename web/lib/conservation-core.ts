@@ -6,6 +6,7 @@ import { extractConservationData, generateOutreachMessage, assessSaveability } f
 import { normalizePhone, isValidE164 } from './phone';
 import { getCarrierServicePhone } from './carriers';
 import { resolveClientLanguage } from './client-language';
+import { isPushEligible } from './push-permission-lifecycle';
 import type {
   ConservationSource,
   ConservationAlert,
@@ -119,7 +120,9 @@ async function findMatch(
           clientName: (clientData.name as string) || clientName,
           clientPhone: (clientData.phone as string) || null,
           clientEmail: (clientData.email as string) || null,
-          clientHasApp: !!(clientData.pushToken as string),
+          // `clientHasApp` reflects current push eligibility (token present
+          // AND not revoked) per strategy decisions §4.
+          clientHasApp: isPushEligible(clientData),
           policyId: policyDoc.id,
           policyAge,
           isChargebackRisk: policyAge !== null && policyAge < 365,
@@ -143,7 +146,7 @@ async function findMatch(
         clientName: (clientData.name as string) || clientName,
         clientPhone: (clientData.phone as string) || null,
         clientEmail: (clientData.email as string) || null,
-        clientHasApp: !!(clientData.pushToken as string),
+        clientHasApp: isPushEligible(clientData),
         policyId: policyDoc.id,
         policyAge,
         isChargebackRisk: policyAge !== null && policyAge < 365,
@@ -209,7 +212,7 @@ export async function createManualConservationAlert(
   const clientFirstName = clientName.split(' ')[0];
   const clientPhone = (clientData.phone as string) || null;
   const clientEmail = (clientData.email as string) || null;
-  const clientHasApp = !!(clientData.pushToken as string);
+  const clientHasApp = isPushEligible(clientData);
   const carrier = (policyData.insuranceCompany as string) || '';
   const policyType = (policyData.policyType as string) || null;
   const premiumAmount = (policyData.premiumAmount as number) || null;

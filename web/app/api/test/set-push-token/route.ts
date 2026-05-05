@@ -1,7 +1,9 @@
 import 'server-only';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
+import { PUSH_PERMISSION_REVOKED_FIELD } from '../../../../lib/push-permission-lifecycle';
 
 /**
  * Manually inject a push token onto a client's Firestore document.
@@ -29,7 +31,10 @@ export async function POST(req: NextRequest) {
       if (!clientDoc.exists) {
         return NextResponse.json({ error: 'Client not found' }, { status: 404 });
       }
-      await clientRef.update({ pushToken });
+      await clientRef.update({
+        pushToken,
+        [PUSH_PERMISSION_REVOKED_FIELD]: FieldValue.delete(),
+      });
       return NextResponse.json({
         success: true,
         agentId,
@@ -52,7 +57,10 @@ export async function POST(req: NextRequest) {
 
         if (!clientsSnap.empty) {
           const cDoc = clientsSnap.docs[0];
-          await cDoc.ref.update({ pushToken });
+          await cDoc.ref.update({
+            pushToken,
+            [PUSH_PERMISSION_REVOKED_FIELD]: FieldValue.delete(),
+          });
           return NextResponse.json({
             success: true,
             agentId: agentDoc.id,

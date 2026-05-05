@@ -27,6 +27,11 @@ import {
   STAGE_FALLBACK_ORDER,
   STAGE_COMPLEMENT_EMAIL,
 } from '../../../../lib/conservation-types';
+import {
+  isPushEligible,
+  readValidPushToken,
+  sendExpoPush,
+} from '../../../../lib/push-permission-lifecycle';
 
 function getResend() {
   const key = process.env.RESEND_API_KEY;
@@ -37,39 +42,12 @@ function getResend() {
 // ---------------------------------------------------------------------------
 // Channel senders
 // ---------------------------------------------------------------------------
-
-async function sendPushNotification(
-  pushToken: string,
-  agentName: string,
-  message: string,
-  data: Record<string, unknown>,
-): Promise<boolean> {
-  try {
-    const res = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        'Accept-Encoding': 'gzip, deflate',
-      },
-      body: JSON.stringify({
-        to: pushToken,
-        title: `Message from ${agentName}`,
-        body: message,
-        sound: 'default',
-        badge: 1,
-        priority: 'high',
-        data,
-        ...(data.includeBookingLink ? { categoryId: 'BOOK_APPOINTMENT' } : {}),
-      }),
-    });
-    const result = await res.json();
-    return result?.data?.status === 'ok';
-  } catch (e) {
-    console.error('Conservation push error:', e);
-    return false;
-  }
-}
+//
+// Push sends route through `sendExpoPush` so permanent failures
+// (`DeviceNotRegistered`) atomically invalidate the stored token + stamp
+// `pushPermissionRevokedAt`. Conservation is a fallback-eligible lane, so any
+// non-`ok` outcome (transient or invalidated) just means we walk to the next
+// channel in `STAGE_FALLBACK_ORDER`.
 
 async function sendConservationEmailMessage(
   to: string,
@@ -106,12 +84,15 @@ interface ChannelAvailability {
 }
 
 function getChannelAvailability(clientData: FirebaseFirestore.DocumentData): ChannelAvailability {
-  const pushToken = clientData.pushToken as string | undefined;
+  // Push permission lifecycle (strategy decisions §4): only count push as
+  // available when the token is present AND not revoked. Stale tokens on
+  // revoked clients should not poison the routing decision.
+  const pushToken = readValidPushToken(clientData) ?? undefined;
   const clientPhone = (clientData.phone as string) || '';
   const clientEmail = (clientData.email as string) || '';
   const normalizedPhone = normalizePhone(clientPhone);
   return {
-    push: !!pushToken,
+    push: isPushEligible(clientData),
     sms: isValidE164(normalizedPhone),
     email: !!clientEmail,
     pushToken,
@@ -168,8 +149,27 @@ async function sendOnChannel(
       pushData.schedulingUrl = schedulingUrl;
       pushData.includeBookingLink = true;
     }
-    const ok = await sendPushNotification(avail.pushToken, agentName, message, pushData);
-    return ok ? { channel: 'push', chatId: existingChatId, body: message } : null;
+    const db = getAdminFirestore();
+    const outcome = await sendExpoPush(
+      {
+        to: avail.pushToken,
+        title: `Message from ${agentName}`,
+        body: message,
+        sound: 'default',
+        badge: 1,
+        priority: 'high',
+        data: pushData,
+        ...(schedulingUrl ? { categoryId: 'BOOK_APPOINTMENT' } : {}),
+      },
+      {
+        ref: db.doc(`agents/${agentId}/clients/${clientId}`),
+        agentId,
+        clientId,
+      },
+    );
+    return outcome.status === 'ok'
+      ? { channel: 'push', chatId: existingChatId, body: message }
+      : null;
   }
 
   if (channel === 'sms') {

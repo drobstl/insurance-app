@@ -4,6 +4,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
+import {
+  getPushPermissionStatus,
+  readValidPushToken,
+  sendExpoPush,
+} from '../../../../lib/push-permission-lifecycle';
 
 /**
  * Daily cron job: scans all agents' policies for upcoming 1-year anniversaries.
@@ -59,6 +64,8 @@ export async function GET(req: NextRequest) {
     let totalEmails = 0;
     let totalPoliciesFlagged = 0;
     let totalPushSent = 0;
+    let totalPushSkippedRevoked = 0;
+    let totalTokensInvalidated = 0;
 
     for (const agentDoc of agentsSnap.docs) {
       const agentData = agentDoc.data();
@@ -78,7 +85,9 @@ export async function GET(req: NextRequest) {
       for (const clientDoc of clientsSnap.docs) {
         const clientData = clientDoc.data();
         const clientName = (clientData.name as string) || 'Unknown Client';
-        const clientPushToken = clientData.pushToken as string | undefined;
+        // Push permission lifecycle (strategy decisions §4): only treat the
+        // token as usable when present AND not revoked.
+        const clientPushToken = readValidPushToken(clientData) ?? undefined;
 
         // 3. Check each policy
         const policiesSnap = await db
@@ -210,10 +219,27 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
-      // Fallback: send push notifications if Policy Review AI is disabled
+      // Fallback: send push notifications if Policy Review AI is disabled.
+      // Count clients filtered out because their push permission was revoked
+      // (so they show up in the `pushSkippedRevoked` counter even though the
+      // primary anniversary path is `/api/cron/policy-review`).
       const clientHitsMap = new Map<string, AnniversaryHit[]>();
+      const revokedClientIds = new Set<string>();
       for (const hit of hits) {
-        if (!hit.pushToken || hit.clientAlreadyNotified) continue;
+        if (!hit.pushToken) {
+          // Re-check client doc once per unique client for revocation telemetry.
+          if (!revokedClientIds.has(hit.clientId)) {
+            try {
+              const clientSnap = await db.doc(`agents/${agentDoc.id}/clients/${hit.clientId}`).get();
+              if (clientSnap.exists && getPushPermissionStatus(clientSnap.data()!) === 'revoked') {
+                revokedClientIds.add(hit.clientId);
+                totalPushSkippedRevoked++;
+              }
+            } catch { /* telemetry-only; never block fallback */ }
+          }
+          continue;
+        }
+        if (hit.clientAlreadyNotified) continue;
         const existing = clientHitsMap.get(hit.clientId) || [];
         existing.push(hit);
         clientHitsMap.set(hit.clientId, existing);
@@ -254,46 +280,34 @@ export async function GET(req: NextRequest) {
         }
 
         try {
-          const expoResponse = await fetch(
-            'https://exp.host/--/api/v2/push/send',
+          const outcome = await sendExpoPush(
             {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-                'Accept-Encoding': 'gzip, deflate',
+              to: hit.pushToken!,
+              title: pushTitle,
+              body: pushBody,
+              sound: 'default',
+              badge: 1,
+              priority: 'high',
+              data: {
+                type: 'anniversary',
+                agentId: agentDoc.id,
+                clientId: hit.clientId,
+                ...(schedulingUrl && {
+                  schedulingUrl,
+                  includeBookingLink: true,
+                }),
               },
-              body: JSON.stringify({
-                to: hit.pushToken,
-                title: pushTitle,
-                body: pushBody,
-                sound: 'default',
-                badge: 1,
-                priority: 'high',
-                data: {
-                  type: 'anniversary',
-                  agentId: agentDoc.id,
-                  clientId: hit.clientId,
-                  ...(schedulingUrl && {
-                    schedulingUrl,
-                    includeBookingLink: true,
-                  }),
-                },
-                ...(schedulingUrl && { categoryId: 'BOOK_APPOINTMENT' }),
-              }),
-            }
+              ...(schedulingUrl && { categoryId: 'BOOK_APPOINTMENT' }),
+            },
+            {
+              ref: db.doc(`agents/${agentDoc.id}/clients/${hit.clientId}`),
+              agentId: agentDoc.id,
+              clientId: hit.clientId,
+            },
           );
 
-          const expoResult = await expoResponse.json();
-          const pushStatus =
-            expoResult?.data?.status === 'ok' ? 'sent' : 'failed';
-
-          if (pushStatus === 'failed') {
-            console.error(
-              `Expo push error for client ${hit.clientId}:`,
-              expoResult?.data?.message || expoResult
-            );
-          }
+          const pushStatus = outcome.status === 'ok' ? 'sent' : 'failed';
+          if (outcome.status === 'token_invalidated') totalTokensInvalidated++;
 
           // Write notification record to Firestore
           const notifRef = db
@@ -343,6 +357,8 @@ export async function GET(req: NextRequest) {
       emailsSent: totalEmails,
       policiesFlagged: totalPoliciesFlagged,
       pushNotificationsSent: totalPushSent,
+      pushSkippedRevoked: totalPushSkippedRevoked,
+      tokensInvalidated: totalTokensInvalidated,
     });
   } catch (error) {
     console.error('Anniversary check cron error:', error);

@@ -6,6 +6,7 @@ import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin'
 import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { computeAgentAggregates } from '../../../../lib/stats-aggregation';
+import { readValidPushToken, sendExpoPush } from '../../../../lib/push-permission-lifecycle';
 
 type ResolvableStatus = 'saved' | 'lost';
 
@@ -163,7 +164,10 @@ export async function PATCH(req: NextRequest) {
 
           if (clientDoc.exists) {
             const clientData = clientDoc.data()!;
-            const pushToken = clientData.pushToken as string | undefined;
+            // Push permission lifecycle (strategy decisions §4): push is the
+            // first try in this celebration ladder, but it remains a
+            // fallback-eligible lane (push → SMS → email).
+            const pushToken = readValidPushToken(clientData);
             const clientPhone = normalizePhone((clientData.phone as string) || '');
             const clientEmailAddr = (clientData.email as string) || '';
             const existingChatId = (alertData.chatId as string) || null;
@@ -172,10 +176,8 @@ export async function PATCH(req: NextRequest) {
 
             if (pushToken && !sent) {
               try {
-                await fetch('https://exp.host/--/api/v2/push/send', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-                  body: JSON.stringify({
+                const outcome = await sendExpoPush(
+                  {
                     to: pushToken,
                     title: `Your ${policyType} policy is secure!`,
                     body: clientMessage,
@@ -183,9 +185,14 @@ export async function PATCH(req: NextRequest) {
                     badge: 1,
                     priority: 'high',
                     data: { type: 'conservation_saved', agentId },
-                  }),
-                });
-                sent = true;
+                  },
+                  {
+                    ref: clientDoc.ref,
+                    agentId,
+                    clientId,
+                  },
+                );
+                if (outcome.status === 'ok') sent = true;
               } catch (e) {
                 console.error('Client celebration push failed (non-blocking):', e);
               }

@@ -2,7 +2,7 @@
 # CONTEXT.md — AgentForLife (AFL)
 
 > Drop this in the repo root. Read it before any strategic or architectural decision.
-> Last updated: May 4, 2026
+> Last updated: May 5, 2026
 
 ## Source-of-Truth Documents
 
@@ -176,12 +176,34 @@ Drip rules: max 15 conversations/day from any single new-agent import; 9am–6pm
 
 ### Push permission lifecycle
 
-Today's check (`if (pushToken !== undefined)`) conflates "ever opted in" with "currently allows notifications." That breaks the push-only rule for anniversary/holiday/birthday whenever a client has revoked notifications in iOS settings. Required behavior (ships with Phase 1 welcome flow, per strategy §4):
+**Shipped May 5, 2026 as Phase 1 Track A** (see `Recent fixes` →
+`Fixed (May 5, 2026): Phase 1 Track A — Push permission lifecycle shipped`).
 
-- When Expo's response indicates an invalid token (`DeviceNotRegistered` or similar), AFL invalidates the token in Firestore.
-- A separate field (`pushPermissionRevokedAt` or equivalent) records when the token was invalidated, distinguishing "never opted in" from "opted in then revoked."
-- Routing logic checks for a *valid, non-revoked* token, not just token presence.
-- Lanes with a fallback (welcome, retention, beneficiary post-activation) fall back. Lanes without a fallback (anniversary, holiday, birthday) end the cycle silently.
+Behavior (now enforced by `web/lib/push-permission-lifecycle.ts`):
+
+- When Expo's send response carries a permanent-failure error code
+  (currently only `DeviceNotRegistered`; `MessageTooBig`,
+  `MessageRateExceeded`, `MismatchSenderId`, `InvalidCredentials` are
+  payload/credential issues and do NOT invalidate tokens), AFL atomically
+  deletes the stored `pushToken` and stamps `pushPermissionRevokedAt:
+  <serverTimestamp>` on the same write. The invalidation runs in a Firestore
+  transaction guarded against the stored token having been replaced by a
+  concurrent re-registration from the mobile app.
+- `pushPermissionRevokedAt` is the canonical field name. Its presence
+  distinguishes "never opted in" (no token, no field) from "opted in then
+  revoked" (no token + field set). Successful re-registration via
+  `/api/push-token/register` clears the field and the lifecycle resets.
+- Routing logic checks `isPushEligible(...)` (token present AND not revoked),
+  not bare token presence. Centralized in `web/lib/push-permission-lifecycle.ts`
+  and consumed by every push send call site.
+- Lane-aware behavior:
+  - Lanes WITH fallback (welcome, retention, beneficiary post-activation) →
+    fall back to the next channel per the per-lane channel matrix.
+  - Lanes WITHOUT fallback (anniversary, holiday cards, birthday cards) →
+    short-circuit BEFORE Expo when the client is not eligible (so we don't
+    accumulate noisy delivery failures on known-dead tokens), and end the
+    cycle silently. Skip-reason taxonomy on policy review docs:
+    `'push_unavailable' | 'push_revoked' | 'push_send_failed' | 'push_send_invalidated'`.
 
 ## Phased Roadmap
 
@@ -194,14 +216,14 @@ This sequence supersedes the Phase 1 plan in v3.1 §11. Source: strategy decisio
 - **Why this was urgent:** the prior order listed SMS as the *primary* channel on the day-3 and day-14 anniversary stages. Every anniversary check-in for a client without push permission was being routed through the Linq line — the single largest active bleed point on line reputation. Stopped before any further work.
 
 ### Phase 1 — Welcome flow + new pricing (next 6 weeks)
-- New welcome flow (agent personal-phone one-tap + in-app Activate + Linq line vCard response + thumbs-up reciprocity ask).
-- Push permission lifecycle management (Expo error → token invalidation, `pushPermissionRevokedAt`, lane-aware fallback).
-- vCard generation pipeline (server-side per agent, compressed photo, MMS attachment from Linq line).
-- Welcome flow analytics in PostHog (agent send compliance, app activation rate, thumbs-up rate).
-- New conversation-based pricing tiers in Stripe (Starter $29 / Growth $59 / Pro $119 / Agency $199 + $39/seat).
-- Conversation counter (per-agent monthly bucket).
-- Founding 34 grandfathered at Growth-equivalent.
-- Pricing page rebuild.
+- New welcome flow (agent personal-phone one-tap + in-app Activate + Linq line vCard response + thumbs-up reciprocity ask). **(Track B — pending.)**
+- Push permission lifecycle management (Expo error → token invalidation, `pushPermissionRevokedAt`, lane-aware fallback). **Status: complete (Track A, shipped May 5, 2026).** See `Recent fixes` for full detail and file list.
+- vCard generation pipeline (server-side per agent, compressed photo, MMS attachment from Linq line). **(Track B — pending.)**
+- Welcome flow analytics in PostHog (agent send compliance, app activation rate, thumbs-up rate). **(Track B — pending.)**
+- New conversation-based pricing tiers in Stripe (Starter $29 / Growth $59 / Pro $119 / Agency $199 + $39/seat). **(Track C — pending.)**
+- Conversation counter (per-agent monthly bucket). **(Track C — pending.)**
+- Founding 34 grandfathered at Growth-equivalent. **(Track C — pending.)**
+- Pricing page rebuild. **(Track C — pending.)**
 
 ### Phase 2 — KPI tiers, beneficiary, retention, supporting infrastructure (months 3–4)
 - KPI tier system (5 tiers, 7-day rolling, line-level — see `KPI Tier System` below).
@@ -539,6 +561,22 @@ Overage GM (~66%) is acceptable as overflow protection, not a profit center. Agg
   - **Not modified** (intentional, per Phase 0 scope): `web/app/api/cron/anniversary-check/route.ts` legacy push-only fallback path was already compliant; `web/app/api/cron/holiday-check/route.ts` and `web/app/api/cron/birthday-check/route.ts` already operate push-only-no-fallback; `web/app/api/linq/webhook/route.ts` `handlePolicyReviewReply` (conversation continuation in legacy active SMS threads created before this hotfix) and `web/app/dashboard/policy-reviews/page.tsx` `handleSendMessage` (manual agent-initiated send, guarded by existing `chatId`) are not governed by the no-fallback rule and naturally become inert for new anniversary campaigns once the cron stops creating SMS chats. The retention lane (`STAGE_FALLBACK_ORDER`, separate constant) is unaffected. Phase 1 push permission lifecycle (`pushPermissionRevokedAt`, Expo `DeviceNotRegistered` handling) was intentionally not pulled forward — that ships with the welcome flow per `docs/AFL_Strategy_Decisions_2026-05-04.md` §4.
   - The dead SMS branches inside the channel loops in both crons were intentionally retained (not deleted) to keep the diff narrow and to preserve the shared channel-loop vocabulary; they cannot be reached for the anniversary lane because `REVIEW_STAGE_FALLBACK_ORDER` no longer contains `'sms'`. The dead `REVIEW_STAGE_COMPLEMENT_EMAIL` block in the drip cron similarly stays in place but never enters now that the table is empty.
   - Hotfix did not introduce a feature flag (architectural rule, not a feature gate). Shipped as commit `ac4144d` ("Enforce anniversary push-only outreach with no fallback (Phase 0 hotfix)") — see Phase 0 implementation note in `Phased Roadmap`.
+- Fixed (May 5, 2026): **Phase 1 Track A — Push permission lifecycle shipped.** Resolves the `if (pushToken !== undefined)` foot-gun that conflated "ever opted in" with "currently allows notifications," which had been silently breaking the push-only rule for any client who revoked notifications in iOS settings. Rule source: `docs/AFL_Strategy_Decisions_2026-05-04.md` §4 + CONTEXT.md `Channel Rules` → `Push permission lifecycle`. Continues the Phase 0 anniversary hotfix (`ac4144d`); the lifecycle work was intentionally deferred there per strategy §4 and is now landed.
+  - **New helper: `web/lib/push-permission-lifecycle.ts`.** Single source of truth for push eligibility and Expo send semantics. Exports `isPushEligible(clientData)`, `readValidPushToken(clientData)`, `getPushPermissionStatus(clientData)` (`'eligible' | 'never_opted_in' | 'revoked'`), `sendExpoPush(payload, holder?)`, and the `PUSH_PERMISSION_REVOKED_FIELD` constant. `sendExpoPush` runs the Expo POST, parses the ticket, and on a permanent-failure code (currently only `DeviceNotRegistered` per Expo docs — `MessageTooBig`, `MessageRateExceeded`, `MismatchSenderId`, `InvalidCredentials` are payload/credential issues and are explicitly NOT in the invalidation set) atomically deletes the stored `pushToken` and stamps `pushPermissionRevokedAt: <serverTimestamp>` on the holder doc inside a Firestore transaction guarded against concurrent re-registration.
+  - **Schema: `pushPermissionRevokedAt`.** New optional Firestore field on `agents/{agentId}/clients/{clientId}` documents. Presence distinguishes "never opted in" (no token, no field) from "opted in then revoked" (no token + field set). Beneficiary records do not currently store their own push token; the beneficiary-holiday lane invalidates against the parent client doc as before. **Backfill: not required.** Existing clients with valid tokens stay routable; existing clients with stale tokens that have actually been revoked at the OS level will self-heal on the next push attempt (Expo will return `DeviceNotRegistered` and the helper will invalidate them in place). A one-shot backfill against historical Expo receipts is out of scope for this task; revisit only if telemetry shows a long tail of stale tokens.
+  - **Re-registration clears revocation.** `web/app/api/push-token/register/route.ts` (called by the mobile app) now clears `pushPermissionRevokedAt` whenever it writes a new `pushToken`, so a client who revokes and later re-grants permission returns to the eligible state without an admin touch. Same behavior is mirrored in the dev-only `web/app/api/test/set-push-token/route.ts`.
+  - **Push-only crons short-circuit on revocation BEFORE Expo (clean telemetry).** `web/app/api/cron/policy-review/route.ts`, `web/app/api/cron/policy-review-drip/route.ts`, `web/app/api/cron/anniversary-check/route.ts` (legacy push-only fallback), `web/app/api/cron/holiday-check/route.ts`, `web/app/api/cron/birthday-check/route.ts`, and `web/app/api/cron/beneficiary-holiday-check/route.ts` all source eligibility through `readValidPushToken` / `getPushPermissionStatus` and skip Expo entirely for revoked clients. Skip-reason taxonomy on the policy-review path extended from `'push_unavailable' | 'push_send_failed'` to `'push_unavailable' | 'push_revoked' | 'push_send_failed' | 'push_send_invalidated'`. The drip cron now always re-reads the client doc (instead of trusting the cached `clientPushToken` on the review doc) so a client revoked between drips is not re-attempted on stale cache.
+  - **Fallback lanes invalidate but keep walking the channel order.** `web/app/api/cron/conservation-outreach/route.ts`, `web/app/api/conservation/outreach/route.ts`, and `web/app/api/conservation/update/route.ts` (saved-policy celebration push → SMS → email) route through the helper so permanent failures invalidate the token, while transient or invalidated outcomes simply walk to the next channel per `STAGE_FALLBACK_ORDER`. `clientHasApp` in `web/lib/conservation-core.ts` now reflects `isPushEligible` so retention alerts no longer claim push availability for revoked clients.
+  - **Single-send manual push surfaces revocation.** `web/app/api/notifications/send/route.ts` (the dashboard-initiated single push) gates on `isPushEligible`, returns a 422 with `pushPermissionStatus: 'revoked'` when the client has revoked since the agent last sent, and includes `tokenInvalidated: true` in the success-path response when the send hit `DeviceNotRegistered`.
+  - **Telemetry.** Every invalidation emits a `console.log('[push-lifecycle] token invalidated', { agentId, clientId | beneficiaryId, reason: 'DeviceNotRegistered', previousTokenSuffix })` log line — token suffix only, never the full token, per the hotfix telemetry pattern. Push-only cron handlers added two new counters to their JSON responses: `tokensInvalidated` and `pushSkippedRevoked`. Fallback crons added `tokensInvalidated`. Existing counters (`clientOutreachSkipped`, `dripsSkipped`, etc.) are unchanged. Read-only `web/app/api/test/check-push-token/route.ts` now surfaces `pushPermissionRevokedAt` and a derived `pushPermissionStatus` for ops debugging.
+  - **Intentionally not changed** (per Track A scope, see strategy decisions §4 and the `ac4144d` Phase 0 commit message):
+    - The two-step welcome flow (one-tap "Send from my phone", in-app Activate, vCard MMS, thumbs-up ask) is Track B and is not part of this commit.
+    - Pricing tiers / conversation counter / pricing page rebuild are Track C and are not part of this commit.
+    - The PDF extraction pipeline (`gcf/ingestion-v3-processor`, `web/lib/pdf/...`, `web/app/dashboard/clients/page.tsx` PAGE_MAP) is untouched.
+    - The dead SMS branches inside the policy-review / policy-review-drip channel loops that the hotfix retained are still in place. They cannot be reached for the anniversary lane because `REVIEW_STAGE_FALLBACK_ORDER` is `['push']` for every stage.
+    - Server-side PostHog instrumentation was not added to cron handlers — match the current hotfix posture; PostHog wiring is its own follow-up.
+    - No feature flag introduced (architectural correction, not a feature gate).
+  - **Pre-commit checks.** `npx tsc --noEmit -p web/tsconfig.json` clean across the workspace. ESLint clean on every touched file (0 errors, 0 new warnings; the 5 pre-existing `no-unused-vars` warnings on `policy-review-drip/route.ts` lines 90-91, `beneficiary-holiday-check/route.ts` line 182, `test/send-holiday-card/route.ts` line 98, and `lib/conservation-core.ts` line 22 were verified as present in `HEAD` before changes and left alone).
 
 **Founding Member Program:** 34 founding agents are grandfathered at Growth-equivalent capacity (75 conversations/month, 8/day cap) free for life under the v3 pricing model. Free seat is permanent and exempt from base-tier price increases; overage is at the full $0.50/conv rate. Founding agency owners get the $199 platform fee waived and pay $39/seat for downline. Founding members are subject to the same KPI throttling rules as paid tiers. Full terms in `Business Model → Founding 34`.
 
@@ -565,7 +603,7 @@ Overage GM (~66%) is acceptable as overflow protection, not a profit center. Agg
 - **Lapse/retention cadence:** push first → max 2 SMS per non-responder per 30 days if push unavailable → mandatory email at third touch → 60-day quiet period.
 - **Bulk import is a once-per-agent-lifecycle ceremony.** Three paths (Onboarding Ceremony / Hybrid / Concierge). Never bulk through the Linq line (Linq confirmed).
 - **Number replacement is a Phase 4 contingency**, triggered by a second Limited episode under the new operating model.
-- **Push permission lifecycle management** ships with the welcome flow build (Phase 1): token invalidation on Expo errors, `pushPermissionRevokedAt` field, lane-aware fallback. Strategy §4.
+- **Push permission lifecycle management shipped May 5, 2026 (Phase 1 Track A).** Centralized in `web/lib/push-permission-lifecycle.ts`: `isPushEligible` gates routing on token presence + `pushPermissionRevokedAt` absence; `sendExpoPush` invalidates tokens on `DeviceNotRegistered` inside a Firestore transaction. Push-only lanes (anniversary, holiday, birthday) short-circuit BEFORE Expo for revoked clients; fallback lanes (welcome, retention, beneficiary post-activation) walk to the next channel. Strategy §4.
 
 ### Capacity & pricing (per v3.1 §14.2 + v3 §15)
 - Per-line operating target: 70 agents/line steady state. Optimization ceiling: 100 agents/line. Ramp 70 → 100 over 60–90 days based on reply rate and opt-out rate.

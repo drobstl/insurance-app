@@ -20,6 +20,12 @@ import {
   REVIEW_STAGE_COMPLEMENT_EMAIL,
 } from '../../../../lib/conservation-types';
 import { upsertThreadFromOutbound } from '../../../../lib/conversation-thread-registry';
+import {
+  getPushPermissionStatus,
+  readValidPushToken,
+  sendExpoPush,
+  type PushPermissionStatus,
+} from '../../../../lib/push-permission-lifecycle';
 
 /**
  * Cron: runs every 4 hours.
@@ -36,33 +42,6 @@ function getResend() {
   const key = process.env.RESEND_API_KEY;
   if (!key) throw new Error('RESEND_API_KEY is not configured');
   return new Resend(key);
-}
-
-async function sendPush(
-  pushToken: string,
-  title: string,
-  body: string,
-  data: Record<string, unknown>,
-): Promise<boolean> {
-  try {
-    const res = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({
-        to: pushToken,
-        title,
-        body,
-        sound: 'default',
-        badge: 1,
-        priority: 'high',
-        data,
-      }),
-    });
-    const result = await res.json();
-    return result?.data?.status === 'ok';
-  } catch {
-    return false;
-  }
 }
 
 function resolveReviewStage(data: FirebaseFirestore.DocumentData): { stage: ReviewTouchStage; nextTouchAt: string | null } | null {
@@ -98,6 +77,8 @@ export async function GET() {
     const nowIso = new Date().toISOString();
     let sent = 0;
     let skipped = 0;
+    let pushSkippedRevoked = 0;
+    let tokensInvalidated = 0;
 
     const agentsSnap = await db.collection('agents').get();
 
@@ -173,20 +154,26 @@ export async function GET() {
           // Try channels in fallback order
           let usedChannel: ConservationChannel | null = null;
           let chatId: string | null = (data.chatId as string) || null;
-          const clientPushToken = (data.clientPushToken as string) || null;
 
-          // If we don't have the push token on the review doc, fetch from client
-          let pushToken = clientPushToken;
-          if (!pushToken && data.clientId) {
+          // Always pull authoritative push permission state from the client
+          // doc (not the cached `clientPushToken` on the review doc) so that
+          // a previously-revoked client doesn't get re-attempted on stale
+          // cache. See `web/lib/push-permission-lifecycle.ts`.
+          let pushToken: string | null = null;
+          let pushPermissionStatus: PushPermissionStatus = 'never_opted_in';
+          let clientRef: FirebaseFirestore.DocumentReference | null = null;
+          if (data.clientId) {
             try {
-              const clientDoc = await db
+              clientRef = db
                 .collection('agents').doc(agentDoc.id)
-                .collection('clients').doc(data.clientId as string)
-                .get();
+                .collection('clients').doc(data.clientId as string);
+              const clientDoc = await clientRef.get();
               if (clientDoc.exists) {
-                pushToken = (clientDoc.data()!.pushToken as string) || null;
+                const clientData = clientDoc.data()!;
+                pushToken = readValidPushToken(clientData);
+                pushPermissionStatus = getPushPermissionStatus(clientData);
                 dripCtx.preferredLanguage = resolveClientLanguage(
-                  data.preferredLanguage ?? clientDoc.data()!.preferredLanguage,
+                  data.preferredLanguage ?? clientData.preferredLanguage,
                 );
               }
             } catch { /* ignore */ }
@@ -201,16 +188,36 @@ export async function GET() {
           // anniversary and intentionally retained as shared vocabulary —
           // do not extend it back to SMS for this lane.
           let pushSendAttempted = false;
+          let pushTokenInvalidatedThisRun = false;
           for (const ch of REVIEW_STAGE_FALLBACK_ORDER[nextStage]) {
-            if (ch === 'push' && pushToken) {
+            if (ch === 'push' && pushToken && clientRef) {
               pushSendAttempted = true;
-              const ok = await sendPush(pushToken, pushTitle, message, {
-                type: 'policy-review',
-                agentId: agentDoc.id,
-                clientId: data.clientId,
-                ...(schedulingUrl ? { schedulingUrl, includeBookingLink: true } : {}),
-              });
-              if (ok) { usedChannel = 'push'; break; }
+              const outcome = await sendExpoPush(
+                {
+                  to: pushToken,
+                  title: pushTitle,
+                  body: message,
+                  sound: 'default',
+                  badge: 1,
+                  priority: 'high',
+                  data: {
+                    type: 'policy-review',
+                    agentId: agentDoc.id,
+                    clientId: data.clientId,
+                    ...(schedulingUrl ? { schedulingUrl, includeBookingLink: true } : {}),
+                  },
+                },
+                {
+                  ref: clientRef,
+                  agentId: agentDoc.id,
+                  clientId: data.clientId as string,
+                },
+              );
+              if (outcome.status === 'ok') { usedChannel = 'push'; break; }
+              if (outcome.status === 'token_invalidated') {
+                pushTokenInvalidatedThisRun = true;
+                tokensInvalidated++;
+              }
             } else if (ch === 'sms' && hasPhone) {
               try {
                 const idempotencyKey = `policy-review-drip-${reviewDoc.id}-${nextStage}`;
@@ -228,11 +235,25 @@ export async function GET() {
           }
 
           if (!usedChannel) {
-            // Push unavailable (no token) or push send failed.
-            // Anniversary has no fallback channel — terminate the campaign
-            // so the drip cron stops re-attempting every 4 hours.
-            const skipReason: 'push_unavailable' | 'push_send_failed' =
-              pushSendAttempted ? 'push_send_failed' : 'push_unavailable';
+            // Push unavailable, revoked, transient-failed, or just
+            // permanently invalidated. Anniversary has no fallback —
+            // terminate the campaign so the drip cron stops re-attempting
+            // every 4 hours.
+            type SkipReason =
+              | 'push_unavailable'
+              | 'push_revoked'
+              | 'push_send_failed'
+              | 'push_send_invalidated';
+            let skipReason: SkipReason;
+            if (pushSendAttempted) {
+              skipReason = pushTokenInvalidatedThisRun
+                ? 'push_send_invalidated'
+                : 'push_send_failed';
+            } else if (pushPermissionStatus === 'revoked') {
+              skipReason = 'push_revoked';
+            } else {
+              skipReason = 'push_unavailable';
+            }
             try {
               await reviewDoc.ref.update({
                 status: 'drip-complete',
@@ -249,12 +270,14 @@ export async function GET() {
               );
             }
             skipped++;
+            if (skipReason === 'push_revoked') pushSkippedRevoked++;
             console.log('[policy-review-drip] skipped (push unavailable)', {
               agentId: agentDoc.id,
               reviewId: reviewDoc.id,
               clientId: data.clientId,
               stage: nextStage,
               reason: skipReason,
+              pushPermissionStatus,
               hasPushToken: !!pushToken,
               lane: 'anniversary',
             });
@@ -339,7 +362,13 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ success: true, dripsSent: sent, dripsSkipped: skipped });
+    return NextResponse.json({
+      success: true,
+      dripsSent: sent,
+      dripsSkipped: skipped,
+      pushSkippedRevoked,
+      tokensInvalidated,
+    });
   } catch (error) {
     console.error('Policy review drip cron error:', error);
     return NextResponse.json({ error: 'Drip cron failed' }, { status: 500 });

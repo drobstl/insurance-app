@@ -3,6 +3,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
+import { sendExpoPush } from '../../../../lib/push-permission-lifecycle';
 
 /**
  * TEST-ONLY: Sends a holiday card to a client by name.
@@ -60,6 +61,7 @@ export async function GET(req: NextRequest) {
     let foundAgentId: string | null = null;
     let foundClientId: string | null = null;
     let foundClientData: Record<string, unknown> | null = null;
+    let foundClientRef: FirebaseFirestore.DocumentReference | null = null;
     let agentData: Record<string, unknown> | null = null;
 
     for (const agentDoc of agentsSnap.docs) {
@@ -75,12 +77,13 @@ export async function GET(req: NextRequest) {
         foundAgentId = agentDoc.id;
         foundClientId = clientsSnap.docs[0].id;
         foundClientData = clientsSnap.docs[0].data();
+        foundClientRef = clientsSnap.docs[0].ref;
         agentData = agentDoc.data();
         break;
       }
     }
 
-    if (!foundAgentId || !foundClientId || !foundClientData) {
+    if (!foundAgentId || !foundClientId || !foundClientData || !foundClientRef) {
       return NextResponse.json(
         { error: `Client "${clientName}" not found across any agent` },
         { status: 404 },
@@ -100,14 +103,8 @@ export async function GET(req: NextRequest) {
 
     if (pushToken) {
       try {
-        const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            'Accept-Encoding': 'gzip, deflate',
-          },
-          body: JSON.stringify({
+        const outcome = await sendExpoPush(
+          {
             to: pushToken,
             title: card.title,
             body,
@@ -119,11 +116,14 @@ export async function GET(req: NextRequest) {
               agentId: foundAgentId,
               clientId: foundClientId,
             },
-          }),
-        });
-
-        const expoResult = await expoResponse.json();
-        pushStatus = expoResult?.data?.status === 'ok' ? 'sent' : 'failed';
+          },
+          {
+            ref: foundClientRef,
+            agentId: foundAgentId,
+            clientId: foundClientId,
+          },
+        );
+        pushStatus = outcome.status === 'ok' ? 'sent' : 'failed';
       } catch (pushErr) {
         console.error('Push send error:', pushErr);
         pushStatus = 'failed';

@@ -16,6 +16,12 @@ import {
   REVIEW_STAGE_DELAY,
   REVIEW_STAGE_FALLBACK_ORDER,
 } from '../../../../lib/conservation-types';
+import {
+  getPushPermissionStatus,
+  readValidPushToken,
+  sendExpoPush,
+  type PushPermissionStatus,
+} from '../../../../lib/push-permission-lifecycle';
 
 /**
  * Daily cron: scans all agents' policies for 1-year anniversaries.
@@ -48,7 +54,10 @@ interface AnniversaryPolicy {
   clientName: string;
   clientFirstName: string;
   clientPhone: string | null;
+  /** Trimmed push token only when the client is push-eligible (token present + not revoked). */
   clientPushToken: string | null;
+  /** 'eligible' | 'revoked' | 'never_opted_in' — informs the no-fallback skip reason. */
+  pushPermissionStatus: PushPermissionStatus;
   policyId: string;
   policyType: string;
   policyNumber: string;
@@ -59,6 +68,8 @@ interface AnniversaryPolicy {
   anniversaryDate: string;
   daysUntil: number;
   policyPath: string;
+  /** Path to the client doc — used to invalidate push token on permanent Expo failure. */
+  clientPath: string;
   preferredLanguage: 'en' | 'es';
 }
 
@@ -79,6 +90,8 @@ export async function GET(req: NextRequest) {
     let totalCampaignsCreated = 0;
     let totalSkipped = 0;
     let totalClientOutreachSkipped = 0;
+    let totalPushSkippedRevoked = 0;
+    let totalTokensInvalidated = 0;
 
     const agentsSnap = await db.collection('agents').get();
 
@@ -107,7 +120,10 @@ export async function GET(req: NextRequest) {
         const clientName = (clientData.name as string) || 'Unknown Client';
         const clientFirstName = clientName.split(' ')[0];
         const clientPhone = (clientData.phone as string) || null;
-        const clientPushToken = (clientData.pushToken as string) || null;
+        // Push permission lifecycle (strategy decisions §4): only treat the
+        // token as usable when present AND not revoked.
+        const clientPushToken = readValidPushToken(clientData);
+        const pushPermissionStatus = getPushPermissionStatus(clientData);
         const preferredLanguage = resolveClientLanguage(clientData.preferredLanguage);
         const clientOptedOut = (clientData.policyReviewOptOut as boolean) === true;
 
@@ -150,6 +166,7 @@ export async function GET(req: NextRequest) {
             clientFirstName,
             clientPhone,
             clientPushToken,
+            pushPermissionStatus,
             policyId: policyDoc.id,
             policyType: p.policyType || 'Policy',
             policyNumber: p.policyNumber || '—',
@@ -160,6 +177,7 @@ export async function GET(req: NextRequest) {
             anniversaryDate: anniversary.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
             daysUntil,
             policyPath: `agents/${agentDoc.id}/clients/${clientDoc.id}/policies/${policyDoc.id}`,
+            clientPath: `agents/${agentDoc.id}/clients/${clientDoc.id}`,
             preferredLanguage,
           };
 
@@ -270,42 +288,53 @@ export async function GET(req: NextRequest) {
             // anniversary and intentionally retained only because the channel
             // loop is shared vocabulary with other lanes; do not extend it
             // back to SMS for this lane.
+            //
+            // Push permission lifecycle (Phase 1 Track A, strategy §4):
+            // - eligibility is gated on token present AND not revoked
+            //   (centralized in `readValidPushToken` / `getPushPermissionStatus`),
+            // - revoked clients short-circuit BEFORE Expo so we don't
+            //   accumulate noisy "send failed" logs for known-dead tokens,
+            // - permanent Expo failures (`DeviceNotRegistered`) atomically
+            //   invalidate the stored token via `sendExpoPush`'s holder ref.
             const phone = hit.clientPhone ? normalizePhone(hit.clientPhone) : null;
             const hasPhone = phone ? isValidE164(phone) : false;
             let usedChannel: ConservationChannel | null = null;
             let pushSendAttempted = false;
+            let pushTokenInvalidatedThisRun = false;
             let chatId: string | null = null;
 
             for (const ch of REVIEW_STAGE_FALLBACK_ORDER['initial']) {
               if (ch === 'push' && hit.clientPushToken) {
                 pushSendAttempted = true;
-                try {
-                  const res = await fetch('https://exp.host/--/api/v2/push/send', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-                    body: JSON.stringify({
-                      to: hit.clientPushToken,
-                      title: pushTitleForHit,
-                      body: outreachMessage,
-                      sound: 'default',
-                      badge: 1,
-                      priority: 'high',
-                      data: {
-                        type: 'anniversary',
-                        agentId: agentDoc.id,
-                        clientId: hit.clientId,
-                        ...(schedulingUrl ? { schedulingUrl, includeBookingLink: true } : {}),
-                      },
-                      ...(schedulingUrl ? { categoryId: 'BOOK_APPOINTMENT' } : {}),
-                    }),
-                  });
-                  const result = await res.json();
-                  if (result?.data?.status === 'ok') {
-                    usedChannel = 'push';
-                    break;
-                  }
-                } catch (pushErr) {
-                  console.error(`Push failed for client ${hit.clientId}:`, pushErr);
+                const outcome = await sendExpoPush(
+                  {
+                    to: hit.clientPushToken,
+                    title: pushTitleForHit,
+                    body: outreachMessage,
+                    sound: 'default',
+                    badge: 1,
+                    priority: 'high',
+                    data: {
+                      type: 'anniversary',
+                      agentId: agentDoc.id,
+                      clientId: hit.clientId,
+                      ...(schedulingUrl ? { schedulingUrl, includeBookingLink: true } : {}),
+                    },
+                    ...(schedulingUrl ? { categoryId: 'BOOK_APPOINTMENT' } : {}),
+                  },
+                  {
+                    ref: db.doc(hit.clientPath),
+                    agentId: agentDoc.id,
+                    clientId: hit.clientId,
+                  },
+                );
+                if (outcome.status === 'ok') {
+                  usedChannel = 'push';
+                  break;
+                }
+                if (outcome.status === 'token_invalidated') {
+                  pushTokenInvalidatedThisRun = true;
+                  totalTokensInvalidated++;
                 }
               } else if (ch === 'sms' && hasPhone) {
                 try {
@@ -330,14 +359,27 @@ export async function GET(req: NextRequest) {
             }
 
             if (!usedChannel) {
-              // Push unavailable (no token) or push send failed.
-              // Anniversary is push-only with no fallback — end the cycle
-              // silently for this client until the next anniversary.
-              // Strict semantics: write `policyReviewNotifiedAt` so this
-              // policy is not re-attempted on subsequent days within the
-              // current Day +1 window (~365 days until next anniversary).
-              const skipReason: 'push_unavailable' | 'push_send_failed' =
-                pushSendAttempted ? 'push_send_failed' : 'push_unavailable';
+              // Push unavailable, revoked, transient-failed, or just
+              // permanently invalidated. Anniversary has no fallback —
+              // end the cycle silently for this client until the next
+              // anniversary. Strict semantics: write `policyReviewNotifiedAt`
+              // so this policy is not re-attempted on subsequent days within
+              // the current Day +1 window (~365 days until next anniversary).
+              type SkipReason =
+                | 'push_unavailable'
+                | 'push_revoked'
+                | 'push_send_failed'
+                | 'push_send_invalidated';
+              let skipReason: SkipReason;
+              if (pushSendAttempted) {
+                skipReason = pushTokenInvalidatedThisRun
+                  ? 'push_send_invalidated'
+                  : 'push_send_failed';
+              } else if (hit.pushPermissionStatus === 'revoked') {
+                skipReason = 'push_revoked';
+              } else {
+                skipReason = 'push_unavailable';
+              }
               try {
                 await db.doc(hit.policyPath).update({
                   policyReviewNotifiedAt: now.toISOString(),
@@ -350,11 +392,13 @@ export async function GET(req: NextRequest) {
                 );
               }
               totalClientOutreachSkipped++;
+              if (skipReason === 'push_revoked') totalPushSkippedRevoked++;
               console.log('[policy-review] skipped (push unavailable)', {
                 agentId: agentDoc.id,
                 clientId: hit.clientId,
                 policyId: hit.policyId,
                 reason: skipReason,
+                pushPermissionStatus: hit.pushPermissionStatus,
                 hasPushToken: !!hit.clientPushToken,
                 lane: 'anniversary',
               });
@@ -437,6 +481,8 @@ export async function GET(req: NextRequest) {
       campaignsCreated: totalCampaignsCreated,
       policiesSkipped: totalSkipped,
       clientOutreachSkipped: totalClientOutreachSkipped,
+      pushSkippedRevoked: totalPushSkippedRevoked,
+      tokensInvalidated: totalTokensInvalidated,
     });
   } catch (error) {
     console.error('Policy review cron error:', error);

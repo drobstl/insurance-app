@@ -3,6 +3,11 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import {
+  getPushPermissionStatus,
+  readValidPushToken,
+  sendExpoPush,
+} from '../../../../lib/push-permission-lifecycle';
 
 /**
  * POST /api/notifications/send
@@ -20,17 +25,6 @@ import { FieldValue } from 'firebase-admin/firestore';
 
 const VALID_TYPES = ['message', 'holiday', 'birthday', 'anniversary'] as const;
 const VALID_HOLIDAYS = ['christmas', 'newyear', 'valentines', 'july4th', 'thanksgiving'] as const;
-
-interface ExpoPushMessage {
-  to: string;
-  title: string;
-  body: string;
-  sound: 'default' | null;
-  badge?: number;
-  priority?: 'default' | 'normal' | 'high';
-  data?: Record<string, unknown>;
-  categoryId?: string;
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -88,11 +82,19 @@ export async function POST(req: NextRequest) {
     }
 
     const clientData = clientDoc.data();
-    const pushToken = clientData?.pushToken as string | undefined;
-
+    // Push permission lifecycle (strategy decisions §4): only treat the token
+    // as usable when present AND not revoked. Distinguish "never opted in"
+    // from "opted in then revoked" so the dashboard can show the right copy.
+    const pushToken = readValidPushToken(clientData);
     if (!pushToken) {
+      const status = getPushPermissionStatus(clientData);
       return NextResponse.json(
-        { error: 'Client has not enabled push notifications' },
+        {
+          error: status === 'revoked'
+            ? 'Client previously enabled push but has since revoked notification permission.'
+            : 'Client has not enabled push notifications',
+          pushPermissionStatus: status,
+        },
         { status: 422 }
       );
     }
@@ -124,34 +126,27 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const pushMessage: ExpoPushMessage = {
-      to: pushToken,
-      title: notificationTitle,
-      body: messageBody,
-      sound: 'default',
-      badge: 1,
-      priority: 'high',
-      data: pushData,
-      ...(shouldIncludeBooking && { categoryId: 'BOOK_APPOINTMENT' }),
-    };
-
-    // ── Send via Expo Push API ───────────────────────────────────────
-    const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Accept-Encoding': 'gzip, deflate',
+    // ── Send via push permission lifecycle helper ────────────────────
+    const outcome = await sendExpoPush(
+      {
+        to: pushToken,
+        title: notificationTitle,
+        body: messageBody,
+        sound: 'default',
+        badge: 1,
+        priority: 'high',
+        data: pushData,
+        ...(shouldIncludeBooking ? { categoryId: 'BOOK_APPOINTMENT' } : {}),
       },
-      body: JSON.stringify(pushMessage),
-    });
+      {
+        ref: clientRef,
+        agentId,
+        clientId,
+      },
+    );
 
-    const expoResult = await expoResponse.json();
-
-    const pushStatus = expoResult?.data?.status === 'ok' ? 'sent' : 'failed';
-    if (pushStatus === 'failed') {
-      console.error('Expo push error:', expoResult?.data?.message || expoResult);
-    }
+    const pushStatus = outcome.status === 'ok' ? 'sent' : 'failed';
+    const tokenInvalidated = outcome.status === 'token_invalidated';
 
     // ── Store notification record in Firestore ───────────────────────
     const notificationsRef = clientRef.collection('notifications');
@@ -175,6 +170,7 @@ export async function POST(req: NextRequest) {
       success: true,
       notificationId: docRef.id,
       pushStatus,
+      tokenInvalidated,
     });
   } catch (error) {
     console.error('Error sending notification:', error);

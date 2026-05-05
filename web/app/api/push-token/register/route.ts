@@ -1,8 +1,10 @@
 import 'server-only';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { FieldValue } from 'firebase-admin/firestore';
 import { checkRateLimit, getClientIp } from '../../../../lib/rate-limit';
 import { findClientByCode } from '../../../../lib/client-code-lookup';
+import { PUSH_PERMISSION_REVOKED_FIELD } from '../../../../lib/push-permission-lifecycle';
 
 /**
  * POST /api/push-token/register
@@ -39,7 +41,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Client code not found' }, { status: 404 });
     }
 
-    await match.clientRef.update({ pushToken });
+    // Successful re-registration is the canonical "push permission re-granted"
+    // signal — clear any prior revocation timestamp so the client routes back
+    // through push-eligible lanes. See `web/lib/push-permission-lifecycle.ts`.
+    await match.clientRef.update({
+      pushToken,
+      [PUSH_PERMISSION_REVOKED_FIELD]: FieldValue.delete(),
+    });
 
     return NextResponse.json({
       success: true,

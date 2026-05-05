@@ -4,6 +4,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { buildHolidayCardMessage, resolveClientLanguage, type HolidayCardKey } from '../../../../lib/client-language';
+import {
+  getPushPermissionStatus,
+  readValidPushToken,
+  sendExpoPush,
+} from '../../../../lib/push-permission-lifecycle';
 
 /**
  * Daily cron job: on US holidays, sends a personalized push notification to
@@ -100,6 +105,8 @@ export async function GET(req: NextRequest) {
     const db = getAdminFirestore();
     let totalPushSent = 0;
     let totalSkipped = 0;
+    let totalPushSkippedRevoked = 0;
+    let totalTokensInvalidated = 0;
 
     // 2. Iterate all agents
     const agentsSnap = await db.collection('agents').get();
@@ -126,11 +133,18 @@ export async function GET(req: NextRequest) {
 
       for (const clientDoc of clientsSnap.docs) {
         const clientData = clientDoc.data();
-        const pushToken = clientData.pushToken as string | undefined;
         const clientName = (clientData.name as string) || 'Friend';
 
+        // Push permission lifecycle (strategy decisions §4): holiday is
+        // push-only with no fallback. Short-circuit BEFORE Expo for
+        // never-opted-in and revoked clients so we don't accumulate noisy
+        // delivery failures on known-dead tokens.
+        const pushToken = readValidPushToken(clientData);
         if (!pushToken) {
           totalSkipped++;
+          if (getPushPermissionStatus(clientData) === 'revoked') {
+            totalPushSkippedRevoked++;
+          }
           continue;
         }
 
@@ -151,42 +165,30 @@ export async function GET(req: NextRequest) {
         const pushBody = localizedHoliday.body;
 
         try {
-          const expoResponse = await fetch(
-            'https://exp.host/--/api/v2/push/send',
+          const outcome = await sendExpoPush(
             {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-                'Accept-Encoding': 'gzip, deflate',
+              to: pushToken,
+              title: pushTitle,
+              body: pushBody,
+              sound: 'default',
+              badge: 1,
+              priority: 'high',
+              data: {
+                type: 'holiday',
+                holiday: todaysHoliday.id,
+                agentId: agentDoc.id,
+                clientId: clientDoc.id,
               },
-              body: JSON.stringify({
-                to: pushToken,
-                title: pushTitle,
-                body: pushBody,
-                sound: 'default',
-                badge: 1,
-                priority: 'high',
-                data: {
-                  type: 'holiday',
-                  holiday: todaysHoliday.id,
-                  agentId: agentDoc.id,
-                  clientId: clientDoc.id,
-                },
-              }),
-            }
+            },
+            {
+              ref: clientDoc.ref,
+              agentId: agentDoc.id,
+              clientId: clientDoc.id,
+            },
           );
 
-          const expoResult = await expoResponse.json();
-          const pushStatus =
-            expoResult?.data?.status === 'ok' ? 'sent' : 'failed';
-
-          if (pushStatus === 'failed') {
-            console.error(
-              `Expo push error (holiday) for client ${clientDoc.id}:`,
-              expoResult?.data?.message || expoResult
-            );
-          }
+          const pushStatus = outcome.status === 'ok' ? 'sent' : 'failed';
+          if (outcome.status === 'token_invalidated') totalTokensInvalidated++;
 
           // 6. Write notification record to Firestore
           const notifRef = db
@@ -226,6 +228,8 @@ export async function GET(req: NextRequest) {
       holiday: todaysHoliday.id,
       pushNotificationsSent: totalPushSent,
       skipped: totalSkipped,
+      pushSkippedRevoked: totalPushSkippedRevoked,
+      tokensInvalidated: totalTokensInvalidated,
     });
   } catch (error) {
     console.error('Holiday check cron error:', error);
