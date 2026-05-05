@@ -18,6 +18,10 @@ Supporting Linq documents (compatible with the above):
 - `docs/linq-scale-playbook.md` — scaling tension, lane priorities, pilot plan, near-90% gross margin guardrail.
 - `docs/linq-decision-record-2026-05.md` — Linq operator confirmations record.
 
+Candidate ideas (filed for future revisitation, not committed):
+
+- `docs/referral-lane-inbound-initiation-idea.md` — proposal to mirror the welcome-flow client-initiated pattern in the referral lane to remove AFL's only remaining cold AI-initiated outbound on the Linq line. Phase 2 revisit candidate; gated by KPI tier dashboard data.
+
 ## What This Is
 
 AgentForLife (AFL) is an AI-powered client lifecycle platform for independent life insurance agents. It manages retention, referrals, client relationships, and automated touchpoints — with a branded mobile app that clients use directly.
@@ -113,8 +117,8 @@ The rule is about behavioral consent, not behavioral activity. App dormancy is *
 |------|---------|------------|----------|--------------------------|
 | New client activation (welcome) — Step 1 | Agent-phone one-tap (app link + login code) | Email at day 7 if no agent send | — | No for the welcome itself |
 | New client activation — Step 2 | Client-initiated inbound to Linq via in-app Activate button; Linq first response includes agent vCard + thumbs-up ask | — | — | Inbound only |
-| Anniversary policy review | Push | Email | — | **Never. Architectural, not tunable.** |
-| Lapse / Retention | Push | Linq SMS (max 2 / 30d per non-responder) | Mandatory email at third touch; 60-day quiet period | Yes (escalation only) |
+| Anniversary policy review | Push | — | — | **Never. Architectural, not tunable.** Push only, no fallback (strategy §1 overrides v3.1 §4.2). |
+| Lapse / Retention | Push | 1st SMS automatic | Agent action item surfaced when 1st SMS goes 48h without reply OR 5d unresolved (whichever fires first); if agent toggles AI back on, chain resumes with email + final SMS at end of campaign; 60-day quiet after campaign | Yes (1st SMS automatic + agent-toggled escalation) |
 | Referral | Existing client one-tap from their app → group SMS to prospect from referrer's personal phone | AI on Linq line continues qualification 1:1 | — | Yes (continuation) |
 | Beneficiary | **Push primary for cold contact.** No cold outreach via any channel. SMS/email available for **activated** beneficiaries as future tools (strategy §2 preserves channel flexibility — not push-only locked). | Push only today; SMS/email reserved for Phase 2/3 testing | — | Inbound only today |
 | Holiday cards | Push | — | — | **Never.** |
@@ -141,7 +145,7 @@ Automated messages on the Linq line are **signed under the agent's name** (NEPQ-
 
 Used deliberately, not on every message:
 
-- **Use it on:** first Linq response after activation, anniversary check-ins via SMS (when push wasn't available), time-sensitive sends (call confirmations, scheduling).
+- **Use it on:** first Linq response after activation, time-sensitive sends (call confirmations, scheduling). (Note: v3.1 §3.4 listed "anniversary check-ins via SMS fallback" as a use case; that case no longer exists because anniversary is push only with no fallback per strategy §1 and the Phase 0 hotfix `ac4144d`.)
 - **Don't use it on:** routine FYI messages (holiday/birthday cards), conversation continuation in active threads, every message reflexively.
 
 ### vCard generation
@@ -205,6 +209,37 @@ Behavior (now enforced by `web/lib/push-permission-lifecycle.ts`):
     cycle silently. Skip-reason taxonomy on policy review docs:
     `'push_unavailable' | 'push_revoked' | 'push_send_failed' | 'push_send_invalidated'`.
 
+### Agent action item surface
+
+When automated outreach reaches a lane-specific stopping point on a high-value lane, the platform surfaces the unhandled touchpoint as an action item in the agent dashboard. Each item offers one-tap personal-text (via the same `sms:` URL scheme mechanic Track B builds for the welcome flow) and one-tap call options. The action item is the agent's chance to take over with maximum warmth and zero Linq-line pressure.
+
+This is **not** a universal rule. It applies only to the three lanes where automation reaching a stopping point loses material business value:
+
+| Lane | Trigger that creates the action item | Options on the item | What happens to remaining automated escalation |
+|------|--------------------------------------|---------------------|------------------------------------------------|
+| Anniversary policy review | Push send fails or push is unavailable | Text personally, call, skip | Silent-end stays as automation's exit. The action item is the only continuation path. |
+| Lapse / retention | First SMS sent and either (a) no reply within 48h, or (b) conversation status not moved to resolved/saved/closed within 5d, whichever fires first | Text personally, call, send templated email manually, **toggle AI back on**, skip | Automation **pauses** when the action item appears. If agent does not toggle AI back on, chain ends. If agent toggles AI back on, chain resumes with the second-touch email and one final SMS at the end of the campaign. 60-day quiet still applies after campaign ends. |
+| Referral | AI's 24-hour follow-up bump goes unanswered (current "no further outreach" stopping point in v3.1 §4.4) | Text personally, call, skip (no email — referrals don't have email channel) | Automated outreach has already stopped at this point per v3.1 §4.4. The action item replaces "no further outreach" with "agent decides whether to reach out personally." |
+
+Lanes that explicitly do **NOT** generate action items on failure:
+
+- **Welcome:** Track B's one-tap "Send from my phone" is the primary channel from the start. The whole welcome flow IS an action queue by design; there's no failure to surface.
+- **Beneficiary:** Cold outreach is invite-only via policyholder. There's no automated outreach failure to surface.
+- **Holiday cards / birthday cards:** Soft greetings, low stakes. Silent-end on push-fail stays. Surfacing every undeliverable greeting as an action item creates dashboard noise without proportionate value.
+
+Implementation contract:
+
+- All action items write to a single `actionItems` Firestore collection with a generic schema spanning all lanes. Suggested shape: `{ agentId, clientId | prospectId, lane: 'welcome' | 'anniversary' | 'retention' | 'referral', triggerReason, suggestedActions, createdAt, expiresAt, completedAt, completedBy, completionAction, completionNote }`.
+- Each lane sets its own `expiresAt` policy. Anniversary: 30 days. Retention: 7 days (high-priority, force handling). Referral: 14 days (warm-lead window decays).
+- Action item creation is a side effect of the existing cron and webhook handlers; no new cron required.
+- The dashboard surface reuses Track B's one-tap UI primitive. Same component, different data source.
+- Telemetry (PostHog): `action_item_created`, `action_item_viewed`, `action_item_completed` with `lane`, `triggerReason`, `completionAction`. These are real engagement metrics for the agent activation funnel, not just dashboard nice-to-haves.
+
+Phasing:
+
+- **Phase 1 Track B** builds the underlying `actionItems` schema and the welcome-lane action queue. Schema is designed for forward-compat across all four lanes from day one, even though Track B only writes welcome entries to it.
+- **Phase 2** adds the anniversary, retention, and referral writers, the per-lane expiration logic, and the retention "toggle AI back on" mechanic. Lapse/retention cadence rewrite (already on the Phase 2 backlog) absorbs this work.
+
 ## Phased Roadmap
 
 This sequence supersedes the Phase 1 plan in v3.1 §11. Source: strategy decisions §5.
@@ -219,6 +254,7 @@ This sequence supersedes the Phase 1 plan in v3.1 §11. Source: strategy decisio
 - New welcome flow (agent personal-phone one-tap + in-app Activate + Linq line vCard response + thumbs-up reciprocity ask). **(Track B — pending.)**
 - Push permission lifecycle management (Expo error → token invalidation, `pushPermissionRevokedAt`, lane-aware fallback). **Status: complete (Track A, shipped May 5, 2026).** See `Recent fixes` for full detail and file list.
 - vCard generation pipeline (server-side per agent, compressed photo, MMS attachment from Linq line). **(Track B — pending.)**
+- Agent action item surface — `actionItems` Firestore schema + welcome-lane writers + dashboard one-tap UI primitive. Schema designed for forward-compat across welcome / anniversary / retention / referral lanes; only welcome writers ship in Phase 1. See `Channel Rules > Agent action item surface`. **(Track B — pending.)**
 - Welcome flow analytics in PostHog (agent send compliance, app activation rate, thumbs-up rate). **(Track B — pending.)**
 - New conversation-based pricing tiers in Stripe (Starter $29 / Growth $59 / Pro $119 / Agency $199 + $39/seat). **(Track C — pending.)**
 - Conversation counter (per-agent monthly bucket). **(Track C — pending.)**
@@ -231,7 +267,7 @@ This sequence supersedes the Phase 1 plan in v3.1 §11. Source: strategy decisio
 - Auto-throttle at Tier 1 and Tier 2 (provisional — may downgrade to manual triage if Tier 1 events are rare).
 - Beneficiary invite mechanic (parallel to client activation, three invite prompts).
 - Bulk import onboarding ceremony (re-enable UI, drip release rules).
-- Lapse/retention cadence rewrite (push first, max 2 SMS / 30 days, mandatory email at third touch, 60-day quiet).
+- Lapse/retention cadence rewrite. Push first, 1st SMS automatic, **agent action item surfaced after 1st SMS unanswered** (48h or 5d unresolved); if agent toggles AI back on, chain resumes with email + final SMS at end of campaign; 60-day quiet after campaign. Includes writing the anniversary, retention, and referral action item writers against the `actionItems` schema Track B builds in Phase 1. See `Channel Rules > Agent action item surface`.
 - Email infrastructure cleanup (centralize Resend usages, bounce/complaint webhook, suppression list).
 - Engineering dependency for Phase 3 Agency tier: pooled-capacity logic, team admin dashboard, per-seat dashboard.
 
@@ -617,7 +653,7 @@ Overage GM (~66%) is acceptable as overflow protection, not a profit center. Agg
 - **vCard generation** is server-side, per-agent, with embedded compressed photo (<60 KB JPEG, ~400×400). Two photo derivatives stored — display and vCard — generated on agent profile photo upload. Delivered as MMS attachment from the Linq line.
 - **Beneficiary invite mechanic** parallels client activation, initiated by the policyholder. Three invite prompts: during policyholder activation, annual beneficiary verification, always-on access. **No cold beneficiary outreach** via any channel.
 - **Beneficiary lane stays channel-flexible** for activated beneficiaries (push primary for cold contact, SMS/email available as future tools). Strategy §2 overrides any push-only-locked reading of v3.1 §4.5.
-- **Lapse/retention cadence:** push first → max 2 SMS per non-responder per 30 days if push unavailable → mandatory email at third touch → 60-day quiet period.
+- **Lapse/retention cadence:** push first → 1st SMS automatic if push unavailable/unengaged → **agent action item surfaced when 1st SMS unanswered (48h or 5d unresolved)** → if agent toggles AI back on, chain resumes with second-touch email + final SMS at end of campaign → 60-day quiet period after campaign ends. The action-item gate replaces the prior "max 2 SMS automatic + mandatory email at third touch" pattern; total touch budget unchanged but middle of chain becomes agent-discretion. See `Channel Rules > Agent action item surface`.
 - **Bulk import is a once-per-agent-lifecycle ceremony.** Three paths (Onboarding Ceremony / Hybrid / Concierge). Never bulk through the Linq line (Linq confirmed).
 - **Number replacement is a Phase 4 contingency**, triggered by a second Limited episode under the new operating model.
 - **Push permission lifecycle management shipped May 5, 2026 (Phase 1 Track A).** Centralized in `web/lib/push-permission-lifecycle.ts`: `isPushEligible` gates routing on token presence + `pushPermissionRevokedAt` absence; `sendExpoPush` invalidates tokens on `DeviceNotRegistered` inside a Firestore transaction. Push-only lanes (anniversary, holiday, birthday) short-circuit BEFORE Expo for revoked clients; fallback lanes (welcome, retention, beneficiary post-activation) walk to the next channel. Strategy §4.
