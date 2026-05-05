@@ -18,6 +18,10 @@ Supporting Linq documents (compatible with the above):
 - `docs/linq-scale-playbook.md` — scaling tension, lane priorities, pilot plan, near-90% gross margin guardrail.
 - `docs/linq-decision-record-2026-05.md` — Linq operator confirmations record.
 
+Phase 1 working notes (extends the strategy doc; locked decisions in §1–§3, open product questions in §4–§10):
+
+- `docs/AFL_Phase_1_Planning_Notes_2026-05-04.md` — May 4, 2026 evening Phase 1 scoping conversation. The §1–§3 decisions (welcome flow Step 1 mobile-only on the agent side; PWA install + Web Push as hard onboarding gates; three implementation implications) are **locked** and have been folded into `Channel Rules > The two-step welcome flow` and `Phased Roadmap > Phase 1` below. The §4–§10 product questions are partially answered ad-hoc in agent sessions and partially still open — see `Open Questions > Phase 1 product questions still open` for the unresolved subset that gates Track B and Track C kickoff.
+
 Candidate ideas (filed for future revisitation, not committed):
 
 - `docs/referral-lane-inbound-initiation-idea.md` — proposal to mirror the welcome-flow client-initiated pattern in the referral lane to remove AFL's only remaining cold AI-initiated outbound on the Linq line. Phase 2 revisit candidate; gated by KPI tier dashboard data.
@@ -137,6 +141,14 @@ This is the single most consequential mechanism in the operating model.
 
 Why this works: client-initiated inbound is the gold standard for carrier deliverability and consent provenance. Linq has confirmed (May 2026) that **client-initiated inbound conversations do not count against the 50-per-day outbound new-conversation cap**.
 
+#### Phase 1 implementation constraints (locked May 4, 2026 evening)
+
+These constraints tighten the v3.1 §9.3 "mobile-primary with desktop fallback" framing into a stricter mobile-only posture for the welcome lane. Source: `docs/AFL_Phase_1_Planning_Notes_2026-05-04.md` §1–§3.
+
+- **Welcome Step 1 is mobile-only on the agent side.** The "Send from my phone" button only exists on the mobile dashboard. **No desktop send fallback is built** — not via deep link, not via QR code, not via Continuity. On desktop, the dashboard surfaces the welcome queue (so an agent at their workstation can see what's pending) but the action surface is read-only with an explicit "Open AFL on your phone to send" affordance. Rationale: the `sms:` URL scheme behaves inconsistently across desktop OS + phone combinations (iPhone-paired Mac via Continuity is the only clean path; Mac+Android, Windows-without-Phone-Link, Chromebook all fail silently or partially); locking the welcome send to the agent's phone eliminates a 10–20% silent-failure surface and standardizes the workflow.
+- **Agent PWA install + Web Push are Phase 1 onboarding requirements.** Because the welcome send is mobile-only, every agent must (a) install AFL to their phone home screen as a PWA and (b) grant agent-side Web Push permission. Without both, the welcome flow does not work for that agent — they have no way to be notified that a new client needs a welcome and no fast surface to send it from. These are **hard onboarding gates**, not "nice to haves." The April 26, 2026 milestone-driven onboarding flow needs to be extended with two new milestones: PWA install (with iOS Add to Home Screen + Android install prompt handling) and Web Push permission grant.
+- **Agent-side Web Push is separate infrastructure from client-side Expo push.** Client-side push runs through Expo on the React Native mobile app and is governed by the Track A push permission lifecycle. Agent-side Web Push runs through a different stack (Web Push API via service worker) on the agent's PWA and is new infrastructure for Phase 1. Web Push works on iOS 16.4+ and current Android. Don't conflate the two when designing Track B.
+
 ### Identity on the Linq line
 
 Automated messages on the Linq line are **signed under the agent's name** (NEPQ-tuned voice). EA-persona framing was considered and **deferred** as a future architectural option. The agent's office line is framed in client-facing copy as "my office line." Triggers for revisiting EA framing: AFL grows past ~100 active agents and per-agent voice consistency becomes a maintenance burden, regulatory inquiry, or AFL pursues direct AMB registration with Apple.
@@ -251,7 +263,8 @@ This sequence supersedes the Phase 1 plan in v3.1 §11. Source: strategy decisio
 - **Why this was urgent:** the prior order listed SMS as the *primary* channel on the day-3 and day-14 anniversary stages. Every anniversary check-in for a client without push permission was being routed through the Linq line — the single largest active bleed point on line reputation. Stopped before any further work.
 
 ### Phase 1 — Welcome flow + new pricing (next 6 weeks)
-- New welcome flow (agent personal-phone one-tap + in-app Activate + Linq line vCard response + thumbs-up reciprocity ask). **(Track B — pending.)**
+- New welcome flow (agent personal-phone one-tap + in-app Activate + Linq line vCard response + thumbs-up reciprocity ask). **Mobile-only on agent side; no desktop send fallback** (per `Channel Rules > The two-step welcome flow > Phase 1 implementation constraints`). **(Track B — pending.)**
+- Agent PWA install + agent-side Web Push as **hard onboarding gates** for Phase 1. Two new milestones added to the April 26 milestone-driven onboarding flow (PWA install with iOS Add to Home Screen + Android install prompt handling; Web Push permission grant). **(Track B — pending.)**
 - Push permission lifecycle management (Expo error → token invalidation, `pushPermissionRevokedAt`, lane-aware fallback). **Status: complete (Track A, shipped May 5, 2026).** See `Recent fixes` for full detail and file list.
 - vCard generation pipeline (server-side per agent, compressed photo, MMS attachment from Linq line). **(Track B — pending.)**
 - Agent action item surface — `actionItems` Firestore schema + welcome-lane writers + dashboard one-tap UI primitive. Schema designed for forward-compat across welcome / anniversary / retention / referral lanes; only welcome writers ship in Phase 1. See `Channel Rules > Agent action item surface`. **(Track B — pending.)**
@@ -704,6 +717,25 @@ From v3.1 §13.1 / §12.6, recorded in `docs/linq-decision-record-2026-05.md`:
 - Should the referral pipeline be accessible from the Closr AI dashboard directly, or only through AFL?
 - What drove low activation? Onboarding friction? Data entry burden? Unclear value prop? Need agent interviews. (Phase 2 milestone-driven onboarding revamp is the current intervention.)
 - Closr AI bundle pricing: deferred until Closr AI is post-MVP.
+
+### Phase 1 product questions still open (gates Track B / Track C kickoff)
+Source: `docs/AFL_Phase_1_Planning_Notes_2026-05-04.md` Q1–Q10. The §1–§3 decisions in that doc are locked. The Q1–Q10 questions are partially answered ad-hoc in agent sessions; the unresolved subset below should be answered before the corresponding Track agent designs against them.
+
+**Track B blockers (welcome flow):**
+- **Q1. What is the trigger for a welcome being "ready to send"?** Today the client record exists as soon as PDF auto-extract finishes. Sub-questions: queue immediately on extract completion, or wait until agent verifies extraction? Any agent action between PDF upload and welcome-ready state? If the agent corrects extraction errors, does the welcome regenerate?
+- **Q2. What does the welcome queue look like on the agent's phone?** Single list or grouped (date, urgency)? How long does an unsent welcome stay queued before it expires or escalates? Can the agent dismiss/skip a welcome — and if yes, does the v3.1 §4.1 7-day email fallback still apply? Visual treatment for 1-day-old vs 5-day-old vs 7-day-old unsent welcomes?
+- **Q9. Are we retiring the old Linq welcome path entirely, or running both in parallel for a transition period?** Three options: hard cutover (cleanest, riskiest), per-agent flag `WELCOME_FLOW_V2_ENABLED` (most flexible, code-surface debt), 30-day parallel period with telemetry comparison. Recommendation needed before Track B designs the deprecation path.
+
+**Track C blockers (pricing tiers):**
+- **Q6. How do the founding 34 migrate to the new pricing structure?** Today they're on legacy free or `$25/$35/$49` Stripe products. Mechanics of landing them on the new internal-flag founding tier without disruption. Notification copy. Visible dashboard changes (founding-member badge, conversation count widget). What happens to in-flight Stripe subscriptions on legacy products (cancel, refund, migrate).
+- **Q7. When does the new pricing go live for new signups?** Strategy doc says Phase 3, but cutover date is not nailed down. Do new signups during Phase 1 land on legacy tiers and migrate later, or land on new tiers immediately? Soft-launch / private-beta to a small cohort first?
+
+**Already answered in spec or session conversation:**
+- Q3 (Activate screen layout) — mostly answered in v3.1 §3.3; remaining details are implementation choices the Track B agent can resolve and surface for confirmation.
+- Q4 (Linq line first response copy) — copy template in v3.1 §3.3 is a starting point; treat as locked unless explicit reason to test variants.
+- Q5 (vCard regeneration timing) — v3.1 §9.7 answers: "regenerated when name or photo changes." Trigger location is implementation detail (Cloud Function on agent doc write or inline at first-response send time with caching).
+- Q8 (Closr AI bundle pricing) — deferred per strategy doc; confirmed above.
+- Q10 (Phase 1 sub-task priority order) — Track A complete; current sequencing is Track B + Track C in parallel via worktrees.
 
 ### Open Linq questions (still pending Linq response, from v3.1 §13.2)
 1. **Reputation scope.** Per-number, per-tenant (across AFL agents), or per-platform (across Linq customers)? Determines §12.1–12.2 sensitivities in v3.1.
