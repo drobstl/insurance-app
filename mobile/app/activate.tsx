@@ -50,12 +50,27 @@ import { getSession, registerAndSavePushToken } from './index';
  *
  * After Activate is tapped the user is bounced to iMessage; once they
  * come back the AppState listener auto-advances to /agent-profile.
- * "Skip" is also available — it lands them on the profile without
- * texting (the action item stays queued; the agent can re-prompt
- * later). This matches the spirit of Daniel's locked Q2 ("agents
- * must send all welcomes; no skip/dismiss for the AGENT") — the
- * client side has Skip because forcing a stranger to send a text on
- * their first app open is hostile UX.
+ *
+ * HARD GATE — no Skip button. Daniel's May 6, 2026 follow-up locked
+ * this: the Activate screen is the gatekeeper to the rest of the app.
+ * The only way out is through the Activate button. Rationale: the
+ * whole architectural premise of v3.1 §3.3 (client-initiated inbound
+ * to Linq for clean carrier consent provenance + reply-ratio
+ * reinforcement) doesn't fire for clients who skip — losing them
+ * silently defeats the welcome flow's strategic payoff.
+ *
+ * If a user taps Activate, gets bounced to iMessage, backs out without
+ * sending, and returns to the app: the AppState listener auto-advances
+ * them to the profile (we have no signal from the mobile UI that they
+ * actually sent — the webhook confirms server-side asynchronously).
+ * If they didn't send, `clientActivatedAt` stays null and they see
+ * the Activate screen again on next login. That is the correct
+ * behavior; do NOT add polling or an "I sent it" confirmation step.
+ *
+ * The two defensive fallbacks below (empty linqLinePhone, Linking
+ * .canOpenURL false) ARE bypasses but they are config / hardware
+ * limits, not user choice. Without them an iPad-without-cellular user
+ * or an env-var-misconfigured deploy would be permanently stranded.
  *
  * The flow is independent of the LINQ_OUTBOUND_DISABLED kill switch
  * (e017d55) because the inbound that arrives at the Linq line is
@@ -239,14 +254,6 @@ export default function ActivateScreen() {
     }
   };
 
-  const handleSkip = () => {
-    // Skip is intentionally available on the CLIENT side (not the
-    // agent side, where the locked Q2 forbids it). Forces nothing on
-    // the user; the agent's queued action item stays open and they can
-    // re-prompt later.
-    forwardToProfile();
-  };
-
   const hasValidPhoto = agentPhotoBase64
     && agentPhotoBase64.length > 0
     && agentPhotoBase64 !== 'undefined'
@@ -334,14 +341,6 @@ export default function ActivateScreen() {
                 ) : (
                   <Text style={styles.activateButtonText}>Activate</Text>
                 )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.skipButton}
-                onPress={handleSkip}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.skipButtonText}>Skip for now</Text>
               </TouchableOpacity>
             </ScrollView>
           </SafeAreaView>
@@ -486,14 +485,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 19,
     fontWeight: '700',
-  },
-  skipButton: {
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  skipButtonText: {
-    color: '#718096',
-    fontSize: 14,
-    fontWeight: '600',
   },
 });
