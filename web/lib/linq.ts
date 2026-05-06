@@ -8,6 +8,48 @@ const DEFAULT_MIN_SEND_INTERVAL_MS = 1000;
 const URL_REGEX = /\bhttps?:\/\/[^\s]+/gi;
 const TRAILING_URL_PUNCTUATION_REGEX = /[).,!?:;]+$/;
 
+// ---------------------------------------------------------------------------
+// Outbound kill switch
+// ---------------------------------------------------------------------------
+//
+// Setting `LINQ_OUTBOUND_DISABLED=true` halts every outbound call into Linq's
+// API at the lib layer. Send-side functions (createChat, sendMessage,
+// sendOrCreateChat, uploadAttachment, shareContactCard) log a structured
+// `[linq:outbound-skipped]` event and throw `LinqOutboundDisabledError`.
+//
+// Every existing caller wraps these calls in try/catch and treats failure as
+// "skip and move on" (cron logs error and returns null; webhook handler rolls
+// back the activation claim; UI routes return 500). This means the platform
+// degrades gracefully — no bad chatIds get persisted, and flipping the env
+// var back to `false` (or unsetting) restores normal operation immediately.
+//
+// Inbound webhook handling, signature verification, and typing indicators
+// are intentionally NOT gated — they don't generate SMS traffic on the line.
+//
+// Use case: temporarily protect Linq pooled-line deliverability while
+// upstream messaging architecture is being redesigned.
+export class LinqOutboundDisabledError extends Error {
+  constructor(fn: string) {
+    super(`Linq outbound disabled (LINQ_OUTBOUND_DISABLED=true); skipped ${fn}.`);
+    this.name = 'LinqOutboundDisabledError';
+  }
+}
+
+function isLinqOutboundDisabled(): boolean {
+  return process.env.LINQ_OUTBOUND_DISABLED === 'true';
+}
+
+function logLinqOutboundSkipped(context: {
+  fn: string;
+  to?: string | string[];
+  chatId?: string;
+  textLength?: number;
+  hasMedia?: boolean;
+  filename?: string;
+}): void {
+  console.warn('[linq:outbound-skipped]', JSON.stringify(context));
+}
+
 function getMinSendIntervalMs(): number {
   const raw = process.env.LINQ_MIN_SEND_INTERVAL_MS;
   if (!raw) return DEFAULT_MIN_SEND_INTERVAL_MS;
@@ -241,6 +283,15 @@ export async function createChat(opts: {
   idempotencyKey?: string;
   from?: string;
 }): Promise<CreateChatResult> {
+  if (isLinqOutboundDisabled()) {
+    logLinqOutboundSkipped({
+      fn: 'createChat',
+      to: opts.to,
+      textLength: opts.text?.length ?? 0,
+      hasMedia: Boolean(opts.mediaUrls?.length || opts.attachmentIds?.length),
+    });
+    throw new LinqOutboundDisabledError('createChat');
+  }
   const from = normalizePhone(opts.from || getLinqPhoneNumber());
   const toArray = (Array.isArray(opts.to) ? opts.to : [opts.to]).map(normalizePhone);
   const hasMedia = Boolean(opts.mediaUrls?.length || opts.attachmentIds?.length);
@@ -313,6 +364,15 @@ export async function sendMessage(opts: {
   attachmentIds?: string[];
   idempotencyKey?: string;
 }): Promise<SendMessageResult> {
+  if (isLinqOutboundDisabled()) {
+    logLinqOutboundSkipped({
+      fn: 'sendMessage',
+      chatId: opts.chatId,
+      textLength: opts.text?.length ?? 0,
+      hasMedia: Boolean(opts.mediaUrls?.length || opts.attachmentIds?.length),
+    });
+    throw new LinqOutboundDisabledError('sendMessage');
+  }
   const message: Record<string, unknown> = {
     parts: buildParts(opts.text, opts.mediaUrls, opts.attachmentIds),
   };
@@ -347,6 +407,16 @@ export async function sendOrCreateChat(opts: {
   attachmentIds?: string[];
   idempotencyKey?: string;
 }): Promise<{ chatId: string; messageId: string }> {
+  if (isLinqOutboundDisabled()) {
+    logLinqOutboundSkipped({
+      fn: 'sendOrCreateChat',
+      to: opts.to,
+      chatId: opts.chatId ?? undefined,
+      textLength: opts.text?.length ?? 0,
+      hasMedia: Boolean(opts.mediaUrls?.length || opts.attachmentIds?.length),
+    });
+    throw new LinqOutboundDisabledError('sendOrCreateChat');
+  }
   if (opts.chatId) {
     const result = await sendMessage({
       chatId: opts.chatId,
@@ -389,6 +459,13 @@ export async function uploadAttachment(opts: {
   sizeBytes: number;
   fileBuffer: Buffer;
 }): Promise<string> {
+  if (isLinqOutboundDisabled()) {
+    logLinqOutboundSkipped({
+      fn: 'uploadAttachment',
+      filename: opts.filename,
+    });
+    throw new LinqOutboundDisabledError('uploadAttachment');
+  }
   const res = await linqFetch('/attachments', {
     method: 'POST',
     body: JSON.stringify({
@@ -437,6 +514,10 @@ export async function stopTypingIndicator(chatId: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function shareContactCard(chatId: string): Promise<void> {
+  if (isLinqOutboundDisabled()) {
+    logLinqOutboundSkipped({ fn: 'shareContactCard', chatId });
+    throw new LinqOutboundDisabledError('shareContactCard');
+  }
   await linqFetch(`/chats/${chatId}/share_contact_card`, { method: 'POST' });
 }
 

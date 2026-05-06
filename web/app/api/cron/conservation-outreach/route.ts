@@ -293,6 +293,79 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  if (process.env.LINQ_OUTBOUND_DISABLED === 'true') {
+    // ── Drain mode ──────────────────────────────────────────────────────
+    // Linq outbound is paused. Instead of sending, mark any alert that
+    // has come due as `linqPausedSkippedAt` so it never gets queued up
+    // for replay when the kill switch is flipped off. The normal-mode
+    // loops below skip any alert with this field set, so once an alert
+    // is drained it is permanently terminated from this cron's view.
+    try {
+      const db = getAdminFirestore();
+      const now = Date.now();
+      const nowIso = new Date().toISOString();
+      let drained = 0;
+      const agentsSnap = await db.collection('agents').get();
+      for (const agentDoc of agentsSnap.docs) {
+        const alertsRef = db
+          .collection('agents')
+          .doc(agentDoc.id)
+          .collection('conservationAlerts');
+
+        // (A) Scheduled initial outreach past grace period.
+        const scheduledSnap = await alertsRef
+          .where('status', '==', 'outreach_scheduled')
+          .get();
+        for (const alertDoc of scheduledSnap.docs) {
+          const data = alertDoc.data();
+          if (data.linqPausedSkippedAt) continue;
+          if (data.lastClientReplyAt) continue;
+          const scheduledAt = data.scheduledOutreachAt as string | null;
+          if (!scheduledAt || new Date(scheduledAt).getTime() > now) continue;
+          await alertDoc.ref.update({
+            linqPausedSkippedAt: nowIso,
+            linqPausedSkippedReason: 'linq-outbound-disabled',
+          });
+          drained++;
+        }
+
+        // (B) Active alerts whose next touch is due.
+        const activeStatuses = ['outreach_sent', 'drip_1', 'drip_2'];
+        for (const statusVal of activeStatuses) {
+          const snap = await alertsRef.where('status', '==', statusVal).get();
+          for (const alertDoc of snap.docs) {
+            const data = alertDoc.data();
+            if (data.linqPausedSkippedAt) continue;
+            if (data.lastClientReplyAt) continue;
+            const stageInfo = resolveTouchStage(data);
+            if (!stageInfo) continue;
+            const nextStage = NEXT_TOUCH_STAGE[stageInfo.touchStage];
+            if (!nextStage) continue;
+            let dueAt: number;
+            if (stageInfo.nextTouchAt) {
+              dueAt = new Date(stageInfo.nextTouchAt).getTime();
+            } else {
+              const baseTime = (data.lastDripAt as string) || (data.outreachSentAt as string);
+              if (!baseTime) continue;
+              dueAt = new Date(baseTime).getTime() + TOUCH_STAGE_DELAY[nextStage];
+            }
+            if (now < dueAt) continue;
+            await alertDoc.ref.update({
+              linqPausedSkippedAt: nowIso,
+              linqPausedSkippedReason: 'linq-outbound-disabled',
+            });
+            drained++;
+          }
+        }
+      }
+      console.warn('[linq:outbound-skipped]', JSON.stringify({ fn: 'cron:conservation-outreach', mode: 'drain', drained }));
+      return NextResponse.json({ success: true, mode: 'paused-drain', drained });
+    } catch (error) {
+      console.error('Conservation drain mode error:', error);
+      return NextResponse.json({ error: 'Drain failed' }, { status: 500 });
+    }
+  }
+
   try {
     const db = getAdminFirestore();
     const now = Date.now();
@@ -340,6 +413,7 @@ export async function GET(req: NextRequest) {
 
       for (const alertDoc of scheduledSnap.docs) {
         const alertData = alertDoc.data();
+        if (alertData.linqPausedSkippedAt) continue;
         const scheduledAt = alertData.scheduledOutreachAt as string | null;
         if (!scheduledAt || new Date(scheduledAt).getTime() > now) continue;
 
@@ -485,7 +559,7 @@ export async function GET(req: NextRequest) {
         for (const alertDoc of snap.docs) {
           const alertData = alertDoc.data();
 
-          // Skip if client already replied
+          if (alertData.linqPausedSkippedAt) continue;
           if (alertData.lastClientReplyAt) continue;
 
           // Determine the current stage and when the next touch is due

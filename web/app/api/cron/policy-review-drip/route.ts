@@ -71,6 +71,64 @@ function resolveReviewStage(data: FirebaseFirestore.DocumentData): { stage: Revi
 const ACTIVE_STATUSES = ['outreach-sent', 'drip-1', 'drip-2'] as const;
 
 export async function GET() {
+  if (process.env.LINQ_OUTBOUND_DISABLED === 'true') {
+    // ── Drain mode ──────────────────────────────────────────────────────
+    // Linq outbound is paused. Mark any policy review whose next drip
+    // would have fired during the pause as `linqPausedSkippedAt` so it
+    // never gets queued for replay when the switch is flipped off.
+    try {
+      const db = getAdminFirestore();
+      const now = Date.now();
+      const nowIso = new Date().toISOString();
+      let drained = 0;
+      const agentsSnap = await db.collection('agents').get();
+      for (const agentDoc of agentsSnap.docs) {
+        for (const statusVal of ACTIVE_STATUSES) {
+          const reviewsSnap = await db
+            .collection('agents').doc(agentDoc.id)
+            .collection('policyReviews')
+            .where('status', '==', statusVal)
+            .get();
+          for (const reviewDoc of reviewsSnap.docs) {
+            const data = reviewDoc.data();
+            if (data.linqPausedSkippedAt) continue;
+            if (data.lastClientReplyAt) continue;
+            if (data.aiEnabled === false) continue;
+            const stageInfo = resolveReviewStage(data);
+            if (!stageInfo) continue;
+            const nextStage = NEXT_REVIEW_STAGE[stageInfo.stage];
+            if (!nextStage) continue;
+            let dueAt: number;
+            if (stageInfo.nextTouchAt) {
+              dueAt = new Date(stageInfo.nextTouchAt).getTime();
+            } else {
+              let baseMs: number;
+              if (data.lastDripAt instanceof Timestamp) {
+                baseMs = data.lastDripAt.toMillis();
+              } else if (data.createdAt instanceof Timestamp) {
+                baseMs = data.createdAt.toMillis();
+              } else {
+                continue;
+              }
+              dueAt = baseMs + REVIEW_STAGE_DELAY[nextStage];
+            }
+            if (now < dueAt) continue;
+            await reviewDoc.ref.update({
+              linqPausedSkippedAt: nowIso,
+              linqPausedSkippedReason: 'linq-outbound-disabled',
+            });
+            drained++;
+          }
+        }
+      }
+      console.warn('[linq:outbound-skipped]', JSON.stringify({ fn: 'cron:policy-review-drip', mode: 'drain', drained }));
+      return NextResponse.json({ success: true, mode: 'paused-drain', drained });
+    } catch (error) {
+      console.error('Policy review drip drain mode error:', error);
+      return NextResponse.json({ error: 'Drain failed' }, { status: 500 });
+    }
+  }
+
   try {
     const db = getAdminFirestore();
     const now = Date.now();
@@ -100,6 +158,7 @@ export async function GET() {
         for (const reviewDoc of reviewsSnap.docs) {
           const data = reviewDoc.data();
 
+          if (data.linqPausedSkippedAt) continue;
           if (data.lastClientReplyAt) continue;
           if (data.aiEnabled === false) continue;
 

@@ -31,6 +31,54 @@ const NEXT_STATUS: Record<string, string> = {
  * to the referral's 1-on-1 directChatId.
  */
 export async function GET() {
+  if (process.env.LINQ_OUTBOUND_DISABLED === 'true') {
+    // ── Drain mode ──────────────────────────────────────────────────────
+    // Linq outbound is paused. Mark any referral whose next drip would
+    // have fired during the pause as `linqPausedSkippedAt` so it never
+    // gets queued for replay when the switch is flipped off.
+    try {
+      const db = getAdminFirestore();
+      const now = Date.now();
+      const nowIso = new Date().toISOString();
+      let drained = 0;
+      const agentsSnap = await db.collection('agents').get();
+      for (const agentDoc of agentsSnap.docs) {
+        for (const status of DRIP_STATUSES) {
+          const referralsSnap = await db
+            .collection('agents')
+            .doc(agentDoc.id)
+            .collection('referrals')
+            .where('status', '==', status)
+            .get();
+          for (const referralDoc of referralsSnap.docs) {
+            const data = referralDoc.data();
+            if (data.linqPausedSkippedAt) continue;
+            let lastDripMs: number;
+            if (data.lastDripAt instanceof Timestamp) {
+              lastDripMs = data.lastDripAt.toMillis();
+            } else if (data.createdAt instanceof Timestamp) {
+              lastDripMs = data.createdAt.toMillis();
+            } else {
+              continue;
+            }
+            const delay = DRIP_DELAYS[status];
+            if (now - lastDripMs < delay) continue;
+            await referralDoc.ref.update({
+              linqPausedSkippedAt: nowIso,
+              linqPausedSkippedReason: 'linq-outbound-disabled',
+            });
+            drained++;
+          }
+        }
+      }
+      console.warn('[linq:outbound-skipped]', JSON.stringify({ fn: 'cron:referral-drip', mode: 'drain', drained }));
+      return NextResponse.json({ success: true, mode: 'paused-drain', drained });
+    } catch (error) {
+      console.error('Referral drip drain mode error:', error);
+      return NextResponse.json({ error: 'Drain failed' }, { status: 500 });
+    }
+  }
+
   try {
     const db = getAdminFirestore();
     const now = Date.now();
@@ -52,6 +100,8 @@ export async function GET() {
 
         for (const referralDoc of referralsSnap.docs) {
           const data = referralDoc.data();
+
+          if (data.linqPausedSkippedAt) continue;
 
           let lastDripMs: number;
           if (data.lastDripAt instanceof Timestamp) {
