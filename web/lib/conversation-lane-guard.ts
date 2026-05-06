@@ -5,6 +5,7 @@ export function responderForLane(lane: ConversationLane): AllowedResponder {
   if (lane === 'referral') return 'referral';
   if (lane === 'conservation') return 'conservation';
   if (lane === 'policy_review') return 'policy_review';
+  if (lane === 'welcome_activation') return 'welcome_activation';
   if (lane === 'manual') return 'manual_only';
   return 'none';
 }

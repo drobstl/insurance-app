@@ -217,6 +217,26 @@ const STEPS: OnboardingStep[] = [
     route: '/dashboard/settings',
     milestone: 'profileCompleted',
   },
+  // Phase 1 Track B — HARD onboarding gates per
+  // docs/AFL_Phase_1_Planning_Notes_2026-05-04.md §2 and CONTEXT.md >
+  // Channel Rules > Phase 1 implementation constraints. Welcome flow
+  // Step 1 ("Send from my phone") is mobile-only; without these two
+  // milestones the agent has no surface to send from and no way to be
+  // notified when a welcome is queued.
+  {
+    id: 'pwaInstall',
+    title: 'Install AFL on your phone',
+    description: 'Open this dashboard in your phone browser, then tap Add to Home Screen (iPhone) or Install (Android). The "Send from my phone" button only appears on the installed app.',
+    buttonLabel: 'I installed it',
+    milestone: 'pwaInstalled',
+  },
+  {
+    id: 'webPushPermission',
+    title: 'Allow notifications on your phone',
+    description: 'On the AFL app on your phone, allow notifications. We notify you the moment a new welcome is ready to send — that is how the welcome flow works.',
+    buttonLabel: 'Allow notifications',
+    milestone: 'webPushGranted',
+  },
   {
     id: 'firstClient',
     title: 'Add your first client',
@@ -396,19 +416,26 @@ export default function OnboardingOverlay({
       firstClientCreated: required?.firstClientCreated === true,
       firstWelcomeSent: required?.firstWelcomeSent === true,
       firstPatchPromptSent: required?.firstPatchPromptSent === true,
+      // Phase 1 Track B HARD onboarding gates.
+      pwaInstalled: required?.pwaInstalled === true,
+      webPushGranted: required?.webPushGranted === true,
     };
   }, [agentProfile.onboarding?.requiredMilestones]);
 
   const allRequiredDone = milestones.profileCompleted
     && milestones.firstClientCreated
     && milestones.firstWelcomeSent
-    && milestones.firstPatchPromptSent;
-  const requiredMilestoneCount = 4;
+    && milestones.firstPatchPromptSent
+    && milestones.pwaInstalled
+    && milestones.webPushGranted;
+  const requiredMilestoneCount = 6;
   const completedRequiredCount = [
     milestones.profileCompleted,
     milestones.firstClientCreated,
     milestones.firstWelcomeSent,
     milestones.firstPatchPromptSent,
+    milestones.pwaInstalled,
+    milestones.webPushGranted,
   ].filter(Boolean).length;
   const step = STEPS[currentStep];
   const currentMilestoneIncomplete = step.milestone ? !milestones[step.milestone] : false;
@@ -911,6 +938,53 @@ export default function OnboardingOverlay({
       } catch {
         blockStep('patch_open_failed', 'Patch opened, but completion did not save yet. Please try once more.');
       }
+      return;
+    }
+
+    // Phase 1 Track B — PWA install + Web Push HARD onboarding gates.
+    if (step.id === 'pwaInstall' && !milestones.pwaInstalled) {
+      // Try the captured beforeinstallprompt event (Chrome/Edge desktop +
+      // Android Chrome). On iOS Safari + macOS Safari there is no API
+      // for programmatic install — the agent must Add to Home Screen
+      // manually. PWAInstaller.tsx detects display-mode standalone on
+      // every dashboard load, so the milestone auto-flips when the
+      // agent re-opens the dashboard from their home screen.
+      const w = window as Window & {
+        __aflPwaPromptInstall?: () => Promise<void>;
+        __aflPwaInstallPrompt?: unknown;
+      };
+      if (typeof w.__aflPwaPromptInstall === 'function' && w.__aflPwaInstallPrompt) {
+        try {
+          await w.__aflPwaPromptInstall();
+        } catch {
+          /* ignore — PWAInstaller logs the failure */
+        }
+        // Don't blockStep — PWAInstaller flips the milestone via the
+        // appinstalled event listener.
+        return;
+      }
+      blockStep('pwa_install_required', 'Open this dashboard in your phone browser, then use Add to Home Screen (iPhone) or Install (Android). Re-open AFL from your home screen and click "I installed it" again.');
+      return;
+    }
+
+    if (step.id === 'webPushPermission' && !milestones.webPushGranted) {
+      const w = window as Window & {
+        __aflRequestWebPush?: () => Promise<{ ok: boolean; permission: NotificationPermission }>;
+      };
+      if (typeof w.__aflRequestWebPush !== 'function') {
+        blockStep('web_push_not_ready', 'Notifications setup is still loading. Try once more in a moment.');
+        return;
+      }
+      const result = await w.__aflRequestWebPush();
+      if (!result.ok) {
+        blockStep(
+          'web_push_permission_denied',
+          result.permission === 'denied'
+            ? 'Notifications were blocked. Open browser settings for AFL, allow notifications, then try again.'
+            : 'Permission was not granted. Please allow notifications when the browser asks.',
+        );
+      }
+      // PWAInstaller marks the milestone on success.
       return;
     }
 

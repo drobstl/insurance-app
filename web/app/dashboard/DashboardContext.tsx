@@ -14,6 +14,13 @@ export interface OnboardingMilestones {
   firstClientCreated: boolean;
   firstWelcomeSent: boolean;
   firstPatchPromptSent: boolean;
+  // Phase 1 Track B — HARD onboarding gates per
+  // docs/AFL_Phase_1_Planning_Notes_2026-05-04.md §2 and CONTEXT.md >
+  // Channel Rules > Phase 1 implementation constraints. Without both,
+  // the welcome flow does not work for that agent — no notification
+  // surface, no fast send surface. Skip Tutorial cannot satisfy these.
+  pwaInstalled: boolean;
+  webPushGranted: boolean;
 }
 
 export interface OnboardingState {
@@ -29,6 +36,8 @@ const DEFAULT_ONBOARDING_MILESTONES: OnboardingMilestones = {
   firstClientCreated: false,
   firstWelcomeSent: false,
   firstPatchPromptSent: false,
+  pwaInstalled: false,
+  webPushGranted: false,
 };
 
 const DEFAULT_ONBOARDING_STATE: OnboardingState = {
@@ -53,6 +62,8 @@ function normalizeOnboardingState(raw: unknown): OnboardingState {
       firstClientCreated: milestonesRaw.firstClientCreated === true,
       firstWelcomeSent: milestonesRaw.firstWelcomeSent === true,
       firstPatchPromptSent: milestonesRaw.firstPatchPromptSent === true,
+      pwaInstalled: milestonesRaw.pwaInstalled === true,
+      webPushGranted: milestonesRaw.webPushGranted === true,
     },
   };
 }

@@ -3,6 +3,7 @@ export type ConversationLane =
   | 'referral'
   | 'conservation'
   | 'policy_review'
+  | 'welcome_activation'
   | 'lead'
   | 'manual';
 
@@ -14,6 +15,8 @@ export type ConversationPurpose =
   | 'referral_outreach'
   | 'conservation'
   | 'policy_review'
+  | 'welcome_activation_inbound'
+  | 'welcome_activation_response'
   | 'lead_unassigned'
   | 'manual_general';
 
@@ -22,6 +25,7 @@ export type LinkedEntityType =
   | 'referral'
   | 'conservationAlert'
   | 'policyReview'
+  | 'client'
   | 'lead'
   | 'none';
 
@@ -31,6 +35,7 @@ export type AllowedResponder =
   | 'referral'
   | 'conservation'
   | 'policy_review'
+  | 'welcome_activation'
   | 'manual_only';
 
 export interface ThreadAiPolicy {

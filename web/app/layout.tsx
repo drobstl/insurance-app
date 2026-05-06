@@ -24,6 +24,17 @@ export const metadata: Metadata = {
     shortcut: "/logo.png",
     apple: "/logo.png",
   },
+  // Phase 1 Track B — PWA manifest. The agent dashboard is installable
+  // on iOS 16.4+, Android, and desktop Chrome/Edge so the
+  // "Send from my phone" welcome flow has a fast home-screen launcher
+  // and Web Push notifications can wake the agent's phone when a
+  // welcome action item lands.
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "AgentForLife",
+    statusBarStyle: "default",
+  },
   openGraph: {
     type: "website",
     locale: "en_US",

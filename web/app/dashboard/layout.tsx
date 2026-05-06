@@ -7,6 +7,7 @@ import { db } from '../../firebase';
 import { DashboardProvider, useDashboard } from './DashboardContext';
 import OnboardingOverlay from '../../components/OnboardingOverlay';
 import OnboardingChecklistRail from '../../components/OnboardingChecklistRail';
+import PWAInstaller from '../../components/PWAInstaller';
 import LoomVideoModal from '../../components/LoomVideoModal';
 import DashboardAssistant from '../../components/DashboardAssistant';
 import DashboardTicker from '../../components/DashboardTicker';
@@ -414,6 +415,15 @@ const NAV_ITEMS = [
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
     </svg>
   )},
+  // Phase 1 Track B — welcome action item queue. Mobile installed
+  // PWA: tap-to-send via sms: URL. Desktop: read-only with
+  // "Open AFL on your phone to send" affordance per
+  // CONTEXT.md > Channel Rules > Phase 1 implementation constraints.
+  { key: 'welcomes', path: '/dashboard/welcomes', label: 'Welcomes', icon: (
+    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
+    </svg>
+  ), badge: 'welcomes' as const },
   { key: 'referrals', path: '/dashboard/referrals', label: 'Referrals', icon: (
     <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
@@ -602,8 +612,27 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     firstClientCreated: false,
     firstWelcomeSent: false,
     firstPatchPromptSent: false,
+    pwaInstalled: false,
+    webPushGranted: false,
   };
+  // Phase 1 Track B — PWA install + Web Push are HARD onboarding gates
+  // (docs/AFL_Phase_1_Planning_Notes_2026-05-04.md §2 + CONTEXT.md >
+  // Channel Rules > Phase 1 implementation constraints). Skip Tutorial
+  // can NOT bypass them — the welcome flow does not work without both.
+  // The two soft milestones (`firstClientCreated`, `firstWelcomeSent`,
+  // `firstPatchPromptSent`, `profileCompleted`) remain skippable; an
+  // agent who genuinely doesn't want the guided coachmark walkthrough
+  // can dismiss it but they must still install the PWA + grant push to
+  // be considered fully onboarded.
   const handleSkipTutorial = async () => {
+    if (!onboardingMilestones.pwaInstalled || !onboardingMilestones.webPushGranted) {
+      setShowOnboarding(true);
+      setOnboardingUiSuppressed(false);
+      // Surface a banner via the existing onboarding overlay rather
+      // than a separate alert — overlay step hard-blocks at the
+      // pwaInstall / webPushPermission steps with a clear message.
+      return;
+    }
     setShowOnboarding(false);
     setOnboardingUiSuppressed(true);
     try {
@@ -632,6 +661,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-[#e4e4e4] flex">
+      {/* Phase 1 Track B — registers the agent-side service worker, captures
+          the install prompt, syncs Web Push subscription state to the
+          agent doc, and drives the pwaInstalled / webPushGranted hard
+          onboarding milestones. Renders nothing. */}
+      <PWAInstaller />
       <div className="md:hidden fixed top-0 inset-x-0 h-14 bg-white border-b border-[#d0d0d0] z-40 flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
           <img src="/logo.png" alt="AgentForLife™" className="w-8 h-5 object-contain" />

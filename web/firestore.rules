@@ -44,6 +44,31 @@ service cloud.firestore {
       match /policyReviews/{reviewId} {
         allow read, write: if request.auth != null && request.auth.uid == agentId;
       }
+      // ─── ACTION ITEMS (agent task queue) ───
+      // Forward-compat schema across welcome / anniversary / retention /
+      // referral lanes — see web/lib/action-item-types.ts. Reads are
+      // client-direct so the dashboard can subscribe via onSnapshot for a
+      // live queue. Writes are server-only (Admin SDK via API routes
+      // /api/agent/action-items/* and the expiration cron) so schema
+      // invariants — per-lane suggested actions vocabulary, expiration
+      // window, completionAction taxonomy, view-count integrity — are
+      // enforced in one place and agents cannot forge welcome-send
+      // compliance metrics by writing fabricated `completedAt` timestamps.
+      match /actionItems/{itemId} {
+        allow read: if request.auth != null && request.auth.uid == agentId;
+        allow write: if false;
+      }
+      // ─── CONVERSATION THREADS (lane router registry) ───
+      // Server writes via Admin SDK (bypasses rules); agent dashboard reads
+      // for lane-aware conversation surfaces.
+      match /conversationThreads/{threadId} {
+        allow read: if request.auth != null && request.auth.uid == agentId;
+        allow write: if false;
+        match /{document=**} {
+          allow read: if request.auth != null && request.auth.uid == agentId;
+          allow write: if false;
+        }
+      }
       // ─── STATS (aggregates, written by server crons/API) ───
       match /stats/{docId} {
         allow read: if request.auth != null && request.auth.uid == agentId;

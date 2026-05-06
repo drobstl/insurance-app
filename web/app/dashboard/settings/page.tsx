@@ -409,6 +409,26 @@ export default function SettingsPage() {
         }
       }
 
+      // Phase 1 Track B — vCard regeneration. The endpoint is idempotent
+      // and short-circuits on a matching source fingerprint, so it's
+      // safe to call after every save. Fire-and-forget; failures must
+      // not block the settings save UX.
+      try {
+        const token = await user.getIdToken();
+        void fetch('/api/agent/vcard/regenerate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({}),
+        }).catch((vcardErr) => {
+          console.error('[agent-vcard] regenerate request failed (non-blocking):', vcardErr);
+        });
+      } catch (tokenErr) {
+        console.error('[agent-vcard] regenerate token mint failed (non-blocking):', tokenErr);
+      }
+
       if (mode === 'manual') {
         captureEvent(ANALYTICS_EVENTS.SETTINGS_UPDATED, {
           setting_changed: activeTab,

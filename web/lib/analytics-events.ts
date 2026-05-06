@@ -46,6 +46,29 @@ export const ANALYTICS_EVENTS = {
   APPLICATION_CORE_COMPLETENESS: 'application_core_completeness',
   APPLICATION_SLA_BREACH: 'application_sla_breach',
   INGESTION_V3_PAGE_MAP_CLAMPED: 'ingestion_v3_page_map_clamped',
+  // Phase 1 Track B — agent action item surface (forward-compat across
+  // welcome / anniversary / retention / referral lanes). The generic
+  // `action_item_*` events are the cross-lane funnel; the
+  // welcome-specific events are the Phase 1 leading indicators called out
+  // in the locked Q2 decision (CONTEXT.md > Channel Rules > Agent action
+  // item surface; docs/AFL_Phase_1_Planning_Notes_2026-05-04.md §1-§3).
+  ACTION_ITEM_CREATED: 'action_item_created',
+  ACTION_ITEM_VIEWED: 'action_item_viewed',
+  ACTION_ITEM_COMPLETED: 'action_item_completed',
+  WELCOME_ACTION_ITEM_EXPIRED: 'welcome_action_item_expired',
+  // Phase 1 Track B — welcome flow agent + client funnel
+  WELCOME_SEND_INITIATED: 'welcome_send_initiated',
+  WELCOME_SEND_COMPLETED: 'welcome_send_completed',
+  CLIENT_ACTIVATED: 'client_activated',
+  CLIENT_ACTIVATION_THUMBS_UP_RECEIVED: 'client_activation_thumbs_up_received',
+  // Phase 1 Track B — PWA install + agent-side Web Push (HARD onboarding gates)
+  PWA_INSTALL_PROMPTED: 'pwa_install_prompted',
+  PWA_INSTALL_COMPLETED: 'pwa_install_completed',
+  WEB_PUSH_PERMISSION_REQUESTED: 'web_push_permission_requested',
+  WEB_PUSH_PERMISSION_GRANTED: 'web_push_permission_granted',
+  WEB_PUSH_PERMISSION_DENIED: 'web_push_permission_denied',
+  WEB_PUSH_SUBSCRIPTION_REGISTERED: 'web_push_subscription_registered',
+  WEB_PUSH_SUBSCRIPTION_INVALIDATED: 'web_push_subscription_invalidated',
 } as const;
 
 export type AnalyticsEventName =
@@ -221,6 +244,78 @@ export type AnalyticsEventPropertiesMap = {
     requested_count?: number;
     rendered_count?: number;
     skipped_pages?: string;
+  } & GenericEventProperties;
+  // ─── Phase 1 Track B telemetry ──────────────────────────────────────
+  // Generic action item funnel — `lane` and `trigger_reason` use the
+  // literal unions from web/lib/action-item-types.ts. PostHog can group
+  // by lane for cross-lane analysis or filter to a single lane for
+  // welcome-only Phase 1 metrics.
+  action_item_created: {
+    lane?: 'welcome' | 'anniversary' | 'retention' | 'referral';
+    trigger_reason?: string;
+    is_idempotent_replay?: boolean;
+    days_until_expiry?: number;
+  } & GenericEventProperties;
+  action_item_viewed: {
+    lane?: 'welcome' | 'anniversary' | 'retention' | 'referral';
+    trigger_reason?: string;
+    view_count_after?: number;
+    age_days?: number;
+  } & GenericEventProperties;
+  action_item_completed: {
+    lane?: 'welcome' | 'anniversary' | 'retention' | 'referral';
+    trigger_reason?: string;
+    completion_action?:
+      | 'text_personally'
+      | 'call'
+      | 'send_templated_email'
+      | 'toggle_ai_back_on'
+      | 'skip'
+      | 'expired_unhandled';
+    age_days?: number;
+    view_count_at_completion?: number;
+  } & GenericEventProperties;
+  welcome_action_item_expired: {
+    days_queued?: number;
+    view_count?: number;
+  } & GenericEventProperties;
+  // Welcome flow funnel — agent send + client activation half.
+  welcome_send_initiated: {
+    surface?: 'mobile_pwa_action_items' | 'mobile_pwa_inline' | 'desktop_action_items_readonly';
+    channel?: 'agent_phone_sms';
+  } & GenericEventProperties;
+  welcome_send_completed: {
+    surface?: 'mobile_pwa_action_items' | 'mobile_pwa_inline';
+    channel?: 'agent_phone_sms';
+    age_days_at_send?: number;
+  } & GenericEventProperties;
+  client_activated: {
+    activation_inbound_received?: boolean;
+    days_since_welcome_sent?: number | null;
+    via?: 'linq_inbound_match' | 'linq_inbound_phone_fallback';
+  } & GenericEventProperties;
+  client_activation_thumbs_up_received: {
+    minutes_after_activation?: number;
+  } & GenericEventProperties;
+  // PWA install + Web Push (agent side, browser, NOT Expo / mobile).
+  pwa_install_prompted: {
+    platform?: 'ios' | 'android' | 'desktop' | 'unknown';
+    surface?: 'onboarding_milestone' | 'banner_reminder';
+  } & GenericEventProperties;
+  pwa_install_completed: {
+    platform?: 'ios' | 'android' | 'desktop' | 'unknown';
+    detection?: 'beforeinstallprompt' | 'display_mode_standalone' | 'navigator_standalone';
+  } & GenericEventProperties;
+  web_push_permission_requested: {
+    surface?: 'onboarding_milestone' | 'banner_reminder';
+  } & GenericEventProperties;
+  web_push_permission_granted: GenericEventProperties;
+  web_push_permission_denied: {
+    permission_state?: 'denied' | 'default';
+  } & GenericEventProperties;
+  web_push_subscription_registered: GenericEventProperties;
+  web_push_subscription_invalidated: {
+    reason?: 'gone_410' | 'not_found_404' | 'forbidden_403' | 'unknown';
   } & GenericEventProperties;
 };
 

@@ -12,6 +12,8 @@ interface ChecklistItem {
 
 const CHECKLIST_ITEMS: ChecklistItem[] = [
   { key: 'profileCompleted', label: 'Set up profile' },
+  { key: 'pwaInstalled', label: 'Install AFL on your phone' },
+  { key: 'webPushGranted', label: 'Allow phone notifications' },
   { key: 'firstClientCreated', label: 'Add first client' },
   { key: 'firstWelcomeSent', label: 'Send first welcome text' },
   { key: 'firstPatchPromptSent', label: 'Open Patch' },
