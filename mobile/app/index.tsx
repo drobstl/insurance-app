@@ -31,6 +31,8 @@ type LookupResult = {
   clientData: Record<string, unknown>;
   agentData: Record<string, unknown>;
   accessType?: 'client' | 'beneficiary';
+  /** Phase 1 Track B — Linq line phone number for the in-app Activate screen. */
+  linqLinePhone?: string;
 };
 
 class InvalidCodeError extends Error {
@@ -92,6 +94,7 @@ async function lookupClientCode(clientCode: string): Promise<LookupResult> {
     clientData: data.clientData ?? {},
     agentData: data.agentData ?? {},
     accessType: data.accessType === 'beneficiary' ? 'beneficiary' : 'client',
+    linqLinePhone: typeof data.linqLinePhone === 'string' ? data.linqLinePhone : '',
   };
 }
 
@@ -144,6 +147,7 @@ function navigateToProfile(
   clientData: Record<string, unknown>,
   agentData: Record<string, unknown>,
   accessType: 'client' | 'beneficiary' = 'client',
+  linqLinePhone: string = '',
 ) {
   const clientCode = (clientData.clientCode as string) || '';
   if (accessType === 'client') {
@@ -152,21 +156,52 @@ function navigateToProfile(
     );
   }
 
+  // Phase 1 Track B — route unactivated clients through the in-app
+  // Activate screen first. v3.1 §3.3: client taps Activate, which
+  // composes a pre-filled sms: outbound to the Linq line; the webhook
+  // (web/app/api/linq/webhook/route.ts > handleWelcomeActivationInbound)
+  // recognizes the inbound via the welcome_pending_{clientId}
+  // placeholder thread the action item writer pre-registered.
+  //
+  // Beneficiaries skip the Activate screen for now — the v3.1
+  // beneficiary invite mechanic (parallel architecture, deferred to
+  // Phase 2 per CONTEXT.md > Phased Roadmap > Phase 2) will introduce
+  // a beneficiary-specific activation flow when it ships.
+  const alreadyActivated = !!clientData.clientActivatedAt;
+  const shouldShowActivate = accessType === 'client' && !alreadyActivated;
+
+  const sharedParams = {
+    agentId,
+    agentName: (agentData.name as string) || 'Your Agent',
+    agentEmail: (agentData.email as string) || '',
+    agentPhone: (agentData.phoneNumber as string) || '',
+    agentPhotoBase64: (agentData.photoBase64 as string) || '',
+    agencyName: (agentData.agencyName as string) || '',
+    agencyLogoBase64: (agentData.agencyLogoBase64 as string) || '',
+    clientId,
+    clientName: (clientData.name as string) || 'Client',
+    referralMessage: (agentData.referralMessage as string) || '',
+    businessCardBase64: (agentData.businessCardBase64 as string) || '',
+  };
+
+  if (shouldShowActivate) {
+    // expo-router regenerates its typed pathname union from the
+    // filesystem on every dev-server / EAS build; until that runs,
+    // '/activate' is missing from the union and TS errors. Cast keeps
+    // tsc green; runtime behavior is identical.
+    router.replace({
+      pathname: '/activate' as never,
+      params: {
+        ...sharedParams,
+        linqLinePhone,
+      },
+    });
+    return;
+  }
+
   router.replace({
     pathname: '/agent-profile',
-    params: {
-      agentId,
-      agentName: (agentData.name as string) || 'Your Agent',
-      agentEmail: (agentData.email as string) || '',
-      agentPhone: (agentData.phoneNumber as string) || '',
-      agentPhotoBase64: (agentData.photoBase64 as string) || '',
-      agencyName: (agentData.agencyName as string) || '',
-      agencyLogoBase64: (agentData.agencyLogoBase64 as string) || '',
-      clientId,
-      clientName: (clientData.name as string) || 'Client',
-      referralMessage: (agentData.referralMessage as string) || '',
-      businessCardBase64: (agentData.businessCardBase64 as string) || '',
-    },
+    params: sharedParams,
   });
 }
 
@@ -217,7 +252,7 @@ export default function LoginScreen() {
         if (!result) {
           const cached = await getProfileCache();
           if (cached) {
-            navigateToProfile(cached.agentId, cached.clientId, cached.clientData, cached.agentData, cached.accessType || 'client');
+            navigateToProfile(cached.agentId, cached.clientId, cached.clientData, cached.agentData, cached.accessType || 'client', cached.linqLinePhone || '');
             return;
           }
           setCheckingSession(false);
@@ -225,12 +260,12 @@ export default function LoginScreen() {
         }
 
         await saveProfileCache(result);
-        navigateToProfile(result.agentId, result.clientId, result.clientData, result.agentData, result.accessType || 'client');
+        navigateToProfile(result.agentId, result.clientId, result.clientData, result.agentData, result.accessType || 'client', result.linqLinePhone || '');
       } catch (err) {
         console.error('Auto-login error:', err);
         const cached = await getProfileCache();
         if (cached) {
-          navigateToProfile(cached.agentId, cached.clientId, cached.clientData, cached.agentData, cached.accessType || 'client');
+          navigateToProfile(cached.agentId, cached.clientId, cached.clientData, cached.agentData, cached.accessType || 'client', cached.linqLinePhone || '');
           return;
         }
         setCheckingSession(false);
@@ -257,7 +292,7 @@ export default function LoginScreen() {
       });
       await saveProfileCache(result);
 
-      navigateToProfile(result.agentId, result.clientId, result.clientData, result.agentData, result.accessType || 'client');
+      navigateToProfile(result.agentId, result.clientId, result.clientData, result.agentData, result.accessType || 'client', result.linqLinePhone || '');
     } catch (err) {
       if (err instanceof InvalidCodeError) {
         setError('Invalid client code. Please check and try again.');

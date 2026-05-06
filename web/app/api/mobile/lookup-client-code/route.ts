@@ -6,6 +6,21 @@ import { checkRateLimit, getClientIp } from '../../../../lib/rate-limit';
 import { findClientByCode } from '../../../../lib/client-code-lookup';
 import { findBeneficiaryByCode } from '../../../../lib/beneficiary-code-lookup';
 
+/**
+ * Resolve the Linq line phone number the mobile Activate screen will
+ * compose to. Per-agent override (`agents/{agentId}.linqPhoneNumber`)
+ * wins over the platform-level env var `LINQ_PHONE_NUMBER` (forward-
+ * compat for multi-line Phase 4). Returns empty string if neither is
+ * available — the mobile app then falls back to the legacy "no
+ * Activate prompt, route directly to profile" behavior so login is
+ * never blocked by missing config.
+ */
+function resolveLinqLinePhone(agentData: Record<string, unknown>): string {
+  const perAgent = typeof agentData.linqPhoneNumber === 'string' ? agentData.linqPhoneNumber.trim() : '';
+  if (perAgent) return perAgent;
+  return (process.env.LINQ_PHONE_NUMBER || '').trim();
+}
+
 const MAX_ATTEMPTS = 10;
 const WINDOW_MS = 60_000;
 
@@ -63,6 +78,23 @@ export async function POST(req: NextRequest) {
     const clientData = clientSnap.data() ?? {};
     const agentData = agentSnap.data() ?? {};
 
+    // Phase 1 Track B — surface clientActivatedAt + welcomeThumbsUpReceivedAt
+    // so the mobile app can route unactivated clients through the new
+    // Activate screen (mobile/app/activate.tsx) before landing on the
+    // agent profile. Beneficiaries don't follow the welcome flow today;
+    // they keep landing on the profile directly.
+    const clientActivatedAtRaw = clientData.clientActivatedAt;
+    const clientActivatedAt =
+      typeof clientActivatedAtRaw === 'object' && clientActivatedAtRaw !== null && 'toDate' in clientActivatedAtRaw
+        ? (clientActivatedAtRaw as { toDate: () => Date }).toDate().toISOString()
+        : (typeof clientActivatedAtRaw === 'string' ? clientActivatedAtRaw : null);
+    const thumbsUpRaw = clientData.welcomeThumbsUpReceivedAt;
+    const welcomeThumbsUpReceivedAt =
+      typeof thumbsUpRaw === 'object' && thumbsUpRaw !== null && 'toDate' in thumbsUpRaw
+        ? (thumbsUpRaw as { toDate: () => Date }).toDate().toISOString()
+        : (typeof thumbsUpRaw === 'string' ? thumbsUpRaw : null);
+    const linqLinePhone = resolveLinqLinePhone(agentData);
+
     return NextResponse.json({
       agentId: match.agentId,
       clientId: match.clientId,
@@ -71,6 +103,9 @@ export async function POST(req: NextRequest) {
         email: beneficiaryMatch ? (beneficiaryMatch.beneficiary.email ?? '') : (clientData.email ?? ''),
         phone: beneficiaryMatch ? (beneficiaryMatch.beneficiary.phone ?? '') : (clientData.phone ?? ''),
         clientCode: normalizedCode,
+        // Phase 1 Track B activation funnel fields. Null when never set.
+        clientActivatedAt,
+        welcomeThumbsUpReceivedAt,
       },
       agentData: {
         name: agentData.name ?? 'Your Agent',
@@ -82,6 +117,11 @@ export async function POST(req: NextRequest) {
         agencyLogoBase64: agentData.agencyLogoBase64 ?? '',
         businessCardBase64: agentData.businessCardBase64 ?? '',
       },
+      // Platform-level Linq line (per-agent override possible — see
+      // resolveLinqLinePhone). Empty string if neither is configured;
+      // mobile falls back to skipping the Activate screen so login is
+      // never blocked by a missing env var.
+      linqLinePhone,
       accessType: beneficiaryMatch ? 'beneficiary' : 'client',
       beneficiaryData: beneficiaryMatch
         ? {

@@ -182,6 +182,7 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="index" />
+        <Stack.Screen name="activate" />
         <Stack.Screen name="agent-profile" />
         <Stack.Screen name="policies" />
       </Stack>
