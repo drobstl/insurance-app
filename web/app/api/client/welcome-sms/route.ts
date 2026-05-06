@@ -5,6 +5,37 @@ import { getAdminAuth } from '../../../../lib/firebase-admin';
 import { createChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 
+/**
+ * ═══════════════════════════════════════════════════════════════════
+ * @deprecated Phase 1 Track B cutover (May 5, 2026)
+ * ═══════════════════════════════════════════════════════════════════
+ *
+ * This route is the LEGACY pooled-Linq-line welcome path. It has been
+ * replaced by the welcome action item queue and one-tap "Send from my
+ * phone" surface at /dashboard/welcomes (welcome-action-item-writer.ts
+ * + welcome-activation-handler.ts).
+ *
+ * The dashboard `welcome` add-flow stage in
+ * `web/app/dashboard/clients/page.tsx` no longer invokes this route
+ * (the inline UI now shows "Welcome queued — open AFL on your phone
+ * to send"). The `ClientDetailModal.tsx` "Send to Client" button is
+ * also being routed through the queue surface in the same cutover.
+ *
+ * Per Daniel's locked Q9 cutover decision, this code is DEPRECATED but
+ * NOT DELETED. If a critical bug surfaces in the new flow, rollback is
+ * a one-line UI revert + redeploy. Deletion happens in a separate
+ * commit at least 30 days post-cutover after metrics confirm health.
+ *
+ * NEW CODE PATH:
+ *   POST /api/agent/action-items/welcome/queue   (queue / refresh)
+ *   GET  /dashboard/welcomes                     (mobile-only one-tap)
+ *   web/lib/welcome-action-item-writer.ts        (server logic)
+ *   web/lib/welcome-activation-handler.ts        (Linq inbound reply)
+ *
+ * DO NOT add new callers of this route.
+ * ═══════════════════════════════════════════════════════════════════
+ */
+
 const DELIVERY_CONFIRMATION_PROMPT =
   'Could you confirm you got this by replying or giving a thumbs up here?';
 const URL_AT_END_REGEX = /https?:\/\/[^\s]+$/i;

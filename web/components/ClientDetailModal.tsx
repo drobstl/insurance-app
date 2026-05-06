@@ -8,7 +8,6 @@ import type { Beneficiary } from '../lib/types';
 import {
   buildBeneficiaryWelcomeMessage,
   buildHolidayCardMessage,
-  buildWelcomeMessage,
   resolveClientLanguage,
   type HolidayCardKey,
   type SupportedLanguage,
@@ -329,43 +328,62 @@ export default function ClientDetailModal({
     }
   }, [client?.clientCode]);
 
+  /**
+   * ════════════════════════════════════════════════════════════════
+   * Phase 1 Track B cutover (May 5, 2026)
+   * ════════════════════════════════════════════════════════════════
+   * `handleSendCode` previously POSTed to /api/client/welcome-sms
+   * (LEGACY pooled-Linq-line outbound). It now queues a welcome
+   * action item via /api/agent/action-items/welcome/queue and
+   * routes the agent to /dashboard/welcomes where the new mobile
+   * one-tap "Send from my phone" surface lives.
+   *
+   * The legacy POST + buildWelcomeMessage path is intentionally
+   * removed from this handler (deprecate-not-delete applies to the
+   * underlying ROUTE, not to every call site — the button is now
+   * routed through the new flow). If a critical Phase 1 bug
+   * surfaces, restoring the legacy POST here is a one-line revert.
+   * ════════════════════════════════════════════════════════════════
+   */
   const handleSendCode = useCallback(async () => {
-    if (!client?.clientCode || !client.phone) return;
+    if (!client?.id || !client.phone) return;
     setSendingCode(true);
     setCodeSendError(null);
     try {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
+      const authInstance = getAuth();
+      const currentUser = authInstance.currentUser;
       if (!currentUser) throw new Error('Not authenticated');
       const token = await currentUser.getIdToken();
-      const firstName = (client.name || 'there').split(' ')[0];
-      const agent = agentName || 'your agent';
-      const message = buildWelcomeMessage({
-        firstName,
-        agentName: agent,
-        code: client.clientCode,
-        appUrl: 'https://agentforlife.app/app',
-        language: resolveClientLanguage(client.preferredLanguage),
-      });
-      const res = await fetch('/api/client/welcome-sms', {
+      const res = await fetch('/api/agent/action-items/welcome/queue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ clientPhone: client.phone, message }),
+        body: JSON.stringify({ clientId: client.id }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        throw new Error(body.error || `SMS send failed (${res.status})`);
+        throw new Error(body.error || `Could not queue welcome (${res.status})`);
       }
-      setCodeSent(true);
-      setTimeout(() => setCodeSent(false), 3000);
+      const json = (await res.json().catch(() => null)) as
+        | { outcome?: string }
+        | null;
+      if (json?.outcome === 'skipped_already_completed') {
+        setCodeSendError('This client has already been welcomed.');
+        setTimeout(() => setCodeSendError(null), 4000);
+      } else {
+        setCodeSent(true);
+        setTimeout(() => setCodeSent(false), 3000);
+        if (typeof window !== 'undefined') {
+          window.location.assign('/dashboard/welcomes');
+        }
+      }
     } catch (err) {
-      console.error('Failed to send code:', err);
-      setCodeSendError(err instanceof Error ? err.message : 'Failed to send code');
+      console.error('Failed to queue welcome:', err);
+      setCodeSendError(err instanceof Error ? err.message : 'Failed to queue welcome');
       setTimeout(() => setCodeSendError(null), 5000);
     } finally {
       setSendingCode(false);
     }
-  }, [client, agentName]);
+  }, [client]);
 
   const handleOpenBeneficiaryComposer = useCallback((
     entryKey: string,

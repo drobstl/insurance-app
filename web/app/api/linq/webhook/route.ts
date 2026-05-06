@@ -42,6 +42,11 @@ import {
   resolveThreadForInbound,
 } from '../../../../lib/conversation-thread-registry';
 import { canAutoReplyInLane, responderForLane } from '../../../../lib/conversation-lane-guard';
+import {
+  findWelcomeActivationCandidate,
+  handlePostActivationInbound,
+  handleWelcomeActivationInbound,
+} from '../../../../lib/welcome-activation-handler';
 
 const DEFAULT_WEBHOOK_AI_REPLY_COOLDOWN_MS = 45_000;
 const DEFAULT_WEBHOOK_AI_SIMILARITY_THRESHOLD = 0.9;
@@ -335,6 +340,64 @@ async function handleDirectMessage(data: LinqWebhookMessageData) {
   if (!text) return;
 
   const db = getAdminFirestore();
+
+  // Phase 1 Track B — welcome activation lane runs BEFORE every other
+  // routing branch, regardless of THREAD_ROUTER_ENABLED state. The
+  // byPhone resolver placeholder pre-registered by the welcome action
+  // item writer (web/lib/welcome-action-item-writer.ts) is the
+  // detection mechanism. This is intentional: per the task contract,
+  // welcome flow must NOT hard-depend on THREAD_ROUTER_ENABLED.
+  const welcomeCandidate = await findWelcomeActivationCandidate({
+    db,
+    fromPhoneE164: senderHandle,
+    inboundBody: text,
+  });
+  if (welcomeCandidate) {
+    await handleWelcomeActivationInbound({
+      db,
+      ctx: welcomeCandidate,
+      realLinqChatId: chatId,
+      inboundBody: text,
+    });
+    return;
+  }
+
+  // If this inbound landed on a `welcome_activation_response` thread
+  // (i.e. our first response was sent and the client just replied),
+  // try thumbs-up detection before falling through to other lanes.
+  // We do a cheap collectionGroup lookup keyed on the real Linq
+  // chat id; if it matches a welcome_activation thread we stamp the
+  // thumbs-up timestamp and upgrade the lane to `manual`.
+  const postActivationThread = await db
+    .collectionGroup('conversationThreads')
+    .where('providerThreadId', '==', chatId)
+    .where('lane', '==', 'welcome_activation')
+    .where('purpose', '==', 'welcome_activation_response')
+    .limit(1)
+    .get();
+  if (!postActivationThread.empty) {
+    const threadDoc = postActivationThread.docs[0];
+    const threadData = threadDoc.data() as { agentId?: string; linkedEntityId?: string };
+    if (threadData.agentId && threadData.linkedEntityId) {
+      const post = await handlePostActivationInbound({
+        db,
+        agentId: threadData.agentId,
+        clientId: threadData.linkedEntityId,
+        inboundBody: text,
+        realLinqChatId: chatId,
+      });
+      if (post.thumbsUpRecognized) {
+        // Thumbs-up acknowledged; thread upgraded to manual. No
+        // automated reply required (per v3.1 §3.4 — thumbs-up is a
+        // delivery confirmation, not a conversation opener).
+        return;
+      }
+      // Not a thumbs-up — leave the thread in welcome_activation_response
+      // lifecycle (the agent can intervene from the dashboard) and fall
+      // through to the leadInbox path below so the inbound is surfaced
+      // to the agent rather than silently dropped.
+    }
+  }
 
   if (THREAD_ROUTER_ENABLED) {
     const resolved = await resolveThreadForInbound({

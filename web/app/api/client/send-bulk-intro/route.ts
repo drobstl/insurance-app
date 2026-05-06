@@ -5,6 +5,30 @@ import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin'
 import { createChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 
+/**
+ * ═══════════════════════════════════════════════════════════════════
+ * @deprecated Phase 1 Track B cutover (May 5, 2026)
+ * ═══════════════════════════════════════════════════════════════════
+ *
+ * Bulk-intro pooled-Linq-line outbound was the original
+ * "Send all imports an intro" path used by the Bulk Import modal.
+ * The Bulk Import UI entry point has been disabled since the May 3,
+ * 2026 update (CONTEXT.md > Recent fixes), pending the Phase 2
+ * Onboarding Ceremony re-enablement under the new drip rules.
+ *
+ * Phase 1 Track B (welcome flow + action item queue) does NOT use this
+ * route either — every welcome now flows through the action item
+ * surface at /dashboard/welcomes.
+ *
+ * Per Daniel's locked Q9 cutover decision, this code is DEPRECATED but
+ * NOT DELETED. The Phase 2 Onboarding Ceremony re-enablement is the
+ * point at which the bulk-import path will be redesigned around the
+ * new welcome surface (or this route will be deleted).
+ *
+ * DO NOT add new callers of this route.
+ * ═══════════════════════════════════════════════════════════════════
+ */
+
 const DELAY_MS = 300;
 
 function substituteTemplate(

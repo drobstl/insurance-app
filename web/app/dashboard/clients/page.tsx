@@ -1605,6 +1605,42 @@ export default function ClientsPage() {
     setIsModalOpen(true);
   }, []);
 
+  // Phase 1 Track B — welcome action item queue/refresh.
+  // Trigger contract per Daniel's locked Q1: queue at the moment the
+  // agent confirms PDF extraction and creates the client profile; if
+  // the agent later edits the client profile in a way that changes name
+  // or code, refresh in place. Server-side route is idempotent on
+  // `welcome:{clientId}` and no-ops on completed/expired items.
+  const queueWelcomeActionItem = useCallback(async (clientId: string): Promise<void> => {
+    if (!user || !clientId) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/agent/action-items/welcome/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ clientId }),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        console.error('[welcome-action-item] queue request failed', { clientId, status: res.status, text });
+        return;
+      }
+      const json = await res.json().catch(() => null) as
+        | { itemId?: string; outcome?: string; created?: boolean }
+        | null;
+      if (json?.outcome === 'created') {
+        captureEvent(ANALYTICS_EVENTS.ACTION_ITEM_CREATED, {
+          lane: 'welcome',
+          trigger_reason: 'welcome_pending',
+          is_idempotent_replay: false,
+          days_until_expiry: 30,
+        });
+      }
+    } catch (err) {
+      console.error('[welcome-action-item] queue failed (non-blocking):', err);
+    }
+  }, [user]);
+
   const handleInlineUpdateClient = useCallback(async (
     clientId: string,
     updates: {
@@ -1676,6 +1712,12 @@ export default function ClientsPage() {
         : prev
     ));
 
+    // Phase 1 Track B: refresh the welcome action item's displayContext
+    // in place if one is still pending (Daniel's locked Q1 — name/code
+    // edit must update the queued item, not duplicate it). The writer
+    // is idempotent and no-ops on completed/expired items.
+    void queueWelcomeActionItem(clientId);
+
     setClients((prev) => prev.map((client) => (
       client.id === clientId
         ? {
@@ -1689,7 +1731,7 @@ export default function ClientsPage() {
           }
         : client
     )));
-  }, [user]);
+  }, [user, queueWelcomeActionItem]);
 
   const handleSubmitClient = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1769,6 +1811,9 @@ export default function ClientsPage() {
             : c,
         ),
       );
+      // Phase 1 Track B: refresh the welcome action item in place if a
+      // pending one exists for this client (Daniel's locked Q1).
+      void queueWelcomeActionItem(editingClient.id);
       setFormSuccess('Client updated!');
       setTimeout(() => handleCloseModal(), 800);
     } catch (err) {
@@ -1782,7 +1827,7 @@ export default function ClientsPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [user, formData, editingClient, selectedClient, handleCloseModal]);
+  }, [user, formData, editingClient, selectedClient, handleCloseModal, queueWelcomeActionItem]);
 
   const hasAddFlowPolicyInput = useCallback((data: PolicyFormData) => {
     if (data.policyType.trim()) return true;
@@ -1917,12 +1962,17 @@ export default function ClientsPage() {
       setWelcomeDraft(buildWelcomeSms(firstName, created.code, formData.preferredLanguage));
       setWelcomeError('');
       setAddFlowStage('welcome');
+      // Phase 1 Track B: queue the welcome action item server-side. This
+      // is the locked Daniel Q1 trigger ("the 'create profile' UI action
+      // is the trigger"). Fire-and-forget — failures must not block the
+      // legacy welcome stage rendering until Commit 6's cutover lands.
+      void queueWelcomeActionItem(created.id);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to save client. Please try again.');
     } finally {
       setSubmitting(false);
     }
-  }, [submitting, createClientFromAddFlow, buildWelcomeSms, formData.preferredLanguage]);
+  }, [submitting, createClientFromAddFlow, buildWelcomeSms, formData.preferredLanguage, queueWelcomeActionItem]);
 
   const handleReviewConfirmAndCreate = useCallback(async () => {
     if (submitting) return;
@@ -1947,12 +1997,17 @@ export default function ClientsPage() {
       setWelcomeDraft(buildWelcomeSms(firstName, created.code, formData.preferredLanguage));
       setWelcomeError('');
       setAddFlowStage('welcome');
+      // Phase 1 Track B: queue the welcome action item server-side.
+      // Same trigger as manual create — Daniel's locked Q1 says the
+      // 'create profile' UI action is the welcome trigger, regardless of
+      // whether profile data came from manual entry or PDF extraction.
+      void queueWelcomeActionItem(created.id);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to save client. Please try again.');
     } finally {
       setSubmitting(false);
     }
-  }, [submitting, createClientFromAddFlow, buildWelcomeSms, formData.preferredLanguage, formData.name, formData.phone, formData.email, formData.dateOfBirth, pendingClientApplicationData]);
+  }, [submitting, createClientFromAddFlow, buildWelcomeSms, formData.preferredLanguage, formData.name, formData.phone, formData.email, formData.dateOfBirth, pendingClientApplicationData, queueWelcomeActionItem]);
 
   const finishAddFlow = useCallback((message: string, celebrate: boolean) => {
     handleCloseAddFlow();
@@ -5360,21 +5415,58 @@ export default function ClientsPage() {
             style={getAddFlowSurfaceStyle(2)}
             aria-hidden={addFlowStage !== 'welcome'}
           >
+            {/*
+              ═══════════════════════════════════════════════════════
+              PHASE 1 TRACK B CUTOVER (May 5, 2026)
+              ═══════════════════════════════════════════════════════
+              The legacy "Send Welcome Text" UI in this stage previously
+              POSTed to /api/client/welcome-sms (Linq pooled-line outbound)
+              and is now DEPRECATED in favor of the welcome action item
+              queue surface at /dashboard/welcomes. The action item is
+              already queued by `handleManualCreateAndContinue` /
+              `handleReviewConfirmAndCreate` (see `queueWelcomeActionItem`
+              call sites). This stage's body now shows a confirmation
+              and routes the agent to the queue.
+
+              DEPRECATED, NOT DELETED — per Daniel's locked Q9 cutover
+              decision. The legacy state vars (`welcomeDraft`,
+              `welcomeSending`, `welcomeError`) and helpers
+              (`handleSendWelcome`, `handleSkipWelcome`,
+              `buildWelcomeSms`) are intentionally retained so a
+              one-line UI revert can re-enable the legacy path if a
+              critical Phase 1 bug surfaces. Deletion is a separate
+              commit at least 30 days post-cutover.
+              ═══════════════════════════════════════════════════════
+            */}
             <div className={addFlowSurfaceShellClass}>
               <div className={incomingSurfaceHeaderClass}>
                 <div>
-                  <h3 className="text-xl font-bold text-[#000000]">Welcome Message</h3>
+                  <h3 className="text-xl font-bold text-[#000000]">Welcome queued</h3>
                   <p className="text-xs text-[#707070] mt-0.5">Step 2 of 2</p>
                 </div>
                 <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#d0d0d0]" /><span className="h-2.5 w-2.5 rounded-full bg-[#45bcaa]" /></div>
               </div>
               <div className="p-6 space-y-4" data-onboarding-target="clients-send-welcome">
                 <p className="text-sm text-[#444]"><span className="font-semibold">Client:</span> {createdClientContext?.name || '—'}<br /><span className="font-semibold">Phone:</span> {createdClientContext?.phone || '—'}</p>
-                <textarea value={welcomeDraft} onChange={(e) => setWelcomeDraft(e.target.value)} rows={7} className="w-full px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
-                {welcomeError && <p className="text-xs text-red-600">{welcomeError}</p>}
+                <div className="rounded-lg border border-[#3DD6C3]/40 bg-[#f6fffd] px-3 py-3">
+                  <p className="text-sm font-semibold text-[#0D4D4D]">Welcome added to your queue.</p>
+                  <p className="mt-1 text-[12px] text-[#4f4f4f] leading-snug">
+                    We notify you on your phone when it&apos;s ready. Open AFL on your phone and tap
+                    <span className="font-semibold text-[#0D4D4D]"> Send from my phone</span> to text the welcome from your number.
+                  </p>
+                </div>
                 <div className="flex gap-3">
-                  <button type="button" onClick={handleSkipWelcome} className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-[5px] border border-gray-200 text-sm">Skip</button>
-                  <button data-onboarding-send-welcome-button="true" type="button" onClick={handleSendWelcome} disabled={welcomeSending || !createdClientContext?.phone} className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] text-sm">{welcomeSending ? 'Sending...' : 'Send Welcome Text'}</button>
+                  <button type="button" onClick={handleSkipWelcome} className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-[5px] border border-gray-200 text-sm">Done</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSkipWelcome();
+                      router.push('/dashboard/welcomes');
+                    }}
+                    className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] text-sm"
+                  >
+                    View queue
+                  </button>
                 </div>
               </div>
             </div>
