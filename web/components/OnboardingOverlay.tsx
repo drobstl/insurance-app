@@ -443,8 +443,29 @@ export default function OnboardingOverlay({
   useEffect(() => {
     const persistedStep = agentProfile.onboarding?.currentStep;
     if (typeof persistedStep !== 'number' || !Number.isFinite(persistedStep)) return;
-    setCurrentStep(Math.max(0, Math.min(STEPS.length - 1, persistedStep)));
-  }, [agentProfile.onboarding?.currentStep]);
+    const clampedPersisted = Math.max(0, Math.min(STEPS.length - 1, persistedStep));
+
+    // May 12 relaunch — when an existing agent who already finished
+    // the OLD onboarding lands here because they're missing the new
+    // HARD gates (pwaInstalled / webPushGranted), the persisted
+    // currentStep points at an already-complete step (e.g. 'patch'
+    // at index 5). Without intervention they'd see a coachmark for
+    // a step they finished months ago and clicking through would
+    // no-op via completeOnboarding's milestone check.
+    //
+    // Auto-jump to the first STEP whose `milestone` is incomplete.
+    // Falls back to the persisted step if every milestone-bearing
+    // step is somehow already complete (defensive — shouldn't
+    // happen for a force-shown overlay but cheap insurance).
+    const firstIncompleteIndex = STEPS.findIndex(
+      (s) => s.milestone && !milestones[s.milestone],
+    );
+    if (firstIncompleteIndex >= 0 && firstIncompleteIndex < clampedPersisted) {
+      setCurrentStep(firstIncompleteIndex);
+      return;
+    }
+    setCurrentStep(clampedPersisted);
+  }, [agentProfile.onboarding?.currentStep, milestones]);
 
   useEffect(() => {
     captureEvent(ANALYTICS_EVENTS.ONBOARDING_STEP_VIEWED, {

@@ -8,6 +8,7 @@ import { DashboardProvider, useDashboard } from './DashboardContext';
 import OnboardingOverlay from '../../components/OnboardingOverlay';
 import OnboardingChecklistRail from '../../components/OnboardingChecklistRail';
 import PWAInstaller from '../../components/PWAInstaller';
+import MaintenanceBanner from '../../components/MaintenanceBanner';
 import LoomVideoModal from '../../components/LoomVideoModal';
 import DashboardAssistant from '../../components/DashboardAssistant';
 import DashboardTicker from '../../components/DashboardTicker';
@@ -530,7 +531,18 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       setShowSubscriptionCelebration(false);
       return;
     }
-    const shouldShow = agentProfile.onboardingComplete !== true;
+    // Phase 1 Track B + May 12 relaunch — extend onboarding
+    // enforcement to existing agents who completed the OLD
+    // onboarding before pwaInstalled / webPushGranted existed as
+    // milestones (Daniel's locked May 6 evening decision: every
+    // existing agent must redo onboarding at relaunch and install
+    // the PWA + grant push permission). The OLD onboardingComplete
+    // flag is true for these agents but the new HARD gates aren't
+    // satisfied; force-show the overlay until they are.
+    const required = agentProfile.onboarding?.requiredMilestones;
+    const missingNewHardGate = !!required
+      && (required.pwaInstalled !== true || required.webPushGranted !== true);
+    const shouldShow = agentProfile.onboardingComplete !== true || missingNewHardGate;
     if (!shouldShow) {
       setShowOnboarding(false);
       setOnboardingUiSuppressed(false);
@@ -538,7 +550,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     }
     if (onboardingUiSuppressed) return;
     setShowOnboarding(shouldShow);
-  }, [agentProfile.onboardingComplete, onboardingUiSuppressed, user]);
+  }, [
+    agentProfile.onboardingComplete,
+    agentProfile.onboarding?.requiredMilestones,
+    onboardingUiSuppressed,
+    user,
+  ]);
 
   useEffect(() => {
     if (!user) return;
@@ -661,6 +678,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-[#e4e4e4] flex">
+      {/* May 12 relaunch — read-only maintenance banner. Renders nothing
+          unless MAINTENANCE_MODE_READONLY=true on the server. See
+          web/lib/maintenance-mode.ts. */}
+      <MaintenanceBanner />
       {/* Phase 1 Track B — registers the agent-side service worker, captures
           the install prompt, syncs Web Push subscription state to the
           agent doc, and drives the pwaInstalled / webPushGranted hard
