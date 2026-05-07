@@ -10,6 +10,12 @@
     "newArchEnabled": true,
     "privacy": "public",
     "privacyPolicyUrl": "https://agentforlife.app/privacy",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/6765db0c-dbc2-48e1-8082-ec16e721c096"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.danielroberts.agentforlife",

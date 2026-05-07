@@ -300,12 +300,12 @@ export default function ActivateScreen() {
 
               <View style={styles.notifBlock}>
                 <Text style={styles.notifHeading}>
-                  {pushStatus === 'enabled' ? 'Notifications are on ✓' : 'Turn on notifications'}
+                  {pushStatus === 'enabled' ? 'Notifications are on ✓' : 'Important: allow notifications'}
                 </Text>
                 <Text style={styles.notifBody}>
                   {pushStatus === 'enabled'
                     ? `That's how ${agentFirstName} reaches you when something important comes up with your policy.`
-                    : `That's how ${agentFirstName} reaches you when something important comes up with your policy.`}
+                    : `Without notifications, ${agentFirstName} can't reach you about anniversary reviews, holiday cards, or important policy changes.`}
                 </Text>
                 {pushStatus !== 'enabled' ? (
                   <TouchableOpacity

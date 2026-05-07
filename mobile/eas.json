@@ -28,6 +28,7 @@
     },
     "production": {
       "distribution": "store",
+      "channel": "production",
       "ios": {
         "resourceClass": "m-medium",
         "autoIncrement": "buildNumber"
