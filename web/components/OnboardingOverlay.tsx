@@ -1118,6 +1118,12 @@ export default function OnboardingOverlay({
   const primaryLabel = (() => {
     if (step.id === 'welcome') return step.buttonLabel;
     if (step.id === 'profile' && !milestones.profileCompleted) return 'Next';
+    // Phase 1 Track B HARD gates — use the step's actionable label
+    // ("I installed it", "Allow notifications") instead of the
+    // generic 'Next' fallback. Tells the agent what action they're
+    // taking, not just "advance the wizard."
+    if (step.id === 'pwaInstall' && !milestones.pwaInstalled) return step.buttonLabel;
+    if (step.id === 'webPushPermission' && !milestones.webPushGranted) return step.buttonLabel;
     if (step.id === 'firstClient' && !milestones.firstClientCreated) return 'Next';
     if (step.id === 'firstWelcome' && !milestones.firstWelcomeSent) return 'Next';
     if (step.milestone && !milestones[step.milestone]) return 'Next';
