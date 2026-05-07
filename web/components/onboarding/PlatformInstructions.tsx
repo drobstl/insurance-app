@@ -5,18 +5,37 @@ import { useEffect, useState } from 'react';
 /**
  * Phase 1 Track B — platform-aware onboarding step instructions.
  *
- * Renders inline next to the install / Web Push step descriptions in
- * OnboardingOverlay. Detects whether the user is on iOS Safari (not
- * yet installed), iOS standalone PWA, Android Chrome, Android other
- * browser, or desktop — and shows the right step-by-step guidance.
+ * SOURCE OF TRUTH: Daniel's May 7, 2026 morning decision — go with
+ * Loom-driven coachmarks instead of in-app multi-step text
+ * instructions. Reasoning: the OnboardingOverlay's coachmark
+ * primitive is a 380px floating card, designed for one-sentence
+ * prompts. Cramming "how to use the iOS Share menu" into a coachmark
+ * produces a wall of text. Loom is also the better TEACHING medium
+ * for this content — agents learn by watching once, not by reading
+ * numbered lists.
  *
- * Why this matters: a brand-new agent who signs up at their laptop
- * and gets to "Install AFL on your phone" needs us to spell out
- * (a) that the install is on their phone, not their laptop, and
- * (b) how to actually do it on iOS Safari (Add to Home Screen is
- * buried in the Share menu — most non-technical users don't know
- * this is even possible). Without this, install completion drops
- * dramatically. Equivalent guidance for Android.
+ * Renders inline next to the install / Web Push step descriptions.
+ * Detects platform on mount and shows the right tiny block:
+ *
+ * - iOS Safari (not yet installed): "Watch how to install" Loom link.
+ * - iOS standalone (already in PWA): nothing — PWAInstaller auto-
+ *   marks pwaInstalled and the overlay auto-advances anyway.
+ * - Android (any browser): "Watch how to install" Loom link.
+ * - Desktop: URL + copy button + Loom link, framed as "get AFL on
+ *   your phone too" so the agent doesn't think they're abandoning
+ *   their laptop workflow.
+ *
+ * For the Web Push step:
+ * - iOS standalone / Android: "Watch how to allow notifications"
+ *   Loom link.
+ * - iOS Safari: amber warning to switch to the installed PWA first.
+ * - Desktop: amber warning to switch to phone.
+ *
+ * LOOM URL UPDATE PROCEDURE: when Daniel finishes recording, he
+ * sends me (or any future agent) the three URLs and we swap the
+ * placeholder constants below in a single small commit. Placeholder
+ * URLs render as a "Video coming soon" badge instead of a play
+ * button so the testing UI is honest about what's missing.
  */
 
 type Platform =
@@ -28,6 +47,18 @@ type Platform =
   | 'unknown';
 
 const DASHBOARD_URL = 'https://agentforlife.app/dashboard';
+
+// Placeholder Loom URLs — swap with real recordings.
+// (One commit per swap, ~30 seconds of work each.)
+const LOOM_URLS = {
+  installIos: 'https://www.loom.com/share/PLACEHOLDER_INSTALL_IOS_60SEC',
+  installAndroid: 'https://www.loom.com/share/PLACEHOLDER_INSTALL_ANDROID_60SEC',
+  enableNotifications: 'https://www.loom.com/share/PLACEHOLDER_ENABLE_NOTIFICATIONS_30SEC',
+} as const;
+
+function isPlaceholderUrl(url: string): boolean {
+  return url.includes('PLACEHOLDER');
+}
 
 function detectPlatform(): Platform {
   if (typeof window === 'undefined') return 'unknown';
@@ -56,12 +87,8 @@ export default function PlatformInstructions({ stepId }: PlatformInstructionsPro
   const [platform, setPlatform] = useState<Platform>('unknown');
 
   useEffect(() => {
-    // SSR-safe: detection runs after hydration, then again whenever
-    // display-mode changes (rare; fires when the user installs the
-    // PWA mid-flow and re-opens from the home screen icon).
-    // The setState-in-effect lint flags this pattern but it's the
-    // canonical SSR-safe platform-detect approach — we cannot read
-    // navigator.userAgent during render without breaking SSR.
+    // SSR-safe: detection runs after hydration. eslint-disable
+    // because reading navigator.userAgent during render breaks SSR.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPlatform(detectPlatform());
     const mql = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
@@ -76,122 +103,84 @@ export default function PlatformInstructions({ stepId }: PlatformInstructionsPro
   if (platform === 'unknown') return null;
 
   if (stepId === 'pwaInstall') {
-    return <InstallInstructions platform={platform} />;
+    return <InstallBlock platform={platform} />;
   }
-  return <WebPushInstructionsView platform={platform} />;
+  return <WebPushBlock platform={platform} />;
 }
 
-function InstallInstructions({ platform }: { platform: Platform }) {
+function InstallBlock({ platform }: { platform: Platform }) {
   if (platform === 'ios-standalone') {
-    return (
-      <NoteBlock tone="success">
-        You&apos;re already in the installed app — perfect. Tap Continue.
-      </NoteBlock>
-    );
+    // Auto-advances via PWAInstaller; render nothing to avoid a
+    // brief flash of "you're installed" content.
+    return null;
   }
-  if (platform === 'ios-safari') {
-    return (
-      <StepsBlock
-        intro="On your iPhone, in Safari:"
-        steps={[
-          <>Tap the <strong>Share</strong> button at the bottom of Safari (the square icon with an arrow pointing up).</>,
-          <>Scroll down and tap <strong>Add to Home Screen</strong>.</>,
-          <>Tap <strong>Add</strong> in the top right.</>,
-          <>Close Safari, then open AFL from the new icon on your home screen. Sign in if asked.</>,
-        ]}
-        footer="When you open AFL from the home screen icon, this step completes automatically."
-      />
-    );
+  if (platform === 'desktop') {
+    return <DesktopBlock loomUrl={LOOM_URLS.installIos} />;
   }
-  if (platform === 'android-chrome' || platform === 'android-other') {
-    return (
-      <StepsBlock
-        intro="On your Android phone, in Chrome (or your default browser):"
-        steps={[
-          <>Tap the <strong>menu</strong> (three dots) in the top right of the browser.</>,
-          <>Tap <strong>Install app</strong> (or <strong>Add to Home screen</strong> if Install isn&apos;t there).</>,
-          <>Tap <strong>Install</strong> to confirm.</>,
-          <>Open AFL from the new icon on your home screen. Sign in if asked.</>,
-        ]}
-        footer="When you open AFL from the home screen icon, this step completes automatically."
-      />
-    );
-  }
-  // platform === 'desktop'
-  return (
-    <DesktopSwitchBlock />
-  );
+  const loomUrl = platform === 'ios-safari'
+    ? LOOM_URLS.installIos
+    : LOOM_URLS.installAndroid;
+  return <VideoLink url={loomUrl} label="Watch how to install (60s)" />;
 }
 
-function WebPushInstructionsView({ platform }: { platform: Platform }) {
+function WebPushBlock({ platform }: { platform: Platform }) {
   if (platform === 'ios-safari') {
     return (
-      <NoteBlock tone="warn">
-        You need to be in the <strong>installed AFL app</strong> for this step.
-        Close Safari and open AFL from the home screen icon you just added — then come back to this screen and tap Allow notifications again.
-      </NoteBlock>
+      <WarnBlock>
+        First, install AFL to your home screen and open it from there. Notifications can only be turned on inside the installed app.
+      </WarnBlock>
     );
   }
   if (platform === 'desktop') {
     return (
-      <NoteBlock tone="warn">
-        This step happens on your phone, not your computer. Switch to AFL on your phone (open it from the home screen icon you installed) to continue.
-      </NoteBlock>
+      <WarnBlock>
+        Switch to AFL on your phone (open it from the home screen icon you installed) to continue.
+      </WarnBlock>
     );
   }
-  // ios-standalone, android-chrome, android-other
   return (
-    <NoteBlock tone="info">
-      When you tap Allow notifications, your phone will pop up an iOS-style confirmation. Tap <strong>Allow</strong>.
-      We&apos;ll send you a phone notification the moment a new client needs a welcome — same way iMessage notifications work.
-    </NoteBlock>
+    <VideoLink url={LOOM_URLS.enableNotifications} label="Watch how to allow notifications (30s)" />
   );
 }
 
-function StepsBlock({
-  intro,
-  steps,
-  footer,
-}: {
-  intro: string;
-  steps: React.ReactNode[];
-  footer?: string;
-}) {
+function VideoLink({ url, label }: { url: string; label: string }) {
+  if (isPlaceholderUrl(url)) {
+    return (
+      <div className="mt-3 flex items-center gap-2 rounded-lg border border-dashed border-[#727272] bg-[#fafafa] px-3 py-2 text-[12px] text-[#5f5f5f]">
+        <span className="font-semibold">Video coming soon</span>
+        <span className="opacity-70">— Daniel is recording it</span>
+      </div>
+    );
+  }
   return (
-    <div className="mt-3 rounded-lg border border-[#3DD6C3] bg-[#f6fffd] px-3 py-3 text-[12px] text-[#2d3748] leading-snug">
-      <p className="font-semibold text-[#0D4D4D] mb-2">{intro}</p>
-      <ol className="list-decimal pl-5 space-y-1.5">
-        {steps.map((step, i) => (
-          <li key={i}>{step}</li>
-        ))}
-      </ol>
-      {footer ? (
-        <p className="mt-2 text-[11px] text-[#0D4D4D]/80 italic">{footer}</p>
-      ) : null}
-    </div>
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mt-3 inline-flex items-center gap-2 rounded-lg border-2 border-[#0D4D4D] bg-white px-3 py-2 text-[13px] font-bold text-[#0D4D4D] hover:bg-[#0D4D4D] hover:text-white transition-colors w-full justify-center"
+    >
+      <svg
+        className="w-4 h-4 shrink-0"
+        fill="currentColor"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+      >
+        <path d="M8 5v14l11-7z" />
+      </svg>
+      <span>{label}</span>
+    </a>
   );
 }
 
-function NoteBlock({
-  tone,
-  children,
-}: {
-  tone: 'info' | 'warn' | 'success';
-  children: React.ReactNode;
-}) {
-  const styles: Record<typeof tone, string> = {
-    info: 'border-[#3DD6C3] bg-[#f6fffd] text-[#2d3748]',
-    warn: 'border-[#f1c97a] bg-[#fff8e8] text-[#7a4a00]',
-    success: 'border-[#86efac] bg-[#f0fdf4] text-[#14532d]',
-  };
+function WarnBlock({ children }: { children: React.ReactNode }) {
   return (
-    <div className={`mt-3 rounded-lg border px-3 py-2.5 text-[12px] leading-snug ${styles[tone]}`}>
+    <div className="mt-3 rounded-lg border border-[#f1c97a] bg-[#fff8e8] px-3 py-2.5 text-[12px] text-[#7a4a00] leading-snug">
       {children}
     </div>
   );
 }
 
-function DesktopSwitchBlock() {
+function DesktopBlock({ loomUrl }: { loomUrl: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -200,35 +189,30 @@ function DesktopSwitchBlock() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Older browsers — silently no-op.
+      // ignore
     }
   };
 
   return (
-    <div className="mt-3 rounded-lg border-2 border-[#0D4D4D] bg-[#f6fffd] px-3 py-3 text-[12px] text-[#2d3748] leading-snug">
-      <p className="font-bold text-[#0D4D4D] mb-2">Get AFL on your phone too.</p>
-      <p className="mb-2">
-        AFL works on both your laptop and your phone. We recommend the laptop for most of your day-to-day work, but the welcome text to new clients goes from your phone — so you need AFL installed there too.
-      </p>
-      <p className="mb-2">
-        On your phone, open this URL in Safari (iPhone) or Chrome (Android):
-      </p>
-      <div className="flex items-center gap-2 mb-2 rounded border border-[#0D4D4D]/30 bg-white px-2 py-1.5">
-        <code className="flex-1 text-[#0D4D4D] font-mono text-[11px] truncate">{DASHBOARD_URL}</code>
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="rounded bg-[#0D4D4D] px-2 py-0.5 text-[10px] font-bold text-white hover:bg-[#0a3d3d] transition-colors"
-        >
-          {copied ? 'Copied' : 'Copy'}
-        </button>
+    <div className="mt-3 space-y-2">
+      <div className="rounded-lg border border-[#0D4D4D] bg-white px-3 py-2 text-[12px] text-[#2d3748]">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-[#0D4D4D]/70 mb-1">
+          On your phone, open:
+        </p>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 text-[#0D4D4D] font-mono text-[12px] truncate">
+            {DASHBOARD_URL}
+          </code>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="rounded bg-[#0D4D4D] px-2 py-0.5 text-[10px] font-bold text-white hover:bg-[#0a3d3d] transition-colors"
+          >
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
       </div>
-      <p className="mb-2">
-        Sign in on your phone with the same email and password you used here. You&apos;ll land back on this screen with phone-specific install instructions.
-      </p>
-      <p className="text-[11px] text-[#0D4D4D]/80 italic">
-        Tip: text or email this link to yourself if you don&apos;t want to type it.
-      </p>
+      <VideoLink url={loomUrl} label="Watch how to install on your phone (60s)" />
     </div>
   );
 }

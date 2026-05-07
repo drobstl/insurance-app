@@ -227,14 +227,14 @@ const STEPS: OnboardingStep[] = [
   {
     id: 'pwaInstall',
     title: 'Install AFL on your phone',
-    description: 'The phone app is where you\'ll send welcome texts to new clients — one tap, from your personal number, with the app link and login code pre-filled. You can use AFL on your phone for plenty of other things too, but we recommend doing most of your day-to-day work on your laptop.',
+    description: 'The phone app is where you\'ll send welcome texts to new clients — one tap, from your personal number.',
     buttonLabel: 'I installed it',
     milestone: 'pwaInstalled',
   },
   {
     id: 'webPushPermission',
     title: 'Allow notifications on your phone',
-    description: 'When a new client needs a welcome, your phone buzzes — that\'s how you know to grab it and send. (You can keep doing most of your other AFL work on your laptop.)',
+    description: 'When a new client needs a welcome, your phone buzzes — that\'s how you know to grab it and send.',
     buttonLabel: 'Allow notifications',
     milestone: 'webPushGranted',
   },
