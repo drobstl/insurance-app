@@ -48,6 +48,16 @@ import {
 } from '../../../lib/pdf/render-selected-pages-to-jpeg';
 import { APPLICATION_PAGE_MAP } from '../../../lib/pdf/application-page-map';
 import { buildRoutedPdfBuffer, detectBulkPdfRoute } from '../../../lib/pdf/bulk-pdf-routing';
+import {
+  type AgentPlatform,
+  detectAgentPlatform,
+  buildSmsUrlForPlatform,
+  buildSmsUrlForQr,
+  platformSupportsInlineSend,
+  platformIsMobile,
+  getSendButtonLabel,
+  getSendCaption,
+} from '../../../lib/sms-url';
 import { QRCodeSVG } from 'qrcode.react';
 
 // ─── Constants ─────────────────────────────────────────────
@@ -74,90 +84,6 @@ const BULK_IMPORT_SPLIT_TYPE_MESSAGE =
 const BULK_ENCRYPTED_PDF_UNSUPPORTED_MESSAGE =
   'This PDF is encrypted/password-protected. Remove protection or upload one at a time with +Add Client one page back.';
 const BULK_IMPORT_FUN_STATES = ['Processing your import...', 'Preparing client records...', 'Finalizing import data...'] as const;
-
-// Welcome flow Mode 1 inline compose surface — platform detection
-// helpers (per docs/AFL_Welcome_Flow_Amendment_2026-05-07.md §4.1).
-// We can detect the desktop OS but not the paired phone. The compose
-// surface always shows Copy alongside Send so the (~10–20%) of agents
-// on Mac+Android, Dell+iPhone, etc. have a working escape hatch
-// without us needing a setup question during onboarding.
-type AgentPlatform = 'mac' | 'windows' | 'ios' | 'android' | 'linux' | 'chromeos' | 'unknown';
-
-function detectAgentPlatform(): AgentPlatform {
-  if (typeof navigator === 'undefined') return 'unknown';
-  const ua = navigator.userAgent || '';
-  // Mobile UA strings can contain desktop hints — check mobile first.
-  if (/iPad|iPhone|iPod/.test(ua) && !/Windows/.test(ua)) return 'ios';
-  // iPadOS 13+ identifies as MacIntel; sniff the touch hint.
-  if (/Macintosh/.test(ua) && typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 1) return 'ios';
-  if (/Android/.test(ua)) return 'android';
-  if (/CrOS/.test(ua)) return 'chromeos';
-  if (/Mac OS X|Macintosh/.test(ua)) return 'mac';
-  if (/Windows/.test(ua)) return 'windows';
-  if (/Linux/.test(ua)) return 'linux';
-  return 'unknown';
-}
-
-function buildSmsUrlForPlatform(phone: string, body: string, platform: AgentPlatform): string {
-  // iOS / macOS canonical form uses `&body=`; Android / Phone Link
-  // canonical form uses `?body=`. macOS Continuity routes through the
-  // paired iPhone so we use the iOS form there.
-  const phoneClean = phone.trim();
-  const bodyEncoded = encodeURIComponent(body);
-  const useAmp = platform === 'ios' || platform === 'mac';
-  const separator = useAmp ? '&' : '?';
-  return `sms:${phoneClean}${separator}body=${bodyEncoded}`;
-}
-
-function platformSupportsInlineSend(platform: AgentPlatform): boolean {
-  // Linux + ChromeOS have no reliable `sms:` handler. 'unknown' is
-  // also treated as unsupported so we fail safe rather than firing a
-  // URL that does nothing.
-  return platform === 'mac'
-    || platform === 'windows'
-    || platform === 'ios'
-    || platform === 'android';
-}
-
-function platformIsMobile(platform: AgentPlatform): boolean {
-  return platform === 'ios' || platform === 'android';
-}
-
-function buildSmsUrlForQr(phone: string, body: string): string {
-  // QR codes always use the spec-compliant `?body=` form (RFC 5724).
-  // The agent's phone is what scans this — both iOS and Android phones
-  // accept `?body=` correctly, so we don't need per-platform variants.
-  const phoneClean = phone.trim();
-  const bodyEncoded = encodeURIComponent(body);
-  return `sms:${phoneClean}?body=${bodyEncoded}`;
-}
-
-function getSendButtonLabel(platform: AgentPlatform): string {
-  switch (platform) {
-    case 'mac': return 'Send via iMessage';
-    case 'windows': return 'Send via Messages';
-    case 'ios':
-    case 'android': return 'Open Messages';
-    default: return 'Send welcome text';
-  }
-}
-
-function getSendCaption(platform: AgentPlatform): string {
-  switch (platform) {
-    case 'mac':
-      return 'Send opens iMessage on your Mac (routes through your iPhone via Continuity). If nothing happens, tap Copy and paste into Messages on your phone.';
-    case 'windows':
-      return 'Send opens your default messaging app (Phone Link if paired with Android). If nothing happens, tap Copy and paste into Messages on your phone.';
-    case 'ios':
-    case 'android':
-      return 'Send opens Messages with everything pre-filled.';
-    case 'linux':
-    case 'chromeos':
-    case 'unknown':
-    default:
-      return 'Tap Copy welcome text, then paste it into Messages on your phone.';
-  }
-}
 
 // Welcome SMS copy — locked May 7, 2026 per Daniel's iteration on the
 // inline compose surface. Supersedes the prior single-sentence locked

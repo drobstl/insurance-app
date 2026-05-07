@@ -280,12 +280,26 @@ export type AnalyticsEventPropertiesMap = {
     view_count?: number;
   } & GenericEventProperties;
   // Welcome flow funnel — agent send + client activation half.
+  // `dashboard_action_items` and `dashboard_inline` were added May 7,
+  // 2026 when the queue card and inline compose surface unified send
+  // UX (works on desktop + mobile, not just mobile-PWA). The legacy
+  // `mobile_pwa_*` and `desktop_action_items_readonly` values are
+  // retained for historical event compatibility.
   welcome_send_initiated: {
-    surface?: 'mobile_pwa_action_items' | 'mobile_pwa_inline' | 'desktop_action_items_readonly';
+    surface?:
+      | 'dashboard_action_items'
+      | 'dashboard_inline'
+      | 'mobile_pwa_action_items'
+      | 'mobile_pwa_inline'
+      | 'desktop_action_items_readonly';
     channel?: 'agent_phone_sms';
   } & GenericEventProperties;
   welcome_send_completed: {
-    surface?: 'mobile_pwa_action_items' | 'mobile_pwa_inline';
+    surface?:
+      | 'dashboard_action_items'
+      | 'dashboard_inline'
+      | 'mobile_pwa_action_items'
+      | 'mobile_pwa_inline';
     channel?: 'agent_phone_sms';
     age_days_at_send?: number;
   } & GenericEventProperties;

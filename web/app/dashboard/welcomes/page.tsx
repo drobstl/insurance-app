@@ -12,27 +12,32 @@ import {
 import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
 import WelcomeActionItemCard from '../../../components/WelcomeActionItemCard';
-import { useMobilePWA } from '../../../lib/use-mobile-pwa';
 import type { ActionItemDoc } from '../../../lib/action-item-types';
 
 /**
- * Phase 1 Track B — Welcomes queue page.
+ * Welcomes queue page.
  *
  * SOURCE OF TRUTH: CONTEXT.md > Channel Rules > Agent action item
- * surface, > Phase 1 implementation constraints, > The two-step
- * welcome flow.
+ * surface + `docs/AFL_Welcome_Flow_Amendment_2026-05-07.md` §4.4.
  *
- * - Mobile installed PWA: shows the welcome queue and the
- *   "Send from my phone" one-tap on each card.
- * - Desktop / non-installed mobile browser: shows the same queue
- *   read-only with an explicit "Open AFL on your phone to send"
- *   affordance per card and a banner at the top of the page.
+ * Three roles after the May 7 amendment:
+ * - Audit / "did I send everyone?" — passive review surface.
+ * - Mode 1 recovery — agent skipped at create-client time, comes
+ *   back here later to send.
+ * - Mode 2 working surface — bulk import drip (when bulk import
+ *   re-enables in Phase 2).
  *
- * Layout: items grouped by date created (oldest first per Daniel's
- * locked Q2 — "list grouped by date created (oldest first)"). Within
- * each day group, individual cards age-shift their styling per the
- * subtle-color-shift variant chosen up-front. The dashboard nav badge
- * shows the count of items >7d old.
+ * Send mechanism: identical to the inline compose surface in
+ * `web/app/dashboard/clients/page.tsx` (Send via iMessage / Copy /
+ * QR scan). Both surfaces share helpers via `web/lib/sms-url.ts`.
+ * Works on Mac, Windows, iOS, Android; Linux + ChromeOS get Copy +
+ * QR only. The pre-amendment "phone-only on desktop" banner has
+ * been removed — desktop send IS supported now.
+ *
+ * Layout: items grouped by date created (oldest first per locked
+ * Phase 1 Q2 — "list grouped by date created"). Within each day
+ * group, cards age-shift styling per the subtle-color-shift
+ * variant. The dashboard nav badge shows the count of items >7d old.
  */
 
 function dayKey(iso: string): string {
@@ -52,7 +57,6 @@ function dayKeyForSort(iso: string): number {
 
 export default function WelcomesPage() {
   const { user } = useDashboard();
-  const { isMobileViewport, isStandalonePWA, canSendFromPhone } = useMobilePWA();
   const [items, setItems] = useState<ActionItemDoc[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,28 +118,14 @@ export default function WelcomesPage() {
     return (nowMs - ms) >= 7 * 24 * 60 * 60 * 1000 ? acc + 1 : acc;
   }, 0);
 
-  const showDesktopReadonlyBanner = !canSendFromPhone;
-
   return (
     <div className="min-h-screen pt-16 pb-24 md:pt-6 md:pb-10 md:ml-56 md:mr-[300px] px-4 md:px-8">
       <header className="mb-4">
         <h1 className="text-2xl font-bold text-[#0D4D4D]">Welcomes</h1>
         <p className="text-sm text-[#4f4f4f] mt-1">
-          Send your client&apos;s welcome text from your phone — that&apos;s how the AFL welcome flow works.
+          Pending welcomes that haven&apos;t been sent yet. Send from this device, or scan the QR with your phone — whichever is easiest.
         </p>
       </header>
-
-      {showDesktopReadonlyBanner ? (
-        <div className="mb-4 rounded-xl border-2 border-[#0D4D4D]/20 bg-[#0D4D4D] text-white px-4 py-3 shadow-sm">
-          <p className="text-sm font-semibold">Open AFL on your phone to send.</p>
-          <p className="text-[12px] text-white/85 mt-1 leading-snug">
-            Welcome texts come from your personal phone via one-tap iMessage. We don&apos;t support sending from desktop.
-            {' '}
-            {!isStandalonePWA ? 'On your phone, install AFL to your home screen, then open the Welcomes tab here.' : null}
-            {isMobileViewport && !isStandalonePWA ? ' (Tap your browser\'s Add to Home Screen.)' : ''}
-          </p>
-        </div>
-      ) : null}
 
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-[#5f5f5f]">
@@ -173,7 +163,6 @@ export default function WelcomesPage() {
                     key={item.itemId}
                     item={item}
                     user={user}
-                    canSendFromPhone={canSendFromPhone}
                   />
                 ))}
               </div>

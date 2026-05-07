@@ -2,43 +2,56 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
+import { QRCodeSVG } from 'qrcode.react';
 
 import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 import { captureEvent } from '../lib/posthog';
 import type { ActionItemDoc } from '../lib/action-item-types';
+import {
+  type AgentPlatform,
+  detectAgentPlatform,
+  buildSmsUrlForPlatform,
+  buildSmsUrlForQr,
+  platformSupportsInlineSend,
+  platformIsMobile,
+  getSendButtonLabel,
+} from '../lib/sms-url';
 
 /**
- * Phase 1 Track B — welcome action item card.
+ * Welcome action item card — the queue page row.
  *
- * The "one-tap UI primitive" the CONTEXT.md > Channel Rules > Agent
- * action item surface section calls out as reusable across lanes.
- * Phase 1 only renders welcome items; Phase 2 lanes (anniversary,
- * retention, referral) will reuse this component with different
- * suggestedActions.
+ * Surface unification (May 7, 2026): this card now mirrors the
+ * inline compose surface in `web/app/dashboard/clients/page.tsx`'s
+ * create-client flow. Both share the same platform-aware Send /
+ * Copy / QR pattern via `web/lib/sms-url.ts`. Deciding factor: per
+ * docs/AFL_Welcome_Flow_Amendment_2026-05-07.md desktop send is
+ * supported for Mode 1, AND Mode 2 (bulk import drip) will reuse
+ * this same card as its working surface — so the prior phone-only
+ * gating (`canSendFromPhone` from `use-mobile-pwa`) was wrong for
+ * both contexts.
  *
- * Mobile + desktop variants:
+ * Visual layout differs from the inline compose surface (compact
+ * list-item card vs full-screen modal stage), so the UI lives here
+ * while the underlying logic / helpers live in lib/sms-url.ts.
  *
- * - On the mobile installed PWA (`canSendFromPhone === true`), the
- *   primary action is a real `sms:` URL anchor — tapping opens iMessage
- *   pre-filled with the agent's locked welcome body. Once the iMessage
- *   composer launches, the API marks the item completed
- *   (`completionAction: 'text_personally'`) so the queue surface
- *   updates without waiting for the agent to confirm sending.
+ * Three roles for this surface:
+ * - Audit / "did I send everyone?" — passive review
+ * - Mode 1 recovery — agent skipped at create-client time, comes
+ *   back here later
+ * - Mode 2 working surface — bulk import drip (when re-enabled)
  *
- * - On desktop OR a non-installed mobile browser, the card renders a
- *   read-only "Open AFL on your phone to send" affordance instead.
- *   This is the locked Phase 1 constraint: NO desktop send fallback,
- *   not via deep link, not via QR code, not via Continuity.
- *
- * Age affordances per the welcome_age_variant default chosen up-front:
- * subtle color shift (neutral → amber at 4d → red at 15d) plus
- * "Nd ago" badge on every row.
+ * Completion semantics:
+ * - Send tap → fires `sms:` + POSTs /complete with text_personally
+ * - Copy tap → copies + POSTs /complete with text_personally + a
+ *   completionNote noting the copy-paste path
+ * - QR scan → no client-side completion (we can't detect the scan).
+ *   Server-side completion fires when the client activates inbound
+ *   per `web/lib/welcome-activation-handler.ts` (Option D).
  */
 
 interface WelcomeActionItemCardProps {
   item: ActionItemDoc;
   user: User | null;
-  canSendFromPhone: boolean;
   onCompleted?: () => void;
 }
 
@@ -79,7 +92,6 @@ function ageLabel(days: number): string {
 export default function WelcomeActionItemCard({
   item,
   user,
-  canSendFromPhone,
   onCompleted,
 }: WelcomeActionItemCardProps) {
   const phone = item.displayContext.subjectPhoneE164 || '';
@@ -98,8 +110,14 @@ export default function WelcomeActionItemCard({
   const styles = classesForAge(age);
 
   const [completing, setCompleting] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [agentPlatform, setAgentPlatform] = useState<AgentPlatform>('unknown');
   const viewedRef = useRef(false);
+
+  useEffect(() => {
+    setAgentPlatform(detectAgentPlatform());
+  }, []);
 
   // Mark viewed once on first render. Server-side view counter +
   // client-side telemetry both fire here.
@@ -126,12 +144,12 @@ export default function WelcomeActionItemCard({
     })();
   }, [user, item.itemId, item.triggerReason, item.viewCount, ageDays]);
 
-  const completePersonally = async () => {
+  const completePersonally = async (completionNote?: string | null) => {
     if (!user || completing) return;
     setCompleting(true);
     setErrorMsg(null);
     captureEvent(ANALYTICS_EVENTS.WELCOME_SEND_INITIATED, {
-      surface: 'mobile_pwa_action_items',
+      surface: 'dashboard_action_items',
       channel: 'agent_phone_sms',
     });
     try {
@@ -139,14 +157,17 @@ export default function WelcomeActionItemCard({
       const res = await fetch(`/api/agent/action-items/${item.itemId}/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ completionAction: 'text_personally' }),
+        body: JSON.stringify({
+          completionAction: 'text_personally',
+          completionNote: completionNote ?? null,
+        }),
       });
       if (!res.ok) {
         const j = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(j?.error || `complete failed (${res.status})`);
       }
       captureEvent(ANALYTICS_EVENTS.WELCOME_SEND_COMPLETED, {
-        surface: 'mobile_pwa_action_items',
+        surface: 'dashboard_action_items',
         channel: 'agent_phone_sms',
         age_days_at_send: ageDays,
       });
@@ -166,8 +187,39 @@ export default function WelcomeActionItemCard({
   };
 
   const smsHref = phone && body
-    ? `sms:${phone}${navigatorIsAppleLike() ? '&body=' : '?body='}${encodeURIComponent(body)}`
+    ? buildSmsUrlForPlatform(phone, body, agentPlatform)
     : null;
+
+  const qrValue = phone && body
+    ? buildSmsUrlForQr(phone, body)
+    : null;
+
+  const handleSendViaSms = () => {
+    // The anchor's `href` does the navigation. We just kick off the
+    // completion alongside it. iOS / Android may interrupt JS when
+    // sms: opens; firing the completion immediately (not in onClick
+    // after navigation) lets it reach the server before we lose
+    // control.
+    void completePersonally(null);
+  };
+
+  const handleCopyText = async () => {
+    if (!body) return;
+    setErrorMsg(null);
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(body);
+      } else {
+        throw new Error('clipboard_unavailable');
+      }
+      setCopied(true);
+      void completePersonally('Sent via copy-paste fallback.');
+    } catch {
+      setErrorMsg('Could not copy automatically. Long-press the preview and copy manually.');
+    }
+  };
+
+  const showQrSection = !platformIsMobile(agentPlatform) && qrValue;
 
   return (
     <article className={`rounded-xl border-2 px-4 py-3 transition-colors ${styles.container}`}>
@@ -199,26 +251,45 @@ export default function WelcomeActionItemCard({
         <p className="mt-2 text-[11px] font-semibold text-[#b42318]">{errorMsg}</p>
       ) : null}
 
-      <div className="mt-3 flex items-center justify-end gap-2">
-        {canSendFromPhone && smsHref ? (
+      <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+        {platformSupportsInlineSend(agentPlatform) && smsHref ? (
           <a
             href={smsHref}
-            onClick={() => { void completePersonally(); }}
+            onClick={handleSendViaSms}
             className="inline-flex items-center gap-1 rounded-lg bg-[#3DD6C3] px-3 py-1.5 text-xs font-bold text-[#0D4D4D] hover:bg-[#32c4b2] active:scale-[0.97] transition"
           >
-            Send from my phone
+            {getSendButtonLabel(agentPlatform)}
           </a>
-        ) : (
-          <div className="inline-flex items-center gap-1 rounded-lg border border-[#d0d0d0] bg-[#f8f8f8] px-3 py-1.5 text-[11px] font-semibold text-[#5f5f5f]">
-            Open AFL on your phone to send
-          </div>
-        )}
+        ) : null}
+        <button
+          type="button"
+          onClick={() => { void handleCopyText(); }}
+          disabled={!body || completing}
+          className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold transition disabled:opacity-60 disabled:cursor-not-allowed ${
+            platformSupportsInlineSend(agentPlatform)
+              ? 'border border-[#d0d0d0] bg-white text-[#0D4D4D] hover:bg-gray-50'
+              : 'bg-[#3DD6C3] text-[#0D4D4D] hover:bg-[#32c4b2]'
+          }`}
+        >
+          {copied ? 'Copied!' : 'Copy text'}
+        </button>
       </div>
+
+      {showQrSection ? (
+        <details className="mt-2">
+          <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-wide text-[#0D4D4D]/70 hover:text-[#0D4D4D]">
+            Or scan with your phone camera
+          </summary>
+          <div className="mt-2 flex items-center gap-3 rounded-lg border border-[#e3e3e3] bg-white px-3 py-3">
+            <div className="shrink-0 rounded-md bg-white p-1.5 border border-[#ececec]">
+              <QRCodeSVG value={qrValue} size={88} level="M" marginSize={0} />
+            </div>
+            <p className="text-[11px] text-[#4f4f4f] leading-snug">
+              Point your phone&apos;s camera at this code, tap the notification, and Messages opens with everything pre-filled — works on any phone.
+            </p>
+          </div>
+        </details>
+      ) : null}
     </article>
   );
-}
-
-function navigatorIsAppleLike(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  return /iphone|ipad|ipod|macintosh/i.test(navigator.userAgent);
 }
