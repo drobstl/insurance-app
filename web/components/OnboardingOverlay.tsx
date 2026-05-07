@@ -8,7 +8,6 @@ import {
 } from '../app/dashboard/DashboardContext';
 import { captureEvent } from '../lib/posthog';
 import { ANALYTICS_EVENTS } from '../lib/analytics-events';
-import PlatformInstructions from './onboarding/PlatformInstructions';
 
 interface OnboardingOverlayProps {
   agentName: string;
@@ -207,7 +206,7 @@ const STEPS: OnboardingStep[] = [
   {
     id: 'welcome',
     title: 'Welcome to AgentForLife',
-    description: "Six quick steps. AFL works on both your laptop and your phone — we recommend the laptop for most of your day-to-day work. The phone is where you'll send welcome texts to new clients, so we'll get both set up. About 5 minutes.",
+    description: 'Four quick steps. We\'ll get your profile set up, walk through adding a client, send your first welcome text, and say hi to Patch. About 3 minutes.',
     buttonLabel: 'Start Setup',
   },
   {
@@ -218,40 +217,20 @@ const STEPS: OnboardingStep[] = [
     route: '/dashboard/settings',
     milestone: 'profileCompleted',
   },
-  // Phase 1 Track B — HARD onboarding gates per
-  // docs/AFL_Phase_1_Planning_Notes_2026-05-04.md §2 and CONTEXT.md >
-  // Channel Rules > Phase 1 implementation constraints. Welcome flow
-  // Step 1 ("Send from my phone") is mobile-only; without these two
-  // milestones the agent has no surface to send from and no way to be
-  // notified when a welcome is queued.
-  {
-    id: 'pwaInstall',
-    title: 'Install AFL on your phone',
-    description: 'The phone app is where you\'ll send welcome texts to new clients — one tap, from your personal number.',
-    buttonLabel: 'I installed it',
-    milestone: 'pwaInstalled',
-  },
-  {
-    id: 'webPushPermission',
-    title: 'Allow notifications on your phone',
-    description: 'When a new client needs a welcome, your phone buzzes — that\'s how you know to grab it and send.',
-    buttonLabel: 'Allow notifications',
-    milestone: 'webPushGranted',
-  },
   {
     id: 'firstClient',
-    title: 'Add your first client (on your laptop)',
-    description: 'Switch back to your laptop. On the dashboard, tap Clients then Add Client. Just one client to get started — that triggers the welcome flow.',
+    title: 'Add your first client',
+    description: 'On the dashboard, tap Clients then Add Client. Just one client to get started — that triggers the welcome flow.',
     buttonLabel: 'Open Clients',
     route: '/dashboard/clients',
     milestone: 'firstClientCreated',
   },
   {
     id: 'firstWelcome',
-    title: 'Send the welcome from your phone',
-    description: 'When you added that client, AFL queued a welcome and your phone buzzed. Grab your phone, open AFL, tap the welcome card, then tap "Send from my phone" — iMessage opens with everything pre-filled. Send it.',
-    buttonLabel: 'Open Welcomes',
-    route: '/dashboard/welcomes',
+    title: 'Send the welcome',
+    description: 'When you create a client, AFL pre-fills the welcome text. Tap "Send via iMessage" to open Messages with everything ready to go, then send.',
+    buttonLabel: 'Open Clients',
+    route: '/dashboard/clients',
     milestone: 'firstWelcomeSent',
   },
   {
@@ -417,7 +396,10 @@ export default function OnboardingOverlay({
       firstClientCreated: required?.firstClientCreated === true,
       firstWelcomeSent: required?.firstWelcomeSent === true,
       firstPatchPromptSent: required?.firstPatchPromptSent === true,
-      // Phase 1 Track B HARD onboarding gates.
+      // Tracked but optional per the May 7, 2026 welcome flow
+      // amendment — PWAInstaller still writes these when the agent
+      // installs / grants notifications, and the dashboard exposes
+      // them as opt-in upsell. They no longer gate onboarding.
       pwaInstalled: required?.pwaInstalled === true,
       webPushGranted: required?.webPushGranted === true,
     };
@@ -426,17 +408,13 @@ export default function OnboardingOverlay({
   const allRequiredDone = milestones.profileCompleted
     && milestones.firstClientCreated
     && milestones.firstWelcomeSent
-    && milestones.firstPatchPromptSent
-    && milestones.pwaInstalled
-    && milestones.webPushGranted;
-  const requiredMilestoneCount = 6;
+    && milestones.firstPatchPromptSent;
+  const requiredMilestoneCount = 4;
   const completedRequiredCount = [
     milestones.profileCompleted,
     milestones.firstClientCreated,
     milestones.firstWelcomeSent,
     milestones.firstPatchPromptSent,
-    milestones.pwaInstalled,
-    milestones.webPushGranted,
   ].filter(Boolean).length;
   const step = STEPS[currentStep];
   const currentMilestoneIncomplete = step.milestone ? !milestones[step.milestone] : false;
@@ -446,18 +424,12 @@ export default function OnboardingOverlay({
     if (typeof persistedStep !== 'number' || !Number.isFinite(persistedStep)) return;
     const clampedPersisted = Math.max(0, Math.min(STEPS.length - 1, persistedStep));
 
-    // May 12 relaunch — when an existing agent who already finished
-    // the OLD onboarding lands here because they're missing the new
-    // HARD gates (pwaInstalled / webPushGranted), the persisted
-    // currentStep points at an already-complete step (e.g. 'patch'
-    // at index 5). Without intervention they'd see a coachmark for
-    // a step they finished months ago and clicking through would
-    // no-op via completeOnboarding's milestone check.
-    //
-    // Auto-jump to the first STEP whose `milestone` is incomplete.
-    // Falls back to the persisted step if every milestone-bearing
-    // step is somehow already complete (defensive — shouldn't
-    // happen for a force-shown overlay but cheap insurance).
+    // Defensive: if the persisted currentStep points past an
+    // already-incomplete milestone (e.g. agent paused mid-flow,
+    // milestone was rolled back, admin reset cleared an earlier
+    // milestone), auto-jump to the first incomplete step rather
+    // than showing a coachmark for a step they can't actually
+    // complete from where they are.
     const firstIncompleteIndex = STEPS.findIndex(
       (s) => s.milestone && !milestones[s.milestone],
     );
@@ -963,89 +935,6 @@ export default function OnboardingOverlay({
       return;
     }
 
-    // Phase 1 Track B — PWA install + Web Push HARD onboarding gates.
-    if (step.id === 'pwaInstall' && !milestones.pwaInstalled) {
-      // Try the captured beforeinstallprompt event (Chrome/Edge desktop +
-      // Android Chrome). On iOS Safari + macOS Safari there is no API
-      // for programmatic install — the agent must Add to Home Screen
-      // manually following the inline PlatformInstructions block.
-      // PWAInstaller.tsx detects display-mode standalone on every
-      // dashboard load, so the milestone auto-flips when the agent
-      // re-opens the dashboard from their home screen.
-      const w = window as Window & {
-        __aflPwaPromptInstall?: () => Promise<void>;
-        __aflPwaInstallPrompt?: unknown;
-      };
-      if (typeof w.__aflPwaPromptInstall === 'function' && w.__aflPwaInstallPrompt) {
-        try {
-          await w.__aflPwaPromptInstall();
-        } catch {
-          /* ignore — PWAInstaller logs the failure */
-        }
-        // Don't blockStep — PWAInstaller flips the milestone via the
-        // appinstalled event listener.
-        return;
-      }
-      // No native install prompt available (iOS Safari, desktop, etc.)
-      // — the inline PlatformInstructions block above already shows
-      // the right step-by-step. Keep the blockStep message short.
-      blockStep(
-        'pwa_install_required',
-        'Follow the steps above. Once AFL is on your home screen, open it from there — this step completes automatically.',
-      );
-      return;
-    }
-
-    if (step.id === 'webPushPermission' && !milestones.webPushGranted) {
-      const w = window as Window & {
-        __aflRequestWebPush?: () => Promise<{
-          ok: boolean;
-          permission: NotificationPermission;
-          reason?:
-            | 'unsupported'
-            | 'permission_denied'
-            | 'permission_default'
-            | 'sw_unavailable'
-            | 'vapid_not_configured'
-            | 'subscribe_failed'
-            | 'no_user'
-            | 'server_register_failed';
-          detail?: string;
-        }>;
-      };
-      if (typeof w.__aflRequestWebPush !== 'function') {
-        blockStep('web_push_not_ready', 'Notifications setup is still loading. Try once more in a moment.');
-        return;
-      }
-      const result = await w.__aflRequestWebPush();
-      if (!result.ok) {
-        // Surface the specific failure mode so the agent doesn't see
-        // a misleading "permission not granted" message when permission
-        // WAS granted and the failure is downstream (e.g. server-side
-        // VAPID key missing). Each branch is keyed off the structured
-        // reason returned by __aflRequestWebPush.
-        const messageByReason: Record<string, string> = {
-          unsupported: "This browser doesn't support push notifications. Open AFL on your phone home screen instead.",
-          permission_denied: 'Notifications were blocked. Open Settings → Notifications → AgentForLife → allow notifications, then try again.',
-          permission_default: 'Permission was not granted. Tap Allow when iOS asks.',
-          sw_unavailable: "Couldn't initialize notifications. Try closing the app and reopening it from your home screen.",
-          vapid_not_configured: 'AFL push notifications are not configured on the server. Tell Daniel: VAPID env var missing on Vercel.',
-          subscribe_failed: 'iOS rejected the push subscription. Make sure you opened AFL from your home screen icon (not Safari) and try again.',
-          no_user: 'Your login session expired. Refresh the page and try again.',
-          server_register_failed: "Couldn't save your subscription. Try again in a moment; if it keeps failing, tell Daniel.",
-        };
-        const reason = result.reason ?? 'permission_denied';
-        const message = messageByReason[reason]
-          || 'Notifications setup failed. Try again, or tell Daniel if it keeps happening.';
-        const detailedReason = result.detail
-          ? `web_push_${reason}:${result.detail.slice(0, 80)}`
-          : `web_push_${reason}`;
-        blockStep(detailedReason, message);
-      }
-      // PWAInstaller marks the milestone on success.
-      return;
-    }
-
     if (step.milestone && !milestones[step.milestone]) {
       if (step.id === 'profile' && profileLooksComplete) {
         try {
@@ -1118,12 +1007,6 @@ export default function OnboardingOverlay({
   const primaryLabel = (() => {
     if (step.id === 'welcome') return step.buttonLabel;
     if (step.id === 'profile' && !milestones.profileCompleted) return 'Next';
-    // Phase 1 Track B HARD gates — use the step's actionable label
-    // ("I installed it", "Allow notifications") instead of the
-    // generic 'Next' fallback. Tells the agent what action they're
-    // taking, not just "advance the wizard."
-    if (step.id === 'pwaInstall' && !milestones.pwaInstalled) return step.buttonLabel;
-    if (step.id === 'webPushPermission' && !milestones.webPushGranted) return step.buttonLabel;
     if (step.id === 'firstClient' && !milestones.firstClientCreated) return 'Next';
     if (step.id === 'firstWelcome' && !milestones.firstWelcomeSent) return 'Next';
     if (step.milestone && !milestones[step.milestone]) return 'Next';
@@ -1521,24 +1404,6 @@ export default function OnboardingOverlay({
           <h3 className="text-base font-bold text-[#0D4D4D]">{step.title}</h3>
           {!hideContextualDescription && (
             <p className="text-sm text-[#4b4b4b] mt-1 leading-snug">{contextualDescription}</p>
-          )}
-          {/* Phase 1 Track B — platform-aware guidance for the four
-              steps that involve device transitions:
-              - pwaInstall: install AFL on phone (laptop or phone)
-              - webPushPermission: allow notifications on phone
-              - firstClient: add a client (laptop is the right place)
-              - firstWelcome: send the welcome (phone is the right place)
-              The component detects iOS Safari / iOS standalone /
-              Android / desktop on its own and renders the right
-              guidance — including "switch back to your laptop" and
-              "now grab your phone" device-transition cards. */}
-          {(step.id === 'pwaInstall'
-            || step.id === 'webPushPermission'
-            || step.id === 'firstClient'
-            || step.id === 'firstWelcome') && (
-            <PlatformInstructions
-              stepId={step.id as 'pwaInstall' | 'webPushPermission' | 'firstClient' | 'firstWelcome'}
-            />
           )}
           {actionAck && (
             <p className="text-xs text-[#0D4D4D] font-semibold mt-1">{actionAck}</p>

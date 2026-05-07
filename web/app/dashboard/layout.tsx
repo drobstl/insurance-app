@@ -531,18 +531,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       setShowSubscriptionCelebration(false);
       return;
     }
-    // Phase 1 Track B + May 12 relaunch — extend onboarding
-    // enforcement to existing agents who completed the OLD
-    // onboarding before pwaInstalled / webPushGranted existed as
-    // milestones (Daniel's locked May 6 evening decision: every
-    // existing agent must redo onboarding at relaunch and install
-    // the PWA + grant push permission). The OLD onboardingComplete
-    // flag is true for these agents but the new HARD gates aren't
-    // satisfied; force-show the overlay until they are.
-    const required = agentProfile.onboarding?.requiredMilestones;
-    const missingNewHardGate = !!required
-      && (required.pwaInstalled !== true || required.webPushGranted !== true);
-    const shouldShow = agentProfile.onboardingComplete !== true || missingNewHardGate;
+    // Welcome flow amendment (May 7, 2026):
+    // docs/AFL_Welcome_Flow_Amendment_2026-05-07.md §4.3 reverts the
+    // May 6 missingNewHardGate decision. PWA install + Web Push are
+    // no longer required for Mode 1 (real-time daily welcome flow),
+    // so existing agents with onboardingComplete=true should not be
+    // force-prompted to redo onboarding for those milestones.
+    const shouldShow = agentProfile.onboardingComplete !== true;
     if (!shouldShow) {
       setShowOnboarding(false);
       setOnboardingUiSuppressed(false);
@@ -552,7 +547,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     setShowOnboarding(shouldShow);
   }, [
     agentProfile.onboardingComplete,
-    agentProfile.onboarding?.requiredMilestones,
     onboardingUiSuppressed,
     user,
   ]);

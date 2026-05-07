@@ -14,11 +14,12 @@ export interface OnboardingMilestones {
   firstClientCreated: boolean;
   firstWelcomeSent: boolean;
   firstPatchPromptSent: boolean;
-  // Phase 1 Track B — HARD onboarding gates per
-  // docs/AFL_Phase_1_Planning_Notes_2026-05-04.md §2 and CONTEXT.md >
-  // Channel Rules > Phase 1 implementation constraints. Without both,
-  // the welcome flow does not work for that agent — no notification
-  // surface, no fast send surface. Skip Tutorial cannot satisfy these.
+  // Optional / tracked-only per docs/AFL_Welcome_Flow_Amendment_2026-05-07.md
+  // §4.2 + §4.3. PWAInstaller still writes these when the agent
+  // installs / grants Web Push, and the dashboard exposes them as
+  // an opt-in upsell, but they no longer gate `onboardingComplete`.
+  // They re-activate as required setup at the moment the bulk
+  // import (Mode 2) wizard is enabled in Phase 2.
   pwaInstalled: boolean;
   webPushGranted: boolean;
 }
@@ -69,7 +70,13 @@ function normalizeOnboardingState(raw: unknown): OnboardingState {
 }
 
 function areAllOnboardingMilestonesComplete(milestones: OnboardingMilestones): boolean {
-  return Object.values(milestones).every(Boolean);
+  // Only the four required milestones gate completion. `pwaInstalled`
+  // and `webPushGranted` are tracked but optional per the May 7, 2026
+  // welcome flow amendment — see OnboardingMilestones interface.
+  return milestones.profileCompleted
+    && milestones.firstClientCreated
+    && milestones.firstWelcomeSent
+    && milestones.firstPatchPromptSent;
 }
 
 export interface AgentProfile {
