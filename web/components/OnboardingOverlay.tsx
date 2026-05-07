@@ -207,7 +207,7 @@ const STEPS: OnboardingStep[] = [
   {
     id: 'welcome',
     title: 'Welcome to AgentForLife',
-    description: "Six quick steps to get you set up: profile, install AFL on your phone, allow notifications, add your first client, send your first welcome, then meet Patch. Takes about 5 minutes.",
+    description: "Six quick steps. Most of AFL works best right here on your laptop — that's where you'll spend almost all your time. But sending the welcome text to a new client comes from your personal phone (one tap, your number, real human), so we'll get that piece set up too. About 5 minutes.",
     buttonLabel: 'Start Setup',
   },
   {
@@ -226,15 +226,15 @@ const STEPS: OnboardingStep[] = [
   // notified when a welcome is queued.
   {
     id: 'pwaInstall',
-    title: 'Install AFL on your phone',
-    description: 'AFL installs on your phone, not your laptop. The "Send from my phone" one-tap welcome button only works on the installed app — that is the whole point of the new flow.',
+    title: 'Install AFL on your phone (for welcome texts)',
+    description: 'You\'ll keep doing most of your AFL work right here on your laptop. The phone install is just for one job: when you have a new client to welcome, you\'ll grab your phone, tap one button, and the welcome text goes from your personal number with the app link and login code pre-filled.',
     buttonLabel: 'I installed it',
     milestone: 'pwaInstalled',
   },
   {
     id: 'webPushPermission',
     title: 'Allow notifications on your phone',
-    description: 'When a new client needs a welcome, your phone buzzes — same way iMessage notifications work. This is how you know to grab your phone and send.',
+    description: 'When a new client needs a welcome, your phone buzzes — that\'s how you know to grab it and send. Without this you\'d have to keep checking AFL on your phone manually, which defeats the point.',
     buttonLabel: 'Allow notifications',
     milestone: 'webPushGranted',
   },

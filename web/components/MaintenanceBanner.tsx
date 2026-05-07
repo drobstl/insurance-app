@@ -75,7 +75,7 @@ export default function MaintenanceBanner(): React.ReactElement | null {
       return;
     }
     if (!confirm(
-      'Reset your onboarding? This clears the PWA install + Web Push milestones and your push subscription so you can retest just the new steps. Profile data and the old milestones (clients, welcome, patch) are preserved — the overlay will jump straight to "Install AFL on your phone".',
+      'Reset your onboarding? Resets all six milestones and clears your push subscription so you can walk through the entire flow from the Welcome step. Profile data (name, agency, photo) is preserved.',
     )) {
       return;
     }
@@ -89,11 +89,12 @@ export default function MaintenanceBanner(): React.ReactElement | null {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        // 'new-gates-only' = keep old milestones + profile intact,
-        // reset only pwaInstalled / webPushGranted / push state.
-        // The overlay's auto-jump-to-first-incomplete logic then
-        // lands the agent on the pwaInstall step immediately.
-        body: JSON.stringify({ email, scope: 'new-gates-only' }),
+        // 'milestones-only' = full milestone reset (all 6 back to false)
+        // + clear push state, but keep profile fields intact. Lands the
+        // agent on step 0 (Welcome) so they can review the entire
+        // re-tested flow including the latest copy. For testing only
+        // the new gates, change to scope: 'new-gates-only'.
+        body: JSON.stringify({ email, scope: 'milestones-only' }),
       });
       if (!res.ok) {
         const text = await res.text().catch(() => '');

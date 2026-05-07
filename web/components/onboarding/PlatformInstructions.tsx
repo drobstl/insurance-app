@@ -206,9 +206,12 @@ function DesktopSwitchBlock() {
 
   return (
     <div className="mt-3 rounded-lg border-2 border-[#0D4D4D] bg-[#f6fffd] px-3 py-3 text-[12px] text-[#2d3748] leading-snug">
-      <p className="font-bold text-[#0D4D4D] mb-2">You&apos;re on your computer.</p>
+      <p className="font-bold text-[#0D4D4D] mb-2">You&apos;ll keep using AFL right here on your laptop.</p>
       <p className="mb-2">
-        AFL installs on your <strong>phone</strong>, not your laptop. To continue, open this URL on your phone in Safari (iPhone) or Chrome (Android):
+        This step is just for getting AFL set up on your <strong>phone</strong> too — so the welcome text to new clients can go from your personal number with one tap.
+      </p>
+      <p className="mb-2">
+        On your phone, open this URL in Safari (iPhone) or Chrome (Android):
       </p>
       <div className="flex items-center gap-2 mb-2 rounded border border-[#0D4D4D]/30 bg-white px-2 py-1.5">
         <code className="flex-1 text-[#0D4D4D] font-mono text-[11px] truncate">{DASHBOARD_URL}</code>
@@ -221,7 +224,7 @@ function DesktopSwitchBlock() {
         </button>
       </div>
       <p className="mb-2">
-        On your phone, sign in with the same email and password you used here. You&apos;ll land back on this screen and the step-by-step install instructions will show up automatically for your phone.
+        Sign in on your phone with the same email and password you used here. You&apos;ll land back on this screen with phone-specific install instructions.
       </p>
       <p className="text-[11px] text-[#0D4D4D]/80 italic">
         Tip: text or email this link to yourself if you don&apos;t want to type it.
