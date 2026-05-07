@@ -8,6 +8,7 @@ import {
 } from '../app/dashboard/DashboardContext';
 import { captureEvent } from '../lib/posthog';
 import { ANALYTICS_EVENTS } from '../lib/analytics-events';
+import PlatformInstructions from './onboarding/PlatformInstructions';
 
 interface OnboardingOverlayProps {
   agentName: string;
@@ -206,7 +207,7 @@ const STEPS: OnboardingStep[] = [
   {
     id: 'welcome',
     title: 'Welcome to AgentForLife',
-    description: 'Five quick actions: profile, first client, first welcome text, then Patch.',
+    description: "Six quick steps to get you set up: profile, install AFL on your phone, allow notifications, add your first client, send your first welcome, then meet Patch. Takes about 5 minutes.",
     buttonLabel: 'Start Setup',
   },
   {
@@ -226,14 +227,14 @@ const STEPS: OnboardingStep[] = [
   {
     id: 'pwaInstall',
     title: 'Install AFL on your phone',
-    description: 'Open this dashboard in your phone browser, then tap Add to Home Screen (iPhone) or Install (Android). The "Send from my phone" button only appears on the installed app.',
+    description: 'AFL installs on your phone, not your laptop. The "Send from my phone" one-tap welcome button only works on the installed app — that is the whole point of the new flow.',
     buttonLabel: 'I installed it',
     milestone: 'pwaInstalled',
   },
   {
     id: 'webPushPermission',
     title: 'Allow notifications on your phone',
-    description: 'On the AFL app on your phone, allow notifications. We notify you the moment a new welcome is ready to send — that is how the welcome flow works.',
+    description: 'When a new client needs a welcome, your phone buzzes — same way iMessage notifications work. This is how you know to grab your phone and send.',
     buttonLabel: 'Allow notifications',
     milestone: 'webPushGranted',
   },
@@ -967,9 +968,10 @@ export default function OnboardingOverlay({
       // Try the captured beforeinstallprompt event (Chrome/Edge desktop +
       // Android Chrome). On iOS Safari + macOS Safari there is no API
       // for programmatic install — the agent must Add to Home Screen
-      // manually. PWAInstaller.tsx detects display-mode standalone on
-      // every dashboard load, so the milestone auto-flips when the
-      // agent re-opens the dashboard from their home screen.
+      // manually following the inline PlatformInstructions block.
+      // PWAInstaller.tsx detects display-mode standalone on every
+      // dashboard load, so the milestone auto-flips when the agent
+      // re-opens the dashboard from their home screen.
       const w = window as Window & {
         __aflPwaPromptInstall?: () => Promise<void>;
         __aflPwaInstallPrompt?: unknown;
@@ -984,7 +986,13 @@ export default function OnboardingOverlay({
         // appinstalled event listener.
         return;
       }
-      blockStep('pwa_install_required', 'Open this dashboard in your phone browser, then use Add to Home Screen (iPhone) or Install (Android). Re-open AFL from your home screen and click "I installed it" again.');
+      // No native install prompt available (iOS Safari, desktop, etc.)
+      // — the inline PlatformInstructions block above already shows
+      // the right step-by-step. Keep the blockStep message short.
+      blockStep(
+        'pwa_install_required',
+        'Follow the steps above. Once AFL is on your home screen, open it from there — this step completes automatically.',
+      );
       return;
     }
 
@@ -1507,6 +1515,17 @@ export default function OnboardingOverlay({
           <h3 className="text-base font-bold text-[#0D4D4D]">{step.title}</h3>
           {!hideContextualDescription && (
             <p className="text-sm text-[#4b4b4b] mt-1 leading-snug">{contextualDescription}</p>
+          )}
+          {/* Phase 1 Track B — platform-aware step-by-step instructions
+              for the two new HARD onboarding gates. The component
+              detects iOS Safari / iOS standalone / Android / desktop
+              on its own and renders the right guidance. Without this
+              a brand-new agent who signs up at their laptop has no
+              idea how to get from "Install AFL on your phone" to an
+              actually-installed PWA on iOS Safari (Add to Home Screen
+              is buried in the Share menu). */}
+          {(step.id === 'pwaInstall' || step.id === 'webPushPermission') && (
+            <PlatformInstructions stepId={step.id as 'pwaInstall' | 'webPushPermission'} />
           )}
           {actionAck && (
             <p className="text-xs text-[#0D4D4D] font-semibold mt-1">{actionAck}</p>
