@@ -75,7 +75,7 @@ export default function MaintenanceBanner(): React.ReactElement | null {
       return;
     }
     if (!confirm(
-      'Reset your onboarding? This clears the PWA / Web Push milestones and your push subscription so you can retest the flow. Your profile data (name, agency, photo) is preserved.',
+      'Reset your onboarding? This clears the PWA install + Web Push milestones and your push subscription so you can retest just the new steps. Profile data and the old milestones (clients, welcome, patch) are preserved — the overlay will jump straight to "Install AFL on your phone".',
     )) {
       return;
     }
@@ -89,7 +89,11 @@ export default function MaintenanceBanner(): React.ReactElement | null {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ email, keepProfile: true }),
+        // 'new-gates-only' = keep old milestones + profile intact,
+        // reset only pwaInstalled / webPushGranted / push state.
+        // The overlay's auto-jump-to-first-incomplete logic then
+        // lands the agent on the pwaInstall step immediately.
+        body: JSON.stringify({ email, scope: 'new-gates-only' }),
       });
       if (!res.ok) {
         const text = await res.text().catch(() => '');
