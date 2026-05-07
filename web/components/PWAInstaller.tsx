@@ -202,14 +202,40 @@ export default function PWAInstaller(): null {
 
   // 4. Expose a global helper for OnboardingOverlay to request
   // permission + subscribe in one click.
+  //
+  // Returns a structured `reason` so the overlay can show a precise
+  // error message when something fails downstream of the permission
+  // grant — the original "ok: false" + a permission state was
+  // misleading when subscribe failed AFTER the user said yes
+  // (the overlay would say "permission was not granted" even
+  // though it was). Each reason maps 1:1 to a real failure mode
+  // we hit during May 6 production testing.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const w = window as Window & {
-      __aflRequestWebPush?: () => Promise<{ ok: boolean; permission: NotificationPermission }>;
+      __aflRequestWebPush?: () => Promise<{
+        ok: boolean;
+        permission: NotificationPermission;
+        reason?:
+          | 'unsupported'
+          | 'permission_denied'
+          | 'permission_default'
+          | 'sw_unavailable'
+          | 'vapid_not_configured'
+          | 'subscribe_failed'
+          | 'no_user'
+          | 'server_register_failed';
+        detail?: string;
+      }>;
     };
     w.__aflRequestWebPush = async () => {
       if (typeof Notification === 'undefined') {
-        return { ok: false, permission: 'denied' as NotificationPermission };
+        return {
+          ok: false,
+          permission: 'denied' as NotificationPermission,
+          reason: 'unsupported',
+          detail: 'Notification API unavailable in this browser',
+        };
       }
       captureEvent(ANALYTICS_EVENTS.WEB_PUSH_PERMISSION_REQUESTED, {
         surface: 'onboarding_milestone',
@@ -219,31 +245,97 @@ export default function PWAInstaller(): null {
         permission = await Notification.requestPermission();
       } catch (err) {
         console.error('[pwa-installer] notification permission request failed', err);
-        return { ok: false, permission: 'denied' as NotificationPermission };
+        return {
+          ok: false,
+          permission: 'denied' as NotificationPermission,
+          reason: 'permission_denied',
+          detail: err instanceof Error ? err.message : String(err),
+        };
       }
       if (permission !== 'granted') {
         captureEvent(ANALYTICS_EVENTS.WEB_PUSH_PERMISSION_DENIED, {
           permission_state: permission as 'denied' | 'default',
         });
-        return { ok: false, permission };
+        return {
+          ok: false,
+          permission,
+          reason: permission === 'denied' ? 'permission_denied' : 'permission_default',
+        };
       }
       captureEvent(ANALYTICS_EVENTS.WEB_PUSH_PERMISSION_GRANTED, {});
 
+      // Service worker — register if not yet registered. Required
+      // before pushManager.subscribe() works.
+      let reg: ServiceWorkerRegistration | undefined;
       try {
-        const reg = swRegistrationRef.current
+        reg = swRegistrationRef.current
           || (await navigator.serviceWorker.getRegistration('/'))
           || (await navigator.serviceWorker.register('/sw.js', { scope: '/' }));
-        const vapidKey = process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY;
-        if (!vapidKey) {
-          console.error('[pwa-installer] NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY not set');
-          return { ok: false, permission };
+      } catch (err) {
+        console.error('[pwa-installer] service worker registration failed', err);
+        return {
+          ok: false,
+          permission,
+          reason: 'sw_unavailable',
+          detail: err instanceof Error ? err.message : String(err),
+        };
+      }
+      if (!reg) {
+        return {
+          ok: false,
+          permission,
+          reason: 'sw_unavailable',
+          detail: 'no service worker registration available',
+        };
+      }
+
+      const vapidKey = process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY;
+      if (!vapidKey) {
+        console.error('[pwa-installer] NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY not set');
+        return {
+          ok: false,
+          permission,
+          reason: 'vapid_not_configured',
+          detail: 'NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY missing in browser bundle',
+        };
+      }
+
+      // Subscribe — but if there's already a subscription on this
+      // registration, reuse it. Handles the "user tapped Next twice
+      // and the second tap shouldn't try to re-subscribe" case AND
+      // the case where iOS Safari created a subscription on permission
+      // grant before subscribe() was explicitly called.
+      let sub: PushSubscription;
+      try {
+        const existing = await reg.pushManager.getSubscription();
+        if (existing) {
+          sub = existing;
+        } else {
+          sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(vapidKey),
+          });
         }
-        const sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapidKey),
-        });
-        const user = auth.currentUser;
-        if (!user) return { ok: false, permission };
+      } catch (err) {
+        console.error('[pwa-installer] pushManager.subscribe failed', err);
+        return {
+          ok: false,
+          permission,
+          reason: 'subscribe_failed',
+          detail: err instanceof Error ? err.message : String(err),
+        };
+      }
+
+      const user = auth.currentUser;
+      if (!user) {
+        return {
+          ok: false,
+          permission,
+          reason: 'no_user',
+          detail: 'no authenticated firebase user on the client',
+        };
+      }
+      try {
         const token = await user.getIdToken();
         const subJson = sub.toJSON();
         const res = await fetch('/api/agent/web-push/subscribe', {
@@ -255,15 +347,30 @@ export default function PWAInstaller(): null {
             userAgent: navigator.userAgent,
           }),
         });
-        if (!res.ok) return { ok: false, permission };
-        captureEvent(ANALYTICS_EVENTS.WEB_PUSH_SUBSCRIPTION_REGISTERED, {});
-        void markOnboardingMilestone('webPushGranted');
-        void refreshProfile();
-        return { ok: true, permission };
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          console.error('[pwa-installer] /api/agent/web-push/subscribe rejected', res.status, text);
+          return {
+            ok: false,
+            permission,
+            reason: 'server_register_failed',
+            detail: `${res.status} ${text}`.trim(),
+          };
+        }
       } catch (err) {
-        console.error('[pwa-installer] subscribe failed', err);
-        return { ok: false, permission };
+        console.error('[pwa-installer] server register exception', err);
+        return {
+          ok: false,
+          permission,
+          reason: 'server_register_failed',
+          detail: err instanceof Error ? err.message : String(err),
+        };
       }
+
+      captureEvent(ANALYTICS_EVENTS.WEB_PUSH_SUBSCRIPTION_REGISTERED, {});
+      void markOnboardingMilestone('webPushGranted');
+      void refreshProfile();
+      return { ok: true, permission };
     };
   }, [markOnboardingMilestone, refreshProfile]);
 

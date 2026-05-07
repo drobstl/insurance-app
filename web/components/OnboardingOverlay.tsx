@@ -990,7 +990,20 @@ export default function OnboardingOverlay({
 
     if (step.id === 'webPushPermission' && !milestones.webPushGranted) {
       const w = window as Window & {
-        __aflRequestWebPush?: () => Promise<{ ok: boolean; permission: NotificationPermission }>;
+        __aflRequestWebPush?: () => Promise<{
+          ok: boolean;
+          permission: NotificationPermission;
+          reason?:
+            | 'unsupported'
+            | 'permission_denied'
+            | 'permission_default'
+            | 'sw_unavailable'
+            | 'vapid_not_configured'
+            | 'subscribe_failed'
+            | 'no_user'
+            | 'server_register_failed';
+          detail?: string;
+        }>;
       };
       if (typeof w.__aflRequestWebPush !== 'function') {
         blockStep('web_push_not_ready', 'Notifications setup is still loading. Try once more in a moment.');
@@ -998,12 +1011,28 @@ export default function OnboardingOverlay({
       }
       const result = await w.__aflRequestWebPush();
       if (!result.ok) {
-        blockStep(
-          'web_push_permission_denied',
-          result.permission === 'denied'
-            ? 'Notifications were blocked. Open browser settings for AFL, allow notifications, then try again.'
-            : 'Permission was not granted. Please allow notifications when the browser asks.',
-        );
+        // Surface the specific failure mode so the agent doesn't see
+        // a misleading "permission not granted" message when permission
+        // WAS granted and the failure is downstream (e.g. server-side
+        // VAPID key missing). Each branch is keyed off the structured
+        // reason returned by __aflRequestWebPush.
+        const messageByReason: Record<string, string> = {
+          unsupported: "This browser doesn't support push notifications. Open AFL on your phone home screen instead.",
+          permission_denied: 'Notifications were blocked. Open Settings → Notifications → AgentForLife → allow notifications, then try again.',
+          permission_default: 'Permission was not granted. Tap Allow when iOS asks.',
+          sw_unavailable: "Couldn't initialize notifications. Try closing the app and reopening it from your home screen.",
+          vapid_not_configured: 'AFL push notifications are not configured on the server. Tell Daniel: VAPID env var missing on Vercel.',
+          subscribe_failed: 'iOS rejected the push subscription. Make sure you opened AFL from your home screen icon (not Safari) and try again.',
+          no_user: 'Your login session expired. Refresh the page and try again.',
+          server_register_failed: "Couldn't save your subscription. Try again in a moment; if it keeps failing, tell Daniel.",
+        };
+        const reason = result.reason ?? 'permission_denied';
+        const message = messageByReason[reason]
+          || 'Notifications setup failed. Try again, or tell Daniel if it keeps happening.';
+        const detailedReason = result.detail
+          ? `web_push_${reason}:${result.detail.slice(0, 80)}`
+          : `web_push_${reason}`;
+        blockStep(detailedReason, message);
       }
       // PWAInstaller marks the milestone on success.
       return;

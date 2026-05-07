@@ -81,7 +81,10 @@ export async function computeAgentAggregates(
 
   for (const revDoc of reviewsSnap.docs) {
     const data = revDoc.data();
-    if (data.status === 'booked' || data.status === 'closed') {
+    // Only `booked` counts as a successful rewrite. `closed` means the campaign
+    // was ended without a sale (manually closed, opted-out, etc.) and must not
+    // inflate Rewrite APV.
+    if (data.status === 'booked') {
       rewriteCount++;
       rewriteApv += computeAPV(data.premiumAmount as number | null);
     }
