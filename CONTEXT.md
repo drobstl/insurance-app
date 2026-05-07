@@ -136,7 +136,15 @@ The rule is about behavioral consent, not behavioral activity. App dormancy is *
 
 This is the single most consequential mechanism in the operating model.
 
-- **Step 1 — Agent's personal phone (one-tap).** After PDF auto-extract creates the client profile, the dashboard surfaces a "Send from my phone" button. Tapping it opens native iMessage with a pre-filled draft from the agent's own number. The message contains a personal greeting, the AFL app download link, the client's login code, and the instruction: *"Open it up and tap Activate so we're all connected — and turn on notifications so I can reach you when it matters."*
+- **Step 1 — Agent sends from their personal phone.** When the agent creates a client profile (Mode 1, real-time, primary), the inline compose surface in the dashboard add-client flow opens with the welcome pre-filled. Three send paths converge on the same outcome: device-aware "Send via iMessage / Messages" button (`sms:` URL on Mac/Windows/iOS/Android), "Copy welcome text" fallback for clipboard-sync setups, and a QR code (desktop only) the agent can scan with their own phone. **Locked welcome copy (May 7, 2026)** — supersedes the prior v3.1 §3.3 single-sentence default. The new copy uses a numbered-step structure that's impossible to miss for a client on a live phone call:
+  > Hey {firstName}! {agentName} here. Quick setup:
+  > 1. Download: https://agentforlife.app/app
+  > 2. Log in with code {code}
+  > 3. Tap Activate, then tap Send
+  >
+  > Done – explore your personalized app and receive important updates.
+
+  Source of truth: `DEFAULT_WELCOME_SMS_TEMPLATE` in `web/app/dashboard/clients/page.tsx`, `buildWelcomeMessage` (English branch) in `web/lib/client-language.ts`, `buildPhase1WelcomeBody` (English branch) in `web/lib/welcome-action-item-writer.ts`. All three are kept in sync. Agents can override per-agent via Settings → Client Welcome Text. Spanish copy still uses the v3.1 paragraph form pending re-translation (see Open Questions). Mode 2 (bulk import drip) will get its own copy + ≥3 variants per v3.1 §7 when bulk import re-enables in Phase 2 (see Open Questions).
 - **Step 2 — Client taps Activate in the app.** The Activate button uses the `sms:` URL scheme to compose a pre-filled text **from the client to the Linq line** (e.g., *"Hi [Agent], it's [Client] — I'm set up on the app!"*). The client initiates the Linq-side conversation themselves.
 - **Linq line first response.** Includes the agent's vCard (MMS attachment) and a thumbs-up reciprocity ask: *"Save my contact so you'll always know it's me — and shoot back a thumbs up so I know we're connected. Carriers sometimes block messages and that's how I'll know you're getting them."*
 
@@ -803,6 +811,10 @@ Source: `docs/AFL_Phase_1_Planning_Notes_2026-05-04.md` Q1–Q10. The §1–§3 
 **Track C blockers (pricing tiers):**
 - **Q6. How do the founding 34 migrate to the new pricing structure?** Today they're on legacy free or `$25/$35/$49` Stripe products. Mechanics of landing them on the new internal-flag founding tier without disruption. Notification copy. Visible dashboard changes (founding-member badge, conversation count widget). What happens to in-flight Stripe subscriptions on legacy products (cancel, refund, migrate).
 - **Q7. When does the new pricing go live for new signups?** Strategy doc says Phase 3, but cutover date is not nailed down. Do new signups during Phase 1 land on legacy tiers and migrate later, or land on new tiers immediately? Soft-launch / private-beta to a small cohort first?
+
+**Welcome copy follow-ups (May 7, 2026 — non-blocking, can ship anytime):**
+- **Spanish translation of the new numbered-step welcome copy.** When the English welcome was updated to the locked May 7 numbered-step structure, the Spanish branch in `web/lib/client-language.ts > buildWelcomeMessage` was left on the v3.1 paragraph form pending a re-translation that Daniel signs off on. Mobile Activate screen labels (whether "Activar" / "Enviar" or English) need to be confirmed in concert with the translated copy so the bullets reference the actual button text the Spanish-preferring client sees. Low-priority — most of the cohort is English-speaking. Update path is straightforward: edit one branch in `client-language.ts`.
+- **Mode 2 (bulk import) welcome copy + ≥3 variants.** v3.1 §7 requires "at least three pre-approved content variants" for the drip cadence. The framing also needs to differ from Mode 1 — bulk import is for existing-book clients who already know the agent, not new-client real-time onboarding, so "welcome / get connected" lands wrong. Defer until Phase 2 bulk-import infrastructure is built — write the copy next to the drip-release code that consumes it, not in the abstract.
 
 **Already answered in spec or session conversation:**
 - Q3 (Activate screen layout) — mostly answered in v3.1 §3.3; remaining details are implementation choices the Track B agent can resolve and surface for confirmation.

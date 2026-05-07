@@ -30,12 +30,24 @@ export function buildWelcomeMessage(params: {
   appUrl: string;
   language: SupportedLanguage;
 }): string {
+  // English copy locked May 7, 2026 — numbered-step structure
+  // supersedes the prior single-sentence v3.1 §3.3 default. Spanish
+  // copy has NOT been re-translated yet (open spec item — see
+  // CONTEXT.md Open Questions). Spanish callers continue to receive
+  // the v3.1 paragraph form until a Spanish version of the new
+  // structure is signed off.
   const firstName = params.firstName || 'there';
   const agentName = params.agentName || 'your agent';
   if (params.language === 'es') {
     return `Hola ${firstName}. Soy ${agentName}. Descarga la app de AgentForLife y usa el codigo ${params.code} para conectarte conmigo. ${params.appUrl}`;
   }
-  return `Hey ${firstName}! ${agentName} here. Download the AgentForLife app and use code ${params.code} to connect with me. ${params.appUrl}`;
+  return (
+    `Hey ${firstName}! ${agentName} here. Quick setup:\n\n`
+    + `1. Download: ${params.appUrl}\n`
+    + `2. Log in with code ${params.code}\n`
+    + '3. Tap Activate, then tap Send\n\n'
+    + 'Done – explore your personalized app and receive important updates.'
+  );
 }
 
 export function buildBeneficiaryWelcomeMessage(params: {

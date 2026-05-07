@@ -71,13 +71,12 @@ function firstNameFrom(fullName: string): string {
 /**
  * Build the welcome SMS body the agent will send from their personal
  * phone via the `sms:` URL scheme. Contains app download link, login
- * code, and the locked instruction copy from `docs/AFL_Messaging_Operating_Model_v3.1.md` §3.3.
+ * code, and the numbered-step instruction copy locked May 7, 2026
+ * (supersedes v3.1 §3.3's single-sentence form).
  *
- * Spanish copy reuses `buildWelcomeMessage` from web/lib/client-language.ts;
- * English copy mirrors v3.1 §3.3's recommended template (slightly tightened
- * for the SMS one-tap context — the locked Phase 1 message is "Open it
- * up and tap Activate so we're all connected — and turn on notifications
- * so I can reach you when it matters.").
+ * Spanish copy reuses `buildWelcomeMessage` from web/lib/client-language.ts.
+ * Spanish has NOT been re-translated to the new numbered-step structure
+ * yet — open spec item flagged in CONTEXT.md.
  */
 export function buildPhase1WelcomeBody(params: {
   clientFirstName: string;
@@ -86,8 +85,6 @@ export function buildPhase1WelcomeBody(params: {
   language: SupportedLanguage;
 }): string {
   if (params.language === 'es') {
-    // Reuse existing Spanish welcome composer for translation parity with
-    // the legacy welcome path until a Phase 1 Spanish copy is signed off.
     return buildWelcomeMessage({
       firstName: params.clientFirstName,
       agentName: params.agentName,
@@ -99,10 +96,11 @@ export function buildPhase1WelcomeBody(params: {
   const firstName = params.clientFirstName || 'there';
   const agentName = params.agentName || 'your agent';
   return (
-    `Hey ${firstName}! ${agentName} here. Welcome to the family. ` +
-    `Download the app: ${APP_DOWNLOAD_URL} ` +
-    `Code: ${params.clientCode}. ` +
-    `Open it up and tap Activate so we're all connected — and turn on notifications so I can reach you when it matters.`
+    `Hey ${firstName}! ${agentName} here. Quick setup:\n\n`
+    + `1. Download: ${APP_DOWNLOAD_URL}\n`
+    + `2. Log in with code ${params.clientCode}\n`
+    + '3. Tap Activate, then tap Send\n\n'
+    + 'Done – explore your personalized app and receive important updates.'
   );
 }
 

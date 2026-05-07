@@ -159,8 +159,19 @@ function getSendCaption(platform: AgentPlatform): string {
   }
 }
 
+// Welcome SMS copy — locked May 7, 2026 per Daniel's iteration on the
+// inline compose surface. Supersedes the prior single-sentence locked
+// v3.1 §3.3 copy. The numbered structure is intentional: it makes the
+// activation flow impossible to miss for new clients on a live phone
+// call. Mode 2 (bulk import) will get its own copy + ≥3 variants per
+// v3.1 §7 when bulk import re-enables in Phase 2 — see CONTEXT.md
+// Open Questions.
 const DEFAULT_WELCOME_SMS_TEMPLATE =
-  'Hey {{firstName}}! {{agentName}} here. Download the AgentForLife app and use code {{code}} to connect with me. https://agentforlife.app/app';
+  'Hey {{firstName}}! {{agentName}} here. Quick setup:\n\n'
+  + '1. Download: https://agentforlife.app/app\n'
+  + '2. Log in with code {{code}}\n'
+  + '3. Tap Activate, then tap Send\n\n'
+  + 'Done – explore your personalized app and receive important updates.';
 const DEFAULT_INTRO_TEMPLATE =
   "Hey {{firstName}}, I wanted to do something for you so I put together a free app showing your policies and also a button to reach me anytime. After you download, your code {{code}} will let you in — also say yes to push notifications so I can keep you in the loop on anything important. Download here: https://agentforlife.app/app Looking forward to talking soon! — {{agentName}}";
 import { KNOWN_CARRIER_NAMES } from '../../../lib/carriers';

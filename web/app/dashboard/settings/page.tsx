@@ -955,8 +955,8 @@ export default function SettingsPage() {
                 <textarea
                   value={agentProfile.welcomeSmsTemplate || ''}
                   onChange={(e) => updateField('welcomeSmsTemplate', e.target.value)}
-                  placeholder="Hey {{firstName}}! {{agentName}} here. Download the AgentForLife app and use code {{code}} to connect with me. https://agentforlife.app/app"
-                  rows={4}
+                  placeholder={'Hey {{firstName}}! {{agentName}} here. Quick setup:\n\n1. Download: https://agentforlife.app/app\n2. Log in with code {{code}}\n3. Tap Activate, then tap Send\n\nDone – explore your personalized app and receive important updates.'}
+                  rows={8}
                   className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa] resize-y"
                 />
                 <p className="text-xs text-[#707070] mt-1.5">
