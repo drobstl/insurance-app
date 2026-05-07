@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from 'react';
 
+import { auth } from '../firebase';
+import { isAdminEmail } from '../lib/admin';
+
 /**
  * Phase 1 read-only maintenance window banner.
  *
@@ -26,6 +29,9 @@ interface MaintenanceStatus {
 
 export default function MaintenanceBanner(): React.ReactElement | null {
   const [status, setStatus] = useState<MaintenanceStatus | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [resetState, setResetState] = useState<'idle' | 'pending' | 'error'>('idle');
+  const [resetError, setResetError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,6 +54,58 @@ export default function MaintenanceBanner(): React.ReactElement | null {
       cancelled = true;
     };
   }, []);
+
+  // Admin email gate for the testing-mode reset button. Only renders
+  // the button for admins AND only while maintenance mode is on
+  // (the whole banner disappears at relaunch). Self-cleaning.
+  useEffect(() => {
+    const unsub = auth.onAuthStateChanged((u) => {
+      setIsAdmin(isAdminEmail(u?.email ?? null));
+    });
+    return () => unsub();
+  }, []);
+
+  const handleResetOnboarding = async () => {
+    if (resetState === 'pending') return;
+    const user = auth.currentUser;
+    const email = user?.email ?? '';
+    if (!user || !email) {
+      setResetState('error');
+      setResetError('Not signed in.');
+      return;
+    }
+    if (!confirm(
+      'Reset your onboarding? This clears the PWA / Web Push milestones and your push subscription so you can retest the flow. Your profile data (name, agency, photo) is preserved.',
+    )) {
+      return;
+    }
+    setResetState('pending');
+    setResetError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/admin/reset-onboarding', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ email, keepProfile: true }),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        setResetState('error');
+        setResetError(`Reset failed (${res.status}): ${text || 'unknown'}`);
+        return;
+      }
+      // Hard reload so PWAInstaller's auto-detect effects re-run
+      // against the freshly-cleared state and the onboarding overlay
+      // re-evaluates immediately.
+      window.location.reload();
+    } catch (err) {
+      setResetState('error');
+      setResetError(err instanceof Error ? err.message : String(err));
+    }
+  };
 
   if (!status?.readOnly) return null;
 
@@ -91,6 +149,24 @@ export default function MaintenanceBanner(): React.ReactElement | null {
           LIVE
         </span>
       </div>
+      {/* Admin-only testing-mode controls. Visible only to admin
+          emails AND only while maintenance is on (the entire banner
+          disappears at relaunch). Self-cleaning. */}
+      {isAdmin ? (
+        <div className="flex items-center justify-center gap-2 px-4 pb-2 -mt-1 text-[11px]">
+          <button
+            type="button"
+            onClick={handleResetOnboarding}
+            disabled={resetState === 'pending'}
+            className="rounded border border-[#0D4D4D] bg-white/40 hover:bg-white/70 px-2.5 py-1 font-bold text-[#0D4D4D] transition-colors disabled:opacity-50 disabled:cursor-wait"
+          >
+            {resetState === 'pending' ? 'Resetting…' : 'Reset my onboarding (admin)'}
+          </button>
+          {resetError ? (
+            <span className="font-semibold text-[#7f1d1d]" role="alert">{resetError}</span>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

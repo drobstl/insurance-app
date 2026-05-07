@@ -65,6 +65,18 @@ const MAINTENANCE_ALLOWLIST: readonly string[] = [
   '/api/linq/webhook',
   '/api/push-token/register',
   '/api/mobile/',
+  // Admin self-service onboarding reset for testing the new flow
+  // during the maintenance window. The route itself enforces
+  // self-only auth (Daniel's email can only reset Daniel's account)
+  // and leaves profile data alone when keepProfile: true is sent.
+  // Allowed during maintenance specifically so admin can rapidly
+  // retest the welcome / PWA / push onboarding loop.
+  '/api/admin/reset-onboarding',
+  // The PWA install + Web Push subscribe round-trip needs these
+  // routes available even during maintenance — without them the
+  // onboarding flow can't progress past the install / push gates.
+  '/api/agent/web-push/subscribe',
+  '/api/agent/web-push/unsubscribe',
 ];
 
 /**

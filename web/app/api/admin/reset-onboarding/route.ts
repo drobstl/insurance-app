@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const keepProfile = body.keepProfile === true;
     if (!email) {
       return NextResponse.json({ error: 'Missing email' }, { status: 400 });
     }
@@ -93,21 +94,41 @@ export async function POST(req: NextRequest) {
     }
 
     const agentRef = agentDoc.ref;
-    await agentRef.update({
+    // Always-reset fields (onboarding state). Profile fields are
+    // additionally reset when keepProfile is false (the legacy
+    // behavior). Daniel's May 6 testing-window addition: pass
+    // keepProfile: true to retest the onboarding flow without
+    // having to refill name / agency / phone / photo each cycle.
+    const resetPatch: Record<string, unknown> = {
       onboardingComplete: FieldValue.delete(),
       onboarding: FieldValue.delete(),
       tipsSeen: {},
-      name: FieldValue.delete(),
-      agencyName: FieldValue.delete(),
-      phoneNumber: FieldValue.delete(),
-      photoBase64: FieldValue.delete(),
-      photoURL: FieldValue.delete(),
-      agencyLogoBase64: FieldValue.delete(),
-    });
+    };
+    if (!keepProfile) {
+      resetPatch.name = FieldValue.delete();
+      resetPatch.agencyName = FieldValue.delete();
+      resetPatch.phoneNumber = FieldValue.delete();
+      resetPatch.photoBase64 = FieldValue.delete();
+      resetPatch.photoURL = FieldValue.delete();
+      resetPatch.agencyLogoBase64 = FieldValue.delete();
+    }
+    // Phase 1 Track B — also clear the agent's web push subscriptions
+    // so a fresh onboarding cycle re-tests the permission grant +
+    // subscribe flow from scratch. Without this, a previously-
+    // registered subscription would auto-flip the webPushGranted
+    // milestone on next dashboard load (PWAInstaller's auto-detect
+    // effect) and the agent would skip past the test.
+    resetPatch.webPushSubscriptions = FieldValue.delete();
+    resetPatch.webPushPermissionRevokedAt = FieldValue.delete();
+
+    await agentRef.update(resetPatch);
 
     return NextResponse.json({
       ok: true,
-      message: 'Onboarding and profile setup reset. Have the agent refresh the dashboard.',
+      keepProfile,
+      message: keepProfile
+        ? 'Onboarding milestones reset. Profile fields preserved. Refresh the dashboard.'
+        : 'Onboarding and profile setup reset. Have the agent refresh the dashboard.',
     });
   } catch (error) {
     console.error('Reset onboarding error:', error);

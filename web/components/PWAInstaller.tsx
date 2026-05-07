@@ -177,13 +177,12 @@ export default function PWAInstaller(): null {
         const sub = await reg.pushManager.getSubscription();
         if (!sub) return;
         if (fixtureRef.current.subscribed) return;
-        fixtureRef.current.subscribed = true;
 
         const user = auth.currentUser;
         if (!user) return;
         const token = await user.getIdToken();
         const subJson = sub.toJSON();
-        await fetch('/api/agent/web-push/subscribe', {
+        const res = await fetch('/api/agent/web-push/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({
@@ -192,6 +191,21 @@ export default function PWAInstaller(): null {
             userAgent: navigator.userAgent,
           }),
         });
+        // CRITICAL: only mark the milestone complete when the server
+        // actually saved the subscription. Otherwise we lie to the
+        // onboarding gate and the agent never gets push notifications
+        // (the milestone shows complete but no subscription is on
+        // the agent doc, so sendAgentWebPush has nothing to fan out
+        // to). This bug fired during the May 6 maintenance-window
+        // testing because /api/agent/web-push/subscribe was not in
+        // the allowlist and was returning 503; the old code ignored
+        // the failure and set the milestone anyway.
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          console.warn('[pwa-installer] auto-resync server reject', res.status, text);
+          return;
+        }
+        fixtureRef.current.subscribed = true;
         captureEvent(ANALYTICS_EVENTS.WEB_PUSH_SUBSCRIPTION_REGISTERED, {});
         void markOnboardingMilestone('webPushGranted');
       } catch (err) {
