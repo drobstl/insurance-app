@@ -48,6 +48,7 @@ import {
 } from '../../../lib/pdf/render-selected-pages-to-jpeg';
 import { APPLICATION_PAGE_MAP } from '../../../lib/pdf/application-page-map';
 import { buildRoutedPdfBuffer, detectBulkPdfRoute } from '../../../lib/pdf/bulk-pdf-routing';
+import { QRCodeSVG } from 'qrcode.react';
 
 // ─── Constants ─────────────────────────────────────────────
 
@@ -116,6 +117,19 @@ function platformSupportsInlineSend(platform: AgentPlatform): boolean {
     || platform === 'windows'
     || platform === 'ios'
     || platform === 'android';
+}
+
+function platformIsMobile(platform: AgentPlatform): boolean {
+  return platform === 'ios' || platform === 'android';
+}
+
+function buildSmsUrlForQr(phone: string, body: string): string {
+  // QR codes always use the spec-compliant `?body=` form (RFC 5724).
+  // The agent's phone is what scans this — both iOS and Android phones
+  // accept `?body=` correctly, so we don't need per-platform variants.
+  const phoneClean = phone.trim();
+  const bodyEncoded = encodeURIComponent(body);
+  return `sms:${phoneClean}?body=${bodyEncoded}`;
 }
 
 function getSendButtonLabel(platform: AgentPlatform): string {
@@ -5667,6 +5681,37 @@ export default function ClientsPage() {
                 <p className="text-[11px] text-[#727272] leading-snug">
                   {getSendCaption(agentPlatform)}
                 </p>
+
+                {/* QR-code escape hatch for desktop agents whose
+                    desktop+phone combo doesn't support clipboard sync
+                    (Mac+Android, Windows+iPhone, Linux, ChromeOS) and
+                    a "just works on any phone" path for everyone else.
+                    Hidden on mobile because scanning a QR on the same
+                    phone that's showing it doesn't make sense. The
+                    welcome action item auto-completes when the client
+                    activates inbound (see
+                    web/lib/welcome-activation-handler.ts), so no
+                    manual confirmation step is needed for this path. */}
+                {!platformIsMobile(agentPlatform) && createdClientContext?.phone && welcomeDraft && (
+                  <div className="rounded-lg border border-[#e3e3e3] bg-white px-3 py-3 flex items-center gap-3">
+                    <div className="shrink-0 rounded-md bg-white p-1.5 border border-[#ececec]">
+                      <QRCodeSVG
+                        value={buildSmsUrlForQr(createdClientContext.phone, welcomeDraft)}
+                        size={96}
+                        level="M"
+                        marginSize={0}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-semibold text-[#0D4D4D] mb-0.5">
+                        Or scan with your phone camera
+                      </p>
+                      <p className="text-[11px] text-[#727272] leading-snug">
+                        Point your phone&apos;s camera at this code, tap the notification, and Messages opens with everything pre-filled — works on any phone, any setup.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {welcomeError && (
                   <p className="text-[12px] text-[#b42318] font-semibold">{welcomeError}</p>

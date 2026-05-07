@@ -5,7 +5,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { ensureAgentVCardAttachment } from './agent-vcard-store';
 import {
   actionItemIdempotencyKey,
-  markActionItemViewed,
+  completeActionItem,
 } from './action-item-store';
 import { resolveClientLanguage, type SupportedLanguage } from './client-language';
 import { upsertThreadFromOutbound } from './conversation-thread-registry';
@@ -362,20 +362,45 @@ export async function handleWelcomeActivationInbound(params: {
       { merge: true },
     );
 
-  // Touch the welcome action item so funnel analytics see view activity
-  // even on the inbound side (the agent's send already incremented
-  // viewCount; the activation event is the matching client signal).
+  // Auto-complete the welcome action item on client activation per
+  // docs/AFL_Welcome_Flow_Amendment_2026-05-07.md Option D (May 7, 2026):
+  // client activation is the highest-fidelity completion signal — when
+  // the client taps Activate, we know the welcome was received and
+  // acted on. Idempotent: if the agent already completed via the
+  // inline compose surface's Send / Copy path, completeActionItem
+  // returns { completed: false } without erroring. We also stamp the
+  // firstWelcomeSent onboarding milestone (matches the /complete API
+  // route's behavior on the agent-initiated path).
   try {
-    await markActionItemViewed({
+    const completeResult = await completeActionItem({
       db,
       agentId: ctx.agentId,
       itemId: actionItemIdempotencyKey.welcome(ctx.clientId),
+      completedBy: 'system:welcome_activation',
+      completionAction: 'text_personally',
+      completionNote: 'Auto-completed on client activation inbound.',
     });
-  } catch (viewErr) {
-    console.warn('[welcome-activation] view-mark failed (non-blocking)', {
+    if (completeResult.completed) {
+      console.log('[welcome-activation] action_item_completed_on_activation', {
+        agentId: ctx.agentId,
+        clientId: ctx.clientId,
+      });
+      try {
+        await db.collection('agents').doc(ctx.agentId).update({
+          'onboarding.requiredMilestones.firstWelcomeSent': true,
+        });
+      } catch (markErr) {
+        console.warn('[welcome-activation] firstWelcomeSent mark failed (non-blocking)', {
+          agentId: ctx.agentId,
+          error: markErr instanceof Error ? markErr.message : String(markErr),
+        });
+      }
+    }
+  } catch (completeErr) {
+    console.warn('[welcome-activation] action item complete failed (non-blocking)', {
       agentId: ctx.agentId,
       clientId: ctx.clientId,
-      error: viewErr instanceof Error ? viewErr.message : String(viewErr),
+      error: completeErr instanceof Error ? completeErr.message : String(completeErr),
     });
   }
 
