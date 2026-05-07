@@ -240,18 +240,18 @@ const STEPS: OnboardingStep[] = [
   },
   {
     id: 'firstClient',
-    title: 'Add your first client',
-    description: 'Go to Clients, click Add Client, and create one record.',
+    title: 'Add your first client (on your laptop)',
+    description: 'Switch back to your laptop. On the dashboard, tap Clients then Add Client. Just one client to get started — that triggers the welcome flow.',
     buttonLabel: 'Open Clients',
     route: '/dashboard/clients',
     milestone: 'firstClientCreated',
   },
   {
     id: 'firstWelcome',
-    title: 'Send your first welcome message',
-    description: 'In the welcome step, send the text with app link + code.',
-    buttonLabel: 'Open Clients',
-    route: '/dashboard/clients',
+    title: 'Send the welcome from your phone',
+    description: 'When you added that client, AFL queued a welcome and your phone buzzed. Grab your phone, open AFL, tap the welcome card, then tap "Send from my phone" — iMessage opens with everything pre-filled. Send it.',
+    buttonLabel: 'Open Welcomes',
+    route: '/dashboard/welcomes',
     milestone: 'firstWelcomeSent',
   },
   {
@@ -1522,16 +1522,23 @@ export default function OnboardingOverlay({
           {!hideContextualDescription && (
             <p className="text-sm text-[#4b4b4b] mt-1 leading-snug">{contextualDescription}</p>
           )}
-          {/* Phase 1 Track B — platform-aware step-by-step instructions
-              for the two new HARD onboarding gates. The component
-              detects iOS Safari / iOS standalone / Android / desktop
-              on its own and renders the right guidance. Without this
-              a brand-new agent who signs up at their laptop has no
-              idea how to get from "Install AFL on your phone" to an
-              actually-installed PWA on iOS Safari (Add to Home Screen
-              is buried in the Share menu). */}
-          {(step.id === 'pwaInstall' || step.id === 'webPushPermission') && (
-            <PlatformInstructions stepId={step.id as 'pwaInstall' | 'webPushPermission'} />
+          {/* Phase 1 Track B — platform-aware guidance for the four
+              steps that involve device transitions:
+              - pwaInstall: install AFL on phone (laptop or phone)
+              - webPushPermission: allow notifications on phone
+              - firstClient: add a client (laptop is the right place)
+              - firstWelcome: send the welcome (phone is the right place)
+              The component detects iOS Safari / iOS standalone /
+              Android / desktop on its own and renders the right
+              guidance — including "switch back to your laptop" and
+              "now grab your phone" device-transition cards. */}
+          {(step.id === 'pwaInstall'
+            || step.id === 'webPushPermission'
+            || step.id === 'firstClient'
+            || step.id === 'firstWelcome') && (
+            <PlatformInstructions
+              stepId={step.id as 'pwaInstall' | 'webPushPermission' | 'firstClient' | 'firstWelcome'}
+            />
           )}
           {actionAck && (
             <p className="text-xs text-[#0D4D4D] font-semibold mt-1">{actionAck}</p>

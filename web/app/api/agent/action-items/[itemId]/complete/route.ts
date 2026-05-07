@@ -108,6 +108,33 @@ export async function POST(
       completionAction,
     });
 
+    // Phase 1 Track B onboarding bridge — when a welcome lane action
+    // item is completed via 'text_personally', mark the
+    // firstWelcomeSent onboarding milestone. The legacy
+    // /api/client/welcome-sms route used to mark this milestone (in
+    // the dashboard UI handler) but that path is deprecated; the
+    // new welcome-flow path needs to mark it from here. Uses
+    // Firestore dot-notation update to set just the nested field
+    // without risk of replacing the parent onboarding object.
+    if (current.lane === 'welcome' && completionAction === 'text_personally') {
+      try {
+        await db
+          .collection('agents')
+          .doc(agentId)
+          .update({
+            'onboarding.requiredMilestones.firstWelcomeSent': true,
+          });
+        console.log('[welcome-action-item] marked firstWelcomeSent', { agentId, itemId });
+      } catch (markErr) {
+        // Non-blocking — completion succeeded even if milestone mark
+        // failed. Onboarding overlay will catch up on next refresh.
+        console.warn('[welcome-action-item] firstWelcomeSent mark failed (non-blocking)', {
+          agentId,
+          error: markErr instanceof Error ? markErr.message : String(markErr),
+        });
+      }
+    }
+
     return NextResponse.json({ success: true, doc: result.doc });
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);

@@ -80,7 +80,7 @@ function detectPlatform(): Platform {
 }
 
 interface PlatformInstructionsProps {
-  stepId: 'pwaInstall' | 'webPushPermission';
+  stepId: 'pwaInstall' | 'webPushPermission' | 'firstClient' | 'firstWelcome';
 }
 
 export default function PlatformInstructions({ stepId }: PlatformInstructionsProps) {
@@ -102,10 +102,10 @@ export default function PlatformInstructions({ stepId }: PlatformInstructionsPro
 
   if (platform === 'unknown') return null;
 
-  if (stepId === 'pwaInstall') {
-    return <InstallBlock platform={platform} />;
-  }
-  return <WebPushBlock platform={platform} />;
+  if (stepId === 'pwaInstall') return <InstallBlock platform={platform} />;
+  if (stepId === 'webPushPermission') return <WebPushBlock platform={platform} />;
+  if (stepId === 'firstClient') return <FirstClientBlock platform={platform} />;
+  return <FirstWelcomeBlock platform={platform} />;
 }
 
 function InstallBlock({ platform }: { platform: Platform }) {
@@ -140,6 +140,97 @@ function WebPushBlock({ platform }: { platform: Platform }) {
   }
   return (
     <VideoLink url={LOOM_URLS.enableNotifications} label="Watch how to allow notifications (30s)" />
+  );
+}
+
+function FirstClientBlock({ platform }: { platform: Platform }) {
+  // The agent just finished phone setup (install + push). They need
+  // to switch back to the laptop to add a client. Adding a client
+  // triggers the welcome flow — that's the trigger event we want
+  // them to experience for real.
+  if (platform === 'ios-standalone' || platform === 'android-chrome' || platform === 'android-other') {
+    return <DeviceSwitchBlock direction="laptop" />;
+  }
+  if (platform === 'ios-safari') {
+    return (
+      <WarnBlock>
+        Looks like you&apos;re in Safari, not the installed AFL app. Either go back to your laptop and use the dashboard there (recommended), or open AFL from your home screen icon and add the client from there.
+      </WarnBlock>
+    );
+  }
+  // Desktop — they're already in the right place.
+  return (
+    <NoteBlock>
+      You&apos;re right where you need to be. Tap the <strong>Open Clients</strong> button below, then tap <strong>Add Client</strong> in the top right of the Clients page. Just one client — that triggers the welcome flow we just set up.
+    </NoteBlock>
+  );
+}
+
+function FirstWelcomeBlock({ platform }: { platform: Platform }) {
+  // The welcome action item was queued the moment they added the
+  // client. Web Push notification fired (assuming they're set up).
+  // Now they need to send from their phone — this is the moment of
+  // truth for the new welcome flow.
+  if (platform === 'ios-standalone' || platform === 'android-chrome' || platform === 'android-other') {
+    return (
+      <NoteBlock>
+        You&apos;re in the AFL app on your phone — perfect. Tap <strong>Welcomes</strong> in the bottom navigation, find the welcome card for the client you just added, then tap <strong>Send from my phone</strong>. iMessage will pop up with the message pre-filled. Send it.
+      </NoteBlock>
+    );
+  }
+  if (platform === 'ios-safari') {
+    return (
+      <WarnBlock>
+        You&apos;re in Safari, not the installed AFL app. Open AFL from your home screen icon — the welcome card is waiting for you in the Welcomes tab.
+      </WarnBlock>
+    );
+  }
+  // Desktop — they need to switch to phone.
+  return <DeviceSwitchBlock direction="phone" />;
+}
+
+function DeviceSwitchBlock({ direction }: { direction: 'laptop' | 'phone' }) {
+  if (direction === 'laptop') {
+    return (
+      <div className="mt-3 rounded-lg border-2 border-[#0D4D4D] bg-[#fff8e8] px-3 py-3 text-[12px] text-[#0D4D4D] leading-snug">
+        <div className="flex items-center gap-2 mb-2">
+          <svg className="w-5 h-5 shrink-0" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 6h16v9H4z M2 17h20v2H2z" />
+          </svg>
+          <p className="font-bold uppercase tracking-wide text-[12px]">Switch back to your laptop</p>
+        </div>
+        <p>
+          Adding clients happens on the laptop dashboard — that&apos;s where you&apos;ll do most of your AFL work.
+        </p>
+        <p className="mt-2">
+          Open AFL on your laptop (the same browser tab you were just in). Tap Clients then Add Client. Just one to get started — that triggers the welcome flow we just set up on your phone.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-3 rounded-lg border-2 border-[#0D4D4D] bg-[#fff8e8] px-3 py-3 text-[12px] text-[#0D4D4D] leading-snug">
+      <div className="flex items-center gap-2 mb-2">
+        <svg className="w-5 h-5 shrink-0" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M7 2h10a2 2 0 012 2v16a2 2 0 01-2 2H7a2 2 0 01-2-2V4a2 2 0 012-2zm5 17a1 1 0 100-2 1 1 0 000 2z" />
+        </svg>
+        <p className="font-bold uppercase tracking-wide text-[12px]">Now grab your phone</p>
+      </div>
+      <p>
+        Your phone should have buzzed with a notification right after you added that client.
+      </p>
+      <p className="mt-2">
+        Open AFL on your phone (tap the home screen icon). Tap <strong>Welcomes</strong> in the bottom nav. You&apos;ll see a card for the client you just added — tap <strong>Send from my phone</strong> and iMessage opens with the welcome pre-filled. Send it.
+      </p>
+    </div>
+  );
+}
+
+function NoteBlock({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mt-3 rounded-lg border border-[#3DD6C3] bg-[#f6fffd] px-3 py-2.5 text-[12px] text-[#0D4D4D] leading-snug">
+      {children}
+    </div>
   );
 }
 
