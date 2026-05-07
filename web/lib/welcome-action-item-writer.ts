@@ -100,7 +100,7 @@ export function buildPhase1WelcomeBody(params: {
     + `1. Download: ${APP_DOWNLOAD_URL}\n`
     + `2. Log in with code ${params.clientCode}\n`
     + '3. Tap Activate, then tap Send\n\n'
-    + 'Done – explore your personalized app and receive important updates.'
+    + 'Done – allow notifications when prompted so I can reach you with important updates.'
   );
 }
 

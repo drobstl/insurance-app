@@ -46,7 +46,7 @@ export function buildWelcomeMessage(params: {
     + `1. Download: ${params.appUrl}\n`
     + `2. Log in with code ${params.code}\n`
     + '3. Tap Activate, then tap Send\n\n'
-    + 'Done – explore your personalized app and receive important updates.'
+    + 'Done – allow notifications when prompted so I can reach you with important updates.'
   );
 }
 

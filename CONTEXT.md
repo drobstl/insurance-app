@@ -142,7 +142,9 @@ This is the single most consequential mechanism in the operating model.
   > 2. Log in with code {code}
   > 3. Tap Activate, then tap Send
   >
-  > Done – explore your personalized app and receive important updates.
+  > Done – allow notifications when prompted so I can reach you with important updates.
+
+  The closing line was tightened May 7 (afternoon) to make the notification ask explicit and tie "important updates" to the actual delivery mechanism. The agent ALSO verbally reminds the client about notifications on the live call, and the Activate screen reinforces the ask in-app. Three reinforcements is intentional — push permission is the gating signal for anniversary / holiday / birthday lanes per CONTEXT.md > Channel Rules > Per-lane channel matrix (silently end without push), so a client who declines the prompt loses material lane coverage.
 
   Source of truth: `DEFAULT_WELCOME_SMS_TEMPLATE` in `web/app/dashboard/clients/page.tsx`, `buildWelcomeMessage` (English branch) in `web/lib/client-language.ts`, `buildPhase1WelcomeBody` (English branch) in `web/lib/welcome-action-item-writer.ts`. All three are kept in sync. Agents can override per-agent via Settings → Client Welcome Text. Spanish copy still uses the v3.1 paragraph form pending re-translation (see Open Questions). Mode 2 (bulk import drip) will get its own copy + ≥3 variants per v3.1 §7 when bulk import re-enables in Phase 2 (see Open Questions).
 - **Step 2 — Client taps Activate in the app.** The Activate button uses the `sms:` URL scheme to compose a pre-filled text **from the client to the Linq line** (e.g., *"Hi [Agent], it's [Client] — I'm set up on the app!"*). The client initiates the Linq-side conversation themselves.
