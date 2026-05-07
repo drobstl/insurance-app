@@ -75,8 +75,16 @@ const MAINTENANCE_ALLOWLIST: readonly string[] = [
   // The PWA install + Web Push subscribe round-trip needs these
   // routes available even during maintenance — without them the
   // onboarding flow can't progress past the install / push gates.
+  // (Now optional after the May 7, 2026 welcome flow amendment, but
+  // kept allowlisted so opt-in upsell still works.)
   '/api/agent/web-push/subscribe',
   '/api/agent/web-push/unsubscribe',
+  // Mode 1 inline welcome compose surface (May 7, 2026 amendment §4.1)
+  // calls these from the dashboard create-client flow when the agent
+  // taps Send via iMessage / Copy welcome text. Without them, every
+  // welcome sent during the maintenance window would leave the action
+  // item permanently `pending` (and `firstWelcomeSent` unstamped).
+  '/api/agent/action-items/',
 ];
 
 /**

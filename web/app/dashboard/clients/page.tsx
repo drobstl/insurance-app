@@ -73,6 +73,78 @@ const BULK_IMPORT_SPLIT_TYPE_MESSAGE =
 const BULK_ENCRYPTED_PDF_UNSUPPORTED_MESSAGE =
   'This PDF is encrypted/password-protected. Remove protection or upload one at a time with +Add Client one page back.';
 const BULK_IMPORT_FUN_STATES = ['Processing your import...', 'Preparing client records...', 'Finalizing import data...'] as const;
+
+// Welcome flow Mode 1 inline compose surface — platform detection
+// helpers (per docs/AFL_Welcome_Flow_Amendment_2026-05-07.md §4.1).
+// We can detect the desktop OS but not the paired phone. The compose
+// surface always shows Copy alongside Send so the (~10–20%) of agents
+// on Mac+Android, Dell+iPhone, etc. have a working escape hatch
+// without us needing a setup question during onboarding.
+type AgentPlatform = 'mac' | 'windows' | 'ios' | 'android' | 'linux' | 'chromeos' | 'unknown';
+
+function detectAgentPlatform(): AgentPlatform {
+  if (typeof navigator === 'undefined') return 'unknown';
+  const ua = navigator.userAgent || '';
+  // Mobile UA strings can contain desktop hints — check mobile first.
+  if (/iPad|iPhone|iPod/.test(ua) && !/Windows/.test(ua)) return 'ios';
+  // iPadOS 13+ identifies as MacIntel; sniff the touch hint.
+  if (/Macintosh/.test(ua) && typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 1) return 'ios';
+  if (/Android/.test(ua)) return 'android';
+  if (/CrOS/.test(ua)) return 'chromeos';
+  if (/Mac OS X|Macintosh/.test(ua)) return 'mac';
+  if (/Windows/.test(ua)) return 'windows';
+  if (/Linux/.test(ua)) return 'linux';
+  return 'unknown';
+}
+
+function buildSmsUrlForPlatform(phone: string, body: string, platform: AgentPlatform): string {
+  // iOS / macOS canonical form uses `&body=`; Android / Phone Link
+  // canonical form uses `?body=`. macOS Continuity routes through the
+  // paired iPhone so we use the iOS form there.
+  const phoneClean = phone.trim();
+  const bodyEncoded = encodeURIComponent(body);
+  const useAmp = platform === 'ios' || platform === 'mac';
+  const separator = useAmp ? '&' : '?';
+  return `sms:${phoneClean}${separator}body=${bodyEncoded}`;
+}
+
+function platformSupportsInlineSend(platform: AgentPlatform): boolean {
+  // Linux + ChromeOS have no reliable `sms:` handler. 'unknown' is
+  // also treated as unsupported so we fail safe rather than firing a
+  // URL that does nothing.
+  return platform === 'mac'
+    || platform === 'windows'
+    || platform === 'ios'
+    || platform === 'android';
+}
+
+function getSendButtonLabel(platform: AgentPlatform): string {
+  switch (platform) {
+    case 'mac': return 'Send via iMessage';
+    case 'windows': return 'Send via Messages';
+    case 'ios':
+    case 'android': return 'Open Messages';
+    default: return 'Send welcome text';
+  }
+}
+
+function getSendCaption(platform: AgentPlatform): string {
+  switch (platform) {
+    case 'mac':
+      return 'Send opens iMessage on your Mac (routes through your iPhone via Continuity). If nothing happens, tap Copy and paste into Messages on your phone.';
+    case 'windows':
+      return 'Send opens your default messaging app (Phone Link if paired with Android). If nothing happens, tap Copy and paste into Messages on your phone.';
+    case 'ios':
+    case 'android':
+      return 'Send opens Messages with everything pre-filled.';
+    case 'linux':
+    case 'chromeos':
+    case 'unknown':
+    default:
+      return 'Tap Copy welcome text, then paste it into Messages on your phone.';
+  }
+}
+
 const DEFAULT_WELCOME_SMS_TEMPLATE =
   'Hey {{firstName}}! {{agentName}} here. Download the AgentForLife app and use code {{code}} to connect with me. https://agentforlife.app/app';
 const DEFAULT_INTRO_TEMPLATE =
@@ -865,6 +937,11 @@ export default function ClientsPage() {
   const [welcomeDraft, setWelcomeDraft] = useState('');
   const [welcomeSending, setWelcomeSending] = useState(false);
   const [welcomeError, setWelcomeError] = useState('');
+  // Mode 1 inline compose surface state — see
+  // docs/AFL_Welcome_Flow_Amendment_2026-05-07.md §4.1.
+  const [welcomeActionItemId, setWelcomeActionItemId] = useState<string | null>(null);
+  const [welcomeCopied, setWelcomeCopied] = useState(false);
+  const [agentPlatform, setAgentPlatform] = useState<AgentPlatform>('unknown');
   const [createdClientContext, setCreatedClientContext] = useState<{
     id: string;
     name: string;
@@ -1562,6 +1639,8 @@ export default function ClientsPage() {
     setWelcomeDraft('');
     setWelcomeError('');
     setWelcomeSending(false);
+    setWelcomeActionItemId(null);
+    setWelcomeCopied(false);
   }, []);
 
   const handleStartAddFlow = useCallback(() => {
@@ -1611,8 +1690,8 @@ export default function ClientsPage() {
   // the agent later edits the client profile in a way that changes name
   // or code, refresh in place. Server-side route is idempotent on
   // `welcome:{clientId}` and no-ops on completed/expired items.
-  const queueWelcomeActionItem = useCallback(async (clientId: string): Promise<void> => {
-    if (!user || !clientId) return;
+  const queueWelcomeActionItem = useCallback(async (clientId: string): Promise<string | null> => {
+    if (!user || !clientId) return null;
     try {
       const token = await user.getIdToken();
       const res = await fetch('/api/agent/action-items/welcome/queue', {
@@ -1623,7 +1702,7 @@ export default function ClientsPage() {
       if (!res.ok) {
         const text = await res.text().catch(() => '');
         console.error('[welcome-action-item] queue request failed', { clientId, status: res.status, text });
-        return;
+        return null;
       }
       const json = await res.json().catch(() => null) as
         | { itemId?: string; outcome?: string; created?: boolean }
@@ -1636,8 +1715,10 @@ export default function ClientsPage() {
           days_until_expiry: 30,
         });
       }
+      return json?.itemId ?? null;
     } catch (err) {
       console.error('[welcome-action-item] queue failed (non-blocking):', err);
+      return null;
     }
   }, [user]);
 
@@ -1961,12 +2042,18 @@ export default function ClientsPage() {
       setCreatedClientContext({ id: created.id, name: created.name, phone: created.phone });
       setWelcomeDraft(buildWelcomeSms(firstName, created.code, formData.preferredLanguage));
       setWelcomeError('');
+      setWelcomeActionItemId(null);
+      setWelcomeCopied(false);
       setAddFlowStage('welcome');
-      // Phase 1 Track B: queue the welcome action item server-side. This
-      // is the locked Daniel Q1 trigger ("the 'create profile' UI action
-      // is the trigger"). Fire-and-forget — failures must not block the
-      // legacy welcome stage rendering until Commit 6's cutover lands.
-      void queueWelcomeActionItem(created.id);
+      // Queue the welcome action item server-side and capture the
+      // itemId so the inline compose surface can mark it complete on
+      // Send / Copy. Trigger is the 'create profile' UI action per
+      // Daniel's locked Q1; non-blocking so the compose surface
+      // renders immediately. If the queue fails the action item just
+      // never gets marked complete — agent has already sent the text.
+      queueWelcomeActionItem(created.id).then((itemId) => {
+        setWelcomeActionItemId(itemId);
+      });
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to save client. Please try again.');
     } finally {
@@ -1996,12 +2083,17 @@ export default function ClientsPage() {
       setCreatedClientContext({ id: created.id, name: created.name, phone: created.phone });
       setWelcomeDraft(buildWelcomeSms(firstName, created.code, formData.preferredLanguage));
       setWelcomeError('');
+      setWelcomeActionItemId(null);
+      setWelcomeCopied(false);
       setAddFlowStage('welcome');
-      // Phase 1 Track B: queue the welcome action item server-side.
-      // Same trigger as manual create — Daniel's locked Q1 says the
-      // 'create profile' UI action is the welcome trigger, regardless of
-      // whether profile data came from manual entry or PDF extraction.
-      void queueWelcomeActionItem(created.id);
+      // Queue the welcome action item server-side and capture the
+      // itemId so the inline compose surface can mark it complete.
+      // Same trigger as manual create — Daniel's locked Q1: the
+      // 'create profile' UI action is the welcome trigger regardless
+      // of whether profile data came from manual entry or extraction.
+      queueWelcomeActionItem(created.id).then((itemId) => {
+        setWelcomeActionItemId(itemId);
+      });
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to save client. Please try again.');
     } finally {
@@ -2048,6 +2140,87 @@ export default function ClientsPage() {
       setWelcomeSending(false);
     }
   }, [user, createdClientContext, welcomeDraft, welcomeSending, handleSkipWelcome, finishAddFlow, markOnboardingMilestone]);
+
+  // ─── Mode 1 inline compose surface ───────────────────────────
+  // docs/AFL_Welcome_Flow_Amendment_2026-05-07.md §4.1.
+
+  const completeWelcomeActionItem = useCallback(async (note: string | null) => {
+    if (!user || !welcomeActionItemId) return;
+    try {
+      const token = await user.getIdToken();
+      await fetch(`/api/agent/action-items/${welcomeActionItemId}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          completionAction: 'text_personally',
+          completionNote: note,
+        }),
+      });
+    } catch (err) {
+      // Non-blocking — completion failing doesn't undo the agent's
+      // actual send. The action item just stays pending and they can
+      // mark it from /dashboard/welcomes if they care.
+      console.error('[welcome-action-item] complete failed (non-blocking):', err);
+    }
+  }, [user, welcomeActionItemId]);
+
+  const handleSendWelcomeViaSms = useCallback(() => {
+    if (!createdClientContext?.phone || !welcomeDraft) {
+      handleSkipWelcome();
+      return;
+    }
+    const url = buildSmsUrlForPlatform(createdClientContext.phone, welcomeDraft, agentPlatform);
+    // Fire the sms: URL. window.location.href is the safest way —
+    // window.open() can be blocked on iOS; <a href="sms:"> needs a
+    // gesture-bound click which we already have.
+    if (typeof window !== 'undefined') {
+      window.location.href = url;
+    }
+    // Trust the agent followed through. The complete API also stamps
+    // firstWelcomeSent on the agent doc server-side, but we mark it
+    // locally too for snappier dashboard feedback.
+    void completeWelcomeActionItem(null);
+    void markOnboardingMilestone('firstWelcomeSent');
+    // Small delay so the sms: handler has time to fire before the
+    // surface unmounts; otherwise some browsers cancel the navigation.
+    setTimeout(() => {
+      finishAddFlow(`${createdClientContext.name} added — welcome sent.`, true);
+    }, 75);
+  }, [
+    createdClientContext,
+    welcomeDraft,
+    agentPlatform,
+    completeWelcomeActionItem,
+    markOnboardingMilestone,
+    finishAddFlow,
+    handleSkipWelcome,
+  ]);
+
+  const handleCopyWelcomeText = useCallback(async () => {
+    if (!welcomeDraft || !createdClientContext) return;
+    setWelcomeError('');
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(welcomeDraft);
+      } else {
+        throw new Error('clipboard_unavailable');
+      }
+      setWelcomeCopied(true);
+      void completeWelcomeActionItem('Sent via copy-paste fallback.');
+      void markOnboardingMilestone('firstWelcomeSent');
+    } catch {
+      setWelcomeError('Could not copy automatically. Long-press the message above and copy it manually.');
+    }
+  }, [
+    welcomeDraft,
+    createdClientContext,
+    completeWelcomeActionItem,
+    markOnboardingMilestone,
+  ]);
+
+  useEffect(() => {
+    setAgentPlatform(detectAgentPlatform());
+  }, []);
 
   const handleDeleteClient = useCallback(async () => {
     if (!user || !deleteConfirmClient) return;
@@ -5417,55 +5590,95 @@ export default function ClientsPage() {
           >
             {/*
               ═══════════════════════════════════════════════════════
-              PHASE 1 TRACK B CUTOVER (May 5, 2026)
+              MODE 1 INLINE WELCOME COMPOSE SURFACE (May 7, 2026)
               ═══════════════════════════════════════════════════════
-              The legacy "Send Welcome Text" UI in this stage previously
-              POSTed to /api/client/welcome-sms (Linq pooled-line outbound)
-              and is now DEPRECATED in favor of the welcome action item
-              queue surface at /dashboard/welcomes. The action item is
-              already queued by `handleManualCreateAndContinue` /
-              `handleReviewConfirmAndCreate` (see `queueWelcomeActionItem`
-              call sites). This stage's body now shows a confirmation
-              and routes the agent to the queue.
+              Per docs/AFL_Welcome_Flow_Amendment_2026-05-07.md §4.1.
+              Replaces the May 5 "Welcome queued / View queue" cutover
+              surface. The agent is on a live phone call with the new
+              client; this surface lets them send the welcome inline
+              from their workstation in 1–2 taps.
 
-              DEPRECATED, NOT DELETED — per Daniel's locked Q9 cutover
-              decision. The legacy state vars (`welcomeDraft`,
-              `welcomeSending`, `welcomeError`) and helpers
-              (`handleSendWelcome`, `handleSkipWelcome`,
-              `buildWelcomeSms`) are intentionally retained so a
-              one-line UI revert can re-enable the legacy path if a
-              critical Phase 1 bug surfaces. Deletion is a separate
-              commit at least 30 days post-cutover.
+              Device-aware primary Send button uses the platform-
+              canonical `sms:` URL form (iOS `&body=`, Android
+              `?body=`); always-visible Copy fallback covers Mac+
+              Android, Dell+iPhone, Linux, ChromeOS, etc. Skip leaves
+              the action item `pending` so /dashboard/welcomes still
+              works as the recovery surface.
+
+              The legacy `handleSendWelcome` (POST /api/client/welcome-
+              sms) remains in the file as deprecated dead code per the
+              May 5 cutover comment — this surface no longer calls it.
               ═══════════════════════════════════════════════════════
             */}
             <div className={addFlowSurfaceShellClass}>
               <div className={incomingSurfaceHeaderClass}>
                 <div>
-                  <h3 className="text-xl font-bold text-[#000000]">Welcome queued</h3>
+                  <h3 className="text-xl font-bold text-[#000000]">
+                    Send welcome to {createdClientContext?.name?.split(' ')[0] || 'your client'}
+                  </h3>
                   <p className="text-xs text-[#707070] mt-0.5">Step 2 of 2</p>
                 </div>
-                <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#d0d0d0]" /><span className="h-2.5 w-2.5 rounded-full bg-[#45bcaa]" /></div>
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#d0d0d0]" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#45bcaa]" />
+                </div>
               </div>
               <div className="p-6 space-y-4" data-onboarding-target="clients-send-welcome">
-                <p className="text-sm text-[#444]"><span className="font-semibold">Client:</span> {createdClientContext?.name || '—'}<br /><span className="font-semibold">Phone:</span> {createdClientContext?.phone || '—'}</p>
-                <div className="rounded-lg border border-[#3DD6C3]/40 bg-[#f6fffd] px-3 py-3">
-                  <p className="text-sm font-semibold text-[#0D4D4D]">Welcome added to your queue.</p>
-                  <p className="mt-1 text-[12px] text-[#4f4f4f] leading-snug">
-                    We notify you on your phone when it&apos;s ready. Open AFL on your phone and tap
-                    <span className="font-semibold text-[#0D4D4D]"> Send from my phone</span> to text the welcome from your number.
+                <p className="text-sm text-[#444]">
+                  <span className="font-semibold">Client:</span> {createdClientContext?.name || '—'}
+                  <br />
+                  <span className="font-semibold">Phone:</span> {createdClientContext?.phone || '—'}
+                </p>
+
+                <div className="rounded-lg border border-[#e3e3e3] bg-[#fafafa] px-3 py-3">
+                  <p className="text-[10px] uppercase tracking-wide font-semibold text-[#727272] mb-1.5">
+                    Welcome message (pre-filled)
+                  </p>
+                  <p className="text-sm text-[#1a1a1a] whitespace-pre-wrap leading-snug">
+                    {welcomeDraft || '—'}
                   </p>
                 </div>
-                <div className="flex gap-3">
-                  <button type="button" onClick={handleSkipWelcome} className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-[5px] border border-gray-200 text-sm">Done</button>
+
+                <div className="flex flex-col gap-2">
+                  {platformSupportsInlineSend(agentPlatform) && (
+                    <button
+                      type="button"
+                      onClick={handleSendWelcomeViaSms}
+                      disabled={!createdClientContext?.phone || !welcomeDraft}
+                      className="w-full py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-[#a8d4cd] disabled:cursor-not-allowed text-white font-semibold rounded-[5px] text-sm transition-colors"
+                    >
+                      {getSendButtonLabel(agentPlatform)}
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => {
-                      handleSkipWelcome();
-                      router.push('/dashboard/welcomes');
-                    }}
-                    className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] text-sm"
+                    onClick={() => { void handleCopyWelcomeText(); }}
+                    disabled={!welcomeDraft}
+                    className={`w-full py-2.5 px-4 font-semibold rounded-[5px] text-sm transition-colors border ${
+                      platformSupportsInlineSend(agentPlatform)
+                        ? 'bg-white hover:bg-gray-50 text-[#0D4D4D] border-[#d0d0d0]'
+                        : 'bg-[#44bbaa] hover:bg-[#005751] text-white border-transparent'
+                    } disabled:opacity-60 disabled:cursor-not-allowed`}
                   >
-                    View queue
+                    {welcomeCopied ? 'Copied! Paste into Messages on your phone.' : 'Copy welcome text'}
+                  </button>
+                </div>
+
+                <p className="text-[11px] text-[#727272] leading-snug">
+                  {getSendCaption(agentPlatform)}
+                </p>
+
+                {welcomeError && (
+                  <p className="text-[12px] text-[#b42318] font-semibold">{welcomeError}</p>
+                )}
+
+                <div className="text-center pt-1">
+                  <button
+                    type="button"
+                    onClick={handleSkipWelcome}
+                    className="text-[12px] text-[#727272] hover:text-[#0D4D4D] underline underline-offset-2 transition-colors"
+                  >
+                    Skip — send later from /dashboard/welcomes
                   </button>
                 </div>
               </div>
