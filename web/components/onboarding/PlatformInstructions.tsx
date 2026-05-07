@@ -206,9 +206,9 @@ function DesktopSwitchBlock() {
 
   return (
     <div className="mt-3 rounded-lg border-2 border-[#0D4D4D] bg-[#f6fffd] px-3 py-3 text-[12px] text-[#2d3748] leading-snug">
-      <p className="font-bold text-[#0D4D4D] mb-2">You&apos;ll keep using AFL right here on your laptop.</p>
+      <p className="font-bold text-[#0D4D4D] mb-2">Get AFL on your phone too.</p>
       <p className="mb-2">
-        This step is just for getting AFL set up on your <strong>phone</strong> too — so the welcome text to new clients can go from your personal number with one tap.
+        AFL works on both your laptop and your phone. We recommend the laptop for most of your day-to-day work, but the welcome text to new clients goes from your phone — so you need AFL installed there too.
       </p>
       <p className="mb-2">
         On your phone, open this URL in Safari (iPhone) or Chrome (Android):

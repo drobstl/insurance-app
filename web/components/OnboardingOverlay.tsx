@@ -207,7 +207,7 @@ const STEPS: OnboardingStep[] = [
   {
     id: 'welcome',
     title: 'Welcome to AgentForLife',
-    description: "Six quick steps. Most of AFL works best right here on your laptop — that's where you'll spend almost all your time. But sending the welcome text to a new client comes from your personal phone (one tap, your number, real human), so we'll get that piece set up too. About 5 minutes.",
+    description: "Six quick steps. AFL works on both your laptop and your phone — we recommend the laptop for most of your day-to-day work. The phone is where you'll send welcome texts to new clients, so we'll get both set up. About 5 minutes.",
     buttonLabel: 'Start Setup',
   },
   {
@@ -226,15 +226,15 @@ const STEPS: OnboardingStep[] = [
   // notified when a welcome is queued.
   {
     id: 'pwaInstall',
-    title: 'Install AFL on your phone (for welcome texts)',
-    description: 'You\'ll keep doing most of your AFL work right here on your laptop. The phone install is just for one job: when you have a new client to welcome, you\'ll grab your phone, tap one button, and the welcome text goes from your personal number with the app link and login code pre-filled.',
+    title: 'Install AFL on your phone',
+    description: 'The phone app is where you\'ll send welcome texts to new clients — one tap, from your personal number, with the app link and login code pre-filled. You can use AFL on your phone for plenty of other things too, but we recommend doing most of your day-to-day work on your laptop.',
     buttonLabel: 'I installed it',
     milestone: 'pwaInstalled',
   },
   {
     id: 'webPushPermission',
     title: 'Allow notifications on your phone',
-    description: 'When a new client needs a welcome, your phone buzzes — that\'s how you know to grab it and send. Without this you\'d have to keep checking AFL on your phone manually, which defeats the point.',
+    description: 'When a new client needs a welcome, your phone buzzes — that\'s how you know to grab it and send. (You can keep doing most of your other AFL work on your laptop.)',
     buttonLabel: 'Allow notifications',
     milestone: 'webPushGranted',
   },
