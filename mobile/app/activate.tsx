@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   AppState,
   AppStateStatus,
-  ScrollView,
   Platform,
   Animated,
   Easing,
@@ -162,6 +161,16 @@ export default function ActivateScreen() {
   // always lands here with the dialog up (our numbered "Tap Allow"
   // instructions on this screen point at the dialog and are useless
   // if it isn't there).
+  //
+  // CRITICAL: the iOS permission grant and the Expo push token fetch
+  // are TWO separate concerns. `registerForPushNotificationsAsync`
+  // returns null in multiple cases — including when permission IS
+  // granted but the token fetch failed (network blip, project ID
+  // misconfig, simulator). Using its return value to derive permission
+  // status conflates the two and falsely shows "Notifications are off"
+  // when the user actually granted. The OS permission state is the
+  // source of truth — re-check it directly after the prompt regardless
+  // of what the token fetch did.
   useEffect(() => {
     (async () => {
       try {
@@ -177,17 +186,34 @@ export default function ActivateScreen() {
         // 'undetermined' — auto-prompt so the dialog appears now.
         setPushStatus('requesting');
         try {
-          const token = await registerForPushNotificationsAsync();
-          if (token) {
-            const session = await getSession();
-            if (session?.clientCode) {
-              registerAndSavePushToken(session.clientCode).catch(() => {});
-            }
+          await registerForPushNotificationsAsync();
+        } catch (err) {
+          // Token fetch failure is NOT permission denial — see comment
+          // above. Log + fall through to the post-prompt re-check.
+          console.warn('[activate] push token fetch failed', err);
+        }
+        // Re-check the OS permission state after the prompt completes.
+        try {
+          const { status: postStatus } = await Notifications.getPermissionsAsync();
+          if (postStatus === 'granted') {
             setPushStatus('enabled');
+            // Best-effort token save now that we know permission is
+            // granted. If the token registered above this is a no-op;
+            // if it didn't, this gives it a second chance.
+            try {
+              const session = await getSession();
+              if (session?.clientCode) {
+                registerAndSavePushToken(session.clientCode).catch(() => {});
+              }
+            } catch {
+              // Session lookup failed — non-blocking.
+            }
           } else {
             setPushStatus('denied');
           }
         } catch {
+          // getPermissionsAsync threw post-prompt — unusual but treat
+          // as denied so the UI fails closed.
           setPushStatus('denied');
         }
       } catch {
@@ -342,74 +368,74 @@ export default function ActivateScreen() {
 
         <View style={styles.contentSection}>
           <SafeAreaView style={styles.formSafeArea}>
-            <ScrollView
-              style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
-              bounces={false}
-            >
-              <Text style={styles.bodyHeading}>
-                Connect with {agentFirstName}
-              </Text>
-              <Text style={styles.bodyText}>
-                Tap Activate to text {agentFirstName}&apos;s office line
-                {linqLineDisplay ? ` at ${linqLineDisplay}` : ''}. That&apos;s how you get
-                policy reminders, annual review scheduling, and policy info updates
-                right in the app.
+            <View style={styles.layoutColumn}>
+              {/* Single short body line at the top of white area. */}
+              <Text style={styles.topLine}>
+                Tap Activate to text {agentFirstName}
+                {linqLineDisplay ? ` at ${linqLineDisplay}` : '’s office line'}.
               </Text>
 
-              {showStepOne ? (
+              {/* Flex spacer absorbs the middle zone where the iOS
+                  permission dialog appears. The steps + Activate
+                  button below sit in the lower portion of the white
+                  area, BELOW where the dialog ends. */}
+              <View style={styles.flexSpacer} />
+
+              <View style={styles.stepsBlock}>
+                {showStepOne ? (
+                  <View style={styles.stepRow}>
+                    <Text style={styles.stepNumber}>1.</Text>
+                    <Text style={styles.stepText}>
+                      Tap <Text style={styles.stepEmphasis}>&ldquo;Allow&rdquo;</Text>
+                    </Text>
+                    <Text style={styles.stepArrowUp}>⤴</Text>
+                  </View>
+                ) : pushStatus === 'denied' ? (
+                  <View style={styles.deniedRow}>
+                    <Text style={styles.deniedText}>
+                      Notifications are off. You can enable them later in your phone&apos;s Settings.
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.deniedSettingsLink}
+                      onPress={() => Linking.openSettings().catch(() => {})}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.deniedSettingsLinkText}>Open Settings</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.enabledRow}>
+                    <Text style={styles.enabledText}>Notifications are on ✓</Text>
+                  </View>
+                )}
+
                 <View style={styles.stepRow}>
-                  <Text style={styles.stepNumber}>1.</Text>
+                  <Text style={styles.stepNumber}>{showStepOne ? '2.' : '1.'}</Text>
                   <Text style={styles.stepText}>
-                    Tap <Text style={styles.stepEmphasis}>&ldquo;Allow&rdquo;</Text> on the popup
+                    Then tap <Text style={styles.stepEmphasis}>Activate</Text>
                   </Text>
-                  <Text style={styles.stepArrowUp}>↑</Text>
+                  <Text style={styles.stepArrowDown}>⤵</Text>
                 </View>
-              ) : pushStatus === 'denied' ? (
-                <View style={styles.deniedRow}>
-                  <Text style={styles.deniedText}>
-                    Notifications are off. You can enable them later in your phone&apos;s Settings.
-                  </Text>
+
+                <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
                   <TouchableOpacity
-                    style={styles.deniedSettingsLink}
-                    onPress={() => Linking.openSettings().catch(() => {})}
-                    activeOpacity={0.7}
+                    style={[styles.activateButton, activating && styles.buttonDisabled]}
+                    onPress={handleActivate}
+                    disabled={activating}
+                    activeOpacity={0.85}
                   >
-                    <Text style={styles.deniedSettingsLinkText}>Open Settings</Text>
+                    {activating ? (
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                    ) : (
+                      <Text style={styles.activateButtonText}>Activate</Text>
+                    )}
                   </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.enabledRow}>
-                  <Text style={styles.enabledText}>Notifications are on ✓</Text>
-                </View>
-              )}
-
-              <View style={styles.stepRow}>
-                <Text style={styles.stepNumber}>{showStepOne ? '2.' : '1.'}</Text>
-                <Text style={styles.stepText}>
-                  Then tap <Text style={styles.stepEmphasis}>Activate</Text> below
+                </Animated.View>
+                <Text style={styles.activateHint}>
+                  Opens Messages with your hello pre-written — just tap Send.
                 </Text>
-                <Text style={styles.stepArrowDown}>↓</Text>
               </View>
-
-              <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                <TouchableOpacity
-                  style={[styles.activateButton, activating && styles.buttonDisabled]}
-                  onPress={handleActivate}
-                  disabled={activating}
-                  activeOpacity={0.85}
-                >
-                  {activating ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                  ) : (
-                    <Text style={styles.activateButtonText}>Activate</Text>
-                  )}
-                </TouchableOpacity>
-              </Animated.View>
-              <Text style={styles.activateHint}>
-                Opens Messages with your hello pre-written — just tap Send.
-              </Text>
-            </ScrollView>
+            </View>
           </SafeAreaView>
         </View>
       </View>
@@ -475,41 +501,42 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  scrollView: {
+  layoutColumn: {
     flex: 1,
-  },
-  scrollContent: {
     paddingHorizontal: 28,
-    paddingTop: 28,
-    paddingBottom: 32,
+    paddingTop: 24,
+    paddingBottom: 24,
   },
-  bodyHeading: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#0D4D4D',
-    marginBottom: 12,
-  },
-  bodyText: {
+  topLine: {
     fontSize: 15,
     color: '#2D3748',
     lineHeight: 22,
-    marginBottom: 12,
+    fontWeight: '500',
+  },
+  flexSpacer: {
+    flex: 1,
+    minHeight: 80,
+  },
+  stepsBlock: {
+    // Anchored to the bottom of layoutColumn via the flexSpacer above.
+    // Steps + Activate button + hint sit as a tight group below where
+    // the iOS permission dialog ends.
   },
   stepRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 14,
+    marginBottom: 12,
     paddingHorizontal: 4,
   },
   stepNumber: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '800',
     color: '#0D4D4D',
-    marginRight: 10,
-    minWidth: 22,
+    marginRight: 12,
+    minWidth: 26,
   },
   stepText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#0D4D4D',
     flex: 1,
@@ -519,16 +546,18 @@ const styles = StyleSheet.create({
     color: '#0D4D4D',
   },
   stepArrowUp: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#92400E',
+    fontSize: 38,
+    fontWeight: '900',
+    color: '#B45309',
     marginLeft: 8,
+    lineHeight: 44,
   },
   stepArrowDown: {
-    fontSize: 24,
-    fontWeight: '800',
+    fontSize: 38,
+    fontWeight: '900',
     color: '#0D4D4D',
     marginLeft: 8,
+    lineHeight: 44,
   },
   enabledRow: {
     marginTop: 14,
