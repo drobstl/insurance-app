@@ -9,8 +9,9 @@ import {
 } from './action-item-store';
 import { resolveClientLanguage, type SupportedLanguage } from './client-language';
 import { upsertThreadFromOutbound } from './conversation-thread-registry';
-import { createChat } from './linq';
+import { createChat, LinqOutboundDisabledError } from './linq';
 import { isValidE164 } from './phone';
+import { ReactivationFenceError } from './reactivation-fence';
 import {
   isWelcomeActivationPlaceholderThreadId,
   welcomeActivationPlaceholderThreadId,
@@ -209,6 +210,7 @@ interface HandleResult {
     | 'no_phone'
     | 'duplicate_skip'
     | 'first_response_failed'
+    | 'first_response_suppressed_by_kill_switch'
     | 'no_vcard_attachment_using_text_only';
   realThreadId?: string;
   vcardAttached?: boolean;
@@ -289,7 +291,23 @@ export async function handleWelcomeActivationInbound(params: {
     });
   }
 
-  let realThreadId: string;
+  // Two failure modes for the first-response send:
+  //   1. Suppressed by kill switch / fence (LinqOutboundDisabledError or
+  //      ReactivationFenceError). The platform is intentionally not
+  //      sending right now. The client's activation IS still real — we
+  //      keep the activation stamps, mark the first-response as
+  //      suppressed for forensics, and fall through to action item
+  //      completion. The vCard MMS reply is the only thing that's lost.
+  //   2. Genuine transient failure (network, Linq 5xx, etc.). Roll back
+  //      the activation claim so a future inbound can retry the whole
+  //      flow cleanly.
+  //
+  // Pre-amendment behavior was to roll back unconditionally, which
+  // contradicted the locked Option D contract (May 7, 2026) where
+  // client activation is the highest-fidelity completion signal —
+  // independent of whether our own outbound reply succeeded.
+  let realThreadId: string | null = null;
+  let suppressedReason: string | null = null;
   try {
     const result = await createChat({
       to: ctx.clientPhoneE164,
@@ -298,69 +316,96 @@ export async function handleWelcomeActivationInbound(params: {
     });
     realThreadId = result.chatId;
   } catch (sendErr) {
-    console.error('[welcome-activation] first response send failed', {
-      agentId: ctx.agentId,
-      clientId: ctx.clientId,
-      error: sendErr instanceof Error ? sendErr.message : String(sendErr),
-    });
-    // Roll back the activation claim so a future inbound can retry. We
-    // intentionally clear ONLY the fields we set in the claim — this
-    // does not erase any earlier state.
-    await clientRef.update({
-      clientActivatedAt: FieldValue.delete(),
-      welcomeActivationInboundAt: FieldValue.delete(),
-      welcomeActivationProviderThreadId: FieldValue.delete(),
-      welcomeActivationMatchedByCodeInBody: FieldValue.delete(),
-    });
-    return { ok: false, outcome: 'first_response_failed' };
+    const isSuppressed =
+      sendErr instanceof LinqOutboundDisabledError ||
+      sendErr instanceof ReactivationFenceError;
+    if (isSuppressed) {
+      suppressedReason = sendErr.name;
+      console.warn(
+        '[welcome-activation] first response suppressed; keeping activation',
+        {
+          agentId: ctx.agentId,
+          clientId: ctx.clientId,
+          reason: sendErr.name,
+        },
+      );
+    } else {
+      console.error('[welcome-activation] first response send failed', {
+        agentId: ctx.agentId,
+        clientId: ctx.clientId,
+        error: sendErr instanceof Error ? sendErr.message : String(sendErr),
+      });
+      // Genuine transient failure: roll back the activation claim so a
+      // future inbound can retry. We intentionally clear ONLY the fields
+      // we set in the claim — this does not erase any earlier state.
+      await clientRef.update({
+        clientActivatedAt: FieldValue.delete(),
+        welcomeActivationInboundAt: FieldValue.delete(),
+        welcomeActivationProviderThreadId: FieldValue.delete(),
+        welcomeActivationMatchedByCodeInBody: FieldValue.delete(),
+      });
+      return { ok: false, outcome: 'first_response_failed' };
+    }
   }
 
-  // Stamp the resolved provider thread id for downstream lookups, and
-  // also note whether the vCard attachment rode along (telemetry).
-  await clientRef.update({
-    welcomeActivationProviderThreadId: realThreadId,
-    welcomeActivationVCardAttached: !!vcardAttachmentId,
+  // Stamp the resolution markers. Different fields depending on whether
+  // we actually sent a first response or were suppressed.
+  const resolutionUpdate: Record<string, unknown> = {
     welcomeActivationFirstResponseAt: FieldValue.serverTimestamp(),
-  });
+    welcomeActivationVCardAttached: realThreadId ? !!vcardAttachmentId : false,
+  };
+  if (realThreadId) {
+    resolutionUpdate.welcomeActivationProviderThreadId = realThreadId;
+  } else {
+    resolutionUpdate.welcomeActivationFirstResponseSuppressed = true;
+    resolutionUpdate.welcomeActivationFirstResponseSuppressedReason = suppressedReason;
+  }
+  await clientRef.update(resolutionUpdate);
 
-  // Upgrade the placeholder thread to the real Linq threadId. The
-  // welcome-activation lane / response purpose lives ONLY for this
-  // first round-trip; the handler for subsequent inbounds (thumbs-up
-  // detection) consumes this thread, then the lane upgrades to
-  // `manual` once thumbs-up is received OR after a short window.
-  await upsertThreadFromOutbound({
-    db,
-    agentId: ctx.agentId,
-    providerThreadId: realThreadId,
-    providerType: 'sms_direct',
-    lane: 'welcome_activation',
-    purpose: 'welcome_activation_response',
-    linkedEntityType: 'client',
-    linkedEntityId: ctx.clientId,
-    participantPhonesE164: [ctx.clientPhoneE164],
-    primaryPersonId: ctx.clientId,
-    allowAutoReply: true,
-    allowedResponder: 'welcome_activation',
-    confidence: 'high',
-    assignmentSource: 'inbound_match',
-  });
+  if (realThreadId) {
+    // Upgrade the placeholder thread to the real Linq threadId. The
+    // welcome-activation lane / response purpose lives ONLY for this
+    // first round-trip; the handler for subsequent inbounds (thumbs-up
+    // detection) consumes this thread, then the lane upgrades to
+    // `manual` once thumbs-up is received OR after a short window.
+    await upsertThreadFromOutbound({
+      db,
+      agentId: ctx.agentId,
+      providerThreadId: realThreadId,
+      providerType: 'sms_direct',
+      lane: 'welcome_activation',
+      purpose: 'welcome_activation_response',
+      linkedEntityType: 'client',
+      linkedEntityId: ctx.clientId,
+      participantPhonesE164: [ctx.clientPhoneE164],
+      primaryPersonId: ctx.clientId,
+      allowAutoReply: true,
+      allowedResponder: 'welcome_activation',
+      confidence: 'high',
+      assignmentSource: 'inbound_match',
+    });
+  }
 
-  // Archive the placeholder so subsequent byPhone resolutions skip it.
-  // The placeholder doc id (`welcome_pending_{clientId}`) is preserved
-  // so we can audit later.
+  // Archive the placeholder so subsequent byPhone resolutions skip it
+  // and route through the regular handlers. When suppressed there is
+  // no real thread to upgrade to; the placeholder is still archived
+  // (with `suppressedReason`) so a second inbound from this client
+  // does not re-enter the activation flow as if it were the first.
+  const placeholderArchive: Record<string, unknown> = {
+    lifecycleStatus: 'archived',
+    updatedAt: new Date().toISOString(),
+  };
+  if (realThreadId) {
+    placeholderArchive.upgradedToProviderThreadId = realThreadId;
+  } else {
+    placeholderArchive.suppressedReason = suppressedReason;
+  }
   await db
     .collection('agents')
     .doc(ctx.agentId)
     .collection('conversationThreads')
     .doc(ctx.placeholderThreadId)
-    .set(
-      {
-        lifecycleStatus: 'archived',
-        upgradedToProviderThreadId: realThreadId,
-        updatedAt: new Date().toISOString(),
-      },
-      { merge: true },
-    );
+    .set(placeholderArchive, { merge: true });
 
   // Auto-complete the welcome action item on client activation per
   // docs/AFL_Welcome_Flow_Amendment_2026-05-07.md Option D (May 7, 2026):
@@ -404,19 +449,31 @@ export async function handleWelcomeActivationInbound(params: {
     });
   }
 
+  const wasSuppressed = realThreadId === null;
+  const vcardAttached = !!vcardAttachmentId && !wasSuppressed;
   console.log('[welcome-activation] activated', {
     agentId: ctx.agentId,
     clientId: ctx.clientId,
     realThreadId,
     matchedByCodeInBody: ctx.matchedByCodeInBody,
-    vcardAttached: !!vcardAttachmentId,
+    vcardAttached,
+    suppressedReason,
   });
+
+  let outcome: HandleResult['outcome'];
+  if (wasSuppressed) {
+    outcome = 'first_response_suppressed_by_kill_switch';
+  } else if (vcardAttachmentId) {
+    outcome = 'sent_first_response';
+  } else {
+    outcome = 'no_vcard_attachment_using_text_only';
+  }
 
   return {
     ok: true,
-    outcome: vcardAttachmentId ? 'sent_first_response' : 'no_vcard_attachment_using_text_only',
-    realThreadId,
-    vcardAttached: !!vcardAttachmentId,
+    outcome,
+    realThreadId: realThreadId ?? undefined,
+    vcardAttached,
   };
 }
 

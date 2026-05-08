@@ -2,6 +2,9 @@ import 'server-only';
 
 import crypto from 'crypto';
 import { normalizePhone } from './phone';
+import { assertNotBeforeFence } from './reactivation-fence';
+
+export { ReactivationFenceError } from './reactivation-fence';
 
 const LINQ_BASE_URL = 'https://api.linqapp.com/api/partner/v3';
 const DEFAULT_MIN_SEND_INTERVAL_MS = 1000;
@@ -9,19 +12,25 @@ const URL_REGEX = /\bhttps?:\/\/[^\s]+/gi;
 const TRAILING_URL_PUNCTUATION_REGEX = /[).,!?:;]+$/;
 
 // ---------------------------------------------------------------------------
-// Outbound kill switch
+// Outbound suppression — two layered gates
 // ---------------------------------------------------------------------------
 //
-// Setting `LINQ_OUTBOUND_DISABLED=true` halts every outbound call into Linq's
-// API at the lib layer. Send-side functions (createChat, sendMessage,
+// Layer 1 — `LINQ_OUTBOUND_DISABLED=true` halts every outbound call into
+// Linq's API at the lib layer. Send-side functions (createChat, sendMessage,
 // sendOrCreateChat, uploadAttachment, shareContactCard) log a structured
 // `[linq:outbound-skipped]` event and throw `LinqOutboundDisabledError`.
 //
+// Layer 2 — `REACTIVATION_FENCE_AT=<ISO timestamp>` refuses every outbound
+// call until the timestamp passes (see `reactivation-fence.ts`). Throws
+// `ReactivationFenceError` BEFORE the kill-switch check so the more
+// specific fence message wins when both are set. Auto-expires when the
+// timestamp passes; no manual unset required.
+//
 // Every existing caller wraps these calls in try/catch and treats failure as
-// "skip and move on" (cron logs error and returns null; webhook handler rolls
-// back the activation claim; UI routes return 500). This means the platform
-// degrades gracefully — no bad chatIds get persisted, and flipping the env
-// var back to `false` (or unsetting) restores normal operation immediately.
+// "skip and move on" (cron logs error and returns null; webhook handler
+// keeps the activation stamp + skips the vCard MMS; UI routes return 500).
+// The platform degrades gracefully — no bad chatIds get persisted, and
+// removing both gates restores normal operation immediately.
 //
 // Inbound webhook handling, signature verification, and typing indicators
 // are intentionally NOT gated — they don't generate SMS traffic on the line.
@@ -283,6 +292,7 @@ export async function createChat(opts: {
   idempotencyKey?: string;
   from?: string;
 }): Promise<CreateChatResult> {
+  assertNotBeforeFence('createChat');
   if (isLinqOutboundDisabled()) {
     logLinqOutboundSkipped({
       fn: 'createChat',
@@ -364,6 +374,7 @@ export async function sendMessage(opts: {
   attachmentIds?: string[];
   idempotencyKey?: string;
 }): Promise<SendMessageResult> {
+  assertNotBeforeFence('sendMessage');
   if (isLinqOutboundDisabled()) {
     logLinqOutboundSkipped({
       fn: 'sendMessage',
@@ -407,6 +418,7 @@ export async function sendOrCreateChat(opts: {
   attachmentIds?: string[];
   idempotencyKey?: string;
 }): Promise<{ chatId: string; messageId: string }> {
+  assertNotBeforeFence('sendOrCreateChat');
   if (isLinqOutboundDisabled()) {
     logLinqOutboundSkipped({
       fn: 'sendOrCreateChat',
@@ -459,6 +471,7 @@ export async function uploadAttachment(opts: {
   sizeBytes: number;
   fileBuffer: Buffer;
 }): Promise<string> {
+  assertNotBeforeFence('uploadAttachment');
   if (isLinqOutboundDisabled()) {
     logLinqOutboundSkipped({
       fn: 'uploadAttachment',
@@ -514,6 +527,7 @@ export async function stopTypingIndicator(chatId: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function shareContactCard(chatId: string): Promise<void> {
+  assertNotBeforeFence('shareContactCard');
   if (isLinqOutboundDisabled()) {
     logLinqOutboundSkipped({ fn: 'shareContactCard', chatId });
     throw new LinqOutboundDisabledError('shareContactCard');
