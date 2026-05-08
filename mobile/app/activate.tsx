@@ -157,13 +157,39 @@ export default function ActivateScreen() {
   const forwardRef = useRef<() => void>(() => {});
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // On mount: check current notification permission state. Don't auto-
-  // request — that's a user gesture step on the explicit button below.
+  // On mount: check current notification permission state. If it's not
+  // yet decided, auto-trigger the iOS permission dialog so the user
+  // always lands here with the dialog up (our numbered "Tap Allow"
+  // instructions on this screen point at the dialog and are useless
+  // if it isn't there).
   useEffect(() => {
     (async () => {
       try {
         const { status } = await Notifications.getPermissionsAsync();
-        setPushStatus(status === 'granted' ? 'enabled' : 'unknown');
+        if (status === 'granted') {
+          setPushStatus('enabled');
+          return;
+        }
+        if (status === 'denied') {
+          setPushStatus('denied');
+          return;
+        }
+        // 'undetermined' — auto-prompt so the dialog appears now.
+        setPushStatus('requesting');
+        try {
+          const token = await registerForPushNotificationsAsync();
+          if (token) {
+            const session = await getSession();
+            if (session?.clientCode) {
+              registerAndSavePushToken(session.clientCode).catch(() => {});
+            }
+            setPushStatus('enabled');
+          } else {
+            setPushStatus('denied');
+          }
+        } catch {
+          setPushStatus('denied');
+        }
       } catch {
         // Simulator or unsupported — leave as 'unknown'.
       }
@@ -240,27 +266,6 @@ export default function ActivateScreen() {
   // captures the latest params).
   forwardRef.current = forwardToProfile;
 
-  const handleEnableNotifications = async () => {
-    if (pushStatus === 'enabled') return;
-    setPushStatus('requesting');
-    try {
-      const token = await registerForPushNotificationsAsync();
-      if (token) {
-        const session = await getSession();
-        if (session?.clientCode) {
-          // Persist the token server-side. Best-effort; failure here
-          // does not block activation.
-          registerAndSavePushToken(session.clientCode).catch(() => {});
-        }
-        setPushStatus('enabled');
-      } else {
-        setPushStatus('denied');
-      }
-    } catch {
-      setPushStatus('denied');
-    }
-  };
-
   const handleActivate = async () => {
     if (activating) return;
     setActivating(true);
@@ -305,31 +310,20 @@ export default function ActivateScreen() {
     && agentPhotoBase64 !== 'null';
   const photoUri = hasValidPhoto ? `data:image/jpeg;base64,${agentPhotoBase64}` : null;
 
-  // Top-of-screen banner that points at the iOS permission dialog.
-  // The dialog is a centered system modal we cannot move, so we put the
-  // cue ABOVE the dialog where it stays visible. Hidden once permission
-  // is granted; "denied" state nudges toward the in-card Open Settings
-  // affordance below.
-  const showPermissionBanner = pushStatus === 'unknown' || pushStatus === 'requesting' || pushStatus === 'denied';
-  const permissionBannerText = pushStatus === 'denied'
-    ? 'Notifications are off — tap below to fix in Settings.'
-    : 'Tap “Allow” on the popup to enable notifications.';
-
   // Format the Linq line for the body copy. Empty when no line is
   // configured (the activation flow short-circuits to /agent-profile in
   // that case anyway, so the body copy never reaches a real client).
   const linqLineDisplay = linqLinePhone ? formatPhoneForDisplay(linqLinePhone) : '';
 
+  // Numbered-step instructions guide the user through the iOS dialog
+  // (which is a centered system modal we can't move) and on to the
+  // Activate button below it. Step 1 only when notification permission
+  // is still being decided; otherwise just step 2 (Activate).
+  const showStepOne = pushStatus === 'unknown' || pushStatus === 'requesting';
+
   return (
     <View style={styles.outerContainer}>
       <SafeAreaView style={styles.topSafeArea} />
-
-      {showPermissionBanner ? (
-        <View style={styles.permissionBanner}>
-          <Text style={styles.permissionBannerArrow}>↑</Text>
-          <Text style={styles.permissionBannerText}>{permissionBannerText}</Text>
-        </View>
-      ) : null}
 
       <View style={styles.container}>
         <View style={styles.headerSection}>
@@ -342,7 +336,7 @@ export default function ActivateScreen() {
               </Text>
             </View>
           )}
-          <Text style={styles.title}>You&apos;re in.</Text>
+          <Text style={styles.title}>You&apos;re almost in.</Text>
           <Text style={styles.subtitle}>One quick thing before we&apos;re set up.</Text>
         </View>
 
@@ -363,36 +357,39 @@ export default function ActivateScreen() {
                 right in the app.
               </Text>
 
-              <View style={styles.notifBlock}>
-                <Text style={styles.notifHeading}>
-                  {pushStatus === 'enabled' ? 'Notifications are on ✓' : 'Important: allow notifications'}
-                </Text>
-                <Text style={styles.notifBody}>
-                  {pushStatus === 'enabled'
-                    ? `That's how ${agentFirstName} reaches you when something important comes up with your policy info.`
-                    : `Without notifications, ${agentFirstName} can't reach you about anniversary reviews, holiday cards, or important policy changes.`}
-                </Text>
-                {pushStatus !== 'enabled' ? (
-                  <TouchableOpacity
-                    style={[styles.notifButton, pushStatus === 'requesting' && styles.buttonDisabled]}
-                    onPress={handleEnableNotifications}
-                    disabled={pushStatus === 'requesting'}
-                    activeOpacity={0.85}
-                  >
-                    {pushStatus === 'requesting' ? (
-                      <ActivityIndicator color="#0D4D4D" size="small" />
-                    ) : (
-                      <Text style={styles.notifButtonText}>
-                        {pushStatus === 'denied' ? 'Open Settings' : 'Allow notifications'}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                ) : null}
-                {pushStatus === 'denied' ? (
-                  <Text style={styles.notifHint}>
-                    You can turn this on later in your phone&apos;s Settings.
+              {showStepOne ? (
+                <View style={styles.stepRow}>
+                  <Text style={styles.stepNumber}>1.</Text>
+                  <Text style={styles.stepText}>
+                    Tap <Text style={styles.stepEmphasis}>&ldquo;Allow&rdquo;</Text> on the popup
                   </Text>
-                ) : null}
+                  <Text style={styles.stepArrowUp}>↑</Text>
+                </View>
+              ) : pushStatus === 'denied' ? (
+                <View style={styles.deniedRow}>
+                  <Text style={styles.deniedText}>
+                    Notifications are off. You can enable them later in your phone&apos;s Settings.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.deniedSettingsLink}
+                    onPress={() => Linking.openSettings().catch(() => {})}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.deniedSettingsLinkText}>Open Settings</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.enabledRow}>
+                  <Text style={styles.enabledText}>Notifications are on ✓</Text>
+                </View>
+              )}
+
+              <View style={styles.stepRow}>
+                <Text style={styles.stepNumber}>{showStepOne ? '2.' : '1.'}</Text>
+                <Text style={styles.stepText}>
+                  Then tap <Text style={styles.stepEmphasis}>Activate</Text> below
+                </Text>
+                <Text style={styles.stepArrowDown}>↓</Text>
               </View>
 
               <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
@@ -498,43 +495,68 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 12,
   },
-  notifBlock: {
-    marginTop: 20,
-    marginBottom: 24,
-    padding: 16,
-    borderRadius: 14,
-    backgroundColor: '#F8FBFA',
-    borderWidth: 1,
-    borderColor: '#3DD6C3',
-  },
-  notifHeading: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0D4D4D',
-    marginBottom: 6,
-  },
-  notifBody: {
-    fontSize: 13,
-    color: '#4A5568',
-    lineHeight: 19,
-    marginBottom: 12,
-  },
-  notifButton: {
-    backgroundColor: '#3DD6C3',
-    borderRadius: 10,
-    paddingVertical: 12,
+  stepRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 14,
+    paddingHorizontal: 4,
   },
-  notifButtonText: {
+  stepNumber: {
+    fontSize: 18,
+    fontWeight: '800',
     color: '#0D4D4D',
+    marginRight: 10,
+    minWidth: 22,
+  },
+  stepText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0D4D4D',
+    flex: 1,
+  },
+  stepEmphasis: {
+    fontWeight: '800',
+    color: '#0D4D4D',
+  },
+  stepArrowUp: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#92400E',
+    marginLeft: 8,
+  },
+  stepArrowDown: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#0D4D4D',
+    marginLeft: 8,
+  },
+  enabledRow: {
+    marginTop: 14,
+    paddingHorizontal: 4,
+  },
+  enabledText: {
     fontSize: 14,
     fontWeight: '700',
+    color: '#065F46',
   },
-  notifHint: {
-    marginTop: 8,
-    fontSize: 12,
-    color: '#718096',
-    fontStyle: 'italic',
+  deniedRow: {
+    marginTop: 14,
+    paddingHorizontal: 4,
+  },
+  deniedText: {
+    fontSize: 13,
+    color: '#92400E',
+    lineHeight: 18,
+  },
+  deniedSettingsLink: {
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  deniedSettingsLinkText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0D4D4D',
+    textDecorationLine: 'underline',
   },
   activateButton: {
     backgroundColor: '#0D4D4D',
@@ -565,27 +587,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 6,
     marginTop: 2,
-  },
-  permissionBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: '#FEF3C7',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F59E0B',
-  },
-  permissionBannerArrow: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#92400E',
-  },
-  permissionBannerText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#92400E',
-    flexShrink: 1,
   },
 });
