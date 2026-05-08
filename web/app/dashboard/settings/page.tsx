@@ -607,6 +607,42 @@ export default function SettingsPage() {
 
   return (
     <div className={`mx-auto ${showPhonePreview ? 'max-w-5xl' : 'max-w-2xl'}`}>
+      {/* Floating autosave indicator. Pinned to viewport so the agent
+          gets feedback wherever they're editing (the Save Settings bar
+          + status text at the bottom of the page is too far away to
+          notice while editing fields near the top). Hidden when idle. */}
+      {autoSaveStatus !== 'idle' && (
+        <div
+          aria-live="polite"
+          className="fixed top-24 right-6 z-40 pointer-events-none"
+        >
+          {autoSaveStatus === 'saving' && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-full shadow-sm text-xs text-[#707070]">
+              <svg className="animate-spin w-3.5 h-3.5 text-[#44bbaa]" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              <span>Saving…</span>
+            </div>
+          )}
+          {autoSaveStatus === 'saved' && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-[#ECFDF5] border border-[#A7F3D0] rounded-full shadow-sm text-xs text-[#065F46]">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+              <span>All changes saved</span>
+            </div>
+          )}
+          {autoSaveStatus === 'error' && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-[#FEF2F2] border border-[#FECACA] rounded-full shadow-sm text-xs text-[#991B1B]">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3L13.74 4a2 2 0 00-3.48 0L3.34 16a2 2 0 001.73 3z" />
+              </svg>
+              <span>Autosave failed — use Save Settings</span>
+            </div>
+          )}
+        </div>
+      )}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#000000]">Settings</h1>
         <p className="text-[#707070] text-sm mt-1">Manage your profile, branding, and account preferences.</p>
