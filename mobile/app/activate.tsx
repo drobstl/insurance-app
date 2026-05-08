@@ -12,6 +12,8 @@ import {
   AppStateStatus,
   ScrollView,
   Platform,
+  Animated,
+  Easing,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Notifications from 'expo-notifications';
@@ -110,6 +112,21 @@ function buildSmsUrl(linqLinePhone: string, body: string): string {
   return `sms:${linqLinePhone}${delimiter}body=${encodeURIComponent(body)}`;
 }
 
+/**
+ * Format an E.164 phone number for human-readable display in copy.
+ * `+15551234567` → `+1 (555) 123-4567`. Falls back to raw on malformed.
+ */
+function formatPhoneForDisplay(e164: string): string {
+  const digits = e164.replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+  return e164;
+}
+
 export default function ActivateScreen() {
   const params = useLocalSearchParams<{
     agentId?: string | string[];
@@ -138,6 +155,7 @@ export default function ActivateScreen() {
   const [activationStarted, setActivationStarted] = useState(false);
   const advancedRef = useRef(false);
   const forwardRef = useRef<() => void>(() => {});
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   // On mount: check current notification permission state. Don't auto-
   // request — that's a user gesture step on the explicit button below.
@@ -151,6 +169,33 @@ export default function ActivateScreen() {
       }
     })();
   }, []);
+
+  // Subtle pulse on the Activate button to draw the eye to the primary
+  // action. Stops once the user actually taps it (or has navigated away
+  // to iMessage). 800ms up + 800ms down with a slight overshoot.
+  useEffect(() => {
+    if (activating || activationStarted) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.035,
+          duration: 800,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1.0,
+          duration: 800,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+    };
+  }, [activating, activationStarted, pulseAnim]);
 
   // Auto-advance to the agent profile once the user comes back from
   // iMessage. The activation event is processed server-side asynchronously
@@ -260,9 +305,31 @@ export default function ActivateScreen() {
     && agentPhotoBase64 !== 'null';
   const photoUri = hasValidPhoto ? `data:image/jpeg;base64,${agentPhotoBase64}` : null;
 
+  // Top-of-screen banner that points at the iOS permission dialog.
+  // The dialog is a centered system modal we cannot move, so we put the
+  // cue ABOVE the dialog where it stays visible. Hidden once permission
+  // is granted; "denied" state nudges toward the in-card Open Settings
+  // affordance below.
+  const showPermissionBanner = pushStatus === 'unknown' || pushStatus === 'requesting' || pushStatus === 'denied';
+  const permissionBannerText = pushStatus === 'denied'
+    ? 'Notifications are off — tap below to fix in Settings.'
+    : 'Tap “Allow” on the popup to enable notifications.';
+
+  // Format the Linq line for the body copy. Empty when no line is
+  // configured (the activation flow short-circuits to /agent-profile in
+  // that case anyway, so the body copy never reaches a real client).
+  const linqLineDisplay = linqLinePhone ? formatPhoneForDisplay(linqLinePhone) : '';
+
   return (
     <View style={styles.outerContainer}>
       <SafeAreaView style={styles.topSafeArea} />
+
+      {showPermissionBanner ? (
+        <View style={styles.permissionBanner}>
+          <Text style={styles.permissionBannerArrow}>↑</Text>
+          <Text style={styles.permissionBannerText}>{permissionBannerText}</Text>
+        </View>
+      ) : null}
 
       <View style={styles.container}>
         <View style={styles.headerSection}>
@@ -290,12 +357,10 @@ export default function ActivateScreen() {
                 Connect with {agentFirstName}
               </Text>
               <Text style={styles.bodyText}>
-                Tap below to text {agentFirstName}&apos;s office line. This connects you
-                so {agentFirstName} can send you policy reminders, schedule your annual
-                reviews, and keep your policy info up to date right here in the app.
-              </Text>
-              <Text style={styles.bodyText}>
-                You&apos;ll always be able to reach {agentFirstName} here.
+                Tap Activate to text {agentFirstName}&apos;s office line
+                {linqLineDisplay ? ` at ${linqLineDisplay}` : ''}. That&apos;s how you get
+                policy reminders, annual review scheduling, and policy info updates
+                right in the app.
               </Text>
 
               <View style={styles.notifBlock}>
@@ -304,7 +369,7 @@ export default function ActivateScreen() {
                 </Text>
                 <Text style={styles.notifBody}>
                   {pushStatus === 'enabled'
-                    ? `That's how ${agentFirstName} reaches you when something important comes up with your policy.`
+                    ? `That's how ${agentFirstName} reaches you when something important comes up with your policy info.`
                     : `Without notifications, ${agentFirstName} can't reach you about anniversary reviews, holiday cards, or important policy changes.`}
                 </Text>
                 {pushStatus !== 'enabled' ? (
@@ -330,18 +395,23 @@ export default function ActivateScreen() {
                 ) : null}
               </View>
 
-              <TouchableOpacity
-                style={[styles.activateButton, activating && styles.buttonDisabled]}
-                onPress={handleActivate}
-                disabled={activating}
-                activeOpacity={0.85}
-              >
-                {activating ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <Text style={styles.activateButtonText}>Activate</Text>
-                )}
-              </TouchableOpacity>
+              <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                <TouchableOpacity
+                  style={[styles.activateButton, activating && styles.buttonDisabled]}
+                  onPress={handleActivate}
+                  disabled={activating}
+                  activeOpacity={0.85}
+                >
+                  {activating ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={styles.activateButtonText}>Activate</Text>
+                  )}
+                </TouchableOpacity>
+              </Animated.View>
+              <Text style={styles.activateHint}>
+                Opens Messages with your hello pre-written — just tap Send.
+              </Text>
             </ScrollView>
           </SafeAreaView>
         </View>
@@ -469,21 +539,53 @@ const styles = StyleSheet.create({
   activateButton: {
     backgroundColor: '#0D4D4D',
     borderRadius: 14,
-    paddingVertical: 18,
+    paddingVertical: 20,
     alignItems: 'center',
-    shadowColor: '#0D4D4D',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
-    marginBottom: 14,
+    shadowColor: '#3DD6C3',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    elevation: 8,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: '#3DD6C3',
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   activateButtonText: {
     color: '#FFFFFF',
-    fontSize: 19,
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  activateHint: {
+    fontSize: 12,
+    color: '#718096',
+    textAlign: 'center',
+    marginBottom: 6,
+    marginTop: 2,
+  },
+  permissionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#FEF3C7',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F59E0B',
+  },
+  permissionBannerArrow: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  permissionBannerText: {
+    fontSize: 13,
     fontWeight: '700',
+    color: '#92400E',
+    flexShrink: 1,
   },
 });
