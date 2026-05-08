@@ -41,6 +41,7 @@ import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 import { useGooglePicker } from '../../../hooks/useGooglePicker';
 import type { GooglePickerSelectedFile } from '../../../hooks/useGooglePicker';
 import { buildWelcomeMessage, resolveClientLanguage, type SupportedLanguage } from '../../../lib/client-language';
+import { extractFirstName } from '../../../lib/name-utils';
 import { fireConfetti } from '../../../lib/confetti';
 import {
   renderFirstPdfPagesToJpegs,
@@ -1991,7 +1992,7 @@ export default function ClientsPage() {
     setSubmitting(true);
     try {
       const created = await createClientFromAddFlow('manual');
-      const firstName = created.name.split(' ')[0] || created.name;
+      const firstName = extractFirstName(created.name) || created.name;
       setCreatedClientContext({ id: created.id, name: created.name, phone: created.phone });
       setWelcomeDraft(buildWelcomeSms(firstName, created.code, formData.preferredLanguage));
       setWelcomeError('');
@@ -2032,7 +2033,7 @@ export default function ClientsPage() {
           source: 'application_review',
         });
       }
-      const firstName = created.name.split(' ')[0] || created.name;
+      const firstName = extractFirstName(created.name) || created.name;
       setCreatedClientContext({ id: created.id, name: created.name, phone: created.phone });
       setWelcomeDraft(buildWelcomeSms(firstName, created.code, formData.preferredLanguage));
       setWelcomeError('');

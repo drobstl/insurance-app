@@ -11,6 +11,7 @@ import {
 } from './action-item-store';
 import type { ActionItemDisplayContext } from './action-item-types';
 import { buildWelcomeMessage, resolveClientLanguage, type SupportedLanguage } from './client-language';
+import { extractFirstName } from './name-utils';
 import { isValidE164, normalizePhone } from './phone';
 
 /**
@@ -65,7 +66,7 @@ function readString(raw: unknown): string {
 }
 
 function firstNameFrom(fullName: string): string {
-  return fullName.split(/\s+/)[0]?.trim() || '';
+  return extractFirstName(fullName);
 }
 
 /**
