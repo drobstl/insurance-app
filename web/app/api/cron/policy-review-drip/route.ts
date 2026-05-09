@@ -26,6 +26,8 @@ import {
   sendExpoPush,
   type PushPermissionStatus,
 } from '../../../../lib/push-permission-lifecycle';
+import { queueAnniversaryActionItem } from '../../../../lib/anniversary-action-item-writer';
+import type { ActionItemTriggerReason } from '../../../../lib/action-item-types';
 
 /**
  * Cron: runs every 4 hours.
@@ -340,6 +342,40 @@ export async function GET() {
               hasPushToken: !!pushToken,
               lane: 'anniversary',
             });
+            // Phase 2: surface this missed anniversary drip stage as an
+            // action item so the agent can text or call personally.
+            // Idempotent — if the cron's initial-outreach push-fail
+            // already created an item this cycle, this is a no-op.
+            const triggerReason: ActionItemTriggerReason =
+              skipReason === 'push_revoked'
+                ? 'anniversary_push_revoked'
+                : skipReason === 'push_unavailable'
+                  ? 'anniversary_push_unavailable'
+                  : 'anniversary_push_send_failed';
+            const clientIdForItem = (data.clientId as string) || '';
+            if (clientIdForItem) {
+              try {
+                await queueAnniversaryActionItem({
+                  db,
+                  agentId: agentDoc.id,
+                  clientId: clientIdForItem,
+                  linkedEntityType: 'policyReview',
+                  linkedEntityId: reviewDoc.id,
+                  triggerReason,
+                  clientDoc: {
+                    name: (data.clientName as string) || '',
+                    phone: (data.clientPhone as string) || '',
+                  },
+                  agentDoc: { name: agentName },
+                });
+              } catch (queueErr) {
+                console.warn('[policy-review-drip] action item queue failed (non-blocking)', {
+                  agentId: agentDoc.id,
+                  reviewId: reviewDoc.id,
+                  error: queueErr instanceof Error ? queueErr.message : String(queueErr),
+                });
+              }
+            }
             continue;
           }
 

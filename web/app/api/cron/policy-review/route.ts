@@ -22,6 +22,8 @@ import {
   sendExpoPush,
   type PushPermissionStatus,
 } from '../../../../lib/push-permission-lifecycle';
+import { queueAnniversaryActionItem } from '../../../../lib/anniversary-action-item-writer';
+import type { ActionItemTriggerReason } from '../../../../lib/action-item-types';
 
 /**
  * Daily cron: scans all agents' policies for 1-year anniversaries.
@@ -402,6 +404,33 @@ export async function GET(req: NextRequest) {
                 hasPushToken: !!hit.clientPushToken,
                 lane: 'anniversary',
               });
+              // Phase 2: surface this missed anniversary as an action
+              // item so the agent can text or call personally. Map the
+              // granular skipReason onto the typed trigger reason.
+              const triggerReason: ActionItemTriggerReason =
+                skipReason === 'push_revoked'
+                  ? 'anniversary_push_revoked'
+                  : skipReason === 'push_unavailable'
+                    ? 'anniversary_push_unavailable'
+                    : 'anniversary_push_send_failed';
+              try {
+                await queueAnniversaryActionItem({
+                  db,
+                  agentId: agentDoc.id,
+                  clientId: hit.clientId,
+                  linkedEntityType: 'client',
+                  linkedEntityId: hit.clientId,
+                  triggerReason,
+                  clientDoc: { name: hit.clientName, phone: hit.clientPhone },
+                  agentDoc: { name: agentName },
+                });
+              } catch (queueErr) {
+                console.warn('[policy-review] action item queue failed (non-blocking)', {
+                  agentId: agentDoc.id,
+                  clientId: hit.clientId,
+                  error: queueErr instanceof Error ? queueErr.message : String(queueErr),
+                });
+              }
               continue;
             }
 
