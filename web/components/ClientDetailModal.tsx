@@ -373,7 +373,7 @@ export default function ClientDetailModal({
         setCodeSent(true);
         setTimeout(() => setCodeSent(false), 3000);
         if (typeof window !== 'undefined') {
-          window.location.assign('/dashboard/welcomes');
+          window.location.assign('/dashboard/action-items?lane=welcome');
         }
       }
     } catch (err) {

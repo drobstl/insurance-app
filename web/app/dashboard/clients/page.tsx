@@ -5663,7 +5663,7 @@ export default function ClientsPage() {
                     onClick={handleSkipWelcome}
                     className="text-[12px] text-[#727272] hover:text-[#0D4D4D] underline underline-offset-2 transition-colors"
                   >
-                    Skip — send later from /dashboard/welcomes
+                    Skip — send later from Action Items
                   </button>
                 </div>
               </div>

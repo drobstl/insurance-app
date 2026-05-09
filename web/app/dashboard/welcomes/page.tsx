@@ -1,175 +1,25 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import {
-  collection,
-  onSnapshot,
-  orderBy,
-  query,
-  where,
-} from 'firebase/firestore';
-
-import { db } from '../../../firebase';
-import { useDashboard } from '../DashboardContext';
-import WelcomeActionItemCard from '../../../components/WelcomeActionItemCard';
-import type { ActionItemDoc } from '../../../lib/action-item-types';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 /**
- * Welcomes queue page.
+ * Legacy redirect: `/dashboard/welcomes` → `/dashboard/action-items?lane=welcome`.
  *
- * SOURCE OF TRUTH: CONTEXT.md > Channel Rules > Agent action item
- * surface + `docs/AFL_Welcome_Flow_Amendment_2026-05-07.md` §4.4.
- *
- * Three roles after the May 7 amendment:
- * - Audit / "did I send everyone?" — passive review surface.
- * - Mode 1 recovery — agent skipped at create-client time, comes
- *   back here later to send.
- * - Mode 2 working surface — bulk import drip (when bulk import
- *   re-enables in Phase 2).
- *
- * Send mechanism: identical to the inline compose surface in
- * `web/app/dashboard/clients/page.tsx` (Send via iMessage / Copy /
- * QR scan). Both surfaces share helpers via `web/lib/sms-url.ts`.
- * Works on Mac, Windows, iOS, Android; Linux + ChromeOS get Copy +
- * QR only. The pre-amendment "phone-only on desktop" banner has
- * been removed — desktop send IS supported now.
- *
- * Layout: items grouped by date created (oldest first per locked
- * Phase 1 Q2 — "list grouped by date created"). Within each day
- * group, cards age-shift styling per the subtle-color-shift
- * variant. The dashboard nav badge shows the count of items >7d old.
+ * The welcomes-only page was replaced May 9, 2026 by the cross-lane
+ * Action Items surface. Existing call sites (the inline compose
+ * surface's "Skip — send later" link, the ClientDetailModal "View
+ * queue" CTA) and any agent bookmarks land here and forward
+ * automatically without breaking.
  */
-
-function dayKey(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return 'unknown';
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(d);
-}
-
-function dayKeyForSort(iso: string): number {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return 0;
-  // Bucket to UTC day so all items created on the same day land in one
-  // group regardless of agent timezone display nuances.
-  const utc = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-  return utc;
-}
-
-export default function WelcomesPage() {
-  const { user } = useDashboard();
-  const [items, setItems] = useState<ActionItemDoc[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
+export default function LegacyWelcomesRedirect() {
+  const router = useRouter();
   useEffect(() => {
-    if (!user) return;
-    const ref = collection(db, 'agents', user.uid, 'actionItems');
-    const q = query(
-      ref,
-      where('lane', '==', 'welcome'),
-      where('status', '==', 'pending'),
-      orderBy('createdAt', 'asc'),
-    );
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const next = snap.docs.map((d) => d.data() as ActionItemDoc);
-        setItems(next);
-        setLoaded(true);
-      },
-      (err) => {
-        console.error('[welcomes-page] subscription failed', err);
-        setError(err.message || 'Could not load welcome queue.');
-        setLoaded(true);
-      },
-    );
-    return () => unsub();
-  }, [user]);
-
-  const groups = useMemo(() => {
-    const byDay = new Map<number, { label: string; items: ActionItemDoc[] }>();
-    for (const item of items) {
-      const sortKey = dayKeyForSort(item.createdAt);
-      const label = dayKey(item.createdAt);
-      const bucket = byDay.get(sortKey) || { label, items: [] };
-      bucket.items.push(item);
-      byDay.set(sortKey, bucket);
-    }
-    return Array.from(byDay.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([sortKey, bucket]) => ({ sortKey, ...bucket }));
-  }, [items]);
-
-  // Hold a stable "now" value in state, refreshed every minute via
-  // setState inside a setInterval callback (which is the
-  // set-state-in-effect-allowed pattern — async updates from external
-  // sources are fine; the lint only flags synchronous setState in the
-  // effect body). Lazy initial value reads Date.now() once on mount
-  // without the impure-render lint.
-  const [nowMs, setNowMs] = useState<number>(() => Date.now());
-  useEffect(() => {
-    const interval = window.setInterval(() => setNowMs(Date.now()), 60_000);
-    return () => window.clearInterval(interval);
-  }, []);
-  const totalCount = items.length;
-  const overdueCount = items.reduce((acc, it) => {
-    const ms = Date.parse(it.createdAt);
-    if (!Number.isFinite(ms)) return acc;
-    return (nowMs - ms) >= 7 * 24 * 60 * 60 * 1000 ? acc + 1 : acc;
-  }, 0);
-
+    router.replace('/dashboard/action-items?lane=welcome');
+  }, [router]);
   return (
-    <div className="min-h-screen pt-16 pb-24 md:pt-6 md:pb-10 md:ml-56 md:mr-[300px] px-4 md:px-8">
-      <header className="mb-4">
-        <h1 className="text-2xl font-bold text-[#0D4D4D]">Welcomes</h1>
-        <p className="text-sm text-[#4f4f4f] mt-1">
-          Pending welcomes that haven&apos;t been sent yet. Send from this device, or scan the QR with your phone — whichever is easiest.
-        </p>
-      </header>
-
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[#5f5f5f]">
-          {totalCount === 0 ? 'No pending welcomes' : `${totalCount} pending`}
-          {overdueCount > 0 ? ` · ${overdueCount} over 7 days` : ''}
-        </p>
-      </div>
-
-      {error ? (
-        <p className="mb-4 rounded-lg border border-[#f3a8a8] bg-[#fff5f5] px-3 py-2 text-xs font-semibold text-[#b42318]">
-          {error}
-        </p>
-      ) : null}
-
-      {!loaded ? (
-        <p className="text-sm text-[#5f5f5f]">Loading…</p>
-      ) : totalCount === 0 ? (
-        <div className="rounded-xl border border-dashed border-[#cdcdcd] bg-[#fafafa] px-4 py-8 text-center">
-          <p className="text-sm font-semibold text-[#0D4D4D]">You&apos;re all caught up.</p>
-          <p className="mt-1 text-xs text-[#5f5f5f]">
-            New welcomes appear here the moment you create a client profile.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {groups.map((group) => (
-            <section key={group.sortKey}>
-              <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-[#0D4D4D]/70">
-                {group.label}
-                <span className="ml-2 font-medium text-[#5f5f5f]">({group.items.length})</span>
-              </h2>
-              <div className="space-y-3">
-                {group.items.map((item) => (
-                  <WelcomeActionItemCard
-                    key={item.itemId}
-                    item={item}
-                    user={user}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      )}
+    <div className="min-h-screen pt-16 md:pt-6 px-4">
+      <p className="text-sm text-[#5f5f5f]">Redirecting…</p>
     </div>
   );
 }
