@@ -12,9 +12,9 @@ import { ensureSmsFirstTouchConfirmation } from '../../../../lib/sms-first-touch
 import {
   type TouchStage,
   type ConservationChannel,
-  NEXT_TOUCH_STAGE,
-  TOUCH_STAGE_DELAY,
-  STAGE_FALLBACK_ORDER,
+  type ConservationStatus,
+  RETENTION_STAGE_INTERVAL_MS,
+  pickInitialRetentionStage,
 } from '../../../../lib/conservation-types';
 import {
   isPushEligible,
@@ -25,8 +25,12 @@ import {
 /**
  * POST /api/conservation/outreach
  *
- * Sends the initial outreach for a conservation alert using a single channel
- * (push-first with fallback). Called by the agent manually or by the cron.
+ * Manual / cron-fallback Stage 1 trigger. May 9, 2026 retention
+ * rewrite: a single channel is chosen at send time based on push
+ * eligibility (push if eligible, else SMS via Linq). NO fallback —
+ * if push send fails, the campaign still advances onto the
+ * 5-stage push-eligible track and the next-stage cron tick handles
+ * stage_sms 48h later.
  *
  * Body: { alertId: string }
  * Auth: Bearer <Firebase ID token> OR cron secret
@@ -80,7 +84,17 @@ export async function POST(req: NextRequest) {
     const lockAt = (alertData.initialSendLockAt as string | null) || null;
     const lockFresh = lockAt && Date.now() - new Date(lockAt).getTime() < 5 * 60 * 1000;
 
-    if (['outreach_sent', 'drip_1', 'drip_2', 'drip_3', 'saved', 'lost'].includes(status)) {
+    // Already past Stage 1 — caller is no-op'd.
+    const postStage1Statuses: ConservationStatus[] = [
+      'outreach_sent',
+      'drip_1',
+      'drip_2',
+      'drip_3',
+      'drip_complete',
+      'saved',
+      'lost',
+    ];
+    if (postStage1Statuses.includes(status as ConservationStatus)) {
       return NextResponse.json({ success: true, alreadySent: true, sentChannel: null });
     }
 
@@ -102,15 +116,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Lightweight send lock to reduce duplicate sends from manual+cron races.
-    await alertRef.update({ initialSendLockAt: new Date().toISOString() });
-
     if (!message) {
       return NextResponse.json(
         { error: 'No outreach message generated for this alert.' },
         { status: 422 },
       );
     }
+
+    await alertRef.update({ initialSendLockAt: new Date().toISOString() });
 
     const clientRef = db.collection('agents').doc(agentId).collection('clients').doc(clientId);
     const clientDoc = await clientRef.get();
@@ -119,8 +132,6 @@ export async function POST(req: NextRequest) {
     }
 
     const clientData = clientDoc.data()!;
-    // Push permission lifecycle (strategy decisions §4): only treat the token
-    // as usable when present AND not revoked.
     const pushToken = readValidPushToken(clientData) ?? undefined;
     const clientPhone = (clientData.phone as string) || '';
     const normalizedPhone = normalizePhone(clientPhone);
@@ -153,23 +164,15 @@ export async function POST(req: NextRequest) {
     const now = new Date();
     const nowIso = now.toISOString();
 
-    // Walk the stage-1 fallback order: push -> sms -> email
-    const fallbackOrder = STAGE_FALLBACK_ORDER['initial'];
-    const avail: Record<ConservationChannel, boolean> = {
-      push: isPushEligible(clientData),
-      sms: isValidE164(normalizedPhone),
-      email: !!(clientData.email as string),
-    };
+    const pushEligible = isPushEligible(clientData);
+    const stage1: TouchStage = pickInitialRetentionStage(pushEligible);
 
     let sentChannel: ConservationChannel | null = null;
     let chatId: string | null = (alertData.chatId as string) || null;
     let sentMessage = messageWithBooking;
 
-    for (const ch of fallbackOrder) {
-      if (!avail[ch]) continue;
-
-      if (ch === 'push') {
-        if (!pushToken) continue;
+    if (stage1 === 'stage_push') {
+      if (pushToken) {
         const pushData: Record<string, unknown> = {
           type: 'conservation',
           agentId,
@@ -179,7 +182,6 @@ export async function POST(req: NextRequest) {
           pushData.schedulingUrl = schedulingUrl;
           pushData.includeBookingLink = true;
         }
-
         const outcome = await sendExpoPush(
           {
             to: pushToken,
@@ -199,41 +201,27 @@ export async function POST(req: NextRequest) {
         );
         if (outcome.status === 'ok') {
           sentChannel = 'push';
-          break;
         }
-        // Otherwise fall through to the next channel — retention is a
-        // fallback-eligible lane (strategy §1, channel matrix).
+        // No fallback to SMS — see file header comment.
       }
-
-      if (ch === 'sms') {
-        try {
-          const smsMessageWithConfirmation = ensureSmsFirstTouchConfirmation(
-            messageWithBooking,
-            resolveClientLanguage(alertData.preferredLanguage ?? clientData.preferredLanguage),
-          );
-          const result = await sendOrCreateChat({
-            to: normalizedPhone,
-            chatId,
-            text: smsMessageWithConfirmation,
-          });
-          chatId = result.chatId;
-          sentChannel = 'sms';
-          sentMessage = smsMessageWithConfirmation;
-          break;
-        } catch (smsError) {
-          console.error('Failed to send conservation SMS via Linq:', smsError);
-        }
-      }
-
-      if (ch === 'email') {
-        // Email fallback not implemented in manual outreach (would need Resend import)
-        // For now, skip -- the cron handles email follow-ups
-        continue;
+    } else if (stage1 === 'stage_sms' && isValidE164(normalizedPhone)) {
+      try {
+        const smsMessageWithConfirmation = ensureSmsFirstTouchConfirmation(
+          messageWithBooking,
+          resolveClientLanguage(alertData.preferredLanguage ?? clientData.preferredLanguage),
+        );
+        const result = await sendOrCreateChat({
+          to: normalizedPhone,
+          chatId,
+          text: smsMessageWithConfirmation,
+        });
+        chatId = result.chatId;
+        sentChannel = 'sms';
+        sentMessage = smsMessageWithConfirmation;
+      } catch (smsError) {
+        console.error('[conservation-outreach] linq sms failed', smsError);
       }
     }
-
-    const nextStage = NEXT_TOUCH_STAGE['initial']!;
-    const nextTouchAt = new Date(now.getTime() + TOUCH_STAGE_DELAY[nextStage]).toISOString();
 
     await clientRef.collection('notifications').add({
       type: 'conservation',
@@ -246,16 +234,21 @@ export async function POST(req: NextRequest) {
       status: sentChannel ? 'sent' : 'failed',
     });
 
+    const usedChannel: ConservationChannel = sentChannel
+      ?? (stage1 === 'stage_push' ? 'push' : 'sms');
+
     const alertUpdate: Record<string, unknown> = {
-      status: 'outreach_sent',
-      touchStage: 'initial' as TouchStage,
-      nextTouchAt,
-      channelsUsed: sentChannel ? [sentChannel] : [],
+      status: 'outreach_sent' satisfies ConservationStatus,
+      touchStage: stage1,
+      dripCount: 1,
+      nextTouchAt: new Date(now.getTime() + RETENTION_STAGE_INTERVAL_MS).toISOString(),
+      channelsUsed: [usedChannel],
       outreachSentAt: nowIso,
-      pushSentAt: sentChannel === 'push' ? nowIso : null,
-      smsSentAt: sentChannel === 'sms' ? nowIso : null,
+      pushSentAt: stage1 === 'stage_push' ? nowIso : null,
+      smsSentAt: stage1 === 'stage_sms' ? nowIso : null,
       lastDripAt: nowIso,
       chatId,
+      campaignStartPushEligible: pushEligible,
       initialSendLockAt: FieldValue.delete(),
     };
     if (sentChannel) {
@@ -271,6 +264,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       sentChannel,
+      stage: stage1,
     });
   } catch (error) {
     console.error('Error sending conservation outreach:', error);

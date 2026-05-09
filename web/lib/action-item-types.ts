@@ -85,13 +85,20 @@ export const ACTION_ITEM_EXPIRATION_DAYS: Readonly<Record<ActionItemLane, number
  * Per-lane action vocabulary. Welcome intentionally omits `skip` per the
  * locked Phase 1 Q2 decision — surfacing skip would violate the "agents
  * must send all welcomes" contract.
+ *
+ * Retention vocabulary tightened May 9, 2026 (Daniel's call): the
+ * toggle-AI-back-on mechanic is dropped (too complex; cadence already
+ * gives the agent two personal-action stages). Templated email is also
+ * dropped — Stage 4 of the rewritten retention cadence auto-fires the
+ * email server-side, no agent button. Each retention card surfaces only
+ * its own primary action plus skip.
  */
 export const ACTION_ITEM_SUGGESTED_ACTIONS_BY_LANE: Readonly<
   Record<ActionItemLane, readonly ActionItemSuggestedAction[]>
 > = {
   welcome: ['text_personally'],
   anniversary: ['text_personally', 'call', 'skip'],
-  retention: ['text_personally', 'call', 'send_templated_email', 'toggle_ai_back_on', 'skip'],
+  retention: ['text_personally', 'call', 'skip'],
   referral: ['text_personally', 'call', 'skip'],
 };
 

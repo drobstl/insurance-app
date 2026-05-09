@@ -347,8 +347,18 @@ export const actionItemIdempotencyKey = {
   anniversary(policyReviewId: string): string {
     return `anniversary_${policyReviewId}`;
   },
-  retention(conservationAlertId: string, touchIndex: number): string {
-    return `retention_${conservationAlertId}_t${touchIndex}`;
+  /**
+   * Retention idempotency keys are per-stage so the call card and text
+   * card live as distinct items in the queue. Each retention campaign
+   * creates at most one of each (call expires when the cron advances
+   * to the text stage; text expires when the cron advances to the
+   * email stage).
+   */
+  retentionCall(conservationAlertId: string): string {
+    return `retention_${conservationAlertId}_call`;
+  },
+  retentionText(conservationAlertId: string): string {
+    return `retention_${conservationAlertId}_text`;
   },
   referral(referralId: string): string {
     return `referral_${referralId}`;

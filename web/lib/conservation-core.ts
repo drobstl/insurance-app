@@ -15,12 +15,51 @@ import type {
   ConservationReason,
   TouchStage,
 } from './conservation-types';
-import { TOUCH_STAGE_DELAY } from './conservation-types';
+import { RETENTION_QUIET_PERIOD_MS } from './conservation-types';
 
 const GRACE_PERIOD_MS = 2 * 60 * 60 * 1000; // 2 hours
 
-function computeNextTouchAt(fromMs: number, nextStage: TouchStage): string {
-  return new Date(fromMs + TOUCH_STAGE_DELAY[nextStage]).toISOString();
+/**
+ * Look up a prior retention campaign for the same (client, policy)
+ * that ended within the 60-day quiet window. Returns the offending
+ * alert's id + ended timestamp so the caller can produce a useful
+ * skip-result. Matches on `clientId` AND `policyNumber` — same logic
+ * as `findMatch` uses to deduplicate.
+ */
+async function findRecentEndedRetentionCampaign(
+  agentId: string,
+  clientId: string | null,
+  policyNumber: string,
+  now: number,
+): Promise<{ alertId: string; campaignEndedAt: string } | null> {
+  if (!clientId) return null;
+  const trimmedPolicy = policyNumber.trim();
+  if (!trimmedPolicy) return null;
+
+  const cutoff = now - RETENTION_QUIET_PERIOD_MS;
+  const db = getAdminFirestore();
+  const snap = await db
+    .collection('agents')
+    .doc(agentId)
+    .collection('conservationAlerts')
+    .where('clientId', '==', clientId)
+    .where('policyNumber', '==', trimmedPolicy)
+    .get();
+
+  let best: { alertId: string; endedAtMs: number; campaignEndedAt: string } | null = null;
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    const endedRaw = data.campaignEndedAt;
+    if (typeof endedRaw !== 'string') continue;
+    const endedMs = Date.parse(endedRaw);
+    if (!Number.isFinite(endedMs)) continue;
+    if (endedMs < cutoff) continue;
+    if (!best || endedMs > best.endedAtMs) {
+      best = { alertId: doc.id, endedAtMs: endedMs, campaignEndedAt: endedRaw };
+    }
+  }
+  if (!best) return null;
+  return { alertId: best.alertId, campaignEndedAt: best.campaignEndedAt };
 }
 
 /**
@@ -162,11 +201,23 @@ async function findMatch(
   return null;
 }
 
-export interface CreateConservationAlertResult {
+export interface CreateConservationAlertCreated {
+  outcome: 'created';
   alertId: string;
   alert: Omit<ConservationAlert, 'createdAt'> & { createdAt?: unknown };
   matched: boolean;
 }
+
+export interface CreateConservationAlertSkipped {
+  outcome: 'quiet_period_skipped';
+  reason: 'retention_quiet_period_60d';
+  priorAlertId: string;
+  priorCampaignEndedAt: string;
+}
+
+export type CreateConservationAlertResult =
+  | CreateConservationAlertCreated
+  | CreateConservationAlertSkipped;
 
 export interface ManualFlagParams {
   clientId: string;
@@ -218,6 +269,25 @@ export async function createManualConservationAlert(
   const premiumAmount = (policyData.premiumAmount as number) || null;
   const coverageAmount = (policyData.coverageAmount as number) || null;
   const policyNumber = (policyData.policyNumber as string) || '';
+
+  // 60-day quiet period — see CONTEXT.md > Channel Rules > Lapse /
+  // Retention. Skip even on a manual flag: the rule is "no two
+  // retention campaigns against the same policy within 60 days,"
+  // independent of how the second one was triggered.
+  const recentlyEnded = await findRecentEndedRetentionCampaign(
+    agentId,
+    params.clientId,
+    policyNumber,
+    Date.now(),
+  );
+  if (recentlyEnded) {
+    return {
+      outcome: 'quiet_period_skipped',
+      reason: 'retention_quiet_period_60d',
+      priorAlertId: recentlyEnded.alertId,
+      priorCampaignEndedAt: recentlyEnded.campaignEndedAt,
+    };
+  }
 
   const agentDoc = await db.collection('agents').doc(agentId).get();
   const agentData = agentDoc.data() || {};
@@ -313,6 +383,14 @@ export async function createManualConservationAlert(
       : null,
     channelsUsed: [] as ConservationChannel[],
     lastClientReplyAt: null as string | null,
+    // Retention rewrite (May 9, 2026) — campaign extension fields. The
+    // cron stamps `campaignStartPushEligible` at first send time;
+    // `currentActionItemId` is set when the call/text action items
+    // queue; `campaignEndedAt` stamps at stage_email auto-fire or
+    // saved/lost.
+    campaignEndedAt: null as string | null,
+    currentActionItemId: null as string | null,
+    campaignStartPushEligible: null as boolean | null,
     preferredLanguage: resolveClientLanguage(clientData.preferredLanguage),
     notes: null,
     createdAt: FieldValue.serverTimestamp(),
@@ -329,6 +407,7 @@ export async function createManualConservationAlert(
   }
 
   return {
+    outcome: 'created',
     alertId: alertRef.id,
     alert: { ...alertData, id: alertRef.id } as Omit<ConservationAlert, 'createdAt'> & {
       createdAt?: unknown;
@@ -353,6 +432,27 @@ export async function createConservationAlert(
 
   // 2. Auto-match to client + policy
   const match = await findMatch(agentId, extracted.clientName, extracted.policyNumber);
+
+  // 2b. 60-day quiet period check — only enforced when we matched a
+  //     client + policy (otherwise there's no policyNumber to match
+  //     against). Unmatched alerts are essentially free-floating
+  //     scratch records and bypass the rule until they're matched.
+  if (match) {
+    const recentlyEnded = await findRecentEndedRetentionCampaign(
+      agentId,
+      match.clientId,
+      extracted.policyNumber,
+      Date.now(),
+    );
+    if (recentlyEnded) {
+      return {
+        outcome: 'quiet_period_skipped',
+        reason: 'retention_quiet_period_60d',
+        priorAlertId: recentlyEnded.alertId,
+        priorCampaignEndedAt: recentlyEnded.campaignEndedAt,
+      };
+    }
+  }
 
   // 3. Get agent info for message generation
   const agentDoc = await db.collection('agents').doc(agentId).get();
@@ -465,6 +565,11 @@ export async function createConservationAlert(
       : null,
     channelsUsed: [] as ConservationChannel[],
     lastClientReplyAt: null as string | null,
+    // Retention rewrite (May 9, 2026) — see manual-flag path above
+    // for the same comment.
+    campaignEndedAt: null as string | null,
+    currentActionItemId: null as string | null,
+    campaignStartPushEligible: null as boolean | null,
     preferredLanguage: match?.preferredLanguage || 'en',
     notes: null,
     createdAt: FieldValue.serverTimestamp(),
@@ -495,6 +600,7 @@ export async function createConservationAlert(
   }
 
   return {
+    outcome: 'created',
     alertId: alertRef.id,
     alert: { ...alertData, id: alertRef.id } as Omit<ConservationAlert, 'createdAt'> & {
       createdAt?: unknown;

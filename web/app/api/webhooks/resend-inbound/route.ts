@@ -101,6 +101,20 @@ export async function POST(req: NextRequest) {
 
     const result = await createConservationAlert(agentId, rawText.trim(), 'email_forward');
 
+    if (result.outcome === 'quiet_period_skipped') {
+      console.log('[resend-inbound] retention quiet period — alert creation skipped', {
+        agentId,
+        priorAlertId: result.priorAlertId,
+        priorCampaignEndedAt: result.priorCampaignEndedAt,
+      });
+      return NextResponse.json({
+        received: true,
+        skipped: 'retention_quiet_period_60d',
+        priorAlertId: result.priorAlertId,
+        priorCampaignEndedAt: result.priorCampaignEndedAt,
+      });
+    }
+
     // Send confirmation email back to the agent
     try {
       const resend = getResend();

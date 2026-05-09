@@ -10,6 +10,11 @@ export type ConservationStatus =
   | 'drip_1'
   | 'drip_2'
   | 'drip_3'
+  // Stage 4 (or 5 in push-eligible path) email auto-fired; campaign ended
+  // without explicit save/lost. The alert remains queryable for the
+  // 60-day quiet window so re-trigger checks work, and the conversation
+  // surface stays open in case the client replies later.
+  | 'drip_complete'
   | 'saved'
   | 'lost';
 
@@ -17,66 +22,95 @@ export type ConservationSource = 'email_forward' | 'paste' | 'manual_flag';
 
 export type ConservationChannel = 'sms' | 'push' | 'email';
 
+/**
+ * Retention campaign state machine — May 2026 rewrite.
+ *
+ * SOURCE OF TRUTH: `CONTEXT.md` > `Channel Rules` > Lapse / Retention.
+ * Daniel's locked May 9, 2026 cadence revision (supersedes the legacy
+ * 4-stage push/sms/push/sms drip):
+ *
+ *   Push-eligible path (5 stages):
+ *     stage_push → stage_sms → stage_call → stage_text → stage_email
+ *
+ *   Not-eligible path (4 stages — skip stage_push):
+ *     stage_sms → stage_call → stage_text → stage_email
+ *
+ * Invariant: at most ONE Linq outbound (`stage_sms`) per campaign,
+ * regardless of path. The toggle-AI-back-on mechanic from the prior
+ * spec is intentionally dropped — the agent's path forward at the gate
+ * is to take the personal action (call or text), not to re-engage AI.
+ *
+ * Each stage advances 48h after the prior stage's send (or
+ * action-item-creation time, for the agent stages). Chain stops on
+ * `lastClientReplyAt` or `status === 'saved' | 'lost'`. Stage advance
+ * is timer-driven: completing a call or text action item ≠ campaign
+ * over; only client engagement or explicit agent resolution stops it.
+ */
 export type TouchStage =
-  | 'initial'
-  | 'followup_24h'
-  | 'followup_day3'
-  | 'followup_day7';
+  | 'stage_push'
+  | 'stage_sms'
+  | 'stage_call'
+  | 'stage_text'
+  | 'stage_email';
 
-export const TOUCH_STAGE_TO_STATUS: Record<TouchStage, ConservationStatus> = {
-  initial: 'outreach_sent',
-  followup_24h: 'drip_1',
-  followup_day3: 'drip_2',
-  followup_day7: 'drip_3',
-};
-
-export const STATUS_TO_TOUCH_STAGE: Partial<Record<ConservationStatus, TouchStage>> = {
-  outreach_sent: 'initial',
-  drip_1: 'followup_24h',
-  drip_2: 'followup_day3',
-  drip_3: 'followup_day7',
-};
-
-export const TOUCH_STAGE_DRIP_NUMBER: Record<TouchStage, number> = {
-  initial: 0,
-  followup_24h: 1,
-  followup_day3: 2,
-  followup_day7: 3,
-};
-
-export const NEXT_TOUCH_STAGE: Partial<Record<TouchStage, TouchStage>> = {
-  initial: 'followup_24h',
-  followup_24h: 'followup_day3',
-  followup_day3: 'followup_day7',
+export const NEXT_RETENTION_STAGE: Partial<Record<TouchStage, TouchStage>> = {
+  stage_push: 'stage_sms',
+  stage_sms: 'stage_call',
+  stage_call: 'stage_text',
+  stage_text: 'stage_email',
 };
 
 const MS_PER_HOUR = 60 * 60 * 1000;
 const MS_PER_DAY = 24 * MS_PER_HOUR;
 
-export const TOUCH_STAGE_DELAY: Record<TouchStage, number> = {
-  initial: 0,
-  followup_24h: 24 * MS_PER_HOUR,
-  followup_day3: 3 * MS_PER_DAY,
-  followup_day7: 7 * MS_PER_DAY,
-};
+/** 48h between every stage advance, per Daniel's May 9 lock. */
+export const RETENTION_STAGE_INTERVAL_MS = 48 * MS_PER_HOUR;
 
-export const STAGE_PRIMARY_CHANNEL: Record<TouchStage, ConservationChannel> = {
-  initial: 'push',
-  followup_24h: 'sms',
-  followup_day3: 'push',
-  followup_day7: 'sms',
-};
+/** 60-day quiet period after `campaignEndedAt`. New retention alerts
+ *  for the same (clientId, policyNumber) are skipped within this window. */
+export const RETENTION_QUIET_PERIOD_MS = 60 * MS_PER_DAY;
 
-export const STAGE_FALLBACK_ORDER: Record<TouchStage, ConservationChannel[]> = {
-  initial: ['push', 'sms'],
-  followup_24h: ['sms', 'push'],
-  followup_day3: ['push', 'sms'],
-  followup_day7: ['sms', 'push'],
-};
+/**
+ * The starting stage of a fresh retention campaign. Push-eligible
+ * clients begin at `stage_push`; everyone else jumps straight to
+ * `stage_sms` (the single permitted Linq outbound).
+ */
+export function pickInitialRetentionStage(pushEligible: boolean): TouchStage {
+  return pushEligible ? 'stage_push' : 'stage_sms';
+}
 
-export const STAGE_COMPLEMENT_EMAIL: Partial<Record<TouchStage, boolean>> = {
-  followup_day7: true,
-};
+/**
+ * Map the canonical `touchStage` + `dripCount` pair down to the legacy
+ * `status` enum so existing dashboard / webhook queries that filter on
+ * `status` continue to work without UI surgery.
+ *
+ * Status is "Nth touch in the campaign," not "which kind of touch":
+ *   1st touch → 'outreach_sent'
+ *   2nd       → 'drip_1'
+ *   3rd       → 'drip_2'
+ *   4th       → 'drip_3'
+ *   5th (email auto-fire) → 'drip_complete'
+ *
+ * This means push-eligible's stage_text lands at status='drip_3' while
+ * not-eligible's stage_text lands at status='drip_2'. That's correct —
+ * both are "campaign still active, third or fourth automated touch
+ * fired" and the dashboard already groups them in the active bucket.
+ */
+export function statusForRetentionDripCount(count: number): ConservationStatus {
+  if (count <= 1) return 'outreach_sent';
+  if (count === 2) return 'drip_1';
+  if (count === 3) return 'drip_2';
+  if (count === 4) return 'drip_3';
+  return 'drip_complete';
+}
+
+/** Statuses that represent an active (non-terminal, non-ended) campaign. */
+export const ACTIVE_RETENTION_STATUSES: ConservationStatus[] = [
+  'outreach_sent',
+  'drip_1',
+  'drip_2',
+  'drip_3',
+];
 
 // ─── Policy Review (Rewrite) Staged Outreach ────────────────────────────────
 
@@ -213,6 +247,27 @@ export interface ConservationAlert {
   nextTouchAt: string | null;
   channelsUsed: ConservationChannel[];
   lastClientReplyAt: string | null;
+
+  /**
+   * Retention campaign extension fields (May 9, 2026 rewrite).
+   *
+   * `campaignEndedAt` stamps when the campaign concludes — either by
+   * stage_email auto-fire, by `saved`/`lost`, or by an in-flight
+   * legacy alert force-end on lift. Drives the 60-day quiet check at
+   * new alert creation time.
+   *
+   * `currentActionItemId` back-points to the most recent pending
+   * retention action item (call or text) so the cron can expire it
+   * cleanly when advancing to the next stage, and the webhook reply
+   * handler can expire it when the client replies.
+   *
+   * `campaignStartPushEligible` snapshots push eligibility at Stage 1
+   * send time. Used by the cron to know which path the campaign is on
+   * (5-stage vs 4-stage) without re-deriving from later state.
+   */
+  campaignEndedAt: string | null;
+  currentActionItemId: string | null;
+  campaignStartPushEligible: boolean | null;
 
   notes: string | null;
   createdAt: Timestamp;

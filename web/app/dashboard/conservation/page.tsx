@@ -326,7 +326,8 @@ export default function ConservationPage() {
     outreach_sent: 'Outreach Sent',
     drip_1: 'Follow-up 1',
     drip_2: 'Follow-up 2',
-    drip_3: 'Final Follow-up',
+    drip_3: 'Follow-up 3',
+    drip_complete: 'Campaign Ended',
     saved: 'Saved',
     lost: 'Lost',
   };
@@ -337,7 +338,8 @@ export default function ConservationPage() {
     outreach_sent: 'bg-purple-100 text-purple-700',
     drip_1: 'bg-purple-100 text-purple-700',
     drip_2: 'bg-purple-100 text-purple-700',
-    drip_3: 'bg-gray-100 text-gray-600',
+    drip_3: 'bg-purple-100 text-purple-700',
+    drip_complete: 'bg-gray-100 text-gray-600',
     saved: 'bg-green-100 text-green-700',
     lost: 'bg-red-100 text-red-700',
   };
@@ -473,7 +475,7 @@ export default function ConservationPage() {
           {[...alerts]
             .sort((a, b) => {
               const priorityOrder: Record<string, number> = { high: 0, low: 1 };
-              const statusOrder: Record<string, number> = { outreach_scheduled: 0, new: 1, outreach_sent: 2, drip_1: 3, drip_2: 4, drip_3: 5, saved: 6, lost: 7 };
+              const statusOrder: Record<string, number> = { outreach_scheduled: 0, new: 1, outreach_sent: 2, drip_1: 3, drip_2: 4, drip_3: 5, drip_complete: 6, saved: 7, lost: 8 };
               const pa = priorityOrder[a.priority] ?? 1;
               const pb = priorityOrder[b.priority] ?? 1;
               if (pa !== pb) return pa - pb;

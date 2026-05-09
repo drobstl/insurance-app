@@ -47,6 +47,7 @@ import {
   handlePostActivationInbound,
   handleWelcomeActivationInbound,
 } from '../../../../lib/welcome-activation-handler';
+import { expireActionItem } from '../../../../lib/action-item-store';
 
 const DEFAULT_WEBHOOK_AI_REPLY_COOLDOWN_MS = 45_000;
 const DEFAULT_WEBHOOK_AI_SIMILARITY_THRESHOLD = 0.9;
@@ -1021,7 +1022,7 @@ async function handleConservationReply(
   chatId: string,
   senderHandle: string,
 ) {
-  const { alertId, alertData, agentData, alertRef } = result;
+  const { agentId, alertId, alertData, agentData, alertRef } = result;
   const db = getAdminFirestore();
 
   const resolvedStatuses = ['saved', 'lost'];
@@ -1042,6 +1043,30 @@ async function handleConservationReply(
     replyUpdate.chatId = chatId;
   }
   await alertRef.update(replyUpdate);
+
+  // Retention rewrite (May 9, 2026): when the client replies, the
+  // pending call/text action item is no longer actionable — the
+  // agent has the conversation in the dashboard. Expire it cleanly
+  // so the queue doesn't surface stale items. Idempotent if no item
+  // exists or if it was already completed.
+  const pendingItemId = (alertData.currentActionItemId as string) || null;
+  if (pendingItemId) {
+    try {
+      await expireActionItem({
+        db,
+        agentId,
+        itemId: pendingItemId,
+      });
+      await alertRef.update({ currentActionItemId: null });
+    } catch (e) {
+      console.warn('[conservation-webhook] expire action item on reply failed (non-blocking)', {
+        agentId,
+        alertId,
+        itemId: pendingItemId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
 
   if (alertData.aiEnabled === false) return;
 

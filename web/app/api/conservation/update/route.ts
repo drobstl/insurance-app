@@ -7,6 +7,7 @@ import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { computeAgentAggregates } from '../../../../lib/stats-aggregation';
 import { readValidPushToken, sendExpoPush } from '../../../../lib/push-permission-lifecycle';
+import { expireActionItem } from '../../../../lib/action-item-store';
 
 type ResolvableStatus = 'saved' | 'lost';
 
@@ -75,6 +76,14 @@ export async function PATCH(req: NextRequest) {
     const updates: Record<string, unknown> = {
       status,
       resolvedAt: now,
+      // Retention rewrite (May 9, 2026): saved/lost both end the
+      // campaign. Stamp `campaignEndedAt` so the 60-day quiet
+      // period gates new alerts against the same policy. Already-
+      // ended campaigns retain their original `campaignEndedAt`
+      // (the early-return above blocks double-resolution).
+      campaignEndedAt: now,
+      campaignEndedReason: status === 'saved' ? 'agent_marked_saved' : 'agent_marked_lost',
+      nextTouchAt: null,
     };
 
     if (notes !== undefined) {
@@ -82,6 +91,27 @@ export async function PATCH(req: NextRequest) {
     }
 
     await alertRef.update(updates);
+
+    // Expire any pending retention action item — agent has resolved
+    // the alert; the call/text card is no longer actionable. Idempotent.
+    const pendingItemId = (alertData.currentActionItemId as string) || null;
+    if (pendingItemId) {
+      try {
+        await expireActionItem({
+          db,
+          agentId,
+          itemId: pendingItemId,
+        });
+        await alertRef.update({ currentActionItemId: null });
+      } catch (e) {
+        console.warn('[conservation-update] expire action item on resolve failed (non-blocking)', {
+          agentId,
+          alertId,
+          itemId: pendingItemId,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
 
     // Sync policy status if the alert is matched to a policy
     const clientId = alertData.clientId as string | null;

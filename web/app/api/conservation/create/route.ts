@@ -35,6 +35,22 @@ export async function POST(req: NextRequest) {
 
     const result = await createConservationAlert(agentId, rawText.trim(), 'paste');
 
+    if (result.outcome === 'quiet_period_skipped') {
+      return NextResponse.json(
+        {
+          success: false,
+          quietPeriodSkipped: true,
+          reason: result.reason,
+          priorAlertId: result.priorAlertId,
+          priorCampaignEndedAt: result.priorCampaignEndedAt,
+          message:
+            'A retention campaign for this policy ended within the last 60 days. '
+            + 'New retention outreach will be available 60 days after the prior campaign ended.',
+        },
+        { status: 409 },
+      );
+    }
+
     return NextResponse.json({
       success: true,
       alertId: result.alertId,
