@@ -65,7 +65,15 @@ Daniel reframed scope to "all gas no brakes" — try to land all of Phase 2 + as
 - "Toggle AI back on" mechanic on the action item — if agent toggles, chain resumes with 2nd-touch email + final SMS at end of campaign
 - 60-day quiet period after campaign ends
 
-The writer goes at `web/lib/retention-action-item-writer.ts`. Trigger reasons: `retention_first_sms_unanswered_48h`, `retention_first_sms_unresolved_5d`. Suggested actions include `text_personally`, `call`, `send_templated_email`, `toggle_ai_back_on`, `skip` — vocabulary already defined in `web/lib/action-item-types.ts:94`.
+**Action item card UX (Daniel's May 8 evening call — Model A locked):**
+- ONE Firestore doc per stalled retention (idempotency key = conservationAlert id + touch index, per `actionItemIdempotencyKey.retention(...)`).
+- TWO prominent CTAs on the card:
+  - **`📞 Call`** — opens `tel:` URL on agent's phone (uses `subjectPhoneE164` from displayContext)
+  - **`💬 Text personally`** — opens `sms:` URL with a STATIC pre-populated body (per-lane template, NOT agent-customizable in Settings). The static template lives in code (suggest `web/lib/retention-action-item-writer.ts > buildPretextRetentionSms` or similar). Mirror the welcome card's `text_personally` action.
+- Smaller secondary actions: `Toggle AI back on` (re-enable AI on the conservationAlert), `Send templated email` (server-side templated send), `Skip` (close without action).
+- Card style: same visual primitive as `WelcomeActionItemCard` but with the two big CTAs instead of three. Reuse the platform-detect helper from `web/lib/sms-url.ts`.
+
+The writer goes at `web/lib/retention-action-item-writer.ts`. Trigger reasons: `retention_first_sms_unanswered_48h`, `retention_first_sms_unresolved_5d`. Suggested actions are already defined in `web/lib/action-item-types.ts:94` — `text_personally`, `call`, `send_templated_email`, `toggle_ai_back_on`, `skip`. The `text_personally` action's pre-filled SMS body is NEW infrastructure for this lane (welcome lane's `welcomeMessageBody` field on `displayContext` doesn't fit semantically, so add `retentionMessageBody` or similar — or better: rename the field generically to `prefilledSmsBody` so anniversary's future text-personally action has somewhere to put its body too).
 
 The toggle-AI mechanic is the new behavioral piece: a flag on the conservationAlert doc (`aiPausedAt`, `aiResumedAt`?) that the action item card writes when the agent taps "Toggle AI back on", and that the conservation-outreach cron reads to decide whether to resume the chain. Design this carefully — it's a state machine and gets bug-prone fast.
 
@@ -104,6 +112,8 @@ These were Daniel calls today; they override prior CONTEXT.md / amendment text:
 - **AFL infinity icon as photo placeholder** in the depersonalized Activate flow.
 - **Founding 34 will start over on relaunch.** No backfill of state, no migration of in-flight campaigns. The May 8 audit confirmed 0 active state to worry about.
 - **App store submissions = production review** (not just internal). iOS goes through TestFlight first, manual promote in App Store Connect. Android internal track first, smoke, then promote.
+- **Referral chain capped at 2 Linq SMS max** (initial outreach + drip 1). Drip 2 (Day 5) and drip 3 (Day 8) dropped. After drip 1, AI is done; 24h later the action item fires for agent personal call. Reason: too many unanswered outbound SMS to strangers is risky for line reputation. Shipped tonight in a follow-up commit to `9ab2fa8` — referral-drip cron's `DRIP_STATUSES` shrunk to `['outreach-sent']` only, action item scan now queries `status='drip-1'` (the new terminal state).
+- **Retention action item card uses Model A: ONE card with TWO prominent CTAs.** Per Daniel's call: card shows `[📞 Call] [💬 Text personally]` as two big buttons, not two separate Firestore docs. Model B (two separate items per stalled retention) was considered and rejected — feels duplicative when both items are about the same client. The text-personally pre-populated message is **STATIC** (per-lane template), NOT agent-customizable in Settings. Same as the welcome card pattern but with two CTAs instead of three.
 
 ## Open questions / things untested
 

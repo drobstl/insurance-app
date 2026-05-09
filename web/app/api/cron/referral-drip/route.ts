@@ -8,28 +8,33 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { buildReferralDripMessage, resolveClientLanguage } from '../../../../lib/client-language';
 import { queueReferralActionItem } from '../../../../lib/referral-action-item-writer';
 
-const DRIP_STATUSES = ['outreach-sent', 'drip-1', 'drip-2'] as const;
+// May 8, 2026 line-health discipline: cap the referral chain at 2 Linq
+// SMS max (initial outreach Day 0 + drip 1 Day 2). Drip 2 and drip 3
+// were dropped per Daniel's call — too many unanswered outbound SMS to
+// strangers is risky for line reputation. After drip 1, AI is done;
+// 24h later the system creates an action item ("call this referral")
+// for the agent to take over personally.
+const DRIP_STATUSES = ['outreach-sent'] as const;
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 const DRIP_DELAYS: Record<string, number> = {
   'outreach-sent': 2 * MS_PER_DAY,
-  'drip-1': 3 * MS_PER_DAY,
-  'drip-2': 3 * MS_PER_DAY,
 };
 
 const NEXT_STATUS: Record<string, string> = {
   'outreach-sent': 'drip-1',
-  'drip-1': 'drip-2',
-  'drip-2': 'drip-complete',
 };
 
 /**
  * GET /api/cron/referral-drip
  *
  * Vercel Cron — runs every 4 hours.
- * Sends follow-up drip messages on Day 2, 5, and 8 via Linq
- * to the referral's 1-on-1 directChatId.
+ * Sends ONE follow-up drip message on Day 2 via Linq (drip 1). After
+ * that, the AI side is done — referrals with status='drip-1' that go
+ * 24h+ without a client reply surface as agent action items so the
+ * agent can call personally. Total Linq outbound per referral chain:
+ * 2 SMS max (initial + drip 1).
  */
 export async function GET() {
   if (process.env.LINQ_OUTBOUND_DISABLED === 'true') {
@@ -167,15 +172,13 @@ export async function GET() {
       }
     }
 
-    // ── Phase 2: surface action items for stalled drip-complete
-    // referrals ──────────────────────────────────────────────────────
-    // Trigger: status=drip-complete AND >=24h since lastDripAt AND no
-    // client reply since lastDripAt. Per CONTEXT.md `Channel Rules >
-    // Agent action item surface` — "AI's 24-hour follow-up bump goes
-    // unanswered (current 'no further outreach' stopping point in
-    // v3.1 §4.4)". Idempotent per referral via the writer's
-    // idempotencyKey, so multiple cron passes on the same stalled
-    // referral collapse to one item.
+    // ── Phase 2: surface action items for stalled drip-1 referrals ──
+    // Trigger: status=drip-1 AND >=24h since lastDripAt AND no client
+    // reply since lastDripAt. Per the May 8 line-health cap, drip-1 is
+    // the terminal AI-sent status (drip 2 + drip 3 dropped). 24h after
+    // drip 1 with no reply, the lead transitions to agent-personal
+    // action: action item created saying "call this referral."
+    // Idempotent per referral via the writer's idempotencyKey.
     let actionItemsCreated = 0;
     try {
       const completeMs = 24 * 60 * 60 * 1000;
@@ -185,7 +188,7 @@ export async function GET() {
           .collection('agents')
           .doc(agentDoc.id)
           .collection('referrals')
-          .where('status', '==', 'drip-complete')
+          .where('status', '==', 'drip-1')
           .get();
         for (const referralDoc of completeSnap.docs) {
           const data = referralDoc.data();
