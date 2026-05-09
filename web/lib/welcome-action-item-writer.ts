@@ -70,6 +70,15 @@ function firstNameFrom(fullName: string): string {
 }
 
 /**
+ * Welcome flow mode. `mode_1` is the live-call inline send path
+ * (default); `mode_2` is the bulk-import drip-released path. Mode 2
+ * needs different copy because the client receives the text cold
+ * (existing relationship, no on-the-call context) and needs an
+ * explicit value prop to motivate the download.
+ */
+export type WelcomeMode = 'mode_1' | 'mode_2';
+
+/**
  * Build the welcome SMS body the agent will send from their personal
  * phone via the `sms:` URL scheme. Contains app download link, login
  * code, and the numbered-step instruction copy locked May 7, 2026
@@ -77,13 +86,16 @@ function firstNameFrom(fullName: string): string {
  *
  * Spanish copy reuses `buildWelcomeMessage` from web/lib/client-language.ts.
  * Spanish has NOT been re-translated to the new numbered-step structure
- * yet — open spec item flagged in CONTEXT.md.
+ * yet — open spec item flagged in CONTEXT.md. Mode 2 also defers
+ * Spanish to a follow-up; for now Spanish-preferring bulk-import
+ * clients land on the Mode 1 Spanish copy.
  */
 export function buildPhase1WelcomeBody(params: {
   clientFirstName: string;
   agentName: string;
   clientCode: string;
   language: SupportedLanguage;
+  mode?: WelcomeMode;
 }): string {
   if (params.language === 'es') {
     return buildWelcomeMessage({
@@ -96,6 +108,22 @@ export function buildPhase1WelcomeBody(params: {
   }
   const firstName = params.clientFirstName || 'there';
   const agentName = params.agentName || 'your agent';
+  if (params.mode === 'mode_2') {
+    // Cold-context bulk-import drip copy locked May 9, 2026 (Daniel
+    // sign-off Version 1). Leads with the value prop because these
+    // are existing clients who weren't expecting a setup text — the
+    // first sentence has to answer "why do I need this?" before
+    // they read the steps.
+    return (
+      `Hey ${firstName}, ${agentName} here. Setting up my clients on a new app `
+      + 'so your policy details are always on your phone and you can reach me '
+      + 'with one tap. Quick setup:\n\n'
+      + `1. Download: ${APP_DOWNLOAD_URL}\n`
+      + '2. Tap Activate, then tap Send\n'
+      + `3. Log in with code ${params.clientCode}\n\n`
+      + 'Allow notifications when prompted so I can keep you posted on your coverage.'
+    );
+  }
   return (
     `Hey ${firstName}! ${agentName} here. Quick setup:\n\n`
     + `1. Download: ${APP_DOWNLOAD_URL}\n`
@@ -109,10 +137,14 @@ export function buildPhase1WelcomeBody(params: {
  * Build the displayContext snapshot an action item carries. Pure function
  * over (client doc, agent doc) so refresh-in-place can re-derive without
  * touching the persisted item's lifecycle fields.
+ *
+ * `mode` defaults to `'mode_1'` (live-call inline send). The bulk-
+ * import drip cron passes `'mode_2'` to swap in the cold-context copy.
  */
 export function buildWelcomeDisplayContext(params: {
   clientDoc: ClientLikeDoc;
   agentDoc: AgentLikeDoc;
+  mode?: WelcomeMode;
 }): ActionItemDisplayContext {
   const subjectName = readString(params.clientDoc.name) || null;
   const subjectFirstName = subjectName ? firstNameFrom(subjectName) : null;
@@ -130,6 +162,7 @@ export function buildWelcomeDisplayContext(params: {
           agentName: agentName || '',
           clientCode: subjectClientCode,
           language,
+          mode: params.mode,
         })
       : null;
 
@@ -153,6 +186,9 @@ interface QueueOrRefreshParams {
   db: FirebaseFirestore.Firestore;
   agentId: string;
   clientId: string;
+  /** Welcome mode. Defaults to `'mode_1'` (live-call inline send).
+   *  The bulk-import drip cron passes `'mode_2'` to swap copy. */
+  mode?: WelcomeMode;
 }
 
 export interface QueueOrRefreshResult {
@@ -194,7 +230,11 @@ export async function queueOrRefreshWelcomeActionItem(
   }
   const clientData = (clientSnap.data() ?? {}) as ClientLikeDoc;
   const agentData = (agentSnap.exists ? agentSnap.data() : {}) as AgentLikeDoc;
-  const displayContext = buildWelcomeDisplayContext({ clientDoc: clientData, agentDoc: agentData });
+  const displayContext = buildWelcomeDisplayContext({
+    clientDoc: clientData,
+    agentDoc: agentData,
+    mode: params.mode,
+  });
 
   if (!displayContext.subjectPhoneE164) {
     return { itemId, outcome: 'skipped_no_phone' };

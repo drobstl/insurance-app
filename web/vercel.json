@@ -63,6 +63,10 @@
     {
       "path": "/api/cron/welcome-action-item-expiry",
       "schedule": "0 16 * * *"
+    },
+    {
+      "path": "/api/cron/bulk-import-drip-release",
+      "schedule": "0 13 * * *"
     }
   ]
 }

@@ -4389,15 +4389,13 @@ export default function ClientsPage() {
             </button>
             <button
               type="button"
-              disabled
-              title="Currently under construction"
-              className="px-4 py-2.5 bg-[#f6f6f6] text-[#7a7a7a] font-semibold rounded-lg border-2 border-[#b4b4b4] border-r-[3px] border-b-[3px] transition-colors flex items-center gap-2 text-sm cursor-not-allowed"
+              onClick={() => setIsImportModalOpen(true)}
+              className="px-4 py-2.5 bg-white text-[#0D4D4D] font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors hover:bg-[#f8f8f8] flex items-center gap-2 text-sm"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
-              <span className="text-red-600 line-through decoration-red-600 decoration-2">Bulk Import</span>
-              <span className="text-red-700">Currently under construction</span>
+              Bulk Import
             </button>
             {beneficiaryQueueSummary && beneficiaryQueueSummary.totalNeedsAttention > 0 && (
               <button
@@ -4515,138 +4513,32 @@ export default function ClientsPage() {
                     </div>
                     <p className="text-lg font-bold text-[#000000] mb-2">{importSuccess}</p>
                   </div>
-                  {introSentCount !== null ? (
-                    <div className="text-center">
-                      <p className="text-[#0D4D4D] font-semibold mb-4">Sent to {introSentCount} client{introSentCount !== 1 ? 's' : ''}.</p>
-                      <button
-                        onClick={() => {
-                          setIsImportModalOpen(false);
-                          setImportSuccess('');
-                          setJustImportedClients([]);
-                          setIntroMessage(DEFAULT_INTRO_TEMPLATE);
-                          setIntroSentCount(null);
-                          setSelectedIntroClients(new Set());
-                          setShowIntroConfirm(false);
-                        }}
-                        className="px-6 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors text-sm"
-                      >
-                        Done
-                      </button>
-                    </div>
-                  ) : (() => {
+                  {/* Mode 2 (May 9, 2026) — bulk-import drip release.
+                      The legacy "Send intro to N clients" bulk-blast path
+                      was removed because it bypassed the drip and
+                      torched line health. Imported clients now flow
+                      through `/api/cron/bulk-import-drip-release` at
+                      ≤15/day and surface in /dashboard/action-items
+                      with Mode 2 welcome copy. */}
+                  {(() => {
                     const withPhone = justImportedClients.filter((r) => r.phone.trim());
-                    if (withPhone.length === 0) {
-                      return (
-                        <button
-                          onClick={() => {
-                            setIsImportModalOpen(false);
-                            setImportSuccess('');
-                            setJustImportedClients([]);
-                            setIntroMessage(DEFAULT_INTRO_TEMPLATE);
-                            setIntroSentCount(null);
-                            setSelectedIntroClients(new Set());
-                            setShowIntroConfirm(false);
-                          }}
-                          className="w-full px-6 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors text-sm"
-                        >
-                          Done
-                        </button>
-                      );
-                    }
-                    const selectedCount = withPhone.filter((r) => selectedIntroClients.has(r.clientId)).length;
-                    if (showIntroConfirm) {
-                      return (
-                        <div className="space-y-4">
-                          <div className="bg-amber-50 border border-amber-200 rounded-[5px] p-4 text-center">
-                            <p className="text-sm font-semibold text-amber-800 mb-1">Confirm Send</p>
-                            <p className="text-sm text-amber-700">
-                              This will text <strong>{selectedCount} client{selectedCount !== 1 ? 's' : ''}</strong> the intro message with their app download link and unique code.
-                            </p>
-                          </div>
-                          <div className="flex gap-3">
-                            <button
-                              onClick={() => setShowIntroConfirm(false)}
-                              disabled={sendingIntro}
-                              className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-100 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors text-sm"
-                            >
-                              Go back
-                            </button>
-                            <button
-                              onClick={handleSendBulkIntro}
-                              disabled={sendingIntro}
-                              className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 text-white font-semibold rounded-[5px] transition-colors flex items-center justify-center gap-2 text-sm"
-                            >
-                              {sendingIntro ? (
-                                <>
-                                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                  </svg>
-                                  Sending...
-                                </>
-                              ) : (
-                                'Yes, send'
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    }
                     return (
-                      <div className="space-y-3">
-                        <p className="text-sm text-[#707070]">
-                          Send a custom intro to clients with phone numbers. Use <strong>{'{{firstName}}'}</strong>, <strong>{'{{code}}'}</strong>, and <strong>{'{{agentName}}'}</strong> in your message.
-                        </p>
-                        <textarea
-                          value={introMessage}
-                          onChange={(e) => setIntroMessage(e.target.value)}
-                          rows={6}
-                          className="w-full px-3 py-2 border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] placeholder-[#707070] focus:outline-none focus:border-[#45bcaa] resize-y"
-                          placeholder={DEFAULT_INTRO_TEMPLATE}
-                        />
-                        <p className="text-xs text-[#707070]">If you leave this blank, we&apos;ll send the default message above.</p>
-                        <div className="border border-[#d0d0d0] rounded-[5px] overflow-hidden">
-                          <div className="flex items-center justify-between bg-[#f8f8f8] px-3 py-2 border-b border-[#d0d0d0]">
-                            <span className="text-xs font-semibold text-[#707070]">{selectedCount} of {withPhone.length} selected</span>
-                            <button
-                              onClick={() => {
-                                if (selectedCount === withPhone.length) {
-                                  setSelectedIntroClients(new Set());
-                                } else {
-                                  setSelectedIntroClients(new Set(withPhone.map((r) => r.clientId)));
-                                }
-                              }}
-                              className="text-xs font-medium text-[#005851] hover:text-[#003d3d] transition-colors"
-                            >
-                              {selectedCount === withPhone.length ? 'Deselect all' : 'Select all'}
-                            </button>
-                          </div>
-                          <div className="max-h-48 overflow-y-auto divide-y divide-[#f0f0f0]">
-                            {withPhone.map((client) => (
-                              <label key={client.clientId} className="flex items-center gap-3 px-3 py-2 hover:bg-[#f8f8f8] cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedIntroClients.has(client.clientId)}
-                                  onChange={() => {
-                                    setSelectedIntroClients((prev) => {
-                                      const next = new Set(prev);
-                                      if (next.has(client.clientId)) {
-                                        next.delete(client.clientId);
-                                      } else {
-                                        next.add(client.clientId);
-                                      }
-                                      return next;
-                                    });
-                                  }}
-                                  className="w-4 h-4 rounded border-[#d0d0d0] text-[#44bbaa] focus:ring-[#44bbaa] shrink-0"
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <span className="text-sm text-[#000000] font-medium">{client.firstName || '—'}</span>
-                                  <span className="text-xs text-[#707070] ml-2">{client.phone}</span>
-                                </div>
-                              </label>
-                            ))}
-                          </div>
+                      <div className="space-y-3 text-center">
+                        <div className="rounded-[5px] border border-[#cce8e1] bg-[#f0faf7] px-4 py-3 text-left">
+                          <p className="text-sm font-semibold text-[#0D4D4D] mb-1">
+                            Queued for daily release
+                          </p>
+                          <p className="text-xs text-[#3a5a52] leading-relaxed">
+                            Up to 15 of these will land in your Action Items each day, ready to text from your phone. This pacing protects your personal number from carrier flags.
+                            {withPhone.length < justImportedClients.length ? (
+                              <>
+                                {' '}
+                                <span className="text-[#7a4a00]">
+                                  ({justImportedClients.length - withPhone.length} client{justImportedClients.length - withPhone.length !== 1 ? 's' : ''} without a phone won&apos;t be queued.)
+                                </span>
+                              </>
+                            ) : null}
+                          </p>
                         </div>
                         <div className="flex gap-3">
                           <button
@@ -4661,14 +4553,22 @@ export default function ClientsPage() {
                             }}
                             className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors text-sm"
                           >
-                            Skip
+                            Done
                           </button>
                           <button
-                            onClick={() => setShowIntroConfirm(true)}
-                            disabled={selectedCount === 0}
-                            className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-[5px] transition-colors text-sm"
+                            onClick={() => {
+                              setIsImportModalOpen(false);
+                              setImportSuccess('');
+                              setJustImportedClients([]);
+                              setIntroMessage(DEFAULT_INTRO_TEMPLATE);
+                              setIntroSentCount(null);
+                              setSelectedIntroClients(new Set());
+                              setShowIntroConfirm(false);
+                              router.push('/dashboard/action-items?lane=welcome');
+                            }}
+                            className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors text-sm"
                           >
-                            {`Send intro to ${selectedCount} client${selectedCount !== 1 ? 's' : ''}`}
+                            View Action Items
                           </button>
                         </div>
                       </div>

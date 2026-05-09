@@ -308,6 +308,13 @@ export async function POST(request: NextRequest) {
         agentId: uid,
         createdAt: FieldValue.serverTimestamp(),
         preferredLanguage: resolveClientLanguage('en'),
+        // Mode 2 (bulk import) flag — May 9, 2026. Marks the client
+        // as awaiting daily drip release rather than immediate
+        // welcome queue. The `bulk-import-drip-release` cron picks
+        // up to 15 of these per agent per day, queues a Mode 2
+        // welcome action item, and clears the flag.
+        bulkImportPendingDrip: true,
+        bulkImportSource: 'csv',
       };
       if ((primaryRow.dateOfBirth || '').trim()) {
         clientPayload.dateOfBirth = primaryRow.dateOfBirth.trim();
