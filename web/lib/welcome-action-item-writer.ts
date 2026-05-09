@@ -138,6 +138,11 @@ export function buildWelcomeDisplayContext(params: {
     subjectFirstName,
     subjectPhoneE164,
     subjectClientCode,
+    // Canonical field name (May 9, 2026 rename). The legacy
+    // `welcomeMessageBody` is also populated below for one rollover
+    // window so in-flight items written by older code paths still
+    // render via `readPrefilledSmsBody`.
+    prefilledSmsBody: welcomeMessageBody,
     welcomeMessageBody,
     agentName,
     preferredLanguage: language,
@@ -215,7 +220,8 @@ export async function queueOrRefreshWelcomeActionItem(
       before.subjectName === displayContext.subjectName &&
       before.subjectPhoneE164 === displayContext.subjectPhoneE164 &&
       before.subjectClientCode === displayContext.subjectClientCode &&
-      before.welcomeMessageBody === displayContext.welcomeMessageBody &&
+      (before.prefilledSmsBody ?? before.welcomeMessageBody) ===
+        (displayContext.prefilledSmsBody ?? displayContext.welcomeMessageBody) &&
       before.agentName === displayContext.agentName &&
       before.preferredLanguage === displayContext.preferredLanguage;
     if (same) {

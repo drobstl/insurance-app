@@ -6,7 +6,7 @@ import { QRCodeSVG } from 'qrcode.react';
 
 import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 import { captureEvent } from '../lib/posthog';
-import type { ActionItemDoc } from '../lib/action-item-types';
+import { readPrefilledSmsBody, type ActionItemDoc } from '../lib/action-item-types';
 import {
   type AgentPlatform,
   detectAgentPlatform,
@@ -95,7 +95,7 @@ export default function WelcomeActionItemCard({
   onCompleted,
 }: WelcomeActionItemCardProps) {
   const phone = item.displayContext.subjectPhoneE164 || '';
-  const body = item.displayContext.welcomeMessageBody || '';
+  const body = readPrefilledSmsBody(item.displayContext) || '';
   const subjectFirst = item.displayContext.subjectFirstName
     || item.displayContext.subjectName
     || 'New client';

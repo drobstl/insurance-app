@@ -102,21 +102,44 @@ export const ACTION_ITEM_SUGGESTED_ACTIONS_BY_LANE: Readonly<
  * refresh behavior depending on their semantics; see the Phase 2 writers
  * when they land.
  *
- * `subjectClientCode` and `welcomeMessageBody` are welcome-specific (the
- * `sms:` URL needs both); keep them optional so anniversary/retention/
- * referral writers don't have to populate them.
+ * `subjectClientCode` is welcome-specific.
+ *
+ * `prefilledSmsBody` is the canonical pre-filled SMS body for the
+ * `sms:` URL on `text_personally`. Phase 1 welcome populates it; Phase
+ * 2 retention's text-card stage populates a different (static)
+ * template here. `welcomeMessageBody` is the deprecated original alias
+ * — readers should prefer `prefilledSmsBody ?? welcomeMessageBody` for
+ * the duration of the rollover. The welcome writer continues to
+ * populate both; remove `welcomeMessageBody` 30 days after the May
+ * 12, 2026 relaunch (after all in-flight welcome items have expired).
  */
 export interface ActionItemDisplayContext {
   subjectName: string | null;
   subjectFirstName: string | null;
   subjectPhoneE164: string | null;
   subjectClientCode?: string | null;
-  /** Pre-filled SMS body for the `sms:` URL on `text_personally`. */
+  /** Canonical pre-filled SMS body for `sms:` URLs across all lanes. */
+  prefilledSmsBody?: string | null;
+  /**
+   * @deprecated Use `prefilledSmsBody`. Kept for backward-compat read
+   * during the May 12 relaunch window; remove after 30 days.
+   */
   welcomeMessageBody?: string | null;
   /** Agent's display name at creation time (for the welcome message body). */
   agentName?: string | null;
   /** Preferred language for the subject — drives Spanish welcome copy. */
   preferredLanguage?: 'en' | 'es' | null;
+}
+
+/** Read the pre-filled SMS body, preferring the canonical field but
+ *  falling back to the deprecated `welcomeMessageBody` for in-flight
+ *  welcome items written before the May 9, 2026 rename. */
+export function readPrefilledSmsBody(ctx: ActionItemDisplayContext): string | null {
+  return (
+    (typeof ctx.prefilledSmsBody === 'string' && ctx.prefilledSmsBody) ||
+    (typeof ctx.welcomeMessageBody === 'string' && ctx.welcomeMessageBody) ||
+    null
+  );
 }
 
 export type ActionItemLinkedEntityType =
