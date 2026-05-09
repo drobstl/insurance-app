@@ -39,13 +39,13 @@ export function buildWelcomeMessage(params: {
   const firstName = params.firstName || 'there';
   const agentName = params.agentName || 'your agent';
   if (params.language === 'es') {
-    return `Hola ${firstName}. Soy ${agentName}. Descarga la app de AgentForLife y usa el codigo ${params.code} para conectarte conmigo. ${params.appUrl}`;
+    return `Hola ${firstName}. Soy ${agentName}. Descarga la app de AgentForLife, toca Activar y luego ingresa con el codigo ${params.code} para conectarte conmigo. ${params.appUrl}`;
   }
   return (
     `Hey ${firstName}! ${agentName} here. Quick setup:\n\n`
     + `1. Download: ${params.appUrl}\n`
-    + `2. Log in with code ${params.code}\n`
-    + '3. Tap Activate, then tap Send\n\n'
+    + '2. Tap Activate, then tap Send\n'
+    + `3. Log in with code ${params.code}\n\n`
     + 'Done – allow notifications when prompted so I can reach you with important updates.'
   );
 }

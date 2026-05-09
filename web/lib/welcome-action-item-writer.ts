@@ -99,8 +99,8 @@ export function buildPhase1WelcomeBody(params: {
   return (
     `Hey ${firstName}! ${agentName} here. Quick setup:\n\n`
     + `1. Download: ${APP_DOWNLOAD_URL}\n`
-    + `2. Log in with code ${params.clientCode}\n`
-    + '3. Tap Activate, then tap Send\n\n'
+    + '2. Tap Activate, then tap Send\n'
+    + `3. Log in with code ${params.clientCode}\n\n`
     + 'Done – allow notifications when prompted so I can reach you with important updates.'
   );
 }
