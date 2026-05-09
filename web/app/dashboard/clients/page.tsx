@@ -101,8 +101,6 @@ const DEFAULT_WELCOME_SMS_TEMPLATE =
   + '2. Tap Activate, then tap Send\n'
   + '3. Log in with code {{code}}\n\n'
   + 'Done – allow notifications when prompted so I can reach you with important updates.';
-const DEFAULT_INTRO_TEMPLATE =
-  "Hey {{firstName}}, I wanted to do something for you so I put together a free app showing your policies and also a button to reach me anytime. After you download, your code {{code}} will let you in — also say yes to push notifications so I can keep you in the loop on anything important. Download here: https://agentforlife.app/app Looking forward to talking soon! — {{agentName}}";
 import { KNOWN_CARRIER_NAMES } from '../../../lib/carriers';
 
 const KNOWN_CARRIERS = KNOWN_CARRIER_NAMES;
@@ -975,11 +973,6 @@ export default function ClientsPage() {
   } | null>(null);
   const batchDismissedRef = useRef(false);
   const [justImportedClients, setJustImportedClients] = useState<{ clientId: string; phone: string; firstName: string; clientCode: string }[]>([]);
-  const [introMessage, setIntroMessage] = useState(DEFAULT_INTRO_TEMPLATE);
-  const [sendingIntro, setSendingIntro] = useState(false);
-  const [introSentCount, setIntroSentCount] = useState<number | null>(null);
-  const [selectedIntroClients, setSelectedIntroClients] = useState<Set<string>>(new Set());
-  const [showIntroConfirm, setShowIntroConfirm] = useState(false);
   const [googleDriveLoading, setGoogleDriveLoading] = useState(false);
   const [googleDriveConnected, setGoogleDriveConnected] = useState(false);
   const [googleDriveEmail, setGoogleDriveEmail] = useState<string | null>(null);
@@ -3794,7 +3787,6 @@ export default function ClientsPage() {
     clearImportNotice();
     setImportSuccess('');
     setJustImportedClients([]);
-    setIntroSentCount(null);
 
     const allCreated: { clientId: string; phone: string; firstName: string; clientCode: string }[] = [];
     const chunks: ImportRow[][] = [];
@@ -3842,8 +3834,6 @@ export default function ClientsPage() {
       if (policyCount > 0) parts.push(`${policyCount} ${policyCount !== 1 ? 'policies' : 'policy'}`);
       setImportSuccess(`Successfully imported ${parts.join(' and ')}!`);
       setJustImportedClients(allCreated);
-      setSelectedIntroClients(new Set(allCreated.filter((r) => r.phone.trim()).map((r) => r.clientId)));
-      setShowIntroConfirm(false);
       setImportData([]);
       setImportFileStatuses([]);
       clearImportNotice();
@@ -3872,37 +3862,6 @@ export default function ClientsPage() {
       importReviewSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }, [importData.length, isImportModalOpen, parsingBob]);
-
-  const handleSendBulkIntro = useCallback(async () => {
-    const selected = justImportedClients.filter((r) => r.phone.trim() && selectedIntroClients.has(r.clientId));
-    if (!user || selected.length === 0) return;
-    setSendingIntro(true);
-    const messageToSend = introMessage.trim() || DEFAULT_INTRO_TEMPLATE;
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch('/api/client/send-bulk-intro', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          messageTemplate: messageToSend,
-          recipients: selected.map((r) => ({ phone: r.phone, firstName: r.firstName, code: r.clientCode })),
-        }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `Send failed (${res.status})`);
-      }
-      const data = await res.json();
-      setIntroSentCount(data.sent ?? 0);
-    } catch (err) {
-      console.error('Send bulk intro error:', err);
-      showImportNotice('import_failed', {
-        items: [err instanceof Error ? err.message : 'Failed to send intro messages.'],
-      });
-    } finally {
-      setSendingIntro(false);
-    }
-  }, [user, justImportedClients, introMessage, selectedIntroClients, showImportNotice]);
 
   // ─── Share Code Handler ──────────────────────────────────
 
@@ -4546,10 +4505,6 @@ export default function ClientsPage() {
                               setIsImportModalOpen(false);
                               setImportSuccess('');
                               setJustImportedClients([]);
-                              setIntroMessage(DEFAULT_INTRO_TEMPLATE);
-                              setIntroSentCount(null);
-                              setSelectedIntroClients(new Set());
-                              setShowIntroConfirm(false);
                             }}
                             className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold rounded-[5px] border border-gray-200 transition-colors text-sm"
                           >
@@ -4560,10 +4515,6 @@ export default function ClientsPage() {
                               setIsImportModalOpen(false);
                               setImportSuccess('');
                               setJustImportedClients([]);
-                              setIntroMessage(DEFAULT_INTRO_TEMPLATE);
-                              setIntroSentCount(null);
-                              setSelectedIntroClients(new Set());
-                              setShowIntroConfirm(false);
                               router.push('/dashboard/action-items?lane=welcome');
                             }}
                             className="flex-1 py-2.5 px-4 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors text-sm"
