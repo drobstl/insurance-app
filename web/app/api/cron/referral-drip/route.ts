@@ -6,6 +6,7 @@ import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { buildReferralDripMessage, resolveClientLanguage } from '../../../../lib/client-language';
+import { queueReferralActionItem } from '../../../../lib/referral-action-item-writer';
 
 const DRIP_STATUSES = ['outreach-sent', 'drip-1', 'drip-2'] as const;
 
@@ -166,7 +167,75 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ success: true, dripsSent: sent });
+    // ── Phase 2: surface action items for stalled drip-complete
+    // referrals ──────────────────────────────────────────────────────
+    // Trigger: status=drip-complete AND >=24h since lastDripAt AND no
+    // client reply since lastDripAt. Per CONTEXT.md `Channel Rules >
+    // Agent action item surface` — "AI's 24-hour follow-up bump goes
+    // unanswered (current 'no further outreach' stopping point in
+    // v3.1 §4.4)". Idempotent per referral via the writer's
+    // idempotencyKey, so multiple cron passes on the same stalled
+    // referral collapse to one item.
+    let actionItemsCreated = 0;
+    try {
+      const completeMs = 24 * 60 * 60 * 1000;
+      for (const agentDoc of agentsSnap.docs) {
+        const agentData = agentDoc.data();
+        const completeSnap = await db
+          .collection('agents')
+          .doc(agentDoc.id)
+          .collection('referrals')
+          .where('status', '==', 'drip-complete')
+          .get();
+        for (const referralDoc of completeSnap.docs) {
+          const data = referralDoc.data();
+          // Skip if already had an action item lifecycle on this
+          // referral (writer is idempotent, so this is belt-and-
+          // suspenders telemetry — the create call would just no-op).
+          if (data.actionItemQueuedAt) continue;
+          let lastDripMs: number | null = null;
+          if (data.lastDripAt instanceof Timestamp) lastDripMs = data.lastDripAt.toMillis();
+          if (!lastDripMs) continue;
+          if (now - lastDripMs < completeMs) continue;
+          // No client reply since the last drip. Use the conversation
+          // array — last message authored by 'client' must be older
+          // than lastDripAt for "no reply since" to hold.
+          const conversation = Array.isArray(data.conversation) ? data.conversation : [];
+          const lastClientMsgTs = conversation
+            .filter((m: { role?: string; timestamp?: string }) => m?.role === 'client')
+            .map((m: { timestamp?: string }) => (m.timestamp ? Date.parse(m.timestamp) : 0))
+            .reduce((max: number, ts: number) => (ts > max ? ts : max), 0);
+          if (lastClientMsgTs > lastDripMs) continue;
+          try {
+            const queueResult = await queueReferralActionItem({
+              db,
+              agentId: agentDoc.id,
+              referralId: referralDoc.id,
+              referralDoc: {
+                referralName: data.referralName,
+                referralPhone: data.referralPhone,
+                clientName: data.clientName,
+              },
+              agentDoc: { name: agentData.name },
+            });
+            if (queueResult.outcome === 'created') {
+              actionItemsCreated++;
+              await referralDoc.ref.update({ actionItemQueuedAt: new Date().toISOString() });
+            }
+          } catch (queueErr) {
+            console.warn('[referral-drip] action item queue failed (non-blocking)', {
+              agentId: agentDoc.id,
+              referralId: referralDoc.id,
+              error: queueErr instanceof Error ? queueErr.message : String(queueErr),
+            });
+          }
+        }
+      }
+    } catch (scanErr) {
+      console.error('Referral drip action item scan failed (non-blocking):', scanErr);
+    }
+
+    return NextResponse.json({ success: true, dripsSent: sent, actionItemsCreated });
   } catch (error) {
     console.error('Referral drip cron error:', error);
     return NextResponse.json({ error: 'Drip cron failed' }, { status: 500 });
