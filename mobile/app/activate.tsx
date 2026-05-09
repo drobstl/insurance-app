@@ -354,11 +354,11 @@ export default function ActivateScreen() {
           {photoUri ? (
             <Image source={{ uri: photoUri }} style={styles.agentPhoto} />
           ) : (
-            <View style={[styles.agentPhoto, styles.agentPhotoPlaceholder]}>
-              <Text style={styles.agentPhotoPlaceholderText}>
-                {agentFirstName.charAt(0).toUpperCase()}
-              </Text>
-            </View>
+            // Depersonalized fallback (May 8 flow inversion): show the
+            // AgentForLife brand icon (infinity symbol on dark green)
+            // instead of an initial-letter placeholder. Daniel's call —
+            // a lone "Y" from "your agent" doesn't read as branded.
+            <Image source={require('../assets/icon.png')} style={styles.agentPhoto} />
           )}
           <Text style={styles.title}>You&apos;re almost in.</Text>
           <Text style={styles.subtitle}>One quick thing before we&apos;re set up.</Text>
