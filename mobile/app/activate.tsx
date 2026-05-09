@@ -91,13 +91,27 @@ const getFirstName = (fullName: string | undefined): string => {
 };
 
 /**
- * Build the canonical activation SMS body per v3.1 §3.3.
- * Returns plain text; URL-encoding is the caller's responsibility.
+ * Build the activation SMS body.
+ *
+ * Pre-May-8 the body was personalized: "Hi [Agent], it's [Client] —
+ * I'm set up on the app!" That worked because the user had already
+ * logged in by the time they reached the Activate screen, so we knew
+ * both names. Post-May-8 flow inversion (activate-first), the user
+ * is unauthenticated when this fires; we don't know who's who.
+ *
+ * Body is now generic. Linq line-health rules (Linq safety policy
+ * §1) apply to OUTBOUND from the line, not inbound — the activation
+ * SMS is inbound, and v3.1 §3.2 confirms inbound-initiated convos
+ * are "gold standard" regardless of body content. The OUTBOUND vCard
+ * reply we send from Linq is still fully personalized via the
+ * webhook handler (which identifies the client by phone match).
+ *
+ * Args retained for back-compat in case a personalized path is wired
+ * later; currently ignored.
  */
-function buildActivationBody(agentFirstName: string, clientFirstName: string): string {
-  const a = agentFirstName || 'there';
-  const c = clientFirstName || 'me';
-  return `Hi ${a}, it's ${c} — I'm set up on the app!`;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function buildActivationBody(_agentFirstName: string, _clientFirstName: string): string {
+  return `Hi! I just downloaded the AgentForLife app — ready to connect. Keep me updated.`;
 }
 
 /**
@@ -523,7 +537,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#0D4D4D',
-    flex: 1,
   },
   stepEmphasis: {
     fontWeight: '800',
