@@ -147,7 +147,13 @@ export default function ActivateScreen() {
   const agentPhotoBase64 = getParamValue(params.agentPhotoBase64);
   const clientName = getParamValue(params.clientName);
   const clientFirstName = getFirstName(clientName) || 'me';
-  const linqLinePhone = getParamValue(params.linqLinePhone).trim();
+  // Per-client linqLinePhone is only available post-login. The May 8
+  // flow inversion (activate-first) reaches this screen WITHOUT a
+  // session, so we fall back to the platform default. Today there's
+  // a single platform Linq line; per-agent lines are forward-compat
+  // (Phase 4) and not in production.
+  const PLATFORM_LINQ_PHONE = '+14046453010';
+  const linqLinePhone = getParamValue(params.linqLinePhone).trim() || PLATFORM_LINQ_PHONE;
 
   const [pushStatus, setPushStatus] = useState<'unknown' | 'requesting' | 'enabled' | 'denied'>('unknown');
   const [activating, setActivating] = useState(false);
@@ -249,11 +255,11 @@ export default function ActivateScreen() {
     };
   }, [activating, activationStarted, pulseAnim]);
 
-  // Auto-advance to the agent profile once the user comes back from
-  // iMessage. The activation event is processed server-side asynchronously
-  // when the Linq webhook fires; the mobile UI doesn't need to wait.
-  // forwardToProfile is held in a ref so the AppState listener doesn't
-  // need to be re-bound when params identity changes.
+  // Auto-advance to the login screen once the user comes back from
+  // iMessage. The activation event is processed server-side
+  // asynchronously when the Linq webhook fires; the mobile UI doesn't
+  // need to wait. After Activate, the next step is for the user to
+  // enter their code on /login (May 8 flow inversion).
   useEffect(() => {
     if (!activationStarted) return;
     const handleAppStateChange = (nextState: AppStateStatus) => {
@@ -268,40 +274,18 @@ export default function ActivateScreen() {
     return () => sub.remove();
   }, [activationStarted]);
 
-  const forwardToProfile = () => {
+  const forwardAfterActivate = () => {
     if (advancedRef.current === false) advancedRef.current = true;
-    router.replace({
-      pathname: '/agent-profile',
-      params: {
-        agentId: getParamValue(params.agentId),
-        agentName,
-        agentEmail: getParamValue(params.agentEmail),
-        agentPhone: getParamValue(params.agentPhone),
-        agentPhotoBase64,
-        agencyName: getParamValue(params.agencyName),
-        agencyLogoBase64: getParamValue(params.agencyLogoBase64),
-        clientId: getParamValue(params.clientId),
-        clientName,
-        referralMessage: getParamValue(params.referralMessage),
-        businessCardBase64: getParamValue(params.businessCardBase64),
-      },
-    });
+    router.replace('/login' as never);
   };
 
-  // Keep the ref in sync with the latest forwardToProfile closure (which
-  // captures the latest params).
-  forwardRef.current = forwardToProfile;
+  // Keep the ref in sync with the latest forwardAfterActivate closure.
+  forwardRef.current = forwardAfterActivate;
 
   const handleActivate = async () => {
     if (activating) return;
     setActivating(true);
     try {
-      // No Linq line configured? Skip the activation step entirely
-      // and route straight to the agent profile so login isn't blocked.
-      if (!linqLinePhone) {
-        forwardToProfile();
-        return;
-      }
       const body = buildActivationBody(agentFirstName, clientFirstName);
       const smsUrl = buildSmsUrl(linqLinePhone, body);
       const supported = await Linking.canOpenURL(smsUrl);
@@ -309,7 +293,7 @@ export default function ActivateScreen() {
         // Device doesn't support SMS (e.g. iPad without cellular). Skip
         // gracefully — the action item stays queued server-side and the
         // agent will see it as "not yet activated" in the queue.
-        forwardToProfile();
+        forwardAfterActivate();
         return;
       }
       setActivationStarted(true);
@@ -322,9 +306,9 @@ export default function ActivateScreen() {
       // and they see the screen again. That's acceptable: better to ask
       // a second time than to silently move past the activation step.
     } catch {
-      // Composer failed — fall through to profile so the user isn't
+      // Composer failed — fall through to login so the user isn't
       // stranded on the Activate screen.
-      forwardToProfile();
+      forwardAfterActivate();
     } finally {
       setActivating(false);
     }

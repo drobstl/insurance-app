@@ -1,15 +1,5 @@
-import { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { registerForPushNotificationsAsync } from './_layout';
 import * as SecureStore from 'expo-secure-store';
@@ -19,13 +9,13 @@ const API_BASE = __DEV__ ? 'http://192.168.1.210:3000' : 'https://agentforlife.a
 const SESSION_KEY = 'client_session';
 const PROFILE_CACHE_KEY = 'profile_cache';
 
-interface SavedSession {
+export interface SavedSession {
   clientCode: string;
   agentId: string;
   clientId: string;
 }
 
-type LookupResult = {
+export type LookupResult = {
   agentId: string;
   clientId: string;
   clientData: Record<string, unknown>;
@@ -35,14 +25,14 @@ type LookupResult = {
   linqLinePhone?: string;
 };
 
-class InvalidCodeError extends Error {
+export class InvalidCodeError extends Error {
   constructor() {
     super('Invalid client code');
     this.name = 'InvalidCodeError';
   }
 }
 
-async function saveSession(session: SavedSession) {
+export async function saveSession(session: SavedSession) {
   await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session));
 }
 
@@ -61,7 +51,7 @@ export async function clearSession() {
   await SecureStore.deleteItemAsync(PROFILE_CACHE_KEY);
 }
 
-async function saveProfileCache(result: LookupResult) {
+export async function saveProfileCache(result: LookupResult) {
   await SecureStore.setItemAsync(PROFILE_CACHE_KEY, JSON.stringify(result));
 }
 
@@ -75,7 +65,7 @@ async function getProfileCache(): Promise<LookupResult | null> {
   }
 }
 
-async function lookupClientCode(clientCode: string): Promise<LookupResult> {
+export async function lookupClientCode(clientCode: string): Promise<LookupResult> {
   const normalizedCode = clientCode.trim().toUpperCase();
   const res = await fetch(`${API_BASE}/api/mobile/lookup-client-code`, {
     method: 'POST',
@@ -141,13 +131,14 @@ export async function registerAndSavePushToken(clientCode: string): Promise<bool
   return false;
 }
 
-function navigateToProfile(
+export function navigateToProfile(
   agentId: string,
   clientId: string,
   clientData: Record<string, unknown>,
   agentData: Record<string, unknown>,
   accessType: 'client' | 'beneficiary' = 'client',
-  linqLinePhone: string = '',
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _linqLinePhone: string = '',
 ) {
   const clientCode = (clientData.clientCode as string) || '';
   if (accessType === 'client') {
@@ -156,20 +147,12 @@ function navigateToProfile(
     );
   }
 
-  // Phase 1 Track B — route unactivated clients through the in-app
-  // Activate screen first. v3.1 §3.3: client taps Activate, which
-  // composes a pre-filled sms: outbound to the Linq line; the webhook
-  // (web/app/api/linq/webhook/route.ts > handleWelcomeActivationInbound)
-  // recognizes the inbound via the welcome_pending_{clientId}
-  // placeholder thread the action item writer pre-registered.
-  //
-  // Beneficiaries skip the Activate screen for now — the v3.1
-  // beneficiary invite mechanic (parallel architecture, deferred to
-  // Phase 2 per CONTEXT.md > Phased Roadmap > Phase 2) will introduce
-  // a beneficiary-specific activation flow when it ships.
-  const alreadyActivated = !!clientData.clientActivatedAt;
-  const shouldShowActivate = accessType === 'client' && !alreadyActivated;
-
+  // May 8, 2026 flow inversion: activation happens BEFORE login on
+  // the activate-first entry screen (`/activate`), not after. So
+  // post-login we always route straight to /agent-profile regardless
+  // of `clientActivatedAt`. If activation never fired (race, user
+  // backed out of iMessage), the client just doesn't get push
+  // notifications — agent profile still works.
   const sharedParams = {
     agentId,
     agentName: (agentData.name as string) || 'Your Agent',
@@ -184,39 +167,35 @@ function navigateToProfile(
     businessCardBase64: (agentData.businessCardBase64 as string) || '',
   };
 
-  if (shouldShowActivate) {
-    // expo-router regenerates its typed pathname union from the
-    // filesystem on every dev-server / EAS build; until that runs,
-    // '/activate' is missing from the union and TS errors. Cast keeps
-    // tsc green; runtime behavior is identical.
-    router.replace({
-      pathname: '/activate' as never,
-      params: {
-        ...sharedParams,
-        linqLinePhone,
-      },
-    });
-    return;
-  }
-
   router.replace({
     pathname: '/agent-profile',
     params: sharedParams,
   });
 }
 
-export default function LoginScreen() {
-  const [clientCode, setClientCode] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [checkingSession, setCheckingSession] = useState(true);
+/**
+ * Default route — session router.
+ *
+ * Pre-May-8 the default route was the login (code-entry) screen, with
+ * activation gated behind it. The May 8 flow inversion makes the
+ * activate-first screen the unauthenticated entry. So this default
+ * route is now a thin session check:
+ *
+ *   - With cached session → auto-login → `/agent-profile`
+ *   - No cached session → `/activate` (depersonalized; user activates
+ *     first, then enters code on `/login`)
+ *
+ * The login (code-entry) UI now lives in `mobile/app/login.tsx`.
+ */
+export default function IndexScreen() {
+  const [showRetry, setShowRetry] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
         const session = await getSession();
         if (!session) {
-          setCheckingSession(false);
+          router.replace('/activate' as never);
           return;
         }
 
@@ -228,7 +207,7 @@ export default function LoginScreen() {
         } catch (err) {
           if (err instanceof InvalidCodeError) {
             await clearSession();
-            setCheckingSession(false);
+            router.replace('/activate' as never);
             return;
           }
           networkFailed = true;
@@ -242,7 +221,7 @@ export default function LoginScreen() {
           } catch (retryErr) {
             if (retryErr instanceof InvalidCodeError) {
               await clearSession();
-              setCheckingSession(false);
+              router.replace('/activate' as never);
               return;
             }
             console.warn('Auto-login retry failed, falling back to cache');
@@ -252,134 +231,66 @@ export default function LoginScreen() {
         if (!result) {
           const cached = await getProfileCache();
           if (cached) {
-            navigateToProfile(cached.agentId, cached.clientId, cached.clientData, cached.agentData, cached.accessType || 'client', cached.linqLinePhone || '');
+            navigateToProfile(
+              cached.agentId,
+              cached.clientId,
+              cached.clientData,
+              cached.agentData,
+              cached.accessType || 'client',
+              cached.linqLinePhone || '',
+            );
             return;
           }
-          setCheckingSession(false);
+          // No fresh result + no cache — show retry rather than
+          // bouncing the user to /activate (which would lose their
+          // session).
+          setShowRetry(true);
           return;
         }
 
         await saveProfileCache(result);
-        navigateToProfile(result.agentId, result.clientId, result.clientData, result.agentData, result.accessType || 'client', result.linqLinePhone || '');
+        navigateToProfile(
+          result.agentId,
+          result.clientId,
+          result.clientData,
+          result.agentData,
+          result.accessType || 'client',
+          result.linqLinePhone || '',
+        );
       } catch (err) {
         console.error('Auto-login error:', err);
         const cached = await getProfileCache();
         if (cached) {
-          navigateToProfile(cached.agentId, cached.clientId, cached.clientData, cached.agentData, cached.accessType || 'client', cached.linqLinePhone || '');
+          navigateToProfile(
+            cached.agentId,
+            cached.clientId,
+            cached.clientData,
+            cached.agentData,
+            cached.accessType || 'client',
+            cached.linqLinePhone || '',
+          );
           return;
         }
-        setCheckingSession(false);
+        setShowRetry(true);
       }
     })();
   }, []);
 
-  const handleLogin = async () => {
-    if (!clientCode.trim()) {
-      setError('Please enter your client code');
-      return;
-    }
-
-    setError('');
-    setLoading(true);
-
-    try {
-      const result = await lookupClientCode(clientCode);
-
-      await saveSession({
-        clientCode: clientCode.trim().toUpperCase(),
-        agentId: result.agentId,
-        clientId: result.clientId,
-      });
-      await saveProfileCache(result);
-
-      navigateToProfile(result.agentId, result.clientId, result.clientData, result.agentData, result.accessType || 'client', result.linqLinePhone || '');
-    } catch (err) {
-      if (err instanceof InvalidCodeError) {
-        setError('Invalid client code. Please check and try again.');
-      } else {
-        console.error('Login error:', err);
-        setError('Something went wrong. Please try again.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (checkingSession) {
-    return (
-      <View style={styles.outerContainer}>
-        <SafeAreaView style={styles.topSafeArea} />
-        <View style={styles.loadingContainer}>
-          <View style={styles.logoIcon}>
-            <Text style={styles.logoIconText}>✓</Text>
-          </View>
-          <Text style={styles.loadingTitle}>My Insurance</Text>
-          <ActivityIndicator color="#3DD6C3" size="large" style={{ marginTop: 24 }} />
-        </View>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.outerContainer}>
       <SafeAreaView style={styles.topSafeArea} />
-      
-      <View style={styles.container}>
-      <View style={styles.headerSection}>
+      <View style={styles.loadingContainer}>
         <View style={styles.logoIcon}>
           <Text style={styles.logoIconText}>✓</Text>
         </View>
-        <Text style={styles.title}>My Insurance</Text>
-        <Text style={styles.subtitle}>Access your policy information</Text>
-      </View>
-
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.contentSection}
-      >
-          <SafeAreaView style={styles.formSafeArea}>
-        <View style={styles.formContainer}>
-          <Text style={styles.label}>Client Code</Text>
-          <TextInput
-            style={styles.input}
-            value={clientCode}
-            onChangeText={(text) => {
-              setClientCode(text.toUpperCase());
-              setError('');
-            }}
-            placeholder="Enter your code"
-            placeholderTextColor="#9CA3AF"
-            autoCapitalize="characters"
-            autoCorrect={false}
-            editable={!loading}
-          />
-
-          {error ? (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          ) : null}
-
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <Text style={styles.buttonText}>Sign In</Text>
-            )}
-          </TouchableOpacity>
-
-          <Text style={styles.helpText}>
-            Your client code was provided by your insurance agent.
-            Contact your agent if you need assistance.
+        <Text style={styles.loadingTitle}>My Insurance</Text>
+        {showRetry ? (
+          <Text style={styles.retryHint}>
+            Trouble connecting. Pull down to refresh, or restart the app.
           </Text>
-        </View>
-          </SafeAreaView>
-      </KeyboardAvoidingView>
+        ) : (
+          <ActivityIndicator color="#3DD6C3" size="large" style={{ marginTop: 24 }} />
+        )}
       </View>
     </View>
   );
@@ -388,7 +299,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   outerContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#0D4D4D',
   },
   topSafeArea: {
     backgroundColor: '#0D4D4D',
@@ -398,22 +309,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0D4D4D',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  loadingTitle: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginTop: 20,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#0D4D4D',
-  },
-  headerSection: {
-    alignItems: 'center',
-    paddingTop: 40,
-    paddingBottom: 40,
-    paddingHorizontal: 24,
+    paddingHorizontal: 32,
   },
   logoIcon: {
     width: 80,
@@ -434,90 +330,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: 'bold',
   },
-  title: {
+  loadingTitle: {
     fontSize: 32,
     fontWeight: '700',
     color: '#FFFFFF',
-    marginBottom: 8,
+    marginTop: 20,
   },
-  subtitle: {
-    fontSize: 17,
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontWeight: '500',
-  },
-  contentSection: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-  },
-  formSafeArea: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  formContainer: {
-    flex: 1,
-    paddingHorizontal: 28,
-    paddingTop: 36,
-    justifyContent: 'flex-start',
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2D3748',
-    marginBottom: 10,
-  },
-  input: {
-    backgroundColor: '#F8F9FA',
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    borderRadius: 14,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    fontSize: 22,
-    color: '#2D3748',
-    marginBottom: 20,
-    letterSpacing: 3,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  errorContainer: {
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 20,
-  },
-  errorText: {
-    color: '#DC2626',
+  retryHint: {
     fontSize: 15,
-    textAlign: 'center',
+    color: 'rgba(255, 255, 255, 0.85)',
     fontWeight: '500',
-  },
-  button: {
-    backgroundColor: '#3DD6C3',
-    borderRadius: 14,
-    paddingVertical: 18,
-    alignItems: 'center',
-    shadowColor: '#3DD6C3',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 4,
-    marginBottom: 24,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 19,
-    fontWeight: '700',
-  },
-  helpText: {
-    fontSize: 15,
-    color: '#6B7280',
+    marginTop: 24,
     textAlign: 'center',
     lineHeight: 22,
   },
