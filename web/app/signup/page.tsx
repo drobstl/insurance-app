@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
+import { isStripeBillableTier, PRICING_TIERS } from '../../lib/pricing';
 
 export default function SignupPage() {
   return (
@@ -27,6 +28,14 @@ function SignupPageInner() {
   const [refCode, setRefCode] = useState<string | null>(null);
   const [referrerName, setReferrerName] = useState<string | null>(null);
   const [referrerId, setReferrerId] = useState<string | null>(null);
+
+  // Track C (May 10, 2026): the pricing page routes through
+  // /signup?tier=starter|growth|pro. After auth we POST to
+  // create-checkout-session with this tier and redirect to Stripe.
+  // Falls back to /pricing if no tier (or an unknown tier) is set.
+  const tierParam = searchParams.get('tier');
+  const selectedTier = tierParam && isStripeBillableTier(tierParam) ? tierParam : null;
+  const selectedTierInfo = selectedTier ? PRICING_TIERS[selectedTier] : null;
 
   useEffect(() => {
     const code = searchParams.get('ref');
@@ -73,7 +82,43 @@ function SignupPageInner() {
         try { sessionStorage.setItem('agentReferralCode', refCode); } catch { /* SSR-safe */ }
       }
 
-      router.push('/subscribe');
+      // Track C (May 10, 2026): if a tier was preselected from the
+      // pricing page, kick off Stripe Checkout immediately. Otherwise
+      // route to /pricing so the user picks one. The legacy
+      // /subscribe page (now a thin redirect to /pricing) is no
+      // longer the post-signup destination.
+      if (selectedTier) {
+        try {
+          const token = await user.getIdToken();
+          const referralCode = (() => {
+            try { return sessionStorage.getItem('agentReferralCode'); } catch { return null; }
+          })();
+          const res = await fetch('/api/stripe/create-checkout-session', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ tier: selectedTier, referralCode }),
+          });
+          const data = await res.json();
+          if (res.ok && data.url) {
+            window.location.href = data.url;
+            return;
+          }
+          console.error('[signup] checkout-session failed', data);
+          // Fall through to /pricing so the user can retry — better
+          // than leaving them stuck on the signup page.
+          router.push('/pricing?error=checkout');
+          return;
+        } catch (checkoutErr) {
+          console.error('[signup] checkout-session network error', checkoutErr);
+          router.push('/pricing?error=checkout');
+          return;
+        }
+      }
+
+      router.push('/pricing');
     } catch (err: unknown) {
       if (err instanceof Error) {
         const errorMessage = err.message;
@@ -216,7 +261,13 @@ function SignupPageInner() {
                 <svg className="w-4 h-4 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                <span>Only $25/month after signup</span>
+                <span>
+                  {selectedTierInfo
+                    ? selectedTierInfo.trialDays > 0
+                      ? `${selectedTierInfo.name} · ${selectedTierInfo.trialDays}-day free trial · $${selectedTierInfo.priceMonthly}/mo after`
+                      : `${selectedTierInfo.name} · $${selectedTierInfo.priceMonthly}/mo`
+                    : 'Pick a plan after you sign up · 14-day free trial available'}
+                </span>
               </div>
             </div>
 

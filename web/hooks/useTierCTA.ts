@@ -1,6 +1,23 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+/**
+ * useTierCTA — Track C (May 10, 2026) simplified version.
+ *
+ * The hook used to fetch live spot counts from `/api/spots-remaining`
+ * and rotate CTA copy across the legacy founding/charter/inner_circle
+ * tier ladder. With v3 pricing, that ladder is gone — every visitor
+ * sees the same `/pricing` surface and picks a tier there. The hook
+ * is preserved as a thin shim so the existing landing pages
+ * (`/v5`, `/m`) don't need wholesale rewrites just to change CTA
+ * targets; their tier-aware UI elements (banner, ticker, filled-tier
+ * list) get static copy now and the "tiers" array is empty.
+ *
+ * The full marketing rebuild is a separate next-up project; that's
+ * where the landing pages will be reworked end-to-end with new copy
+ * and the new pricing page as the single CTA destination. Until then
+ * this shim keeps everything compiling without ripping the existing
+ * page hierarchy apart.
+ */
 
 export interface TierInfo {
   id: string;
@@ -12,11 +29,13 @@ export interface TierInfo {
 }
 
 export interface TierCTAData {
-  activeTier: 'founding' | 'charter' | 'inner_circle' | 'standard';
+  /** Always 'standard' under v3 — there's no tier-ladder gating. */
+  activeTier: 'standard';
   activeTierName: string;
-  spotsRemaining: number | null;
+  spotsRemaining: null;
   tiers: TierInfo[];
   filledTiers: TierInfo[];
+  /** Always false under v3 — founding cohort is closed. */
   isFoundingOpen: boolean;
   loaded: boolean;
 
@@ -30,103 +49,27 @@ export interface TierCTAData {
   tierPrice: string;
 }
 
-const TIER_COPY: Record<string, { price: string; ctaText: string; period: string }> = {
-  founding: { price: '$0', ctaText: 'Claim Free Spot', period: 'forever' },
-  charter: { price: '$25', ctaText: 'Lock In $25/mo For Life', period: '/mo' },
-  inner_circle: { price: '$35', ctaText: 'Lock In $35/mo For Life', period: '/mo' },
-  standard: { price: '$49', ctaText: 'Get Started', period: '/mo' },
+const STATIC_CTA: TierCTAData = {
+  activeTier: 'standard',
+  activeTierName: 'AgentForLife',
+  spotsRemaining: null,
+  tiers: [],
+  filledTiers: [],
+  isFoundingOpen: false,
+  loaded: true,
+
+  ctaHref: '/pricing',
+  ctaMobileHref: '/pricing',
+  ctaText: 'See Pricing',
+  ctaSubtext: '14-day free trial · Cancel anytime',
+  bannerText: 'Simple, conversation-based pricing',
+  tickerText:
+    '🚀 NEW PRICING IS LIVE • 14-DAY FREE TRIAL • SEE PRICING • '
+    + '🚀 NEW PRICING IS LIVE • 14-DAY FREE TRIAL • SEE PRICING • ',
+  tierName: 'AgentForLife',
+  tierPrice: 'from $29/mo',
 };
-
-const TIER_NAMES: Record<string, string> = {
-  founding: 'Founding Members',
-  charter: 'Charter Members',
-  inner_circle: 'Inner Circle',
-  standard: 'Standard',
-};
-
-function buildBannerText(activeTier: string, spotsRemaining: number, filledTiers: TierInfo[]): string {
-  if (activeTier === 'founding') {
-    return `Only ${spotsRemaining} of 50 free lifetime spots remaining`;
-  }
-  const missedParts = filledTiers
-    .map((t) => (t.id === 'founding' ? 'Free tier' : `$${t.id === 'charter' ? '25' : '35'}/mo tier`))
-    .join(' + ');
-  if (activeTier === 'charter') {
-    return `${missedParts} is full. ${spotsRemaining} Charter spots left — $25/mo locked in for life`;
-  }
-  if (activeTier === 'inner_circle') {
-    return `${missedParts} are full. ${spotsRemaining} Inner Circle spots left — $35/mo for life`;
-  }
-  return 'All early-bird tiers are full. Standard pricing: $49/mo';
-}
-
-function buildTickerText(activeTier: string, spotsRemaining: number): string {
-  if (activeTier === 'founding') {
-    return `🚀 ${spotsRemaining} FREE SPOTS • LIFETIME FREE • APPLY NOW • 🚀 ${spotsRemaining} FREE SPOTS • LIFETIME FREE • APPLY NOW • `;
-  }
-  if (activeTier === 'charter') {
-    return `🔥 FREE TIER FULL • ${spotsRemaining} CHARTER SPOTS • $25/MO LOCKED FOR LIFE • 🔥 FREE TIER FULL • ${spotsRemaining} CHARTER SPOTS • $25/MO LOCKED FOR LIFE • `;
-  }
-  if (activeTier === 'inner_circle') {
-    return `⚡ 2 TIERS FULL • ${spotsRemaining} INNER CIRCLE SPOTS • $35/MO FOR LIFE • ⚡ 2 TIERS FULL • ${spotsRemaining} INNER CIRCLE SPOTS • $35/MO FOR LIFE • `;
-  }
-  return 'AGENT FOR LIFE • CLIENT RETENTION SYSTEM • GET STARTED • AGENT FOR LIFE • CLIENT RETENTION SYSTEM • GET STARTED • ';
-}
-
-function buildSubtext(activeTier: string, spotsRemaining: number): string {
-  if (activeTier === 'founding') {
-    return `${spotsRemaining} spots left · $0 forever · No credit card`;
-  }
-  if (activeTier === 'charter') {
-    return `${spotsRemaining} Charter spots left · $25/mo locked in for life`;
-  }
-  if (activeTier === 'inner_circle') {
-    return `${spotsRemaining} Inner Circle spots left · $35/mo for life`;
-  }
-  return '$49/mo · Cancel anytime';
-}
 
 export function useTierCTA(): TierCTAData {
-  const [data, setData] = useState<{
-    activeTier: string;
-    activeTierName: string;
-    spotsRemaining: number;
-    tiers: TierInfo[];
-  } | null>(null);
-
-  useEffect(() => {
-    fetch('/api/spots-remaining')
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.activeTier) setData(d);
-      })
-      .catch(() => {});
-  }, []);
-
-  const activeTier = (data?.activeTier ?? 'founding') as TierCTAData['activeTier'];
-  const spotsRemaining = data?.spotsRemaining ?? null;
-  const spots = spotsRemaining ?? 50;
-  const tiers = data?.tiers ?? [];
-  const filledTiers = tiers.filter((t) => t.status === 'full');
-  const isFoundingOpen = activeTier === 'founding';
-  const copy = TIER_COPY[activeTier] ?? TIER_COPY.standard;
-
-  return {
-    activeTier,
-    activeTierName: data?.activeTierName ?? TIER_NAMES[activeTier],
-    spotsRemaining,
-    tiers,
-    filledTiers,
-    isFoundingOpen,
-    loaded: data !== null,
-
-    ctaHref: isFoundingOpen ? '/founding-member' : '/signup',
-    ctaMobileHref: isFoundingOpen ? '/founding-member/m' : '/signup',
-    ctaText: copy.ctaText,
-    ctaSubtext: buildSubtext(activeTier, spots),
-    bannerText: buildBannerText(activeTier, spots, filledTiers),
-    tickerText: buildTickerText(activeTier, spots),
-    tierName: TIER_NAMES[activeTier] ?? 'Standard',
-    tierPrice: copy.price,
-  };
+  return STATIC_CTA;
 }

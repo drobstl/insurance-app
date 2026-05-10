@@ -9,11 +9,11 @@ import { useTierCTA } from '@/hooks/useTierCTA';
 const IMESSAGE_DELAYS = [900, 1100, 900, 1300, 900, 500, 1100];
 
 const FAQ_ITEMS = [
-  { question: 'What exactly is Agent for Life?', answer: 'A complete client relationship system for insurance agents. You get a branded mobile app for your clients, automated touchpoints (holidays, birthdays, anniversaries), one-tap referrals with an AI assistant that qualifies leads via iMessage and books appointments, conservation alerts that rescue at-risk policies, and anniversary rewrite alerts — normally $49/month, but free for life for founding members.' },
-  { question: 'How hard is it to get started?', answer: 'You can be live in 10 minutes. Import your clients via CSV or upload PDF applications — AI extracts everything. Enable the referral assistant with one toggle and share your app code with clients.' },
+  { question: 'What exactly is Agent for Life?', answer: 'A complete client relationship system for insurance agents. You get a branded mobile app for your clients, automated touchpoints (holidays, birthdays, anniversaries), one-tap referrals with an AI assistant that qualifies leads via iMessage and books appointments, retention alerts that rescue at-risk policies, and anniversary rewrite alerts.' },
+  { question: 'How hard is it to get started?', answer: 'You can be live in 10 minutes. Import your clients via CSV or upload PDF applications — AI extracts everything. Enable the referral assistant with one toggle and your clients get welcomed onto the app one by one.' },
   { question: 'Is my data safe?', answer: "Yes. Your client data is encrypted with AES-256, stored on Google Cloud, and only accessible by you. We never contact your clients independently, and no other agent can see your book of business." },
   { question: 'What carriers does it work with?', answer: 'All of them. Agent for Life is carrier-agnostic. Works for independent agents regardless of which carriers you\'re appointed with.' },
-  { question: 'What do Founding Members get?', answer: 'Free access for life ($49/mo value), your own branded client app, direct line to the founder, your feedback shapes the roadmap, early access to every new feature, and "Founding Member" status. Only 50 spots total — no credit card required.' },
+  { question: 'How does pricing work?', answer: 'Three plans bill through Stripe — Starter at $29/mo (30 conversations), Growth at $59/mo (75 conversations), Pro at $119/mo (200 conversations). Agency is sales-led. Push notifications, agent-phone one-tap texts, and email are unlimited on every tier; the conversation budget is for the AI Linq line. 14-day free trial on Starter and Growth.' },
 ];
 
 const fadeUp = {
@@ -742,96 +742,34 @@ export default function MobileLandingV2() {
           style={{ willChange: 'transform, opacity' }}
           className="space-y-6"
         >
+          {/* Track C (May 10, 2026): the prior mobile tier-ladder
+              UI was tied to the legacy founding/charter/inner_circle
+              SKUs that were deleted with v3 pricing. Mobile pricing
+              section now points at the /pricing page. Full marketing
+              rebuild is its own next-up project. */}
           <motion.div variants={fadeUp} custom={0} className="text-center">
             <h2 className="text-[1.65rem] font-extrabold text-[#0D4D4D] leading-tight mb-2">
-              This will cost <span className="line-through text-[#6B7280]/50">$49/mo</span>.<br />
-              <span className="text-[#3DD6C3]">But not for you.</span>
+              Pricing built around <span className="text-[#3DD6C3]">conversations</span>.
             </h2>
-            <p className="text-[#6B7280] text-[14px]">150 early spots across 3 tiers, then gone forever.</p>
+            <p className="text-[#6B7280] text-[14px] mb-1">
+              Starter $29 · Growth $59 · Pro $119 · Agency by request
+            </p>
+            <p className="text-[#6B7280] text-[12px]">
+              14-day free trial on Starter and Growth. Push, agent-phone, and email unlimited on every tier.
+            </p>
           </motion.div>
 
-          {/* Tier cards — dynamic */}
-          {(() => {
-            const tierMeta: Record<string, { price: string; priceLabel: string; accent: string; originalPrice?: string }> = {
-              founding: { price: 'FREE', priceLabel: 'For Life', accent: '#a158ff', originalPrice: '$49/mo' },
-              charter: { price: '$25', priceLabel: '/mo · For Life', accent: '#3DD6C3', originalPrice: '$49/mo' },
-              inner_circle: { price: '$35', priceLabel: '/mo · For Life', accent: '#fdcc02', originalPrice: '$49/mo' },
-              standard: { price: '$49', priceLabel: '/mo', accent: '#6B7280' },
-            };
-            const allTiers = tier.tiers.length > 0
-              ? tier.tiers
-              : [
-                  { id: 'founding', name: 'Founding Members', total: 50, status: 'open' as const, spotsFilled: 0, spotsRemaining: 50 },
-                  { id: 'charter', name: 'Charter Members', total: 50, status: 'upcoming' as const, spotsFilled: 0, spotsRemaining: 50 },
-                  { id: 'inner_circle', name: 'Inner Circle', total: 50, status: 'upcoming' as const, spotsFilled: 0, spotsRemaining: 50 },
-                  { id: 'standard', name: 'Standard', total: 0, status: 'upcoming' as const, spotsFilled: 0, spotsRemaining: 0 },
-                ];
-            const activeTierObj = allTiers.find(t => t.status === 'open');
-            const prevTierName = (idx: number) => allTiers[idx - 1]?.name ?? 'previous tier';
+          <motion.div variants={fadeUp} custom={0.1} className="text-center">
+            <Link
+              href="/pricing"
+              className="inline-block px-7 py-3.5 bg-[#3DD6C3] text-[#0D4D4D] text-[15px] font-bold rounded-xl shadow-lg active:scale-[0.97] transition-transform"
+            >
+              See full pricing →
+            </Link>
+          </motion.div>
 
-            return (
-              <>
-                {allTiers.map((t, idx) => {
-                  const meta = tierMeta[t.id] ?? tierMeta.standard;
-                  const isActive = t.status === 'open';
-                  const isFull = t.status === 'full';
-                  const isUpcoming = t.status === 'upcoming';
-                  const href = t.id === 'founding' ? tier.ctaMobileHref : (isActive ? '/subscribe' : undefined);
-
-                  if (isActive) {
-                    return (
-                      <motion.div key={t.id} variants={fadeUp} custom={0.1 + idx * 0.05}
-                        className="relative bg-white rounded-2xl border-2 p-6 text-center shadow-lg"
-                        style={{ borderColor: meta.accent, boxShadow: `0 4px 24px ${meta.accent}18` }}
-                      >
-                        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                          <span className="px-3 py-1 text-white text-[11px] font-bold rounded-full" style={{ backgroundColor: meta.accent }}>NOW OPEN</span>
-                        </div>
-                        <p className="text-[#6B7280] font-medium text-sm mt-1 mb-1">{t.name}</p>
-                        <p className="text-4xl font-black text-[#0D4D4D] mb-0.5">{meta.price}</p>
-                        <p className="font-semibold text-sm mb-1" style={{ color: meta.accent }}>{meta.priceLabel}</p>
-                        {meta.originalPrice && <p className="text-[#6B7280] text-xs line-through mb-0.5">{meta.originalPrice}</p>}
-                        <p className="text-[#6B7280] text-xs mb-3">{t.total > 0 ? `${t.total} spots — then gone forever` : ''}</p>
-                        {t.total > 0 && (
-                          <div className="mb-4">
-                            <div className="w-full rounded-full h-1.5 overflow-hidden" style={{ backgroundColor: `${meta.accent}18` }}>
-                              <div className="h-full rounded-full transition-all duration-1000" style={{ backgroundColor: meta.accent, width: `${((t.total - t.spotsRemaining) / t.total) * 100}%` }} />
-                            </div>
-                            <p className="text-[11px] font-bold mt-1.5" style={{ color: meta.accent }}>{t.spotsRemaining} spots remaining</p>
-                          </div>
-                        )}
-                        <Link href={href!} className="block w-full py-3.5 text-white text-sm font-bold rounded-xl active:scale-[0.97] transition-transform" style={{ backgroundColor: meta.accent }}>
-                          {t.id === 'founding' ? 'Apply Now' : tier.ctaText}
-                        </Link>
-                      </motion.div>
-                    );
-                  }
-
-                  return null;
-                })}
-
-                <motion.div variants={fadeUp} custom={0.2} className="grid grid-cols-3 gap-2">
-                  {allTiers.filter(t => t.status !== 'open').map((t, idx) => {
-                    const meta = tierMeta[t.id] ?? tierMeta.standard;
-                    const isFull = t.status === 'full';
-                    return (
-                      <div key={t.id} className={`rounded-xl border p-3 text-center ${isFull ? 'border-gray-200 opacity-50' : 'border-gray-200'}`}>
-                        {isFull && <span className="inline-block px-2 py-0.5 bg-gray-200 text-gray-500 text-[8px] font-bold rounded-full mb-1">FULL</span>}
-                        <p className="text-[10px] text-[#6B7280] font-medium mb-0.5">{t.name}</p>
-                        <p className={`text-lg font-black ${isFull ? 'line-through text-[#6B7280]' : 'text-[#0D4D4D]'}`}>{meta.price}</p>
-                        <p className="text-[9px] text-[#6B7280]">
-                          {isFull ? 'Filled' : `Opens after ${activeTierObj?.name ?? 'current tier'}`}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </motion.div>
-              </>
-            );
-          })()}
-
-          <motion.p variants={fadeUp} custom={0.3} className="text-center text-[#6B7280] text-[12px]">
-            No contracts · Lock in your price for life · Cancel anytime
+          <motion.p variants={fadeUp} custom={0.2} className="text-center text-[#6B7280] text-[12px]">
+            No contracts · Cancel anytime
           </motion.p>
         </motion.div>
       </section>

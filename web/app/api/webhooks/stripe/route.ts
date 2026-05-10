@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { stripe } from '../../../../lib/stripe';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
+import { tierIdFromStripePriceId } from '../../../../lib/pricing';
 import Stripe from 'stripe';
 
 // Disable body parsing, need raw body for webhook signature verification
@@ -17,21 +18,24 @@ async function getFirebaseUserIdFromCustomer(customerId: string): Promise<string
   }
 }
 
-const CHARTER_PRICE_IDS = new Set([
-  process.env.STRIPE_PRICE_ID_CHARTER_MONTHLY,
-  process.env.STRIPE_PRICE_ID_CHARTER_ANNUAL,
-].filter(Boolean));
-
-const INNER_CIRCLE_PRICE_IDS = new Set([
-  process.env.STRIPE_PRICE_ID_INNER_CIRCLE_MONTHLY,
-  process.env.STRIPE_PRICE_ID_INNER_CIRCLE_ANNUAL,
-].filter(Boolean));
-
-function deriveTier(priceId: string | undefined, sessionMeta: Record<string, string> | null): string {
+/**
+ * Track C (May 10, 2026): tier resolution now uses the v3 pricing
+ * source of truth (`web/lib/pricing.ts`). Legacy charter /
+ * inner_circle / standard mappings are removed. The session metadata
+ * `tier` field (set by the new checkout-session route) is the
+ * primary signal; price-ID lookup is a defensive fallback for
+ * subscriptions created outside our checkout flow (e.g. Stripe
+ * Dashboard manual creation).
+ */
+function deriveTier(
+  priceId: string | undefined,
+  sessionMeta: Record<string, string> | null,
+): string {
+  if (sessionMeta?.tier) return sessionMeta.tier;
+  // Backward compat for in-flight subscriptions written under the
+  // old metadata key. Safe to remove ≥30 days post-cutover.
   if (sessionMeta?.membershipTier) return sessionMeta.membershipTier;
-  if (priceId && CHARTER_PRICE_IDS.has(priceId)) return 'charter';
-  if (priceId && INNER_CIRCLE_PRICE_IDS.has(priceId)) return 'inner_circle';
-  return 'standard';
+  return tierIdFromStripePriceId(priceId) ?? 'unknown';
 }
 
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {

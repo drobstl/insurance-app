@@ -7,11 +7,11 @@ import LeakyBucketCalculator from '@/components/LeakyBucketCalculator';
 import { useTierCTA } from '@/hooks/useTierCTA';
 
 const FAQ_ITEMS = [
-  { question: 'What exactly is Agent for Life?', answer: 'A complete client relationship system for insurance agents. You get a branded mobile app for your clients, automated touchpoints (holidays, birthdays, anniversaries), one-tap referrals with an AI assistant that qualifies leads via iMessage and books appointments, conservation alerts that rescue at-risk policies, and anniversary rewrite alerts — normally $49/month, but free for life for founding members.' },
-  { question: 'How hard is it to get started?', answer: 'You can be live in 10 minutes. Import your clients via CSV or upload PDF applications — AI extracts everything. Enable the referral assistant with one toggle and share your app code with clients.' },
+  { question: 'What exactly is Agent for Life?', answer: 'A complete client relationship system for insurance agents. You get a branded mobile app for your clients, automated touchpoints (holidays, birthdays, anniversaries), one-tap referrals with an AI assistant that qualifies leads via iMessage and books appointments, retention alerts that rescue at-risk policies, and anniversary rewrite alerts.' },
+  { question: 'How hard is it to get started?', answer: 'You can be live in 10 minutes. Import your clients via CSV or upload PDF applications — AI extracts everything. Enable the referral assistant with one toggle and your clients get welcomed onto the app one by one.' },
   { question: 'Is my data safe?', answer: "Yes. Your client data is encrypted with AES-256, stored on Google Cloud, and only accessible by you. We never contact your clients independently, and no other agent can see your book of business." },
   { question: 'What carriers does it work with?', answer: 'All of them. Agent for Life is carrier-agnostic. Works for independent agents regardless of which carriers you\'re appointed with.' },
-  { question: 'What do Founding Members get?', answer: 'Free access for life ($49/mo value), your own branded client app, direct line to the founder, your feedback shapes the roadmap, early access to every new feature, and "Founding Member" status. Only 50 spots total — no credit card required.' },
+  { question: 'How does pricing work?', answer: 'Three plans bill through Stripe — Starter at $29/mo (30 conversations), Growth at $59/mo (75 conversations), Pro at $119/mo (200 conversations). Agency is sales-led. Push notifications, agent-phone one-tap texts, and email are unlimited on every tier; the conversation budget is for the AI Linq line. 14-day free trial on Starter and Growth.' },
 ];
 
 const fadeUp = {
@@ -625,105 +625,39 @@ export default function DesktopLandingV5() {
         </div>
       </section>
 
-      {/* ═══ PRICING ═══ */}
+      {/* ═══ PRICING ═══
+          Track C (May 10, 2026): the prior tier-ladder UI was tied to
+          the legacy founding/charter/inner_circle SKUs that were
+          deleted with v3 pricing. This section now points at the
+          /pricing page which carries the full Starter/Growth/Pro/
+          Agency tier cards. Full marketing rebuild is its own
+          next-up project. */}
       <section id="pricing" className="bg-white px-6 lg:px-8 py-24">
-        <div className="max-w-5xl mx-auto">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-60px' }} variants={stagger} className="space-y-12">
-            <motion.div variants={fadeUp} custom={0} className="text-center">
+        <div className="max-w-3xl mx-auto">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-60px' }} variants={stagger} className="space-y-8 text-center">
+            <motion.div variants={fadeUp} custom={0}>
               <h2 className="text-3xl lg:text-4xl font-extrabold text-[#0D4D4D] leading-tight mb-3">
-                This will cost <span className="line-through text-[#6B7280]/50">$49/mo</span>.<br />
-                <span className="text-[#3DD6C3]">But not for you.</span>
+                Pricing built around <span className="text-[#3DD6C3]">conversations</span>.
               </h2>
-              <p className="text-[#6B7280] text-lg">150 early spots across 3 tiers, then gone forever.</p>
+              <p className="text-[#6B7280] text-lg">
+                Starter at $29/mo. Growth at $59/mo. Pro at $119/mo. Agency by request.
+              </p>
+              <p className="text-[#6B7280] text-sm mt-2">
+                14-day free trial on Starter and Growth. Unlimited push, agent-phone one-tap, and email on every tier.
+              </p>
             </motion.div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 items-start">
-              {(() => {
-                const TIER_META: Record<string, { price: string; priceLabel: string; accent: string; note: string }> = {
-                  founding: { price: 'FREE', priceLabel: 'For Life', accent: '#a158ff', note: '50 spots — then gone forever' },
-                  charter: { price: '$25', priceLabel: '/mo · locked for life', accent: '#3DD6C3', note: '50 Charter spots' },
-                  inner_circle: { price: '$35', priceLabel: '/mo · locked for life', accent: '#fdcc02', note: '50 Inner Circle spots' },
-                  standard: { price: '$49', priceLabel: '/mo', accent: '#6B7280', note: 'Full Price' },
-                };
-                const tierOrder = ['founding', 'charter', 'inner_circle', 'standard'];
-                const tierMap = Object.fromEntries(tier.tiers.map((t) => [t.id, t]));
+            <motion.div variants={fadeUp} custom={0.1}>
+              <Link
+                href="/pricing"
+                className="inline-block px-8 py-4 bg-[#3DD6C3] hover:bg-[#32c4b2] text-[#0D4D4D] text-base font-bold rounded-xl transition-colors shadow-lg shadow-[#3DD6C3]/20"
+              >
+                See full pricing →
+              </Link>
+            </motion.div>
 
-                return tierOrder.map((id, i) => {
-                  const info = tierMap[id];
-                  const meta = TIER_META[id];
-                  const status = info?.status ?? (id === 'founding' ? 'open' : 'upcoming');
-                  const isFull = status === 'full';
-                  const isOpen = status === 'open';
-                  const filled = info?.spotsFilled ?? 0;
-                  const total = info?.total ?? 50;
-                  const remaining = info?.spotsRemaining ?? total;
-
-                  const prevTierName = i > 0 ? (tierMap[tierOrder[i - 1]]?.name ?? TIER_META[tierOrder[i - 1]].note) : '';
-
-                  return (
-                    <motion.div
-                      key={id}
-                      variants={fadeUp}
-                      custom={0.1 + i * 0.05}
-                      className={`relative rounded-2xl border-2 p-6 text-center transition-all ${
-                        isOpen
-                          ? `border-[${meta.accent}] shadow-xl shadow-[${meta.accent}]/10 bg-white`
-                          : isFull
-                            ? 'border-gray-200 bg-gray-50 opacity-50'
-                            : 'border-gray-200 bg-white'
-                      } ${id === 'founding' ? 'col-span-2 lg:col-span-1' : ''}`}
-                      style={isOpen ? { borderColor: meta.accent, boxShadow: `0 10px 30px -5px ${meta.accent}22` } : undefined}
-                    >
-                      {isOpen && (
-                        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                          <span className="px-4 py-1.5 text-white text-xs font-bold rounded-full" style={{ backgroundColor: meta.accent }}>NOW OPEN</span>
-                        </div>
-                      )}
-                      {isFull && (
-                        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                          <span className="px-4 py-1.5 bg-gray-400 text-white text-xs font-bold rounded-full">FULL</span>
-                        </div>
-                      )}
-                      {status === 'upcoming' && (
-                        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                          <span className="px-4 py-1.5 bg-gray-200 text-gray-500 text-xs font-bold rounded-full whitespace-nowrap">Opens After {prevTierName}</span>
-                        </div>
-                      )}
-
-                      <p className="text-[#6B7280] font-medium text-sm mt-2 mb-1">{info?.name ?? meta.note}</p>
-                      <p className={`text-4xl font-black mb-1 ${isFull && id === 'founding' ? 'line-through text-[#6B7280]/50' : 'text-[#0D4D4D]'}`}>
-                        {meta.price}
-                      </p>
-                      <p className="font-semibold text-sm mb-1" style={{ color: isFull ? '#9CA3AF' : meta.accent }}>{meta.priceLabel}</p>
-                      {id === 'founding' && <p className="text-[#6B7280] text-xs line-through mb-0.5">$49/mo</p>}
-                      <p className="text-[#6B7280] text-xs mb-4">{meta.note}</p>
-
-                      {isOpen && tier.loaded && (
-                        <div className="mb-4">
-                          <div className="w-full rounded-full h-2 overflow-hidden" style={{ backgroundColor: `${meta.accent}18` }}>
-                            <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${(filled / total) * 100}%`, backgroundColor: meta.accent }} />
-                          </div>
-                          <p className="text-xs font-bold mt-2" style={{ color: meta.accent }}>{remaining} spots remaining</p>
-                        </div>
-                      )}
-
-                      {isOpen && (
-                        <Link
-                          href={tier.ctaHref}
-                          className="block w-full py-3.5 text-white text-sm font-bold rounded-xl transition-colors"
-                          style={{ backgroundColor: meta.accent }}
-                        >
-                          {id === 'founding' ? 'Apply Now' : tier.ctaText}
-                        </Link>
-                      )}
-                    </motion.div>
-                  );
-                });
-              })()}
-            </div>
-
-            <motion.p variants={fadeUp} custom={0.3} className="text-center text-[#6B7280] text-sm">
-              No contracts · Lock in your price for life · Cancel anytime
+            <motion.p variants={fadeUp} custom={0.2} className="text-[#6B7280] text-sm">
+              No contracts · Cancel anytime
             </motion.p>
           </motion.div>
         </div>

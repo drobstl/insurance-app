@@ -3,82 +3,56 @@ import 'server-only';
 import { NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../lib/firebase-admin';
 
-const TIERS = [
-  { id: 'founding', name: 'Founding Members', total: 50 },
-  { id: 'charter', name: 'Charter Members', total: 50 },
-  { id: 'inner_circle', name: 'Inner Circle', total: 50 },
-] as const;
-
-type TierId = (typeof TIERS)[number]['id'];
-
-// Launch decision (April 2026): founding is closed to new signups.
-const CLOSED_TIERS: ReadonlySet<TierId> = new Set(['founding']);
-
+/**
+ * GET /api/spots-remaining
+ *
+ * Track C (May 10, 2026): trimmed down to founding-tier count only.
+ * The legacy charter/inner_circle/standard tier-ladder data is gone
+ * — those tiers were deleted with v3 pricing. The endpoint now only
+ * exists to back the admin founding-member applications page's
+ * "X of 50 founding spots filled" badge and its 409-on-full
+ * approval guard.
+ *
+ * Older landing-page variants (`/m/v2`, `/d`) also fetch this URL,
+ * but their `.catch` handlers swallow failures silently — they
+ * pre-date the current `/v5` and `/m` canonical landings and aren't
+ * primary marketing surfaces.
+ */
 export async function GET() {
   try {
     const firestore = getAdminFirestore();
+    const FOUNDING_TOTAL = 50;
 
-    // Count founding members from the applications collection (approved)
     const approvedSnap = await firestore
       .collection('foundingMemberApplications')
       .where('status', '==', 'approved')
       .get();
-    const foundingCount = approvedSnap.size;
+    const filled = approvedSnap.size;
+    const remaining = Math.max(0, FOUNDING_TOTAL - filled);
 
-    // Count charter and inner_circle members from agent docs
-    const charterSnap = await firestore
-      .collection('agents')
-      .where('membershipTier', '==', 'charter')
-      .get();
-    const charterCount = charterSnap.size;
-
-    const innerCircleSnap = await firestore
-      .collection('agents')
-      .where('membershipTier', '==', 'inner_circle')
-      .get();
-    const innerCircleCount = innerCircleSnap.size;
-
-    const counts: Record<TierId, number> = {
-      founding: foundingCount,
-      charter: charterCount,
-      inner_circle: innerCircleCount,
+    const foundingTier = {
+      id: 'founding',
+      name: 'Founding Members',
+      total: FOUNDING_TOTAL,
+      status: remaining > 0 ? ('open' as const) : ('full' as const),
+      spotsFilled: filled,
+      spotsRemaining: remaining,
     };
-
-    const isTierOpen = (tier: (typeof TIERS)[number]) =>
-      !CLOSED_TIERS.has(tier.id) && counts[tier.id] < tier.total;
-
-    // Determine which tier is currently open
-    let activeTierIndex: number = TIERS.length; // default: all full → standard
-    for (let i = 0; i < TIERS.length; i++) {
-      if (isTierOpen(TIERS[i])) {
-        activeTierIndex = i;
-        break;
-      }
-    }
-
-    const activeTier = activeTierIndex < TIERS.length ? TIERS[activeTierIndex] : null;
-    const spotsRemaining = activeTier
-      ? Math.max(0, activeTier.total - counts[activeTier.id])
-      : 0;
 
     return NextResponse.json(
       {
-        activeTier: activeTier?.id ?? 'standard',
-        activeTierName: activeTier?.name ?? 'Standard',
-        totalSpots: activeTier?.total ?? null,
-        spotsFilled: activeTier ? counts[activeTier.id] : null,
-        spotsRemaining,
-        tiers: TIERS.map((tier, i) => ({
-          ...tier,
-          status:
-            CLOSED_TIERS.has(tier.id) || i < activeTierIndex
-                ? 'full'
-                : i === activeTierIndex
-                  ? 'open'
-                  : 'upcoming',
-          spotsFilled: counts[tier.id],
-          spotsRemaining: CLOSED_TIERS.has(tier.id) ? 0 : Math.max(0, tier.total - counts[tier.id]),
-        })),
+        // Kept top-level shape compatible with the admin page's
+        // `if (d.tiers)` guard. Older landing-page variants that
+        // expected the full charter/inner_circle/standard ladder
+        // see only `founding` here; their tier-rendering code that
+        // can't find their target tier id falls through to its
+        // default upcoming/full state silently.
+        activeTier: remaining > 0 ? 'founding' : 'standard',
+        activeTierName: remaining > 0 ? 'Founding Members' : 'Standard',
+        totalSpots: FOUNDING_TOTAL,
+        spotsFilled: filled,
+        spotsRemaining: remaining,
+        tiers: [foundingTier],
       },
       {
         headers: {
@@ -87,7 +61,7 @@ export async function GET() {
       },
     );
   } catch (error) {
-    console.error('Error fetching spots remaining:', error);
+    console.error('[spots-remaining] error', error);
     return NextResponse.json(
       { error: 'Failed to fetch spots' },
       { status: 500 },
