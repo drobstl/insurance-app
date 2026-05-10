@@ -160,12 +160,23 @@ function hasBookingLanguage(text: string): boolean {
 /**
  * Ensures conservation outreach includes a booking CTA/link on touch 1 or 2
  * whenever an agent scheduling URL is available.
+ *
+ * Linq line-health gate (May 10, 2026): when `channel === 'sms'` and the
+ * client has not yet replied, skip URL injection entirely. Linq's
+ * deliverability guidelines explicitly forbid links in the opener —
+ * they don't become clickable until the recipient replies, and they
+ * tank reply rates on cold first contact. Once `clientHasReplied`
+ * flips true, URLs are fine (and often necessary — the booking link
+ * is what gets the call scheduled). Push and email channels are
+ * unconstrained: their first-message URL behavior is preserved.
  */
 export function enforceOutreachBookingCta(params: {
   message: string;
   schedulingUrl: string | null;
   bookingUrl?: string | null;
   dripNumber: number;
+  channel?: 'push' | 'sms' | 'email';
+  clientHasReplied?: boolean;
 }): string {
   const schedulingUrl = params.schedulingUrl?.trim();
   if (!schedulingUrl) return params.message.trim();
@@ -173,6 +184,18 @@ export function enforceOutreachBookingCta(params: {
   const bookingUrl = (params.bookingUrl || schedulingUrl).trim();
   const message = params.message.trim();
   const requiresCta = params.dripNumber === 0 || params.dripNumber === 1;
+
+  // Linq line-health gate — see function header. Cold SMS first
+  // contact is the most line-health-sensitive message in the entire
+  // outbound surface, and Linq's guidelines are explicit: no URLs in
+  // the opener. The AI prompt already tells the model not to include
+  // a URL; this gate makes the post-processor honor that intent for
+  // cold SMS while keeping push/email behavior unchanged.
+  const isColdSmsFirstContact =
+    params.channel === 'sms' && params.clientHasReplied === false;
+  if (isColdSmsFirstContact) {
+    return message;
+  }
 
   const hasAnyUrl = URL_REGEX.test(message);
   const hasBookingCta = hasBookingLanguage(message);
@@ -213,7 +236,7 @@ export async function generateOutreachMessage(
           : 'This is the FINAL follow-up (day 7). Gracious, leave the door open, no more messages after this.';
 
   const schedulingNote = ctx.schedulingUrl
-    ? 'The agent has a scheduling link. If it feels natural, mention they can book a quick call — but do NOT include the URL in your message. The app shows an actionable Book button.'
+    ? 'The agent has a scheduling link. If it feels natural, mention they could book a quick call — but DO NOT include any URL in this message. URLs in the opener tank Linq deliverability and reply rates (links are not even clickable until the recipient replies). On push, the app shows an actionable Book button. On SMS, the booking link is added once the client engages back. Your job here is to earn the reply, not to share the link.'
     : 'The agent does not have a scheduling link. Offer to chat or take a call instead.';
 
   const carrierNote = ctx.carrierServicePhone && ctx.carrier

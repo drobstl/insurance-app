@@ -422,6 +422,10 @@ export async function GET(req: NextRequest) {
           schedulingUrl,
           bookingUrl,
           dripNumber: 0,
+          // Linq line-health gate: SMS first contact = no URL injection
+          // (Linq deliverability rule). Push has no such constraint.
+          channel: stage1 === 'stage_push' ? 'push' : 'sms',
+          clientHasReplied: false,
         });
 
         let result: StageSendResult;
@@ -593,6 +597,16 @@ export async function GET(req: NextRequest) {
               schedulingUrl,
               bookingUrl,
               dripNumber: 1,
+              // Linq line-health gate: cold SMS first contact = no
+              // URL injection. The cron only reaches stage_sms when
+              // the client hasn't replied (the cron skips on
+              // `lastClientReplyAt`), so this is always cold first
+              // contact on the Linq line — `clientHasReplied: false`
+              // is unconditional here. Once they reply, the webhook
+              // handler's AI response logic owns URL inclusion based
+              // on conversation context.
+              channel: 'sms',
+              clientHasReplied: false,
             });
             const result = await sendStageSms(stageCtx, alertData, clientData, withBooking, false);
             // Always advance — see file header comment on send failures.

@@ -154,18 +154,22 @@ export async function POST(req: NextRequest) {
         stage: 'initial',
       });
     }
-    const messageWithBooking = enforceOutreachBookingCta({
-      message,
-      schedulingUrl,
-      bookingUrl,
-      dripNumber: 0,
-    });
-
     const now = new Date();
     const nowIso = now.toISOString();
 
     const pushEligible = isPushEligible(clientData);
     const stage1: TouchStage = pickInitialRetentionStage(pushEligible);
+
+    // Linq line-health gate: SMS first contact = no URL injection
+    // (Linq deliverability rule). Push has no such constraint.
+    const messageWithBooking = enforceOutreachBookingCta({
+      message,
+      schedulingUrl,
+      bookingUrl,
+      dripNumber: 0,
+      channel: stage1 === 'stage_push' ? 'push' : 'sms',
+      clientHasReplied: false,
+    });
 
     let sentChannel: ConservationChannel | null = null;
     let chatId: string | null = (alertData.chatId as string) || null;
