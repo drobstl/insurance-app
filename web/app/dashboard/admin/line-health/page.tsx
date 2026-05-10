@@ -195,6 +195,14 @@ export default function LineHealthAdminPage() {
                 <p className="mt-2 text-xs text-[#4B5563] max-w-xl">
                   {TIER_DISPLAY[snapshot.effectiveTier].description}
                 </p>
+                <div className="mt-3 rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2 max-w-xl">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">
+                    Recommended action
+                  </p>
+                  <p className="mt-1 text-xs text-[#0D4D4D] leading-relaxed">
+                    {TIER_DISPLAY[snapshot.effectiveTier].recommendedAction}
+                  </p>
+                </div>
               </div>
               <button
                 type="button"

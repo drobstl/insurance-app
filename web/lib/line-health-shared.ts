@@ -59,6 +59,9 @@ export interface LineHealthSnapshot {
 export interface TierDisplay {
   label: string;
   description: string;
+  /** Concrete action the admin should take right now while Phase A
+   *  visibility-only is in effect (no auto-throttle yet). */
+  recommendedAction: string;
   badgeClassName: string;
 }
 
@@ -66,30 +69,39 @@ export const TIER_DISPLAY: Readonly<Record<LineHealthTier, TierDisplay>> = {
   0: {
     label: 'Healthy',
     description: 'Reply rate within target. Normal operation.',
+    recommendedAction: 'No action needed. Keep an eye on the trend.',
     badgeClassName: 'bg-green-100 text-green-800 border-green-300',
   },
   1: {
     label: 'Watch',
     description:
-      'Reply rate slipping below target. Surface alert; no auto-throttle yet (Phase A).',
+      'Reply rate slipping below the 25% target. Phase A is visibility only — no auto-throttle yet.',
+    recommendedAction:
+      'Check the per-lane breakdown to see if one lane is dragging the rate. Review recent outbound copy on that lane. No action required if volume is small (single bad day).',
     badgeClassName: 'bg-amber-100 text-amber-800 border-amber-300',
   },
   2: {
     label: 'Throttle',
     description:
-      'Reply rate concerning. Phase B will halve daily Linq cap and suspend referral cold outreach.',
+      'Reply rate below 20% — concerning. Phase B (when it ships) will halve daily Linq cap and pause referral cold outreach.',
+    recommendedAction:
+      'Manually pause referral cold outreach if the per-lane breakdown shows referral as the offender. Audit the last 7 days of outbound for spam-trigger patterns. Consider emailing Linq PSM for context if the trend persists 2+ days.',
     badgeClassName: 'bg-orange-100 text-orange-900 border-orange-300',
   },
   3: {
     label: 'Pause',
     description:
-      'All Linq automated outbound halted (when Phase B ships). Push, agent-phone, email keep working.',
+      'Reply rate below 15% OR an admin-set tier (e.g. Linq PSM warning email). All Linq automated outbound should halt.',
+    recommendedAction:
+      'Set LINQ_OUTBOUND_DISABLED=true in Vercel to halt the Linq line immediately. Email Linq PSM. Push, agent-phone one-tap, and email keep working — agents can still operate.',
     badgeClassName: 'bg-red-100 text-red-800 border-red-300',
   },
   4: {
     label: 'Lockdown',
     description:
-      'Linq Limited or repeat Tier 3. Mandatory review. Number replacement playbook on the table.',
+      'Linq Limited status, or repeat Tier 3 within 30 days. Mandatory review.',
+    recommendedAction:
+      'Set LINQ_OUTBOUND_DISABLED=true. Coordinate directly with Linq PSM on line health. Number replacement playbook is on the table — discuss before any new outbound resumes.',
     badgeClassName: 'bg-red-200 text-red-900 border-red-500',
   },
 };
