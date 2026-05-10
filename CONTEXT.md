@@ -2,7 +2,7 @@
 # CONTEXT.md — AgentForLife (AFL)
 
 > Drop this in the repo root. Read it before any strategic or architectural decision.
-> Last updated: May 5, 2026
+> Last updated: May 10, 2026
 
 ## Source-of-Truth Documents
 
@@ -285,20 +285,22 @@ This sequence supersedes the Phase 1 plan in v3.1 §11. Source: strategy decisio
 - vCard generation pipeline (server-side per agent, compressed photo, MMS attachment from Linq line). **Status: complete (Track B, shipped May 5, 2026).**
 - Agent action item surface — `actionItems` Firestore schema + welcome-lane writers + dashboard one-tap UI primitive. Schema designed for forward-compat across welcome / anniversary / retention / referral lanes; only welcome writers ship in Phase 1. See `Channel Rules > Agent action item surface`. **Status: complete (Track B, shipped May 5, 2026).**
 - Welcome flow analytics in PostHog (agent send compliance, app activation rate, thumbs-up rate). **Status: complete (Track B, shipped May 5, 2026).** Generic `action_item_*` cross-lane funnel events plus welcome-specific `welcome_send_*` / `client_activated` / `client_activation_thumbs_up_received` / `welcome_action_item_expired` / `pwa_install_*` / `web_push_*` events live in `web/lib/analytics-events.ts`. Server-side PostHog ingestion of cron-fired events (specifically `welcome_action_item_expired` from the daily expiry cron) deferred — matches Track A posture; logged to console as `[welcome-action-item-expiry] expired` until the cross-cron PostHog ingestion follow-up lands.
-- New conversation-based pricing tiers in Stripe (Starter $29 / Growth $59 / Pro $119 / Agency $199 + $39/seat). **(Track C — pending.)**
-- Conversation counter (per-agent monthly bucket). **(Track C — pending.)**
-- Founding 34 grandfathered at Growth-equivalent. **(Track C — pending.)**
-- Pricing page rebuild. **(Track C — pending.)**
+- New conversation-based pricing tiers in Stripe (Starter $29 / Growth $59 / Pro $119 / Agency contact-sales). **Status: complete (Track C, shipped May 10, 2026).** Agency tier surfaced as "Contact Sales" mailto for v1 (defers per-seat / pooled-capacity / team-admin engineering). 14-day free trial on Starter + Growth via Stripe-native `trial_period_days`, CC required at signup (standard pattern, day-7-CC mechanic dropped per Daniel's May 10 call). Legacy `charter` / `inner_circle` / `standard` SKUs and code paths deleted entirely — no migration, no grandfather (none of those tiers had active subscribers).
+- Conversation counter (per-agent monthly bucket). **(Track C follow-up — deferred to Phase 3.)** Foundation for overage billing. No active need until paid signups land at volume.
+- Founding 34 grandfathered. **Status: complete (no work required).** Founding members stay on `isFoundingMember=true` flag with no Stripe subscription. The 4 founding members with cards on file from before the no-CC flow have inert Stripe customer records — harmless to leave; Daniel handling manually if cleanup ever needed.
+- Pricing page rebuild. **Status: complete (Track C, shipped May 10, 2026).** New `/pricing` Next.js route with 4 tier cards (Starter/Growth/Pro Stripe-billable; Agency mailto). Short FAQ explaining conversations / overage / trial / tier switching. Marketing landing pages `/v5` and `/m` pricing-section update shipped in the same commit; full marketing rebuild treated as separate next-up project (see `docs/handoffs/HANDOFF_2026-05-10_to_landing_page_rebuild.md`).
 
 ### Phase 2 — KPI tiers, beneficiary, retention, supporting infrastructure (months 3–4)
-- KPI tier system (5 tiers, 7-day rolling, line-level — see `KPI Tier System` below).
-- Line-health dashboard widget.
-- Auto-throttle at Tier 1 and Tier 2 (provisional — may downgrade to manual triage if Tier 1 events are rare).
-- Beneficiary invite mechanic (parallel to client activation, three invite prompts).
-- Bulk import onboarding ceremony (re-enable UI, drip release rules).
-- Lapse/retention cadence rewrite. Push first, 1st SMS automatic, **agent action item surfaced after 1st SMS unanswered** (48h or 5d unresolved); if agent toggles AI back on, chain resumes with email + final SMS at end of campaign; 60-day quiet after campaign. Includes writing the anniversary, retention, and referral action item writers against the `actionItems` schema Track B builds in Phase 1. See `Channel Rules > Agent action item surface`.
-- Email infrastructure cleanup (centralize Resend usages, bounce/complaint webhook, suppression list).
-- Engineering dependency for Phase 3 Agency tier: pooled-capacity logic, team admin dashboard, per-seat dashboard.
+- KPI tier system (5 tiers, 7-day rolling, line-level — see `KPI Tier System` below). **Phase A (visibility only) shipped May 10, 2026.** Admin widget at `/dashboard/admin/line-health` reads daily counter docs, computes 7-day rolling reply rate, classifies the line into one of 5 tiers, supports manual override (for Linq PSM warnings we can't auto-detect). Per-tier recommended actions surfaced on the widget. Phase B (auto-throttle enforcement) deferred until 1-2 weeks of real reply-rate data confirms spec thresholds match AFL traffic patterns.
+- Line-health dashboard widget. **Status: complete (May 10, 2026).** Admin-only; surfaces effective tier, 7-day reply rate, send:reply ratio, today's counters, per-lane outbound breakdown, manual override controls.
+- Auto-throttle at Tier 1 and Tier 2 (provisional — may downgrade to manual triage if Tier 1 events are rare). **(Phase B follow-up — pending real data.)**
+- Beneficiary invite mechanic (parallel to client activation, three invite prompts). **Status: complete (May 10, 2026).** v3.1 invite-only flow shipped — mobile Invite button on `policies.tsx` (OTA'd same day, update group `6635b2bf-047f-4863-a156-4d4956518e80`), server `/api/beneficiary/queue-invite` endpoint, `web/lib/beneficiary-activation-handler.ts` (parallels welcome handler), Linq webhook routing, multi-policy coalescing on `/api/mobile/policies` so a beneficiary on multiple policies sees all of them after activation. Locked copy: invite SMS drops policyholder first name (recipient already knows sender), Linq vCard reply ends with an explicit question to invite reciprocity. Legacy `/api/beneficiary/send-intro` deprecated June 9 deletion target.
+- Bulk import onboarding ceremony (re-enable UI, drip release rules). **Status: complete (May 9, 2026).** Mode 2 drip release shipped — `/api/cron/bulk-import-drip-release` cron releases ≤15/day per agent into the welcome action item queue with cold-context Mode 2 copy. Bulk Import CTA in `/dashboard/clients` re-enabled (no PWA gate, no Web Push gate, no window rules — per Daniel's locked simplifications). Legacy "Send intro to N clients" bulk-blast UI replaced with drip-aware confirmation.
+- Lapse/retention cadence rewrite. **Status: complete (May 9, 2026).** Final cadence after Daniel's locked May 9 simplification: push first → 1 Linq SMS (if push unavailable) → call action item → text action item → email at 48h intervals. Max 1 Linq outbound per campaign. 60-day quiet period after campaign ends. Toggle-AI-back-on mechanic dropped (too complex; cadence already gives agent two personal-action stages). Templated-email button also dropped. New `TouchStage` enum (`stage_push | stage_sms | stage_call | stage_text | stage_email`), new `RetentionCallActionItemCard` + `RetentionTextActionItemCard` components, retention writers in `web/lib/retention-action-item-writer.ts`.
+- Cross-lane Action Items dashboard surface. **Status: complete (May 9, 2026).** Replaced welcome-only `/dashboard/welcomes` with `/dashboard/action-items` tabbed surface across welcome / retention / anniversary / referral lanes. Each tab subscribes independently to `actionItems` filtered by lane + status='pending'; live count badges update without polling. Legacy `/dashboard/welcomes` is now a client-side redirect to `/dashboard/action-items?lane=welcome`.
+- Linq line-health copy audit + fixes. **Status: complete (May 10, 2026).** Audit against Linq partner guidelines (per screenshots Daniel shared) found `enforceOutreachBookingCta` was injecting booking URL into retention 1st SMS cold first contact — direct contradiction of Linq's "no links in opener" rule. Fixed by adding `channel` + `clientHasReplied` params; SMS first contact = no URL injection. Tightened referral first-message prompt to require ending question. Tightened retention SMS prompt's no-URL wording for SMS channel.
+- Email infrastructure cleanup (centralize Resend usages, bounce/complaint webhook, suppression list). **(Phase 2 follow-up — pending.)**
+- Engineering dependency for Phase 3 Agency tier: pooled-capacity logic, team admin dashboard, per-seat dashboard. **(Phase 3 work — pending until first Agency customer surfaces.)**
 
 ### Phase 3 — Concierge launch + pricing rollout completion (months 5–6)
 - Concierge add-on (operator dashboard role with scoped data access, $1,500 / $2,500 SKUs). Available to any tier; gated by book size and willingness to pay.
@@ -762,6 +764,20 @@ Overage GM (~66%) is acceptable as overflow protection, not a profit center. Agg
   - **Last-First name parsing fix** (commit `aa13220`): `web/lib/name-utils.ts > extractFirstName` handles `"Millington, Margaret A"` PDF-extracted names. Both inline compose surface and `welcome-action-item-writer.firstNameFrom` now delegate to it.
   - **Mobile binaries** v1.6.1 build 37 (iOS `4cf2f063`) and versionCode 29 (Android `71462c71`) finished. Daniel running `eas submit` manually for both at handoff time.
   - **What's NOT shipped** (handed off to fresh agent at `docs/handoffs/HANDOFF_2026-05-08_evening_to_phase2.md`): retention lane action item writer + lapse/retention cadence rewrite (push → 1st SMS → action item @ 48h/5d → toggle-AI → email + final SMS → 60d quiet), cross-lane dashboard surface (anniversary + referral writers ship server-side; UI surface is TBD), Mode 2 bulk import drip engine, Phase 2 lower-priority items (email infra cleanup, KPI tier system, beneficiary invite mechanic), Phase 3 (Track C pricing tiers, Concierge add-on).
+- Shipped (May 9-10, 2026): **End-of-Phase-2 + Track C sprint — 10 commits + mobile OTA.** Closed out the Phase 2 items handed off May 8 AND knocked off Track C pricing + KPI tier visibility + Linq copy audit + beneficiary invite mechanic. Detailed in `docs/handoffs/HANDOFF_2026-05-10_to_landing_page_rebuild.md`. Summary by commit:
+  - `afda165` **Item 6: Retention cadence rewrite.** Final cadence locked May 9 (Daniel revision): push (if eligible) → 1 Linq SMS → call action item → text action item → email at 48h intervals. Max 1 Linq outbound per campaign. Toggle-AI-back-on dropped. 60-day quiet after campaign. New `TouchStage` enum (`stage_push | stage_sms | stage_call | stage_text | stage_email`), new retention card components, retention writers, conservation cron rewrite, legacy alert defensive force-end on lift.
+  - `ed87766` **Item 7: Cross-lane Action Items dashboard.** Replaced `/dashboard/welcomes` with `/dashboard/action-items` tabbed surface across welcome / retention / anniversary / referral lanes. New `AnniversaryReferralActionItemCard` shared component. Sidebar nav "Welcomes" → "Action Items"; legacy `/dashboard/welcomes` redirects to `/dashboard/action-items?lane=welcome`.
+  - `8fc48b5` **Item 8: Mode 2 bulk-import drip release.** Re-enabled Bulk Import CTA in `/dashboard/clients`. New `/api/cron/bulk-import-drip-release` daily cron releases ≤15/day per agent into the welcome action item queue with a Mode 2 cold-context copy variant (`buildPhase1WelcomeBody` with `mode='mode_2'`). Per Daniel's May 9 simplifications: no PWA gate, no Web Push gate, no window rules (no timezone math, no weekend skip), no variants. Legacy bulk-blast "Send intro to N clients" UI replaced with drip confirmation.
+  - `1fd0f48` **Track C pricing v3.** `web/lib/pricing.ts` source of truth. `/pricing` Next.js route with 4 tier cards (Starter $29 / Growth $59 / Pro $119 Stripe-billable; Agency $199+/seat mailto contact-sales). Stripe checkout-session rewritten for new tiers + native 14-day trial on Starter+Growth. Webhook tier mapping updated. Legacy charter / inner_circle / standard SKUs deleted. `/v5` and `/m` pricing sections updated. `useTierCTA` hook simplified to static "See Pricing" data. `/api/spots-remaining` trimmed to founding-tier count only (still used by admin founding applications page).
+  - `5dc255e` **Linq line-health copy audit.** Audit against Linq partner guidelines found `enforceOutreachBookingCta` was injecting booking URL into retention 1st SMS cold first contact — direct contradiction of Linq's "no links in opener" rule. Fixed by adding `channel` + `clientHasReplied` params; SMS first contact = no URL injection. Tightened referral first-message prompt to require ending question. Tightened retention SMS prompt's no-URL wording for SMS channel.
+  - `e5fb91e` **KPI tier system Phase A** — visibility-only. Counter docs at `lineHealth/daily_{YYYY-MM-DD}` incremented on every Linq createChat / sendMessage outbound + every webhook inbound. Admin widget at `/dashboard/admin/line-health` (admin-only via `isAdminEmail`) shows 7-day rolling reply rate, send:reply ratio, today's counts, per-lane outbound breakdown, manual override controls. `web/lib/line-health-shared.ts` (types + classifier, safe for client import) split from `web/lib/line-health.ts` (server-only). Tier classification follows spec thresholds (15%/20%/25%). Phase B auto-throttle enforcement deferred until 1-2 weeks of real data lands.
+  - `5dd3998` **Per-tier recommended-action guidance** on the line-health widget. Each tier gets concrete what-to-do-right-now copy (e.g. Tier 3: "Set `LINQ_OUTBOUND_DISABLED=true` in Vercel to halt the Linq line. Email Linq PSM.") since Phase A is visibility-only — admin needs explicit guidance rather than just a tier label.
+  - `5a87169` **Beneficiary invite mechanic.** v3.1 invite-only flow shipped. New `web/lib/beneficiary-activation-handler.ts` (parallels welcome handler). New `/api/beneficiary/queue-invite` endpoint (authenticated via clientCode, not Firebase Auth). Linq webhook wires beneficiary-activation routing BEFORE welcome-activation (different placeholder prefix). Mobile Invite button added to `policies.tsx`, deduped by (name + phone) so a beneficiary on multiple policies sees ONE button. Multi-policy coalescing on `/api/mobile/policies` — entering one access code surfaces all policies the beneficiary appears on under the policyholder. Locked copy: invite SMS drops policyholder first name (sender already in recipient's contacts); Linq vCard reply ends with explicit question. Legacy `/api/beneficiary/send-intro` marked `@deprecated` with console.warn; June 9, 2026 deletion target. Mobile OTA pushed same day (update group `6635b2bf-047f-4863-a156-4d4956518e80`).
+  - `bf3f3de` **Dead-state cleanup** in `web/app/dashboard/clients/page.tsx` — removed unreachable intro-blast state introduced by the Item 8 cutover. Server route `/api/client/send-bulk-intro` left in place per the 30-day cooldown rule (June 4 deletion target).
+  - `44aae01` **Welcome `prefilledSmsBody` rename.** `displayContext.welcomeMessageBody` renamed to `prefilledSmsBody` so Phase 2 retention's text-card can populate the same slot. Welcome writer dual-writes both fields during rollover; readers use `prefilledSmsBody ?? welcomeMessageBody` fallback. Drop deprecated alias June 11, 2026.
+  - `b737978` Handoff doc for the next session: `docs/handoffs/HANDOFF_2026-05-10_to_landing_page_rebuild.md`.
+  - **Operational moves**: `LINQ_OUTBOUND_DISABLED` kill switch flipped to `false` (Daniel, May 10). Stripe: archived 6 legacy AFL products (Charter / Inner Circle / Standard, monthly + annual each); 3 new SKUs created (Starter $29 / Growth $59 / Pro $119) with price IDs in Vercel env (`STRIPE_PRICE_ID_STARTER_MONTHLY` etc.); legacy `STRIPE_PRICE_ID_CHARTER_*`, `STRIPE_PRICE_ID_INNER_CIRCLE_*`, `STRIPE_PRICE_ID_MONTHLY`, `STRIPE_PRICE_ID_ANNUAL` env vars deleted from Vercel.
+  - **Strategic narrative correction (load-bearing)**: Daniel corrected May 10 that AFL marketing must speak to **agent business outcomes** (3x book — every closed sale should pay three times: close + referral + anniversary rewrite), NEVER platform mechanics (line health, Linq, KPI tiers, internal architecture). Captured in memory `feedback_marketing_narrative_frame.md`. Landing-page rebuild scope locked accordingly — surgical update (~2 days) on `/v5` + `/m`, leading with the 3x math, never mentioning line health / Linq / KPI tiers in customer-facing copy.
 
 **Founding Member Program:** 34 founding agents are grandfathered at Growth-equivalent capacity (75 conversations/month, 8/day cap) free for life under the v3 pricing model. Free seat is permanent and exempt from base-tier price increases; overage is at the full $0.50/conv rate. Founding agency owners get the $199 platform fee waived and pay $39/seat for downline. Founding members are subject to the same KPI throttling rules as paid tiers. Full terms in `Business Model → Founding 34`.
 
@@ -827,6 +843,70 @@ From v3.1 §13.1 / §12.6, recorded in `docs/linq-decision-record-2026-05.md`:
 - **Capacity definition and ramp.** The 50/day new outbound conversation cap is the real ceiling. Start at 70 agents/line, watch reply rate and opt-out rate for 60–90 days, push toward 100 if both stay clean. Behavior-based, no formal milestone checklist.
 - **AMB is not available through Linq.** Their lines are standard P2P iMessage on dedicated hardware. Direct registration with Apple is the only path.
 - **Bulk import** cannot run through the Linq line under any circumstances. Confirmed agent-personal-phone only.
+
+## Strategic Ideation
+
+> Filed for future revisitation, not committed. The product is locked on life insurance agents for the foreseeable; these are exploratory notes on directions AFL could grow once the core platform is humming with a paid book of agents.
+
+### Vertical expansion — adjacent insurance + financial services
+
+The AFL playbook (branded client app + AI referral pipeline + retention drip + anniversary rewrites + automated touchpoints + action items dashboard) is structurally portable. The question is **which adjacencies preserve the unit economics + product fit**, not which ones are technically possible (all of them are).
+
+**Medicare (highest priority candidate).** Medicare-aged clients (65+) are a different demographic than the mortgage-protection / term-life book AFL serves today. Different sales motion (more education, longer cycles, AEP-driven seasonality), different compliance overlay (CMS marketing scope rules, plan-specific rules of engagement), different platform expectations (older clients may use the branded mobile app less, but family beneficiaries — typically adult children — would use it MORE). Open questions:
+
+- Is the referral mechanic strong enough at this demographic to justify the same product surface? Medicare clients often have adult children who handle most of the digital interaction; the referral flow might need a relay step.
+- AEP (Annual Enrollment Period — Oct 15 to Dec 7) compresses 70% of Medicare sales into 6 weeks. Does AFL's retention + rewrite cadence make sense outside AEP, or does the product need a Medicare-seasonal mode?
+- Compliance: CMS-mandated disclaimers, scope-of-appointment requirements, recorded calls in some states. Does AFL need a Medicare-mode that gates certain features (e.g. AI-driven outreach) until the agent has logged a SOA?
+- Beneficiary mechanic could be a real fit — Medicare clients have engaged adult children who'd be high-value users of the client app for "what's mom's plan, what's covered, who do I call."
+
+**Property + casualty (P&C — auto, home, renters).** Higher policy count per client, lower individual premium, much higher anniversary / rewrite cadence (annual renewals on every line). Retention is the dominant pain point. Referrals are well-developed in P&C already (existing tools, established norms). AFL's differentiator would be the retention drip + anniversary rewrite automation + the dashboard surface that captures which clients need an annual review. Open questions:
+
+- Does the per-conversation pricing model translate? P&C agents have larger books (500-2000 clients per agent vs. life's 100-500); conversation budget at Linq pricing might not scale economically.
+- AI personality has to shift — P&C clients talk to their agent about specific incidents (claims, accidents), not lifetime financial planning. The AI conversation surface needs to recognize and route claim-adjacent intent away from sales.
+
+**Annuities / financial planning.** Adjacent to life (same agents often sell both), longer cycle, more consultative. The platform fit is reasonable but the client app may need different feature emphasis (illustrations, performance reports, withdrawal mechanics). The leaky-bucket calculator argument is weaker — annuity clients aren't "leaking" via missed referrals at the same rate.
+
+**Final expense (subset of life — already in scope).** AFL already serves this segment indirectly. Not a separate vertical; mentioned for completeness.
+
+**Health insurance brokers.** Different from Medicare (working-age, often ACA marketplace). Big enrollment-period seasonality similar to Medicare. Worth a market-research pass.
+
+**Filter criterion for any expansion**: does the vertical have (a) recurring relationship + renewal cycle, (b) referral-driven new-business motion, (c) high churn cost per lost client, (d) underserved by existing relationship-management tools? Medicare and P&C both pass; annuities partially; health insurance brokers — TBD.
+
+### Sales process — free trial signup vs. sales call
+
+Current Track C flow: prospect lands on `/pricing` → clicks tier → `/signup?tier=X` → Firebase auth → Stripe Checkout → dashboard. Self-service end to end. 14-day free trial on Starter + Growth, CC required at signup.
+
+The strategic question Daniel raised May 10: **should AFL move to a sales-call-first motion for some or all tiers?**
+
+**Self-service signup (current):**
+- *Pros*: scales without sales rep time; works asynchronously; converts curious-but-not-ready prospects via the trial; aligns with the price-led positioning ($29-$119/mo isn't enterprise pricing).
+- *Cons*: no qualification before signup — trial fills with non-target users who never convert; no chance to learn from prospects (lost qualitative feedback); no upsell motion at the moment of highest interest.
+
+**Sales-call-first:**
+- *Pros*: better qualification → higher trial-to-paid conversion; consultative pitch can match AFL's complexity (welcome flow, retention cadence, action items dashboard are easier to demo than read about); creates a relationship that improves churn / NPS; learn what prospects ACTUALLY ask before they buy.
+- *Cons*: doesn't scale (rep hours are bounded); slower funnel; raises the bar (prospects who'd self-serve might bounce at the call requirement); requires hiring + training sales rep(s).
+
+**Hybrid (most likely answer):**
+- Starter ($29) — self-service only. Low friction; volume play.
+- Growth ($59) — self-service default, "Talk to sales" CTA available.
+- Pro ($119) — sales call required (or strongly preferred). Higher ACV justifies rep time; prospects at this price expect a conversation.
+- Agency (contact-sales) — already sales-led.
+
+Open questions:
+
+- **Who runs the sales calls?** Daniel personally for the first ~20 calls (high-touch + product feedback loop). Then a dedicated rep once the funnel is consistent. Calendar capacity: how many calls / week before Daniel hits the wall?
+- **What's the demo path?** Live screenshare of the dashboard, or pre-built demo account with a fake book? Pre-built scales better but feels less authentic.
+- **Where does the call get booked from?** "Talk to sales" CTA on `/pricing` → calendar embed (Cal.com / Calendly). Already have the booking infrastructure for the agent-to-prospect referral flow — AFL's own sales calendar would parallel it.
+- **Does the sales call replace or precede the trial?** Could go either way: trial-after-call (call → enroll → trial period → close) OR call-as-close (no trial; call qualifies + closes paid). The latter is cleaner ACV-wise; the former lowers commitment.
+- **How does this interact with the founding-34 cohort?** They're already past signup. Doesn't affect them; affects net-new only.
+
+**Daniel's gut (May 10) leans toward incorporating a sales call into at least the Pro tier.** Not committed; flagged here for future product-marketing strategy work post-launch.
+
+### Other ideation buckets (placeholders)
+
+- **Distribution partnerships.** AFL inside IMOs, MGAs, FMOs — pre-bundled with their agent recruiting pitch. Sales motion is partnership BD, not direct.
+- **Vertical SaaS pricing for IMO/agency white-label.** Distinct from the Agency tier — this would be an IMO selling AFL to their downline as a co-branded retention tool.
+- **Public API.** If multiple downstream platforms want to embed AFL's retention engine, expose it. Probably 2-3 years out.
 
 ## Open Questions
 
