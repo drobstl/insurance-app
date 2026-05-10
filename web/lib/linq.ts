@@ -3,6 +3,8 @@ import 'server-only';
 import crypto from 'crypto';
 import { normalizePhone } from './phone';
 import { assertNotBeforeFence } from './reactivation-fence';
+import { getAdminFirestore } from './firebase-admin';
+import { recordLinqOutbound } from './line-health';
 
 export { ReactivationFenceError } from './reactivation-fence';
 
@@ -356,6 +358,13 @@ export async function createChat(opts: {
     }
   }
 
+  // Line-health metric — fire-and-forget. createChat is always a
+  // new outbound conversation by definition.
+  void recordLinqOutbound({
+    db: getAdminFirestore(),
+    isNewConversation: true,
+  }).catch(() => {});
+
   return {
     chatId: chat.id,
     isGroup: chat.is_group,
@@ -398,6 +407,13 @@ export async function sendMessage(opts: {
   });
 
   const data = await res.json();
+
+  // Line-health metric — fire-and-forget. sendMessage is always a
+  // reply within an existing chat (not a new conversation).
+  void recordLinqOutbound({
+    db: getAdminFirestore(),
+    isNewConversation: false,
+  }).catch(() => {});
 
   return {
     chatId: data.chat_id,

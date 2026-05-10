@@ -48,6 +48,7 @@ import {
   handleWelcomeActivationInbound,
 } from '../../../../lib/welcome-activation-handler';
 import { expireActionItem } from '../../../../lib/action-item-store';
+import { recordLinqInbound } from '../../../../lib/line-health';
 
 const DEFAULT_WEBHOOK_AI_REPLY_COOLDOWN_MS = 45_000;
 const DEFAULT_WEBHOOK_AI_SIMILARITY_THRESHOLD = 0.9;
@@ -341,6 +342,13 @@ async function handleDirectMessage(data: LinqWebhookMessageData) {
   if (!text) return;
 
   const db = getAdminFirestore();
+
+  // Line-health metric — every inbound text on the Linq line counts
+  // toward the reply-rate denominator. Fire-and-forget; counter
+  // failures never block actual routing logic. Lane is intentionally
+  // unset at this hook point — we record at the universal entry
+  // before lane-specific routing decides how to handle the message.
+  void recordLinqInbound({ db }).catch(() => {});
 
   // Phase 1 Track B — welcome activation lane runs BEFORE every other
   // routing branch, regardless of THREAD_ROUTER_ENABLED state. The
