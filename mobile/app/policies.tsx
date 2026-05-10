@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Platform,
   StatusBar,
+  Linking,
+  Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Timestamp } from 'firebase/firestore';
@@ -88,6 +90,75 @@ export default function PoliciesScreen() {
       setError(err instanceof Error ? err.message : 'Unable to load policies. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  /**
+   * Beneficiary invite mechanic (May 10, 2026).
+   *
+   * Same-person dedupe: if a beneficiary appears on multiple
+   * policies (same name + phone), they show ONE Invite button. The
+   * server's queue-invite endpoint pre-registers placeholder
+   * threads for every matching policy, so the beneficiary sees
+   * their full role across the policyholder's book on activation.
+   *
+   * The dedupe key is `${nameLower}|${phoneE164ish}` — phone is
+   * normalized loosely on the mobile side; the server normalizes
+   * canonically.
+   */
+  const beneficiaryDedupeKeys = useMemo(() => {
+    const seen = new Set<string>();
+    const orderKeyFor = (policyId: string, idx: number) => `${policyId}:${idx}`;
+    const firstOccurrence = new Set<string>();
+    for (const policy of policies) {
+      if (!Array.isArray(policy.beneficiaries)) continue;
+      for (let i = 0; i < policy.beneficiaries.length; i++) {
+        const b = policy.beneficiaries[i];
+        if (!b?.phone || !b?.name) continue;
+        const key = `${b.name.trim().toLowerCase()}|${b.phone.trim()}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          firstOccurrence.add(orderKeyFor(policy.id, i));
+        }
+      }
+    }
+    return firstOccurrence;
+  }, [policies]);
+
+  const handleInviteBeneficiary = async (beneficiary: Beneficiary) => {
+    const phone = beneficiary.phone?.trim();
+    if (!phone) {
+      Alert.alert('No phone on file', 'Add a phone number to this beneficiary first.');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/beneficiary/queue-invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientCode: params.clientCode,
+          beneficiaryPhone: phone,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        Alert.alert('Invite failed', data.error || `Failed (${res.status})`);
+        return;
+      }
+      const smsBody = String(data.smsBody || '');
+      const smsTo = String(data.beneficiaryPhone || phone);
+      // Platform-canonical sms: URL: iOS uses `&body=`, Android uses `?body=`.
+      const separator = Platform.OS === 'ios' ? '&' : '?';
+      const url = `sms:${smsTo}${separator}body=${encodeURIComponent(smsBody)}`;
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        Alert.alert('Messages not available', 'Could not open Messages on this device.');
+        return;
+      }
+      await Linking.openURL(url);
+    } catch (err) {
+      console.error('handleInviteBeneficiary error', err);
+      Alert.alert('Invite failed', err instanceof Error ? err.message : 'Unknown error');
     }
   };
 
@@ -385,25 +456,57 @@ export default function PoliciesScreen() {
                             {policy.beneficiaries.filter(b => b.type === 'primary').length > 0 && (
                               <View style={styles.ownerItem}>
                                 <Text style={styles.ownerLabel}>Primary Beneficiaries</Text>
-                                {policy.beneficiaries.filter(b => b.type === 'primary').map((b, i) => (
-                                  <Text key={i} style={styles.ownerValue}>
-                                    {b.name}
-                                    {b.relationship ? ` (${b.relationship})` : ''}
-                                    {b.percentage != null ? ` ${b.percentage}%` : ''}
-                                  </Text>
-                                ))}
+                                {policy.beneficiaries.map((b, i) => {
+                                  if (b.type !== 'primary') return null;
+                                  const showInvite =
+                                    !!b.phone && beneficiaryDedupeKeys.has(`${policy.id}:${i}`);
+                                  return (
+                                    <View key={i} style={styles.beneficiaryRow}>
+                                      <Text style={styles.ownerValue}>
+                                        {b.name}
+                                        {b.relationship ? ` (${b.relationship})` : ''}
+                                        {b.percentage != null ? ` ${b.percentage}%` : ''}
+                                      </Text>
+                                      {showInvite ? (
+                                        <TouchableOpacity
+                                          onPress={() => handleInviteBeneficiary(b)}
+                                          style={styles.inviteButton}
+                                          activeOpacity={0.85}
+                                        >
+                                          <Text style={styles.inviteButtonText}>Invite</Text>
+                                        </TouchableOpacity>
+                                      ) : null}
+                                    </View>
+                                  );
+                                })}
                               </View>
                             )}
                             {policy.beneficiaries.filter(b => b.type === 'contingent').length > 0 && (
                               <View style={styles.ownerItem}>
                                 <Text style={styles.ownerLabel}>Contingent Beneficiaries</Text>
-                                {policy.beneficiaries.filter(b => b.type === 'contingent').map((b, i) => (
-                                  <Text key={i} style={styles.ownerValue}>
-                                    {b.name}
-                                    {b.relationship ? ` (${b.relationship})` : ''}
-                                    {b.percentage != null ? ` ${b.percentage}%` : ''}
-                                  </Text>
-                                ))}
+                                {policy.beneficiaries.map((b, i) => {
+                                  if (b.type !== 'contingent') return null;
+                                  const showInvite =
+                                    !!b.phone && beneficiaryDedupeKeys.has(`${policy.id}:${i}`);
+                                  return (
+                                    <View key={i} style={styles.beneficiaryRow}>
+                                      <Text style={styles.ownerValue}>
+                                        {b.name}
+                                        {b.relationship ? ` (${b.relationship})` : ''}
+                                        {b.percentage != null ? ` ${b.percentage}%` : ''}
+                                      </Text>
+                                      {showInvite ? (
+                                        <TouchableOpacity
+                                          onPress={() => handleInviteBeneficiary(b)}
+                                          style={styles.inviteButton}
+                                          activeOpacity={0.85}
+                                        >
+                                          <Text style={styles.inviteButtonText}>Invite</Text>
+                                        </TouchableOpacity>
+                                      ) : null}
+                                    </View>
+                                  );
+                                })}
                               </View>
                             )}
                           </>
@@ -855,6 +958,28 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#2D3748',
     fontWeight: '600',
+    flexShrink: 1,
+  },
+  // Beneficiary invite (May 10, 2026) — shows next to a beneficiary
+  // when they have a phone on file. Tapping it queues the invite
+  // server-side and opens iMessage/Messages with a pre-filled body.
+  beneficiaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 4,
+  },
+  inviteButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#3DD6C3',
+    borderRadius: 6,
+  },
+  inviteButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0D4D4D',
   },
   // Accidental icon styles
   accidentalIcon: {

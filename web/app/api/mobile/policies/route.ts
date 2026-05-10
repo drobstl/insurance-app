@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { checkRateLimit, getClientIp } from '../../../../lib/rate-limit';
 import { findBeneficiaryByCode } from '../../../../lib/beneficiary-code-lookup';
+import { isValidE164, normalizePhone } from '../../../../lib/phone';
 
 /**
  * GET /api/mobile/policies?agentId=...&clientId=...&clientCode=...
@@ -67,6 +68,28 @@ export async function GET(request: NextRequest) {
       .orderBy('createdAt', 'desc')
       .get();
 
+    // Multi-policy coalescing for beneficiaries (May 10, 2026):
+    // when a beneficiary enters one access code, surface every
+    // policy under this policyholder where they appear as a
+    // beneficiary — matched by phone (preferred) or by name. The
+    // entered access code only resolves to one (policy,
+    // beneficiary) pair, but coalescing lets a beneficiary on
+    // multiple policies see their full role across the
+    // policyholder's book without entering each code separately.
+    const beneficiaryNameLower = isBeneficiaryCode
+      ? (typeof beneficiaryMatch.beneficiary.name === 'string'
+          ? beneficiaryMatch.beneficiary.name.trim().toLowerCase()
+          : '')
+      : '';
+    const beneficiaryPhoneE164 = isBeneficiaryCode
+      ? (typeof beneficiaryMatch.beneficiary.phone === 'string'
+          ? (() => {
+              const n = normalizePhone(beneficiaryMatch.beneficiary.phone);
+              return isValidE164(n) ? n : '';
+            })()
+          : '')
+      : '';
+
     const policies = snap.docs
       .map((d) => {
       const data = d.data();
@@ -74,8 +97,25 @@ export async function GET(request: NextRequest) {
         const beneficiaries = Array.isArray(data.beneficiaries) ? data.beneficiaries : [];
         const filteredBeneficiaries = beneficiaries.filter((entry) => {
           if (!entry || typeof entry !== 'object') return false;
-          const accessCode = (entry as Record<string, unknown>).accessCode;
-          return typeof accessCode === 'string' && accessCode.trim().toUpperCase() === normalizedCode;
+          const e = entry as Record<string, unknown>;
+          // Match 1: same access code (the original code path).
+          const accessCode = e.accessCode;
+          if (typeof accessCode === 'string' && accessCode.trim().toUpperCase() === normalizedCode) {
+            return true;
+          }
+          // Match 2: same phone (coalescing).
+          if (beneficiaryPhoneE164) {
+            const p = typeof e.phone === 'string' ? normalizePhone(e.phone) : '';
+            if (isValidE164(p) && p === beneficiaryPhoneE164) return true;
+          }
+          // Match 3: same name (last-resort coalescing for
+          // beneficiaries without phone — keeps the door open
+          // for older records). Phone match takes priority above.
+          if (beneficiaryNameLower) {
+            const n = typeof e.name === 'string' ? e.name.trim().toLowerCase() : '';
+            if (n && n === beneficiaryNameLower) return true;
+          }
+          return false;
         });
         if (filteredBeneficiaries.length === 0) return null;
         data.beneficiaries = filteredBeneficiaries;

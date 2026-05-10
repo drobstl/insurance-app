@@ -14,6 +14,29 @@ import {
 import { upsertThreadFromOutbound } from '../../../../lib/conversation-thread-registry';
 import { ensureSmsFirstTouchConfirmation } from '../../../../lib/sms-first-touch';
 
+/**
+ * @deprecated May 10, 2026 — superseded by the v3.1 invite-only
+ * beneficiary mechanic.
+ *
+ * This route was the original cold-outreach path that texted the
+ * beneficiary directly from the Linq line. Per the May 2026 Linq
+ * policy hardening + the v3.1 architectural decision (CONTEXT.md
+ * `Channel Rules` > Beneficiary), beneficiaries enter the AFL
+ * contact graph ONLY via policyholder-initiated invite + activation.
+ *
+ * The new path lives at:
+ *   - POST `/api/beneficiary/queue-invite` (registers placeholder
+ *     thread + returns SMS body for the policyholder's phone)
+ *   - `web/lib/beneficiary-activation-handler.ts` (handles the
+ *     beneficiary's inbound to the Linq line + sends vCard reply)
+ *   - Mobile `policies.tsx` Invite button
+ *
+ * Route is left in place for ≥30 days post-cutover (until June 9,
+ * 2026) as a safety belt for any in-flight callers. The handler
+ * still works but logs a deprecation warning on every call. After
+ * June 9, this file can be deleted in a focused cleanup commit.
+ */
+
 function getResend() {
   const key = process.env.RESEND_API_KEY;
   if (!key) throw new Error('RESEND_API_KEY is not configured');
@@ -21,6 +44,9 @@ function getResend() {
 }
 
 export async function POST(req: NextRequest) {
+  console.warn(
+    '[beneficiary/send-intro] DEPRECATED route invoked. The v3.1 invite-only flow lives at /api/beneficiary/queue-invite. This handler is preserved for ≥30 days post-cutover (May 10, 2026 → June 9, 2026) as a safety belt.',
+  );
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {

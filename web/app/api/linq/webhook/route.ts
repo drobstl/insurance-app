@@ -47,6 +47,10 @@ import {
   handlePostActivationInbound,
   handleWelcomeActivationInbound,
 } from '../../../../lib/welcome-activation-handler';
+import {
+  findBeneficiaryActivationCandidate,
+  handleBeneficiaryActivationInbound,
+} from '../../../../lib/beneficiary-activation-handler';
 import { expireActionItem } from '../../../../lib/action-item-store';
 import { recordLinqInbound } from '../../../../lib/line-health';
 
@@ -349,6 +353,25 @@ async function handleDirectMessage(data: LinqWebhookMessageData) {
   // unset at this hook point — we record at the universal entry
   // before lane-specific routing decides how to handle the message.
   void recordLinqInbound({ db }).catch(() => {});
+
+  // Beneficiary activation lane (May 10, 2026) — runs BEFORE the
+  // welcome activation lane. Different placeholder prefix
+  // (`beneficiary_pending_*` vs `welcome_pending_*`) so no
+  // conflict; ordering is for explicitness, not correctness.
+  // Detection: byPhone resolver placeholder pre-registered by
+  // /api/beneficiary/queue-invite when the policyholder taps Invite.
+  const beneficiaryCandidate = await findBeneficiaryActivationCandidate({
+    db,
+    fromPhoneE164: senderHandle,
+  });
+  if (beneficiaryCandidate) {
+    await handleBeneficiaryActivationInbound({
+      db,
+      ctx: beneficiaryCandidate,
+      realLinqChatId: chatId,
+    });
+    return;
+  }
 
   // Phase 1 Track B — welcome activation lane runs BEFORE every other
   // routing branch, regardless of THREAD_ROUTER_ENABLED state. The
