@@ -327,26 +327,66 @@ export default function DesktopLandingV5() {
       </section>
 
       {/* ═══ WELCOME FLOW — Stop being the agent they forgot ═══ */}
-      <section className="relative px-6 lg:px-8 py-28 lg:py-36 overflow-hidden" style={{ background: '#0D4D4D radial-gradient(ellipse 700px 500px at 50% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 500px 400px at 50% 100%, rgba(253,204,2,0.06), transparent 70%)' }}>
+      <section className="relative px-6 lg:px-8 py-24 lg:py-28 overflow-hidden" style={{ background: '#0D4D4D radial-gradient(ellipse 700px 500px at 50% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 500px 400px at 50% 100%, rgba(253,204,2,0.06), transparent 70%)' }}>
         <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
-        <div className="relative max-w-3xl mx-auto text-center">
-          <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
+        <div className="relative max-w-6xl mx-auto">
+          <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="text-center mb-12">
             <p className="text-[#3DD6C3] font-bold text-xs uppercase tracking-[0.2em] mb-5">How your book wakes up</p>
-            <h2 className="text-4xl lg:text-5xl xl:text-[3.5rem] font-extrabold text-white leading-[1.1] mb-8">
+            <h2 className="text-4xl lg:text-5xl xl:text-[3.5rem] font-extrabold text-white leading-[1.1] mb-5">
               Stop being the agent <span className="text-[#fdcc02]">they forgot</span>.
             </h2>
-            <div className="text-white/70 text-lg lg:text-xl leading-relaxed mb-10 max-w-2xl mx-auto space-y-5">
-              <p>
-                Half your book can&apos;t name you. To them you&apos;re &quot;the Mortgage Protection person from 2022.&quot; When the next premium hits, they don&apos;t recognize the charge — and they cancel. That&apos;s a chargeback. It&apos;s also the referrals they&apos;ll never send, the rewrite that auto-renews back to the carrier, and the call they&apos;ll make to <span className="text-white font-semibold">someone else</span> next time they need coverage.
-              </p>
-              <p>
-                AFL puts your own branded app on every client&apos;s phone — your name, your photo, your number, always there — and keeps the relationship warm automatically. You stop being a stranger and become the agent they remember, refer, and trust. Policies stop cancelling. Anniversaries become booked rewrites. <span className="text-[#fdcc02] font-bold">The book you already wrote starts paying you again. Twice. Three times. Year after year.</span>
-              </p>
+            <p className="text-white/70 text-base lg:text-lg max-w-2xl mx-auto">
+              Half your book can&apos;t name you. To them you&apos;re &quot;the Mortgage Protection person from 2022.&quot;
+            </p>
+          </motion.div>
+
+          {/* What's slipping — 4 loss cards */}
+          <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: 0.1 }} className="mb-4">
+            <p className="text-red-300/80 font-bold text-[11px] uppercase tracking-[0.25em] text-center mb-5">Without AFL · what&apos;s slipping</p>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+              {[
+                { title: 'Chargebacks', body: "Premium hits. They don't recognize the charge. They cancel." },
+                { title: 'Lost referrals', body: "The warm leads they'd send — if they remembered who you were." },
+                { title: 'Lost rewrites', body: 'Anniversaries auto-renew back to the carrier, not back to you.' },
+                { title: 'Lost loyalty', body: 'Next time they need coverage, the call goes to a stranger.' },
+              ].map((card) => (
+                <div key={card.title} className="rounded-2xl p-5 bg-red-500/[0.06] border border-red-400/15">
+                  <p className="text-red-300 font-bold text-[13px] mb-2">{card.title}</p>
+                  <p className="text-white/60 text-sm leading-snug">{card.body}</p>
+                </div>
+              ))}
             </div>
-            <div className="inline-block px-6 py-4 bg-white/[0.04] border border-white/10 rounded-2xl">
-              <p className="text-white text-base lg:text-lg font-semibold leading-snug">
+          </motion.div>
+
+          {/* Pivot line */}
+          <motion.p initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: 0.2 }} className="text-center text-white text-lg lg:text-xl font-semibold my-10 lg:my-12 max-w-2xl mx-auto">
+            AFL puts your own branded app on every client&apos;s phone — and keeps the relationship warm automatically.
+          </motion.p>
+
+          {/* What changes — 4 gain cards */}
+          <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: 0.3 }} className="mb-12">
+            <p className="text-[#3DD6C3] font-bold text-[11px] uppercase tracking-[0.25em] text-center mb-5">With AFL · what changes</p>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+              {[
+                { title: 'Saved as a contact', body: 'Your name, photo, and number live in their phone.' },
+                { title: 'Always warm', body: 'AFL keeps the relationship alive while you sleep.' },
+                { title: 'Remembered & trusted', body: 'You become the agent they refer their friends to.' },
+                { title: 'Compounding income', body: 'Every sale pays again. Twice. Three times. Year after year.' },
+              ].map((card) => (
+                <div key={card.title} className="rounded-2xl p-5 bg-[#3DD6C3]/10 border border-[#3DD6C3]/25">
+                  <p className="text-[#3DD6C3] font-bold text-[13px] mb-2">{card.title}</p>
+                  <p className="text-white/75 text-sm leading-snug">{card.body}</p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Closer — punchline */}
+          <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: 0.4 }} className="text-center">
+            <div className="inline-block px-7 lg:px-9 py-5 lg:py-6 bg-white/[0.06] border-2 border-[#3DD6C3]/30 rounded-2xl max-w-3xl">
+              <p className="text-white text-lg lg:text-2xl font-bold leading-snug">
                 Most agents have a book of business.<br />
-                <span className="text-[#3DD6C3]">AFL agents have a book that doesn&apos;t leak, and compounds their income from leads they already won.</span>
+                <span className="text-[#3DD6C3]">AFL agents have a book that doesn&apos;t leak — and compounds their income from leads they already won.</span>
               </p>
             </div>
           </motion.div>
