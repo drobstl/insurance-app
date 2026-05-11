@@ -61,6 +61,78 @@ const BENEFICIARY_AUTO_REPLY_ENABLED = process.env.BENEFICIARY_AUTO_REPLY_ENABLE
 const PHONE_FALLBACK_STRICT_MODE = process.env.PHONE_FALLBACK_STRICT_MODE === 'true';
 
 /**
+ * Classify a thrown error as transient (Linq should retry) vs permanent
+ * (Linq should NOT retry, but we must alert because retrying won't help).
+ *
+ * Transient = infrastructure shrugged (Firestore briefly unavailable,
+ * timeout, rate limit). Linq retrying the webhook a few seconds later
+ * has a real chance of succeeding.
+ *
+ * Permanent = code bug or config drift (missing index, malformed data,
+ * permission denied). Retrying just hammers the bug; the fix is in our
+ * source tree, not in Linq's retry queue.
+ *
+ * Decision history: pre-May-11 every error was swallowed with a 200,
+ * which hid the entries-collectionGroup missing-index bug for ~3 days.
+ * Differentiating + alerting on permanent errors closes that gap.
+ */
+function isTransientWebhookError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const codeRaw = (error as { code?: unknown }).code;
+  // gRPC numeric codes from firebase-admin / Google Cloud SDK
+  if (typeof codeRaw === 'number') {
+    return (
+      codeRaw === 4 || // DEADLINE_EXCEEDED
+      codeRaw === 8 || // RESOURCE_EXHAUSTED (quota / rate limit — retry with backoff)
+      codeRaw === 13 || // INTERNAL
+      codeRaw === 14 // UNAVAILABLE
+    );
+  }
+  // Node.js network errors (string codes)
+  if (typeof codeRaw === 'string') {
+    return ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN'].includes(codeRaw);
+  }
+  return false;
+}
+
+/**
+ * Fire-and-forget Firestore write for a permanent webhook error so the
+ * failure isn't invisible. Lives in a top-level `webhookErrors` collection
+ * (not per-agent) because the error frequently happens BEFORE we resolve
+ * which agent the inbound belongs to.
+ *
+ * Best-effort: if the alert write itself fails, the structured console
+ * log is the fallback. We never let alerting block the response.
+ */
+async function recordPermanentWebhookError(params: {
+  db: FirebaseFirestore.Firestore;
+  error: unknown;
+  envelope: LinqWebhookEnvelope | null;
+}): Promise<void> {
+  try {
+    const err = params.error;
+    const errObj = (typeof err === 'object' && err !== null
+      ? (err as Record<string, unknown>)
+      : {}) as Record<string, unknown>;
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error && typeof err.stack === 'string' ? err.stack.slice(0, 2000) : null;
+    const code = typeof errObj.code === 'number' || typeof errObj.code === 'string' ? errObj.code : null;
+    const details = typeof errObj.details === 'string' ? errObj.details : null;
+    await params.db.collection('webhookErrors').add({
+      source: 'linq',
+      message,
+      code,
+      details,
+      stack,
+      eventType: params.envelope?.event_type ?? null,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  } catch {
+    // Alerting is intentionally best-effort.
+  }
+}
+
+/**
  * POST /api/linq/webhook
  *
  * Core Linq webhook handler. Receives message.received events and routes:
@@ -71,6 +143,7 @@ const PHONE_FALLBACK_STRICT_MODE = process.env.PHONE_FALLBACK_STRICT_MODE === 't
  */
 export async function POST(req: NextRequest) {
   let dedupeRef: FirebaseFirestore.DocumentReference | null = null;
+  let envelope: LinqWebhookEnvelope | null = null;
   try {
     const rawBody = await req.text();
     const timestamp = req.headers.get('X-Webhook-Timestamp') || '';
@@ -80,7 +153,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
-    const envelope: LinqWebhookEnvelope = JSON.parse(rawBody);
+    envelope = JSON.parse(rawBody) as LinqWebhookEnvelope;
 
     if (envelope.event_type !== 'message.received') {
       return NextResponse.json({ ok: true });
@@ -117,11 +190,46 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    // Drop the dedupe ref either way — for transient errors we want a
+    // future retry to be able to re-claim; for permanent errors we want
+    // a manual replay (after a fix) to not be blocked by the dedupe row.
     if (dedupeRef) {
       await dedupeRef.delete().catch(() => {});
     }
-    console.error('[Linq Webhook] Error:', error);
-    return NextResponse.json({ ok: true });
+
+    const transient = isTransientWebhookError(error);
+    const codeRaw = (error as { code?: unknown } | null)?.code ?? null;
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[Linq Webhook] Error:', {
+      transient,
+      code: codeRaw,
+      message,
+      stack: error instanceof Error && typeof error.stack === 'string'
+        ? error.stack.slice(0, 1000)
+        : null,
+    });
+
+    if (transient) {
+      // 503 tells Linq to retry — infrastructure shrugged. Returning 200
+      // here would silently drop the event; returning 5xx surfaces the
+      // problem to Linq's retry queue + their dashboard.
+      return NextResponse.json(
+        { ok: false, retryable: true },
+        { status: 503 },
+      );
+    }
+
+    // Permanent error — Linq retrying won't help (code bug / config
+    // drift). 200 so Linq stops banging on the bug, but write to
+    // webhookErrors collection so the failure is visible for alerting
+    // / audit. Pre-May-11 we just swallowed these silently.
+    try {
+      const db = getAdminFirestore();
+      await recordPermanentWebhookError({ db, error, envelope });
+    } catch {
+      // Alert write is best-effort; the console.error above is the fallback.
+    }
+    return NextResponse.json({ ok: true, permanentError: true });
   }
 }
 
