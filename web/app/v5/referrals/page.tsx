@@ -136,12 +136,11 @@ export default function ReferralsDeepDiveDesktop() {
                   <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#34C759]" /><span className="text-[#0D4D4D] font-bold text-xs">Green Bubbles</span></span>
                 </div>
               </div>
-              <h1 className="text-5xl lg:text-6xl xl:text-7xl font-extrabold text-[#0D4D4D] leading-[1.05] mb-8">
-                Your clients refer.<br />
-                AI closes.
+              <h1 className="text-6xl lg:text-7xl xl:text-[7.5rem] font-extrabold text-[#0D4D4D] leading-[0.95] mb-8">
+                Got Referrals?
               </h1>
               <p className="text-[#0D4D4D]/70 text-lg lg:text-xl leading-relaxed max-w-lg mb-10">
-                One tap from your client. AI texts the referral via iMessage, qualifies them, and books the appointment on your calendar.
+                Your clients refer. AFL closes. One tap from your client, AFL texts the referral via iMessage, qualifies them, and books the appointment on your calendar.
               </p>
               <Link
                 href={tier.ctaHref}

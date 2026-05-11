@@ -83,12 +83,11 @@ export default function ReferralsDeepDive() {
               <svg className="w-3.5 h-3.5 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
               <span className="text-[#0D4D4D] font-bold text-[11px] uppercase tracking-wide">One-Tap Referrals</span>
             </div>
-            <h1 className="text-[2rem] font-extrabold text-[#0D4D4D] leading-[1.1] mb-4">
-              Your clients refer.<br />
-              AI closes.
+            <h1 className="text-[3rem] font-extrabold text-[#0D4D4D] leading-[0.95] mb-4">
+              Got Referrals?
             </h1>
             <p className="text-[#0D4D4D]/70 text-[15px] leading-relaxed max-w-[320px]">
-              One tap from your client. AI texts the referral via iMessage, qualifies them, and books the appointment on your calendar.
+              Your clients refer. AFL closes. One tap from your client, AFL texts the referral via iMessage, qualifies them, and books the appointment on your calendar.
             </p>
           </motion.div>
         </div>
