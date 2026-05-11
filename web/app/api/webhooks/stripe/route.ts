@@ -3,6 +3,10 @@ import { Resend } from 'resend';
 import { stripe } from '../../../../lib/stripe';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { tierIdFromStripePriceId } from '../../../../lib/pricing';
+import {
+  isTransientWebhookError,
+  recordPermanentWebhookError,
+} from '../../../../lib/webhook-error-handling';
 import Stripe from 'stripe';
 
 // Disable body parsing, need raw body for webhook signature verification
@@ -44,7 +48,20 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   const subscriptionId = session.subscription as string;
 
   if (!userId) {
-    console.error('No Firebase user ID in session metadata');
+    console.error('No Firebase user ID in checkout session metadata', {
+      sessionId: session.id,
+      customerId,
+    });
+    await recordPermanentWebhookError({
+      db: getAdminFirestore(),
+      source: 'stripe',
+      error: new Error('No Firebase user ID in checkout session metadata'),
+      context: {
+        handler: 'handleCheckoutSessionCompleted',
+        sessionId: session.id,
+        customerId,
+      },
+    });
     return;
   }
 
@@ -180,11 +197,24 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handleSubscriptionUpdated(subscriptionData: any) {
-  const userId = subscriptionData.metadata?.firebaseUserId || 
+  const userId = subscriptionData.metadata?.firebaseUserId ||
     await getFirebaseUserIdFromCustomer(subscriptionData.customer as string);
 
   if (!userId) {
-    console.error('Could not find Firebase user ID for subscription update');
+    console.error('Could not find Firebase user ID for subscription update', {
+      customerId: subscriptionData.customer,
+      subscriptionId: subscriptionData.id,
+    });
+    await recordPermanentWebhookError({
+      db: getAdminFirestore(),
+      source: 'stripe',
+      error: new Error('Could not find Firebase user ID for subscription update'),
+      context: {
+        handler: 'handleSubscriptionUpdated',
+        customerId: subscriptionData.customer,
+        subscriptionId: subscriptionData.id,
+      },
+    });
     return;
   }
 
@@ -218,11 +248,24 @@ async function handleSubscriptionUpdated(subscriptionData: any) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handleSubscriptionDeleted(subscriptionData: any) {
-  const userId = subscriptionData.metadata?.firebaseUserId || 
+  const userId = subscriptionData.metadata?.firebaseUserId ||
     await getFirebaseUserIdFromCustomer(subscriptionData.customer as string);
 
   if (!userId) {
-    console.error('Could not find Firebase user ID for subscription deletion');
+    console.error('Could not find Firebase user ID for subscription deletion', {
+      customerId: subscriptionData.customer,
+      subscriptionId: subscriptionData.id,
+    });
+    await recordPermanentWebhookError({
+      db: getAdminFirestore(),
+      source: 'stripe',
+      error: new Error('Could not find Firebase user ID for subscription deletion'),
+      context: {
+        handler: 'handleSubscriptionDeleted',
+        customerId: subscriptionData.customer,
+        subscriptionId: subscriptionData.id,
+      },
+    });
     return;
   }
 
@@ -246,7 +289,20 @@ async function handleInvoicePaymentFailed(invoice: any) {
   const userId = await getFirebaseUserIdFromCustomer(customerId);
 
   if (!userId) {
-    console.error('Could not find Firebase user ID for failed payment');
+    console.error('Could not find Firebase user ID for failed payment', {
+      customerId,
+      invoiceId: invoice.id,
+    });
+    await recordPermanentWebhookError({
+      db: getAdminFirestore(),
+      source: 'stripe',
+      error: new Error('Could not find Firebase user ID for failed payment'),
+      context: {
+        handler: 'handleInvoicePaymentFailed',
+        customerId,
+        invoiceId: invoice.id,
+      },
+    });
     return;
   }
 
@@ -302,26 +358,66 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Handle the event
-    switch (event.type) {
-      case 'checkout.session.completed':
-        await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
-        break;
+    try {
+      switch (event.type) {
+        case 'checkout.session.completed':
+          await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
+          break;
 
-      case 'customer.subscription.updated':
-        await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
-        break;
+        case 'customer.subscription.updated':
+          await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
+          break;
 
-      case 'customer.subscription.deleted':
-        await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
-        break;
+        case 'customer.subscription.deleted':
+          await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+          break;
 
-      case 'invoice.payment_failed':
-        await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
-        break;
+        case 'invoice.payment_failed':
+          await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
+          break;
 
-      default:
-        console.log(`Unhandled event type: ${event.type}`);
+        default:
+          console.log(`Unhandled event type: ${event.type}`);
+      }
+    } catch (handlerError) {
+      // Differentiate transient (infrastructure) vs permanent (code bug /
+      // config drift) the same way Linq does. Transient → 5xx so Stripe
+      // retries from its own queue; permanent → 200 + alert so Stripe
+      // doesn't hammer the bug while we fix it. Pre-May-11 we returned
+      // 500 on every handler error, which made Stripe retry the same
+      // bad event for hours.
+      const transient = isTransientWebhookError(handlerError);
+      const codeRaw = (handlerError as { code?: unknown } | null)?.code ?? null;
+      const message = handlerError instanceof Error ? handlerError.message : String(handlerError);
+      console.error('[Stripe Webhook] Handler error:', {
+        eventType: event.type,
+        transient,
+        code: codeRaw,
+        message,
+        stack: handlerError instanceof Error && typeof handlerError.stack === 'string'
+          ? handlerError.stack.slice(0, 1000)
+          : null,
+      });
+
+      if (transient) {
+        return NextResponse.json(
+          { ok: false, retryable: true },
+          { status: 503 }
+        );
+      }
+
+      try {
+        const db = getAdminFirestore();
+        await recordPermanentWebhookError({
+          db,
+          source: 'stripe',
+          error: handlerError,
+          context: { eventType: event.type, eventId: event.id },
+        });
+      } catch {
+        // Best-effort alerting.
+      }
+      return NextResponse.json({ ok: true, permanentError: true });
     }
 
     return NextResponse.json({ received: true });
