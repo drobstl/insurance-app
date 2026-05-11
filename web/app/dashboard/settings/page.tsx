@@ -1318,7 +1318,7 @@ export default function SettingsPage() {
             <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Subscription</h3>
             <div className="flex items-center justify-between">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                     agentProfile.subscriptionStatus === 'active'
                       ? 'bg-green-100 text-green-700'
@@ -1331,6 +1331,29 @@ export default function SettingsPage() {
                       Founding Member
                     </span>
                   )}
+                  {(() => {
+                    // Trial chip — surfaces the trial-end countdown so users
+                    // know when their first real charge will hit. The
+                    // webhook writes `trialEndsAt` from Stripe's
+                    // subscription.trial_end on every subscription create/
+                    // update, then nulls it out when the trial ends.
+                    const rawTrialEnd = (agentProfile as Record<string, unknown>).trialEndsAt;
+                    let trialEndMs: number | null = null;
+                    if (rawTrialEnd instanceof Date) {
+                      trialEndMs = rawTrialEnd.getTime();
+                    } else if (rawTrialEnd && typeof rawTrialEnd === 'object' && 'seconds' in (rawTrialEnd as Record<string, unknown>)) {
+                      const seconds = (rawTrialEnd as { seconds: unknown }).seconds;
+                      if (typeof seconds === 'number') trialEndMs = seconds * 1000;
+                    }
+                    if (trialEndMs === null) return null;
+                    const daysLeft = Math.ceil((trialEndMs - Date.now()) / (1000 * 60 * 60 * 24));
+                    if (daysLeft <= 0) return null;
+                    return (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold uppercase tracking-wide border border-amber-200">
+                        Trial · {daysLeft === 1 ? '1 day left' : `${daysLeft} days left`}
+                      </span>
+                    );
+                  })()}
                 </div>
                 {(() => {
                   // Display the agent's actual tier and price. Stripe webhook

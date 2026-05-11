@@ -56,6 +56,15 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   const priceId = subscription.items?.data?.[0]?.price?.id as string | undefined;
   const membershipTier = deriveTier(priceId, session.metadata as Record<string, string> | null);
 
+  // Trial end timestamp — `subscription.trial_end` is a Unix epoch (seconds)
+  // when the subscription is in `trialing` state, otherwise null. We persist
+  // it so the dashboard can render "Trial ends in X days" before the first
+  // charge fires. The subscription.updated handler nulls it out when the
+  // trial ends so the chip disappears.
+  const trialEndsAt = subscription.trial_end
+    ? new Date(subscription.trial_end * 1000)
+    : null;
+
   // Update Firestore using Admin SDK (bypasses security rules)
   const db = getAdminFirestore();
   const preActivationAgentDoc = await db.collection('agents').doc(userId).get();
@@ -73,6 +82,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       subscriptionCurrentPeriodEnd: subscription.current_period_end
         ? new Date(subscription.current_period_end * 1000)
         : new Date(),
+      trialEndsAt,
     },
     { merge: true }
   );
@@ -178,9 +188,16 @@ async function handleSubscriptionUpdated(subscriptionData: any) {
     return;
   }
 
-  const status = subscriptionData.status === 'active' || subscriptionData.status === 'trialing' 
-    ? 'active' 
+  const status = subscriptionData.status === 'active' || subscriptionData.status === 'trialing'
+    ? 'active'
     : subscriptionData.status;
+
+  // Refresh trialEndsAt on every subscription update. Goes to null when the
+  // trial ends (Stripe nulls trial_end at that point), which is what makes
+  // the dashboard "Trial ends in X" chip disappear automatically.
+  const trialEndsAt = subscriptionData.trial_end
+    ? new Date(subscriptionData.trial_end * 1000)
+    : null;
 
   const db = getAdminFirestore();
   await db.collection('agents').doc(userId).set(
@@ -191,6 +208,7 @@ async function handleSubscriptionUpdated(subscriptionData: any) {
         : new Date(),
       stripeCustomerId: subscriptionData.customer,
       subscriptionId: subscriptionData.id,
+      trialEndsAt,
     },
     { merge: true }
   );
