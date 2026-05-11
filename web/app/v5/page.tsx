@@ -90,7 +90,7 @@ export default function DesktopLandingV5() {
                     <span className="relative rounded-full h-2.5 w-2.5 bg-[#fdcc02]" />
                   </span>
                   <span className="text-[#fdcc02] font-bold text-sm tracking-wide">
-                    {tier.loaded ? tier.bannerText : 'Free Lifetime Spots Open'}
+                    {tier.loaded ? tier.bannerText : 'Built to 3x your book'}
                   </span>
                 </div>
               </motion.div>
@@ -140,7 +140,7 @@ export default function DesktopLandingV5() {
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
                 </Link>
                 <p className="text-white/60 text-sm">
-                  {tier.loaded ? tier.ctaSubtext : 'Limited spots · $0 forever'}
+                  {tier.loaded ? tier.ctaSubtext : '14-day free trial · Cancel anytime'}
                 </p>
               </motion.div>
             </div>
@@ -274,7 +274,7 @@ export default function DesktopLandingV5() {
                 You move forward, AI&apos;s got your back.
               </h2>
               <p className="text-[#6B7280] text-lg leading-relaxed mb-8 max-w-lg">
-                When a policy slips, forward the carrier&apos;s conservation notice. AI extracts the client info, matches your records, and sends personalized outreach within hours. Then follows up on Day 2, 5, and 7.
+                When a policy slips or cancels, AFL reaches out automatically — and flags the ones that need your personal touch. Saves happen instead of slipping past.
               </p>
               <Link href="/v5/retention" className="inline-flex items-center gap-2 text-[#0D4D4D] font-bold text-base hover:text-[#3DD6C3] transition-colors group">
                 See how it works
@@ -322,6 +322,28 @@ export default function DesktopLandingV5() {
               </Link>
             </motion.div>
           </div>
+        </div>
+      </section>
+
+      {/* ═══ WELCOME FLOW — Stop being the agent they forgot ═══ */}
+      <section className="relative px-6 lg:px-8 py-28 lg:py-36 overflow-hidden" style={{ background: '#0D4D4D radial-gradient(ellipse 700px 500px at 50% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 500px 400px at 50% 100%, rgba(253,204,2,0.06), transparent 70%)' }}>
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+        <div className="relative max-w-3xl mx-auto text-center">
+          <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
+            <p className="text-[#3DD6C3] font-bold text-xs uppercase tracking-[0.2em] mb-5">How your book wakes up</p>
+            <h2 className="text-4xl lg:text-5xl xl:text-[3.5rem] font-extrabold text-white leading-[1.1] mb-8">
+              Stop being the agent <span className="text-[#fdcc02]">they forgot</span>.
+            </h2>
+            <p className="text-white/70 text-lg lg:text-xl leading-relaxed mb-10 max-w-2xl mx-auto">
+              Right now you&apos;re &quot;the Mortgage Protection person from 2022&quot; to half your book — if they remember you at all. AFL puts your name, your photo, and your number in every client&apos;s phone, automatically. The old leads come back to life. The new clients install before the policy is issued. You stop chasing setup completion because the flow finishes itself.
+            </p>
+            <div className="inline-block px-6 py-4 bg-white/[0.04] border border-white/10 rounded-2xl">
+              <p className="text-white text-base lg:text-lg font-semibold leading-snug">
+                Most agents have a book of business.<br />
+                <span className="text-[#3DD6C3]">AFL agents have a book that calls them back.</span>
+              </p>
+            </div>
+          </motion.div>
         </div>
       </section>
 
@@ -509,6 +531,52 @@ export default function DesktopLandingV5() {
         </div>
       </section>
 
+      {/* ═══ 3X MATH CALLOUT ═══ */}
+      <section className="relative bg-[#070E1B] px-6 lg:px-8 py-24 lg:py-28 overflow-hidden">
+        <div className="absolute inset-0 opacity-[0.04] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+        <div className="relative max-w-5xl mx-auto">
+          <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="text-center mb-14">
+            <p className="text-[#fdcc02] font-bold text-xs uppercase tracking-[0.2em] mb-4">The 3x rule</p>
+            <h2 className="text-3xl lg:text-5xl font-extrabold text-white leading-tight mb-4">
+              Every closed sale should pay <span className="text-[#3DD6C3]">three times</span>.
+            </h2>
+            <p className="text-white/60 text-lg max-w-2xl mx-auto">You&apos;re getting one. AFL is built to capture all three.</p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {[
+              { num: '1', label: 'At close', desc: 'The premium you wrote. The commission you already collected.', accent: '#3DD6C3', earned: true },
+              { num: '2', label: 'At the referral', desc: 'Every closed client knows 3+ people who need coverage. Each one a warm intro waiting to happen.', accent: '#fdcc02', earned: false },
+              { num: '3', label: 'At the rewrite', desc: 'Twelve months later, the policy hits its anniversary. The carrier auto-renews — unless you get there first.', accent: '#fdcc02', earned: false },
+            ].map((row, i) => (
+              <motion.div
+                key={row.num}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.1 * i }}
+                className={`rounded-2xl p-7 border ${row.earned ? 'bg-[#3DD6C3]/10 border-[#3DD6C3]/25' : 'bg-white/[0.03] border-white/10'}`}
+              >
+                <div className="flex items-center gap-3 mb-4 flex-wrap">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg font-black" style={{ backgroundColor: `${row.accent}20`, color: row.accent }}>{row.num}</div>
+                  <p className="text-white font-bold text-base">{row.label}</p>
+                  {row.earned ? (
+                    <span className="ml-auto text-[10px] font-bold uppercase tracking-wide text-[#3DD6C3]">You get this</span>
+                  ) : (
+                    <span className="ml-auto text-[10px] font-bold uppercase tracking-wide text-[#fdcc02]/90">Slipping past</span>
+                  )}
+                </div>
+                <p className="text-white/60 text-sm leading-relaxed">{row.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.p initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: 0.4 }} className="text-center text-white/50 text-base mt-12 max-w-2xl mx-auto">
+            AFL turns sales 2 and 3 from &quot;if you remember&quot; into &quot;automatically.&quot; Every closed client becomes a referral out and a rewrite booked.
+          </motion.p>
+        </div>
+      </section>
+
       {/* ═══ ROI ═══ */}
       <section className="relative px-6 lg:px-8 py-24 overflow-hidden" style={{ background: '#0D4D4D radial-gradient(ellipse 300px 300px at 0% 0%, rgba(239,68,68,0.08), transparent 70%), radial-gradient(ellipse 300px 300px at 100% 100%, rgba(61,214,195,0.08), transparent 70%)' }}>
         <div className="relative max-w-5xl mx-auto">
@@ -526,16 +594,16 @@ export default function DesktopLandingV5() {
                 <p className="text-red-400/50 text-sm">avg annual value lost</p>
               </motion.div>
               <motion.div variants={fadeUp} custom={0.15} className="bg-[#3DD6C3]/10 border border-[#3DD6C3]/20 rounded-2xl p-8 text-center">
-                <p className="text-[#3DD6C3] font-semibold text-xs uppercase tracking-wide mb-3">Agent for Life</p>
-                <p className="text-5xl font-black text-[#fdcc02] mb-2">$0</p>
-                <p className="text-[#3DD6C3]/50 text-sm">free as Founding Member</p>
+                <p className="text-[#3DD6C3] font-semibold text-xs uppercase tracking-wide mb-3">AFL Starter</p>
+                <p className="text-5xl font-black text-[#fdcc02] mb-2">$348</p>
+                <p className="text-[#3DD6C3]/50 text-sm">per year · everything included</p>
               </motion.div>
               <motion.div variants={fadeUp} custom={0.2} className="bg-white/[0.04] border border-white/10 rounded-2xl p-8 text-center flex flex-col justify-center">
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#fdcc02]/15 rounded-full mb-3 mx-auto">
                   <svg className="w-4 h-4 text-[#fdcc02]" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                   <span className="text-[#fdcc02] font-bold text-xs uppercase">Instant ROI</span>
                 </div>
-                <p className="text-white font-extrabold text-lg leading-snug">Every save and every referral is <span className="text-[#fdcc02]">pure profit</span>.</p>
+                <p className="text-white font-extrabold text-lg leading-snug">One save pays for 3+ years. Every referral and rewrite is <span className="text-[#fdcc02]">profit on top</span>.</p>
               </motion.div>
             </div>
           </motion.div>
@@ -690,12 +758,12 @@ export default function DesktopLandingV5() {
           <h2 className="text-4xl lg:text-5xl font-extrabold text-white leading-tight">
             Your competitors aren&apos;t reading this. <span className="text-[#fdcc02]">They&apos;re losing clients.</span>
           </h2>
-          <p className="text-white/60 text-lg leading-relaxed max-w-xl mx-auto">Lock in your free lifetime spot. No credit card. No risk. A system that pays for itself from day one.</p>
+          <p className="text-white/60 text-lg leading-relaxed max-w-xl mx-auto">Start a 14-day free trial. No credit card. The first save you make pays for the year.</p>
           <Link href={tier.ctaHref} className="inline-flex items-center gap-3 px-10 py-5 bg-[#fdcc02] text-[#0D4D4D] text-lg font-bold rounded-full shadow-2xl shadow-[#fdcc02]/25 hover:shadow-[#fdcc02]/40 hover:scale-[1.02] transition-all">
             {tier.isFoundingOpen ? 'Lock In My Free Lifetime Spot' : tier.ctaText}
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
           </Link>
-          <p className="text-white/60 text-sm">{tier.loaded ? tier.ctaSubtext : 'Limited spots · $0 forever'}</p>
+          <p className="text-white/60 text-sm">{tier.loaded ? tier.ctaSubtext : '14-day free trial · Cancel anytime'}</p>
         </motion.div>
       </section>
 

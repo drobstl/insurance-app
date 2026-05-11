@@ -270,7 +270,7 @@ export default function RetentionDeepDiveDesktop() {
                 When a policy slips, AI catches it.
               </h2>
               <p className="text-white/90 text-lg leading-relaxed">
-                Forward the carrier&apos;s conservation notice. AI handles the rest.
+                Forward the carrier&apos;s conservation notice. AFL handles outreach automatically and flags the saves that need your personal touch.
               </p>
             </motion.div>
 
@@ -290,8 +290,8 @@ export default function RetentionDeepDiveDesktop() {
                 },
                 {
                   num: '3',
-                  title: 'Client gets reached',
-                  body: 'Push notification + iMessage (blue bubbles on iPhone, green on Android) within 2 hours. AI follows up on Day 2, 5, and 7 with different angles.',
+                  title: 'Client gets reached, you get a heads-up',
+                  body: 'Push notification + iMessage (blue bubble on iPhone, green on Android) within hours. AFL then surfaces the at-risk client in your Action Items — so when it&apos;s time for your personal touch, you know exactly who to call.',
                   color: '#fdcc02',
                 },
               ].map((step, i) => (

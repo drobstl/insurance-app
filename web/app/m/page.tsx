@@ -204,7 +204,7 @@ export default function MobileLandingV2() {
                   <span className="relative rounded-full h-2 w-2 bg-[#fdcc02]" />
                 </span>
                 <span className="text-[#fdcc02] font-bold text-xs tracking-wide">
-                  {tier.loaded ? tier.bannerText : 'Free Lifetime Spots Open'}
+                  {tier.loaded ? tier.bannerText : 'Built to 3x your book'}
                 </span>
               </div>
             </motion.div>
@@ -244,7 +244,7 @@ export default function MobileLandingV2() {
                 <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
               </Link>
               <p className="text-white/30 mt-4 text-xs">
-                {tier.loaded ? tier.ctaSubtext : 'Limited spots · No credit card'}
+                {tier.loaded ? tier.ctaSubtext : '14-day free trial · Cancel anytime'}
               </p>
             </motion.div>
           </div>
@@ -490,6 +490,35 @@ export default function MobileLandingV2() {
       </section>
 
       {/* ═══════════════════════════════════════════════════
+         WELCOME FLOW — Stop being the agent they forgot
+         ═══════════════════════════════════════════════════ */}
+      <section className="relative px-6 py-20 overflow-hidden" style={{ background: '#0D4D4D radial-gradient(ellipse 400px 400px at 50% 0%, rgba(61,214,195,0.14), transparent 70%), radial-gradient(ellipse 300px 300px at 50% 100%, rgba(253,204,2,0.06), transparent 70%)' }}>
+        <div className="absolute inset-0 opacity-[0.04] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-40px' }}
+          transition={{ duration: 0.6 }}
+          style={{ willChange: 'transform, opacity' }}
+          className="relative text-center"
+        >
+          <p className="text-[#3DD6C3] font-bold text-[10px] uppercase tracking-[0.2em] mb-4">How your book wakes up</p>
+          <h2 className="text-[1.85rem] font-extrabold text-white leading-[1.1] mb-5">
+            Stop being the agent <span className="text-[#fdcc02]">they forgot</span>.
+          </h2>
+          <p className="text-white/70 text-[14.5px] leading-relaxed mb-7 max-w-[320px] mx-auto">
+            Right now you&apos;re &quot;the Mortgage Protection person from 2022&quot; to half your book — if they remember you at all. AFL puts your name, your photo, and your number in every client&apos;s phone, automatically. The old leads come back to life. The new clients install before the policy is issued. You stop chasing setup completion because the flow finishes itself.
+          </p>
+          <div className="inline-block px-5 py-3.5 bg-white/[0.04] border border-white/10 rounded-2xl">
+            <p className="text-white text-[13.5px] font-semibold leading-snug">
+              Most agents have a book of business.<br />
+              <span className="text-[#3DD6C3]">AFL agents have a book that calls them back.</span>
+            </p>
+          </div>
+        </motion.div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════
          THE PROBLEM — Three Pain Points + Calculator
          ═══════════════════════════════════════════════════ */}
       <section className="relative bg-white px-6 py-16">
@@ -558,6 +587,59 @@ export default function MobileLandingV2() {
       </section>
 
       {/* ═══════════════════════════════════════════════════
+         3X MATH CALLOUT
+         ═══════════════════════════════════════════════════ */}
+      <section className="relative bg-[#070E1B] px-6 py-16 overflow-hidden">
+        <div className="absolute inset-0 opacity-[0.04] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: '-40px' }}
+          variants={stagger}
+          style={{ willChange: 'transform, opacity' }}
+          className="relative space-y-6"
+        >
+          <motion.div variants={fadeUp} custom={0} className="text-center">
+            <p className="text-[#fdcc02] font-bold text-[10px] uppercase tracking-[0.2em] mb-3">The 3x rule</p>
+            <h2 className="text-[1.65rem] font-extrabold text-white leading-tight mb-3">
+              Every closed sale should pay{' '}<span className="text-[#3DD6C3]">three times</span>.
+            </h2>
+            <p className="text-white/50 text-[14px]">You&apos;re getting one. AFL is built to capture all three.</p>
+          </motion.div>
+
+          <div className="space-y-3">
+            {[
+              { num: '1', label: 'At close', desc: 'The premium you wrote. The commission you already collected.', accent: '#3DD6C3', earned: true },
+              { num: '2', label: 'At the referral', desc: 'Every closed client knows 3+ people who need coverage. Each one a warm intro waiting to happen.', accent: '#fdcc02', earned: false },
+              { num: '3', label: 'At the rewrite', desc: 'Twelve months later, the policy hits its anniversary. The carrier auto-renews — unless you get there first.', accent: '#fdcc02', earned: false },
+            ].map((row, i) => (
+              <motion.div
+                key={row.num}
+                variants={fadeUp}
+                custom={0.1 + i * 0.08}
+                className={`rounded-2xl p-5 border ${row.earned ? 'bg-[#3DD6C3]/10 border-[#3DD6C3]/25' : 'bg-white/[0.04] border-white/10'}`}
+              >
+                <div className="flex items-center gap-2.5 mb-2.5 flex-wrap">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black" style={{ backgroundColor: `${row.accent}20`, color: row.accent }}>{row.num}</div>
+                  <p className="text-white font-bold text-[14px]">{row.label}</p>
+                  {row.earned ? (
+                    <span className="ml-auto text-[9px] font-bold uppercase tracking-wide text-[#3DD6C3]">You get this</span>
+                  ) : (
+                    <span className="ml-auto text-[9px] font-bold uppercase tracking-wide text-[#fdcc02]/90">Slipping past</span>
+                  )}
+                </div>
+                <p className="text-white/60 text-[12.5px] leading-relaxed">{row.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.p variants={fadeUp} custom={0.4} className="text-center text-white/50 text-[13px] leading-relaxed max-w-[320px] mx-auto pt-2">
+            AFL turns sales 2 and 3 from &quot;if you remember&quot; into &quot;automatically.&quot;
+          </motion.p>
+        </motion.div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════
          THE MATH — ROI
          ═══════════════════════════════════════════════════ */}
       <section className="relative bg-[#0D4D4D] px-6 py-16 overflow-hidden">
@@ -597,9 +679,9 @@ export default function MobileLandingV2() {
               custom={0.15}
               className="bg-[#3DD6C3]/10 border border-[#3DD6C3]/20 rounded-2xl p-5 text-center backdrop-blur-sm"
             >
-              <p className="text-[#3DD6C3] font-semibold text-[10px] uppercase tracking-wide mb-2">Agent for Life</p>
-              <p className="text-4xl font-black text-[#fdcc02] mb-1">$0</p>
-              <p className="text-[#3DD6C3]/50 text-[11px]">free as Founding Member</p>
+              <p className="text-[#3DD6C3] font-semibold text-[10px] uppercase tracking-wide mb-2">AFL Starter</p>
+              <p className="text-4xl font-black text-[#fdcc02] mb-1">$348</p>
+              <p className="text-[#3DD6C3]/50 text-[11px]">per year · everything included</p>
             </motion.div>
           </div>
 
@@ -613,8 +695,8 @@ export default function MobileLandingV2() {
               <span className="text-[#fdcc02] font-bold text-[11px] uppercase">Instant ROI</span>
             </div>
             <p className="text-white font-extrabold text-lg leading-snug">
-              Every save and every referral is{' '}
-              <span className="text-[#fdcc02]">pure profit</span>.
+              One save pays for 3+ years. Every referral and rewrite is{' '}
+              <span className="text-[#fdcc02]">profit on top</span>.
             </p>
           </motion.div>
         </motion.div>
@@ -731,7 +813,7 @@ export default function MobileLandingV2() {
       </section>
 
       {/* ═══════════════════════════════════════════════════
-         PRICING — Founding Member Focus
+         PRICING
          ═══════════════════════════════════════════════════ */}
       <section className="relative bg-white px-6 py-16">
         <motion.div
@@ -849,7 +931,7 @@ export default function MobileLandingV2() {
             <span className="text-[#fdcc02]">They&apos;re losing clients.</span>
           </h2>
           <p className="text-white/40 text-[14px] leading-relaxed max-w-[300px] mx-auto">
-            Lock in your free lifetime spot. No credit card. No risk. A system that pays for itself from day one.
+            Start a 14-day free trial. No credit card. The first save you make pays for the year.
           </p>
           <Link
             href={tier.ctaMobileHref}
@@ -859,7 +941,7 @@ export default function MobileLandingV2() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
           </Link>
           <p className="text-white/25 text-xs">
-            {tier.loaded ? tier.ctaSubtext : 'Limited spots'}
+            {tier.loaded ? tier.ctaSubtext : '14-day free trial · Cancel anytime'}
           </p>
         </motion.div>
       </section>
@@ -890,9 +972,7 @@ export default function MobileLandingV2() {
               <span className="relative rounded-full h-2 w-2 bg-[#3DD6C3]" />
             </span>
             <span className="text-white text-[13px] font-semibold truncate">
-              {tier.loaded
-                ? <><span className="text-[#fdcc02]">{tier.spotsRemaining ?? ''}</span> {tier.isFoundingOpen ? 'free spots left' : `${tier.tierName} spots left`}</>
-                : 'Spots available'}
+              Start your <span className="text-[#fdcc02]">14-day free trial</span>
             </span>
           </div>
           <Link

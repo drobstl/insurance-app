@@ -295,7 +295,7 @@ export default function ReferralsDeepDive() {
             { icon: '💬', title: 'Text messages get read', desc: 'Not email. Not a link. A real text message in their inbox — where open rates dwarf every other channel.' },
             { icon: '🤝', title: 'Warm intro, not cold outreach', desc: 'The referral already got a personal text from your client. AI follows up with trust already built.' },
             { icon: '📅', title: 'AI books directly on your calendar', desc: 'No back-and-forth. AI shares your scheduling link and the referral picks a time.' },
-            { icon: '🔄', title: 'AI never gives up', desc: 'If the referral goes quiet, AI follows up on Day 2, Day 5, and Day 8 with different angles.' },
+            { icon: '🔄', title: 'AI keeps it moving', desc: 'If the referral goes quiet, AI bumps once at 24 hours. Still no reply? It hands off to you as an Action Item.' },
           ].map((item, i) => (
             <motion.div key={item.title} variants={fadeUp} custom={0.1 + i * 0.08} className="bg-[#F8F9FA] rounded-2xl p-5 border border-gray-100">
               <div className="flex items-start gap-3">
@@ -319,12 +319,12 @@ export default function ReferralsDeepDive() {
           <h2 className="text-[1.3rem] font-extrabold text-white leading-tight">
             And if they don&apos;t reply?
           </h2>
-          <p className="text-white/50 text-[14px]">Your AI doesn&apos;t give up.</p>
+          <p className="text-white/50 text-[14px]">AFL keeps the lead moving — and pulls you in when it counts.</p>
           <div className="space-y-3">
             {[
-              { day: 'Day 2', label: 'Gentle nudge', active: false },
-              { day: 'Day 5', label: 'New angle', active: false },
-              { day: 'Day 8', label: 'Direct ask', active: true },
+              { day: 'Initial', label: 'Warm reach', active: false },
+              { day: '+ 24h', label: 'One bump', active: false },
+              { day: 'Action Item', label: 'Your turn', active: true },
             ].map((d) => (
               <div
                 key={d.day}

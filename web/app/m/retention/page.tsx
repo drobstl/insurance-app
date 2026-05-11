@@ -59,7 +59,7 @@ export default function RetentionDeepDive() {
               catches it.
             </h1>
             <p className="text-[#0D4D4D]/70 text-[15px] leading-relaxed max-w-[320px]">
-              Forward the carrier&apos;s conservation notice. AI identifies the client, sends personalized outreach, and follows up until the policy is saved.
+              Forward the carrier&apos;s conservation notice. AFL identifies the client, kicks off outreach automatically, and flags the saves that need your personal touch.
             </p>
           </motion.div>
         </div>
@@ -149,8 +149,8 @@ export default function RetentionDeepDive() {
               },
               {
                 num: '3',
-                title: 'Client gets reached',
-                body: 'Personalized push notification + text within 2 hours. AI follows up on Day 2, 5, and 7 with different angles.',
+                title: 'Client gets reached, you get a heads-up',
+                body: 'Push notification + iMessage (blue bubble on iPhone, green on Android) within hours. AFL surfaces the at-risk client in your Action Items so you can close the save personally.',
                 color: '#fdcc02',
               },
             ].map((step, i) => (

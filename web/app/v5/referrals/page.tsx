@@ -362,7 +362,7 @@ export default function ReferralsDeepDiveDesktop() {
                 { icon: '💬', title: 'Blue bubbles + green bubbles', desc: 'iPhone users see blue iMessage bubbles. Android users see green. Both get ~99% read rates — not email, not a cold link.' },
                 { icon: '🤝', title: 'Warm intro, not cold outreach', desc: 'The referral already got a personal text from your client. AI follows up with trust already built.' },
                 { icon: '📅', title: 'AI books directly on your calendar', desc: 'No back-and-forth. AI shares your scheduling link and the referral picks a time.' },
-                { icon: '🔄', title: 'AI never gives up', desc: 'If the referral goes quiet, AI follows up on Day 2, Day 5, and Day 8 with different angles.' },
+                { icon: '🔄', title: 'AI keeps it moving', desc: 'If the referral goes quiet, AI sends a 24-hour follow-up. Still no reply? It hands off to you as an Action Item — text personally, call, or skip.' },
               ].map((item, i) => (
                 <motion.div
                   key={item.title}
@@ -400,7 +400,7 @@ export default function ReferralsDeepDiveDesktop() {
               <h2 className="text-3xl lg:text-4xl xl:text-5xl font-extrabold text-white leading-tight mb-4">
                 And if they don&apos;t reply?
               </h2>
-              <p className="text-white/90 text-lg lg:text-xl">Your AI doesn&apos;t give up.</p>
+              <p className="text-white/90 text-lg lg:text-xl">AFL keeps the lead moving — and pulls you in when it counts.</p>
             </motion.div>
 
             <motion.div
@@ -411,9 +411,9 @@ export default function ReferralsDeepDiveDesktop() {
               className="flex flex-col gap-4"
             >
               {[
-                { day: 'Day 2', label: 'Gentle nudge', desc: 'A friendly check-in that keeps the door open', active: false },
-                { day: 'Day 5', label: 'New angle', desc: 'A different value prop to re-engage interest', active: false },
-                { day: 'Day 8', label: 'Direct ask', desc: 'One final, clear call-to-action', active: true },
+                { day: 'Initial', label: 'Warm reach', desc: 'AI texts the referral right after your client’s intro', active: false },
+                { day: '+ 24h', label: 'One bump', desc: 'If they go quiet, AI follows up once with a friendly check-in', active: false },
+                { day: 'Action Item', label: 'Your turn', desc: 'Still no reply? AFL surfaces it in your dashboard — text personally, call, or skip', active: true },
               ].map((d, i) => (
                 <motion.div
                   key={d.day}

@@ -62,7 +62,7 @@ const STATIC_CTA: TierCTAData = {
   ctaMobileHref: '/pricing',
   ctaText: 'See Pricing',
   ctaSubtext: '14-day free trial · Cancel anytime',
-  bannerText: 'Simple, conversation-based pricing',
+  bannerText: 'Built to 3x your book',
   tickerText:
     '🚀 NEW PRICING IS LIVE • 14-DAY FREE TRIAL • SEE PRICING • '
     + '🚀 NEW PRICING IS LIVE • 14-DAY FREE TRIAL • SEE PRICING • ',
