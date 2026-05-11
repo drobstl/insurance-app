@@ -617,7 +617,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const isAdminRoute = pathname.startsWith('/dashboard/admin');
   const activeAdminKey = ADMIN_NAV_ITEMS.find(item => pathname.startsWith(item.path))?.key ?? null;
   const mobileNavItems = NAV_ITEMS.filter((item) =>
-    ['home', 'clients', 'referrals', 'conservation'].includes(item.key),
+    ['home', 'clients', 'action-items', 'referrals', 'conservation'].includes(item.key),
   );
   const onboardingMilestones = agentProfile.onboarding?.requiredMilestones ?? {
     profileCompleted: false,
@@ -912,7 +912,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-[#d0d0d0]">
-        <div className="grid grid-cols-5">
+        <div className="grid grid-cols-6">
           {mobileNavItems.map((item) => {
             const active = activeKey === item.key;
             return (
