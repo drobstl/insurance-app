@@ -70,12 +70,16 @@ DASHBOARD SECTIONS & WHAT THEY DO:
 
 CORE CONCEPTS (the mechanics behind what AFL does):
 
-**Welcome Flow — Mode 1 (single client, one-at-a-time):**
-1. Agent adds a client manually or via PDF application upload.
-2. An action item appears in the [Welcome lane](/dashboard/action-items?lane=welcome) with the SMS body pre-filled (greeting + app link + login code).
-3. Agent taps the action item → their Messages app opens with the text ready → one tap to send from their personal number.
-4. Client receives the text, installs the AFL app, taps Activate.
-5. AFL replies from the AFL conversation line with a personalized message + the agent's contact card (vCard) attached. Client saves the contact and is "in."
+**Welcome Flow — Mode 1 (the live-guided ritual at the end of a sale):**
+This is the load-bearing AFL moment. You do it WITH your new client while you're still on the phone — before you hang up after the close. About 90 seconds end-to-end. The empty state on [Clients](/dashboard/clients) has a 90-second Loom walkthrough.
+
+1. Sale closes. Before you hang up, pull up AFL and drop the application PDF (or add the client manually). AFL extracts the policy, beneficiaries, and contact info, and queues a welcome action item in the [Welcome lane](/dashboard/action-items?lane=welcome) with the SMS body pre-filled.
+2. **Pitch the app to your client verbally on the call** — something like: "Before we hang up — I've got something great for you. You'll be able to see your policy info anytime, my contact card's in there, and you can reach me instantly."
+3. Tap to send the welcome text from your personal number. The client receives it while still on the call.
+4. **Walk them through it live:** download the app, allow notifications when prompted, then tap Activate. **Don't hang up until they're in.**
+5. The moment they tap Activate, AFL replies from the conversation line with a personalized welcome + your vCard contact card (saved straight into their address book).
+6. You now have push notifications to them (the better channel), SMS fallback via the AFL line, and your contact card in their phone. The relationship is established — not promised for later.
+7. **While you've still got them on the line — ask for the referral.** They just experienced you setting them up with something thoughtful; goodwill is at its peak and AFL makes the ask effortless from [Referrals](/dashboard/referrals).
 
 **Welcome Flow — Mode 2 (bulk import drip):**
 - For agents importing a large book via CSV or bulk-PDF upload.
@@ -114,9 +118,9 @@ PRICING & TRIAL:
 
 WHAT YOUR CLIENTS SEE (the client-facing mobile app):
 
-When you welcome a client:
+When you welcome a client (live-guided, while you're still on the phone with them at the end of the sale):
 1. They get a text from your personal number with the app link + login code.
-2. They tap the link, install the AFL app, enter the code, tap Activate.
+2. They tap the link, install the AFL app, enter the code, allow notifications when prompted, then tap Activate. (Notifications first locks in your push channel before Activate fires.)
 3. Activation triggers an SMS to the AFL line, and they get back the personalized welcome reply + your vCard contact card (your name, photo, phone — saved straight into their address book).
 4. After Activate, they're inside their branded version of AFL (your agency name, your logo, your face).
 
@@ -131,7 +135,7 @@ Inside the app, your clients see:
 COMMON HOW-TOs:
 
 - **"What are Action Items?"** / **"What is the Action Items page?"** → [Action Items](/dashboard/action-items) is your daily workflow inbox. It surfaces only the conversations that need YOUR personal touch — across all four lanes (welcome, retention, anniversary, referral). AFL handles everything it can automatically; the action items are what's left over. Tap one to take action (one-tap text from your personal phone, call, or skip).
-- **"How do I add clients?"** → Go to [Clients](/dashboard/clients). Click "Add Client" for manual entry, "Import CSV" for bulk upload, or "Upload Application" to let AFL extract data from a PDF.
+- **"How do I add clients?"** → Best moment: at the end of your next sale, before you hang up the phone. Go to [Clients](/dashboard/clients), drop the application PDF (AFL extracts the data), then send the welcome from your personal number and walk your client through downloading the app, allowing notifications, and tapping Activate — all while they're still on the call with you. The 90-second Loom walkthrough on the empty-state card shows the full ritual. See also "What's the 90-second onboarding ritual?" below.
 - **"How do I turn on the referral assistant?"** → Go to [Settings → Referral & AI](/dashboard/settings). Toggle "AI Assistant" on. Make sure you also add a scheduling link so AFL can book appointments.
 - **"What are conservation alerts?"** → They live in [Retention](/dashboard/conservation), and the ones that need your personal touch surface in [Action Items](/dashboard/action-items). The system detects at-risk policies (missed payments, chargeback notices) and alerts you so you can intervene. Chargeback alerts are the most urgent.
 - **"How do I send a message to a client?"** → From [Action Items](/dashboard/action-items), tap any item — it opens your Messages app with the message pre-filled. Or from [Clients](/dashboard/clients), open a client's detail modal.
@@ -139,9 +143,11 @@ COMMON HOW-TOs:
 - **"How do referrals work?"** → When a client shares your app with someone, a referral is created. If the AFL referral assistant is enabled, it automatically texts the referral, qualifies them, and tries to book an appointment. Track everything in [Referrals](/dashboard/referrals); stalled ones surface in [Action Items](/dashboard/action-items).
 - **"What's a rewrite alert?"** → When a policy hits its 1-year anniversary, it may qualify for a better rate. The system flags these in [Rewrites](/dashboard/policy-reviews) so you can reach out.
 - **"How long is the free trial?"** → 14 days on Starter and Growth. Your card is captured at signup but not charged until the trial ends. You can see your trial countdown in [Settings → Account](/dashboard/settings) and cancel anytime before then.
-- **"What does my client see when they install the app?"** → They land on your branded version of AFL — your agency name, logo, and headshot. They tap Activate (which sends an SMS to the AFL line), get back your vCard contact card, then enter their login code and they're in. Inside they see their policies, beneficiaries, your contact, a Refer a Friend button, and they start receiving holiday cards + push notifications from you over time.
+- **"What does my client see when they install the app?"** → They land on your branded version of AFL — your agency name, logo, and headshot. They enter their login code, allow notifications when prompted (so you can reach them via push later), then tap Activate. Activation fires an SMS to the AFL line, and within seconds they get back your vCard contact card — saved straight into their address book. Inside they see their policies, beneficiaries, your contact, a Refer a Friend button, and they start receiving holiday cards + push notifications from you over time.
 - **"How do I invite a beneficiary?"** → You don't — the client does, from their AFL app. On their My Policies screen, next to any beneficiary with a phone number on file, they'll see an Invite button. One tap opens their Messages app with a pre-filled invite. The beneficiary then activates the same way clients do.
-- **"What's the difference between Mode 1 and Mode 2 welcomes?"** → Mode 1 is for adding a single client — an action item appears immediately for one-tap send from your phone. Mode 2 is for bulk imports (CSV or bulk PDFs) — AFL drips 15 welcome action items per day into your queue instead of blasting them all at once. Both use the same one-tap-from-personal-phone send mechanic.
+- **"What's the difference between Mode 1 and Mode 2 welcomes?"** → Mode 1 is the live-guided ritual you do with each new client at the end of a sale, before you hang up — drop the PDF, send the welcome, walk them through download → allow notifications → tap Activate live on the call, then ask for the referral. About 90 seconds. Mode 2 is for migrating an existing book in bulk — AFL drips up to 15 welcome action items per day into your [Welcome lane](/dashboard/action-items?lane=welcome) so you can pace through them. Mode 1 is the magic; Mode 2 is the migration. Both use the one-tap-from-personal-phone send mechanic.
+
+- **"What's the 90-second onboarding ritual?"** / **"How do I do the live-guided activation?"** → The AFL ritual is what you do with every new client at the end of a sale, before you hang up. Order: (1) Drop their application PDF in [Clients](/dashboard/clients) — AFL extracts the data. (2) Pitch the app to your client verbally on the call ("you'll see your policy info anytime, my contact's in there, you can reach me instantly"). (3) Send the welcome text from your personal number. (4) Walk them through download → allow notifications → tap Activate, live on the call. **Don't hang up until they're in.** (5) Ask for the referral — peak goodwill, AFL makes the ask effortless from [Referrals](/dashboard/referrals). The empty state on [Clients](/dashboard/clients) has a 90-second Loom walkthrough that models the full script.
 - **"What touchpoints does AFL send automatically?"** → 7+ per client per year: holiday cards for 5 major holidays (Thanksgiving, Christmas, New Year, July 4th, Easter), birthday messages, and policy-anniversary check-ins. All branded as coming from you. Toggle on/off via auto-holiday cards in [Settings → Referral & AI](/dashboard/settings).
 - **"What is a chargeback alert?"** → The most urgent type of conservation alert. Triggered when a client cancels a policy, often because they didn't recognize the carrier's premium charge on their statement. AFL surfaces it as a high-priority action item in [Retention](/dashboard/action-items?lane=retention) so you can intervene within 24-48 hours and save the policy before the chargeback hits your commission.
 - **"How do I switch plans?"** → [Settings → Account](/dashboard/settings) → Manage. That opens the Stripe billing portal where you can upgrade, downgrade, or cancel.
