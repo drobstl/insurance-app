@@ -6,13 +6,11 @@ import { getAuth } from 'firebase/auth';
 import { formatCurrency, formatDate, formatDateLong, getStatusColor, getPolicyTypeIcon, getAnniversaryDate, daysUntilAnniversary } from '../lib/policyUtils';
 import type { Beneficiary } from '../lib/types';
 import {
-  buildBeneficiaryWelcomeMessage,
   buildHolidayCardMessage,
   resolveClientLanguage,
   type HolidayCardKey,
   type SupportedLanguage,
 } from '../lib/client-language';
-import { useDashboard } from '../app/dashboard/DashboardContext';
 
 interface Client {
   id: string;
@@ -107,7 +105,6 @@ export default function ClientDetailModal({
   displayMode = 'modal',
 }: ClientDetailModalProps) {
   const isPane = displayMode === 'pane';
-  const { agentProfile } = useDashboard();
   const formatPremiumCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -150,17 +147,8 @@ export default function ClientDetailModal({
   const [sendingCode, setSendingCode] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
   const [codeSendError, setCodeSendError] = useState<string | null>(null);
-  const [activeBeneficiaryKey, setActiveBeneficiaryKey] = useState<string | null>(null);
-  const [beneficiaryDraft, setBeneficiaryDraft] = useState('');
-  const [beneficiarySending, setBeneficiarySending] = useState(false);
-  const [beneficiarySendResult, setBeneficiarySendResult] = useState<string | null>(null);
-  const [beneficiaryJumpInDrafts, setBeneficiaryJumpInDrafts] = useState<Record<string, string>>({});
-  const [beneficiaryJumpInSending, setBeneficiaryJumpInSending] = useState<string | null>(null);
   const [beneficiaryTimelineLoading, setBeneficiaryTimelineLoading] = useState(false);
   const [beneficiaryEventsByCode, setBeneficiaryEventsByCode] = useState<Record<string, BeneficiaryEvent[]>>({});
-  const [beneficiaryDrawerOpen, setBeneficiaryDrawerOpen] = useState(false);
-  const [beneficiaryDrawerTitle, setBeneficiaryDrawerTitle] = useState('');
-  const [beneficiarySendContext, setBeneficiarySendContext] = useState<Beneficiary | null>(null);
   const [beneficiaryProfileDrawerOpen, setBeneficiaryProfileDrawerOpen] = useState(false);
   const [beneficiaryProfileContext, setBeneficiaryProfileContext] = useState<{
     policy: Policy;
@@ -385,32 +373,6 @@ export default function ClientDetailModal({
     }
   }, [client]);
 
-  const handleOpenBeneficiaryComposer = useCallback((
-    entryKey: string,
-    beneficiary: Beneficiary,
-  ) => {
-    setActiveBeneficiaryKey(entryKey);
-    setBeneficiarySendContext(beneficiary);
-    setBeneficiaryDrawerOpen(true);
-    setBeneficiarySendResult(null);
-    const preferredLanguage = resolveClientLanguage(client?.preferredLanguage);
-    const template =
-      preferredLanguage === 'es'
-        ? (agentProfile.beneficiaryWelcomeTemplateEs || '').trim()
-        : (agentProfile.beneficiaryWelcomeTemplateEn || '').trim();
-    const draft = buildBeneficiaryWelcomeMessage({
-      beneficiaryFirstName: (beneficiary.name || 'there').split(' ')[0],
-      insuredFirstName: (client?.name || 'your loved one').split(' ')[0],
-      agentName: (agentName || 'your AFL agent').trim() || 'your AFL agent',
-      beneficiaryCode: beneficiary.accessCode || '',
-      appUrl: 'https://agentforlife.app/app',
-      language: preferredLanguage,
-      template,
-    });
-    setBeneficiaryDraft(draft);
-    setBeneficiaryDrawerTitle(`Send Intro: ${beneficiary.name || 'Beneficiary'}`);
-  }, [agentName, agentProfile.beneficiaryWelcomeTemplateEn, agentProfile.beneficiaryWelcomeTemplateEs, client?.name, client?.preferredLanguage]);
-
   const refreshBeneficiaryEvents = useCallback(async () => {
     if (!client) {
       setBeneficiaryEventsByCode({});
@@ -466,110 +428,6 @@ export default function ClientDetailModal({
       address: beneficiary.address || '',
     });
   }, []);
-
-  const handleSendBeneficiaryIntro = useCallback(async (beneficiary: Beneficiary) => {
-    if (!beneficiary.accessCode) {
-      setBeneficiarySendResult('Beneficiary is missing an access code. Save the policy first.');
-      return;
-    }
-    if (!beneficiary.phone?.trim() && !beneficiary.email?.trim()) {
-      setBeneficiarySendResult('Beneficiary needs a phone or email before sending.');
-      return;
-    }
-    setBeneficiarySending(true);
-    setBeneficiarySendResult(null);
-    try {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
-      if (!currentUser) throw new Error('Not authenticated');
-      const token = await currentUser.getIdToken();
-      const preferredLanguage = resolveClientLanguage(client?.preferredLanguage);
-      const res = await fetch('/api/beneficiary/send-intro', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          beneficiaryName: beneficiary.name,
-          beneficiaryPhone: beneficiary.phone || '',
-          beneficiaryEmail: beneficiary.email || '',
-          beneficiaryCode: beneficiary.accessCode,
-          beneficiaryRole: beneficiary.type,
-          insuredName: client?.name || '',
-          preferredLanguage,
-          messageTemplate: beneficiaryDraft,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || `Failed to send (${res.status})`);
-      }
-      const channel = typeof data.channel === 'string' ? data.channel : 'sms';
-      setBeneficiarySendResult(
-        channel === 'email_fallback'
-          ? 'SMS failed — sent by email.'
-          : channel === 'email'
-            ? 'Sent by email.'
-            : 'Sent by SMS.',
-      );
-      void refreshBeneficiaryEvents();
-    } catch (err) {
-      setBeneficiarySendResult(err instanceof Error ? err.message : 'Failed to send beneficiary intro.');
-    } finally {
-      setBeneficiarySending(false);
-    }
-  }, [beneficiaryDraft, client?.name, client?.preferredLanguage, refreshBeneficiaryEvents]);
-
-  const handleSendBeneficiaryManual = useCallback(async (entryKey: string, beneficiary: Beneficiary) => {
-    const draft = (beneficiaryJumpInDrafts[entryKey] || '').trim();
-    if (!beneficiary.accessCode) {
-      setBeneficiarySendResult('Beneficiary is missing an access code. Save the policy first.');
-      return;
-    }
-    if (!beneficiary.phone?.trim() && !beneficiary.email?.trim()) {
-      setBeneficiarySendResult('Beneficiary needs a phone or email before sending.');
-      return;
-    }
-    if (!draft) {
-      setBeneficiarySendResult('Message cannot be empty.');
-      return;
-    }
-    setBeneficiaryJumpInSending(entryKey);
-    setBeneficiarySendResult(null);
-    try {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
-      if (!currentUser) throw new Error('Not authenticated');
-      const token = await currentUser.getIdToken();
-      const preferredLanguage = resolveClientLanguage(client?.preferredLanguage);
-      const res = await fetch('/api/beneficiary/send-manual', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          beneficiaryCode: beneficiary.accessCode,
-          beneficiaryName: beneficiary.name,
-          beneficiaryPhone: beneficiary.phone || '',
-          beneficiaryEmail: beneficiary.email || '',
-          preferredLanguage,
-          message: draft,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `Failed to send (${res.status})`);
-      const channel = typeof data.channel === 'string' ? data.channel : 'sms';
-      setBeneficiarySendResult(
-        channel === 'email_fallback'
-          ? 'Manual SMS failed — sent by email.'
-          : channel === 'email'
-            ? 'Manual message sent by email.'
-            : 'Manual message sent by SMS.',
-      );
-      setBeneficiaryJumpInDrafts((prev) => ({ ...prev, [entryKey]: '' }));
-      void refreshBeneficiaryEvents();
-    } catch (err) {
-      setBeneficiarySendResult(err instanceof Error ? err.message : 'Failed to send beneficiary message.');
-    } finally {
-      setBeneficiaryJumpInSending(null);
-    }
-  }, [beneficiaryJumpInDrafts, client?.preferredLanguage, refreshBeneficiaryEvents]);
 
   const handleApplyBeneficiaryProfileEdits = useCallback(() => {
     if (!beneficiaryProfileContext) return;
@@ -661,17 +519,8 @@ export default function ClientDetailModal({
       setCodeSent(false);
       setCodeSendError(null);
       setSendingCode(false);
-      setActiveBeneficiaryKey(null);
-      setBeneficiaryDraft('');
-      setBeneficiarySending(false);
-      setBeneficiarySendResult(null);
-      setBeneficiaryJumpInDrafts({});
-      setBeneficiaryJumpInSending(null);
       setBeneficiaryEventsByCode({});
       setBeneficiaryTimelineLoading(false);
-      setBeneficiaryDrawerOpen(false);
-      setBeneficiaryDrawerTitle('');
-      setBeneficiarySendContext(null);
       setBeneficiaryProfileDrawerOpen(false);
       setBeneficiaryProfileContext(null);
       setFlaggingPolicyId(null);
@@ -1579,35 +1428,6 @@ export default function ClientDetailModal({
                                           <p className="text-[11px] text-[#707070]">No outreach events yet.</p>
                                         )}
                                       </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleOpenBeneficiaryComposer(entryKey, b)}
-                                        className="mt-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-[5px] border border-[#45bcaa]/40 text-[#005851] hover:bg-[#daf3f0]"
-                                      >
-                                        Send Beneficiary Intro
-                                      </button>
-                                      <div className="mt-2 rounded-[5px] border border-[#d0d0d0] bg-white p-2">
-                                        <p className="text-[11px] font-semibold text-[#000000] mb-1">Jump in manually</p>
-                                        <textarea
-                                          value={beneficiaryJumpInDrafts[entryKey] || ''}
-                                          onChange={(e) => setBeneficiaryJumpInDrafts((prev) => ({ ...prev, [entryKey]: e.target.value }))}
-                                          rows={2}
-                                          placeholder="Send a direct manual message to this beneficiary..."
-                                          className="w-full px-2 py-1.5 border border-[#d0d0d0] rounded-[5px] text-xs text-[#000000] focus:outline-none focus:border-[#45bcaa]"
-                                        />
-                                        <div className="mt-1.5 flex items-center gap-2">
-                                          <button
-                                            type="button"
-                                            disabled={beneficiaryJumpInSending === entryKey}
-                                            onClick={() => {
-                                              void handleSendBeneficiaryManual(entryKey, b);
-                                            }}
-                                            className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] bg-[#0D4D4D] text-white hover:bg-[#0B3E3E] disabled:opacity-60"
-                                          >
-                                            {beneficiaryJumpInSending === entryKey ? 'Sending...' : 'Send Manual Message'}
-                                          </button>
-                                        </div>
-                                      </div>
                                       <div className="mt-1.5 flex items-center gap-2">
                                         <button
                                           type="button"
@@ -1615,13 +1435,6 @@ export default function ClientDetailModal({
                                           className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] border border-gray-300 text-[#374151] hover:bg-gray-50"
                                         >
                                           Edit Profile
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleOpenBeneficiaryComposer(entryKey, b)}
-                                          className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] border border-[#45bcaa]/40 text-[#005851] hover:bg-[#daf3f0]"
-                                        >
-                                          Send Intro
                                         </button>
                                       </div>
                                     </div>
@@ -1692,35 +1505,6 @@ export default function ClientDetailModal({
                                           <p className="text-[11px] text-[#707070]">No outreach events yet.</p>
                                         )}
                                       </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleOpenBeneficiaryComposer(entryKey, b)}
-                                        className="mt-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-[5px] border border-[#45bcaa]/40 text-[#005851] hover:bg-[#daf3f0]"
-                                      >
-                                        Send Beneficiary Intro
-                                      </button>
-                                      <div className="mt-2 rounded-[5px] border border-[#d0d0d0] bg-white p-2">
-                                        <p className="text-[11px] font-semibold text-[#000000] mb-1">Jump in manually</p>
-                                        <textarea
-                                          value={beneficiaryJumpInDrafts[entryKey] || ''}
-                                          onChange={(e) => setBeneficiaryJumpInDrafts((prev) => ({ ...prev, [entryKey]: e.target.value }))}
-                                          rows={2}
-                                          placeholder="Send a direct manual message to this beneficiary..."
-                                          className="w-full px-2 py-1.5 border border-[#d0d0d0] rounded-[5px] text-xs text-[#000000] focus:outline-none focus:border-[#45bcaa]"
-                                        />
-                                        <div className="mt-1.5 flex items-center gap-2">
-                                          <button
-                                            type="button"
-                                            disabled={beneficiaryJumpInSending === entryKey}
-                                            onClick={() => {
-                                              void handleSendBeneficiaryManual(entryKey, b);
-                                            }}
-                                            className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] bg-[#0D4D4D] text-white hover:bg-[#0B3E3E] disabled:opacity-60"
-                                          >
-                                            {beneficiaryJumpInSending === entryKey ? 'Sending...' : 'Send Manual Message'}
-                                          </button>
-                                        </div>
-                                      </div>
                                       <div className="mt-1.5 flex items-center gap-2">
                                         <button
                                           type="button"
@@ -1728,13 +1512,6 @@ export default function ClientDetailModal({
                                           className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] border border-gray-300 text-[#374151] hover:bg-gray-50"
                                         >
                                           Edit Profile
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleOpenBeneficiaryComposer(entryKey, b)}
-                                          className="px-2.5 py-1 text-[11px] font-semibold rounded-[5px] border border-[#45bcaa]/40 text-[#005851] hover:bg-[#daf3f0]"
-                                        >
-                                          Send Intro
                                         </button>
                                       </div>
                                     </div>
@@ -1946,62 +1723,6 @@ export default function ClientDetailModal({
         </div>
       </div>
 
-      {beneficiaryDrawerOpen && activeBeneficiaryKey && (
-        <div className="absolute inset-0 z-20 flex justify-end">
-          <div className="absolute inset-0 bg-black/20" onClick={() => setBeneficiaryDrawerOpen(false)} />
-          <div className="relative w-full max-w-md bg-white border-l border-gray-200 shadow-2xl h-full flex flex-col">
-            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-              <h4 className="text-sm font-bold text-[#000000]">{beneficiaryDrawerTitle || 'Send Beneficiary Intro'}</h4>
-              <button
-                type="button"
-                onClick={() => setBeneficiaryDrawerOpen(false)}
-                className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 text-gray-500"
-              >
-                <svg className="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="p-4 space-y-3 overflow-y-auto">
-              <p className="text-xs font-semibold text-[#005851]">Message to beneficiary (not the insured)</p>
-              <textarea
-                value={beneficiaryDraft}
-                onChange={(e) => setBeneficiaryDraft(e.target.value)}
-                rows={8}
-                className="w-full px-3 py-2 border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa]"
-              />
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={beneficiarySending || !beneficiarySendContext}
-                  onClick={() => {
-                    if (!beneficiarySendContext) return;
-                    void handleSendBeneficiaryIntro(beneficiarySendContext);
-                  }}
-                  className="px-3 py-2 text-sm font-semibold rounded-[5px] bg-[#005851] text-white hover:bg-[#004540] disabled:opacity-60"
-                >
-                  {beneficiarySending ? 'Sending...' : 'Send Intro'}
-                </button>
-                <button
-                  type="button"
-                  disabled={beneficiarySending}
-                  onClick={() => {
-                    setBeneficiaryDrawerOpen(false);
-                    setActiveBeneficiaryKey(null);
-                    setBeneficiarySendResult(null);
-                  }}
-                  className="px-3 py-2 text-sm font-semibold rounded-[5px] border border-gray-200 text-[#707070] hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-              </div>
-              {beneficiarySendResult && (
-                <p className="text-xs text-[#337973]">{beneficiarySendResult}</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {beneficiaryProfileDrawerOpen && beneficiaryProfileContext && (
         <div className="absolute inset-0 z-20 flex justify-end">
