@@ -10,6 +10,7 @@ const IMESSAGE_DELAYS = [900, 1100, 900, 1300, 900, 500, 1100];
 
 const FAQ_ITEMS = [
   { question: 'What exactly is Agent for Life?', answer: 'A complete client relationship system for insurance agents. You get a branded mobile app for your clients, automated touchpoints (holidays, birthdays, anniversaries), one-tap referrals with an AI assistant that qualifies leads via iMessage and books appointments, retention alerts that rescue at-risk policies, and anniversary rewrite alerts.' },
+  { question: 'How does AFL 3x my book?', answer: 'Every closed sale has three payouts available — the premium you wrote, the referrals that client could send, and the rewrite at the policy\'s anniversary. Most agents only collect the first. AFL automates the other two: one-tap referral buttons in every client\'s hand (AI qualifies and books on your calendar), and anniversary outreach that turns every renewal into a booked review. Your book stops decaying and starts compounding.' },
   { question: 'How hard is it to get started?', answer: 'You can be live in 10 minutes. Import your clients via CSV or upload PDF applications — AI extracts everything. Enable the referral assistant with one toggle and your clients get welcomed onto the app one by one.' },
   { question: 'Is my data safe?', answer: "Yes. Your client data is encrypted with AES-256, stored on Google Cloud, and only accessible by you. We never contact your clients independently, and no other agent can see your book of business." },
   { question: 'What carriers does it work with?', answer: 'All of them. Agent for Life is carrier-agnostic. Works for independent agents regardless of which carriers you\'re appointed with.' },
@@ -515,6 +516,30 @@ export default function MobileLandingV2() {
               <span className="text-[#3DD6C3]">AFL agents have a book that calls them back.</span>
             </p>
           </div>
+        </motion.div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════
+         ACTION ITEMS CALLOUT — Your dashboard filters for you
+         ═══════════════════════════════════════════════════ */}
+      <section className="relative bg-[#F8F9FA] px-6 py-14">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-40px' }}
+          transition={{ duration: 0.6 }}
+          style={{ willChange: 'transform, opacity' }}
+          className="text-center"
+        >
+          <p className="text-[#005851] font-bold text-[10px] uppercase tracking-[0.2em] mb-3">Your agent surface</p>
+          <h2 className="text-[1.65rem] font-extrabold text-[#0D4D4D] leading-[1.15] mb-4">
+            Most dashboards drown you.<br />
+            <span className="text-[#3DD6C3]">This one filters for you.</span>
+          </h2>
+          <p className="text-[#4B5563] text-[14.5px] leading-relaxed max-w-[330px] mx-auto mb-4">
+            AFL handles every conversation it can. It only puts something in front of you when it actually needs you — a referral that went quiet, a save that needs your personal touch, a rewrite booked. You stop scanning lists. You start closing what matters.
+          </p>
+          <p className="text-[#6B7280] text-[12.5px] italic">A clean inbox is the rarest thing in insurance.</p>
         </motion.div>
       </section>
 
