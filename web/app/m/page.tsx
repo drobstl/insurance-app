@@ -856,13 +856,13 @@ export default function MobileLandingV2() {
               rebuild is its own next-up project. */}
           <motion.div variants={fadeUp} custom={0} className="text-center">
             <h2 className="text-[1.65rem] font-extrabold text-[#0D4D4D] leading-tight mb-2">
-              Pricing built around <span className="text-[#3DD6C3]">conversations</span>.
+              Pricing that fits <span className="text-[#3DD6C3]">your book</span>.
             </h2>
             <p className="text-[#6B7280] text-[14px] mb-1">
               Starter $29 · Growth $59 · Pro $119 · Agency by request
             </p>
             <p className="text-[#6B7280] text-[12px]">
-              14-day free trial on Starter and Growth. Push, agent-phone, and email unlimited on every tier.
+              14-day free trial. No contracts. Cancel anytime.
             </p>
           </motion.div>
 

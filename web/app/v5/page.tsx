@@ -722,13 +722,13 @@ export default function DesktopLandingV5() {
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-60px' }} variants={stagger} className="space-y-8 text-center">
             <motion.div variants={fadeUp} custom={0}>
               <h2 className="text-3xl lg:text-4xl font-extrabold text-[#0D4D4D] leading-tight mb-3">
-                Pricing built around <span className="text-[#3DD6C3]">conversations</span>.
+                Pricing that fits <span className="text-[#3DD6C3]">your book</span>.
               </h2>
               <p className="text-[#6B7280] text-lg">
                 Starter at $29/mo. Growth at $59/mo. Pro at $119/mo. Agency by request.
               </p>
               <p className="text-[#6B7280] text-sm mt-2">
-                14-day free trial on Starter and Growth. Unlimited push, agent-phone one-tap, and email on every tier.
+                14-day free trial. No contracts. Cancel anytime.
               </p>
             </motion.div>
 
