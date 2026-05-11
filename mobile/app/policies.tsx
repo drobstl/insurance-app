@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -11,8 +11,11 @@ import {
   StatusBar,
   Linking,
   Alert,
+  AppState,
+  type AppStateStatus,
+  RefreshControl,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Timestamp } from 'firebase/firestore';
 
 const API_BASE = 'https://agentforlife.app';
@@ -56,42 +59,73 @@ export default function PoliciesScreen() {
 
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    fetchPolicies();
-  }, []);
+  // Refresh strategy (May 11, 2026):
+  //   - useFocusEffect refetches every time the screen comes into focus,
+  //     so navigating away and back reflects any agent-side updates
+  //     (e.g. beneficiary phone added in the dashboard).
+  //   - AppState listener refetches when the app foregrounds, so a
+  //     background→active transition picks up changes without requiring
+  //     a force-quit.
+  //   - RefreshControl gives users a manual pull-to-refresh affordance.
+  const fetchPolicies = useCallback(
+    async (mode: 'initial' | 'refresh' = 'initial') => {
+      if (mode === 'refresh') setRefreshing(true);
+      try {
+        const url = `${API_BASE}/api/mobile/policies?agentId=${encodeURIComponent(params.agentId)}&clientId=${encodeURIComponent(params.clientId)}&clientCode=${encodeURIComponent(params.clientCode)}`;
+        const res = await fetch(url);
 
-  const fetchPolicies = async () => {
-    try {
-      const url = `${API_BASE}/api/mobile/policies?agentId=${encodeURIComponent(params.agentId)}&clientId=${encodeURIComponent(params.clientId)}&clientCode=${encodeURIComponent(params.clientCode)}`;
-      const res = await fetch(url);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+          throw new Error(body.error || `Failed to load policies (${res.status})`);
+        }
 
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        throw new Error(body.error || `Failed to load policies (${res.status})`);
+        const { policies: data } = await res.json();
+
+        const policyList: Policy[] = (data || []).map((p: Record<string, unknown>) => ({
+          ...p,
+          createdAt: p.createdAt
+            ? new Timestamp(
+                (p.createdAt as { seconds: number }).seconds,
+                (p.createdAt as { nanoseconds: number }).nanoseconds,
+              )
+            : null,
+        } as Policy));
+
+        setPolicies(policyList);
+        setError('');
+      } catch (err) {
+        console.error('Error fetching policies:', err);
+        setError(err instanceof Error ? err.message : 'Unable to load policies. Please try again.');
+      } finally {
+        if (mode === 'refresh') setRefreshing(false);
+        setLoading(false);
       }
+    },
+    [params.agentId, params.clientId, params.clientCode],
+  );
 
-      const { policies: data } = await res.json();
+  // Refetch on every screen focus (navigating back to /policies after
+  // visiting another screen reflects fresh data without force-quit).
+  useFocusEffect(
+    useCallback(() => {
+      fetchPolicies();
+    }, [fetchPolicies]),
+  );
 
-      const policyList: Policy[] = (data || []).map((p: Record<string, unknown>) => ({
-        ...p,
-        createdAt: p.createdAt
-          ? new Timestamp(
-              (p.createdAt as { seconds: number }).seconds,
-              (p.createdAt as { nanoseconds: number }).nanoseconds,
-            )
-          : null,
-      } as Policy));
-
-      setPolicies(policyList);
-    } catch (err) {
-      console.error('Error fetching policies:', err);
-      setError(err instanceof Error ? err.message : 'Unable to load policies. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Refetch when the app comes back to the foreground.
+  const appStateRef = useRef(AppState.currentState);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      if (appStateRef.current.match(/inactive|background/) && next === 'active') {
+        fetchPolicies();
+      }
+      appStateRef.current = next;
+    });
+    return () => sub.remove();
+  }, [fetchPolicies]);
 
   /**
    * Beneficiary invite mechanic (May 10, 2026).
@@ -320,11 +354,21 @@ export default function PoliciesScreen() {
           </View>
         </View>
 
-        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => { void fetchPolicies('refresh'); }}
+              tintColor="#005851"
+            />
+          }
+        >
         {error ? (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={fetchPolicies}>
+            <TouchableOpacity style={styles.retryButton} onPress={() => { void fetchPolicies(); }}>
               <Text style={styles.retryText}>Try Again</Text>
             </TouchableOpacity>
           </View>
