@@ -79,21 +79,34 @@ function buildLinqFirstResponse(params: {
   const agentName = params.agentName || 'your agent';
   if (params.language === 'es') {
     return (
-      `Hola ${firstName}! Listo. Te escribire por aqui cuando sea hora de tu revision anual o si pasa algo importante con tu poliza. ` +
-      'Guarda mi contacto para que siempre sepas que soy yo — y mandame un thumbs up para saber que estamos conectados. ' +
-      `Las companias a veces bloquean mensajes y asi sabre que te estan llegando. Hablamos pronto! -- ${agentName}`
+      `Hola ${firstName}! Vamos a activarte:\n` +
+      `• Mándame un thumbs up 👍 o responde "Gracias" para saber que estamos conectados\n` +
+      `• Guarda mi contacto abajo\n` +
+      `• Regresa a la app, ya está personalizada para ti ✅\n` +
+      `Hablamos pronto!\n` +
+      `— ${agentName}`
     );
   }
   return (
-    `Hey ${firstName}! You're all set. I'll reach out here when it's time for your annual review or if anything important comes up with your policy. ` +
-    "Save my contact so you'll always know it's me — and shoot back a thumbs up so I know we're connected. " +
-    "Carriers sometimes block messages and that's how I'll know you're getting them. " +
-    `Talk soon! -- ${agentName}`
+    `Hey ${firstName}! Let's get you activated:\n` +
+    `• Send back a thumbs up 👍 or reply "Thanks" so I know we're connected\n` +
+    `• Save my contact below\n` +
+    `• Head back to the app, it's been personalized for you ✅\n` +
+    `Talk soon!\n` +
+    `— ${agentName}`
   );
 }
 
-/** Conservative thumbs-up detector. */
-const THUMBS_UP_REGEX = /^(?:\s*(?:👍|👍🏻|👍🏼|👍🏽|👍🏾|👍🏿|thumbs?\s*up|tu|\+1|y(es)?|got\s*it|received|confirmed)\s*[!.]*\s*)$/i;
+/**
+ * Conservative "we're connected" reply detector.
+ *
+ * Matches: thumbs-up emoji variants, "thumbs up", "thanks"/"thank you"
+ * (English) and "gracias" (Spanish) — the activation reply now explicitly
+ * invites "Thanks"/"Gracias" so we need to accept it, plus common
+ * abbreviations (ty, thx) and the legacy ack vocabulary (yes, got it,
+ * received, confirmed, +1, tu).
+ */
+const THUMBS_UP_REGEX = /^(?:\s*(?:👍|👍🏻|👍🏼|👍🏽|👍🏾|👍🏿|thumbs?\s*up|tu|\+1|y(es)?|got\s*it|received|confirmed|thanks?|thank\s*you|ty|thx|gracias)\s*[!.]*\s*)$/i;
 
 export function isThumbsUpReply(text: string): boolean {
   if (!text) return false;
