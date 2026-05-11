@@ -9,12 +9,12 @@ import { useTierCTA } from '@/hooks/useTierCTA';
 const IMESSAGE_DELAYS = [900, 1100, 900, 1300, 900, 500, 1100];
 
 const FAQ_ITEMS = [
-  { question: 'What exactly is Agent for Life?', answer: 'A complete client relationship system for insurance agents. You get a branded mobile app for your clients, automated touchpoints (holidays, birthdays, anniversaries), one-tap referrals with an AI assistant that qualifies leads via iMessage and books appointments, retention alerts that rescue at-risk policies, and anniversary rewrite alerts.' },
-  { question: 'How does AFL 3x my book?', answer: 'Every closed sale has three payouts available — the premium you wrote, the referrals that client could send, and the rewrite at the policy\'s anniversary. Most agents only collect the first. AFL automates the other two: one-tap referral buttons in every client\'s hand (AI qualifies and books on your calendar), and anniversary outreach that turns every renewal into a booked review. Your book stops decaying and starts compounding.' },
-  { question: 'How hard is it to get started?', answer: 'You can be live in 10 minutes. Import your clients via CSV or upload PDF applications — AI extracts everything. Enable the referral assistant with one toggle and your clients get welcomed onto the app one by one.' },
+  { question: 'What exactly is Agent for Life?', answer: 'A complete client relationship system for insurance agents. You get a branded mobile app for your clients, automated touchpoints (holidays, birthdays, anniversaries), one-tap referrals where AFL qualifies the lead via iMessage and books the appointment, retention alerts that rescue at-risk policies, and anniversary rewrite alerts.' },
+  { question: 'How does AFL 3x my book?', answer: 'Every closed sale has three payouts available — the premium you wrote, the referrals that client could send, and the rewrite at the policy\'s anniversary. Most agents only collect the first. AFL automates the other two: one-tap referral buttons in every client\'s hand (AFL qualifies and books on your calendar), and anniversary outreach that turns every renewal into a booked review. Your book stops decaying and starts compounding.' },
+  { question: 'How hard is it to get started?', answer: 'You can be live in 10 minutes. Import your clients via CSV or upload PDF applications — AFL extracts everything. Enable the referral assistant with one toggle and your clients get welcomed onto the app one by one.' },
   { question: 'Is my data safe?', answer: "Yes. Your client data is encrypted with AES-256, stored on Google Cloud, and only accessible by you. We never contact your clients independently, and no other agent can see your book of business." },
   { question: 'What carriers does it work with?', answer: 'All of them. Agent for Life is carrier-agnostic. Works for independent agents regardless of which carriers you\'re appointed with.' },
-  { question: 'How does pricing work?', answer: 'Three plans bill through Stripe — Starter at $29/mo (30 conversations), Growth at $59/mo (75 conversations), Pro at $119/mo (200 conversations). Agency is sales-led. Push notifications, agent-phone one-tap texts, and email are unlimited on every tier; the conversation budget is for the AI Linq line. 14-day free trial on Starter and Growth.' },
+  { question: 'How does pricing work?', answer: 'Three plans bill through Stripe — Starter at $29/mo (30 conversations), Growth at $59/mo (75 conversations), Pro at $119/mo (200 conversations). Agency is sales-led. Push notifications, agent-phone one-tap texts, and email are unlimited on every tier; the conversation budget is for the AFL-driven conversation line. 14-day free trial on Starter and Growth.' },
 ];
 
 const fadeUp = {
@@ -137,9 +137,9 @@ export default function MobileLandingV2() {
 
   const STEPS = [
     { num: '1', title: 'Sign Up & Brand', desc: 'Add your photo, logo, and scheduling link. Instantly branded to you.', color: '#3DD6C3' },
-    { num: '2', title: 'Import Your Book', desc: 'Upload CSV or drop in a PDF \u2014 AI extracts clients, policies, and beneficiaries.', color: '#fdcc02' },
+    { num: '2', title: 'Import Your Book', desc: 'Upload CSV or drop in a PDF \u2014 AFL extracts clients, policies, and beneficiaries.', color: '#fdcc02' },
     { num: '3', title: 'Share with Clients', desc: 'They download your app with a unique code. Personalized welcome notification.', color: '#3DD6C3' },
-    { num: '4', title: 'AI Takes Over', desc: 'Touchpoints, referral follow-ups, conservation alerts \u2014 all on autopilot.', color: '#fdcc02' },
+    { num: '4', title: 'AFL Takes Over', desc: 'Touchpoints, referral follow-ups, conservation alerts \u2014 all on autopilot.', color: '#fdcc02' },
   ];
 
   useEffect(() => {
@@ -369,7 +369,7 @@ export default function MobileLandingV2() {
                 <p className="text-[14px] text-black mb-1.5">One-Tap Referrals</p>
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="text-[1.3rem] font-extrabold text-black leading-[1.2]">
-                    Put a referral button in every client&apos;s pocket. AI takes it from there.
+                    Put a referral button in every client&apos;s pocket. AFL takes it from there.
                   </h3>
                   <div className="w-9 h-9 rounded-full bg-[#0D4D4D] flex items-center justify-center flex-shrink-0 mt-1">
                     <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
@@ -409,7 +409,7 @@ export default function MobileLandingV2() {
                     <img src="/screenshot-rewrite-app.png" alt="Rewrite rate review in app" className="w-full h-auto block" />
                   </div>
                   <div className="w-[55%] rounded-xl border-[4px] border-black shadow-2xl overflow-hidden -ml-4 translate-y-8 relative z-10 bg-white">
-                    <img src="/screenshot-rewrite-convo.png" alt="AI rewrite conversation" className="w-full h-auto block" />
+                    <img src="/screenshot-rewrite-convo.png" alt="AFL rewrite conversation" className="w-full h-auto block" />
                   </div>
                 </div>
               </div>

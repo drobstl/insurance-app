@@ -7,12 +7,12 @@ import LeakyBucketCalculator from '@/components/LeakyBucketCalculator';
 import { useTierCTA } from '@/hooks/useTierCTA';
 
 const FAQ_ITEMS = [
-  { question: 'What exactly is Agent for Life?', answer: 'A complete client relationship system for insurance agents. You get a branded mobile app for your clients, automated touchpoints (holidays, birthdays, anniversaries), one-tap referrals with an AI assistant that qualifies leads via iMessage and books appointments, retention alerts that rescue at-risk policies, and anniversary rewrite alerts.' },
-  { question: 'How does AFL 3x my book?', answer: 'Every closed sale has three payouts available — the premium you wrote, the referrals that client could send, and the rewrite at the policy\'s anniversary. Most agents only collect the first. AFL automates the other two: one-tap referral buttons in every client\'s hand (AI qualifies and books on your calendar), and anniversary outreach that turns every renewal into a booked review. Your book stops decaying and starts compounding.' },
-  { question: 'How hard is it to get started?', answer: 'You can be live in 10 minutes. Import your clients via CSV or upload PDF applications — AI extracts everything. Enable the referral assistant with one toggle and your clients get welcomed onto the app one by one.' },
+  { question: 'What exactly is Agent for Life?', answer: 'A complete client relationship system for insurance agents. You get a branded mobile app for your clients, automated touchpoints (holidays, birthdays, anniversaries), one-tap referrals where AFL qualifies the lead via iMessage and books the appointment, retention alerts that rescue at-risk policies, and anniversary rewrite alerts.' },
+  { question: 'How does AFL 3x my book?', answer: 'Every closed sale has three payouts available — the premium you wrote, the referrals that client could send, and the rewrite at the policy\'s anniversary. Most agents only collect the first. AFL automates the other two: one-tap referral buttons in every client\'s hand (AFL qualifies and books on your calendar), and anniversary outreach that turns every renewal into a booked review. Your book stops decaying and starts compounding.' },
+  { question: 'How hard is it to get started?', answer: 'You can be live in 10 minutes. Import your clients via CSV or upload PDF applications — AFL extracts everything. Enable the referral assistant with one toggle and your clients get welcomed onto the app one by one.' },
   { question: 'Is my data safe?', answer: "Yes. Your client data is encrypted with AES-256, stored on Google Cloud, and only accessible by you. We never contact your clients independently, and no other agent can see your book of business." },
   { question: 'What carriers does it work with?', answer: 'All of them. Agent for Life is carrier-agnostic. Works for independent agents regardless of which carriers you\'re appointed with.' },
-  { question: 'How does pricing work?', answer: 'Three plans bill through Stripe — Starter at $29/mo (30 conversations), Growth at $59/mo (75 conversations), Pro at $119/mo (200 conversations). Agency is sales-led. Push notifications, agent-phone one-tap texts, and email are unlimited on every tier; the conversation budget is for the AI Linq line. 14-day free trial on Starter and Growth.' },
+  { question: 'How does pricing work?', answer: 'Three plans bill through Stripe — Starter at $29/mo (30 conversations), Growth at $59/mo (75 conversations), Pro at $119/mo (200 conversations). Agency is sales-led. Push notifications, agent-phone one-tap texts, and email are unlimited on every tier; the conversation budget is for the AFL-driven conversation line. 14-day free trial on Starter and Growth.' },
 ];
 
 const fadeUp = {
@@ -113,7 +113,7 @@ export default function DesktopLandingV5() {
                 transition={{ duration: 0.6, delay: 0.45 }}
                 className="text-white/50 text-lg lg:text-xl leading-relaxed mb-4 max-w-[520px]"
               >
-                We built a system that makes sure they never do. A branded app on their phone. An AI that never sleeps.
+                We built a system that makes sure they never do. A branded app on their phone. AFL working in the background, around the clock.
               </motion.p>
 
               <motion.div
@@ -162,7 +162,7 @@ export default function DesktopLandingV5() {
                 </div>
                 <div className="absolute -right-28 top-32 z-10 animate-float-b">
                   <div className="px-3.5 py-2 bg-[#fdcc02]/15 border border-[#fdcc02]/25 rounded-xl">
-                    <span className="text-[#fdcc02] text-xs font-bold">🤝 AI Referrals</span>
+                    <span className="text-[#fdcc02] text-xs font-bold">🤝 Referrals</span>
                   </div>
                 </div>
                 <div className="absolute -left-24 bottom-32 z-10 animate-float-c">
@@ -208,10 +208,10 @@ export default function DesktopLandingV5() {
                 <span className="text-[#0D4D4D] font-bold text-xs uppercase tracking-wide">One-Tap Referrals</span>
               </div>
               <h2 className="text-3xl lg:text-[2.75rem] font-extrabold text-[#0D4D4D] leading-tight mb-4">
-                Put a referral button in every client&apos;s pocket. AI takes it from there.
+                Put a referral button in every client&apos;s pocket. AFL takes it from there.
               </h2>
               <p className="text-[#4B5563] text-lg leading-relaxed mb-8 max-w-lg">
-                One tap from your client. AI texts the referral via iMessage, qualifies them, and books the appointment on your calendar. You just show up and close.
+                One tap from your client. AFL texts the referral via iMessage, qualifies them, and books the appointment on your calendar. You just show up and close.
               </p>
               <Link href="/v5/referrals" className="inline-flex items-center gap-2 text-[#0D4D4D] font-bold text-base hover:text-[#3DD6C3] transition-colors group">
                 See how it works
@@ -236,7 +236,7 @@ export default function DesktopLandingV5() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
             <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="flex justify-center gap-4 lg:order-1">
               <div className="w-[220px] rounded-2xl border-[3px] border-white/20 shadow-2xl overflow-hidden transform -rotate-3 hover:rotate-0 transition-transform duration-500">
-                <img src="/screenshot-rewrite-convo.png" alt="AI rewrite conversation" className="w-full h-auto block" />
+                <img src="/screenshot-rewrite-convo.png" alt="AFL rewrite conversation" className="w-full h-auto block" />
               </div>
               <div className="w-[220px] rounded-2xl border-[3px] border-white/20 shadow-2xl overflow-hidden transform rotate-3 translate-y-8 hover:rotate-0 hover:translate-y-0 transition-transform duration-500 bg-white">
                 <img src="/screenshot-rewrite-app.png" alt="Rewrite rate review in app" className="w-full h-auto block" />
@@ -251,7 +251,7 @@ export default function DesktopLandingV5() {
                 Every anniversary is a booked appointment.
               </h2>
               <p className="text-white/50 text-lg leading-relaxed mb-8 max-w-lg">
-                When a policy hits its one-year mark, your client hears from you — not the carrier. AI sends a notification, they book on your calendar. The rewrite comes to you.
+                When a policy hits its one-year mark, your client hears from you — not the carrier. AFL sends the notification, they book on your calendar. The rewrite comes to you.
               </p>
               <Link href="/v5/rewrites" className="inline-flex items-center gap-2 text-[#F4845F] font-bold text-base hover:text-[#fdcc02] transition-colors group">
                 See how it works
@@ -385,7 +385,7 @@ export default function DesktopLandingV5() {
                   <div className="space-y-2">
                     {[
                       { dot: 'bg-[#1A7A6A]', text: 'Holiday card sent to 47 clients', tag: 'Auto' },
-                      { dot: 'bg-[#fdcc02]', text: 'New referral: Mike J. — AI qualifying', tag: 'Live' },
+                      { dot: 'bg-[#fdcc02]', text: 'New referral: Mike J. — AFL qualifying', tag: 'Live' },
                       { dot: 'bg-red-400', text: 'Conservation alert: Sarah J.', tag: 'Action' },
                       { dot: 'bg-[#1A7A6A]', text: 'Policy review: Lisa M. — booked', tag: 'Win' },
                     ].map((row) => (
@@ -461,8 +461,8 @@ export default function DesktopLandingV5() {
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {[
               { dashboard: 'You upload Sarah\'s policy', client: 'Sarah sees it in her app instantly', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', accent: '#1A7A6A' },
-              { dashboard: 'AI sends holiday card', client: 'Full-screen card on their phone', icon: 'M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7', accent: '#fdcc02' },
-              { dashboard: 'Referral comes in', client: 'AI texts referral via iMessage', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z', accent: '#fdcc02' },
+              { dashboard: 'AFL sends holiday card', client: 'Full-screen card on their phone', icon: 'M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7', accent: '#fdcc02' },
+              { dashboard: 'Referral comes in', client: 'AFL texts referral via iMessage', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z', accent: '#fdcc02' },
               { dashboard: 'Conservation alert fires', client: 'Client gets outreach in hours', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z', accent: '#1A7A6A' },
             ].map((item, i) => (
               <div key={i} className="bg-white/[0.04] rounded-xl p-4 border border-white/[0.06] hover:bg-white/[0.07] hover:border-white/[0.12] transition-all">
@@ -644,9 +644,9 @@ export default function DesktopLandingV5() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
               {[
                 { num: '1', title: 'Sign Up & Brand', desc: 'Add your photo, logo, and scheduling link. Instantly branded to you.', color: '#3DD6C3' },
-                { num: '2', title: 'Import Your Book', desc: 'Upload CSV or drop in a PDF — AI extracts clients, policies, and beneficiaries.', color: '#fdcc02' },
+                { num: '2', title: 'Import Your Book', desc: 'Upload CSV or drop in a PDF — AFL extracts clients, policies, and beneficiaries.', color: '#fdcc02' },
                 { num: '3', title: 'Share with Clients', desc: 'They download your app with a unique code. Personalized welcome notification.', color: '#3DD6C3' },
-                { num: '4', title: 'AI Takes Over', desc: 'Touchpoints, referral follow-ups, conservation alerts — all on autopilot.', color: '#fdcc02' },
+                { num: '4', title: 'AFL Takes Over', desc: 'Touchpoints, referral follow-ups, conservation alerts — all on autopilot.', color: '#fdcc02' },
               ].map((step, i) => (
                 <motion.div
                   key={step.num}

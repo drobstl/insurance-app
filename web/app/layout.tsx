@@ -12,7 +12,7 @@ const montserrat = Montserrat({
 
 export const metadata: Metadata = {
   title: "AgentForLife™ | Kill Chargebacks & Explode Your Referrals",
-  description: "Stop losing commissions to chargebacks. AgentForLife gives insurance agents a white-label app with automated touchpoints, one-tap referrals, and an AI referral assistant.",
+  description: "Stop losing commissions to chargebacks. AgentForLife gives insurance agents a white-label app with automated touchpoints, one-tap referrals, and an AFL referral assistant that books appointments for you.",
   keywords: ["insurance agent chargebacks", "insurance agent retention", "insurance referrals", "stop chargebacks", "client retention app", "insurance CRM", "white label insurance app"],
   authors: [{ name: "AgentForLife" }],
   creator: "AgentForLife",
@@ -40,13 +40,13 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: "https://agentforlife.app",
     title: "AgentForLife | Kill Chargebacks & Explode Your Referrals",
-    description: "Stop losing commissions to chargebacks. AgentForLife gives insurance agents a white-label app with automated touchpoints, one-tap referrals, and an AI referral assistant.",
+    description: "Stop losing commissions to chargebacks. AgentForLife gives insurance agents a white-label app with automated touchpoints, one-tap referrals, and an AFL referral assistant that books appointments for you.",
     siteName: "AgentForLife",
   },
   twitter: {
     card: "summary_large_image",
     title: "AgentForLife | Kill Chargebacks & Explode Your Referrals",
-    description: "Stop losing commissions to chargebacks. AgentForLife gives insurance agents a white-label app with automated touchpoints, one-tap referrals, and an AI referral assistant.",
+    description: "Stop losing commissions to chargebacks. AgentForLife gives insurance agents a white-label app with automated touchpoints, one-tap referrals, and an AFL referral assistant that books appointments for you.",
   },
   robots: {
     index: true,

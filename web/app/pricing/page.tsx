@@ -159,16 +159,9 @@ export default function PricingPage() {
     <div className="min-h-screen bg-[#FAFAFA]">
       <header className="bg-[#0D4D4D] py-5">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4">
-          <Link href="/" className="flex items-center gap-2 text-white">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#3DD6C3]">
-              <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="currentColor">
-                <circle cx="12" cy="7" r="3" />
-                <path d="M12 12c-3 0-5 2-5 4v2h10v-2c0-2-2-4-5-4z" />
-                <circle cx="4" cy="10" r="2" opacity="0.7" />
-                <circle cx="20" cy="10" r="2" opacity="0.7" />
-              </svg>
-            </div>
-            <span className="text-base font-bold">AgentForLife™</span>
+          <Link href="/" className="flex items-center gap-2.5 text-white">
+            <img src="/logo.png" alt="AgentForLife" className="w-[44px] h-[25px] object-contain" />
+            <span className="text-base font-bold brand-title">AgentForLife™</span>
           </Link>
           <Link
             href="/login"

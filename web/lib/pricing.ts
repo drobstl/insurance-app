@@ -73,7 +73,7 @@ export const PRICING_TIERS: Readonly<Record<PricingTierId, PricingTier>> = {
       '30 Linq conversations / month',
       'Unlimited push, one-tap, email',
       'Branded client mobile app',
-      'AI referral assistant',
+      'AFL referral assistant',
       'Retention + anniversary lanes',
     ],
     bestFor: 'Year-1 agent with a small book',
