@@ -507,13 +507,18 @@ export default function MobileLandingV2() {
           <h2 className="text-[1.85rem] font-extrabold text-white leading-[1.1] mb-5">
             Stop being the agent <span className="text-[#fdcc02]">they forgot</span>.
           </h2>
-          <p className="text-white/70 text-[14.5px] leading-relaxed mb-7 max-w-[320px] mx-auto">
-            Right now you&apos;re &quot;the Mortgage Protection person from 2022&quot; to half your book — if they remember you at all. AFL puts your name, your photo, and your number in every client&apos;s phone, automatically. The old leads come back to life. The new clients install before the policy is issued. You stop chasing setup completion because the flow finishes itself.
-          </p>
+          <div className="text-white/70 text-[14.5px] leading-relaxed mb-7 max-w-[320px] mx-auto space-y-3.5">
+            <p>
+              Half your book can&apos;t name you. To them you&apos;re &quot;the Mortgage Protection person from 2022.&quot; When the next premium hits, they don&apos;t recognize the charge — and they cancel. That&apos;s a chargeback. It&apos;s also the referrals they&apos;ll never send, the rewrite that auto-renews back to the carrier, and the call they&apos;ll make to <span className="text-white font-semibold">someone else</span> next time they need coverage.
+            </p>
+            <p>
+              AFL puts your own branded app on every client&apos;s phone — your name, your photo, your number, always there — and keeps the relationship warm automatically. You stop being a stranger and become the agent they remember, refer, and trust. Policies stop cancelling. Anniversaries become booked rewrites. <span className="text-[#fdcc02] font-bold">The book you already wrote starts paying you again. Twice. Three times. Year after year.</span>
+            </p>
+          </div>
           <div className="inline-block px-5 py-3.5 bg-white/[0.04] border border-white/10 rounded-2xl">
             <p className="text-white text-[13.5px] font-semibold leading-snug">
               Most agents have a book of business.<br />
-              <span className="text-[#3DD6C3]">AFL agents have a book that calls them back.</span>
+              <span className="text-[#3DD6C3]">AFL agents have a book that doesn&apos;t leak, and compounds their income from leads they already won.</span>
             </p>
           </div>
         </motion.div>
