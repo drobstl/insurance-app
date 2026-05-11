@@ -5,11 +5,8 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { doc, collection, onSnapshot, query, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { DashboardProvider, useDashboard } from './DashboardContext';
-import OnboardingOverlay from '../../components/OnboardingOverlay';
-import OnboardingChecklistRail from '../../components/OnboardingChecklistRail';
 import PWAInstaller from '../../components/PWAInstaller';
 import MaintenanceBanner from '../../components/MaintenanceBanner';
-import LoomVideoModal from '../../components/LoomVideoModal';
 import DashboardAssistant from '../../components/DashboardAssistant';
 import DashboardTicker from '../../components/DashboardTicker';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
@@ -492,17 +489,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     isAdmin,
     handleLogout,
     refreshProfile,
-    completeOnboarding,
   } = useDashboard();
 
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
   const [showCancelWarning, setShowCancelWarning] = useState(false);
 
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [onboardingUiSuppressed, setOnboardingUiSuppressed] = useState(false);
   const [showSubscriptionCelebration, setShowSubscriptionCelebration] = useState(false);
-  const [showWorkflowVideo, setShowWorkflowVideo] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [adminOpen, setAdminOpen] = useState(() => pathname.startsWith('/dashboard/admin'));
 
@@ -526,37 +519,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   useEffect(() => {
-    if (!user) {
-      setShowOnboarding(false);
-      setOnboardingUiSuppressed(false);
-      setShowSubscriptionCelebration(false);
-      return;
-    }
-    // Welcome flow amendment (May 7, 2026):
-    // docs/AFL_Welcome_Flow_Amendment_2026-05-07.md §4.3 reverts the
-    // May 6 missingNewHardGate decision. PWA install + Web Push are
-    // no longer required for Mode 1 (real-time daily welcome flow),
-    // so existing agents with onboardingComplete=true should not be
-    // force-prompted to redo onboarding for those milestones.
-    const shouldShow = agentProfile.onboardingComplete !== true;
-    if (!shouldShow) {
-      setShowOnboarding(false);
-      setOnboardingUiSuppressed(false);
-      return;
-    }
-    if (onboardingUiSuppressed) return;
-    setShowOnboarding(shouldShow);
-  }, [
-    agentProfile.onboardingComplete,
-    onboardingUiSuppressed,
-    user,
-  ]);
+    if (!user) setShowSubscriptionCelebration(false);
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
     if (searchParams.get('subscription') !== 'success') return;
     setShowSubscriptionCelebration(true);
-    setShowOnboarding(false);
     router.replace('/dashboard');
   }, [searchParams, router, user]);
 
@@ -564,16 +533,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     if (!user) return;
     if (agentProfile.pendingSubscriptionCelebration !== true) return;
     setShowSubscriptionCelebration(true);
-    setShowOnboarding(false);
   }, [agentProfile.pendingSubscriptionCelebration, user]);
-
-  useEffect(() => {
-    if (!showOnboarding) return;
-    const resumedStep = agentProfile.onboarding?.currentStep ?? 0;
-    captureEvent(ANALYTICS_EVENTS.ONBOARDING_RESUMED, {
-      step_name: `step_${resumedStep + 1}`,
-    });
-  }, [showOnboarding, agentProfile.onboarding?.currentStep]);
 
   useEffect(() => {
     if (pathname.startsWith('/dashboard/admin')) {
@@ -619,42 +579,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const mobileNavItems = NAV_ITEMS.filter((item) =>
     ['home', 'clients', 'action-items', 'referrals', 'conservation'].includes(item.key),
   );
-  const onboardingMilestones = agentProfile.onboarding?.requiredMilestones ?? {
-    profileCompleted: false,
-    firstClientCreated: false,
-    firstWelcomeSent: false,
-    firstPatchPromptSent: false,
-    pwaInstalled: false,
-    webPushGranted: false,
-  };
-  // Phase 1 Track B — PWA install + Web Push are HARD onboarding gates
-  // (docs/AFL_Phase_1_Planning_Notes_2026-05-04.md §2 + CONTEXT.md >
-  // Channel Rules > Phase 1 implementation constraints). Skip Tutorial
-  // can NOT bypass them — the welcome flow does not work without both.
-  // The two soft milestones (`firstClientCreated`, `firstWelcomeSent`,
-  // `firstPatchPromptSent`, `profileCompleted`) remain skippable; an
-  // agent who genuinely doesn't want the guided coachmark walkthrough
-  // can dismiss it but they must still install the PWA + grant push to
-  // be considered fully onboarded.
-  const handleSkipTutorial = async () => {
-    if (!onboardingMilestones.pwaInstalled || !onboardingMilestones.webPushGranted) {
-      setShowOnboarding(true);
-      setOnboardingUiSuppressed(false);
-      // Surface a banner via the existing onboarding overlay rather
-      // than a separate alert — overlay step hard-blocks at the
-      // pwaInstall / webPushPermission steps with a clear message.
-      return;
-    }
-    setShowOnboarding(false);
-    setOnboardingUiSuppressed(true);
-    try {
-      await completeOnboarding();
-    } catch (error) {
-      console.error('Failed to skip onboarding:', error);
-      setOnboardingUiSuppressed(false);
-      setShowOnboarding(true);
-    }
-  };
   const dismissSubscriptionCelebration = () => {
     setShowSubscriptionCelebration(false);
     if (user) {
@@ -665,9 +589,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       }).then(() => refreshProfile()).catch((error) => {
         console.error('Failed to clear subscription celebration flag:', error);
       });
-    }
-    if (agentProfile.onboardingComplete !== true && !onboardingUiSuppressed) {
-      setShowOnboarding(true);
     }
   };
 
@@ -975,37 +896,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       )}
-
-      {/* Onboarding */}
-      {showOnboarding && user && !showSubscriptionCelebration && (
-        <OnboardingOverlay
-          agentName={agentProfile.name || user.displayName || ''}
-          onComplete={() => setShowOnboarding(false)}
-          onPause={() => setShowOnboarding(false)}
-          onSkip={() => { void handleSkipTutorial(); }}
-        />
-      )}
-      {user && !showSubscriptionCelebration && !onboardingUiSuppressed && agentProfile.onboardingComplete !== true && !showOnboarding && (
-        <OnboardingChecklistRail
-          milestones={onboardingMilestones}
-          onboardingVisible={showOnboarding}
-          collapseOptionalByDefault={showOnboarding}
-          onPause={() => setShowOnboarding(false)}
-          onResume={() => setShowOnboarding(true)}
-          onSkip={() => { void handleSkipTutorial(); }}
-          profilePhotoAdded={Boolean(agentProfile.photoBase64)}
-          agencyLogoAdded={Boolean(agentProfile.agencyLogoBase64)}
-        />
-      )}
-      {!showOnboarding && user && !showSubscriptionCelebration && !onboardingUiSuppressed && agentProfile.onboardingComplete !== true && (
-        <button
-          onClick={() => setShowOnboarding(true)}
-          className="fixed bottom-24 left-4 z-[70] md:hidden px-3 py-2 rounded-[5px] bg-white border border-[#d0d0d0] text-xs font-semibold text-[#0D4D4D] shadow-[0_8px_20px_rgba(0,0,0,0.15)] hover:bg-[#f8f8f8] transition-colors"
-        >
-          Resume onboarding
-        </button>
-      )}
-      <LoomVideoModal isOpen={showWorkflowVideo} onClose={() => setShowWorkflowVideo(false)} videoUrl="https://www.loom.com/embed/88422effb7ca4cdc8ae88646490fed00" />
 
       {showCancelWarning && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">

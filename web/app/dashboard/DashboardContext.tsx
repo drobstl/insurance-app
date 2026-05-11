@@ -32,20 +32,6 @@ export interface OnboardingState {
 
 export type OnboardingMilestoneKey = keyof OnboardingMilestones;
 
-const DEFAULT_ONBOARDING_MILESTONES: OnboardingMilestones = {
-  profileCompleted: false,
-  firstClientCreated: false,
-  firstWelcomeSent: false,
-  firstPatchPromptSent: false,
-  pwaInstalled: false,
-  webPushGranted: false,
-};
-
-const DEFAULT_ONBOARDING_STATE: OnboardingState = {
-  version: 1,
-  currentStep: 0,
-  requiredMilestones: DEFAULT_ONBOARDING_MILESTONES,
-};
 const PROFILE_FETCH_TIMEOUT_MS = 12000;
 
 function normalizeOnboardingState(raw: unknown): OnboardingState {
@@ -67,16 +53,6 @@ function normalizeOnboardingState(raw: unknown): OnboardingState {
       webPushGranted: milestonesRaw.webPushGranted === true,
     },
   };
-}
-
-function areAllOnboardingMilestonesComplete(milestones: OnboardingMilestones): boolean {
-  // Only the four required milestones gate completion. `pwaInstalled`
-  // and `webPushGranted` are tracked but optional per the May 7, 2026
-  // welcome flow amendment — see OnboardingMilestones interface.
-  return milestones.profileCompleted
-    && milestones.firstClientCreated
-    && milestones.firstWelcomeSent
-    && milestones.firstPatchPromptSent;
 }
 
 export interface AgentProfile {
@@ -127,8 +103,6 @@ interface DashboardContextValue {
   refreshProfile: () => Promise<void>;
   dismissTip: (sectionKey: string) => Promise<void>;
   markOnboardingMilestone: (milestone: OnboardingMilestoneKey) => Promise<void>;
-  setOnboardingCurrentStep: (step: number) => Promise<void>;
-  completeOnboarding: () => Promise<void>;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
@@ -321,67 +295,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }
   }, [user, agentProfile.onboarding]);
 
-  const setOnboardingCurrentStep = useCallback(async (step: number) => {
-    if (!user) return;
-    const safeStep = Number.isFinite(step) ? Math.max(0, Math.round(step)) : 0;
-    const currentOnboarding = normalizeOnboardingState(agentProfile.onboarding);
-
-    if (currentOnboarding.currentStep === safeStep) return;
-
-    const nextOnboarding: OnboardingState = {
-      ...currentOnboarding,
-      currentStep: safeStep,
-    };
-
-    try {
-      await setDoc(
-        doc(db, 'agents', user.uid),
-        {
-          onboarding: {
-            ...nextOnboarding,
-            updatedAt: serverTimestamp(),
-          },
-        },
-        { merge: true },
-      );
-      setAgentProfile((prev) => ({
-        ...prev,
-        onboarding: nextOnboarding,
-      }));
-    } catch (error) {
-      console.error('Error setting onboarding step:', error);
-    }
-  }, [user, agentProfile.onboarding]);
-
-  const completeOnboarding = useCallback(async () => {
-    if (!user) return;
-    const currentOnboarding = normalizeOnboardingState(agentProfile.onboarding);
-    const completed = areAllOnboardingMilestonesComplete(currentOnboarding.requiredMilestones);
-    if (!completed) return;
-
-    try {
-      await setDoc(
-        doc(db, 'agents', user.uid),
-        {
-          onboarding: {
-            ...currentOnboarding,
-            updatedAt: serverTimestamp(),
-            completedAt: serverTimestamp(),
-          },
-          onboardingComplete: true,
-        },
-        { merge: true },
-      );
-      setAgentProfile((prev) => ({
-        ...prev,
-        onboarding: currentOnboarding,
-        onboardingComplete: true,
-      }));
-    } catch (error) {
-      console.error('Error completing onboarding:', error);
-    }
-  }, [user, agentProfile.onboarding]);
-
   const isAdmin = isAdminEmail(user?.email);
 
   return (
@@ -397,8 +310,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         refreshProfile: fetchProfile,
         dismissTip,
         markOnboardingMilestone,
-        setOnboardingCurrentStep,
-        completeOnboarding,
       }}
     >
       {children}

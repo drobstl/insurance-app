@@ -38,6 +38,10 @@ import {
 import { isTimeoutError, withTimeout } from '../../../lib/timeout';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
+import {
+  OnboardingWalkthroughModal,
+  OnboardingWalkthroughPoster,
+} from '../../../components/OnboardingWalkthroughEmbed';
 import { useGooglePicker } from '../../../hooks/useGooglePicker';
 import type { GooglePickerSelectedFile } from '../../../hooks/useGooglePicker';
 import { buildWelcomeMessage, resolveClientLanguage, type SupportedLanguage } from '../../../lib/client-language';
@@ -899,7 +903,8 @@ export default function ClientsPage() {
     name: string;
     phone: string;
   } | null>(null);
-  const [addFlowToast, setAddFlowToast] = useState<{ message: string; celebrate: boolean } | null>(null);
+  const [addFlowToast, setAddFlowToast] = useState<{ message: string; body?: string; celebrate: boolean } | null>(null);
+  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
 
   // ── Delete client state ──
   const [deleteConfirmClient, setDeleteConfirmClient] = useState<Client | null>(null);
@@ -1539,9 +1544,12 @@ export default function ClientsPage() {
     if (addFlowToast.celebrate) {
       fireConfetti();
     }
+    // Celebrate-with-body lingers longer so the agent — still on the phone
+    // with the client — has time to read the next-step framing.
+    const lingerMs = addFlowToast.celebrate && addFlowToast.body ? 9000 : 4200;
     const timeoutId = window.setTimeout(() => {
       setAddFlowToast(null);
-    }, 4200);
+    }, lingerMs);
     return () => window.clearTimeout(timeoutId);
   }, [addFlowToast]);
 
@@ -2048,9 +2056,9 @@ export default function ClientsPage() {
     }
   }, [submitting, createClientFromAddFlow, buildWelcomeSms, formData.preferredLanguage, formData.name, formData.phone, formData.email, formData.dateOfBirth, pendingClientApplicationData, queueWelcomeActionItem]);
 
-  const finishAddFlow = useCallback((message: string, celebrate: boolean) => {
+  const finishAddFlow = useCallback((message: string, celebrate: boolean, body?: string) => {
     handleCloseAddFlow();
-    setAddFlowToast({ message, celebrate });
+    setAddFlowToast({ message, body, celebrate });
   }, [handleCloseAddFlow]);
 
   const handleSkipWelcome = useCallback(() => {
@@ -2131,7 +2139,11 @@ export default function ClientsPage() {
     // Small delay so the sms: handler has time to fire before the
     // surface unmounts; otherwise some browsers cancel the navigation.
     setTimeout(() => {
-      finishAddFlow(`${createdClientContext.name} added — welcome sent.`, true);
+      finishAddFlow(
+        `${createdClientContext.name} added — welcome sent.`,
+        true,
+        'Stay on the call until they’re in. Once they allow notifications and tap Activate, you’ve got push to them. This is the moment to ask for the referral — AFL makes the ask effortless from here.',
+      );
     }, 75);
   }, [
     createdClientContext,
@@ -4206,6 +4218,13 @@ export default function ClientsPage() {
         <p className="text-[#707070] text-sm mt-1">Manage your clients, policies, and applications.</p>
       </div>
 
+      {addFlowToast?.celebrate && addFlowToast.body && (
+        <div className="mb-4 rounded-xl border-2 border-[#1A1A1A] border-r-[4px] border-b-[4px] bg-[#daf3f0] px-4 py-3">
+          <p className="font-semibold text-[#005851] text-sm">{addFlowToast.message}</p>
+          <p className="text-[#0D4D4D] text-sm leading-relaxed mt-1">{addFlowToast.body}</p>
+        </div>
+      )}
+
       {!agentProfile.tipsSeen?.clients && (
         <SectionTipCard onDismiss={() => dismissTip('clients')}>
           Add clients here &mdash; each gets a unique code. Use the Share button to text them the download link for your branded app.
@@ -4368,7 +4387,7 @@ export default function ClientsPage() {
                 Beneficiary Queue ({beneficiaryQueueSummary.totalNeedsAttention})
               </button>
             )}
-            {addFlowToast && (
+            {addFlowToast && !addFlowToast.body && (
               <div className={`px-3 py-2 rounded-[5px] border text-xs font-medium ${
                 addFlowToast.celebrate
                   ? 'bg-[#daf3f0] border-[#45bcaa]/40 text-[#005851]'
@@ -4955,22 +4974,76 @@ export default function ClientsPage() {
           </div>
         </div>
       ) : clients.length === 0 ? (
-        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-12 text-center">
-          <div className="w-16 h-16 bg-[#daf3f0] rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-[#005851]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-6 sm:p-10">
+          <div className="max-w-2xl mx-auto">
+            <h2 className="text-xl sm:text-2xl font-bold text-[#000000] mb-2">
+              Your first client onboarding
+            </h2>
+            <p className="text-[#444] text-sm sm:text-base leading-relaxed mb-6">
+              AFL works best at the end of a sale — built around a 90-second ritual you&apos;ll do with every new client before you hang up the phone.
+            </p>
+
+            <OnboardingWalkthroughPoster
+              onClick={() => {
+                captureEvent(ANALYTICS_EVENTS.ONBOARDING_EMPTY_STATE_CTA_CLICKED, {
+                  target: 'watch_walkthrough',
+                });
+                setWalkthroughOpen(true);
+              }}
+            />
+
+            <div className="space-y-5 mb-6">
+              <div>
+                <p className="font-semibold text-[#000000] mb-1">Watch the walkthrough first.</p>
+                <p className="text-[#444] text-sm leading-relaxed">
+                  I&apos;ll show you exactly what the ritual looks like end-to-end: how to pitch the app, what to say while they download, how to confirm they&apos;re in before the call ends.
+                </p>
+              </div>
+
+              <div>
+                <p className="font-semibold text-[#000000] mb-1">Then, on your next close, come back here.</p>
+                <p className="text-[#444] text-sm leading-relaxed">
+                  With the client still on the line, drop the application PDF — AFL extracts the policy, beneficiaries, and contact info, and queues the welcome text from your number. Send it, tell your client to check their phone, and walk them through downloading the app, allowing notifications, and tapping Activate. Don&apos;t hang up until they&apos;re in.
+                </p>
+              </div>
+
+              <div>
+                <p className="font-semibold text-[#000000] mb-1">While you&apos;ve still got them — ask for the referral.</p>
+                <p className="text-[#444] text-sm leading-relaxed">
+                  Fresh off the close, app installed, you&apos;ve just delivered something thoughtful. AFL makes the ask effortless from your dashboard. It feels like magic.
+                </p>
+              </div>
+            </div>
+
+            <p className="text-[#444] text-sm leading-relaxed mb-6">
+              That&apos;s the moment. Your contact card is in their phone, you have push notifications to reach them, and AFL takes the relationship from there — anniversaries, retention, referrals, the whole loop. The app is the hub.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => {
+                  captureEvent(ANALYTICS_EVENTS.ONBOARDING_EMPTY_STATE_CTA_CLICKED, {
+                    target: 'watch_walkthrough',
+                  });
+                  setWalkthroughOpen(true);
+                }}
+                className="flex-1 px-6 py-3 bg-white hover:bg-gray-50 text-[#0D4D4D] font-semibold rounded-[5px] border border-[#d0d0d0] transition-colors"
+              >
+                Watch the 90-sec walkthrough
+              </button>
+              <button
+                onClick={() => {
+                  captureEvent(ANALYTICS_EVENTS.ONBOARDING_EMPTY_STATE_CTA_CLICKED, {
+                    target: 'add_client',
+                  });
+                  handleOpenModal();
+                }}
+                className="flex-1 px-6 py-3 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors"
+              >
+                Add a client
+              </button>
+            </div>
           </div>
-          <h3 className="text-lg font-bold text-[#000000] mb-2">No clients yet</h3>
-          <p className="text-[#707070] text-sm mb-6 max-w-md mx-auto">
-            Add your first client to get started. Each client gets a unique code to connect with you through the app.
-          </p>
-          <button
-            onClick={handleOpenModal}
-            className="px-6 py-3 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors"
-          >
-            Add Your First Client
-          </button>
         </div>
       ) : filteredClients.length === 0 ? (
         <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-12 text-center">
@@ -5314,6 +5387,11 @@ export default function ClientsPage() {
                 {formError && !manualEntryExpanded && (
                   <p className="text-xs text-red-600">{formError}</p>
                 )}
+                {!clientApplicationUploading && !clientApplicationNote && !formError && (
+                  <p className="text-xs text-[#707070] leading-relaxed">
+                    AFL pulls policy + beneficiary data out of the PDF. Review every field before saving — your client is still on the phone.
+                  </p>
+                )}
                 <div className="border-t border-[#ececec] pt-4">
                   <button data-onboarding-target="clients-addflow-expand-manual" type="button" onClick={() => setManualEntryExpanded((prev) => !prev)} className="w-full px-4 py-2.5 bg-white hover:bg-gray-50 text-[#000000] font-semibold rounded-[5px] border border-[#d0d0d0] text-sm">
                     {manualEntryExpanded ? 'Hide Manual Entry' : 'Expand Manual Entry'}
@@ -5429,6 +5507,10 @@ export default function ClientsPage() {
                 </div>
               </div>
               <div className="p-6 space-y-4" data-onboarding-target="clients-send-welcome">
+                <div className="rounded-[5px] border border-[#45bcaa]/40 bg-[#daf3f0]/45 px-3 py-2.5 text-xs text-[#0D4D4D] leading-relaxed">
+                  <span className="font-semibold">You&apos;re still on the call.</span> This text goes from YOUR number — when it arrives, tell your client to open it and tap the link. Walk them through download, allowing notifications, and tapping Activate before you hang up.
+                </div>
+
                 <p className="text-sm text-[#444]">
                   <span className="font-semibold">Client:</span> {createdClientContext?.name || '—'}
                   <br />
@@ -6469,6 +6551,8 @@ export default function ClientsPage() {
           animation: fade-in 0.15s ease-out;
         }
       `}</style>
+
+      <OnboardingWalkthroughModal open={walkthroughOpen} onClose={() => setWalkthroughOpen(false)} />
     </div>
   );
 }
