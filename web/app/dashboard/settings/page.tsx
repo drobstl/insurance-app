@@ -14,6 +14,7 @@ import { auth, db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
+import { PRICING_TIERS, type PricingTierId } from '../../../lib/pricing';
 
 type Tab = 'profile' | 'branding' | 'referral-ai' | 'account';
 
@@ -1331,7 +1332,34 @@ export default function SettingsPage() {
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-[#707070] mt-1">$9.99/mo &middot; Unlimited clients &amp; policies</p>
+                {(() => {
+                  // Display the agent's actual tier and price. Stripe webhook
+                  // writes `membershipTier` on subscription.created/updated
+                  // (web/app/api/webhooks/stripe/route.ts).
+                  const tier = (agentProfile as Record<string, unknown>).membershipTier;
+                  if (typeof tier === 'string' && tier in PRICING_TIERS) {
+                    const info = PRICING_TIERS[tier as PricingTierId];
+                    return (
+                      <p className="text-sm text-[#707070] mt-1">
+                        {info.name} &middot; ${info.priceMonthly}/mo
+                      </p>
+                    );
+                  }
+                  // Founding members are on grandfathered legacy SKUs (archived
+                  // post-Track-C). Keep their existing display in place.
+                  if (agentProfile.isFoundingMember) {
+                    return (
+                      <p className="text-sm text-[#707070] mt-1">
+                        Founding Member &middot; grandfathered plan
+                      </p>
+                    );
+                  }
+                  return (
+                    <p className="text-sm text-[#707070] mt-1">
+                      Plan details &mdash; tap Manage for billing portal
+                    </p>
+                  );
+                })()}
               </div>
               {agentProfile.stripeCustomerId && (
                 <button
