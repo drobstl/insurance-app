@@ -41,6 +41,7 @@ import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 import {
   OnboardingWalkthroughModal,
   OnboardingWalkthroughPoster,
+  WALKTHROUGH_URLS,
 } from '../../../components/OnboardingWalkthroughEmbed';
 import { useGooglePicker } from '../../../hooks/useGooglePicker';
 import type { GooglePickerSelectedFile } from '../../../hooks/useGooglePicker';
@@ -4984,6 +4985,8 @@ export default function ClientsPage() {
             </p>
 
             <OnboardingWalkthroughPoster
+              videoUrl={WALKTHROUGH_URLS.onboarding}
+              label="Watch the 90-sec walkthrough"
               onClick={() => {
                 captureEvent(ANALYTICS_EVENTS.ONBOARDING_EMPTY_STATE_CTA_CLICKED, {
                   target: 'watch_walkthrough',
@@ -6552,7 +6555,13 @@ export default function ClientsPage() {
         }
       `}</style>
 
-      <OnboardingWalkthroughModal open={walkthroughOpen} onClose={() => setWalkthroughOpen(false)} />
+      <OnboardingWalkthroughModal
+        open={walkthroughOpen}
+        onClose={() => setWalkthroughOpen(false)}
+        videoUrl={WALKTHROUGH_URLS.onboarding}
+        title="Your first 90 seconds with AFL"
+        subtitle="Watch the full end-of-sale ritual end-to-end."
+      />
     </div>
   );
 }

@@ -2,14 +2,25 @@
 
 import { useEffect, useState } from 'react';
 
-const LOOM_URL = process.env.NEXT_PUBLIC_ONBOARDING_WALKTHROUGH_LOOM_URL;
+const ONBOARDING_URL = process.env.NEXT_PUBLIC_ONBOARDING_WALKTHROUGH_LOOM_URL;
+const BULK_IMPORT_URL = process.env.NEXT_PUBLIC_BULK_IMPORT_WALKTHROUGH_LOOM_URL;
 
-interface OnboardingWalkthroughEmbedProps {
+export const WALKTHROUGH_URLS = {
+  onboarding: ONBOARDING_URL,
+  bulkImport: BULK_IMPORT_URL,
+} as const;
+
+export type WalkthroughKey = keyof typeof WALKTHROUGH_URLS;
+
+interface ModalProps {
   open: boolean;
   onClose: () => void;
+  videoUrl?: string;
+  title: string;
+  subtitle?: string;
 }
 
-export function OnboardingWalkthroughModal({ open, onClose }: OnboardingWalkthroughEmbedProps) {
+export function OnboardingWalkthroughModal({ open, onClose, videoUrl, title, subtitle }: ModalProps) {
   useEffect(() => {
     if (!open) return;
     const handleKey = (e: KeyboardEvent) => {
@@ -38,8 +49,8 @@ export function OnboardingWalkthroughModal({ open, onClose }: OnboardingWalkthro
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <div>
-            <h3 className="text-lg font-bold text-[#0D4D4D]">Your first 90 seconds with AFL</h3>
-            <p className="text-sm text-[#707070]">Watch the loop end-to-end before you start.</p>
+            <h3 className="text-lg font-bold text-[#0D4D4D]">{title}</h3>
+            {subtitle && <p className="text-sm text-[#707070]">{subtitle}</p>}
           </div>
           <button
             onClick={onClose}
@@ -53,13 +64,13 @@ export function OnboardingWalkthroughModal({ open, onClose }: OnboardingWalkthro
         </div>
 
         <div className="relative bg-black" style={{ paddingBottom: '56.25%' }}>
-          {LOOM_URL ? (
+          {videoUrl ? (
             <iframe
-              src={LOOM_URL}
+              src={videoUrl}
               className="absolute inset-0 w-full h-full"
               frameBorder={0}
               allowFullScreen
-              title="AgentForLife 90-second walkthrough"
+              title={title}
             />
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0D4D4D] text-white px-6 text-center">
@@ -68,7 +79,7 @@ export function OnboardingWalkthroughModal({ open, onClose }: OnboardingWalkthro
               </svg>
               <p className="font-semibold mb-1">Walkthrough recording in progress.</p>
               <p className="text-sm text-white/75 max-w-md">
-                The 90-second video is being recorded — it&apos;ll show up here automatically once it&apos;s live. In the meantime, the three steps above cover the full loop.
+                This video is being recorded — it&apos;ll show up here automatically once it&apos;s live.
               </p>
             </div>
           )}
@@ -78,13 +89,17 @@ export function OnboardingWalkthroughModal({ open, onClose }: OnboardingWalkthro
   );
 }
 
-interface OnboardingWalkthroughPosterProps {
+interface PosterProps {
   onClick: () => void;
+  videoUrl?: string;
+  label: string;
+  placeholderLabel?: string;
+  aspectPercent?: number;
 }
 
-export function OnboardingWalkthroughPoster({ onClick }: OnboardingWalkthroughPosterProps) {
+export function OnboardingWalkthroughPoster({ onClick, videoUrl, label, placeholderLabel, aspectPercent = 40 }: PosterProps) {
   const [thumbError, setThumbError] = useState(false);
-  const loomId = LOOM_URL ? extractLoomId(LOOM_URL) : null;
+  const loomId = videoUrl ? extractLoomId(videoUrl) : null;
   const thumbnailUrl = loomId && !thumbError ? `https://cdn.loom.com/sessions/thumbnails/${loomId}-with-play.gif` : null;
 
   return (
@@ -92,8 +107,8 @@ export function OnboardingWalkthroughPoster({ onClick }: OnboardingWalkthroughPo
       type="button"
       onClick={onClick}
       className="group relative w-full mb-6 rounded-[5px] overflow-hidden border border-[#d0d0d0] bg-[#0D4D4D] hover:border-[#45bcaa] transition-colors"
-      style={{ paddingBottom: '40%' }}
-      aria-label="Watch the 90-second walkthrough"
+      style={{ paddingBottom: `${aspectPercent}%` }}
+      aria-label={label}
     >
       <div className="absolute inset-0 flex items-center justify-center">
         {thumbnailUrl && (
@@ -112,7 +127,7 @@ export function OnboardingWalkthroughPoster({ onClick }: OnboardingWalkthroughPo
             </svg>
           </div>
           <span className="text-sm font-semibold">
-            {LOOM_URL ? 'Watch the 90-sec walkthrough' : 'Walkthrough coming soon'}
+            {videoUrl ? label : (placeholderLabel ?? 'Walkthrough coming soon')}
           </span>
         </div>
       </div>

@@ -2,7 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import LoomVideoModal from '../../../components/LoomVideoModal';
+import {
+  OnboardingWalkthroughModal,
+  WALKTHROUGH_URLS,
+} from '../../../components/OnboardingWalkthroughEmbed';
 
 const FAQ_ITEMS = [
   {
@@ -12,7 +15,12 @@ const FAQ_ITEMS = [
   },
   {
     question: 'How do I add a client?',
-    answer: 'Go to Clients and click "Add Client" (or import a CSV). Each client gets a unique code. Use the Share button to text them the app download link.',
+    answer: 'Best at the end of a sale, while you’re still on the phone. Drop the application PDF in Clients — AFL extracts the data — then send the welcome from your personal number and walk your client through downloading the app, allowing notifications, and tapping Activate. Don’t hang up until they’re in. Watch the 90-second walkthrough in Video Tutorials below.',
+    link: { href: '/dashboard/clients', label: 'Go to Clients' },
+  },
+  {
+    question: 'How do I bring my existing book into AFL?',
+    answer: 'Use Bulk Import. Go to Clients, click Bulk Import, and upload a CSV or a folder of PDF applications. AFL parses and queues them up, then drips up to 15 welcome action items per day into your queue so the rollout stays personal. Watch the Bulk Import walkthrough in Video Tutorials below.',
     link: { href: '/dashboard/clients', label: 'Go to Clients' },
   },
   {
@@ -42,8 +50,36 @@ const FAQ_ITEMS = [
   },
 ];
 
+type WalkthroughId = 'onboarding' | 'bulkImport';
+
+const WALKTHROUGHS: {
+  id: WalkthroughId;
+  title: string;
+  description: string;
+  duration: string;
+  modalTitle: string;
+  modalSubtitle: string;
+}[] = [
+  {
+    id: 'onboarding',
+    title: 'The 90-second end-of-sale ritual',
+    description: 'What to do with every new client right after the close — drop the PDF, send the welcome, walk them through download → notifications → Activate live on the call, ask for the referral.',
+    duration: '~90 sec',
+    modalTitle: 'Your first 90 seconds with AFL',
+    modalSubtitle: 'Watch the full end-of-sale ritual end-to-end.',
+  },
+  {
+    id: 'bulkImport',
+    title: 'Bulk Import — migrate your existing book',
+    description: 'One-time ceremony for bringing your existing book into AFL. CSV or PDF upload, daily drip pacing, what your queue looks like, and how to work through the first batch.',
+    duration: '~2 min',
+    modalTitle: 'Bulk Import walkthrough',
+    modalSubtitle: 'How to migrate your existing book into AFL.',
+  },
+];
+
 export default function ResourcesPage() {
-  const [showWorkflowVideo, setShowWorkflowVideo] = useState(false);
+  const [activeWalkthrough, setActiveWalkthrough] = useState<WalkthroughId | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   return (
@@ -97,24 +133,41 @@ export default function ResourcesPage() {
           <h2 className="text-sm font-semibold text-[#000000]">Video Tutorials</h2>
         </div>
         <div className="divide-y divide-[#d0d0d0]">
-          <button
-            onClick={() => setShowWorkflowVideo(true)}
-            className="flex items-center gap-4 px-4 py-3 hover:bg-[#f8f8f8] transition-colors w-full text-left"
-          >
-            <div className="w-10 h-10 rounded-[5px] bg-gradient-to-br from-[#005851] to-[#0A3D3D] flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-semibold text-[#000000]">How Does This Fit My Workflow?</h3>
-              <p className="text-[#707070] text-xs">See how AgentForLife fits into your daily routine</p>
-            </div>
-            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-medium rounded-[5px] transition-colors text-xs flex-shrink-0">
-              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-              Watch
-            </span>
-          </button>
+          {WALKTHROUGHS.map((w) => {
+            const url = WALKTHROUGH_URLS[w.id];
+            const isAvailable = Boolean(url);
+            return (
+              <button
+                key={w.id}
+                onClick={() => setActiveWalkthrough(w.id)}
+                className="flex items-start gap-4 px-4 py-4 hover:bg-[#f8f8f8] transition-colors w-full text-left"
+              >
+                <div className="w-10 h-10 rounded-[5px] bg-gradient-to-br from-[#005851] to-[#0A3D3D] flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-[#45bcaa]" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm font-semibold text-[#000000]">{w.title}</h3>
+                    <span className="text-[10px] uppercase tracking-wide font-semibold text-[#0D4D4D] bg-[#daf3f0] px-1.5 py-0.5 rounded">
+                      {w.duration}
+                    </span>
+                    {!isAvailable && (
+                      <span className="text-[10px] uppercase tracking-wide font-semibold text-[#8a5a00] bg-[#fff7db] border border-[#f5c451]/40 px-1.5 py-0.5 rounded">
+                        Coming soon
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[#707070] text-xs mt-1 leading-relaxed">{w.description}</p>
+                </div>
+                <span className="flex items-center gap-1.5 px-3 py-1.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-medium rounded-[5px] transition-colors text-xs flex-shrink-0">
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                  Watch
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -163,7 +216,16 @@ export default function ResourcesPage() {
         </div>
       </div>
 
-      <LoomVideoModal isOpen={showWorkflowVideo} onClose={() => setShowWorkflowVideo(false)} videoUrl="https://www.loom.com/embed/88422effb7ca4cdc8ae88646490fed00" />
+      {WALKTHROUGHS.map((w) => (
+        <OnboardingWalkthroughModal
+          key={w.id}
+          open={activeWalkthrough === w.id}
+          onClose={() => setActiveWalkthrough(null)}
+          videoUrl={WALKTHROUGH_URLS[w.id]}
+          title={w.modalTitle}
+          subtitle={w.modalSubtitle}
+        />
+      ))}
     </div>
   );
 }
