@@ -91,10 +91,13 @@ export async function releaseDripForAgent(params: {
     };
   }
 
+  // No orderBy — that would require a composite (bulkImportPendingDrip,
+  // createdAt) index. We don't need strict chronological order; the
+  // pool just needs to drain over successive passes. Default doc-name
+  // ordering is fine; the `.limit()` keeps each pass to the daily cap.
   const candidatesSnap = await agentRef
     .collection('clients')
     .where('bulkImportPendingDrip', '==', true)
-    .orderBy('createdAt', 'asc')
     .limit(remainingSlots)
     .get();
 
