@@ -937,6 +937,11 @@ export default function ClientsPage() {
   const [clientApplicationUploading, setClientApplicationUploading] = useState(false);
   const [clientApplicationNote, setClientApplicationNote] = useState<string | null>(null);
   const [clientApplicationShortPdfWarning, setClientApplicationShortPdfWarning] = useState<string | null>(null);
+  // Sticky flag set when a recent extraction attempt failed with an
+  // Anthropic upstream-overload signal (HTTP 529 / "overloaded_error").
+  // Surfaces a banner steering the agent to manual entry. Auto-clears
+  // after 10 minutes via the effect below, or on next successful upload.
+  const [extractionOverloadedAt, setExtractionOverloadedAt] = useState<number | null>(null);
   const [clientApplicationType, setClientApplicationType] = useState<ApplicationFormType>(DEFAULT_APPLICATION_TYPE);
   const [clientParseProgress, setClientParseProgress] = useState<ParseProgressState | null>(null);
   const [policyApplicationUploading, setPolicyApplicationUploading] = useState(false);
@@ -1556,6 +1561,17 @@ export default function ClientsPage() {
     }, lingerMs);
     return () => window.clearTimeout(timeoutId);
   }, [addFlowToast]);
+
+  // Auto-clear the upstream-overload banner 10 minutes after it fires.
+  // Anthropic overloads typically clear within that window; the agent
+  // should get a fresh shot at extraction once it expires.
+  useEffect(() => {
+    if (extractionOverloadedAt == null) return;
+    const timeoutId = window.setTimeout(() => {
+      setExtractionOverloadedAt(null);
+    }, 10 * 60 * 1000);
+    return () => window.clearTimeout(timeoutId);
+  }, [extractionOverloadedAt]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -2650,8 +2666,24 @@ export default function ClientsPage() {
 
         if (statusBody.job.status === 'failed') {
           const code = statusBody.job.error?.code || '';
+          const errMessage = (statusBody.job.error?.message || '').toLowerCase();
           if (code === 'DOCUMENT_NOT_APPLICATION') {
             throw new Error('This file was not recognized as an insurance application. Please upload an application PDF.');
+          }
+          // Detect Anthropic upstream overload (HTTP 529 / "overloaded_error").
+          // The direct parser fallback also hits Anthropic, so falling back
+          // would only delay the same failure. Surface a clear message and
+          // steer the agent toward manual entry instead.
+          const isUpstreamOverloaded =
+            errMessage.includes('overloaded') ||
+            errMessage.includes('529') ||
+            errMessage.includes('rate limit');
+          if (isUpstreamOverloaded) {
+            const err = new Error(
+              'AFL’s extraction service is temporarily overloaded (Anthropic upstream). Try again in a few minutes, or use Expand Manual Entry below to add the client manually.',
+            );
+            (err as Error & { isUpstreamOverloaded?: boolean }).isUpstreamOverloaded = true;
+            throw err;
           }
           if (code === 'INTERNAL_ERROR' || code === 'CLAUDE_SCHEMA_INVALID') {
             return runDirectParseFallback();
@@ -2721,7 +2753,15 @@ export default function ClientsPage() {
       handleClientApplicationExtracted(parsed.data);
       setClientApplicationNote(parsed.note || null);
       setClientApplicationShortPdfWarning(parsed.shortPdfWarning || null);
+      // Success — clear any sticky overload banner from a previous attempt.
+      setExtractionOverloadedAt(null);
     } catch (err) {
+      const isOverloaded =
+        err instanceof Error &&
+        (err as Error & { isUpstreamOverloaded?: boolean }).isUpstreamOverloaded === true;
+      if (isOverloaded) {
+        setExtractionOverloadedAt(Date.now());
+      }
       setFormError(err instanceof Error ? err.message : 'Failed to parse application PDF.');
     } finally {
       clientApplicationAbortRef.current = null;
@@ -5402,6 +5442,26 @@ export default function ClientsPage() {
                 </button>
               </div>
               <div className="p-6 space-y-4">
+                {extractionOverloadedAt !== null && (
+                  <div className="rounded-[5px] border border-amber-300/60 bg-amber-50 px-3 py-2.5 text-xs text-amber-900 leading-relaxed flex items-start gap-2">
+                    <svg className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86l-8.5 14.5A1 1 0 002.64 20h16.72a1 1 0 00.85-1.64l-8.5-14.5a1 1 0 00-1.72 0z" />
+                    </svg>
+                    <div className="flex-1">
+                      <span className="font-semibold">Extraction service temporarily overloaded.</span> AFL&apos;s upstream AI provider is returning capacity errors right now. Manual entry below is the fastest path — or retry the PDF in a few minutes.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setExtractionOverloadedAt(null)}
+                      className="text-amber-700 hover:text-amber-900 shrink-0"
+                      aria-label="Dismiss"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-[#000000] mb-1">Application Type</label>
                   <select
