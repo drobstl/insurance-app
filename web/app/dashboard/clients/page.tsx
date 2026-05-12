@@ -766,10 +766,13 @@ function mapExtractedApplicationToPolicyFormData(data: ExtractedApplicationData)
       mapped.otherCarrier = data.insuranceCompany;
     }
   }
-  if (data.policyOwner) mapped.policyOwner = data.policyOwner;
+  // Carrier-printed names commonly arrive in "Last, First [Middle]"
+  // order. Normalize here at the extraction boundary so the form +
+  // Firestore both store the natural "First [Middle] Last" form.
+  if (data.policyOwner) mapped.policyOwner = formatClientDisplayName(data.policyOwner);
   if (data.beneficiaries && data.beneficiaries.length > 0) {
     mapped.beneficiaries = data.beneficiaries.map((b) => ({
-      name: b.name,
+      name: formatClientDisplayName(b.name),
       type: b.type,
       relationship: b.relationship || '',
       percentage: b.percentage,
@@ -2033,7 +2036,10 @@ export default function ClientsPage() {
     setSubmitting(true);
     try {
       const editedExtractedCoreFields = Boolean(pendingClientApplicationData) && (
-        formData.name.trim() !== (pendingClientApplicationData?.insuredName || '').trim()
+        // Compare against the normalized name (same transform we applied
+        // when populating the form) so the "Last, First" → "First Last"
+        // flip doesn't read as an agent correction.
+        formData.name.trim() !== formatClientDisplayName(pendingClientApplicationData?.insuredName).trim()
         || formData.phone.trim() !== (pendingClientApplicationData?.insuredPhone || '').trim()
         || formData.email.trim() !== (pendingClientApplicationData?.insuredEmail || '').trim()
         || formData.dateOfBirth !== (pendingClientApplicationData?.insuredDateOfBirth || '')
@@ -2414,9 +2420,14 @@ export default function ClientsPage() {
     setPendingClientApplicationData(data);
     const mappedPolicy = mapExtractedApplicationToPolicyFormData(data);
     const fromPdf = resolveClientSinceFromExtraction(data);
+    // Normalize the insured name at the extraction boundary so the
+    // review form (and everything downstream — Firestore, list, modal)
+    // see "First [Middle] Last" instead of the carrier-printed
+    // "Last, First [Middle]" form.
+    const normalizedInsuredName = formatClientDisplayName(data.insuredName);
     setFormData((prev) => ({
       ...prev,
-      name: data.insuredName || prev.name,
+      name: normalizedInsuredName || prev.name,
       email: data.insuredEmail || prev.email,
       phone: data.insuredPhone || prev.phone,
       dateOfBirth: data.insuredDateOfBirth || prev.dateOfBirth,
