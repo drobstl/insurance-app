@@ -8,6 +8,7 @@ import {
   completeActionItem,
 } from './action-item-store';
 import { resolveClientLanguage, type SupportedLanguage } from './client-language';
+import { extractFirstName } from './name-utils';
 import { upsertThreadFromOutbound } from './conversation-thread-registry';
 import { createChat, LinqOutboundDisabledError } from './linq';
 import { isValidE164 } from './phone';
@@ -280,7 +281,11 @@ export async function handleWelcomeActivationInbound(params: {
   const language: SupportedLanguage = resolveClientLanguage(ctx.clientData.preferredLanguage);
   const clientName =
     typeof ctx.clientData.name === 'string' ? ctx.clientData.name : '';
-  const clientFirstName = clientName.split(/\s+/)[0] || '';
+  // Use the shared extractFirstName helper — handles "Last, First" PDF
+  // extraction format (common on insurance applications) in addition to
+  // standard "First Last". Raw .split(/\s+/)[0] would return "Smith,"
+  // when the stored name is "Smith, John".
+  const clientFirstName = extractFirstName(clientName);
   const agentName = typeof ctx.agentData.name === 'string' ? ctx.agentData.name : '';
 
   const firstResponseBody = buildLinqFirstResponse({
