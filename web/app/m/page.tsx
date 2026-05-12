@@ -493,7 +493,7 @@ export default function MobileLandingV2() {
       {/* ═══════════════════════════════════════════════════
          WELCOME FLOW — Stop being the agent they forgot
          ═══════════════════════════════════════════════════ */}
-      <section className="relative px-5 py-16 overflow-hidden" style={{ background: '#0D4D4D radial-gradient(ellipse 400px 400px at 50% 0%, rgba(61,214,195,0.14), transparent 70%), radial-gradient(ellipse 300px 300px at 50% 100%, rgba(253,204,2,0.06), transparent 70%)' }}>
+      <section className="relative px-5 py-20 overflow-hidden" style={{ background: '#0D4D4D radial-gradient(ellipse 400px 400px at 50% 0%, rgba(61,214,195,0.14), transparent 70%), radial-gradient(ellipse 300px 300px at 50% 100%, rgba(253,204,2,0.06), transparent 70%)' }}>
         <div className="absolute inset-0 opacity-[0.04] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
         <motion.div
           initial={{ opacity: 0, y: 24 }}
@@ -501,64 +501,25 @@ export default function MobileLandingV2() {
           viewport={{ once: true, margin: '-40px' }}
           transition={{ duration: 0.6 }}
           style={{ willChange: 'transform, opacity' }}
-          className="relative text-center mb-8"
+          className="relative text-center"
         >
-          <p className="text-[#3DD6C3] font-bold text-[10px] uppercase tracking-[0.2em] mb-4">How your book wakes up</p>
-          <h2 className="text-[1.85rem] font-extrabold text-white leading-[1.1] mb-4">
+          <p className="text-[#3DD6C3] font-bold text-[10px] uppercase tracking-[0.25em] mb-4">Do they remember you?</p>
+          <h2 className="text-[1.85rem] font-extrabold text-white leading-[1.1] mb-5">
             Stop being the agent <span className="text-[#fdcc02]">they forgot</span>.
           </h2>
-          <p className="text-white/70 text-[14px] leading-relaxed max-w-[320px] mx-auto">
-            Half your book can&apos;t name you. To them you&apos;re &quot;the Mortgage Protection person from 2022.&quot;
+          <p className="text-white/70 text-[14.5px] leading-relaxed mb-7 max-w-[320px] mx-auto">
+            Half your book can&apos;t name you. To them, you&apos;re &quot;the Mortgage Protection person from 2022.&quot;
           </p>
-        </motion.div>
-
-        {/* What's slipping */}
-        <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: 0.1 }} className="relative mb-3">
-          <p className="text-red-300/80 font-bold text-[9px] uppercase tracking-[0.25em] text-center mb-3">Without AFL · what&apos;s slipping</p>
-          <div className="grid grid-cols-2 gap-2.5">
-            {[
-              { title: 'Chargebacks', body: "They don't recognize the charge. They cancel." },
-              { title: 'Lost referrals', body: "The warm leads they'd send — if they remembered you." },
-              { title: 'Lost rewrites', body: 'Renewals go back to the carrier, not back to you.' },
-              { title: 'Lost loyalty', body: 'Next coverage purchase goes to a stranger.' },
-            ].map((card) => (
-              <div key={card.title} className="rounded-xl p-3 bg-red-500/[0.06] border border-red-400/15">
-                <p className="text-red-300 font-bold text-[11px] mb-1">{card.title}</p>
-                <p className="text-white/60 text-[11.5px] leading-snug">{card.body}</p>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Pivot */}
-        <motion.p initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: 0.2 }} className="relative text-center text-white text-[15px] font-semibold my-7 max-w-[320px] mx-auto leading-snug">
-          AFL puts your own branded app on every client&apos;s phone — and keeps the relationship warm automatically.
-        </motion.p>
-
-        {/* What changes */}
-        <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: 0.3 }} className="relative mb-8">
-          <p className="text-[#3DD6C3] font-bold text-[9px] uppercase tracking-[0.25em] text-center mb-3">With AFL · what changes</p>
-          <div className="grid grid-cols-2 gap-2.5">
-            {[
-              { title: 'Saved as a contact', body: 'Your name, photo, and number live in their phone.' },
-              { title: 'Always warm', body: 'AFL keeps the relationship alive while you sleep.' },
-              { title: 'Remembered & trusted', body: 'You become the agent they refer their friends to.' },
-              { title: 'Compounding income', body: 'Every sale pays again. Twice. Three times. Year after year.' },
-            ].map((card) => (
-              <div key={card.title} className="rounded-xl p-3 bg-[#3DD6C3]/10 border border-[#3DD6C3]/25">
-                <p className="text-[#3DD6C3] font-bold text-[11px] mb-1">{card.title}</p>
-                <p className="text-white/75 text-[11.5px] leading-snug">{card.body}</p>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Closer */}
-        <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: 0.4 }} className="relative text-center">
+          <p className="text-white text-[16px] font-semibold leading-snug mb-5 max-w-[320px] mx-auto">
+            AFL puts your branded app on every client&apos;s phone. Your name. Your photo. Your number.
+          </p>
+          <p className="text-white/80 text-[14px] leading-relaxed mb-8 max-w-[320px] mx-auto">
+            You stop being a stranger and become the agent they remember, refer, and trust.
+          </p>
           <div className="inline-block px-5 py-4 bg-white/[0.06] border-2 border-[#3DD6C3]/30 rounded-2xl max-w-[340px]">
-            <p className="text-white text-[14px] font-bold leading-snug">
+            <p className="text-white text-[14.5px] font-bold leading-snug">
               Most agents have a book of business.<br />
-              <span className="text-[#3DD6C3]">AFL agents have a book that doesn&apos;t leak — and compounds their income from leads they already won.</span>
+              <span className="text-[#3DD6C3]">AFL agents have a book that compounds.</span>
             </p>
           </div>
         </motion.div>
