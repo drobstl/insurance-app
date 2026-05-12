@@ -5,6 +5,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { resolveClientLanguage } from '../../../../lib/client-language';
+import { releaseDripForAgent } from '../../../../lib/bulk-import-drip';
 
 export const maxDuration = 60;
 
@@ -417,10 +418,39 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Immediately release the first batch (capped at 15/UTC-day) into
+    // the agent's welcome action item queue so they see welcomes
+    // appear without waiting for the next daily cron. Wrapped in a
+    // try/catch — if drip release fails for any reason, the import
+    // itself still succeeded; the daily cron at 1 PM UTC will pick up
+    // whatever remains.
+    let dripReleased = 0;
+    let dripPendingAfter = 0;
+    let dripSameDayCapReached = false;
+    try {
+      const dripOutcome = await releaseDripForAgent({
+        db,
+        agentId: uid,
+      });
+      dripReleased = dripOutcome.released;
+      dripPendingAfter = dripOutcome.pendingAfter;
+      dripSameDayCapReached = dripOutcome.sameDayCapReached;
+    } catch (err) {
+      console.error('[import-batch] immediate drip release failed (non-blocking)', {
+        agentId: uid,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
     return NextResponse.json({
       created,
       totalPolicies,
       warnings: allWarnings.length > 0 ? allWarnings : undefined,
+      drip: {
+        releasedNow: dripReleased,
+        pendingForFutureDays: dripPendingAfter,
+        sameDayCapReached: dripSameDayCapReached,
+      },
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
