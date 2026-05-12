@@ -908,7 +908,7 @@ export default function ClientsPage() {
     phone: string;
   } | null>(null);
   const [addFlowToast, setAddFlowToast] = useState<{ message: string; body?: string; celebrate: boolean } | null>(null);
-  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
+  const [activeWalkthrough, setActiveWalkthrough] = useState<'onboarding' | 'bulkImport' | null>(null);
 
   // ── Delete client state ──
   const [deleteConfirmClient, setDeleteConfirmClient] = useState<Client | null>(null);
@@ -5070,7 +5070,7 @@ export default function ClientsPage() {
         </div>
       ) : clients.length === 0 ? (
         <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-6 sm:p-10">
-          <div className="max-w-2xl mx-auto">
+          <div className="max-w-3xl mx-auto">
             <h2 className="text-xl sm:text-2xl font-bold text-[#000000] mb-2">
               Your first client onboarding
             </h2>
@@ -5078,16 +5078,43 @@ export default function ClientsPage() {
               AFL works best at the end of a sale — built around a 90-second ritual you&apos;ll do with every new client before you hang up the phone.
             </p>
 
-            <OnboardingWalkthroughPoster
-              videoUrl={WALKTHROUGH_URLS.onboarding}
-              label="Watch the 90-sec walkthrough"
-              onClick={() => {
-                captureEvent(ANALYTICS_EVENTS.ONBOARDING_EMPTY_STATE_CTA_CLICKED, {
-                  target: 'watch_walkthrough',
-                });
-                setWalkthroughOpen(true);
-              }}
-            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
+              <div>
+                <OnboardingWalkthroughPoster
+                  videoUrl={WALKTHROUGH_URLS.onboarding}
+                  label="Watch (~90 sec)"
+                  onClick={() => {
+                    captureEvent(ANALYTICS_EVENTS.ONBOARDING_EMPTY_STATE_CTA_CLICKED, {
+                      target: 'watch_walkthrough',
+                    });
+                    setActiveWalkthrough('onboarding');
+                  }}
+                  aspectPercent={56.25}
+                />
+                <p className="text-sm font-semibold text-[#000000] -mt-3">The 90-second ritual</p>
+                <p className="text-xs text-[#707070] leading-relaxed mt-0.5">
+                  Watch this first. What to do at the end of every sale — drop the PDF, send the welcome from your number, walk your client through download → notifications → Activate, ask for the referral.
+                </p>
+              </div>
+              <div>
+                <OnboardingWalkthroughPoster
+                  videoUrl={WALKTHROUGH_URLS.bulkImport}
+                  label="Watch (~2 min)"
+                  placeholderLabel="Bulk import — coming soon"
+                  onClick={() => {
+                    captureEvent(ANALYTICS_EVENTS.ONBOARDING_EMPTY_STATE_CTA_CLICKED, {
+                      target: 'watch_walkthrough',
+                    });
+                    setActiveWalkthrough('bulkImport');
+                  }}
+                  aspectPercent={56.25}
+                />
+                <p className="text-sm font-semibold text-[#000000] -mt-3">Bulk import ceremony</p>
+                <p className="text-xs text-[#707070] leading-relaxed mt-0.5">
+                  Migrating your existing book of business into AFL. One-time setup — AFL drips up to 15 welcome action items per day so each client still gets a personal heads-up.
+                </p>
+              </div>
+            </div>
 
             <div className="space-y-5 mb-6">
               <div>
@@ -5118,15 +5145,10 @@ export default function ClientsPage() {
 
             <div className="flex flex-col sm:flex-row gap-3">
               <button
-                onClick={() => {
-                  captureEvent(ANALYTICS_EVENTS.ONBOARDING_EMPTY_STATE_CTA_CLICKED, {
-                    target: 'watch_walkthrough',
-                  });
-                  setWalkthroughOpen(true);
-                }}
+                onClick={() => setIsImportModalOpen(true)}
                 className="flex-1 px-6 py-3 bg-white hover:bg-gray-50 text-[#0D4D4D] font-semibold rounded-[5px] border border-[#d0d0d0] transition-colors"
               >
-                Watch the 90-sec walkthrough
+                Bulk import
               </button>
               <button
                 onClick={() => {
@@ -6670,11 +6692,18 @@ export default function ClientsPage() {
       `}</style>
 
       <OnboardingWalkthroughModal
-        open={walkthroughOpen}
-        onClose={() => setWalkthroughOpen(false)}
+        open={activeWalkthrough === 'onboarding'}
+        onClose={() => setActiveWalkthrough(null)}
         videoUrl={WALKTHROUGH_URLS.onboarding}
         title="Your first 90 seconds with AFL"
         subtitle="Watch the full end-of-sale ritual end-to-end."
+      />
+      <OnboardingWalkthroughModal
+        open={activeWalkthrough === 'bulkImport'}
+        onClose={() => setActiveWalkthrough(null)}
+        videoUrl={WALKTHROUGH_URLS.bulkImport}
+        title="Bulk Import walkthrough"
+        subtitle="How to migrate your existing book into AFL."
       />
     </div>
   );
