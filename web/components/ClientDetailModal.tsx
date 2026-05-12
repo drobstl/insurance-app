@@ -11,6 +11,7 @@ import {
   type HolidayCardKey,
   type SupportedLanguage,
 } from '../lib/client-language';
+import { formatClientDisplayName } from '../lib/name-utils';
 
 interface Client {
   id: string;
@@ -750,10 +751,10 @@ export default function ClientDetailModal({
         <div className="p-6 border-b border-gray-200 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 bg-gradient-to-br from-[#005851] to-[#0A3D3D] rounded-full flex items-center justify-center text-white font-bold text-xl">
-              {client?.name.charAt(0).toUpperCase()}
+              {formatClientDisplayName(client?.name).charAt(0).toUpperCase()}
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-[#000000]">{client?.name}</h2>
+              <h2 className="text-2xl font-bold text-[#000000]">{formatClientDisplayName(client?.name)}</h2>
               {policies.length > 0 && statusSummary && (
                 <p className="text-gray-500 text-sm mt-0.5">{statusSummary}</p>
               )}

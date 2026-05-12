@@ -46,7 +46,7 @@ import {
 import { useGooglePicker } from '../../../hooks/useGooglePicker';
 import type { GooglePickerSelectedFile } from '../../../hooks/useGooglePicker';
 import { buildWelcomeMessage, resolveClientLanguage, type SupportedLanguage } from '../../../lib/client-language';
-import { extractFirstName } from '../../../lib/name-utils';
+import { extractFirstName, formatClientDisplayName } from '../../../lib/name-utils';
 import { fireConfetti } from '../../../lib/confetti';
 import {
   renderFirstPdfPagesToJpegs,
@@ -1968,6 +1968,12 @@ export default function ClientsPage() {
         effectiveDate: addFlowPolicyForm.effectiveDate || null,
         status: 'Active',
       };
+      if (addFlowPolicyForm.policyType === 'Mortgage Protection') {
+        policyData.amountOfProtection = addFlowPolicyForm.amountOfProtection
+          ? parseFloat(addFlowPolicyForm.amountOfProtection)
+          : 0;
+        policyData.protectionUnit = addFlowPolicyForm.protectionUnit;
+      }
       const token = await user.getIdToken();
       const createdPolicyId = await apiCreatePolicy(token, docRef.id, policyData);
       await syncBeneficiaryCodeIndex(
@@ -3997,6 +4003,37 @@ export default function ClientsPage() {
           />
         </div>
       </div>
+
+      {addFlowPolicyForm.policyType === 'Mortgage Protection' && (
+        <div className="bg-[#44bbaa]/5 border border-[#45bcaa]/30 rounded-lg p-4">
+          <p className="text-sm font-semibold text-[#005851] mb-1">Coverage Duration</p>
+          <p className="text-xs text-[#707070] mb-3">How long is the client covered? Set this manually — AFL doesn&apos;t auto-extract it from the PDF yet. Shows prominently in the client&apos;s app.</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-[#707070] mb-1">Amount of Protection</label>
+              <input
+                type="number"
+                value={addFlowPolicyForm.amountOfProtection}
+                onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, amountOfProtection: e.target.value }))}
+                placeholder="30"
+                className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[#707070] mb-1">Unit</label>
+              <select
+                value={addFlowPolicyForm.protectionUnit}
+                onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, protectionUnit: e.target.value }))}
+                className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm"
+              >
+                <option value="years">Years</option>
+                <option value="months">Months</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div>
         <div className="flex items-center justify-between mb-2">
           <label className="text-sm font-medium text-[#000000]">Beneficiaries</label>
@@ -5093,11 +5130,11 @@ export default function ClientsPage() {
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 bg-[#005851] rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0">
-                          {client.name.charAt(0).toUpperCase()}
+                          {formatClientDisplayName(client.name).charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 min-w-0">
-                            <span className="text-sm font-medium text-[#000000] block truncate">{client.name}</span>
+                            <span className="text-sm font-medium text-[#000000] block truncate">{formatClientDisplayName(client.name)}</span>
                             {upcomingAnniversaryCount > 0 && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[10px] rounded-full font-semibold shrink-0">
                                 <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5206,11 +5243,11 @@ export default function ClientsPage() {
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#005851] rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
-                    {client.name.charAt(0).toUpperCase()}
+                    {formatClientDisplayName(client.name).charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-[#000000] truncate">{client.name}</p>
+                      <p className="text-sm font-semibold text-[#000000] truncate">{formatClientDisplayName(client.name)}</p>
                       {upcomingAnniversaryCount > 0 && (
                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[10px] rounded-full font-semibold shrink-0">
                           <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5760,7 +5797,7 @@ export default function ClientsPage() {
                 <h3 className="text-xl font-bold text-[#000000]">
                   {editingPolicy ? 'Edit Policy' : 'Add Policy'}
                 </h3>
-                <p className="text-gray-500 text-sm">For {selectedClient.name}</p>
+                <p className="text-gray-500 text-sm">For {formatClientDisplayName(selectedClient.name)}</p>
               </div>
               <button
                 onClick={handleClosePolicyModal}
