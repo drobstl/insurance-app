@@ -1968,7 +1968,10 @@ export default function ClientsPage() {
         effectiveDate: addFlowPolicyForm.effectiveDate || null,
         status: 'Active',
       };
-      if (addFlowPolicyForm.policyType === 'Mortgage Protection') {
+      if (
+        addFlowPolicyForm.policyType === 'Mortgage Protection' ||
+        addFlowPolicyForm.policyType === 'Whole Life'
+      ) {
         policyData.amountOfProtection = addFlowPolicyForm.amountOfProtection
           ? parseFloat(addFlowPolicyForm.amountOfProtection)
           : 0;
@@ -2335,7 +2338,10 @@ export default function ClientsPage() {
         status: policyFormData.status,
       };
 
-      if (policyFormData.policyType === 'Mortgage Protection') {
+      if (
+        policyFormData.policyType === 'Mortgage Protection' ||
+        policyFormData.policyType === 'Whole Life'
+      ) {
         policyPayload.amountOfProtection = policyFormData.amountOfProtection
           ? parseFloat(policyFormData.amountOfProtection)
           : 0;
@@ -4004,7 +4010,7 @@ export default function ClientsPage() {
         </div>
       </div>
 
-      {addFlowPolicyForm.policyType === 'Mortgage Protection' && (
+      {(addFlowPolicyForm.policyType === 'Mortgage Protection' || addFlowPolicyForm.policyType === 'Whole Life') && (
         <div className="bg-[#44bbaa]/5 border border-[#45bcaa]/30 rounded-lg p-4">
           <p className="text-sm font-semibold text-[#005851] mb-1">Coverage Duration</p>
           <p className="text-xs text-[#707070] mb-3">How long is the client covered? Set this manually — AFL doesn&apos;t auto-extract it from the PDF yet. Shows prominently in the client&apos;s app.</p>
@@ -6136,8 +6142,8 @@ export default function ClientsPage() {
                 </div>
               )}
 
-              {/* Mortgage Protection fields */}
-              {policyFormData.policyType === 'Mortgage Protection' && (
+              {/* Mortgage Protection + Whole Life coverage duration */}
+              {(policyFormData.policyType === 'Mortgage Protection' || policyFormData.policyType === 'Whole Life') && (
                 <div className="bg-[#44bbaa]/5 border border-[#45bcaa]/30 rounded-lg p-4">
                   <p className="text-sm font-semibold text-[#005851] mb-1">Coverage Duration <span className="text-red-500">*</span></p>
                   <p className="text-xs text-[#707070] mb-3">How long is the client covered? This displays prominently in their app.</p>

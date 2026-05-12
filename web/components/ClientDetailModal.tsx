@@ -1537,7 +1537,7 @@ export default function ClientDetailModal({
                           <p className="text-[#000000]">{formatDate(policy.renewalDate)}</p>
                         </div>
                       )}
-                      {policy.policyType === 'Mortgage Protection' ? (
+                      {(policy.policyType === 'Mortgage Protection' || policy.policyType === 'Whole Life') ? (
                         <>
                           {policy.amountOfProtection ? (
                             <div className="col-span-2 bg-[#44bbaa]/10 rounded-lg p-4 border border-[#45bcaa]/30 text-center">
