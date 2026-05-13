@@ -172,7 +172,7 @@ export default function ReferralsDeepDive() {
             },
             {
               num: '3',
-              title: 'AI books the appointment',
+              title: 'AFL books the appointment',
               body: 'Your AI reaches out via iMessage in a separate 1-on-1 thread. Warm, conversational, responding as you. It qualifies the lead, gathers their info, and books them on your calendar.',
               color: '#fdcc02',
               icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
@@ -205,9 +205,9 @@ export default function ReferralsDeepDive() {
             transition={{ duration: 0.6 }}
             className="text-center"
           >
-            <p className="text-[#3DD6C3] font-bold text-[11px] uppercase tracking-[0.15em] mb-2">What the referral sees</p>
+            <p className="text-[#3DD6C3] font-bold text-[11px] uppercase tracking-[0.15em] mb-2">How AFL handles it</p>
             <h2 className="text-[1.4rem] font-extrabold text-white leading-tight">
-              The referral thinks<br />they&apos;re texting <span className="text-[#3DD6C3]">you</span>.
+              A top producer&apos;s playbook.<br /><span className="text-[#3DD6C3]">Run for every referral.</span>
             </h2>
           </motion.div>
 
@@ -293,8 +293,8 @@ export default function ReferralsDeepDive() {
           {[
             { icon: '💬', title: 'Text messages get read', desc: 'Not email. Not a link. A real text message in their inbox — where open rates dwarf every other channel.' },
             { icon: '🤝', title: 'Warm intro, not cold outreach', desc: 'The referral already got a personal text from your client. AI follows up with trust already built.' },
-            { icon: '📅', title: 'AI books directly on your calendar', desc: 'No back-and-forth. AI shares your scheduling link and the referral picks a time.' },
-            { icon: '🔄', title: 'AI keeps it moving', desc: 'If the referral goes quiet, AI bumps once at 24 hours. Still no reply? It hands off to you as an Action Item.' },
+            { icon: '📅', title: 'AFL books directly on your calendar', desc: 'No back-and-forth. AFL shares your scheduling link and the referral picks a time.' },
+            { icon: '🔄', title: 'AFL keeps it moving', desc: 'If the referral goes quiet, AFL bumps once at 24 hours. Still no reply? It hands off to you as an Action Item.' },
           ].map((item, i) => (
             <motion.div key={item.title} variants={fadeUp} custom={0.1 + i * 0.08} className="bg-[#F8F9FA] rounded-2xl p-5 border border-gray-100">
               <div className="flex items-start gap-3">
