@@ -5071,77 +5071,69 @@ export default function ClientsPage() {
       ) : clients.length === 0 ? (
         <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-6 sm:p-10">
           <div className="max-w-3xl mx-auto">
-            <h2 className="text-xl sm:text-2xl font-bold text-[#000000] mb-2">
+            <h2 className="text-xl sm:text-2xl font-bold text-[#000000] mb-6">
               Your first client onboarding
             </h2>
-            <p className="text-[#444] text-sm sm:text-base leading-relaxed mb-6">
-              AFL works best at the end of a sale — built around a 90-second ritual you&apos;ll do with every new client before you hang up the phone.
-            </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
-              <div>
-                <OnboardingWalkthroughPoster
-                  videoUrl={WALKTHROUGH_URLS.onboarding}
-                  label="Watch (~90 sec)"
-                  onClick={() => {
-                    captureEvent(ANALYTICS_EVENTS.ONBOARDING_EMPTY_STATE_CTA_CLICKED, {
-                      target: 'watch_walkthrough',
-                    });
-                    setActiveWalkthrough('onboarding');
-                  }}
-                  aspectPercent={56.25}
-                />
-                <p className="text-sm font-semibold text-[#000000] -mt-3">The 90-second ritual</p>
-                <p className="text-xs text-[#707070] leading-relaxed mt-0.5">
-                  Watch this first. What to do at the end of every sale — drop the PDF, send the welcome from your number, walk your client through download → notifications → Activate, ask for the referral.
-                </p>
+            {/* Primary: the everyday ritual */}
+            <div className="mb-8">
+              <p className="text-[11px] font-semibold tracking-[0.14em] text-[#0D4D4D] uppercase mb-1">
+                Start here · For every new sale
+              </p>
+              <h3 className="text-lg sm:text-xl font-bold text-[#000000] mb-3">
+                The 90-second close ritual
+              </h3>
+              <OnboardingWalkthroughPoster
+                videoUrl={WALKTHROUGH_URLS.onboarding}
+                label="Watch (~90 sec)"
+                onClick={() => {
+                  captureEvent(ANALYTICS_EVENTS.ONBOARDING_EMPTY_STATE_CTA_CLICKED, {
+                    target: 'watch_walkthrough',
+                  });
+                  setActiveWalkthrough('onboarding');
+                }}
+                aspectPercent={56.25}
+              />
+              <p className="text-sm text-[#444] leading-relaxed -mt-3">
+                What to do at the end of every sale before you hang up — drop the PDF, send the welcome from your number, and walk your client through download, allow notifications, and tap Activate while you&apos;re still on the call.
+              </p>
+            </div>
+
+            {/* Divider + secondary: one-time migration */}
+            <div className="relative my-8" aria-hidden="true">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-[#e0e0e0]" />
               </div>
-              <div>
-                <OnboardingWalkthroughPoster
-                  videoUrl={WALKTHROUGH_URLS.bulkImport}
-                  label="Watch (~2 min)"
-                  placeholderLabel="Bulk import — coming soon"
-                  onClick={() => {
-                    captureEvent(ANALYTICS_EVENTS.ONBOARDING_EMPTY_STATE_CTA_CLICKED, {
-                      target: 'watch_walkthrough',
-                    });
-                    setActiveWalkthrough('bulkImport');
-                  }}
-                  aspectPercent={56.25}
-                />
-                <p className="text-sm font-semibold text-[#000000] -mt-3">Bulk import ceremony</p>
-                <p className="text-xs text-[#707070] leading-relaxed mt-0.5">
-                  Migrating your existing book of business into AFL. One-time setup — AFL drips up to 15 welcome action items per day so each client still gets a personal heads-up.
-                </p>
+              <div className="relative flex justify-center">
+                <span className="bg-white px-3 text-[11px] font-semibold tracking-[0.14em] text-[#707070] uppercase">
+                  Have an existing book of business?
+                </span>
               </div>
             </div>
 
-            <div className="space-y-5 mb-6">
-              <div>
-                <p className="font-semibold text-[#000000] mb-1">Watch the walkthrough first.</p>
-                <p className="text-[#444] text-sm leading-relaxed">
-                  I&apos;ll show you exactly what the ritual looks like end-to-end: how to pitch the app, what to say while they download, how to confirm they&apos;re in before the call ends.
-                </p>
-              </div>
-
-              <div>
-                <p className="font-semibold text-[#000000] mb-1">Then, on your next close, come back here.</p>
-                <p className="text-[#444] text-sm leading-relaxed">
-                  With the client still on the line, drop the application PDF — AFL extracts the policy, beneficiaries, and contact info, and queues the welcome text from your number. Send it, tell your client to check their phone, and walk them through downloading the app, allowing notifications, and tapping Activate. Don&apos;t hang up until they&apos;re in.
-                </p>
-              </div>
-
-              <div>
-                <p className="font-semibold text-[#000000] mb-1">While you&apos;ve still got them — ask for the referral.</p>
-                <p className="text-[#444] text-sm leading-relaxed">
-                  Fresh off the close, app installed, you&apos;ve just delivered something thoughtful. AFL makes the ask effortless from your dashboard. It feels like magic.
-                </p>
-              </div>
+            <div className="mb-8">
+              <p className="text-[11px] font-semibold tracking-[0.14em] text-[#707070] uppercase mb-1">
+                One-time setup
+              </p>
+              <h3 className="text-base font-bold text-[#000000] mb-3">
+                Migrate your existing book
+              </h3>
+              <OnboardingWalkthroughPoster
+                videoUrl={WALKTHROUGH_URLS.bulkImport}
+                label="Watch the bulk-import ceremony (~2 min)"
+                placeholderLabel="Bulk import — coming soon"
+                onClick={() => {
+                  captureEvent(ANALYTICS_EVENTS.ONBOARDING_EMPTY_STATE_CTA_CLICKED, {
+                    target: 'watch_walkthrough',
+                  });
+                  setActiveWalkthrough('bulkImport');
+                }}
+                aspectPercent={32}
+              />
+              <p className="text-sm text-[#444] leading-relaxed -mt-3">
+                AFL drips up to 15 welcome action items per day so each client still gets a personal heads-up.
+              </p>
             </div>
-
-            <p className="text-[#444] text-sm leading-relaxed mb-6">
-              That&apos;s the moment. Your contact card is in their phone, you have push notifications to reach them, and AFL takes the relationship from there — anniversaries, retention, referrals, the whole loop. The app is the hub.
-            </p>
 
             <div className="flex flex-col sm:flex-row gap-3">
               <button
