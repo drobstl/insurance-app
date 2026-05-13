@@ -175,3 +175,63 @@ Roughly 1 day of focused work, mostly copy not engineering:
 - **Voice rule (load-bearing):** speak about AFL doing things, not "AI" as the actor. "AI" appears only in literal feature names (e.g., "the AFL referral assistant uses AI to qualify leads"). See `feedback_marketing_narrative_frame.md` + the Patch system prompt at `web/app/api/dashboard-assistant/route.ts` for the canonical voice.
 
 Good luck. The onboarding rebuild is the natural next step after the May 12 launch — agents who land in the product after the relaunch deserve a first 90 seconds that sets them up for the magic moment instead of confusing them past it.
+
+---
+
+## Addendum — May 12, 2026 update (read this first)
+
+The May 11 plan said "next session builds the empty state." Daniel got a jump on it overnight and already shipped a first cut. Pick up from where it is, not from scratch.
+
+### What's already on `main` (as of `6d0f941`)
+
+| Commit | What |
+|---|---|
+| [`3319436`](https://github.com/drobstl/insurance-app/commit/3319436) | Extraction overload: detect upstream 529 banner, skip doomed fallback. |
+| [`78e6317`](https://github.com/drobstl/insurance-app/commit/78e6317) | Sample bulk-import CSV (350 fake rows) for the Loom demo. |
+| [`85d763f`](https://github.com/drobstl/insurance-app/commit/85d763f) | **Clients empty state — first pass.** Two side-by-side poster cards: "The 90-second ritual" (~90 sec) + "Bulk import ceremony" (~2 min). Single `activeWalkthrough` state drives which modal opens. Env-var driven Loom URLs (`NEXT_PUBLIC_ONBOARDING_WALKTHROUGH_LOOM_URL` + `NEXT_PUBLIC_BULK_IMPORT_WALKTHROUGH_LOOM_URL`). |
+| [`ec549fc`](https://github.com/drobstl/insurance-app/commit/ec549fc) | Bulk import: immediate drip release on activate (capped at 15/UTC-day). |
+| [`d9d7c49`](https://github.com/drobstl/insurance-app/commit/d9d7c49) | Bulk import drip: drop `orderBy` that needed a missing composite index. |
+| [`5303471`](https://github.com/drobstl/insurance-app/commit/5303471) | `/v5/referrals` H1 → "A top producer's playbook. Run for every referral." + AI→AFL sweep on referral cards. |
+| [`6d0f941`](https://github.com/drobstl/insurance-app/commit/6d0f941) | Patch system prompt: bulk-import Loom share URL hardcoded in the "How does bulk import work?" how-to. |
+
+**Bulk-import Loom is recorded and embedded.** URL: `https://www.loom.com/share/5aa201063a1d4754896d701f2677e3c7`. Production env var set + Vercel rebuilt. Live on `/dashboard/clients` empty-state + `/dashboard/resources`.
+
+**Onboarding (90-second ritual) Loom: status unclear.** `NEXT_PUBLIC_ONBOARDING_WALKTHROUGH_LOOM_URL` may or may not be set in Vercel; verify in the empty state by checking whether the left poster renders the video or a placeholder.
+
+### Daniel's critique of the current empty state (May 12, after seeing it live)
+
+> "I feel like this needs work. It's a lot here to take in. And the videos need to be labeled so at a glance we know which is which — and also that the 90-second ritual one is more important as the ongoing method. And the bulk is more of a one-time to get your current book into the system."
+
+**Three problems to solve:**
+
+1. **Hierarchy is flat.** Both posters look equally weighted. An agent reading "your first client onboarding" doesn't know which one to watch first or which one is the actual product loop vs the one-time migration.
+2. **Labels don't convey use frequency.** "The 90-second ritual" and "Bulk import ceremony" describe content but not when to use each. An agent doesn't know: "the 90-second ritual is what you do on EVERY close" vs "bulk import is what you do ONCE to migrate your existing book."
+3. **Body copy below is overwhelming.** The page has three sections of text after the videos ("Watch the walkthrough first" / "Then, on your next close, come back here" / "While you've still got them — ask for the referral"). On top of two video posters + section title, it's too much for a first-load.
+
+### Direction for the rework (not yet built)
+
+**Visual hierarchy:**
+- Make "The 90-second ritual" the dominant poster — larger, primary position (left or top), maybe with a "PRIMARY" or "START HERE" badge.
+- Make "Bulk import ceremony" secondary — smaller, lower visual weight, framed as "Have an existing book to migrate?" entry point.
+- The 90-second ritual is the everyday product loop; the bulk import is a one-time setup tool. The empty state should TEACH that hierarchy at a glance.
+
+**Labels:**
+- 90-second ritual: lead the label with "For every new sale" or "Your everyday ritual" or similar frequency-signaling copy.
+- Bulk import: lead the label with "One-time setup" or "Migrate your current book" — make it clear this is NOT what you do every day.
+
+**Body copy:**
+- Trim aggressively. The body copy below the videos is largely already covered IN the 90-second Loom itself. Keep maybe one short line ("Watch the 90-second ritual first — it's what you'll do on every close") and drop the three-paragraph walkthrough text.
+- If retention of the body copy matters, consider collapsing it into a "Read the full ritual" expandable section instead of forcing it on the empty state.
+
+**Possible alternative layouts to consider:**
+- **Asymmetric 2/3 + 1/3 split** with the 90-second ritual on the left taking 2/3 of the width.
+- **Stacked, primary on top** with the 90-second ritual full-width above, then bulk import as a smaller card below with "Have an existing book? Watch this instead."
+- **Single-video-with-secondary-link** — the 90-second ritual is the only poster; the bulk-import link is a small tertiary "Got an existing book? Migrate it here →" link below.
+
+The asymmetric split is probably the lightest lift; the single-video-with-link is the most aggressive simplification. Daniel's pushed back on overengineering before — start with the simpler shape and add only if the simpler one doesn't carry the message.
+
+### Other things the new session should pick up
+
+- **Inline framing inside the Add Client flow** (Layer 3 from the original plan) — still untouched. Once empty state is dialed, add per-step context inside the create-client flow per the original spec.
+- **`NEXT_PUBLIC_ONBOARDING_WALKTHROUGH_LOOM_URL` — verify it's set in Vercel.** If not, the 90-second ritual poster shows a placeholder. Daniel may not have recorded that Loom yet — confirm with him before assuming it's ready.
+- **Pre-launch carry-forwards from above still open**: iPhone QA the 6-col dashboard mobile nav, send the Ben/Linq email, sweep `/api/webhooks/stripe` for the 200-on-error swallow pattern.
