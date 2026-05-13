@@ -5077,10 +5077,10 @@ export default function ClientsPage() {
 
             {/* Primary: the everyday ritual */}
             <div className="mb-8">
-              <p className="text-[11px] font-semibold tracking-[0.14em] text-[#0D4D4D] uppercase mb-1">
-                Start here · For every new sale
-              </p>
-              <h3 className="text-lg sm:text-xl font-bold text-[#000000] mb-3">
+              <span className="inline-block text-[11px] font-semibold tracking-[0.14em] text-white uppercase bg-[#0D4D4D] px-2.5 py-1 rounded-full mb-3">
+                For every new sale
+              </span>
+              <h3 className="text-lg sm:text-xl font-bold text-[#0D4D4D] mb-3">
                 The 90-second close ritual
               </h3>
               <OnboardingWalkthroughPoster
