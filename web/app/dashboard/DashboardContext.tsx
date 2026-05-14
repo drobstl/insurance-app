@@ -83,6 +83,7 @@ export interface AgentProfile {
   beneficiaryAIFollowupsEnabled?: boolean;
   beneficiaryMaxTouchesPer30Days?: number;
   skipWelcomeSmsConfirmation?: boolean;
+  forwardInboundSms?: boolean;
   onboardingComplete?: boolean;
   pendingSubscriptionCelebration?: boolean;
   onboarding?: OnboardingState;
@@ -196,6 +197,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           beneficiaryAIFollowupsEnabled: data.beneficiaryAIFollowupsEnabled,
           beneficiaryMaxTouchesPer30Days: data.beneficiaryMaxTouchesPer30Days,
           skipWelcomeSmsConfirmation: data.skipWelcomeSmsConfirmation,
+          forwardInboundSms: data.forwardInboundSms,
           onboardingComplete: data.onboardingComplete,
           pendingSubscriptionCelebration: data.pendingSubscriptionCelebration === true,
           onboarding: normalizeOnboardingState(data.onboarding),

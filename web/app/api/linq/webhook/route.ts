@@ -53,6 +53,7 @@ import {
 } from '../../../../lib/beneficiary-activation-handler';
 import { expireActionItem } from '../../../../lib/action-item-store';
 import { recordLinqInbound } from '../../../../lib/line-health';
+import { findAgentBySelfPhone } from '../../../../lib/inbound-text-forwarder';
 import {
   isTransientWebhookError,
   recordPermanentWebhookError,
@@ -399,6 +400,18 @@ async function handleDirectMessage(data: LinqWebhookMessageData) {
   // before lane-specific routing decides how to handle the message.
   void recordLinqInbound({ db }).catch(() => {});
 
+  // Loop guard: if the sender is an agent's own personal cell, this is
+  // an agent replying to a forwarded inbound notification. Drop silently
+  // — do not write leadInbox, do not forward back to themselves.
+  const selfReplyAgentId = await findAgentBySelfPhone(db, senderHandle);
+  if (selfReplyAgentId) {
+    console.log('[inbound-forward] suppressed: agent_self_reply', {
+      agentId: selfReplyAgentId,
+      providerThreadId: chatId,
+    });
+    return;
+  }
+
   // Beneficiary activation lane (May 10, 2026) — runs BEFORE the
   // welcome activation lane. Different placeholder prefix
   // (`beneficiary_pending_*` vs `welcome_pending_*`) so no
@@ -630,6 +643,29 @@ async function handleDirectMessage(data: LinqWebhookMessageData) {
     }
     if (conservationResult) {
       await handleConservationReply(conservationResult, text, chatId, senderHandle);
+      return;
+    }
+
+    // Legacy-path cold inbound — no AI lane matched. Mirror the
+    // THREAD_ROUTER_ENABLED branch above: write leadInbox + page the
+    // agent on their personal cell so the text isn't silently dropped.
+    const ownerHandle = normalizePhone(data.chat.owner_handle?.handle || '');
+    if (ownerHandle) {
+      const agentId = await findAgentIdByOwnerHandle(db, ownerHandle);
+      if (agentId) {
+        await appendLeadInbox({
+          db,
+          agentId,
+          providerThreadId: chatId,
+          fromPhoneE164: senderHandle || null,
+          firstMessageText: text,
+        });
+        console.log('[thread-routing] lead_inbox_created', {
+          agentId,
+          providerThreadId: chatId,
+          source: 'legacy_fallback',
+        });
+      }
     }
     return;
   }

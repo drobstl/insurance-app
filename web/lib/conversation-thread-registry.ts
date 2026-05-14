@@ -8,6 +8,7 @@ import type {
   ConversationThreadDoc,
   LinkedEntityType,
 } from './conversation-routing-types';
+import { forwardInboundToAgentCell } from './inbound-text-forwarder';
 
 interface ThreadUpsertParams {
   db: FirebaseFirestore.Firestore;
@@ -291,6 +292,13 @@ export async function appendLeadInbox(params: {
     assignedThreadId: params.providerThreadId,
     createdAt: now,
     updatedAt: now,
+  });
+
+  void forwardInboundToAgentCell({
+    db: params.db,
+    agentId: params.agentId,
+    fromPhoneE164: params.fromPhoneE164,
+    text: params.firstMessageText,
   });
 
   if (!params.providerThreadId) {
