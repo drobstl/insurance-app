@@ -49,6 +49,7 @@ interface Lead {
   ageYears?: number;
   gender?: 'M' | 'F';
   smokerStatus?: 'Y' | 'N';
+  coborrowerStatus?: 'Y' | 'N';
   spouseName?: string;
   spouseAgeYears?: number;
   beneficiaryName?: string;
@@ -76,7 +77,8 @@ type DialOutcome =
   | 'wrong_number'
   | 'not_interested'
   | 'callback_requested'
-  | 'booked';
+  | 'booked'
+  | 'do_not_call';
 
 const DIAL_OUTCOME_LABELS: Record<DialOutcome, string> = {
   no_answer: 'No answer',
@@ -85,6 +87,7 @@ const DIAL_OUTCOME_LABELS: Record<DialOutcome, string> = {
   not_interested: 'Not interested',
   callback_requested: 'Wants callback',
   booked: 'Booked',
+  do_not_call: 'Do not call',
 };
 
 const DIAL_OUTCOME_TONE: Record<DialOutcome, string> = {
@@ -94,6 +97,7 @@ const DIAL_OUTCOME_TONE: Record<DialOutcome, string> = {
   not_interested: 'bg-red-50 text-red-800 border-red-200',
   callback_requested: 'bg-amber-50 text-amber-900 border-amber-300',
   booked: 'bg-[#daf3f0] text-[#005851] border-[#45bcaa]',
+  do_not_call: 'bg-red-100 text-red-900 border-red-300',
 };
 
 interface LeadActivityEntry {
@@ -108,8 +112,10 @@ interface AppointmentEntry {
   id: string;
   leadId: string;
   scheduledAt?: Timestamp | null;
+  scheduledAtTimeZone?: string | null;
   durationMinutes?: number;
   notes?: string;
+  meetingUrl?: string | null;
   status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
   sentConfirmationAt?: Timestamp | null;
   sentReminderAt?: Timestamp | null;
@@ -186,6 +192,19 @@ export default function LeadDetailPage() {
   const weightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const weightHydratedRef = useRef(false);
 
+  const [email, setEmail] = useState('');
+  const [emailSavedAt, setEmailSavedAt] = useState<Date | null>(null);
+  const [emailSaving, setEmailSaving] = useState(false);
+  const emailTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const emailHydratedRef = useRef(false);
+
+  // Yes/No fields — saved immediately (no debounce needed for a button).
+  // Tri-state via null = unknown.
+  const [smoker, setSmoker] = useState<'Y' | 'N' | null>(null);
+  const smokerHydratedRef = useRef(false);
+  const [coborrower, setCoborrower] = useState<'Y' | 'N' | null>(null);
+  const coborrowerHydratedRef = useRef(false);
+
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -203,6 +222,15 @@ export default function LeadDetailPage() {
   // outcome — the picker's submit endpoint atomically creates the
   // appointment AND logs the 'booked' dial outcome in one round-trip.
   const [showAppointmentPicker, setShowAppointmentPicker] = useState(false);
+  const [reschedulingAppointmentId, setReschedulingAppointmentId] = useState<string | null>(null);
+  const [cancellingAppointmentId, setCancellingAppointmentId] = useState<string | null>(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [showConvertConfirm, setShowConvertConfirm] = useState(false);
+  const [convertBusy, setConvertBusy] = useState(false);
+  const [convertError, setConvertError] = useState<string | null>(null);
+  // Whether Google Calendar is connected — gates the calendar-invite + Meet
+  // affordances in the appointment picker. Fetched once on mount.
+  const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
 
   // Send-confirmation drawer (Chunk 4e). Opens automatically right
   // after a booking save, and on demand from a "Send confirmation"
@@ -250,6 +278,18 @@ export default function LeadDetailPage() {
         setWeight(typeof data.weightLbs === 'number' ? String(data.weightLbs) : '');
         weightHydratedRef.current = true;
       }
+      if (!emailHydratedRef.current) {
+        setEmail(typeof data.email === 'string' ? data.email : '');
+        emailHydratedRef.current = true;
+      }
+      if (!smokerHydratedRef.current) {
+        setSmoker(data.smokerStatus === 'Y' || data.smokerStatus === 'N' ? data.smokerStatus : null);
+        smokerHydratedRef.current = true;
+      }
+      if (!coborrowerHydratedRef.current) {
+        setCoborrower(data.coborrowerStatus === 'Y' || data.coborrowerStatus === 'N' ? data.coborrowerStatus : null);
+        coborrowerHydratedRef.current = true;
+      }
       setLoading(false);
     }, (err) => {
       console.error('lead detail onSnapshot error:', err);
@@ -273,6 +313,26 @@ export default function LeadDetailPage() {
     });
     return () => unsub();
   }, [user, leadId]);
+
+  // ── Google Calendar connection status (gates the invite/Meet affordances) ──
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch('/api/integrations/google-calendar/status', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as { connected?: boolean };
+        if (!cancelled) setGoogleCalendarConnected(!!data.connected);
+      } catch {
+        // non-blocking: just leave the affordances off
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
 
   // ── Live appointments for this lead ──
   // Pulls from the agent-level appointments subcollection filtered
@@ -374,6 +434,51 @@ export default function LeadDetailPage() {
         console.error('height autosave failed:', err);
       } finally {
         setHeightSaving(false);
+      }
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }, [user, leadId]);
+
+  const saveSmoker = useCallback(async (next: 'Y' | 'N' | null) => {
+    if (!user || !leadId) return;
+    setSmoker(next);
+    try {
+      await updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+        smokerStatus: next,
+      });
+    } catch (err) {
+      console.error('smoker save failed:', err);
+    }
+  }, [user, leadId]);
+
+  const saveCoborrower = useCallback(async (next: 'Y' | 'N' | null) => {
+    if (!user || !leadId) return;
+    setCoborrower(next);
+    try {
+      await updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+        coborrowerStatus: next,
+      });
+    } catch (err) {
+      console.error('coborrower save failed:', err);
+    }
+  }, [user, leadId]);
+
+  const scheduleEmailSave = useCallback((value: string) => {
+    if (!user || !leadId) return;
+    if (emailTimer.current) clearTimeout(emailTimer.current);
+    emailTimer.current = setTimeout(async () => {
+      const v = value.trim();
+      // Accept empty (clears) or a minimally-valid-looking address.
+      if (v && !/.+@.+\..+/.test(v)) return;
+      setEmailSaving(true);
+      try {
+        await updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+          email: v || null,
+        });
+        setEmailSavedAt(new Date());
+      } catch (err) {
+        console.error('email autosave failed:', err);
+      } finally {
+        setEmailSaving(false);
       }
     }, AUTOSAVE_DEBOUNCE_MS);
   }, [user, leadId]);
@@ -555,7 +660,12 @@ export default function LeadDetailPage() {
               sometimes you book without dialing (referral, etc.). */}
           {!lead.convertedToClientId && (
             <div className="mt-3 flex items-center gap-2 flex-wrap">
-              {lead.phone && (
+              {lead.lastDialOutcome === 'do_not_call' && (
+                <div className="w-full mb-1 px-3 py-2 text-xs font-semibold text-red-800 bg-red-50 border border-red-300 rounded-[5px]">
+                  ⛔ This lead asked not to be contacted. Do not dial.
+                </div>
+              )}
+              {lead.phone && lead.lastDialOutcome !== 'do_not_call' && (
                 <button
                   onClick={handleStartCall}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors text-sm"
@@ -575,6 +685,21 @@ export default function LeadDetailPage() {
                 </svg>
                 Book appointment
               </button>
+              <button
+                onClick={() => setShowConvertConfirm(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[#005851] hover:bg-[#004440] text-white font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors text-sm"
+                title="Convert this lead to a client — they closed!"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Convert to client
+              </button>
+            </div>
+          )}
+          {lead.convertedToClientId && (
+            <div className="mt-3 px-3 py-2 text-sm text-[#005851] bg-[#daf3f0]/60 border border-[#45bcaa]/40 rounded-[5px]">
+              ✓ Converted to client. <a href="/dashboard/clients" className="font-semibold underline">View clients</a>
             </div>
           )}
         </div>
@@ -782,6 +907,30 @@ export default function LeadDetailPage() {
           these drive the lead code, so corrections here are harmless. */}
       <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5 mb-6">
         <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider mb-3">Lead profile</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="block text-sm font-semibold text-[#374151] mb-1">
+              Email
+              <span className="ml-2 text-xs font-normal text-[#707070]">
+                {emailSaving ? 'Saving…' : emailSavedAt ? `Saved · ${formatRelativeTime(emailSavedAt)}` : ''}
+              </span>
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => {
+                const v = e.target.value;
+                setEmail(v);
+                scheduleEmailSave(v);
+              }}
+              placeholder="lead@example.com"
+              className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+            />
+            <p className="text-[11px] text-[#707070] mt-1">
+              Used to send the lead a Google Calendar invite when you book a video appointment.
+            </p>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-semibold text-[#374151] mb-1">
@@ -839,6 +988,58 @@ export default function LeadDetailPage() {
               placeholder="180"
               className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
             />
+          </div>
+        </div>
+
+        {/* Underwriting yes/no fields. Tri-state — Yes / No / Unknown.
+            Unknown is the default for manually-entered leads; lead-form
+            extraction populates Y or N when the form contained the field. */}
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-[#374151] mb-1">Tobacco use (last 12 months)</label>
+            <div className="inline-flex rounded-[5px] border border-[#d0d0d0] overflow-hidden">
+              {([
+                { v: 'Y', label: 'Yes' },
+                { v: 'N', label: 'No' },
+                { v: null, label: 'Unknown' },
+              ] as const).map((opt, idx) => (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onClick={() => saveSmoker(opt.v)}
+                  className={`px-3 py-1.5 text-xs font-semibold transition-colors ${idx > 0 ? 'border-l border-[#d0d0d0]' : ''} ${
+                    smoker === opt.v
+                      ? 'bg-[#005851] text-white'
+                      : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-[#374151] mb-1">Co-borrower on mortgage</label>
+            <div className="inline-flex rounded-[5px] border border-[#d0d0d0] overflow-hidden">
+              {([
+                { v: 'Y', label: 'Yes' },
+                { v: 'N', label: 'No' },
+                { v: null, label: 'Unknown' },
+              ] as const).map((opt, idx) => (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onClick={() => saveCoborrower(opt.v)}
+                  className={`px-3 py-1.5 text-xs font-semibold transition-colors ${idx > 0 ? 'border-l border-[#d0d0d0]' : ''} ${
+                    coborrower === opt.v
+                      ? 'bg-[#005851] text-white'
+                      : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -955,6 +1156,7 @@ export default function LeadDetailPage() {
                           day: 'numeric',
                           hour: 'numeric',
                           minute: '2-digit',
+                          ...(appt.scheduledAtTimeZone ? { timeZone: appt.scheduledAtTimeZone, timeZoneName: 'short' as const } : {}),
                         }) : '(no time set)'}
                       </div>
                       <div className="text-xs text-[#707070] mt-0.5 flex items-center gap-2 flex-wrap">
@@ -978,14 +1180,32 @@ export default function LeadDetailPage() {
                         cancelled / completed / no-show). Available
                         on past-but-still-scheduled rows too — agent
                         can re-send if the lead is unresponsive. */}
-                    {!appt.sentConfirmationAt && appt.status === 'scheduled' && (
-                      <button
-                        onClick={() => setConfirmingAppointmentId(appt.id)}
-                        className="shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors"
-                      >
-                        Send confirmation
-                      </button>
-                    )}
+                    <div className="shrink-0 flex flex-col gap-1.5 items-end">
+                      {!appt.sentConfirmationAt && appt.status === 'scheduled' && (
+                        <button
+                          onClick={() => setConfirmingAppointmentId(appt.id)}
+                          className="px-3 py-1.5 text-xs font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors"
+                        >
+                          Send confirmation
+                        </button>
+                      )}
+                      {appt.status === 'scheduled' && (
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => setReschedulingAppointmentId(appt.id)}
+                            className="px-2.5 py-1 text-[11px] font-semibold text-[#0D4D4D] bg-white hover:bg-[#f8f8f8] rounded-md border border-[#d0d0d0] transition-colors"
+                          >
+                            Reschedule
+                          </button>
+                          <button
+                            onClick={() => setCancellingAppointmentId(appt.id)}
+                            className="px-2.5 py-1 text-[11px] font-semibold text-red-600 bg-white hover:bg-red-50 rounded-md border border-red-200 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </li>
               );
@@ -1066,6 +1286,11 @@ export default function LeadDetailPage() {
           user={user}
           leadId={lead.id}
           leadName={lead.name || 'this lead'}
+          leadEmail={lead.email || email || undefined}
+          agentAppointmentMode={agentProfile.appointmentMode}
+          agentDefaultMeetingLink={agentProfile.defaultMeetingLink}
+          agentAutoCreateGoogleMeet={agentProfile.autoCreateGoogleMeet}
+          googleCalendarConnected={googleCalendarConnected}
           onBooked={(apptId) => {
             setShowAppointmentPicker(false);
             setConfirmingAppointmentId(apptId);
@@ -1073,6 +1298,106 @@ export default function LeadDetailPage() {
           onCancel={() => setShowAppointmentPicker(false)}
         />
       )}
+
+      {/* Reschedule — reuses AppointmentPicker in PATCH mode. */}
+      {reschedulingAppointmentId && lead && (() => {
+        const appt = appointments.find((a) => a.id === reschedulingAppointmentId);
+        if (!appt || !appt.scheduledAt) return null;
+        return (
+          <AppointmentPicker
+            user={user}
+            leadId={lead.id}
+            leadName={lead.name || 'this lead'}
+            leadEmail={lead.email || email || undefined}
+            agentAppointmentMode={agentProfile.appointmentMode}
+            agentDefaultMeetingLink={agentProfile.defaultMeetingLink}
+            agentAutoCreateGoogleMeet={agentProfile.autoCreateGoogleMeet}
+            googleCalendarConnected={googleCalendarConnected}
+            existingAppointment={{
+              id: appt.id,
+              scheduledAt: appt.scheduledAt.toDate(),
+              durationMinutes: appt.durationMinutes ?? 30,
+              notes: appt.notes,
+              meetingUrl: appt.meetingUrl || undefined,
+            }}
+            onBooked={() => setReschedulingAppointmentId(null)}
+            onCancel={() => setReschedulingAppointmentId(null)}
+          />
+        );
+      })()}
+
+      {/* Cancel confirmation — PATCH status='cancelled'. */}
+      {cancellingAppointmentId && lead && (() => {
+        const appt = appointments.find((a) => a.id === cancellingAppointmentId);
+        if (!appt) return null;
+        const when = appt.scheduledAt?.toDate();
+        const whenStr = when
+          ? when.toLocaleString(undefined, {
+              weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+              ...(appt.scheduledAtTimeZone ? { timeZone: appt.scheduledAtTimeZone } : {}),
+            })
+          : '(no time set)';
+        return (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-black/40"
+              onClick={() => !cancelBusy && setCancellingAppointmentId(null)}
+            />
+            <div className="relative bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] shadow-2xl max-w-md w-full overflow-hidden">
+              <div className="p-5 border-b border-[#ececec]">
+                <h3 className="text-xl font-bold text-[#000000]">Cancel this appointment?</h3>
+                <p className="text-sm text-[#707070] mt-1">{whenStr} with {lead.name || 'this lead'}</p>
+              </div>
+              <div className="p-5 text-sm text-[#374151] leading-relaxed">
+                The appointment will be marked cancelled and the Google Calendar event
+                will be removed (if Calendar is connected). The lead won&apos;t be
+                notified — send them a separate message if you need to let them know.
+              </div>
+              <div className="flex gap-3 p-5 border-t border-[#ececec] bg-[#fafafa]">
+                <button
+                  onClick={() => !cancelBusy && setCancellingAppointmentId(null)}
+                  disabled={cancelBusy}
+                  className="flex-1 max-w-[180px] py-2.5 px-4 text-sm font-semibold text-[#0D4D4D] bg-white rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] hover:bg-[#f8f8f8] transition-colors disabled:opacity-50"
+                >
+                  Keep it
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!user) return;
+                    setCancelBusy(true);
+                    try {
+                      const token = await user.getIdToken();
+                      const res = await fetch(`/api/appointments/${appt.id}`, {
+                        method: 'PATCH',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          Authorization: `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({ status: 'cancelled' }),
+                      });
+                      if (!res.ok) {
+                        const data = await res.json().catch(() => ({}));
+                        alert(data?.error || `Failed to cancel (${res.status})`);
+                        return;
+                      }
+                      setCancellingAppointmentId(null);
+                    } catch (err) {
+                      console.error('cancel appointment error:', err);
+                      alert('Network error — please try again');
+                    } finally {
+                      setCancelBusy(false);
+                    }
+                  }}
+                  disabled={cancelBusy}
+                  className="flex-1 py-2.5 px-4 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-50"
+                >
+                  {cancelBusy ? 'Cancelling…' : 'Cancel appointment'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Send-confirmation drawer (Chunk 4e). The appointment lookup
           here finds the row from our live snapshot — works for both
@@ -1088,6 +1413,8 @@ export default function LeadDetailPage() {
             leadPhone={lead.phone || ''}
             leadState={lead.address?.state || null}
             scheduledAt={appt.scheduledAt.toDate()}
+            scheduledAtTimeZone={appt.scheduledAtTimeZone || null}
+            meetingUrl={appt.meetingUrl || null}
             agentName={agentProfile.name || ''}
             agentBusinessCardBase64={agentProfile.businessCardBase64}
             licenses={agentProfile.licenses || {}}
@@ -1097,6 +1424,80 @@ export default function LeadDetailPage() {
           />
         );
       })()}
+
+      {/* Convert-to-client confirmation. Calls POST /api/leads/[id]/convert
+          which creates the client doc + mirrors + stamps the lead with
+          convertedToClientId in one batch. */}
+      {showConvertConfirm && lead && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => !convertBusy && setShowConvertConfirm(false)}
+          />
+          <div className="relative bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="p-5 border-b border-[#ececec]">
+              <h3 className="text-xl font-bold text-[#000000]">Convert to client?</h3>
+              <p className="text-sm text-[#707070] mt-1">{lead.name || 'this lead'} → new client record</p>
+            </div>
+            <div className="p-5 text-sm text-[#374151] leading-relaxed space-y-2">
+              <p>
+                Creates a new client record with this lead&apos;s name, phone, email, and date of birth.
+                A welcome action item will appear in your queue automatically.
+              </p>
+              <p className="text-xs text-[#707070]">
+                The lead stays here as a historical record but won&apos;t appear in your call queue anymore.
+              </p>
+              {convertError && (
+                <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-[5px] px-3 py-2">
+                  {convertError}
+                </p>
+              )}
+            </div>
+            <div className="flex gap-3 p-5 border-t border-[#ececec] bg-[#fafafa]">
+              <button
+                onClick={() => !convertBusy && setShowConvertConfirm(false)}
+                disabled={convertBusy}
+                className="flex-1 max-w-[180px] py-2.5 px-4 text-sm font-semibold text-[#0D4D4D] bg-white rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] hover:bg-[#f8f8f8] transition-colors disabled:opacity-50"
+              >
+                Not yet
+              </button>
+              <button
+                onClick={async () => {
+                  if (!user) return;
+                  setConvertBusy(true);
+                  setConvertError(null);
+                  try {
+                    const token = await user.getIdToken();
+                    const res = await fetch(`/api/leads/${lead.id}/convert`, {
+                      method: 'POST',
+                      headers: { Authorization: `Bearer ${token}` },
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                      setConvertError(data?.error || `Failed (${res.status})`);
+                      return;
+                    }
+                    setShowConvertConfirm(false);
+                    // The live lead snapshot will pick up convertedToClientId
+                    // and flip the header banner. Navigate to clients to find
+                    // the new record (sorted newest-first).
+                    router.push('/dashboard/clients');
+                  } catch (err) {
+                    console.error('convert error:', err);
+                    setConvertError('Network error — try again');
+                  } finally {
+                    setConvertBusy(false);
+                  }
+                }}
+                disabled={convertBusy}
+                className="flex-1 py-2.5 px-4 text-sm font-semibold text-white bg-[#005851] hover:bg-[#004440] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-50"
+              >
+                {convertBusy ? 'Converting…' : 'Convert to client'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">

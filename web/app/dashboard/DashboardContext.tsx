@@ -105,6 +105,27 @@ export interface AgentProfile {
     pdfStoragePath: string;
     uploadedAt: string;
   }>;
+  /**
+   * Default appointment style. 'phone' agents never see the meeting-
+   * link / video-invite fields in the booking flow. 'video' agents
+   * get them pre-checked. Per-appointment override is always available.
+   */
+  appointmentMode?: 'phone' | 'video';
+  /**
+   * Optional default meeting link for the agent (Zoom personal room,
+   * Google Meet permalink, etc.). Used as the prefill for the
+   * appointment meeting-link field when the agent picks Video mode
+   * and doesn't have Google Meet auto-generation turned on.
+   */
+  defaultMeetingLink?: string;
+  /**
+   * When true AND Google Calendar is connected, booking a video
+   * appointment auto-creates a unique Google Meet link on the
+   * Calendar event (via `conferenceData.createRequest`). Stored on
+   * the appointment as `meetingUrl`. Off → falls back to
+   * defaultMeetingLink.
+   */
+  autoCreateGoogleMeet?: boolean;
 }
 
 interface DashboardContextValue {
@@ -217,6 +238,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           tipsSeen: data.tipsSeen || {},
           celebratedBadgeIds: data.celebratedBadgeIds || [],
           licenses: data.licenses || {},
+          appointmentMode: data.appointmentMode === 'video' ? 'video' : 'phone',
+          defaultMeetingLink: data.defaultMeetingLink,
+          autoCreateGoogleMeet: data.autoCreateGoogleMeet === true,
         });
       } else {
         setAgentProfile({});

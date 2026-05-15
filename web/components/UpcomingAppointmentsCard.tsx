@@ -47,6 +47,8 @@ interface Appointment {
   leadPhone: string;
   leadState?: string | null;
   scheduledAt: Timestamp;
+  scheduledAtTimeZone?: string | null;
+  meetingUrl?: string | null;
   durationMinutes?: number;
   notes?: string;
   status: string;
@@ -226,6 +228,8 @@ export default function UpcomingAppointmentsCard({
           leadPhone={reminderTarget.leadPhone}
           leadState={reminderTarget.leadState}
           scheduledAt={reminderTarget.scheduledAt.toDate()}
+          scheduledAtTimeZone={reminderTarget.scheduledAtTimeZone || null}
+          meetingUrl={reminderTarget.meetingUrl || null}
           agentName={agentName}
           agentBusinessCardBase64={agentBusinessCardBase64}
           licenses={licenses}

@@ -29,7 +29,7 @@ interface Lead {
   // Dial-tracking fields (Chunk 4b). Denormalized at write time so
   // queue queries / sorting don't require reading dialLog[].
   lastDialAt?: Timestamp | null;
-  lastDialOutcome?: 'no_answer' | 'left_vm' | 'wrong_number' | 'not_interested' | 'callback_requested' | 'booked';
+  lastDialOutcome?: 'no_answer' | 'left_vm' | 'wrong_number' | 'not_interested' | 'callback_requested' | 'booked' | 'do_not_call';
   dialLog?: Array<{ at?: Timestamp | null; outcome: string; notes?: string }>;
   // Attachment dedup (Chunk 4f). Tracks what the booking-confirmation
   // and reminder flows have already sent to this lead.
@@ -241,7 +241,7 @@ export default function LeadsPage() {
     for (const lead of leads) {
       if (lead.convertedToClientId) continue;
       const out = lead.lastDialOutcome;
-      if (out === 'booked' || out === 'not_interested' || out === 'wrong_number') continue;
+      if (out === 'booked' || out === 'not_interested' || out === 'wrong_number' || out === 'do_not_call') continue;
 
       const lastDialMs = lead.lastDialAt?.toDate().getTime() ?? null;
       let score: number;
@@ -283,6 +283,10 @@ export default function LeadsPage() {
   const [outcomeError, setOutcomeError] = useState<string | null>(null);
 
   const handleQueueCall = useCallback((lead: Lead) => {
+    // Hard-stop on do-not-call leads. The queue filter already drops
+    // them from the queue, but they can still appear in the All tab —
+    // make sure a stray click doesn't dial them.
+    if (lead.lastDialOutcome === 'do_not_call') return;
     const digits = (lead.phone || '').replace(/\D/g, '');
     if (digits.length < 7) return;
     setOutcomeError(null);
@@ -362,6 +366,7 @@ export default function LeadsPage() {
     not_interested: 'Not interested',
     callback_requested: 'Callback',
     booked: 'Booked',
+    do_not_call: 'Do not call',
   };
 
   const DIAL_OUTCOME_TONE: Record<string, string> = {
@@ -371,6 +376,7 @@ export default function LeadsPage() {
     not_interested: 'bg-red-50 text-red-800 border-red-200',
     callback_requested: 'bg-amber-50 text-amber-900 border-amber-300',
     booked: 'bg-[#daf3f0] text-[#005851] border-[#45bcaa]',
+    do_not_call: 'bg-red-100 text-red-900 border-red-300',
   };
 
   // Slide-belt transforms. Outgoing list slides 72% + 15.25rem left
@@ -614,7 +620,7 @@ export default function LeadsPage() {
                         {isPending && (
                           <div className="mt-3 ml-9 flex items-center gap-2 flex-wrap">
                             <span className="text-xs font-semibold text-[#92400E]">How did it go?</span>
-                            {(['no_answer', 'left_vm', 'callback_requested', 'booked', 'not_interested', 'wrong_number'] as const).map((outcome) => (
+                            {(['no_answer', 'left_vm', 'callback_requested', 'booked', 'not_interested', 'wrong_number', 'do_not_call'] as const).map((outcome) => (
                               <button
                                 key={outcome}
                                 onClick={() => void handleQueueLogOutcome(lead.id, outcome)}

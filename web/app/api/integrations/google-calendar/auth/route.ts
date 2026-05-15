@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth } from '../../../../../lib/firebase-admin';
-import { buildGoogleConsentUrl, GOOGLE_DRIVE_SCOPE } from '../../../../../lib/google-oauth';
+import { buildGoogleConsentUrl, GOOGLE_CALENDAR_SCOPE } from '../../../../../lib/google-oauth';
 import { buildGoogleOAuthState, createGoogleOAuthState } from '../../../../../lib/google-drive-store';
 
 interface AuthRouteResponse {
@@ -16,7 +16,7 @@ interface AuthRequestBody {
 
 function getCallbackUrl(req: NextRequest): string {
   const url = new URL(req.url);
-  return `${url.origin}/api/integrations/google/callback`;
+  return `${url.origin}/api/integrations/google-calendar/callback`;
 }
 
 async function requireAgentId(req: NextRequest): Promise<string> {
@@ -53,12 +53,12 @@ export async function POST(req: NextRequest): Promise<NextResponse<AuthRouteResp
     const authUrl = buildGoogleConsentUrl({
       redirectUri: getCallbackUrl(req),
       state,
-      scopes: [GOOGLE_DRIVE_SCOPE],
+      scopes: [GOOGLE_CALENDAR_SCOPE],
     });
 
     return NextResponse.json({ success: true, authUrl });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to start Google OAuth.';
+    const message = error instanceof Error ? error.message : 'Failed to start Google Calendar OAuth.';
     const status = message === 'Unauthorized' ? 401 : 500;
     return NextResponse.json({ success: false, error: message }, { status });
   }

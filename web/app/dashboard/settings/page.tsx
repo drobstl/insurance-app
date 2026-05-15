@@ -39,6 +39,19 @@ interface GoogleDriveStatusResponse {
   error?: string;
 }
 
+interface GoogleCalendarStatusResponse {
+  success: boolean;
+  connected: boolean;
+  data?: {
+    googleEmail?: string;
+    connectedAt?: string;
+    updatedAt?: string;
+    scope?: string;
+    hasRefreshToken: boolean;
+  };
+  error?: string;
+}
+
 function resizeImage(file: File, maxSize: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -156,6 +169,11 @@ export default function SettingsPage() {
   const [googleDriveDisconnecting, setGoogleDriveDisconnecting] = useState(false);
   const [googleDriveStatus, setGoogleDriveStatus] = useState<GoogleDriveStatusResponse['data'] | null>(null);
   const [googleDriveError, setGoogleDriveError] = useState<string | null>(null);
+  const [googleCalendarLoading, setGoogleCalendarLoading] = useState(false);
+  const [googleCalendarConnecting, setGoogleCalendarConnecting] = useState(false);
+  const [googleCalendarDisconnecting, setGoogleCalendarDisconnecting] = useState(false);
+  const [googleCalendarStatus, setGoogleCalendarStatus] = useState<GoogleCalendarStatusResponse['data'] | null>(null);
+  const [googleCalendarError, setGoogleCalendarError] = useState<string | null>(null);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -194,6 +212,9 @@ export default function SettingsPage() {
     beneficiaryAIFollowupsEnabled: agentProfile.beneficiaryAIFollowupsEnabled ?? false,
     beneficiaryMaxTouchesPer30Days: agentProfile.beneficiaryMaxTouchesPer30Days ?? 3,
     skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
+    appointmentMode: agentProfile.appointmentMode || 'phone',
+    defaultMeetingLink: agentProfile.defaultMeetingLink || '',
+    autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? false,
   }), [
     agentProfile.name,
     agentProfile.phoneNumber,
@@ -216,6 +237,9 @@ export default function SettingsPage() {
     agentProfile.beneficiaryAIFollowupsEnabled,
     agentProfile.beneficiaryMaxTouchesPer30Days,
     agentProfile.skipWelcomeSmsConfirmation,
+    agentProfile.appointmentMode,
+    agentProfile.defaultMeetingLink,
+    agentProfile.autoCreateGoogleMeet,
   ]);
 
   const loadGoogleDriveStatus = useCallback(async () => {
@@ -319,6 +343,107 @@ export default function SettingsPage() {
     }
   }, [user]);
 
+  const loadGoogleCalendarStatus = useCallback(async () => {
+    if (!user) return;
+    setGoogleCalendarLoading(true);
+    setGoogleCalendarError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/integrations/google-calendar/status', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json()) as GoogleCalendarStatusResponse;
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to load Google Calendar status.');
+      }
+      setGoogleCalendarStatus(data.connected ? (data.data || null) : null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load Google Calendar status.';
+      setGoogleCalendarError(message);
+      setGoogleCalendarStatus(null);
+    } finally {
+      setGoogleCalendarLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    loadGoogleCalendarStatus();
+  }, [loadGoogleCalendarStatus]);
+
+  useEffect(() => {
+    const status = searchParams.get('google_calendar');
+    if (!status) return;
+
+    if (status === 'success') {
+      setSaveMessage({ type: 'success', text: 'Google Calendar connected successfully.' });
+      loadGoogleCalendarStatus();
+    } else if (status === 'error') {
+      const reason = searchParams.get('reason');
+      setSaveMessage({
+        type: 'error',
+        text: reason ? `Google Calendar connection failed: ${reason}` : 'Google Calendar connection failed.',
+      });
+    }
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('google_calendar');
+    params.delete('reason');
+    const next = params.toString();
+    router.replace(next ? `${pathname}?${next}` : pathname);
+  }, [searchParams, pathname, router, loadGoogleCalendarStatus]);
+
+  const handleGoogleCalendarConnect = useCallback(async () => {
+    if (!user) return;
+    setGoogleCalendarConnecting(true);
+    setGoogleCalendarError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/integrations/google-calendar/auth', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ returnTo: pathname }),
+      });
+      const data = (await res.json()) as { success: boolean; authUrl?: string; error?: string };
+      if (!res.ok || !data.success || !data.authUrl) {
+        throw new Error(data.error || 'Failed to start Google Calendar OAuth.');
+      }
+      window.location.assign(data.authUrl);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to connect Google Calendar.';
+      setGoogleCalendarError(message);
+      setSaveMessage({ type: 'error', text: message });
+      setGoogleCalendarConnecting(false);
+    }
+  }, [pathname, user]);
+
+  const handleGoogleCalendarDisconnect = useCallback(async () => {
+    if (!user) return;
+    setGoogleCalendarDisconnecting(true);
+    setGoogleCalendarError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/integrations/google-calendar/disconnect', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json()) as { success: boolean; error?: string };
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to disconnect Google Calendar.');
+      }
+      setGoogleCalendarStatus(null);
+      setSaveMessage({ type: 'success', text: 'Google Calendar disconnected.' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to disconnect Google Calendar.';
+      setGoogleCalendarError(message);
+      setSaveMessage({ type: 'error', text: message });
+    } finally {
+      setGoogleCalendarDisconnecting(false);
+    }
+  }, [user]);
+
   const handleImageUpload = useCallback(
     async (file: File, maxSize: number, field: 'photoBase64' | 'agencyLogoBase64' | 'businessCardBase64') => {
       try {
@@ -397,6 +522,9 @@ export default function SettingsPage() {
           return Math.min(10, Math.max(1, Math.round(parsed)));
         })(),
         skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
+        appointmentMode: agentProfile.appointmentMode === 'video' ? 'video' : 'phone',
+        defaultMeetingLink: (agentProfile.defaultMeetingLink || '').trim(),
+        autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? false,
       }, { merge: true });
 
       if (isFirstTimePhone) {
@@ -1442,6 +1570,121 @@ export default function SettingsPage() {
             )}
             {googleDriveError && (
               <p className="text-xs text-red-600 mt-3">{googleDriveError}</p>
+            )}
+          </div>
+
+          {/* Google Calendar */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Google Calendar</h3>
+            {googleCalendarLoading ? (
+              <p className="text-sm text-[#707070]">Checking connection...</p>
+            ) : googleCalendarStatus ? (
+              <div className="space-y-3">
+                <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/40 px-3 py-2">
+                  <p className="text-sm font-medium text-[#005851]">Connected</p>
+                  <p className="text-xs text-[#005851]/80 mt-0.5">
+                    {googleCalendarStatus.googleEmail || 'Google account connected'}
+                  </p>
+                </div>
+                <button
+                  onClick={handleGoogleCalendarDisconnect}
+                  disabled={googleCalendarDisconnecting}
+                  className="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-[5px] hover:bg-red-50 transition-colors disabled:opacity-50"
+                >
+                  {googleCalendarDisconnecting ? 'Disconnecting...' : 'Disconnect'}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-[#707070]">
+                  Connect Google Calendar to push your AFL appointments to your calendar app, with native device reminders.
+                </p>
+                <button
+                  onClick={handleGoogleCalendarConnect}
+                  disabled={googleCalendarConnecting}
+                  className="px-4 py-2 text-sm font-medium text-white bg-[#005851] rounded-[5px] hover:bg-[#004440] transition-colors disabled:opacity-50"
+                >
+                  {googleCalendarConnecting ? 'Redirecting...' : 'Connect Google Calendar'}
+                </button>
+              </div>
+            )}
+            {googleCalendarError && (
+              <p className="text-xs text-red-600 mt-3">{googleCalendarError}</p>
+            )}
+          </div>
+
+          {/* Appointment defaults — phone vs video, default meeting link, auto-Meet */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Appointments</h3>
+
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-[#374151] mb-2">
+                Most of your appointments are:
+              </label>
+              <div className="inline-flex rounded-[5px] border border-[#d0d0d0] overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => updateField('appointmentMode', 'phone')}
+                  className={`px-4 py-2 text-sm font-semibold transition-colors ${
+                    (agentProfile.appointmentMode || 'phone') === 'phone'
+                      ? 'bg-[#005851] text-white'
+                      : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                  }`}
+                >
+                  Phone
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateField('appointmentMode', 'video')}
+                  className={`px-4 py-2 text-sm font-semibold transition-colors border-l border-[#d0d0d0] ${
+                    agentProfile.appointmentMode === 'video'
+                      ? 'bg-[#005851] text-white'
+                      : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                  }`}
+                >
+                  Video
+                </button>
+              </div>
+              <p className="text-[11px] text-[#707070] mt-1.5">
+                Sets the default when you book — you can override per appointment.
+              </p>
+            </div>
+
+            {agentProfile.appointmentMode === 'video' && (
+              <>
+                <div className="mb-4">
+                  <label className="block text-xs font-semibold text-[#374151] mb-1">
+                    Default meeting link
+                  </label>
+                  <input
+                    type="url"
+                    value={agentProfile.defaultMeetingLink || ''}
+                    onChange={(e) => updateField('defaultMeetingLink', e.target.value)}
+                    placeholder="https://zoom.us/j/123… or https://meet.google.com/abc-xyz"
+                    className="w-full px-3 py-2 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+                  />
+                  <p className="text-[11px] text-[#707070] mt-1">
+                    Your Zoom personal room or permanent Meet room. Used unless &quot;auto-create Google Meet&quot; is on.
+                  </p>
+                </div>
+
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={agentProfile.autoCreateGoogleMeet ?? false}
+                    onChange={(e) => updateField('autoCreateGoogleMeet', e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span className="text-sm text-[#374151] leading-snug">
+                    Auto-create a unique Google Meet link for every video appointment
+                    {!googleCalendarStatus && (
+                      <span className="block text-[11px] text-amber-700 mt-0.5">
+                        Requires Google Calendar connection (above).
+                      </span>
+                    )}
+                  </span>
+                </label>
+              </>
             )}
           </div>
 

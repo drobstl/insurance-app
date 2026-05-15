@@ -50,6 +50,10 @@ interface Props {
   /** Lead's state from PDF extraction (`address.state`). May be null/empty. */
   leadState?: string | null;
   scheduledAt: Date;
+  /** IANA TZ captured at booking time; renders time + TZ label in the message. */
+  scheduledAtTimeZone?: string | null;
+  /** Per-appointment meeting URL; if set, appended as "Join here: …" in the SMS. */
+  meetingUrl?: string | null;
   agentName: string;
   /** From agentProfile.businessCardBase64. May be empty. */
   agentBusinessCardBase64?: string;
@@ -126,6 +130,8 @@ export default function SendConfirmationDrawer({
   leadPhone,
   leadState,
   scheduledAt,
+  scheduledAtTimeZone,
+  meetingUrl,
   agentName,
   agentBusinessCardBase64,
   licenses,
@@ -142,8 +148,10 @@ export default function SendConfirmationDrawer({
     leadFirstName: leadName,
     agentFirstName: agentName,
     scheduledAt,
+    timeZone: scheduledAtTimeZone || undefined,
+    meetingUrl: meetingUrl || undefined,
     kind,
-  }), [leadName, agentName, scheduledAt, kind]);
+  }), [leadName, agentName, scheduledAt, scheduledAtTimeZone, meetingUrl, kind]);
 
   const [message, setMessage] = useState(initialMessage);
 
@@ -163,16 +171,19 @@ export default function SendConfirmationDrawer({
   const [licenseSignedUrl, setLicenseSignedUrl] = useState<string | null>(null);
   const [hasShareApi, setHasShareApi] = useState(false);
 
-  // Detect Web Share API w/ file support on mount (only on client).
+  // Detect Web Share API w/ file support, AND a mobile UA. On macOS
+  // the share API exists but the share sheet for Messages drops the
+  // recipient (you land in a blank thread with the file attached).
+  // We restrict Web Share to mobile so desktop reliably falls through
+  // to `sms:`, which on macOS opens Messages with phone + body
+  // prefilled via Continuity.
   useEffect(() => {
-    if (typeof navigator !== 'undefined' && 'canShare' in navigator) {
-      try {
-        // canShare with no args returns true if the API exists; we'll
-        // call with a real payload at send time to gate file support.
-        setHasShareApi(true);
-      } catch {
-        setHasShareApi(false);
-      }
+    if (typeof navigator === 'undefined') return;
+    const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobile && 'canShare' in navigator) {
+      setHasShareApi(true);
+    } else {
+      setHasShareApi(false);
     }
   }, []);
 

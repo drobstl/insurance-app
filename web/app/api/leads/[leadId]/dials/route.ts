@@ -17,6 +17,10 @@ const VALID_OUTCOMES = [
   'not_interested',
   'callback_requested',
   'booked',
+  // Lead explicitly asked not to be contacted again. Treated like
+  // wrong_number / not_interested in the queue filter — never resurfaces
+  // automatically. Agent can still see the lead, but they shouldn't dial.
+  'do_not_call',
 ] as const;
 type DialOutcome = typeof VALID_OUTCOMES[number];
 

@@ -56,6 +56,12 @@ export interface ExtractedLeadFields {
   heightText: string | null;           // freeform, as printed on the form
   weightLbs: number | null;
   smokerStatus: 'Y' | 'N' | null;
+  /**
+   * Whether the lead has a co-borrower on the mortgage (spouse, partner,
+   * etc.). Call-In Symmetry forms usually ask "Do you have a co-borrower
+   * on the mortgage?" in the Questions Asked section.
+   */
+  coborrowerStatus: 'Y' | 'N' | null;
 
   // Mortgage / household
   mortgageDetails: {
@@ -107,6 +113,7 @@ const EXTRACTION_SCHEMA = {
     heightText: { type: ['string', 'null'], description: 'Freeform — preserve as printed (e.g. "5\'10\\""). Null if absent.' },
     weightLbs: { type: ['number', 'null'] },
     smokerStatus: { type: 'string', enum: ['Y', 'N', ''], description: 'Y / N if explicit; "" when absent.' },
+    coborrowerStatus: { type: 'string', enum: ['Y', 'N', ''], description: 'Y / N if a co-borrower question is answered; "" when absent.' },
     mortgageDetails: {
       type: ['object', 'null'],
       properties: {
@@ -136,7 +143,7 @@ const EXTRACTION_SCHEMA = {
   },
   required: [
     'name', 'phone', 'email', 'dateOfBirth', 'ageYears',
-    'address', 'gender', 'heightText', 'weightLbs', 'smokerStatus',
+    'address', 'gender', 'heightText', 'weightLbs', 'smokerStatus', 'coborrowerStatus',
     'mortgageDetails', 'spouseName', 'spouseAgeYears', 'beneficiaryName',
     'formType', 'extractionConfidence', 'extractionFlags',
   ],
@@ -177,6 +184,8 @@ FIELD EXTRACTION RULES:
 - **weightLbs**: Numeric pounds. Digital forms have a "Client Weight" field. Null otherwise.
 
 - **smokerStatus**: "Y" or "N" if a tobacco-use field is filled. The Call-In "Questions Asked" section often has "Have you used tobacco in the last 12 months?". Digital forms have "Tobacco Use (client)" with True/False.
+
+- **coborrowerStatus**: "Y" or "N" if a co-borrower question is filled. Call-In Symmetry forms usually ask "Do you have a co-borrower on the mortgage?" or similar in the Questions Asked section. Treat a separately-listed Spouse Name as a strong but not definitive signal — only set "Y" if the form explicitly asks the co-borrower question and the lead answered yes. Empty string if absent.
 
 - **mortgageDetails.balance**: Numeric USD. Look for "Loan Amount", "Mortgage Amount", "Mortgage Loan Amount" — NOT "Purchase Amount" (which is the original purchase price, often $0 on these forms).
 
@@ -319,6 +328,10 @@ function normalize(raw: Record<string, unknown>): ExtractedLeadFields {
   const smokerStatus: 'Y' | 'N' | null =
     smokerRaw === 'Y' || smokerRaw === 'N' ? smokerRaw : null;
 
+  const coborrowerRaw = strOrNull(raw.coborrowerStatus);
+  const coborrowerStatus: 'Y' | 'N' | null =
+    coborrowerRaw === 'Y' || coborrowerRaw === 'N' ? coborrowerRaw : null;
+
   const formTypeRaw = strOrNull(raw.formType);
   const formType: LeadFormType =
     formTypeRaw === 'Mail-In' || formTypeRaw === 'Call-In' || formTypeRaw === 'Digital'
@@ -345,6 +358,7 @@ function normalize(raw: Record<string, unknown>): ExtractedLeadFields {
     heightText: strOrNull(raw.heightText),
     weightLbs: numOrNull(raw.weightLbs),
     smokerStatus,
+    coborrowerStatus,
     mortgageDetails,
     spouseName: strOrNull(raw.spouseName),
     spouseAgeYears: intOrNull(raw.spouseAgeYears),
