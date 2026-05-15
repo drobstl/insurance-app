@@ -413,6 +413,16 @@ const NAV_ITEMS = [
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
     </svg>
   )},
+  // Pre-clients (Phase 1 lead-mode). Manual create + PDF upload (Mail-In /
+  // Call-In / Digital). Lead docs live at agents/{agentId}/leads/{leadId};
+  // generated codes are prefixed `L`. Lead-mode mobile screen lives at
+  // mobile/app/lead-home.tsx and detects lead vs client by accessType
+  // returned from /api/mobile/lookup-client-code.
+  { key: 'leads', path: '/dashboard/leads', label: 'Leads', icon: (
+    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+    </svg>
+  )},
   // Cross-lane agent action items surface (May 9, 2026 — Item 7).
   // Replaces the welcome-only queue. Tabs: Welcome / Retention /
   // Anniversary / Referral. Per-lane card components live in
@@ -564,6 +574,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const activeKey = (() => {
     if (pathname === '/dashboard') return 'home';
     if (pathname.startsWith('/dashboard/clients')) return 'clients';
+    if (pathname.startsWith('/dashboard/leads')) return 'leads';
     if (pathname.startsWith('/dashboard/referrals')) return 'referrals';
     if (pathname.startsWith('/dashboard/conservation')) return 'conservation';
     if (pathname.startsWith('/dashboard/policy-reviews')) return 'policy-reviews';

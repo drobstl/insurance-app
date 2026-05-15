@@ -1,0 +1,890 @@
+'use client';
+
+import { useState, useEffect, useCallback, useMemo, type CSSProperties } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  collection,
+  onSnapshot,
+  query,
+  orderBy,
+  Timestamp,
+} from 'firebase/firestore';
+import { db } from '../../../firebase';
+import { useDashboard } from '../DashboardContext';
+import AppointmentPicker from '../../../components/AppointmentPicker';
+import SendConfirmationDrawer from '../../../components/SendConfirmationDrawer';
+
+interface Lead {
+  id: string;
+  name: string;
+  phone: string;
+  leadCode: string;
+  formType?: string;
+  createdAt?: Timestamp | null;
+  appDownloadedAt?: string | null;
+  assessmentCompletedAt?: Timestamp | null;
+  convertedToClientId?: string | null;
+  monthlyMortgageAmount?: number;
+  notes?: string;
+  // Dial-tracking fields (Chunk 4b). Denormalized at write time so
+  // queue queries / sorting don't require reading dialLog[].
+  lastDialAt?: Timestamp | null;
+  lastDialOutcome?: 'no_answer' | 'left_vm' | 'wrong_number' | 'not_interested' | 'callback_requested' | 'booked';
+  dialLog?: Array<{ at?: Timestamp | null; outcome: string; notes?: string }>;
+  // Attachment dedup (Chunk 4f). Tracks what the booking-confirmation
+  // and reminder flows have already sent to this lead.
+  attachmentsSent?: {
+    businessCardAt?: string;
+    licensesByState?: Record<string, string>;
+  };
+}
+
+type LeadView = 'all' | 'queue';
+
+// ── Slide-flow geometry. Mirrors the Add Client flow on the Clients
+// page (web/app/dashboard/clients/page.tsx ~L4231) so the "open the
+// add form" interaction feels identical. The list surface slides LEFT
+// (and fades to opacity 0.75 — NOT 0) when the form opens; the form
+// surface slides in from the RIGHT. The slide is 72% + 15.25rem,
+// NOT 100%, so a sliver of the list peeks from the left edge during
+// and after the transit. Both surfaces stay at full opacity during
+// the transition (via the 0.75 floor on the list) — gives the user
+// a "shared moment" rather than a hard swap.
+//
+// Single-stage flow (vs Clients' multi-stage upload→review→welcome) so
+// we don't need the belt / stage-index machinery — just two
+// translateX states.
+const SLIDE_TRANSITION = 'transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)]';
+const BELT_OFFSET = 'calc(72% + 15.25rem)';   // 72% of width + 14rem step + 1.25rem gap
+const SURFACE_SHELL = 'relative w-full max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden';
+const SURFACE_HEADER = 'sticky top-0 z-10 flex items-center justify-between p-5 border-b border-[#ececec] bg-white';
+
+export default function LeadsPage() {
+  const router = useRouter();
+  const { user, agentProfile } = useDashboard();
+
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<LeadView>('all');
+
+  // Add-Lead flow ── replaces the centered modal with a horizontal
+  // slide. addFlowOpen=true → list slides out left, form slides in
+  // from right; close → both slide back.
+  const [addFlowOpen, setAddFlowOpen] = useState(false);
+  const [createName, setCreateName] = useState('');
+  const [createPhone, setCreatePhone] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const [justCreated, setJustCreated] = useState<{
+    leadCode: string;
+    leadId: string;
+    codeKind: 'derived' | 'fallback';
+    formType?: string;
+    extractionConfidence?: number;
+  } | null>(null);
+
+  // PDF upload state (Chunk 2)
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  // ── Live list of leads ──
+  useEffect(() => {
+    if (!user) return;
+    const q = query(
+      collection(db, 'agents', user.uid, 'leads'),
+      orderBy('createdAt', 'desc'),
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setLeads(
+        snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Lead, 'id'>) })),
+      );
+      setLoading(false);
+    }, (err) => {
+      console.error('leads onSnapshot error:', err);
+      setLoading(false);
+    });
+    return () => unsub();
+  }, [user]);
+
+  const openAddFlow = useCallback(() => {
+    setJustCreated(null);
+    setCreateError(null);
+    setAddFlowOpen(true);
+  }, []);
+
+  const closeAddFlow = useCallback(() => {
+    if (creating) return;
+    setAddFlowOpen(false);
+    setCreateError(null);
+  }, [creating]);
+
+  // ── Create lead ──
+  const handleCreate = useCallback(async () => {
+    if (!user) return;
+    const name = createName.trim();
+    const phone = createPhone.trim();
+    if (!name || !phone) {
+      setCreateError('Name and phone are both required');
+      return;
+    }
+    // Phone is the lead's app code, so it must be at least 10 digits.
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (phoneDigits.length < 10) {
+      setCreateError('Phone must have at least 10 digits — it doubles as the lead\'s app code');
+      return;
+    }
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/leads/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name, phone, formType: 'Manual' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setCreateError(data?.error || `Failed to create lead (${res.status})`);
+        return;
+      }
+      setJustCreated({
+        leadCode: data.leadCode,
+        leadId: data.leadId,
+        codeKind: data.codeKind || 'derived',
+        formType: 'Manual',
+      });
+      setCreateName('');
+      setCreatePhone('');
+      // Slide back to the list — the just-created banner appears at
+      // the top of the list surface so the agent immediately sees the
+      // result of their action.
+      setAddFlowOpen(false);
+    } catch (err) {
+      console.error('create lead error:', err);
+      setCreateError('Network error — please try again');
+    } finally {
+      setCreating(false);
+    }
+  }, [user, createName, createPhone]);
+
+  // ── PDF upload (Mail-In / Call-In / Digital) ──
+  const handleUpload = useCallback(async (file: File) => {
+    if (!user) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const token = await user.getIdToken();
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/leads/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUploadError(data?.error || `Upload failed (${res.status})`);
+        return;
+      }
+      setJustCreated({
+        leadCode: data.leadCode,
+        leadId: data.leadId,
+        codeKind: data.codeKind || 'fallback',
+        formType: data.formType,
+        extractionConfidence: data.extractionConfidence,
+      });
+    } catch (err) {
+      console.error('upload lead error:', err);
+      setUploadError('Network error — please try again');
+    } finally {
+      setUploading(false);
+    }
+  }, [user]);
+
+  const copyToClipboard = useCallback(async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode((c) => (c === code ? null : c)), 1800);
+    } catch {
+      // Fallback handled by browser
+    }
+  }, []);
+
+  const formatTimestamp = (ts: Timestamp | null | undefined): string => {
+    if (!ts) return '—';
+    try {
+      return ts.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    } catch {
+      return '—';
+    }
+  };
+
+  // ── Call queue priority ──
+  // Filters: drop converted, booked, not-interested, wrong-number leads.
+  // Sort: never-dialed first (most urgent — agent should reach out),
+  // then by elapsed-time-since-last-attempt with weighting based on
+  // outcome (callback-requested ages fast, voicemail ages slowly).
+  const queueLeads = useMemo<Lead[]>(() => {
+    const now = Date.now();
+
+    type Scored = { lead: Lead; score: number };
+    const scored: Scored[] = [];
+
+    for (const lead of leads) {
+      if (lead.convertedToClientId) continue;
+      const out = lead.lastDialOutcome;
+      if (out === 'booked' || out === 'not_interested' || out === 'wrong_number') continue;
+
+      const lastDialMs = lead.lastDialAt?.toDate().getTime() ?? null;
+      let score: number;
+
+      if (lastDialMs === null) {
+        // Never dialed — highest priority. Sub-sort by created-at so
+        // newer leads rank slightly higher (they're more "fresh").
+        const createdMs = lead.createdAt?.toDate().getTime() ?? 0;
+        score = 1_000_000_000 + createdMs / 1000;
+      } else {
+        const hoursSince = (now - lastDialMs) / (1000 * 60 * 60);
+        // Outcome-specific cooldown — leads waiting on a callback
+        // should resurface fast; left-vm should rest a couple days
+        // before re-trying.
+        const cooldownHours = (
+          out === 'callback_requested' ? 4 :
+          out === 'no_answer'          ? 24 :
+          out === 'left_vm'            ? 48 :
+                                         24
+        );
+        // Score = how-much-overdue (positive = overdue, negative = still resting)
+        score = hoursSince - cooldownHours;
+      }
+
+      scored.push({ lead, score });
+    }
+
+    return scored
+      .sort((a, b) => b.score - a.score)
+      .map(({ lead }) => lead);
+  }, [leads]);
+
+  // Tap-to-call — used on the queue rows. US-only — raw digits, the
+  // OS dialer handles country-code interpretation. Sets the
+  // pending-outcome target so the inline chip group appears under
+  // this row when the agent returns from the dialer.
+  const [pendingOutcomeLeadId, setPendingOutcomeLeadId] = useState<string | null>(null);
+  const [loggingOutcomeId, setLoggingOutcomeId] = useState<string | null>(null);
+  const [outcomeError, setOutcomeError] = useState<string | null>(null);
+
+  const handleQueueCall = useCallback((lead: Lead) => {
+    const digits = (lead.phone || '').replace(/\D/g, '');
+    if (digits.length < 7) return;
+    setOutcomeError(null);
+    setPendingOutcomeLeadId(lead.id);
+    window.location.href = `tel:${digits}`;
+  }, []);
+
+  // When the agent picks "Booked" as the outcome on a queue row,
+  // open the appointment picker (which atomically logs the dial
+  // outcome on save) instead of immediately POSTing the dial outcome.
+  // After save → auto-open the confirmation drawer (Chunk 4e) so the
+  // agent can fire the SMS while the lead is still on the line.
+  const [bookingForLead, setBookingForLead] = useState<Lead | null>(null);
+  const [confirmingLead, setConfirmingLead] = useState<{ lead: Lead; appointmentId: string; scheduledAt: Date } | null>(null);
+
+  const handleQueueLogOutcome = useCallback(async (leadId: string, outcome: string) => {
+    if (!user) return;
+    if (outcome === 'booked') {
+      const lead = leads.find((l) => l.id === leadId);
+      if (lead) {
+        setPendingOutcomeLeadId(null);
+        setBookingForLead(lead);
+      }
+      return;
+    }
+    setLoggingOutcomeId(leadId);
+    setOutcomeError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/leads/${leadId}/dials`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ outcome }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setOutcomeError(data?.error || `Failed to log (${res.status})`);
+        return;
+      }
+      setPendingOutcomeLeadId(null);
+      // Live snapshot picks up the new lastDialAt/lastDialOutcome
+      // and the queue useMemo re-sorts on the next render. Booked /
+      // not-interested / wrong-number leads drop off the queue
+      // entirely; others move down based on cooldown.
+    } catch (err) {
+      console.error('queue outcome error:', err);
+      setOutcomeError('Network error — try again');
+    } finally {
+      setLoggingOutcomeId(null);
+    }
+  }, [user, leads]);
+
+  const formatRelativeFromNow = (ts: Timestamp | null | undefined): string => {
+    if (!ts) return '';
+    try {
+      const ms = Date.now() - ts.toDate().getTime();
+      const minutes = Math.floor(ms / 60_000);
+      if (minutes < 1) return 'just now';
+      if (minutes < 60) return `${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h ago`;
+      const days = Math.floor(hours / 24);
+      if (days < 7) return `${days}d ago`;
+      return ts.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    } catch {
+      return '';
+    }
+  };
+
+  const DIAL_OUTCOME_LABELS: Record<string, string> = {
+    no_answer: 'No answer',
+    left_vm: 'Voicemail',
+    wrong_number: 'Wrong #',
+    not_interested: 'Not interested',
+    callback_requested: 'Callback',
+    booked: 'Booked',
+  };
+
+  const DIAL_OUTCOME_TONE: Record<string, string> = {
+    no_answer: 'bg-gray-100 text-gray-700 border-gray-300',
+    left_vm: 'bg-blue-50 text-blue-800 border-blue-200',
+    wrong_number: 'bg-red-50 text-red-800 border-red-200',
+    not_interested: 'bg-red-50 text-red-800 border-red-200',
+    callback_requested: 'bg-amber-50 text-amber-900 border-amber-300',
+    booked: 'bg-[#daf3f0] text-[#005851] border-[#45bcaa]',
+  };
+
+  // Slide-belt transforms. Outgoing list slides 72% + 15.25rem left
+  // (sliver peeks from the right edge of viewport — well, the LEFT
+  // edge of viewport since it's moving leftward) and stays at opacity
+  // 0.75 — visible-but-dimmed, not gone. Incoming form slides in from
+  // the same offset on the right and fades opacity 0 → 1.
+  const listSurfaceStyle: CSSProperties = {
+    transform: addFlowOpen ? `translateX(calc(-1 * ${BELT_OFFSET}))` : 'translateX(0)',
+    opacity: addFlowOpen ? 0.75 : 1,
+    pointerEvents: addFlowOpen ? 'none' : 'auto',
+    userSelect: addFlowOpen ? 'none' : 'auto',
+  };
+  const addFlowSurfaceStyle: CSSProperties = {
+    transform: addFlowOpen ? 'translateX(0)' : `translateX(${BELT_OFFSET})`,
+    opacity: addFlowOpen ? 1 : 0,
+    pointerEvents: addFlowOpen ? 'auto' : 'none',
+  };
+
+  return (
+    <div className={`max-w-7xl mx-auto ${addFlowOpen ? 'overflow-x-visible' : 'overflow-x-clip'}`}>
+      <div className="relative">
+        {/* ── List surface ── */}
+        <div className={SLIDE_TRANSITION} style={listSurfaceStyle}>
+          {/* Action bar */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={openAddFlow}
+                className="px-4 py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors flex items-center gap-2 text-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Add Lead
+              </button>
+              <label className={`px-4 py-2.5 bg-white text-[#0D4D4D] font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors hover:bg-[#f8f8f8] flex items-center gap-2 text-sm cursor-pointer ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      void handleUpload(file);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                {uploading ? 'Reading…' : 'Upload Lead Form'}
+              </label>
+            </div>
+          </div>
+
+          {/* Tab switcher: All vs Call queue. The queue prioritizes
+              never-dialed first, then by elapsed-time-since-last-attempt
+              with outcome-specific cooldowns. Designed for sit-down
+              dialing sessions: open queue, dial top of list, log
+              outcome, queue auto-resorts. */}
+          <div className="mb-4 flex items-center gap-1 border-b border-[#d0d0d0]">
+            <button
+              onClick={() => setView('all')}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+                view === 'all'
+                  ? 'border-[#44bbaa] text-[#005851]'
+                  : 'border-transparent text-[#707070] hover:text-[#005851]'
+              }`}
+            >
+              All leads
+              <span className="ml-1.5 text-xs text-[#9CA3AF] font-normal">{leads.length}</span>
+            </button>
+            <button
+              onClick={() => setView('queue')}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+                view === 'queue'
+                  ? 'border-[#44bbaa] text-[#005851]'
+                  : 'border-transparent text-[#707070] hover:text-[#005851]'
+              }`}
+            >
+              Call queue
+              <span className="ml-1.5 text-xs text-[#9CA3AF] font-normal">{queueLeads.length}</span>
+            </button>
+          </div>
+
+          {/* PDF drop-zone */}
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+            onDragLeave={() => setDragActive(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragActive(false);
+              const file = e.dataTransfer.files?.[0];
+              if (file) void handleUpload(file);
+            }}
+            className={`mb-4 rounded-[5px] border-2 border-dashed px-5 py-4 transition-all ${
+              dragActive
+                ? 'border-[#45bcaa] bg-[#daf3f0]/60'
+                : 'border-[#45bcaa]/40 bg-[#daf3f0]/30 hover:bg-[#daf3f0]/50'
+            } ${uploading ? 'opacity-60' : ''}`}
+          >
+            <div className="flex items-center gap-3">
+              <svg className="w-5 h-5 text-[#005851] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 0115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-[#005851]">
+                  {uploading ? 'Reading the form…' : 'Drop a Mail-In, Call-In, or Digital lead form PDF here'}
+                </p>
+                <p className="text-xs text-[#005851]/70 mt-0.5">
+                  Name, phone, address, mortgage details, and more get pulled out automatically.
+                </p>
+              </div>
+            </div>
+            {uploadError && (
+              <div className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-[5px] px-3 py-2">
+                {uploadError}
+              </div>
+            )}
+          </div>
+
+          {/* Just-created banner */}
+          {justCreated && (
+            <div className="mb-6 bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-bold tracking-wider text-[#005851] uppercase">Lead created</span>
+                    {justCreated.formType && justCreated.formType !== 'Manual' && (
+                      <span className="text-[10px] text-[#707070] font-normal">
+                        · {justCreated.formType} form
+                        {typeof justCreated.extractionConfidence === 'number' && (
+                          <> · {Math.round(justCreated.extractionConfidence * 100)}% confident</>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  {justCreated.codeKind === 'derived' ? (
+                    <p className="text-sm text-[#444] mb-3 leading-relaxed">
+                      Tell your lead to download AFL and enter{' '}
+                      <strong className="text-[#000000]">their phone number</strong>.
+                      No code to remember. (The 10 digits below are what they&apos;ll type.)
+                    </p>
+                  ) : (
+                    <div className="text-sm text-amber-900 mb-3 bg-amber-50 border border-amber-300/60 rounded-[5px] px-3 py-2 leading-relaxed">
+                      <strong>Heads up:</strong> another lead in the system already has this
+                      phone number, or the phone couldn&apos;t be read from the form.
+                      Read this random code to your lead during the call.
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="font-mono text-2xl tracking-[0.3em] font-bold text-[#005851] bg-[#daf3f0]/50 px-4 py-2 rounded-[5px] border border-[#45bcaa]/40">
+                      {justCreated.leadCode}
+                    </div>
+                    <button
+                      onClick={() => copyToClipboard(justCreated.leadCode)}
+                      className="px-4 py-2 text-sm font-semibold text-[#0D4D4D] bg-white rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] hover:bg-[#f8f8f8] transition-colors"
+                    >
+                      {copiedCode === justCreated.leadCode ? 'Copied!' : 'Copy'}
+                    </button>
+                    <button
+                      onClick={() => router.push(`/dashboard/leads/${justCreated.leadId}`)}
+                      className="px-4 py-2 text-sm font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors"
+                    >
+                      Open lead →
+                    </button>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setJustCreated(null)}
+                  className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 shrink-0"
+                  aria-label="Dismiss"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* List card — branches on view */}
+          <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden">
+            {view === 'queue' && !loading && queueLeads.length > 0 ? (
+              <div>
+                <div className="px-5 py-3 bg-[#daf3f0]/30 border-b border-[#d0d0d0] text-xs text-[#005851] font-semibold">
+                  Top of the queue is who you should call next.
+                  Outcome-chip the call and the queue resorts automatically.
+                </div>
+                <ul className="divide-y divide-[#f1f1f1]">
+                  {queueLeads.map((lead, idx) => {
+                    const isPending = pendingOutcomeLeadId === lead.id;
+                    const isLogging = loggingOutcomeId === lead.id;
+                    return (
+                      <li key={lead.id} className={`px-5 py-3.5 ${isPending ? 'bg-[#FEFCE8]' : 'hover:bg-[#f8f8f8]'}`}>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-bold text-[#9CA3AF] w-6 shrink-0 text-right">{idx + 1}.</span>
+                          <button
+                            onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                            className="flex-1 min-w-0 text-left"
+                          >
+                            <div className="text-sm font-semibold text-[#000000] truncate">{lead.name}</div>
+                            <div className="text-xs text-[#707070] mt-0.5 flex items-center gap-2 flex-wrap">
+                              <span>{lead.phone}</span>
+                              {lead.lastDialOutcome ? (
+                                <>
+                                  <span>·</span>
+                                  <span>
+                                    Last: {DIAL_OUTCOME_LABELS[lead.lastDialOutcome] || lead.lastDialOutcome}
+                                    {lead.lastDialAt && (
+                                      <span className="text-[#9CA3AF] ml-1">{formatRelativeFromNow(lead.lastDialAt)}</span>
+                                    )}
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <span>·</span>
+                                  <span className="text-[#005851] font-semibold">Never dialed</span>
+                                </>
+                              )}
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => handleQueueCall(lead)}
+                            className="px-3 py-2 bg-[#44bbaa] hover:bg-[#005751] text-white text-xs font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors flex items-center gap-1.5 shrink-0"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg>
+                            {isPending ? 'Re-dial' : 'Call'}
+                          </button>
+                        </div>
+
+                        {/* Inline outcome prompt — appears when agent
+                            tapped Call on this row. Same vocabulary as
+                            the detail-page prompt. Stays open until
+                            agent picks an outcome or hits Skip. */}
+                        {isPending && (
+                          <div className="mt-3 ml-9 flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-semibold text-[#92400E]">How did it go?</span>
+                            {(['no_answer', 'left_vm', 'callback_requested', 'booked', 'not_interested', 'wrong_number'] as const).map((outcome) => (
+                              <button
+                                key={outcome}
+                                onClick={() => void handleQueueLogOutcome(lead.id, outcome)}
+                                disabled={isLogging}
+                                className={`px-2.5 py-1 text-[11px] font-semibold rounded-md border ${DIAL_OUTCOME_TONE[outcome]} hover:opacity-80 transition-opacity disabled:opacity-40`}
+                              >
+                                {DIAL_OUTCOME_LABELS[outcome]}
+                              </button>
+                            ))}
+                            <button
+                              onClick={() => setPendingOutcomeLeadId(null)}
+                              disabled={isLogging}
+                              className="text-[11px] text-[#9CA3AF] hover:text-[#707070] font-semibold ml-1"
+                            >
+                              Skip
+                            </button>
+                            {isPending && outcomeError && pendingOutcomeLeadId === lead.id && (
+                              <span className="text-xs text-red-600 ml-2">{outcomeError}</span>
+                            )}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : view === 'queue' && !loading ? (
+              <div className="p-8 sm:p-12 text-center">
+                <p className="text-[#000000] font-semibold mb-2">Nothing in the queue right now.</p>
+                <p className="text-sm text-[#707070] max-w-md mx-auto">
+                  Either you&apos;ve worked through every lead, or all current leads are still
+                  in their post-call cooldown. Add more leads or wait — the queue
+                  resurfaces leads automatically based on their last outcome.
+                </p>
+              </div>
+            ) : loading ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="flex flex-col items-center gap-4">
+                  <svg className="animate-spin w-10 h-10 text-[#45bcaa]" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  <p className="text-[#707070]">Loading leads…</p>
+                </div>
+              </div>
+            ) : leads.length === 0 ? (
+              <div className="p-8 sm:p-12 max-w-3xl mx-auto">
+                <h2 className="text-xl sm:text-2xl font-bold text-[#000000] mb-2">
+                  Get a lead warmed up before your appointment.
+                </h2>
+                <p className="text-[#444] text-sm sm:text-base leading-relaxed mb-5">
+                  When you set an appointment, get the lead into AFL during that same call.
+                  They download the app, enter their phone number, and the app
+                  walks them through a short intro video, an assessment, and a couple of FAQ + case-study
+                  videos — so when you call back, you&apos;re not a stranger and the easy objections
+                  are already softened.
+                </p>
+                <div className="space-y-4 mb-6">
+                  <div>
+                    <p className="font-semibold text-[#000000] mb-1">Two ways to add a lead.</p>
+                    <p className="text-[#444] text-sm leading-relaxed">
+                      <strong>Drop a lead form PDF</strong> (Mail-In, Call-In, or Digital) into the box above —
+                      AFL pulls out name, phone, address, DOB, mortgage details, and more.
+                      Or click <strong>Add Lead</strong> for a one-off manual entry on the call.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-[#000000] mb-1">Their app code is their phone number.</p>
+                    <p className="text-[#444] text-sm leading-relaxed">
+                      No random code to read out. You say
+                      &ldquo;your code is your phone number&rdquo; on the call,
+                      and they type the 10 digits into AFL on the spot.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <label className="flex-1 px-6 py-3 bg-white hover:bg-[#daf3f0]/30 text-[#005851] font-semibold rounded-[5px] border-2 border-dashed border-[#45bcaa]/50 transition-colors text-center cursor-pointer">
+                    <input
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          void handleUpload(file);
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                    Upload a lead form PDF
+                  </label>
+                  <button
+                    onClick={openAddFlow}
+                    className="flex-1 px-6 py-3 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors"
+                  >
+                    Add a lead manually
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[#d0d0d0] bg-[#f8f8f8]">
+                      <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Name</th>
+                      <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Phone</th>
+                      <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Code</th>
+                      <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Source</th>
+                      <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Downloaded</th>
+                      <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Assessment</th>
+                      <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Created</th>
+                      <th className="px-5 py-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leads.map((lead) => (
+                      <tr
+                        key={lead.id}
+                        className="border-b border-[#f1f1f1] hover:bg-[#f8f8f8] cursor-pointer transition-colors"
+                        onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                      >
+                        <td className="px-5 py-3.5 text-sm font-semibold text-[#000000]">
+                          {lead.name}
+                          {lead.convertedToClientId && (
+                            <span className="ml-2 inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
+                              Converted
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 text-sm text-[#444]">{lead.phone}</td>
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs tracking-wider font-bold text-[#005851]">{lead.leadCode}</span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); copyToClipboard(lead.leadCode); }}
+                              className="text-xs text-[#44bbaa] hover:text-[#005751] font-semibold"
+                            >
+                              {copiedCode === lead.leadCode ? 'Copied!' : 'Copy'}
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5 text-sm text-[#707070]">{lead.formType || '—'}</td>
+                        <td className="px-5 py-3.5 text-sm text-[#707070]">
+                          {lead.appDownloadedAt ? <span className="text-[#005851] font-semibold">✓</span> : '—'}
+                        </td>
+                        <td className="px-5 py-3.5 text-sm text-[#707070]">
+                          {lead.assessmentCompletedAt ? <span className="text-[#005851] font-semibold">✓</span> : '—'}
+                        </td>
+                        <td className="px-5 py-3.5 text-sm text-[#707070]">{formatTimestamp(lead.createdAt)}</td>
+                        <td className="px-5 py-3.5 text-right">
+                          <span className="text-[#44bbaa] text-sm font-semibold">Open →</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Appointment picker for queue-side bookings (Chunk 4c).
+            On save → auto-opens the confirmation drawer (Chunk 4e). */}
+        {bookingForLead && (
+          <AppointmentPicker
+            user={user}
+            leadId={bookingForLead.id}
+            leadName={bookingForLead.name}
+            onBooked={(appointmentId, scheduledAt) => {
+              const lead = bookingForLead;
+              setBookingForLead(null);
+              setConfirmingLead({ lead, appointmentId, scheduledAt });
+            }}
+            onCancel={() => setBookingForLead(null)}
+          />
+        )}
+
+        {/* Send-confirmation drawer for queue-side bookings (Chunk 4e). */}
+        {confirmingLead && (
+          <SendConfirmationDrawer
+            user={user}
+            appointmentId={confirmingLead.appointmentId}
+            leadName={confirmingLead.lead.name}
+            leadPhone={confirmingLead.lead.phone}
+            leadState={null /* leads list doesn't denormalize state — agent picks in drawer */}
+            scheduledAt={confirmingLead.scheduledAt}
+            agentName={agentProfile.name || ''}
+            agentBusinessCardBase64={agentProfile.businessCardBase64}
+            licenses={agentProfile.licenses || {}}
+            attachmentsSent={confirmingLead.lead.attachmentsSent}
+            onSent={() => setConfirmingLead(null)}
+            onCancel={() => setConfirmingLead(null)}
+          />
+        )}
+
+        {/* ── Add-Lead surface (slides in from the right) ── */}
+        <div
+          className={`absolute inset-x-0 top-0 ${SLIDE_TRANSITION}`}
+          style={addFlowSurfaceStyle}
+          aria-hidden={!addFlowOpen}
+        >
+          <div className={SURFACE_SHELL}>
+            <div className={SURFACE_HEADER}>
+              <div>
+                <h3 className="text-xl font-bold text-[#000000]">Add Lead</h3>
+                <p className="text-xs text-[#707070] mt-0.5">
+                  Their app code is their phone number. Get name + phone on the call.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeAddFlow}
+                disabled={creating}
+                className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4 max-w-md">
+              <div>
+                <label className="block text-sm font-medium text-[#000000] mb-1">Lead name</label>
+                <input
+                  type="text"
+                  value={createName}
+                  onChange={(e) => setCreateName(e.target.value)}
+                  placeholder="John Smith"
+                  className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+                  disabled={creating}
+                  autoFocus={addFlowOpen}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#000000] mb-1">Phone</label>
+                <input
+                  type="tel"
+                  value={createPhone}
+                  onChange={(e) => setCreatePhone(e.target.value)}
+                  placeholder="(555) 123-4567"
+                  className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+                  disabled={creating}
+                />
+                <p className="text-[11px] text-[#707070] mt-1">
+                  Doubles as the lead&apos;s app code — &ldquo;your code is your phone number.&rdquo;
+                </p>
+              </div>
+              {createError && (
+                <p className="text-xs text-red-600">{createError}</p>
+              )}
+            </div>
+            <div className="flex gap-3 p-5 border-t border-[#ececec] bg-[#fafafa]">
+              <button
+                onClick={closeAddFlow}
+                disabled={creating}
+                className="flex-1 max-w-[180px] py-2.5 px-4 text-sm font-semibold text-[#0D4D4D] bg-white rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] hover:bg-[#f8f8f8] transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={creating}
+                className="flex-1 max-w-[220px] py-2.5 px-4 text-sm font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-50"
+              >
+                {creating ? 'Creating…' : 'Add Lead'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

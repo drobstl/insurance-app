@@ -1,0 +1,490 @@
+'use client';
+
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import type { User } from 'firebase/auth';
+import { composeMessage } from '../lib/booking-confirmation';
+
+/**
+ * Booking-confirmation drawer (Chunk 4e).
+ *
+ * Opens automatically right after the agent saves a booking, and is
+ * also reachable from a "Send confirmation" button on existing
+ * appointment cards.
+ *
+ * Composes the locked template with appointment + agent + lead
+ * names, looks up the state-matched license PDF, and provides a
+ * one-tap "Send" affordance:
+ *
+ *   - **Web Share API path**: on iOS Safari (15+) and Android Chrome
+ *     where `navigator.canShare({ files })` is true, opens the
+ *     system share sheet with files + body queued — agent picks
+ *     Messages, taps Send.
+ *   - **Fallback `sms:` path**: opens the dialer/Messages with body
+ *     pre-filled (no attachments — those are surfaced as separate
+ *     download links). Used on macOS, desktop browsers, and any
+ *     environment without Web Share file support.
+ *
+ * Either way, after firing the share intent, the drawer POSTs to
+ * `/api/appointments/[apptId]/confirmation-sent` to stamp the
+ * appointment's sentConfirmationAt. We can't verify the message
+ * actually went out (no OS callback), so we stamp on intent.
+ */
+
+interface LicenseEntry {
+  number: string;
+  expiresOn: string | null;
+  pdfStoragePath: string;
+  uploadedAt: string;
+}
+
+interface AttachmentsSent {
+  businessCardAt?: string;
+  licensesByState?: Record<string, string>;
+}
+
+interface Props {
+  user: User | null;
+  appointmentId: string;
+  leadName: string;
+  leadPhone: string;
+  /** Lead's state from PDF extraction (`address.state`). May be null/empty. */
+  leadState?: string | null;
+  scheduledAt: Date;
+  agentName: string;
+  /** From agentProfile.businessCardBase64. May be empty. */
+  agentBusinessCardBase64?: string;
+  /** From agentProfile.licenses keyed by state code. */
+  licenses: Record<string, LicenseEntry>;
+  /**
+   * What's already been sent to this lead. The drawer reads this to
+   * skip attachments that the lead already has — agents shouldn't
+   * re-send the same business card / license PDF on every reminder.
+   * Pass an empty object (or omit) for first-time sends.
+   */
+  attachmentsSent?: AttachmentsSent;
+  /**
+   * Which template + which stamp endpoint:
+   *   - 'confirmation' → composeMessage({kind:'confirmation'}) + /confirmation-sent
+   *   - 'reminder'     → composeMessage({kind:'reminder'})    + /reminder-sent
+   * Defaults to 'confirmation' for backward-compat with existing call sites.
+   */
+  kind?: 'confirmation' | 'reminder';
+  onSent: () => void;
+  onCancel: () => void;
+}
+
+const US_STATE_CODES = [
+  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'DC', 'FL', 'GA',
+  'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA',
+  'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY',
+  'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX',
+  'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'PR',
+];
+
+/**
+ * Convert a base64 string + mime to a File the Web Share API accepts.
+ * The agent's business card lives as base64 on agentProfile —
+ * decoding it client-side is fine (small images).
+ */
+function base64ToFile(base64: string, filename: string, mimeType: string): File {
+  const cleaned = base64.replace(/^data:.+;base64,/, '');
+  const binary = atob(cleaned);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new File([bytes], filename, { type: mimeType });
+}
+
+async function fetchLicenseFile(
+  user: User,
+  stateCode: string,
+): Promise<{ file: File | null; signedUrl: string | null }> {
+  try {
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/agent-licenses/${stateCode}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { file: null, signedUrl: null };
+    const data = await res.json();
+    const url = data?.url;
+    if (!url) return { file: null, signedUrl: null };
+    // Fetch the PDF bytes for the share sheet.
+    const pdfRes = await fetch(url);
+    if (!pdfRes.ok) return { file: null, signedUrl: url };
+    const blob = await pdfRes.blob();
+    const file = new File([blob], `${stateCode}-license.pdf`, { type: 'application/pdf' });
+    return { file, signedUrl: url };
+  } catch (err) {
+    console.error('fetchLicenseFile error:', err);
+    return { file: null, signedUrl: null };
+  }
+}
+
+export default function SendConfirmationDrawer({
+  user,
+  appointmentId,
+  leadName,
+  leadPhone,
+  leadState,
+  scheduledAt,
+  agentName,
+  agentBusinessCardBase64,
+  licenses,
+  attachmentsSent,
+  kind = 'confirmation',
+  onSent,
+  onCancel,
+}: Props) {
+  // Has the agent's business card already been sent to this lead?
+  const businessCardAlreadySent = Boolean(attachmentsSent?.businessCardAt);
+  // Has the matched-state license already been sent to this lead?
+  // Computed against the picked state below.
+  const initialMessage = useMemo(() => composeMessage({
+    leadFirstName: leadName,
+    agentFirstName: agentName,
+    scheduledAt,
+    kind,
+  }), [leadName, agentName, scheduledAt, kind]);
+
+  const [message, setMessage] = useState(initialMessage);
+
+  // State for license matching. If the lead has a state from
+  // extraction, default to it; otherwise the agent picks. We let
+  // the agent override either way.
+  const initialState = (leadState || '').toUpperCase();
+  const [pickedState, setPickedState] = useState<string>(
+    initialState && US_STATE_CODES.includes(initialState) ? initialState : '',
+  );
+  const matchedLicense = pickedState ? licenses[pickedState] : null;
+  const agentLicensedStates = useMemo(() => Object.keys(licenses).sort(), [licenses]);
+
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [licenseFile, setLicenseFile] = useState<File | null>(null);
+  const [licenseSignedUrl, setLicenseSignedUrl] = useState<string | null>(null);
+  const [hasShareApi, setHasShareApi] = useState(false);
+
+  // Detect Web Share API w/ file support on mount (only on client).
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && 'canShare' in navigator) {
+      try {
+        // canShare with no args returns true if the API exists; we'll
+        // call with a real payload at send time to gate file support.
+        setHasShareApi(true);
+      } catch {
+        setHasShareApi(false);
+      }
+    }
+  }, []);
+
+  // Resolve the matched license PDF as a File whenever the state changes.
+  useEffect(() => {
+    let cancelled = false;
+    if (!user || !pickedState || !matchedLicense) {
+      setLicenseFile(null);
+      setLicenseSignedUrl(null);
+      return;
+    }
+    void (async () => {
+      const { file, signedUrl } = await fetchLicenseFile(user, pickedState);
+      if (cancelled) return;
+      setLicenseFile(file);
+      setLicenseSignedUrl(signedUrl);
+    })();
+    return () => { cancelled = true; };
+  }, [user, pickedState, matchedLicense]);
+
+  const businessCardFile = useMemo<File | null>(() => {
+    if (!agentBusinessCardBase64) return null;
+    try {
+      return base64ToFile(agentBusinessCardBase64, 'business-card.jpg', 'image/jpeg');
+    } catch {
+      return null;
+    }
+  }, [agentBusinessCardBase64]);
+
+  const stampSent = useCallback(async (
+    attached: { businessCard: boolean; licenseState: string },
+  ) => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const endpoint = kind === 'reminder'
+        ? `/api/appointments/${appointmentId}/reminder-sent`
+        : `/api/appointments/${appointmentId}/confirmation-sent`;
+      await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          attachedBusinessCard: attached.businessCard,
+          attachedLicenseState: attached.licenseState,
+        }),
+      });
+    } catch (err) {
+      console.error('stampSent error:', err);
+    }
+  }, [user, appointmentId, kind]);
+
+  // Determine which attachments to actually include based on what's
+  // already been sent to this lead. Agents shouldn't re-send the
+  // same business card / license PDF on every reminder — once it's
+  // on the lead's phone, it stays there.
+  const licenseAlreadySent = pickedState
+    ? Boolean(attachmentsSent?.licensesByState?.[pickedState])
+    : false;
+  const willAttachBusinessCard = !businessCardAlreadySent && Boolean(businessCardFile);
+  const willAttachLicense = !licenseAlreadySent && Boolean(licenseFile) && Boolean(matchedLicense);
+
+  // ── Send flow ──
+  const handleSend = useCallback(async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      const phoneDigits = leadPhone.replace(/\D/g, '');
+      const files: File[] = [];
+      if (willAttachBusinessCard && businessCardFile) files.push(businessCardFile);
+      if (willAttachLicense && licenseFile) files.push(licenseFile);
+
+      const attachedReport = {
+        businessCard: willAttachBusinessCard,
+        licenseState: willAttachLicense ? pickedState : '',
+      };
+
+      // Try Web Share API with files first.
+      if (
+        hasShareApi &&
+        files.length > 0 &&
+        typeof navigator !== 'undefined' &&
+        'share' in navigator &&
+        'canShare' in navigator &&
+        navigator.canShare({ files, text: message })
+      ) {
+        try {
+          await navigator.share({
+            files,
+            text: message,
+            title: `Appointment ${kind === 'reminder' ? 'reminder' : 'confirmation'} for ${leadName}`,
+          });
+          await stampSent(attachedReport);
+          onSent();
+          return;
+        } catch (shareErr) {
+          // User cancelled the share sheet — don't stamp, don't error.
+          if (shareErr instanceof Error && shareErr.name === 'AbortError') {
+            setBusy(false);
+            return;
+          }
+          // Fall through to sms: path
+          console.warn('Web Share failed, falling back to sms:', shareErr);
+        }
+      }
+
+      // Fallback: open Messages with body via `sms:`. Attachments
+      // surface as separate download buttons below — agent attaches
+      // manually in iMessage. macOS Continuity makes this OK on
+      // desktop; iOS fires the dialer Messages app.
+      if (phoneDigits.length >= 7) {
+        const delim = navigator.userAgent.includes('iPhone') || navigator.userAgent.includes('iPad') ? '&' : '?';
+        const url = `sms:${phoneDigits}${delim}body=${encodeURIComponent(message)}`;
+        window.location.href = url;
+      }
+      await stampSent(attachedReport);
+      onSent();
+    } catch (err) {
+      console.error('send confirmation error:', err);
+      setError(err instanceof Error ? err.message : 'Send failed');
+    } finally {
+      setBusy(false);
+    }
+  }, [
+    hasShareApi,
+    willAttachBusinessCard,
+    willAttachLicense,
+    pickedState,
+    businessCardFile,
+    licenseFile,
+    message,
+    leadPhone,
+    leadName,
+    kind,
+    stampSent,
+    onSent,
+  ]);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={() => !busy && onCancel()} />
+      <div className="relative w-full max-w-lg bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+        <div className="flex items-start justify-between p-5 border-b border-[#ececec] shrink-0">
+          <div>
+            <h3 className="text-xl font-bold text-[#000000]">
+              {kind === 'reminder' ? 'Send reminder' : 'Send confirmation'}
+            </h3>
+            <p className="text-xs text-[#707070] mt-0.5">
+              Sends from your phone.
+              {' '}
+              {willAttachBusinessCard && willAttachLicense
+                ? 'Business card + license attached.'
+                : willAttachBusinessCard
+                ? 'Business card attached.'
+                : willAttachLicense
+                ? 'License attached.'
+                : (businessCardAlreadySent || licenseAlreadySent)
+                ? 'Lead already has your card / license — message only.'
+                : 'Message only.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="overflow-y-auto p-5 space-y-4 flex-1">
+          {/* Message */}
+          <div>
+            <label className="block text-sm font-medium text-[#000000] mb-1">
+              Message <span className="text-[#9CA3AF] font-normal">(edit if you want)</span>
+            </label>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              disabled={busy}
+              rows={6}
+              className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm leading-relaxed font-mono focus:outline-none focus:border-[#45bcaa]"
+            />
+            <p className="text-[11px] text-[#707070] mt-1">To: {leadPhone}</p>
+          </div>
+
+          {/* State / license matching */}
+          <div className="rounded-[5px] border border-[#d0d0d0] bg-[#fafafa] p-3">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div>
+                <p className="text-xs font-semibold text-[#374151]">License attachment</p>
+                {matchedLicense && licenseAlreadySent ? (
+                  <p className="text-[11px] text-[#707070] mt-0.5">
+                    {pickedState} license already on file with this lead — won&apos;t re-attach.
+                  </p>
+                ) : matchedLicense ? (
+                  <p className="text-[11px] text-[#005851] mt-0.5">
+                    {pickedState} license #{matchedLicense.number} will be attached.
+                  </p>
+                ) : pickedState ? (
+                  <p className="text-[11px] text-amber-700 mt-0.5">
+                    You&apos;re not licensed in {pickedState}. Sending without license.
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-amber-700 mt-0.5">
+                    Lead&apos;s state isn&apos;t on file. Pick the state to attach a license.
+                  </p>
+                )}
+              </div>
+            </div>
+            <select
+              value={pickedState}
+              onChange={(e) => setPickedState(e.target.value)}
+              disabled={busy}
+              className="w-full px-3 py-2 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+            >
+              <option value="">— Pick lead&apos;s state —</option>
+              <optgroup label="States you're licensed in">
+                {agentLicensedStates.map((s) => (
+                  <option key={s} value={s}>{s} (license on file)</option>
+                ))}
+              </optgroup>
+              <optgroup label="All states">
+                {US_STATE_CODES.filter((s) => !licenses[s]).map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </optgroup>
+            </select>
+            {licenseSignedUrl && (
+              <a
+                href={licenseSignedUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-block mt-2 text-[11px] text-[#44bbaa] hover:text-[#005751] font-semibold"
+              >
+                Preview {pickedState} license PDF →
+              </a>
+            )}
+          </div>
+
+          {/* Business card preview */}
+          <div className="rounded-[5px] border border-[#d0d0d0] bg-[#fafafa] p-3">
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <p className="text-xs font-semibold text-[#374151]">Business card</p>
+              {agentBusinessCardBase64 && businessCardAlreadySent && (
+                <span className="text-[11px] text-[#707070] font-medium">
+                  Already on file with this lead — won&apos;t re-attach
+                </span>
+              )}
+            </div>
+            {agentBusinessCardBase64 ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={`data:image/jpeg;base64,${agentBusinessCardBase64}`}
+                alt="Your business card"
+                className={`max-h-32 rounded border border-[#d0d0d0] ${
+                  businessCardAlreadySent ? 'opacity-50' : ''
+                }`}
+              />
+            ) : (
+              <p className="text-xs text-amber-700">
+                No business card uploaded. Add one in Settings → Branding so it gets
+                attached automatically going forward.
+              </p>
+            )}
+          </div>
+
+          {/* Send method explanation */}
+          <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/30 p-3 text-xs text-[#0D4D4D] leading-relaxed">
+            {hasShareApi ? (
+              <>
+                <strong>iPhone / Android:</strong> Tap Send → your share sheet opens with
+                files + message ready. Pick Messages → tap send. Done.
+              </>
+            ) : (
+              <>
+                <strong>Desktop:</strong> Tap Send → Messages opens with the text ready.
+                Attachments don&apos;t auto-attach via SMS protocol — use the buttons below
+                to download then drag into the message.
+              </>
+            )}
+          </div>
+
+          {error && (
+            <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-[5px] px-3 py-2">
+              {error}
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-3 p-5 border-t border-[#ececec] bg-[#fafafa] shrink-0">
+          <button
+            onClick={onCancel}
+            disabled={busy}
+            className="flex-1 max-w-[180px] py-2.5 px-4 text-sm font-semibold text-[#0D4D4D] bg-white rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] hover:bg-[#f8f8f8] transition-colors disabled:opacity-50"
+          >
+            Not now
+          </button>
+          <button
+            onClick={handleSend}
+            disabled={busy}
+            className="flex-1 py-2.5 px-4 text-sm font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-50"
+          >
+            {busy ? 'Opening…' : 'Send'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

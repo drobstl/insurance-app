@@ -3,8 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, ActivityIndicator } from 'react-n
 import { router } from 'expo-router';
 import { registerForPushNotificationsAsync } from './_layout';
 import * as SecureStore from 'expo-secure-store';
-
-const API_BASE = __DEV__ ? 'http://192.168.1.210:3000' : 'https://agentforlife.app';
+import { API_BASE } from '../lib/api-base';
 
 const SESSION_KEY = 'client_session';
 const PROFILE_CACHE_KEY = 'profile_cache';
@@ -20,7 +19,7 @@ export type LookupResult = {
   clientId: string;
   clientData: Record<string, unknown>;
   agentData: Record<string, unknown>;
-  accessType?: 'client' | 'beneficiary';
+  accessType?: 'client' | 'beneficiary' | 'lead';
   /** Phase 1 Track B — Linq line phone number for the in-app Activate screen. */
   linqLinePhone?: string;
 };
@@ -83,7 +82,10 @@ export async function lookupClientCode(clientCode: string): Promise<LookupResult
     clientId: data.clientId,
     clientData: data.clientData ?? {},
     agentData: data.agentData ?? {},
-    accessType: data.accessType === 'beneficiary' ? 'beneficiary' : 'client',
+    accessType:
+      data.accessType === 'beneficiary' ? 'beneficiary' :
+      data.accessType === 'lead' ? 'lead' :
+      'client',
     linqLinePhone: typeof data.linqLinePhone === 'string' ? data.linqLinePhone : '',
   };
 }
@@ -136,7 +138,7 @@ export function navigateToProfile(
   clientId: string,
   clientData: Record<string, unknown>,
   agentData: Record<string, unknown>,
-  accessType: 'client' | 'beneficiary' = 'client',
+  accessType: 'client' | 'beneficiary' | 'lead' = 'client',
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _linqLinePhone: string = '',
 ) {
@@ -146,13 +148,12 @@ export function navigateToProfile(
       console.warn('Push token registration failed:', err),
     );
   }
+  // Leads do NOT register push tokens. Phase 1 lead-mode has no push lanes
+  // targeting leads (no welcome / retention / anniversary / birthday flows
+  // run for pre-clients), so requesting permission would be friction with
+  // no value. When a lead converts to a client, the lookup endpoint
+  // returns accessType: 'client' and registration fires on next launch.
 
-  // May 8, 2026 flow inversion: activation happens BEFORE login on
-  // the activate-first entry screen (`/activate`), not after. So
-  // post-login we always route straight to /agent-profile regardless
-  // of `clientActivatedAt`. If activation never fired (race, user
-  // backed out of iMessage), the client just doesn't get push
-  // notifications — agent profile still works.
   const sharedParams = {
     agentId,
     agentName: (agentData.name as string) || 'Your Agent',
@@ -167,6 +168,23 @@ export function navigateToProfile(
     businessCardBase64: (agentData.businessCardBase64 as string) || '',
   };
 
+  // Lead-mode home is the indoctrination screen (intro video + assessment +
+  // FAQ + case studies). Clients and beneficiaries continue to land on the
+  // existing /agent-profile screen.
+  if (accessType === 'lead') {
+    router.replace({
+      pathname: '/lead-home',
+      params: sharedParams,
+    });
+    return;
+  }
+
+  // May 8, 2026 flow inversion: activation happens BEFORE login on
+  // the activate-first entry screen (`/activate`), not after. So
+  // post-login we always route straight to /agent-profile regardless
+  // of `clientActivatedAt`. If activation never fired (race, user
+  // backed out of iMessage), the client just doesn't get push
+  // notifications — agent profile still works.
   router.replace({
     pathname: '/agent-profile',
     params: sharedParams,

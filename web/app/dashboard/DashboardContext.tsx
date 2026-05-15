@@ -90,6 +90,21 @@ export interface AgentProfile {
   celebratedBadgeIds?: string[];
   inviteCode?: string;
   referralRewardsGiven?: number;
+  /**
+   * Per-state insurance license registry. Keyed by USPS 2-letter state
+   * code; entries carry license number + expiration date + the
+   * Firebase Storage path to the uploaded PDF. Used by the booking-
+   * confirmation flow (Chunk 4e) to attach the state-matched license
+   * PDF when sending appointment confirmations.
+   *
+   * See `web/lib/agent-licenses.ts` for the canonical types + helpers.
+   */
+  licenses?: Record<string, {
+    number: string;
+    expiresOn: string | null;
+    pdfStoragePath: string;
+    uploadedAt: string;
+  }>;
 }
 
 interface DashboardContextValue {
@@ -201,6 +216,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           onboarding: normalizeOnboardingState(data.onboarding),
           tipsSeen: data.tipsSeen || {},
           celebratedBadgeIds: data.celebratedBadgeIds || [],
+          licenses: data.licenses || {},
         });
       } else {
         setAgentProfile({});

@@ -432,6 +432,23 @@ export default function ActivateScreen() {
                 <Text style={styles.activateHint}>
                   Opens Messages with your hello pre-written — just tap Send.
                 </Text>
+
+                {/* Lead-mode entry. Subtle text-only link so it doesn't
+                    compete with the Activate CTA. Only relevant for users
+                    who got an `L…` code from an agent who hasn't sold them
+                    a policy yet — the link routes to /lead-login which
+                    enforces the L-prefix server-side and refuses client
+                    codes (so this is NOT a path for clients to skip
+                    Activate, per feedback_no_client_activate_skip.md). */}
+                <TouchableOpacity
+                  style={styles.leadEntryLink}
+                  onPress={() => router.push('/lead-login' as never)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.leadEntryLinkText}>
+                    Got a code from your agent before your appointment? Enter it here →
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
           </SafeAreaView>
@@ -613,5 +630,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 6,
     marginTop: 2,
+  },
+  leadEntryLink: {
+    marginTop: 18,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignSelf: 'center',
+  },
+  leadEntryLinkText: {
+    fontSize: 12,
+    color: '#3DD6C3',
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });

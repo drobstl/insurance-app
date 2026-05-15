@@ -15,6 +15,7 @@ import { useDashboard } from '../DashboardContext';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 import { PRICING_TIERS, type PricingTierId } from '../../../lib/pricing';
+import StateLicensesSection from '../../../components/StateLicensesSection';
 
 type Tab = 'profile' | 'branding' | 'referral-ai' | 'account';
 
@@ -114,7 +115,7 @@ function detectSchedulingPlatform(url: string): string | null {
 }
 
 export default function SettingsPage() {
-  const { user, agentProfile, setAgentProfile, loading } = useDashboard();
+  const { user, agentProfile, setAgentProfile, loading, refreshProfile } = useDashboard();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -791,6 +792,14 @@ export default function SettingsPage() {
               <p className="text-xs text-[#707070] mt-1.5">Supports Calendly, Cal.com, Acuity, and Google Calendar links.</p>
             </div>
           </div>
+
+          {/* State Licenses (Chunk 4d) — multi-state PDFs that the
+              booking-confirmation flow attaches based on lead.state. */}
+          <StateLicensesSection
+            user={user}
+            licenses={agentProfile.licenses}
+            onChanged={() => { void refreshProfile(); }}
+          />
         </div>
       )}
 

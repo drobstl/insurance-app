@@ -1,0 +1,1146 @@
+'use client';
+
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import {
+  doc,
+  onSnapshot,
+  updateDoc,
+  serverTimestamp,
+  collection,
+  query,
+  where,
+  orderBy,
+  Timestamp,
+} from 'firebase/firestore';
+import { db } from '../../../../firebase';
+import { useDashboard } from '../../DashboardContext';
+import AppointmentPicker from '../../../../components/AppointmentPicker';
+import SendConfirmationDrawer from '../../../../components/SendConfirmationDrawer';
+
+interface Lead {
+  id: string;
+  name?: string;
+  phone?: string;
+  email?: string;
+  leadCode?: string;
+  formType?: string;
+  notes?: string;
+  notesUpdatedAt?: Timestamp | null;
+  monthlyMortgageAmount?: number;
+  monthlyMortgageAmountUpdatedAt?: Timestamp | null;
+  createdAt?: Timestamp | null;
+  appDownloadedAt?: string | null;
+  assessmentAnswers?: Record<string, string>;
+  assessmentCompletedAt?: Timestamp | null;
+  convertedToClientId?: string | null;
+  // Extracted-from-PDF fields (Chunk 2). Also agent-editable on the
+  // detail page when missing — e.g. for manual leads, or to correct
+  // bad extraction.
+  dateOfBirth?: string;          // YYYY-MM-DD. Underwriting field; not
+                                 // load-bearing for the lead code (which
+                                 // is derived from phone only).
+  heightText?: string;           // Freeform: "5'10\"", "5 ft 10 in", "70 in"
+  weightLbs?: number;
+  address?: { street?: string; city?: string; state?: string; zip?: string };
+  mortgageDetails?: { balance?: number; lender?: string };
+
+  // Additional extracted fields (Chunk 2)
+  ageYears?: number;
+  gender?: 'M' | 'F';
+  smokerStatus?: 'Y' | 'N';
+  spouseName?: string;
+  spouseAgeYears?: number;
+  beneficiaryName?: string;
+  sourceFileUrl?: string;
+  extractionConfidence?: number;
+  extractionFlags?: string[];
+
+  // Dial tracking (Chunk 4b)
+  dialLog?: Array<{ at: Timestamp; outcome: DialOutcome; notes?: string }>;
+  lastDialAt?: Timestamp | null;
+  lastDialOutcome?: DialOutcome;
+
+  // Attachment dedup (Chunk 4f). Tracks what's already been sent to
+  // this lead so confirmation + reminder sends don't re-attach files
+  // the lead already has on their phone.
+  attachmentsSent?: {
+    businessCardAt?: string;
+    licensesByState?: Record<string, string>;
+  };
+}
+
+type DialOutcome =
+  | 'no_answer'
+  | 'left_vm'
+  | 'wrong_number'
+  | 'not_interested'
+  | 'callback_requested'
+  | 'booked';
+
+const DIAL_OUTCOME_LABELS: Record<DialOutcome, string> = {
+  no_answer: 'No answer',
+  left_vm: 'Left voicemail',
+  wrong_number: 'Wrong number',
+  not_interested: 'Not interested',
+  callback_requested: 'Wants callback',
+  booked: 'Booked',
+};
+
+const DIAL_OUTCOME_TONE: Record<DialOutcome, string> = {
+  no_answer: 'bg-gray-100 text-gray-700 border-gray-300',
+  left_vm: 'bg-blue-50 text-blue-800 border-blue-200',
+  wrong_number: 'bg-red-50 text-red-800 border-red-200',
+  not_interested: 'bg-red-50 text-red-800 border-red-200',
+  callback_requested: 'bg-amber-50 text-amber-900 border-amber-300',
+  booked: 'bg-[#daf3f0] text-[#005851] border-[#45bcaa]',
+};
+
+interface LeadActivityEntry {
+  id: string;
+  leadId: string;
+  kind: string;
+  at?: Timestamp | null;
+  summary?: string;
+}
+
+interface AppointmentEntry {
+  id: string;
+  leadId: string;
+  scheduledAt?: Timestamp | null;
+  durationMinutes?: number;
+  notes?: string;
+  status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+  sentConfirmationAt?: Timestamp | null;
+  sentReminderAt?: Timestamp | null;
+}
+
+// Default assessment question prompts so the dashboard can render the
+// answers with their question text. Mirrors the manifest in
+// `web/app/api/mobile/lead-content/route.ts`. If/when per-agent
+// assessment overrides ship, swap this for a fetch.
+const DEFAULT_ASSESSMENT_PROMPTS: Record<string, string> = {
+  q1: 'Do you already have enough life insurance in place to fully protect your family?',
+  q2: 'Would your family be financially secure without your income tomorrow?',
+  q3: 'Have you already paid off all your major debts, including your mortgage?',
+  q4: 'Would your loved ones have plenty of money set aside for final expenses?',
+  q5: 'Do you already have coverage that would replace your income for several years?',
+  q6: 'Have you already reviewed how much life insurance your family actually needs?',
+  q7: 'Is protecting your family with additional coverage not a priority right now?',
+  q8: 'Would leaving your family with no financial burden be unnecessary because everything is already covered?',
+  q9: 'Do you already have a policy that fits your budget and gives you peace of mind?',
+  q10: 'Is there nothing about your current situation that would make life insurance worth reviewing?',
+};
+
+const ANSWER_LABELS: Record<string, string> = {
+  yes: 'Yes',
+  no: 'No',
+  not_sure: 'Not sure',
+};
+
+const AUTOSAVE_DEBOUNCE_MS = 600;
+
+export default function LeadDetailPage() {
+  const router = useRouter();
+  const params = useParams<{ leadId: string }>();
+  const leadId = params?.leadId;
+  const { user, agentProfile } = useDashboard();
+
+  const [lead, setLead] = useState<Lead | null>(null);
+  const [activity, setActivity] = useState<LeadActivityEntry[]>([]);
+  const [appointments, setAppointments] = useState<AppointmentEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  // Autosave fields — local state shadows Firestore so the input is
+  // responsive while the debounced write is pending.
+  const [notes, setNotes] = useState('');
+  const [notesSavedAt, setNotesSavedAt] = useState<Date | null>(null);
+  const [notesSaving, setNotesSaving] = useState(false);
+  const notesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notesHydratedRef = useRef(false);
+
+  const [mortgage, setMortgage] = useState<string>('');
+  const [mortgageSavedAt, setMortgageSavedAt] = useState<Date | null>(null);
+  const [mortgageSaving, setMortgageSaving] = useState(false);
+  const mortgageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mortgageHydratedRef = useRef(false);
+
+  // ── Additional autosave fields (DOB, height, weight) ──
+  // Same debounced-onChange pattern as notes + monthly mortgage.
+  const [dob, setDob] = useState('');
+  const [dobSavedAt, setDobSavedAt] = useState<Date | null>(null);
+  const [dobSaving, setDobSaving] = useState(false);
+  const dobTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dobHydratedRef = useRef(false);
+
+  const [height, setHeight] = useState('');
+  const [heightSavedAt, setHeightSavedAt] = useState<Date | null>(null);
+  const [heightSaving, setHeightSaving] = useState(false);
+  const heightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heightHydratedRef = useRef(false);
+
+  const [weight, setWeight] = useState('');
+  const [weightSavedAt, setWeightSavedAt] = useState<Date | null>(null);
+  const [weightSaving, setWeightSaving] = useState(false);
+  const weightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const weightHydratedRef = useRef(false);
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Dial tracking (Chunk 4b). `outcomePrompt` shows the chip group
+  // immediately after the agent taps Call — no auto-dismiss timer
+  // because the call duration is unpredictable. Agent picks an
+  // outcome when they're back at the keyboard.
+  const [outcomePrompt, setOutcomePrompt] = useState(false);
+  const [loggingOutcome, setLoggingOutcome] = useState(false);
+  const [outcomeError, setOutcomeError] = useState<string | null>(null);
+
+  // Appointment picker (Chunk 4c). When the agent picks "Booked" as
+  // the outcome, we open the picker INSTEAD of posting the dial
+  // outcome — the picker's submit endpoint atomically creates the
+  // appointment AND logs the 'booked' dial outcome in one round-trip.
+  const [showAppointmentPicker, setShowAppointmentPicker] = useState(false);
+
+  // Send-confirmation drawer (Chunk 4e). Opens automatically right
+  // after a booking save, and on demand from a "Send confirmation"
+  // button on appointment cards that haven't been sent yet. Tracked
+  // by appointment ID so the drawer knows which appointment to stamp.
+  const [confirmingAppointmentId, setConfirmingAppointmentId] = useState<string | null>(null);
+
+  // ── Live lead doc ──
+  useEffect(() => {
+    if (!user || !leadId) return;
+    const ref = doc(db, 'agents', user.uid, 'leads', leadId);
+    const unsub = onSnapshot(ref, (snap) => {
+      if (!snap.exists()) {
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
+      const data = { id: snap.id, ...(snap.data() as Omit<Lead, 'id'>) } as Lead;
+      setLead(data);
+      // First-load hydration of autosave fields. After hydration, local
+      // state is the source of truth (the user is editing) — Firestore
+      // updates from other tabs would clobber an in-progress edit, so we
+      // intentionally don't re-sync.
+      if (!notesHydratedRef.current) {
+        setNotes(data.notes || '');
+        notesHydratedRef.current = true;
+      }
+      if (!mortgageHydratedRef.current) {
+        setMortgage(
+          typeof data.monthlyMortgageAmount === 'number'
+            ? String(data.monthlyMortgageAmount)
+            : '',
+        );
+        mortgageHydratedRef.current = true;
+      }
+      if (!dobHydratedRef.current) {
+        setDob(data.dateOfBirth || '');
+        dobHydratedRef.current = true;
+      }
+      if (!heightHydratedRef.current) {
+        setHeight(data.heightText || '');
+        heightHydratedRef.current = true;
+      }
+      if (!weightHydratedRef.current) {
+        setWeight(typeof data.weightLbs === 'number' ? String(data.weightLbs) : '');
+        weightHydratedRef.current = true;
+      }
+      setLoading(false);
+    }, (err) => {
+      console.error('lead detail onSnapshot error:', err);
+      setLoading(false);
+    });
+    return () => unsub();
+  }, [user, leadId]);
+
+  // ── Live lead-activity timeline ──
+  useEffect(() => {
+    if (!user || !leadId) return;
+    const q = query(
+      collection(db, 'agents', user.uid, 'leadActivity'),
+      where('leadId', '==', leadId),
+      orderBy('at', 'desc'),
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setActivity(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<LeadActivityEntry, 'id'>) })));
+    }, () => {
+      // Index might be missing first time; fail silent rather than blocking the page.
+    });
+    return () => unsub();
+  }, [user, leadId]);
+
+  // ── Live appointments for this lead ──
+  // Pulls from the agent-level appointments subcollection filtered
+  // by leadId. Sort newest-first; the section UI splits upcoming
+  // vs past based on scheduledAt.
+  useEffect(() => {
+    if (!user || !leadId) return;
+    const q = query(
+      collection(db, 'agents', user.uid, 'appointments'),
+      where('leadId', '==', leadId),
+      orderBy('scheduledAt', 'desc'),
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setAppointments(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<AppointmentEntry, 'id'>) })));
+    }, (err) => {
+      // First-time queries on a new compound (leadId + scheduledAt
+      // sort) need an index; Firestore returns a console URL to
+      // create it. Until that index is built, fail silent.
+      console.warn('appointments snapshot error (likely missing index):', err);
+    });
+    return () => unsub();
+  }, [user, leadId]);
+
+  // ── Notes autosave ──
+  const scheduleNotesSave = useCallback((value: string) => {
+    if (!user || !leadId) return;
+    if (notesTimer.current) clearTimeout(notesTimer.current);
+    notesTimer.current = setTimeout(async () => {
+      setNotesSaving(true);
+      try {
+        await updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+          notes: value,
+          notesUpdatedAt: serverTimestamp(),
+        });
+        setNotesSavedAt(new Date());
+      } catch (err) {
+        console.error('notes autosave failed:', err);
+      } finally {
+        setNotesSaving(false);
+      }
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }, [user, leadId]);
+
+  // ── Monthly mortgage autosave ──
+  const scheduleMortgageSave = useCallback((value: string) => {
+    if (!user || !leadId) return;
+    if (mortgageTimer.current) clearTimeout(mortgageTimer.current);
+    mortgageTimer.current = setTimeout(async () => {
+      // Coerce to number; empty string clears the field.
+      const numeric = value.trim() === '' ? null : Number(value.replace(/[^0-9.]/g, ''));
+      if (numeric !== null && (Number.isNaN(numeric) || numeric < 0)) return;
+      setMortgageSaving(true);
+      try {
+        await updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+          monthlyMortgageAmount: numeric,
+          monthlyMortgageAmountUpdatedAt: serverTimestamp(),
+        });
+        setMortgageSavedAt(new Date());
+      } catch (err) {
+        console.error('mortgage autosave failed:', err);
+      } finally {
+        setMortgageSaving(false);
+      }
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }, [user, leadId]);
+
+  const scheduleDobSave = useCallback((value: string) => {
+    if (!user || !leadId) return;
+    if (dobTimer.current) clearTimeout(dobTimer.current);
+    dobTimer.current = setTimeout(async () => {
+      // Accept empty (clears) or YYYY-MM-DD only.
+      const v = value.trim();
+      if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+      setDobSaving(true);
+      try {
+        await updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+          dateOfBirth: v || null,
+        });
+        setDobSavedAt(new Date());
+      } catch (err) {
+        console.error('dob autosave failed:', err);
+      } finally {
+        setDobSaving(false);
+      }
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }, [user, leadId]);
+
+  const scheduleHeightSave = useCallback((value: string) => {
+    if (!user || !leadId) return;
+    if (heightTimer.current) clearTimeout(heightTimer.current);
+    heightTimer.current = setTimeout(async () => {
+      setHeightSaving(true);
+      try {
+        await updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+          heightText: value.trim() || null,
+        });
+        setHeightSavedAt(new Date());
+      } catch (err) {
+        console.error('height autosave failed:', err);
+      } finally {
+        setHeightSaving(false);
+      }
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }, [user, leadId]);
+
+  const scheduleWeightSave = useCallback((value: string) => {
+    if (!user || !leadId) return;
+    if (weightTimer.current) clearTimeout(weightTimer.current);
+    weightTimer.current = setTimeout(async () => {
+      const numeric = value.trim() === '' ? null : Number(value.replace(/[^0-9.]/g, ''));
+      if (numeric !== null && (Number.isNaN(numeric) || numeric < 0)) return;
+      setWeightSaving(true);
+      try {
+        await updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+          weightLbs: numeric,
+        });
+        setWeightSavedAt(new Date());
+      } catch (err) {
+        console.error('weight autosave failed:', err);
+      } finally {
+        setWeightSaving(false);
+      }
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }, [user, leadId]);
+
+  // ── Dial tracking ──
+  const handleStartCall = useCallback(() => {
+    if (!lead?.phone) return;
+    // Tap-to-call via tel: deep link. On iPhone Safari this opens the
+    // dialer with the number pre-filled; on macOS it opens FaceTime
+    // (with phone-relay if configured); on Chrome desktop it offers to
+    // call via the linked phone. All three paths surface a "back" to
+    // the dashboard — at which point we show the outcome prompt so the
+    // agent can log what happened in 1 click.
+    const digits = lead.phone.replace(/\D/g, '');
+    if (digits.length < 7) return;
+    setOutcomeError(null);
+    setOutcomePrompt(true);
+    // US-only — `tel:` with raw digits lets the OS dialer handle
+    // country-code interpretation per the device locale.
+    window.location.href = `tel:${digits}`;
+  }, [lead?.phone]);
+
+  const handleLogOutcome = useCallback(async (outcome: DialOutcome) => {
+    if (!user || !leadId) return;
+    // Special case: 'booked' opens the appointment picker, which
+    // logs the dial outcome itself when the booking is saved. Skip
+    // the direct dial-log POST.
+    if (outcome === 'booked') {
+      setOutcomePrompt(false);
+      setShowAppointmentPicker(true);
+      return;
+    }
+    setLoggingOutcome(true);
+    setOutcomeError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/leads/${leadId}/dials`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ outcome }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setOutcomeError(data?.error || `Failed to log outcome (${res.status})`);
+        return;
+      }
+      setOutcomePrompt(false);
+    } catch (err) {
+      console.error('log outcome error:', err);
+      setOutcomeError('Network error — please try again');
+    } finally {
+      setLoggingOutcome(false);
+    }
+  }, [user, leadId]);
+
+  const handleDelete = useCallback(async () => {
+    if (!user || !leadId) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/leads/${leadId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setDeleteError(data?.error || `Delete failed (${res.status})`);
+        setDeleting(false);
+        return;
+      }
+      router.push('/dashboard/leads');
+    } catch (err) {
+      console.error('delete lead error:', err);
+      setDeleteError('Network error — please try again');
+      setDeleting(false);
+    }
+  }, [user, leadId, router]);
+
+  const formatRelativeTime = (date: Date | null): string => {
+    if (!date) return '';
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (seconds < 5) return 'just now';
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    return date.toLocaleTimeString();
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="flex flex-col items-center gap-4">
+          <svg className="animate-spin w-10 h-10 text-[#45bcaa]" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <p className="text-[#707070]">Loading lead…</p>
+        </div>
+      </div>
+    );
+  }
+  if (notFound) {
+    return (
+      <div className="max-w-2xl mx-auto p-8 text-center">
+        <p className="text-[#000000] font-semibold mb-2">Lead not found.</p>
+        <button
+          onClick={() => router.push('/dashboard/leads')}
+          className="text-[#44bbaa] font-semibold hover:underline"
+        >
+          ← Back to leads
+        </button>
+      </div>
+    );
+  }
+  if (!lead) return null;
+
+  const ageFromDob = (dob?: string): number | null => {
+    if (!dob) return null;
+    const d = new Date(dob);
+    if (Number.isNaN(d.getTime())) return null;
+    const now = new Date();
+    let age = now.getFullYear() - d.getFullYear();
+    const m = now.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+    return age;
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <button
+        onClick={() => router.push('/dashboard/leads')}
+        className="text-sm text-[#44bbaa] hover:text-[#005751] font-semibold mb-4"
+      >
+        ← All leads
+      </button>
+
+      <div className="flex items-start justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-[#000000]">{lead.name || 'Unnamed lead'}</h1>
+          <p className="text-sm text-[#707070] mt-1">
+            {lead.phone}
+            {lead.formType && lead.formType !== 'Manual' && (
+              <span className="ml-2 inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
+                {lead.formType}
+              </span>
+            )}
+            {lead.convertedToClientId && (
+              <span className="ml-2 inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
+                Converted to client
+              </span>
+            )}
+          </p>
+          {/* Tap-to-call + Book appointment. Both available regardless
+              of whether the agent went through the dial flow first —
+              sometimes you book without dialing (referral, etc.). */}
+          {!lead.convertedToClientId && (
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              {lead.phone && (
+                <button
+                  onClick={handleStartCall}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors text-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                  Call {lead.name?.split(' ')[0] || 'lead'}
+                </button>
+              )}
+              <button
+                onClick={() => setShowAppointmentPicker(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white text-[#0D4D4D] font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] hover:bg-[#f8f8f8] transition-colors text-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Book appointment
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="text-right">
+          <div className="font-mono text-lg tracking-[0.25em] font-bold text-[#005851] bg-[#daf3f0]/50 px-3 py-1.5 rounded-[5px] border border-[#45bcaa]/40">
+            {lead.leadCode}
+          </div>
+          <p className="text-[10px] uppercase tracking-wider text-[#707070] mt-1 font-semibold">Lead code</p>
+        </div>
+      </div>
+
+      {/* Outcome prompt — appears when the agent has tapped Call.
+          Stays open until the agent picks an outcome (no auto-dismiss
+          since the call duration is unpredictable). The chip group
+          updates Firestore in 1 tap; the live snapshot listener picks
+          up the new dialLog entry and renders it in the history below. */}
+      {outcomePrompt && (
+        <div className="mb-6 bg-[#FEFCE8] border-2 border-[#FCD34D] rounded-xl border-r-[5px] border-b-[5px] border-r-[#FCD34D] border-b-[#FCD34D] p-4">
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div>
+              <p className="text-sm font-bold text-[#92400E]">How did the call go?</p>
+              <p className="text-xs text-[#92400E]/80 mt-0.5">
+                Tap an outcome — keeps your dial queue accurate.
+              </p>
+            </div>
+            <button
+              onClick={() => setOutcomePrompt(false)}
+              disabled={loggingOutcome}
+              className="text-[#92400E]/60 hover:text-[#92400E] text-xs font-semibold"
+            >
+              Skip
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(DIAL_OUTCOME_LABELS) as DialOutcome[]).map((outcome) => (
+              <button
+                key={outcome}
+                onClick={() => void handleLogOutcome(outcome)}
+                disabled={loggingOutcome}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg border-2 ${DIAL_OUTCOME_TONE[outcome]} hover:opacity-80 transition-opacity disabled:opacity-40`}
+              >
+                {DIAL_OUTCOME_LABELS[outcome]}
+              </button>
+            ))}
+          </div>
+          {outcomeError && (
+            <p className="mt-2 text-xs text-red-600">{outcomeError}</p>
+          )}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+        <StatusCard
+          label="Downloaded app"
+          ok={Boolean(lead.appDownloadedAt)}
+          detail={lead.appDownloadedAt ? new Date(lead.appDownloadedAt).toLocaleDateString() : 'Not yet'}
+        />
+        <StatusCard
+          label="Completed assessment"
+          ok={Boolean(lead.assessmentCompletedAt)}
+          detail={lead.assessmentCompletedAt ? lead.assessmentCompletedAt.toDate().toLocaleDateString() : 'Not yet'}
+        />
+        <StatusCard
+          label="Created"
+          ok
+          detail={lead.createdAt ? lead.createdAt.toDate().toLocaleDateString() : '—'}
+        />
+      </div>
+
+      {/* Extracted-from-PDF fields. Renders the union of everything any
+          of the three lead-form templates can supply. Sections collapse
+          when their fields are absent, so the panel is compact for
+          manual leads and rich for fully-extracted Digital forms. */}
+      {(lead.dateOfBirth || lead.email || lead.address || lead.mortgageDetails ||
+        lead.gender || lead.smokerStatus || lead.spouseName || lead.beneficiaryName ||
+        lead.sourceFileUrl || (lead.extractionFlags && lead.extractionFlags.length > 0)) && (
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider">From the lead form</h3>
+            <div className="flex items-center gap-3">
+              {typeof lead.extractionConfidence === 'number' && (
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                  lead.extractionConfidence >= 0.8
+                    ? 'bg-[#daf3f0] text-[#005851]'
+                    : lead.extractionConfidence >= 0.5
+                    ? 'bg-[#FEF3C7] text-[#92400E]'
+                    : 'bg-[#FEE2E2] text-[#991B1B]'
+                }`}>
+                  {Math.round(lead.extractionConfidence * 100)}% confident
+                </span>
+              )}
+              {lead.sourceFileUrl && (
+                <a
+                  href={lead.sourceFileUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-[#44bbaa] hover:text-[#005751] font-semibold"
+                >
+                  Open original PDF →
+                </a>
+              )}
+            </div>
+          </div>
+
+          {lead.extractionFlags && lead.extractionFlags.length > 0 && (
+            <div className="mb-3 bg-[#FEF3C7] border border-[#FCD34D] rounded-[5px] px-3 py-2 text-xs text-[#92400E]">
+              <strong>Heads up — verify these:</strong> {lead.extractionFlags.join(', ').replace(/_/g, ' ')}
+            </div>
+          )}
+
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+            {lead.dateOfBirth && (
+              <>
+                <dt className="text-[#707070] font-semibold">Date of birth</dt>
+                <dd className="text-[#374151]">
+                  {lead.dateOfBirth}
+                  {ageFromDob(lead.dateOfBirth) !== null && (
+                    <span className="text-[#707070] ml-1">(age {ageFromDob(lead.dateOfBirth)})</span>
+                  )}
+                </dd>
+              </>
+            )}
+            {!lead.dateOfBirth && lead.ageYears !== undefined && (
+              <>
+                <dt className="text-[#707070] font-semibold">Age</dt>
+                <dd className="text-[#374151]">{lead.ageYears}</dd>
+              </>
+            )}
+            {lead.email && (
+              <>
+                <dt className="text-[#707070] font-semibold">Email</dt>
+                <dd className="text-[#374151]">{lead.email}</dd>
+              </>
+            )}
+            {lead.gender && (
+              <>
+                <dt className="text-[#707070] font-semibold">Gender</dt>
+                <dd className="text-[#374151]">{lead.gender === 'M' ? 'Male' : 'Female'}</dd>
+              </>
+            )}
+            {lead.smokerStatus && (
+              <>
+                <dt className="text-[#707070] font-semibold">Tobacco use</dt>
+                <dd className="text-[#374151]">{lead.smokerStatus === 'Y' ? 'Yes' : 'No'}</dd>
+              </>
+            )}
+            {lead.address?.street && (
+              <>
+                <dt className="text-[#707070] font-semibold">Street</dt>
+                <dd className="text-[#374151]">{lead.address.street}</dd>
+              </>
+            )}
+            {lead.address?.city && (
+              <>
+                <dt className="text-[#707070] font-semibold">City</dt>
+                <dd className="text-[#374151]">{lead.address.city}</dd>
+              </>
+            )}
+            {lead.address?.state && (
+              <>
+                <dt className="text-[#707070] font-semibold">State</dt>
+                <dd className="text-[#374151]">{lead.address.state}</dd>
+              </>
+            )}
+            {lead.address?.zip && (
+              <>
+                <dt className="text-[#707070] font-semibold">ZIP</dt>
+                <dd className="text-[#374151]">{lead.address.zip}</dd>
+              </>
+            )}
+            {lead.mortgageDetails?.balance !== undefined && lead.mortgageDetails?.balance !== null && (
+              <>
+                <dt className="text-[#707070] font-semibold">Mortgage balance</dt>
+                <dd className="text-[#374151]">${lead.mortgageDetails.balance.toLocaleString()}</dd>
+              </>
+            )}
+            {lead.mortgageDetails?.lender && (
+              <>
+                <dt className="text-[#707070] font-semibold">Lender</dt>
+                <dd className="text-[#374151]">{lead.mortgageDetails.lender}</dd>
+              </>
+            )}
+            {lead.spouseName && (
+              <>
+                <dt className="text-[#707070] font-semibold">Spouse</dt>
+                <dd className="text-[#374151]">
+                  {lead.spouseName}
+                  {lead.spouseAgeYears !== undefined && (
+                    <span className="text-[#707070] ml-1">(age {lead.spouseAgeYears})</span>
+                  )}
+                </dd>
+              </>
+            )}
+            {lead.beneficiaryName && (
+              <>
+                <dt className="text-[#707070] font-semibold">Beneficiary</dt>
+                <dd className="text-[#374151]">{lead.beneficiaryName}</dd>
+              </>
+            )}
+          </dl>
+        </div>
+      )}
+
+      {/* Lead profile fields. Editable underwriting basics — none of
+          these drive the lead code, so corrections here are harmless. */}
+      <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5 mb-6">
+        <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider mb-3">Lead profile</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-[#374151] mb-1">
+              Date of birth
+              <span className="ml-2 text-xs font-normal text-[#707070]">
+                {dobSaving ? 'Saving…' : dobSavedAt ? `Saved · ${formatRelativeTime(dobSavedAt)}` : ''}
+              </span>
+            </label>
+            <input
+              type="date"
+              value={dob}
+              onChange={(e) => {
+                const v = e.target.value;
+                setDob(v);
+                scheduleDobSave(v);
+              }}
+              className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-[#374151] mb-1">
+              Height
+              <span className="ml-2 text-xs font-normal text-[#707070]">
+                {heightSaving ? 'Saving…' : heightSavedAt ? `Saved · ${formatRelativeTime(heightSavedAt)}` : ''}
+              </span>
+            </label>
+            <input
+              type="text"
+              value={height}
+              onChange={(e) => {
+                const v = e.target.value;
+                setHeight(v);
+                scheduleHeightSave(v);
+              }}
+              placeholder={`5'10"`}
+              className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-[#374151] mb-1">
+              Weight (lbs)
+              <span className="ml-2 text-xs font-normal text-[#707070]">
+                {weightSaving ? 'Saving…' : weightSavedAt ? `Saved · ${formatRelativeTime(weightSavedAt)}` : ''}
+              </span>
+            </label>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={weight}
+              onChange={(e) => {
+                const v = e.target.value;
+                setWeight(v);
+                scheduleWeightSave(v);
+              }}
+              placeholder="180"
+              className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Agent-entered: notes + monthly mortgage (autosave) */}
+      <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5 mb-6">
+        <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider mb-3">Your notes</h3>
+
+        <div className="mb-4">
+          <label className="block text-sm font-semibold text-[#374151] mb-1">
+            Monthly mortgage amount (USD)
+            <span className="ml-2 text-xs font-normal text-[#707070]">
+              {mortgageSaving ? 'Saving…' : mortgageSavedAt ? `Saved · ${formatRelativeTime(mortgageSavedAt)}` : ''}
+            </span>
+          </label>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={mortgage}
+            onChange={(e) => {
+              const v = e.target.value;
+              setMortgage(v);
+              scheduleMortgageSave(v);
+            }}
+            placeholder="1850"
+            className="w-full md:w-64 px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm font-mono focus:outline-none focus:border-[#45bcaa]"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-[#374151] mb-1">
+            Notes
+            <span className="ml-2 text-xs font-normal text-[#707070]">
+              {notesSaving ? 'Saving…' : notesSavedAt ? `Saved · ${formatRelativeTime(notesSavedAt)}` : ''}
+            </span>
+          </label>
+          <textarea
+            value={notes}
+            onChange={(e) => {
+              const v = e.target.value;
+              setNotes(v);
+              scheduleNotesSave(v);
+            }}
+            placeholder="Anything you want to remember before the call. Spouse's name, kids, pain points, prior coverage history…"
+            rows={6}
+            className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm leading-relaxed focus:outline-none focus:border-[#45bcaa]"
+          />
+        </div>
+      </div>
+
+      {/* Assessment answers */}
+      {lead.assessmentAnswers && Object.keys(lead.assessmentAnswers).length > 0 && (
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5 mb-6">
+          <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider mb-3">
+            Assessment answers
+            {lead.assessmentCompletedAt && (
+              <span className="ml-2 text-xs font-normal text-[#707070]">
+                Submitted {lead.assessmentCompletedAt.toDate().toLocaleString()}
+              </span>
+            )}
+          </h3>
+          <ol className="space-y-3 list-decimal list-inside">
+            {Object.entries(lead.assessmentAnswers).map(([qid, ans]) => {
+              const prompt = DEFAULT_ASSESSMENT_PROMPTS[qid] || qid;
+              const label = ANSWER_LABELS[ans] || ans;
+              const gap = ans === 'no' || ans === 'not_sure';
+              return (
+                <li key={qid} className="text-sm">
+                  <span className="text-[#374151]">{prompt}</span>
+                  <div className={`ml-4 mt-1 inline-block px-2 py-0.5 text-xs font-bold rounded ${
+                    gap ? 'bg-[#FEF3C7] text-[#92400E]' : 'bg-[#daf3f0] text-[#005851]'
+                  }`}>
+                    {label}{gap && ' — gap'}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
+
+      {/* Appointments (Chunk 4c). Splits upcoming vs past based on
+          scheduledAt. Most-recent first within each bucket. */}
+      {appointments.length > 0 && (
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5 mb-6">
+          <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider mb-3">
+            Appointments
+            <span className="ml-2 text-xs font-normal text-[#707070]">
+              {appointments.length}
+            </span>
+          </h3>
+          <ul className="space-y-3">
+            {appointments.map((appt) => {
+              const when = appt.scheduledAt?.toDate();
+              const isPast = when ? when.getTime() < Date.now() : false;
+              const statusTone = (
+                appt.status === 'cancelled' ? 'bg-gray-100 text-gray-600 border-gray-300' :
+                appt.status === 'no_show'   ? 'bg-red-50 text-red-700 border-red-200' :
+                appt.status === 'completed' ? 'bg-[#daf3f0] text-[#005851] border-[#45bcaa]' :
+                                              'bg-amber-50 text-amber-900 border-amber-300'
+              );
+              return (
+                <li key={appt.id} className={`p-3 rounded-[5px] border ${
+                  appt.status === 'cancelled' ? 'border-gray-200 bg-gray-50 opacity-75' :
+                  isPast ? 'border-[#d0d0d0] bg-[#fafafa]' :
+                  'border-[#45bcaa]/40 bg-[#daf3f0]/20'
+                }`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-[#000000]">
+                        {when ? when.toLocaleString(undefined, {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        }) : '(no time set)'}
+                      </div>
+                      <div className="text-xs text-[#707070] mt-0.5 flex items-center gap-2 flex-wrap">
+                        <span>{appt.durationMinutes ?? 30} min</span>
+                        <span className={`inline-block px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border rounded ${statusTone}`}>
+                          {appt.status.replace('_', ' ')}
+                        </span>
+                        {appt.sentConfirmationAt && (
+                          <span className="text-[10px] text-[#005851]">✓ Confirmation sent</span>
+                        )}
+                        {appt.sentReminderAt && (
+                          <span className="text-[10px] text-[#005851]">✓ Reminder sent</span>
+                        )}
+                      </div>
+                      {appt.notes && (
+                        <p className="text-xs text-[#444] mt-1.5 leading-relaxed">{appt.notes}</p>
+                      )}
+                    </div>
+                    {/* Send confirmation if it hasn't been sent yet
+                        and the appointment is still scheduled (not
+                        cancelled / completed / no-show). Available
+                        on past-but-still-scheduled rows too — agent
+                        can re-send if the lead is unresponsive. */}
+                    {!appt.sentConfirmationAt && appt.status === 'scheduled' && (
+                      <button
+                        onClick={() => setConfirmingAppointmentId(appt.id)}
+                        className="shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors"
+                      >
+                        Send confirmation
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {/* Dial history (Chunk 4b). Most-recent first. Mirrors the
+          activity-log shape so the two read alike — different
+          datatypes (dialLog is on the lead doc, activity is its own
+          subcollection) but agents don't need to care. */}
+      {lead.dialLog && lead.dialLog.length > 0 && (
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5 mb-6">
+          <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider mb-3">
+            Dial history
+            <span className="ml-2 text-xs font-normal text-[#707070]">
+              {lead.dialLog.length} {lead.dialLog.length === 1 ? 'attempt' : 'attempts'}
+            </span>
+          </h3>
+          <ul className="space-y-2 text-sm">
+            {[...lead.dialLog].reverse().map((dial, i) => (
+              <li key={i} className="flex items-start justify-between gap-3 text-[#374151]">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded border ${DIAL_OUTCOME_TONE[dial.outcome]}`}>
+                    {DIAL_OUTCOME_LABELS[dial.outcome]}
+                  </span>
+                  {dial.notes && <span className="text-xs text-[#707070] truncate">{dial.notes}</span>}
+                </div>
+                <span className="text-xs text-[#707070] shrink-0">
+                  {dial.at ? dial.at.toDate().toLocaleString() : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Activity log */}
+      {activity.length > 0 && (
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5 mb-6">
+          <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider mb-3">Activity</h3>
+          <ul className="space-y-2 text-sm">
+            {activity.map((a) => (
+              <li key={a.id} className="flex items-start justify-between text-[#374151]">
+                <span>{a.summary || a.kind}</span>
+                <span className="text-xs text-[#707070] ml-3 shrink-0">
+                  {a.at ? a.at.toDate().toLocaleString() : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Danger zone — delete the lead. Removes the lead doc, the
+          leadCodes index entry, and any leadActivity entries. If the lead
+          has the app open, their next lookup 404s and the mobile session
+          clears automatically. */}
+      <div className="mt-12 pt-6 border-t border-[#FECACA]">
+        <button
+          onClick={() => setShowDeleteConfirm(true)}
+          className="text-sm text-red-600 hover:text-red-700 font-semibold"
+        >
+          Delete lead
+        </button>
+      </div>
+
+      {/* Appointment picker (Chunk 4c). Opens via the standalone
+          "Book appointment" header button OR via the 'booked' outcome
+          chip in the dial-flow. The picker's submit endpoint
+          atomically creates the appointment + logs the dial outcome.
+          On successful save, immediately opens the confirmation
+          drawer (Chunk 4e) so the agent can fire the SMS while the
+          lead is still on the line. */}
+      {showAppointmentPicker && lead && (
+        <AppointmentPicker
+          user={user}
+          leadId={lead.id}
+          leadName={lead.name || 'this lead'}
+          onBooked={(apptId) => {
+            setShowAppointmentPicker(false);
+            setConfirmingAppointmentId(apptId);
+          }}
+          onCancel={() => setShowAppointmentPicker(false)}
+        />
+      )}
+
+      {/* Send-confirmation drawer (Chunk 4e). The appointment lookup
+          here finds the row from our live snapshot — works for both
+          just-booked appointments and ones the agent re-opens later. */}
+      {confirmingAppointmentId && lead && (() => {
+        const appt = appointments.find((a) => a.id === confirmingAppointmentId);
+        if (!appt || !appt.scheduledAt) return null;
+        return (
+          <SendConfirmationDrawer
+            user={user}
+            appointmentId={appt.id}
+            leadName={lead.name || ''}
+            leadPhone={lead.phone || ''}
+            leadState={lead.address?.state || null}
+            scheduledAt={appt.scheduledAt.toDate()}
+            agentName={agentProfile.name || ''}
+            agentBusinessCardBase64={agentProfile.businessCardBase64}
+            licenses={agentProfile.licenses || {}}
+            attachmentsSent={lead.attachmentsSent}
+            onSent={() => setConfirmingAppointmentId(null)}
+            onCancel={() => setConfirmingAppointmentId(null)}
+          />
+        );
+      })()}
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => !deleting && setShowDeleteConfirm(false)} />
+          <div className="relative bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="p-5 border-b border-[#ececec]">
+              <h3 className="text-xl font-bold text-[#000000]">Delete this lead?</h3>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-[#444] leading-relaxed">
+                This permanently removes <strong className="text-[#000000]">{lead.name || 'this lead'}</strong>, their code{' '}
+                <span className="font-mono font-bold text-[#005851]">{lead.leadCode}</span>, and any answers they
+                submitted from the app. If they&apos;re currently in the app, they&apos;ll be signed out on their next action.
+              </p>
+              {deleteError && <div className="mt-3 text-sm text-red-600">{deleteError}</div>}
+            </div>
+            <div className="flex gap-3 p-5 border-t border-[#ececec] bg-[#fafafa]">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+                className="flex-1 py-2.5 px-4 text-sm font-semibold text-[#0D4D4D] bg-white rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] hover:bg-[#f8f8f8] transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 py-2.5 px-4 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-50"
+              >
+                {deleting ? 'Deleting…' : 'Delete lead'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatusCard({ label, ok, detail }: { label: string; ok: boolean; detail: string }) {
+  return (
+    <div className={`rounded-[5px] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] px-4 py-3 ${ok ? 'bg-[#daf3f0]/40' : 'bg-white'}`}>
+      <p className="text-[10px] font-bold uppercase tracking-wider text-[#707070]">{label}</p>
+      <p className={`text-sm font-semibold mt-1 ${ok ? 'text-[#005851]' : 'text-[#9CA3AF]'}`}>{detail}</p>
+    </div>
+  );
+}

@@ -5,6 +5,8 @@ import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { checkRateLimit, getClientIp } from '../../../../lib/rate-limit';
 import { findClientByCode } from '../../../../lib/client-code-lookup';
 import { findBeneficiaryByCode } from '../../../../lib/beneficiary-code-lookup';
+import { findLeadByCode } from '../../../../lib/lead-code-lookup';
+import { isLeadCode } from '../../../../lib/lead-code-derive';
 
 /**
  * Resolve the Linq line phone number the mobile Activate screen will
@@ -54,6 +56,75 @@ export async function POST(req: NextRequest) {
     }
 
     const normalizedCode = clientCode.trim().toUpperCase();
+
+    // Lead codes come in two shapes:
+    //   - Derived (default): 10 digits = MMDDYY + last 4 of phone
+    //   - Random fallback: `L` + 7 alphanumerics (when derived collides)
+    // Both live in `agents/{agentId}/leads/{leadId}` and are indexed at
+    // `leadCodes/{CODE}`. Short-circuit the dispatch by code shape so
+    // we don't pay for client/beneficiary index reads on a code that
+    // can't possibly belong to those collections.
+    //
+    // The lead path returns its OWN response shape (no policies, no
+    // welcomeFlow fields, no Linq line — just lead identity + agent
+    // metadata + accessType: 'lead'). The mobile router branches on
+    // accessType to land lead users on /lead-home instead of /agent-profile.
+    if (isLeadCode(normalizedCode)) {
+      const leadMatch = await findLeadByCode(normalizedCode);
+      if (!leadMatch) {
+        return NextResponse.json({ error: 'Client code not found' }, { status: 404 });
+      }
+
+      const db = getAdminFirestore();
+      const [leadSnap, agentSnap] = await Promise.all([
+        leadMatch.leadRef.get(),
+        db.collection('agents').doc(leadMatch.agentId).get(),
+      ]);
+
+      const leadData = leadSnap.data() ?? {};
+      const agentData = agentSnap.data() ?? {};
+
+      // Stamp appDownloadedAt on first successful lookup. Fire-and-forget;
+      // dashboard surfaces this so the agent knows the lead is in the app
+      // before the appointment.
+      if (!leadData.appDownloadedAt) {
+        leadMatch.leadRef
+          .update({ appDownloadedAt: new Date().toISOString() })
+          .catch(() => {});
+      }
+
+      return NextResponse.json({
+        agentId: leadMatch.agentId,
+        // We deliberately reuse the `clientId` field name in the response so
+        // the mobile session shape (agentId / clientId / clientCode) doesn't
+        // need a parallel `leadId` channel. Inside the lead doc itself the
+        // ID is the lead's doc ID. The mobile app treats this as an opaque
+        // session key — it never displays it.
+        clientId: leadMatch.leadId,
+        clientData: {
+          name: leadData.name ?? '',
+          phone: leadData.phone ?? '',
+          email: leadData.email ?? '',
+          clientCode: normalizedCode,
+        },
+        agentData: {
+          name: agentData.name ?? 'Your Agent',
+          email: agentData.email ?? '',
+          phoneNumber: agentData.phoneNumber ?? '',
+          agencyName: agentData.agencyName ?? '',
+          referralMessage: agentData.referralMessage ?? '',
+          photoBase64: agentData.photoBase64 ?? '',
+          agencyLogoBase64: agentData.agencyLogoBase64 ?? '',
+          businessCardBase64: agentData.businessCardBase64 ?? '',
+        },
+        // Leads do NOT participate in the welcome-flow Linq pairing, so
+        // no Linq line is returned. Activate-screen short-circuit is
+        // handled mobile-side by checking the code prefix on /login.
+        linqLinePhone: '',
+        accessType: 'lead' as const,
+      });
+    }
+
     const clientMatch = await findClientByCode(normalizedCode);
     const beneficiaryMatch = clientMatch ? null : await findBeneficiaryByCode(normalizedCode);
     if (!clientMatch && !beneficiaryMatch) {

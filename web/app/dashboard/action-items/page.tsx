@@ -16,6 +16,7 @@ import WelcomeActionItemCard from '../../../components/WelcomeActionItemCard';
 import RetentionCallActionItemCard from '../../../components/RetentionCallActionItemCard';
 import RetentionTextActionItemCard from '../../../components/RetentionTextActionItemCard';
 import AnniversaryReferralActionItemCard from '../../../components/AnniversaryReferralActionItemCard';
+import UpcomingAppointmentsCard from '../../../components/UpcomingAppointmentsCard';
 import type {
   ActionItemDoc,
   ActionItemLane,
@@ -98,7 +99,7 @@ function isRetentionText(item: ActionItemDoc): boolean {
 }
 
 function ActionItemsPageInner() {
-  const { user } = useDashboard();
+  const { user, agentProfile } = useDashboard();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -202,6 +203,19 @@ function ActionItemsPageInner() {
         <h1 className="text-2xl font-bold text-[#0D4D4D]">Action Items</h1>
         <p className="text-sm text-[#4f4f4f] mt-1">{LANE_SUBTITLE[activeLane]}</p>
       </header>
+
+      {/* Upcoming Appointments (Chunk 4f). Sits ABOVE the lane tabs
+          because appointment reminders are time-sensitive — agents
+          should see them whether or not they're on the right lane.
+          Renders nothing when there are no upcoming appointments in
+          the next 24h, so it doesn't add clutter for agents who
+          haven't booked any. */}
+      <UpcomingAppointmentsCard
+        user={user}
+        agentName={agentProfile.name || ''}
+        agentBusinessCardBase64={agentProfile.businessCardBase64}
+        licenses={agentProfile.licenses || {}}
+      />
 
       <div className="mb-4 -mx-1 flex items-center gap-1 overflow-x-auto">
         {LANE_ORDER.map((lane) => {
