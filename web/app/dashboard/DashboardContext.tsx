@@ -126,6 +126,23 @@ export interface AgentProfile {
    * defaultMeetingLink.
    */
   autoCreateGoogleMeet?: boolean;
+  /**
+   * How far ahead of an appointment the cron should send a push reminder
+   * to the lead (Chunk 4f-extension). Defaults to 1 hour. Set to 0 to
+   * disable auto push reminders entirely. The agent's manual "Send
+   * reminder" SMS button is always available regardless.
+   */
+  reminderPushHoursBefore?: number;
+  /**
+   * Per-agent video manifest for the mobile lead-home screen
+   * (Chunk 3). Uploaded via /api/lead-content/upload; consumed by
+   * /api/mobile/lead-content which merges this over platform defaults.
+   */
+  leadContent?: {
+    intro?: { url: string; path?: string; title?: string; updatedAt?: string };
+    faqs?: Array<{ id: string; title: string; url: string; path?: string; updatedAt?: string }>;
+    caseStudies?: Array<{ id: string; title: string; url: string; path?: string; updatedAt?: string }>;
+  };
 }
 
 interface DashboardContextValue {
@@ -241,6 +258,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           appointmentMode: data.appointmentMode === 'video' ? 'video' : 'phone',
           defaultMeetingLink: data.defaultMeetingLink,
           autoCreateGoogleMeet: data.autoCreateGoogleMeet === true,
+          reminderPushHoursBefore: typeof data.reminderPushHoursBefore === 'number'
+            ? data.reminderPushHoursBefore
+            : 1,
+          leadContent: data.leadContent || undefined,
         });
       } else {
         setAgentProfile({});

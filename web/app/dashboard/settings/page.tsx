@@ -52,6 +52,108 @@ interface GoogleCalendarStatusResponse {
   error?: string;
 }
 
+interface LeadVideoItem {
+  id: string;
+  title: string;
+  url: string;
+  path?: string;
+  updatedAt?: string;
+}
+
+/**
+ * Reusable upload list for FAQ + case-study video slots. Renders one
+ * row per existing item with a title input + preview/remove, plus a
+ * "+ Add" row for a new upload (title field + file picker).
+ */
+function LeadVideoList({
+  kind,
+  label,
+  items,
+  busyKey,
+  onUpload,
+  onDelete,
+}: {
+  kind: 'faq' | 'caseStudy';
+  label: string;
+  items: LeadVideoItem[];
+  busyKey: string | null;
+  onUpload: (file: File, slotId: string, title: string) => void;
+  onDelete: (slotId: string) => void;
+}) {
+  const [newTitle, setNewTitle] = useState('');
+  const handleNewFile = useCallback((file: File) => {
+    const slotId = `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const title = newTitle.trim() || 'Untitled video';
+    onUpload(file, slotId, title);
+    setNewTitle('');
+  }, [kind, newTitle, onUpload]);
+
+  return (
+    <div className="mb-5 pb-5 border-b border-[#ececec] last:border-b-0 last:pb-0 last:mb-0">
+      <h4 className="text-xs font-semibold text-[#374151] mb-2">{label}</h4>
+      {items.length === 0 && (
+        <p className="text-[11px] text-[#707070] mb-2">No videos uploaded yet.</p>
+      )}
+      <ul className="space-y-2 mb-3">
+        {items.map((item) => {
+          const itemBusy = busyKey === `${kind}:${item.id}`;
+          return (
+            <li key={item.id} className="flex items-center justify-between gap-3 rounded-[5px] border border-[#d0d0d0] bg-[#fafafa] px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-[#374151] truncate">{item.title || '(no title)'}</p>
+                {item.url && (
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10px] text-[#44bbaa] hover:text-[#005751] font-semibold"
+                  >
+                    Preview →
+                  </a>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => onDelete(item.id)}
+                disabled={itemBusy}
+                className="text-[11px] text-red-600 hover:text-red-800 font-semibold disabled:opacity-50"
+              >
+                {itemBusy ? 'Working…' : 'Remove'}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={newTitle}
+          onChange={(e) => setNewTitle(e.target.value)}
+          placeholder={kind === 'faq' ? 'e.g. Is this a sales pitch?' : 'e.g. How a real client handled this'}
+          className="flex-1 px-3 py-2 bg-white border border-[#d0d0d0] rounded-[5px] text-xs focus:outline-none focus:border-[#45bcaa]"
+        />
+        <label>
+          <input
+            type="file"
+            accept="video/mp4,video/quicktime,video/webm"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) {
+                handleNewFile(f);
+                e.currentTarget.value = '';
+              }
+            }}
+          />
+          <span className="inline-block px-3 py-2 text-xs font-semibold rounded-[5px] cursor-pointer bg-[#005851] hover:bg-[#004440] text-white">
+            + Add
+          </span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
 function resizeImage(file: File, maxSize: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -215,6 +317,7 @@ export default function SettingsPage() {
     appointmentMode: agentProfile.appointmentMode || 'phone',
     defaultMeetingLink: agentProfile.defaultMeetingLink || '',
     autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? false,
+    reminderPushHoursBefore: agentProfile.reminderPushHoursBefore ?? 1,
   }), [
     agentProfile.name,
     agentProfile.phoneNumber,
@@ -240,6 +343,7 @@ export default function SettingsPage() {
     agentProfile.appointmentMode,
     agentProfile.defaultMeetingLink,
     agentProfile.autoCreateGoogleMeet,
+    agentProfile.reminderPushHoursBefore,
   ]);
 
   const loadGoogleDriveStatus = useCallback(async () => {
@@ -444,6 +548,104 @@ export default function SettingsPage() {
     }
   }, [user]);
 
+  // ── Lead-home video uploads (Chunk 3) ──
+  const [leadVideoBusy, setLeadVideoBusy] = useState<string | null>(null);
+  const [leadVideoError, setLeadVideoError] = useState<string | null>(null);
+
+  const uploadLeadVideo = useCallback(async (params: {
+    file: File;
+    slot: 'intro' | 'faq' | 'caseStudy';
+    slotId?: string;
+    title?: string;
+  }) => {
+    if (!user) return;
+    const busyKey = params.slot === 'intro' ? 'intro' : `${params.slot}:${params.slotId}`;
+    setLeadVideoBusy(busyKey);
+    setLeadVideoError(null);
+    try {
+      const token = await user.getIdToken();
+      const form = new FormData();
+      form.set('file', params.file);
+      form.set('slot', params.slot);
+      if (params.slotId) form.set('slotId', params.slotId);
+      if (params.title) form.set('title', params.title);
+      const res = await fetch('/api/lead-content/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `Upload failed (${res.status})`);
+      // Patch agentProfile.leadContent in-place so the UI updates immediately
+      // without a round-trip through fetchProfile.
+      setAgentProfile((prev) => {
+        const next = { ...prev };
+        const lc = { ...(next.leadContent || {}) };
+        if (params.slot === 'intro') {
+          lc.intro = data.entry;
+        } else {
+          const arrKey = params.slot === 'faq' ? 'faqs' : 'caseStudies';
+          const current = (lc[arrKey] as LeadVideoItem[] | undefined) || [];
+          const arr: LeadVideoItem[] = [...current];
+          const idx = arr.findIndex((e) => e.id === params.slotId);
+          if (idx >= 0) arr[idx] = data.entry as LeadVideoItem;
+          else arr.push(data.entry as LeadVideoItem);
+          lc[arrKey] = arr;
+        }
+        next.leadContent = lc;
+        return next;
+      });
+      setSaveMessage({ type: 'success', text: 'Video uploaded.' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Upload failed';
+      setLeadVideoError(message);
+      setSaveMessage({ type: 'error', text: message });
+    } finally {
+      setLeadVideoBusy(null);
+    }
+  }, [user, setAgentProfile]);
+
+  const deleteLeadVideo = useCallback(async (slot: 'intro' | 'faq' | 'caseStudy', slotId?: string) => {
+    if (!user) return;
+    const busyKey = slot === 'intro' ? 'intro' : `${slot}:${slotId}`;
+    setLeadVideoBusy(busyKey);
+    setLeadVideoError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/lead-content/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ slot, slotId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `Delete failed (${res.status})`);
+      setAgentProfile((prev) => {
+        const next = { ...prev };
+        const lc = { ...(next.leadContent || {}) };
+        if (slot === 'intro') {
+          delete lc.intro;
+        } else {
+          const arrKey = slot === 'faq' ? 'faqs' : 'caseStudies';
+          const arr: LeadVideoItem[] = ((lc[arrKey] as LeadVideoItem[] | undefined) || [])
+            .filter((e) => e.id !== slotId);
+          lc[arrKey] = arr;
+        }
+        next.leadContent = lc;
+        return next;
+      });
+      setSaveMessage({ type: 'success', text: 'Video removed.' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Delete failed';
+      setLeadVideoError(message);
+      setSaveMessage({ type: 'error', text: message });
+    } finally {
+      setLeadVideoBusy(null);
+    }
+  }, [user, setAgentProfile]);
+
   const handleImageUpload = useCallback(
     async (file: File, maxSize: number, field: 'photoBase64' | 'agencyLogoBase64' | 'businessCardBase64') => {
       try {
@@ -525,6 +727,13 @@ export default function SettingsPage() {
         appointmentMode: agentProfile.appointmentMode === 'video' ? 'video' : 'phone',
         defaultMeetingLink: (agentProfile.defaultMeetingLink || '').trim(),
         autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? false,
+        reminderPushHoursBefore: (() => {
+          const raw = Number(agentProfile.reminderPushHoursBefore ?? 1);
+          if (!Number.isFinite(raw)) return 1;
+          // 0 = disabled; otherwise clamp to 1..24.
+          if (raw <= 0) return 0;
+          return Math.min(24, Math.max(1, Math.round(raw)));
+        })(),
       }, { merge: true });
 
       if (isFirstTimePhone) {
@@ -1650,6 +1859,29 @@ export default function SettingsPage() {
               </p>
             </div>
 
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-[#374151] mb-1">
+                Auto push-reminder timing
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  max={24}
+                  value={agentProfile.reminderPushHoursBefore ?? 1}
+                  onChange={(e) => {
+                    const v = e.target.value === '' ? 1 : Number(e.target.value);
+                    updateField('reminderPushHoursBefore', Number.isFinite(v) ? v : 1);
+                  }}
+                  className="w-20 px-3 py-2 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+                />
+                <span className="text-sm text-[#374151]">hours before the appointment</span>
+              </div>
+              <p className="text-[11px] text-[#707070] mt-1">
+                If the lead has downloaded your app, AFL will auto-push a reminder this far before the appointment. Set to 0 to disable.
+              </p>
+            </div>
+
             {agentProfile.appointmentMode === 'video' && (
               <>
                 <div className="mb-4">
@@ -1686,6 +1918,100 @@ export default function SettingsPage() {
                 </label>
               </>
             )}
+          </div>
+
+          {/* Lead-home videos (Chunk 3). Per-agent overrides for the
+              intro / FAQ / case-study slots rendered in the mobile
+              lead-home screen. */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Lead-home videos</h3>
+            <p className="text-[11px] text-[#707070] mb-4">
+              These videos play in your leads&apos; AFL app after they log in with their phone code. Without uploads the lead-home looks empty.
+            </p>
+
+            {/* Intro slot */}
+            <div className="mb-5 pb-5 border-b border-[#ececec]">
+              <div className="flex items-center justify-between mb-1">
+                <h4 className="text-xs font-semibold text-[#374151]">Intro video</h4>
+                {agentProfile.leadContent?.intro?.url && (
+                  <button
+                    type="button"
+                    onClick={() => deleteLeadVideo('intro')}
+                    disabled={leadVideoBusy === 'intro'}
+                    className="text-[11px] text-red-600 hover:text-red-800 font-semibold disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              {agentProfile.leadContent?.intro?.url ? (
+                <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/40 px-3 py-2">
+                  <p className="text-sm font-medium text-[#005851]">
+                    {agentProfile.leadContent.intro.title || 'Uploaded'}
+                  </p>
+                  <a
+                    href={agentProfile.leadContent.intro.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-[#44bbaa] hover:text-[#005751] font-semibold"
+                  >
+                    Preview →
+                  </a>
+                </div>
+              ) : (
+                <p className="text-[11px] text-[#707070] mb-2">Not uploaded yet.</p>
+              )}
+              <label className="inline-block mt-2">
+                <input
+                  type="file"
+                  accept="video/mp4,video/quicktime,video/webm"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) {
+                      void uploadLeadVideo({ file: f, slot: 'intro', title: 'Intro' });
+                      e.currentTarget.value = '';
+                    }
+                  }}
+                />
+                <span className={`inline-block px-3 py-2 text-xs font-semibold rounded-[5px] cursor-pointer ${
+                  leadVideoBusy === 'intro'
+                    ? 'bg-gray-200 text-gray-500'
+                    : 'bg-[#005851] hover:bg-[#004440] text-white'
+                }`}>
+                  {leadVideoBusy === 'intro'
+                    ? 'Uploading…'
+                    : (agentProfile.leadContent?.intro?.url ? 'Replace' : 'Upload intro video')}
+                </span>
+              </label>
+            </div>
+
+            {/* FAQs */}
+            <LeadVideoList
+              kind="faq"
+              label="FAQ videos"
+              items={agentProfile.leadContent?.faqs || []}
+              busyKey={leadVideoBusy}
+              onUpload={(file, slotId, title) => uploadLeadVideo({ file, slot: 'faq', slotId, title })}
+              onDelete={(slotId) => deleteLeadVideo('faq', slotId)}
+            />
+
+            {/* Case studies */}
+            <LeadVideoList
+              kind="caseStudy"
+              label="Case-study videos"
+              items={agentProfile.leadContent?.caseStudies || []}
+              busyKey={leadVideoBusy}
+              onUpload={(file, slotId, title) => uploadLeadVideo({ file, slot: 'caseStudy', slotId, title })}
+              onDelete={(slotId) => deleteLeadVideo('caseStudy', slotId)}
+            />
+
+            {leadVideoError && (
+              <p className="text-xs text-red-600 mt-3">{leadVideoError}</p>
+            )}
+            <p className="text-[10px] text-[#707070] mt-3">
+              Max 200 MB per video. .mp4, .mov, or .webm. Videos are signed for 1 year — re-upload after that to refresh.
+            </p>
           </div>
 
           {/* Email */}

@@ -43,6 +43,13 @@ export interface AppointmentDoc {
   createdAt: FirebaseFirestore.Timestamp | null;
   sentConfirmationAt?: FirebaseFirestore.Timestamp | null;
   sentReminderAt?: FirebaseFirestore.Timestamp | null;
+  /**
+   * Stamped by the appointment-push-reminders cron (Chunk 4f-extension)
+   * when it successfully sends an Expo push to the lead's app on file.
+   * Separate from sentReminderAt (which tracks the agent-sent SMS) so
+   * the two channels never collide.
+   */
+  reminderPushSentAt?: FirebaseFirestore.Timestamp | null;
   /** Google Calendar event ID — present iff the appointment has been mirrored. */
   googleEventId?: string | null;
   /** Last Calendar sync failure message; null/absent when the last sync succeeded. */

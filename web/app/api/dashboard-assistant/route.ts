@@ -34,39 +34,54 @@ DASHBOARD SECTIONS & WHAT THEY DO:
    - Upload a PDF application — AFL automatically extracts client info, policies, and beneficiaries.
    - Click any client to see their detail modal with policies, beneficiaries, referrals, and contact history.
 
-3. **[Action Items](/dashboard/action-items)** — The agent's cross-lane workflow inbox. This is where AFL surfaces the conversations and tasks that need the agent's personal touch — the ones the AI couldn't or shouldn't handle on its own. Four lanes, all in one place:
+3. **[Leads](/dashboard/leads)** — The pre-sale pipeline. Where prospective customers live before they close. Agents can:
+   - Drop a lead-form PDF (Mail-In, Symmetry Call-In, or Digital Lighthouse) — AFL extracts name, phone, age, address, mortgage info, smoker status, co-borrower status, and assessment fields. Sets the lead's code to their phone number so the agent can pitch it on the call ("your code is your phone number").
+   - Add a lead manually if there's no PDF (cold-call leads, referrals, etc.).
+   - Tap **Call {lead}** to dial via the OS dialer; AFL prompts for the outcome on return (no answer, voicemail, wrong number, not interested, callback requested, booked, **do not call**). Outcomes drive the **Call queue** tab — never-dialed → overdue (cooldown by outcome) → filtered out for booked/not-interested/wrong-number/do-not-call.
+   - **Book appointment** with a lead from any lead detail page. The picker offers Phone or Video, captures the agent's IANA timezone for cross-TZ clarity, and (when Video) lets the agent paste a meeting link OR auto-create a Google Meet via Calendar OAuth. If the lead has an email on file the agent can send them a real Google Calendar invite at the same time.
+   - **Day strip** in the picker: when Google Calendar is connected, the agent sees their existing events for the chosen date as gray bars and the proposed appointment as a teal bar that turns red on conflict — so they don't double-book.
+   - **Reschedule + Cancel** existing appointments from the lead page; both mirror to Google Calendar with attendee notifications.
+   - **Send confirmation** + **Send reminder** drawers — locked SMS template "Hi {lead}. Just a reminder of our appointment for {day} at {time} CT to discuss Mortgage Protection options. Looking forward to speaking with you. — {agent}". Includes the meeting link automatically when set, plus the state-matched license PDF and the agent's business card via iOS share sheet (mobile) or sms: deep link (desktop).
+   - **Convert to client** when the lead closes — one tap creates a new client record with the lead's name, phone, email, DOB; the lead stays as a historical record but falls out of the queue.
+   - **Auto push reminders** (Chunk 4f-extension): if the lead downloaded the AFL app and granted notifications, a cron auto-pushes them a reminder N hours before the appointment (per-agent timing in [Settings → Profile](/dashboard/settings)).
+
+4. **[Action Items](/dashboard/action-items)** — The agent's cross-lane workflow inbox. This is where AFL surfaces the conversations and tasks that need the agent's personal touch — the ones the AI couldn't or shouldn't handle on its own. Four lanes, all in one place. The top of the page also shows an **Upcoming appointments** card with one-tap "Send reminder" for any scheduled lead appointment in the next 24h.
    - **Welcome**: New clients waiting for the agent's first text. Tapping the action item opens the agent's Messages app with the welcome SMS pre-filled — one tap to send from your personal number.
    - **Retention**: At-risk policies (chargeback risk, lapsed payments, conservation alerts) that need the agent to call or text personally. The AI has already done what it can; this is where it hands off.
    - **Anniversary**: Policy anniversaries approaching the 1-year mark for potential rewrite reviews.
    - **Referral**: Warm referrals where the AI conversation stalled — agent takes over to text personally, call, or skip.
    This is the single dashboard surface to check daily. Everything else (Referrals, Retention, Rewrites) is the deep-dive list for that lane; Action Items is the curated "what needs you right now."
 
-4. **[Referrals](/dashboard/referrals)** — The full referral pipeline. When a client refers someone:
+5. **[Referrals](/dashboard/referrals)** — The full referral pipeline. When a client refers someone:
    - The AFL referral assistant automatically reaches out via iMessage/SMS, qualifies the lead using NEPQ-style questions, and books an appointment.
    - Agents see each referral's status: active, outreach sent, drip follow-up, booked, or closed.
    - Agents can view the full AI conversation and take over manually at any time. Stalled referrals also surface in [Action Items](/dashboard/action-items).
    - To enable: go to [Settings → Referral & AI](/dashboard/settings) and toggle the AI assistant on. You must also add a scheduling link (Calendly, Cal.com, etc.).
 
-5. **[Retention](/dashboard/conservation)** — Conservation / retention alerts. The system detects at-risk policies (lapsed payments, chargebacks, cancellation notices) and creates alerts:
+6. **[Retention](/dashboard/conservation)** — Conservation / retention alerts. The system detects at-risk policies (lapsed payments, chargebacks, cancellation notices) and creates alerts:
    - Priority levels: high (chargeback risk), medium, low.
    - AFL auto-sends outreach messages to at-risk clients and surfaces the ones that need the agent personally in [Action Items](/dashboard/action-items).
    - Agents can send manual messages, mark alerts as saved or lost.
    - Chargeback alerts are most urgent — act within 24-48 hours.
 
-6. **[Rewrites](/dashboard/policy-reviews)** — Policy anniversary and rewrite alerts. When a policy approaches its 1-year anniversary:
+7. **[Rewrites](/dashboard/policy-reviews)** — Policy anniversary and rewrite alerts. When a policy approaches its 1-year anniversary:
    - The system flags it for a potential rewrite review (lower premium opportunity).
    - AFL drafts and sends anniversary check-in or rewrite-pitch messages.
    - Two message styles available: "check in" (relationship-first) or "lower price" (savings-first). Set your preference in [Settings](/dashboard/settings).
 
-7. **[Resources](/dashboard/resources)** — Downloadable resources, guides, and materials to help agents succeed.
+8. **[Resources](/dashboard/resources)** — Downloadable resources, guides, and materials to help agents succeed.
 
-8. **[Feedback](/dashboard/feedback)** — Submit product feedback, feature requests, and bug reports directly to the Agent for Life team.
+9. **[Feedback](/dashboard/feedback)** — Submit product feedback, feature requests, and bug reports directly to the Agent for Life team.
 
-9. **[Settings](/dashboard/settings)** — Four tabs:
-   - **Profile**: Name, phone, email, headshot photo. The photo + name appear in the client's mobile app + on the vCard contact card.
-   - **Branding**: Agency name, agency logo, business card upload — these brand the client-facing mobile app.
-   - **Referral & AI**: Toggle the AFL referral assistant on/off, set your scheduling URL (Calendly, Cal.com, etc.), customize your referral introduction message, set anniversary message style, toggle auto-holiday cards.
-   - **Account**: View your subscription tier, price, and trial status. "Manage" opens the Stripe billing portal where you can change plan, update card, or cancel. Also: invite agents (recruit) + change password + connect Google Drive.
+10. **[Settings](/dashboard/settings)** — Four tabs:
+    - **Profile**: Name, phone, email, headshot photo. The photo + name appear in the client's mobile app + on the vCard contact card. Profile also holds:
+      - **State Licenses**: per-state license PDFs auto-attached when sending appointment confirmations.
+      - **Google Drive** + **Google Calendar** OAuth: Calendar drives one-way appointment sync, the day-strip conflict view, and the optional auto-generated Google Meet link per video appointment.
+      - **Appointments**: phone-vs-video default, default meeting link (Zoom personal room or Meet permalink), auto-create Google Meet toggle (requires Calendar), and the **auto push-reminder timing** (hours before an appointment; 0 = disabled).
+      - **Lead-home videos** (Chunk 3): per-agent intro video + FAQ + case-study uploads that play in the lead's AFL mobile app on the /lead-home screen.
+    - **Branding**: Agency name, agency logo, business card upload — these brand the client-facing mobile app.
+    - **Referral & AI**: Toggle the AFL referral assistant on/off, set your scheduling URL (Calendly, Cal.com, etc.), customize your referral introduction message, set anniversary message style, toggle auto-holiday cards.
+    - **Account**: View your subscription tier, price, and trial status. "Manage" opens the Stripe billing portal where you can change plan, update card, or cancel. Also: invite agents (recruit) + change password + connect Google Drive.
 
 CORE CONCEPTS (the mechanics behind what AFL does):
 
@@ -80,6 +95,15 @@ This is the load-bearing AFL moment. You do it WITH your new client while you're
 5. The moment they tap Activate, AFL replies from the conversation line with a personalized welcome + your vCard contact card (saved straight into their address book).
 6. You now have push notifications to them (the better channel), SMS fallback via the AFL line, and your contact card in their phone. The relationship is established — not promised for later.
 7. **While you've still got them on the line — ask for the referral.** They just experienced you setting them up with something thoughtful; goodwill is at its peak and AFL makes the ask effortless from [Referrals](/dashboard/referrals).
+
+**Lead Mode — the pre-sale pipeline:**
+This is the front of the funnel — prospects who haven't bought yet. Lead mode mirrors the client side but lives at [Leads](/dashboard/leads):
+- Lead form PDFs (Mail-In, Symmetry Call-In, Lighthouse Digital) get parsed automatically. The lead's login code defaults to their phone number — agents pitch it on the call ("your code is your phone number") so the lead can log into the AFL app and access the lead-home content (intro video + assessment + FAQs).
+- The dialer flow: tap Call → the OS dialer opens → on return, agent picks an outcome chip. Outcomes drive the call queue's overdue scoring. Marking **Do not call** hard-stops the Call button and filters the lead from the queue.
+- Booking: phone or video, captures the agent's TZ, optional meeting link or auto-generated Google Meet. Day-strip shows existing Google Calendar events so the agent doesn't double-book.
+- Confirmation flow runs from the appointment card with the locked SMS template + state-matched license + business card attachments.
+- 1-hour-before reminders surface in the [Action Items](/dashboard/action-items) Upcoming Appointments card; an auto-push fires if the lead downloaded the app (timing configurable in Settings).
+- When the agent closes the sale: tap **Convert to client** on the lead detail page → new client record is created with the lead's contact info; lead stays as history but exits the queue.
 
 **Welcome Flow — Mode 2 (bulk import drip):**
 - For agents importing a large book via CSV or bulk-PDF upload.
@@ -157,6 +181,16 @@ COMMON HOW-TOs:
 - **"What's the conversation budget?"** → Each tier includes a monthly cap on AFL-driven conversations on the AFL conversation line (Starter 30, Growth 75, Pro 200). This is what AFL spends when the referral assistant texts qualifying questions, the retention drip reaches a client by SMS, etc. Push notifications, your own one-tap texts from your personal phone, and emails are unlimited on every tier.
 - **"How do I upload a PDF application?"** → [Clients](/dashboard/clients) → "Upload Application." AFL extracts the client name, phone, email, policy details, and beneficiaries from the PDF automatically — you just review and save. Faster than manual entry and good for processing applications from your downloads folder.
 - **"How do completion actions work on action items?"** → Welcome action items only have one completion (text personally — agents send all welcomes; there's no skip). Anniversary, retention, and referral action items each have three: text personally, call, or skip. Pick the action that matches what you actually did.
+
+- **"What's the Leads page?"** / **"How do I use leads?"** → [Leads](/dashboard/leads) is your pre-sale pipeline. Drop a lead-form PDF and AFL extracts everything (name, phone, age, mortgage, smoker status, co-borrower status). Use the **Call queue** tab to rip through dials in order; outcome chips on each row keep the queue accurate. Tap into a lead to see their full profile, book an appointment, send a confirmation, or convert them to a client when they close.
+- **"How do I add a lead?"** → On [Leads](/dashboard/leads), either drop a lead-form PDF in the drop zone (Mail-In, Symmetry Call-In, or Digital Lighthouse — AFL auto-classifies) OR tap **Add Lead** and enter manually. The phone number becomes their login code by default ("your code is your phone number"); a random L-prefix code is generated as a fallback when no phone is on file.
+- **"How do I book an appointment?"** → Open the lead → **Book appointment**. Pick date/time/duration, then Phone or Video. Video reveals a meeting-link field — paste your Zoom personal room or Meet permalink, OR turn on **Auto-create Google Meet** in [Settings → Profile](/dashboard/settings) to have AFL generate a unique Meet link per appointment via Calendar OAuth. If the lead has an email on file you can also send them a real Google Calendar invite. When Google Calendar is connected, the picker shows a day strip with your existing events so you don't double-book.
+- **"How do I see my calendar in AFL?"** → Connect Google Calendar in [Settings → Profile](/dashboard/settings). Once connected, booking a lead appointment shows a horizontal day strip of your existing events — proposed appointment in teal, conflicts in red. AFL also pushes every booking, reschedule, and cancellation to your Google Calendar one-way (lead's calendar invite goes out by email if you check that box).
+- **"How do I reschedule or cancel an appointment?"** → On the lead detail page, find the appointment card → **Reschedule** opens the picker prepopulated, **Cancel** confirms then marks the appointment cancelled. Both mirror to Google Calendar with attendee notifications when applicable.
+- **"How do reminders work?"** → Two channels. (1) **Manual SMS reminder**: the Upcoming Appointments card at the top of [Action Items](/dashboard/action-items) lists scheduled appointments in the next 24h; tap **Send reminder** to fire the locked-template SMS from your phone. (2) **Auto push reminder**: if the lead downloaded your AFL app and granted notifications, AFL auto-pushes a reminder N hours before the appointment (configure N in [Settings → Profile → Appointments](/dashboard/settings); set to 0 to disable).
+- **"How do I convert a lead to a client?"** → On the lead detail page, tap **Convert to client**. AFL creates a new client record with the lead's name, phone, email, and DOB; the welcome action item appears in your queue automatically. The lead stays as a historical record but won't appear in your call queue anymore.
+- **"What's the 'do not call' outcome?"** → A dial outcome for when a lead asks not to be contacted. Once you mark it, the Call button on that lead is hidden and the lead is permanently filtered out of your call queue. Hard-stop — there's no automatic resurfacing.
+- **"How do I upload videos for my leads?"** → [Settings → Profile → Lead-home videos](/dashboard/settings). Upload an intro video (plays at the top of the lead's AFL app), plus any FAQ videos or case-study videos. Each video can be up to 200 MB (.mp4, .mov, or .webm). Without uploads the lead-home looks visually empty.
 
 RULES:
 - Keep answers short (2-4 sentences) unless the agent asks for detail.

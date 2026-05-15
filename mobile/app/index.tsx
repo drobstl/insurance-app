@@ -143,16 +143,18 @@ export function navigateToProfile(
   _linqLinePhone: string = '',
 ) {
   const clientCode = (clientData.clientCode as string) || '';
-  if (accessType === 'client') {
+  // Both clients AND leads register push tokens — leads need them for the
+  // appointment-reminder cron (Chunk 4f-extension), which auto-pushes a
+  // reminder to the lead's phone an agent-configurable number of hours
+  // before their appointment. The lead-code path uses the same
+  // /api/push-token/register endpoint (which now resolves both client
+  // codes and L-prefix lead codes). The lead doc gets a `pushToken` field
+  // identical in shape to a client's.
+  if (accessType === 'client' || accessType === 'lead') {
     registerAndSavePushToken(clientCode).catch((err) =>
       console.warn('Push token registration failed:', err),
     );
   }
-  // Leads do NOT register push tokens. Phase 1 lead-mode has no push lanes
-  // targeting leads (no welcome / retention / anniversary / birthday flows
-  // run for pre-clients), so requesting permission would be friction with
-  // no value. When a lead converts to a client, the lookup endpoint
-  // returns accessType: 'client' and registration fires on next launch.
 
   const sharedParams = {
     agentId,
