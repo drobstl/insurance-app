@@ -13,6 +13,7 @@ import {
   type RankedRecommendation,
   type UnderwritingConditionKey,
 } from '../lib/carrier-fit-rules';
+import { getBuildOutcome, parseHeightToInches } from '../lib/carrier-build-charts';
 
 // ─── Feature flag ─────────────────────────────────────────────────────
 // Flip to `false` to hide both cards without removing code. Component
@@ -26,6 +27,8 @@ interface Props {
   dateOfBirth?: string;
   ageYears?: number;
   smokerStatus?: 'Y' | 'N';
+  heightText?: string;
+  weightLbs?: number;
   // Persisted structured-flag subdoc
   underwriting?: Partial<LeadUnderwriting>;
 }
@@ -41,8 +44,11 @@ function CarrierFitPanelInner({
   dateOfBirth,
   ageYears,
   smokerStatus,
+  heightText,
+  weightLbs,
   underwriting,
 }: Props) {
+  const heightInches = heightText ? parseHeightToInches(heightText) : null;
   // ── Local optimistic state for each field. Hydrate once from props,
   //    then local is the source of truth (mirrors the rest of the lead
   //    detail page's autosave pattern — onSnapshot re-syncs would clobber
@@ -190,6 +196,16 @@ function CarrierFitPanelInner({
                         Tobacco quirk · {r.product.smokerNote}
                       </div>
                     )}
+                    {(() => {
+                      const bo = getBuildOutcome(r.product.id, heightInches, weightLbs ?? null);
+                      if (!bo.hasChart || !bo.line) return null;
+                      const isWarn = bo.rateClass === 'over_standard' || bo.rateClass === 'underweight';
+                      return (
+                        <div className={`mt-1 text-[11px] rounded-[5px] px-2 py-1 ${isWarn ? 'text-[#92400E] bg-[#FEF3C7]' : 'text-[#0D4D4D] bg-[#f1faf8]'}`}>
+                          Build · {heightText || '?'} {weightLbs ? weightLbs + 'lbs' : '?'} → {bo.line}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#daf3f0] text-[#005851]">
                     {PRODUCT_TYPE_LABEL[r.product.productType]}

@@ -1373,6 +1373,8 @@ export default function LeadDetailPage() {
           dateOfBirth={lead.dateOfBirth}
           ageYears={lead.ageYears}
           smokerStatus={lead.smokerStatus}
+          heightText={lead.heightText}
+          weightLbs={lead.weightLbs}
           underwriting={lead.underwriting}
         />
       )}
