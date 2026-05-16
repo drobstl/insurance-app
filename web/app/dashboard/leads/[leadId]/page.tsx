@@ -19,6 +19,8 @@ import { useDashboard } from '../../DashboardContext';
 import AppointmentPicker from '../../../../components/AppointmentPicker';
 import { DEFAULT_DIAL_SCRIPT, renderDialScript } from '../../../../lib/dial-script';
 import SendConfirmationDrawer from '../../../../components/SendConfirmationDrawer';
+import CarrierFitPanel from '../../../../components/CarrierFitPanel';
+import type { LeadUnderwriting } from '../../../../lib/carrier-fit-rules';
 
 interface LeadPhone {
   number: string;
@@ -77,6 +79,10 @@ interface Lead {
     businessCardAt?: string;
     licensesByState?: Record<string, string>;
   };
+
+  // Carrier-fit engine — structured medical-flag subdoc edited from
+  // the CarrierFitPanel. Optional; absent on legacy leads.
+  underwriting?: Partial<LeadUnderwriting>;
 }
 
 type DialOutcome =
@@ -1344,6 +1350,21 @@ export default function LeadDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Carrier-fit engine: medical-flag panel + ranked recommendations.
+          Self-contained component with its own feature flag. Pulls age +
+          smoker from the lead top-level fields and writes structured
+          underwriting flags to `lead.underwriting.*`. */}
+      {user && (
+        <CarrierFitPanel
+          agentUid={user.uid}
+          leadId={lead.id}
+          dateOfBirth={lead.dateOfBirth}
+          ageYears={lead.ageYears}
+          smokerStatus={lead.smokerStatus}
+          underwriting={lead.underwriting}
+        />
+      )}
 
       {/* Agent-entered: notes + monthly mortgage (autosave) */}
       <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5 mb-6">
