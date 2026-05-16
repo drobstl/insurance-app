@@ -29,6 +29,7 @@ interface Props {
   smokerStatus?: 'Y' | 'N';
   heightText?: string;
   weightLbs?: number;
+  gender?: 'M' | 'F';
   // Persisted structured-flag subdoc
   underwriting?: Partial<LeadUnderwriting>;
 }
@@ -46,6 +47,7 @@ function CarrierFitPanelInner({
   smokerStatus,
   heightText,
   weightLbs,
+  gender,
   underwriting,
 }: Props) {
   const heightInches = heightText ? parseHeightToInches(heightText) : null;
@@ -197,12 +199,18 @@ function CarrierFitPanelInner({
                       </div>
                     )}
                     {(() => {
-                      const bo = getBuildOutcome(r.product.id, heightInches, weightLbs ?? null);
+                      const bo = getBuildOutcome(r.product.id, heightInches, weightLbs ?? null, {
+                        sex: gender,
+                        age: derived.age,
+                      });
                       if (!bo.hasChart || !bo.line) return null;
                       const isWarn = bo.rateClass === 'over_standard' || bo.rateClass === 'underweight';
                       return (
                         <div className={`mt-1 text-[11px] rounded-[5px] px-2 py-1 ${isWarn ? 'text-[#92400E] bg-[#FEF3C7]' : 'text-[#0D4D4D] bg-[#f1faf8]'}`}>
                           Build · {heightText || '?'} {weightLbs ? weightLbs + 'lbs' : '?'} → {bo.line}
+                          {bo.sexUnknownWarning && (
+                            <span className="ml-1 text-[#92400E]">· verify lead’s sex (used male limits)</span>
+                          )}
                         </div>
                       );
                     })()}

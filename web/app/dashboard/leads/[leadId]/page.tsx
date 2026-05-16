@@ -1375,6 +1375,7 @@ export default function LeadDetailPage() {
           smokerStatus={lead.smokerStatus}
           heightText={lead.heightText}
           weightLbs={lead.weightLbs}
+          gender={lead.gender}
           underwriting={lead.underwriting}
         />
       )}

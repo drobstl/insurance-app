@@ -49,12 +49,17 @@ export const RATE_CLASS_LABEL: Record<RateClass, string> = {
 
 export interface BuildChartRow {
   heightInches: number;            // 4'8" = 56, 5'0" = 60, etc.
-  /** Lower end of acceptable weight, in lbs. Below this = `underweight`. */
+  /** Lower end of acceptable weight, in lbs (unisex). Below this = `underweight`. */
   minWeight?: number;
-  /** Ordered max-weight per class, smallest class first.
-   *  Indices align with the chart's `classes` array. A lead at weight W
-   *  qualifies for the first class whose max >= W. */
-  maxByClass: Array<number | null>;
+  /** Sex-differentiated mins (used when carrier separates them). */
+  minWeightMale?: number;
+  minWeightFemale?: number;
+  /** Unisex max-weight per class. Omit when the chart is sex-differentiated. */
+  maxByClass?: Array<number | null>;
+  /** Sex-differentiated max-weight per class. Either both `*Male` + `*Female`
+   *  are set, or neither — when both are set, `maxByClass` is ignored. */
+  maxByClassMale?: Array<number | null>;
+  maxByClassFemale?: Array<number | null>;
 }
 
 export interface BuildChart {
@@ -64,6 +69,11 @@ export interface BuildChart {
   /** Ordered rate classes, smallest to largest weight allowed. */
   classes: RateClass[];
   rows: BuildChartRow[];
+  /** Age-band weight bumps. The base chart covers some default age band
+   *  (e.g. 16-50); some carriers add a few pounds of leniency for older
+   *  applicants. We pick the highest-`minAge` entry where the lead's
+   *  age >= minAge and add `addLbs` to each maxByClass value. */
+  ageAdjustments?: Array<{ minAge: number; addLbs: number }>;
   notes?: string;
 }
 
@@ -371,6 +381,52 @@ const FORESTERS_PLAN_RIGHT: BuildChart = {
   notes: 'PlanRight Preferred / Standard / Basic death-benefit tiers. Above Basic = decline.',
 };
 
+// ─── F&G Pathsetter IUL ──────────────────────────────────────────────
+// Sex-differentiated chart with two classes (Preferred, Standard) per
+// sex. Base chart is age 16-50; +5 lbs for 51-60, +10 lbs for 60+.
+const FG_PATHSETTER: BuildChart = {
+  productId: 'fg-pathsetter',
+  unit: 'lbs',
+  source: 'Quility cheat sheet F&G tab, 2026-05-16',
+  classes: ['preferred', 'standard'],
+  ageAdjustments: [
+    { minAge: 51, addLbs: 5 },
+    { minAge: 61, addLbs: 10 },
+  ],
+  rows: [
+    { heightInches: 56, maxByClassMale: [166, 183], maxByClassFemale: [152, 167] },  // 4'8"
+    { heightInches: 57, maxByClassMale: [170, 187], maxByClassFemale: [155, 171] },  // 4'9"
+    { heightInches: 58, maxByClassMale: [174, 191], maxByClassFemale: [157, 173] },  // 4'10"
+    { heightInches: 59, maxByClassMale: [178, 196], maxByClassFemale: [160, 176] },  // 4'11"
+    { heightInches: 60, maxByClassMale: [182, 200], maxByClassFemale: [163, 179] },  // 5'0"
+    { heightInches: 61, maxByClassMale: [186, 205], maxByClassFemale: [166, 183] },  // 5'1"
+    { heightInches: 62, maxByClassMale: [190, 209], maxByClassFemale: [169, 186] },  // 5'2"
+    { heightInches: 63, maxByClassMale: [196, 216], maxByClassFemale: [174, 191] },  // 5'3"
+    { heightInches: 64, maxByClassMale: [202, 222], maxByClassFemale: [179, 197] },  // 5'4"
+    { heightInches: 65, maxByClassMale: [207, 228], maxByClassFemale: [183, 201] },  // 5'5"
+    { heightInches: 66, maxByClassMale: [213, 234], maxByClassFemale: [189, 208] },  // 5'6"
+    { heightInches: 67, maxByClassMale: [217, 239], maxByClassFemale: [193, 212] },  // 5'7"
+    { heightInches: 68, maxByClassMale: [223, 245], maxByClassFemale: [198, 218] },  // 5'8"
+    { heightInches: 69, maxByClassMale: [228, 251], maxByClassFemale: [202, 222] },  // 5'9"
+    { heightInches: 70, maxByClassMale: [235, 259], maxByClassFemale: [208, 229] },  // 5'10"
+    { heightInches: 71, maxByClassMale: [241, 265], maxByClassFemale: [214, 235] },  // 5'11"
+    { heightInches: 72, maxByClassMale: [248, 273], maxByClassFemale: [220, 243] },  // 6'0"
+    { heightInches: 73, maxByClassMale: [253, 278], maxByClassFemale: [225, 248] },  // 6'1"
+    { heightInches: 74, maxByClassMale: [260, 286], maxByClassFemale: [232, 255] },  // 6'2"
+    { heightInches: 75, maxByClassMale: [267, 294], maxByClassFemale: [237, 261] },  // 6'3"
+    { heightInches: 76, maxByClassMale: [276, 304], maxByClassFemale: [246, 271] },  // 6'4"
+    { heightInches: 77, maxByClassMale: [284, 312], maxByClassFemale: [253, 278] },  // 6'5"
+    { heightInches: 78, maxByClassMale: [293, 322], maxByClassFemale: [261, 287] },  // 6'6"
+    { heightInches: 79, maxByClassMale: [301, 331], maxByClassFemale: [268, 295] },  // 6'7"
+    { heightInches: 80, maxByClassMale: [308, 341], maxByClassFemale: [274, 308] },  // 6'8"
+    { heightInches: 81, maxByClassMale: [315, 349], maxByClassFemale: [282, 316] },  // 6'9"
+    { heightInches: 82, maxByClassMale: [325, 359], maxByClassFemale: [288, 326] },  // 6'10"
+    { heightInches: 83, maxByClassMale: [336, 369], maxByClassFemale: [293, 336] },  // 6'11"
+    { heightInches: 84, maxByClassMale: [345, 378], maxByClassFemale: [298, 345] },  // 7'0"
+  ],
+  notes: 'Sex-differentiated Preferred / Standard max weights. Base = age 16-50; +5 lbs for 51-60, +10 lbs for 61+.',
+};
+
 export const BUILD_CHARTS: Record<string, BuildChart> = {
   [SBLI_EASYTRAK.productId]: SBLI_EASYTRAK,
   [UHL_SIMPLE_TERM.productId]: UHL_SIMPLE_TERM,
@@ -381,6 +437,7 @@ export const BUILD_CHARTS: Record<string, BuildChart> = {
   [AMERICO_HMS.productId]: AMERICO_HMS,
   [FORESTERS_STRONG_FOUNDATION.productId]: FORESTERS_STRONG_FOUNDATION,
   [FORESTERS_PLAN_RIGHT.productId]: FORESTERS_PLAN_RIGHT,
+  [FG_PATHSETTER.productId]: FG_PATHSETTER,
 };
 
 // ─── Height parsing ───────────────────────────────────────────────────
@@ -421,6 +478,60 @@ export interface BuildOutcome {
   rateClass?: RateClass;
   /** Plain-language line for the UI, e.g. "5'10" 220lbs · Preferred". */
   line?: string;
+  /** Hint when the chart is sex-differentiated but we don't have the
+   *  lead's gender — we use the more permissive (male) column and flag
+   *  that the answer would tighten if female. */
+  sexUnknownWarning?: boolean;
+}
+
+export interface BuildLookupContext {
+  sex?: 'M' | 'F';
+  age?: number;
+}
+
+/** Pick the right max-weight + min-weight arrays for a row based on sex.
+ *  When sex is unknown on a sex-differentiated chart, we use the male
+ *  column (more permissive) and the caller surfaces a warning. */
+function resolveRowForSex(
+  row: BuildChartRow,
+  sex: 'M' | 'F' | undefined,
+): { maxByClass: Array<number | null>; minWeight?: number; sexUnknownOnDifferentiated: boolean } {
+  const hasDifferentiated = row.maxByClassMale && row.maxByClassFemale;
+  if (hasDifferentiated) {
+    if (sex === 'F') {
+      return {
+        maxByClass: row.maxByClassFemale!,
+        minWeight: row.minWeightFemale ?? row.minWeight,
+        sexUnknownOnDifferentiated: false,
+      };
+    }
+    return {
+      maxByClass: row.maxByClassMale!,
+      minWeight: row.minWeightMale ?? row.minWeight,
+      sexUnknownOnDifferentiated: sex !== 'M',
+    };
+  }
+  return {
+    maxByClass: row.maxByClass ?? [],
+    minWeight: row.minWeight,
+    sexUnknownOnDifferentiated: false,
+  };
+}
+
+/** Apply age-band adjustment (additive lbs) to a max-weight array.
+ *  Picks the highest-minAge band the lead qualifies for. Mutates a copy. */
+function applyAgeAdjustment(
+  maxByClass: Array<number | null>,
+  ageAdjustments: BuildChart['ageAdjustments'],
+  age: number | undefined,
+): Array<number | null> {
+  if (!ageAdjustments || ageAdjustments.length === 0 || age == null) return maxByClass;
+  let bump = 0;
+  for (const adj of ageAdjustments) {
+    if (age >= adj.minAge && adj.addLbs > bump) bump = adj.addLbs;
+  }
+  if (bump === 0) return maxByClass;
+  return maxByClass.map((m) => (m == null ? null : m + bump));
 }
 
 /** Look up the rate class a lead qualifies for given a product. Returns
@@ -430,6 +541,7 @@ export function getBuildOutcome(
   productId: string,
   heightInches: number | null,
   weightLbs: number | null,
+  context?: BuildLookupContext,
 ): BuildOutcome {
   const chart = BUILD_CHARTS[productId];
   if (!chart) return { hasChart: false };
@@ -445,19 +557,33 @@ export function getBuildOutcome(
   }
   if (!row) return { hasChart: true };
 
-  if (row.minWeight !== undefined && weightLbs < row.minWeight) {
+  const { maxByClass: baseMax, minWeight, sexUnknownOnDifferentiated } = resolveRowForSex(row, context?.sex);
+  const adjustedMax = applyAgeAdjustment(baseMax, chart.ageAdjustments, context?.age);
+
+  if (minWeight !== undefined && weightLbs < minWeight) {
     return {
       hasChart: true,
       rateClass: 'underweight',
-      line: `Below ${chart.productId} min weight (${row.minWeight} lbs)`,
+      line: `Below min weight (${minWeight} lbs)`,
+      sexUnknownWarning: sexUnknownOnDifferentiated,
     };
   }
   for (let i = 0; i < chart.classes.length; i++) {
-    const max = row.maxByClass[i];
+    const max = adjustedMax[i];
     if (max != null && weightLbs <= max) {
       const rc = chart.classes[i];
-      return { hasChart: true, rateClass: rc, line: `${RATE_CLASS_LABEL[rc]} build` };
+      return {
+        hasChart: true,
+        rateClass: rc,
+        line: `${RATE_CLASS_LABEL[rc]} build`,
+        sexUnknownWarning: sexUnknownOnDifferentiated,
+      };
     }
   }
-  return { hasChart: true, rateClass: 'over_standard', line: 'Over chart max — likely decline or table-rate' };
+  return {
+    hasChart: true,
+    rateClass: 'over_standard',
+    line: 'Over chart max — likely decline or table-rate',
+    sexUnknownWarning: sexUnknownOnDifferentiated,
+  };
 }
