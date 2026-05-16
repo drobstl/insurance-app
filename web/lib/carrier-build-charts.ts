@@ -427,6 +427,134 @@ const FG_PATHSETTER: BuildChart = {
   notes: 'Sex-differentiated Preferred / Standard max weights. Base = age 16-50; +5 lbs for 51-60, +10 lbs for 61+.',
 };
 
+// ─── MOO Express Life (TLE / IULE) — shared height/weight chart ──────
+// The "Express Life Products Reference Guide" maps 1 chart to 3
+// products: Term Life Express (TLE), Indexed UL Express (IULE), and
+// Living Promise WL. Each product uses different columns. Heights
+// 4'8"-6'10".
+//
+// TLE + IULE → single accept range using TLE/IULE max column. The
+// source's Table Maximum column (multiple impairments) is LOWER than
+// the standard max — it's a "with-impairments" floor, not a more-
+// permissive rated tier, so we don't model it as a class. The
+// underwriting flags on the lead handle impairment-driven downgrade
+// separately from the build chart.
+const MOO_TERM_LIFE_EXPRESS: BuildChart = {
+  productId: 'moo-term-life-express',
+  unit: 'lbs',
+  source: 'Quility cheat sheet MOO tab, 2026-05-16',
+  classes: ['standard'],
+  rows: [
+    { heightInches: 56, minWeight: 74,  maxByClass: [197] },  // 4'8"
+    { heightInches: 57, minWeight: 77,  maxByClass: [202] },  // 4'9"
+    { heightInches: 58, minWeight: 79,  maxByClass: [208] },  // 4'10"
+    { heightInches: 59, minWeight: 82,  maxByClass: [214] },  // 4'11"
+    { heightInches: 60, minWeight: 85,  maxByClass: [220] },  // 5'0"
+    { heightInches: 61, minWeight: 88,  maxByClass: [226] },  // 5'1"
+    { heightInches: 62, minWeight: 91,  maxByClass: [232] },  // 5'2"
+    { heightInches: 63, minWeight: 94,  maxByClass: [238] },  // 5'3"
+    { heightInches: 64, minWeight: 97,  maxByClass: [245] },  // 5'4"
+    { heightInches: 65, minWeight: 100, maxByClass: [251] },  // 5'5"
+    { heightInches: 66, minWeight: 103, maxByClass: [258] },  // 5'6"
+    { heightInches: 67, minWeight: 106, maxByClass: [265] },  // 5'7"
+    { heightInches: 68, minWeight: 109, maxByClass: [274] },  // 5'8"
+    { heightInches: 69, minWeight: 112, maxByClass: [282] },  // 5'9"
+    { heightInches: 70, minWeight: 115, maxByClass: [289] },  // 5'10"
+    { heightInches: 71, minWeight: 119, maxByClass: [298] },  // 5'11"
+    { heightInches: 72, minWeight: 122, maxByClass: [305] },  // 6'0"
+    { heightInches: 73, minWeight: 126, maxByClass: [313] },  // 6'1"
+    { heightInches: 74, minWeight: 129, maxByClass: [321] },  // 6'2"
+    { heightInches: 75, minWeight: 133, maxByClass: [329] },  // 6'3"
+    { heightInches: 76, minWeight: 136, maxByClass: [338] },  // 6'4"
+    { heightInches: 77, minWeight: 140, maxByClass: [347] },  // 6'5"
+    { heightInches: 78, minWeight: 143, maxByClass: [358] },  // 6'6"
+    { heightInches: 79, minWeight: 147, maxByClass: [367] },  // 6'7"
+    { heightInches: 80, minWeight: 151, maxByClass: [376] },  // 6'8"
+    { heightInches: 81, minWeight: 154, maxByClass: [385] },  // 6'9"
+    { heightInches: 82, minWeight: 158, maxByClass: [395] },  // 6'10"
+  ],
+  notes: 'TLE / IULE Maximum Weight column. Above max = decline.',
+};
+
+// MOO Living Promise WL — uses the same min weight, different max
+// columns: Level Benefit (standard) + Graded Benefit (rated).
+const MOO_LIVING_PROMISE: BuildChart = {
+  productId: 'moo-living-promise',
+  unit: 'lbs',
+  source: 'Quility cheat sheet MOO tab, 2026-05-16',
+  classes: ['standard', 'rated'],
+  rows: [
+    { heightInches: 56, minWeight: 74,  maxByClass: [204, 221] },  // 4'8"
+    { heightInches: 57, minWeight: 77,  maxByClass: [209, 225] },  // 4'9"
+    { heightInches: 58, minWeight: 79,  maxByClass: [214, 231] },  // 4'10"
+    { heightInches: 59, minWeight: 82,  maxByClass: [220, 237] },  // 4'11"
+    { heightInches: 60, minWeight: 85,  maxByClass: [226, 244] },  // 5'0"
+    { heightInches: 61, minWeight: 88,  maxByClass: [233, 250] },  // 5'1"
+    { heightInches: 62, minWeight: 91,  maxByClass: [239, 257] },  // 5'2"
+    { heightInches: 63, minWeight: 94,  maxByClass: [246, 264] },  // 5'3"
+    { heightInches: 64, minWeight: 97,  maxByClass: [252, 270] },  // 5'4"
+    { heightInches: 65, minWeight: 100, maxByClass: [259, 277] },  // 5'5"
+    { heightInches: 66, minWeight: 103, maxByClass: [268, 285] },  // 5'6"
+    { heightInches: 67, minWeight: 106, maxByClass: [275, 293] },  // 5'7"
+    { heightInches: 68, minWeight: 109, maxByClass: [283, 300] },  // 5'8"
+    { heightInches: 69, minWeight: 112, maxByClass: [291, 309] },  // 5'9"
+    { heightInches: 70, minWeight: 115, maxByClass: [300, 316] },  // 5'10"
+    { heightInches: 71, minWeight: 119, maxByClass: [307, 325] },  // 5'11"
+    { heightInches: 72, minWeight: 122, maxByClass: [315, 333] },  // 6'0"
+    { heightInches: 73, minWeight: 126, maxByClass: [322, 340] },  // 6'1"
+    { heightInches: 74, minWeight: 129, maxByClass: [331, 349] },  // 6'2"
+    { heightInches: 75, minWeight: 133, maxByClass: [339, 358] },  // 6'3"
+    { heightInches: 76, minWeight: 136, maxByClass: [348, 367] },  // 6'4"
+    { heightInches: 77, minWeight: 140, maxByClass: [357, 376] },  // 6'5"
+    { heightInches: 78, minWeight: 143, maxByClass: [366, 385] },  // 6'6"
+    { heightInches: 79, minWeight: 147, maxByClass: [375, 394] },  // 6'7"
+    { heightInches: 80, minWeight: 151, maxByClass: [385, 405] },  // 6'8"
+    { heightInches: 81, minWeight: 154, maxByClass: [395, 415] },  // 6'9"
+    { heightInches: 82, minWeight: 158, maxByClass: [407, 427] },  // 6'10"
+  ],
+  notes: 'Standard = Level Benefit Plan max; Rated = Graded Benefit Plan max. Above Graded = decline.',
+};
+
+// MOO Critical Advantage — Decline Below / Decline Over (single accept
+// range per height). Above max OR below min = decline.
+const MOO_CRITICAL_ADVANTAGE: BuildChart = {
+  productId: 'moo-critical-advantage',
+  unit: 'lbs',
+  source: 'Quility cheat sheet MOO tab, 2026-05-16',
+  classes: ['standard'],
+  rows: [
+    { heightInches: 56, minWeight: 80,  maxByClass: [174] },  // 4'8"
+    { heightInches: 57, minWeight: 83,  maxByClass: [181] },  // 4'9"
+    { heightInches: 58, minWeight: 86,  maxByClass: [187] },  // 4'10"
+    { heightInches: 59, minWeight: 89,  maxByClass: [194] },  // 4'11"
+    { heightInches: 60, minWeight: 92,  maxByClass: [200] },  // 5'0"
+    { heightInches: 61, minWeight: 95,  maxByClass: [207] },  // 5'1"
+    { heightInches: 62, minWeight: 98,  maxByClass: [214] },  // 5'2"
+    { heightInches: 63, minWeight: 102, maxByClass: [221] },  // 5'3"
+    { heightInches: 64, minWeight: 105, maxByClass: [228] },  // 5'4"
+    { heightInches: 65, minWeight: 108, maxByClass: [235] },  // 5'5"
+    { heightInches: 66, minWeight: 112, maxByClass: [242] },  // 5'6"
+    { heightInches: 67, minWeight: 115, maxByClass: [250] },  // 5'7"
+    { heightInches: 68, minWeight: 118, maxByClass: [257] },  // 5'8"
+    { heightInches: 69, minWeight: 122, maxByClass: [266] },  // 5'9"
+    { heightInches: 70, minWeight: 125, maxByClass: [272] },  // 5'10"
+    { heightInches: 71, minWeight: 129, maxByClass: [280] },  // 5'11"
+    { heightInches: 72, minWeight: 133, maxByClass: [288] },  // 6'0"
+    { heightInches: 73, minWeight: 136, maxByClass: [296] },  // 6'1"
+    { heightInches: 74, minWeight: 140, maxByClass: [304] },  // 6'2"
+    { heightInches: 75, minWeight: 144, maxByClass: [313] },  // 6'3"
+    { heightInches: 76, minWeight: 148, maxByClass: [321] },  // 6'4"
+    { heightInches: 77, minWeight: 152, maxByClass: [329] },  // 6'5"
+    { heightInches: 78, minWeight: 156, maxByClass: [338] },  // 6'6"
+    { heightInches: 79, minWeight: 160, maxByClass: [347] },  // 6'7"
+    { heightInches: 80, minWeight: 164, maxByClass: [356] },  // 6'8"
+    { heightInches: 81, minWeight: 168, maxByClass: [364] },  // 6'9"
+    { heightInches: 82, minWeight: 172, maxByClass: [374] },  // 6'10"
+    { heightInches: 83, minWeight: 176, maxByClass: [383] },  // 6'11"
+  ],
+  notes: 'Single accept range. Source labels Decline Below + Decline Over; outside the range = decline. Heart attack/stroke + CI + ICU rider use this chart.',
+};
+
 export const BUILD_CHARTS: Record<string, BuildChart> = {
   [SBLI_EASYTRAK.productId]: SBLI_EASYTRAK,
   [UHL_SIMPLE_TERM.productId]: UHL_SIMPLE_TERM,
@@ -438,6 +566,9 @@ export const BUILD_CHARTS: Record<string, BuildChart> = {
   [FORESTERS_STRONG_FOUNDATION.productId]: FORESTERS_STRONG_FOUNDATION,
   [FORESTERS_PLAN_RIGHT.productId]: FORESTERS_PLAN_RIGHT,
   [FG_PATHSETTER.productId]: FG_PATHSETTER,
+  [MOO_TERM_LIFE_EXPRESS.productId]: MOO_TERM_LIFE_EXPRESS,
+  [MOO_LIVING_PROMISE.productId]: MOO_LIVING_PROMISE,
+  [MOO_CRITICAL_ADVANTAGE.productId]: MOO_CRITICAL_ADVANTAGE,
 };
 
 // ─── Height parsing ───────────────────────────────────────────────────
