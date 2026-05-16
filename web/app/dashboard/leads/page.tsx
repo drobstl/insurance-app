@@ -7,6 +7,7 @@ import {
   onSnapshot,
   query,
   orderBy,
+  where,
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '../../../firebase';
@@ -116,6 +117,42 @@ export default function LeadsPage() {
     }, (err) => {
       console.error('leads onSnapshot error:', err);
       setLoading(false);
+    });
+    return () => unsub();
+  }, [user]);
+
+  // ── Upcoming-appointment map (leadId → next appointment) ──
+  // Powers the "Booked Wed May 21 · 2pm" chip on each lead row so the
+  // agent can see at a glance who's on the calendar without opening
+  // each lead. Single inequality query (scheduledAt > now); status
+  // filter applied in memory so we don't need a composite index.
+  const [nextApptByLead, setNextApptByLead] = useState<Map<string, { scheduledAt: Date; tz?: string }>>(new Map());
+  useEffect(() => {
+    if (!user) return;
+    const nowTs = Timestamp.fromMillis(Date.now());
+    const q = query(
+      collection(db, 'agents', user.uid, 'appointments'),
+      where('scheduledAt', '>', nowTs),
+      orderBy('scheduledAt', 'asc'),
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const map = new Map<string, { scheduledAt: Date; tz?: string }>();
+      for (const d of snap.docs) {
+        const data = d.data() as { leadId?: string; scheduledAt?: Timestamp; scheduledAtTimeZone?: string; status?: string };
+        if (!data.leadId || !data.scheduledAt) continue;
+        if (data.status && data.status !== 'scheduled') continue;
+        // First hit wins because query is sorted ascending — that's the
+        // *next* appointment for the lead.
+        if (!map.has(data.leadId)) {
+          map.set(data.leadId, {
+            scheduledAt: data.scheduledAt.toDate(),
+            tz: data.scheduledAtTimeZone,
+          });
+        }
+      }
+      setNextApptByLead(map);
+    }, (err) => {
+      console.error('appointments onSnapshot error:', err);
     });
     return () => unsub();
   }, [user]);
@@ -245,6 +282,30 @@ export default function LeadsPage() {
       return ts.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
     } catch {
       return '—';
+    }
+  };
+
+  /** Format the upcoming-appointment chip text — e.g. "Wed May 21 · 2pm".
+   *  Uses the appointment's anchored TZ when present (so a booking made
+   *  for a lead in another state renders in their local time, matching
+   *  the SMS body convention). */
+  const formatApptChip = (appt: { scheduledAt: Date; tz?: string }): string => {
+    try {
+      const opts: Intl.DateTimeFormatOptions = {
+        weekday: 'short', month: 'short', day: 'numeric',
+        hour: 'numeric', minute: '2-digit', hour12: true,
+        timeZone: appt.tz || undefined,
+      };
+      const s = appt.scheduledAt.toLocaleString(undefined, opts);
+      // Reformat "Wed, May 21, 2:00 PM" → "Wed May 21 · 2pm". Drop the
+      // :00 on whole-hour bookings; lowercase am/pm for compactness.
+      return s
+        .replace(/,/g, '')
+        .replace(/:00\s*(AM|PM)/i, (_, ap) => (ap as string).toLowerCase())
+        .replace(/\s*(AM|PM)/i, (_, ap) => (ap as string).toLowerCase())
+        .replace(/(\d+)\s+([A-Za-z]+)\s+(\d+)\s+(\d)/, '$1 $2 $3 · $4');
+    } catch {
+      return 'Booked';
     }
   };
 
@@ -704,7 +765,14 @@ export default function LeadsPage() {
                             onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                             className="flex-1 min-w-0 text-left"
                           >
-                            <div className="text-sm font-semibold text-[#000000] truncate">{lead.name}</div>
+                            <div className="text-sm font-semibold text-[#000000] truncate flex items-center gap-2">
+                              <span className="truncate">{lead.name}</span>
+                              {nextApptByLead.get(lead.id) && (
+                                <span className="inline-flex items-center shrink-0 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
+                                  📅 {formatApptChip(nextApptByLead.get(lead.id)!)}
+                                </span>
+                              )}
+                            </div>
                             <div className="text-xs text-[#707070] mt-0.5 flex items-center gap-2 flex-wrap">
                               <span>{lead.phone}</span>
                               {lead.lastDialOutcome ? (
@@ -866,12 +934,19 @@ export default function LeadsPage() {
                         onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                       >
                         <td className="px-5 py-3.5 text-sm font-semibold text-[#000000]">
-                          {lead.name}
-                          {lead.convertedToClientId && (
-                            <span className="ml-2 inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
-                              Converted
-                            </span>
-                          )}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span>{lead.name}</span>
+                            {lead.convertedToClientId && (
+                              <span className="inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
+                                Converted
+                              </span>
+                            )}
+                            {nextApptByLead.get(lead.id) && (
+                              <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
+                                📅 {formatApptChip(nextApptByLead.get(lead.id)!)}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-5 py-3.5 text-sm text-[#444]">{lead.phone}</td>
                         <td className="px-5 py-3.5">
