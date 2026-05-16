@@ -179,14 +179,24 @@ export default function SendConfirmationDrawer({
   const [postSendOpen, setPostSendOpen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // Web Share is enabled on every platform — it's the only path that
-  // gets recipient + body + file attachments into Messages in one
-  // shot. On macOS that means an extra share-sheet click to route to
-  // Messages; Daniel accepts that for the full-attachment behavior.
-  // On iOS/Android Web Share is direct-to-app (no picker).
+  // Detect Web Share API + mobile UA. On macOS the share API exists
+  // but the Messages share-sheet target *drops the recipient* (agent
+  // lands in a blank thread) AND silently drops PDF attachments
+  // (license missing). So we restrict Web Share to mobile, where it
+  // works correctly direct-to-Messages. Desktop falls through to the
+  // sms: path below, which opens Messages with phone + body prefilled
+  // via Continuity and auto-downloads files for a one-drag handoff.
+  //
+  // History: a prior pass briefly flipped this to "Web Share on every
+  // platform" — that broke the macOS flow (no recipient, missing
+  // license). Reverted here.
   useEffect(() => {
-    if (typeof navigator !== 'undefined' && 'canShare' in navigator) {
+    if (typeof navigator === 'undefined') return;
+    const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobile && 'canShare' in navigator) {
       setHasShareApi(true);
+    } else {
+      setHasShareApi(false);
     }
   }, []);
 
