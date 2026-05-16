@@ -92,8 +92,13 @@ export default function LeadsPage() {
   const [bulkUpload, setBulkUpload] = useState<{
     pageCount: number;
     leads: Array<{ leadId: string; leadCode: string; name: string; codeKind: 'derived' | 'fallback'; page: number }>;
+    duplicates: Array<{ page: number; phone: string; name: string; existingLeadId: string; existingLeadCode: string; existingLeadName?: string }>;
     failed: Array<{ page: number; reason: string }>;
   } | null>(null);
+
+  // Manual-create + single-page upload also surface duplicates via the
+  // same bulkUpload banner — we just synthesize a 1-page bundle so the
+  // single "Already imported as L-XYZ" row reuses the same UI.
 
   // PDF upload state (Chunk 2)
   const [uploading, setUploading] = useState(false);
@@ -201,6 +206,29 @@ export default function LeadsPage() {
         setCreateError(data?.error || `Failed to create lead (${res.status})`);
         return;
       }
+      if (data.duplicate) {
+        // Phone matches an existing lead for this agent. Surface via the
+        // shared bulk-upload banner (synthetic 1-page bundle) so the
+        // agent can open the existing lead from the same surface.
+        setBulkUpload({
+          pageCount: 1,
+          leads: [],
+          duplicates: [{
+            page: 1,
+            phone,
+            name,
+            existingLeadId: data.existingLeadId,
+            existingLeadCode: data.existingLeadCode,
+            existingLeadName: data.existingLeadName,
+          }],
+          failed: [],
+        });
+        setJustCreated(null);
+        setCreateName('');
+        setCreatePhone('');
+        setAddFlowOpen(false);
+        return;
+      }
       setJustCreated({
         leadCode: data.leadCode,
         leadId: data.leadId,
@@ -245,7 +273,27 @@ export default function LeadsPage() {
         setBulkUpload({
           pageCount: data.pageCount,
           leads: data.leads || [],
+          duplicates: data.duplicates || [],
           failed: data.failed || [],
+        });
+        setJustCreated(null);
+      } else if (data.duplicate) {
+        // Single-page upload but the lead's phone already exists for
+        // this agent. Reuse the bulk-upload banner as a 1-row "already
+        // imported" surface so the agent sees it and can open the
+        // existing lead without leaving the page.
+        setBulkUpload({
+          pageCount: 1,
+          leads: [],
+          duplicates: [{
+            page: 1,
+            phone: data.extracted?.phone || '',
+            name: data.extracted?.name || '',
+            existingLeadId: data.existingLeadId,
+            existingLeadCode: data.existingLeadCode,
+            existingLeadName: data.existingLeadName,
+          }],
+          failed: [],
         });
         setJustCreated(null);
       } else {
@@ -683,19 +731,24 @@ export default function LeadsPage() {
             <div className="mb-6 bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5">
               <div className="flex items-start justify-between gap-4 mb-3">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <span className="text-xs font-bold tracking-wider text-[#005851] uppercase">
                       {bulkUpload.leads.length} {bulkUpload.leads.length === 1 ? 'lead' : 'leads'} created
                     </span>
                     <span className="text-[10px] text-[#707070] font-normal">
-                      · {bulkUpload.pageCount} pages
+                      · {bulkUpload.pageCount} {bulkUpload.pageCount === 1 ? 'page' : 'pages'}
+                      {bulkUpload.duplicates.length > 0 && (
+                        <> · {bulkUpload.duplicates.length} already imported</>
+                      )}
                       {bulkUpload.failed.length > 0 && (
                         <> · {bulkUpload.failed.length} couldn&apos;t be read</>
                       )}
                     </span>
                   </div>
                   <p className="text-sm text-[#444] leading-relaxed">
-                    Each page in the PDF was treated as one lead form. Open any to verify the extracted info.
+                    {bulkUpload.leads.length === 0 && bulkUpload.duplicates.length > 0 && bulkUpload.failed.length === 0
+                      ? 'No new leads created — the phone(s) already exist for you. Open below to pick up where you left off.'
+                      : 'Each page in the PDF was treated as one lead form. Open any to verify the extracted info.'}
                   </p>
                 </div>
                 <button
@@ -730,6 +783,32 @@ export default function LeadsPage() {
                   ))}
                 </ul>
               )}
+              {bulkUpload.duplicates.length > 0 && (
+                <div className="rounded-[5px] bg-[#FEF3C7] border border-[#FCD34D] px-3 py-2 mb-3">
+                  <p className="text-[11px] font-semibold text-[#92400E] mb-1.5">
+                    Already imported {bulkUpload.duplicates.length === 1 ? '— same phone matched an existing lead' : `— ${bulkUpload.duplicates.length} phones matched existing leads`}:
+                  </p>
+                  <ul className="space-y-1">
+                    {bulkUpload.duplicates.map((d) => (
+                      <li key={`${d.page}-${d.existingLeadId}`} className="flex items-center justify-between gap-3 text-sm">
+                        <span className="text-[#92400E]">
+                          <span className="text-[10px] text-[#92400E]/60 mr-2">p{d.page}</span>
+                          <strong className="text-[#92400E]">{d.name || '(no name)'}</strong>
+                          <span className="ml-2 text-[11px] text-[#92400E]/80">→ {d.existingLeadName || 'existing lead'}</span>
+                          <span className="ml-2 font-mono text-xs text-[#92400E]">{d.existingLeadCode}</span>
+                        </span>
+                        <button
+                          onClick={() => router.push(`/dashboard/leads/${d.existingLeadId}`)}
+                          className="text-xs font-semibold text-[#005851] hover:text-[#003832]"
+                        >
+                          Open →
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {bulkUpload.failed.length > 0 && (
                 <div className="rounded-[5px] bg-amber-50 border border-amber-300/60 px-3 py-2">
                   <p className="text-[11px] font-semibold text-amber-900 mb-1">

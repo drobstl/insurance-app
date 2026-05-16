@@ -4,8 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { PDFDocument } from 'pdf-lib';
 import { getAdminAuth, getAdminFirestore, getAdminStorage } from '../../../../lib/firebase-admin';
-import { generateUniqueLeadCode } from '../../../../lib/lead-code-generator';
-import { deriveLeadCode } from '../../../../lib/lead-code-derive';
+import { resolveLeadCodeOrDuplicate, type DuplicateLeadInfo } from '../../../../lib/lead-dedup';
 import { extractLeadFromPdf, type ExtractedLeadFields } from '../../../../lib/lead-form-extractor';
 
 const MAX_PDF_BYTES = 50 * 1024 * 1024;  // 50 MB — multi-lead bundles can run 20-30 MB
@@ -142,6 +141,19 @@ export async function POST(req: NextRequest) {
       }
 
       const committed = await commitLead({ db, agentId, sourceFileUrl, sourceFileStoragePath: storagePath, extracted });
+      if (committed.duplicate) {
+        // Same-agent duplicate phone — don't create a second doc. The
+        // dashboard surfaces the existing lead so the agent can open it
+        // (or re-upload knowing the original was already imported).
+        return NextResponse.json({
+          duplicate: true,
+          existingLeadId: committed.existingLeadId,
+          existingLeadCode: committed.existingLeadCode,
+          existingLeadName: committed.existingLeadName,
+          extracted,
+          sourceFileUrl,
+        });
+      }
       return NextResponse.json({
         leadId: committed.leadId,
         leadCode: committed.leadCode,
@@ -179,6 +191,14 @@ export async function POST(req: NextRequest) {
       page: number;
       extractionConfidence: number;
     }> = [];
+    const duplicates: Array<{
+      page: number;
+      phone: string;
+      name: string;
+      existingLeadId: string;
+      existingLeadCode: string;
+      existingLeadName?: string;
+    }> = [];
     const failed: Array<{ page: number; reason: string }> = [];
 
     // Process pages in chunks to respect concurrency cap. Anthropic
@@ -212,6 +232,17 @@ export async function POST(req: NextRequest) {
         }
         try {
           const committed = await commitLead({ db, agentId, sourceFileUrl, sourceFileStoragePath: storagePath, extracted: ex });
+          if (committed.duplicate) {
+            duplicates.push({
+              page,
+              phone: ex.phone,
+              name: ex.name,
+              existingLeadId: committed.existingLeadId,
+              existingLeadCode: committed.existingLeadCode,
+              existingLeadName: committed.existingLeadName,
+            });
+            continue;
+          }
           created.push({
             leadId: committed.leadId,
             leadCode: committed.leadCode,
@@ -236,6 +267,7 @@ export async function POST(req: NextRequest) {
       multi: true,
       pageCount,
       leads: created,
+      duplicates,
       failed,
       sourceFileUrl,
     });
@@ -252,44 +284,39 @@ export async function POST(req: NextRequest) {
  *
  * Throws on Firestore failure.
  */
+type CommitLeadResult =
+  | { duplicate: true; existingLeadId: string; existingLeadCode: string; existingLeadName?: string }
+  | { duplicate: false; leadId: string; leadCode: string; codeKind: 'derived' | 'fallback' };
+
 async function commitLead(ctx: {
   db: FirebaseFirestore.Firestore;
   agentId: string;
   sourceFileUrl: string;
   sourceFileStoragePath: string;
   extracted: ExtractedLeadFields;
-}): Promise<{ leadId: string; leadCode: string; codeKind: 'derived' | 'fallback' }> {
+}): Promise<CommitLeadResult> {
   const { db, agentId, sourceFileUrl, sourceFileStoragePath, extracted } = ctx;
   const leadRef = db.collection('agents').doc(agentId).collection('leads').doc();
 
-  // ── Resolve lead code (phone-derived preferred, random L fallback) ──
-  let leadCode: string;
-  let codeKind: 'derived' | 'fallback';
-  const derived = deriveLeadCode(extracted.phone);
-  if (derived) {
-    try {
-      await db.collection('leadCodes').doc(derived).create({
-        agentId,
-        leadId: leadRef.id,
-      });
-      leadCode = derived;
-      codeKind = 'derived';
-    } catch {
-      leadCode = await generateUniqueLeadCode();
-      codeKind = 'fallback';
-      await db.collection('leadCodes').doc(leadCode).set({
-        agentId,
-        leadId: leadRef.id,
-      });
-    }
-  } else {
-    leadCode = await generateUniqueLeadCode();
-    codeKind = 'fallback';
-    await db.collection('leadCodes').doc(leadCode).set({
-      agentId,
-      leadId: leadRef.id,
-    });
+  // ── Resolve lead code (phone-derived preferred, surface same-agent
+  //    dupes, random L fallback on cross-agent collision) ──
+  const resolution = await resolveLeadCodeOrDuplicate({
+    db,
+    agentId,
+    phone: extracted.phone,
+    newLeadId: leadRef.id,
+  });
+  if (resolution.duplicate) {
+    const dup: DuplicateLeadInfo = resolution;
+    return {
+      duplicate: true,
+      existingLeadId: dup.existingLeadId,
+      existingLeadCode: dup.existingLeadCode,
+      existingLeadName: dup.existingLeadName,
+    };
   }
+  const leadCode = resolution.leadCode;
+  const codeKind = resolution.codeKind;
 
   // ── Compose lead doc ──
   const leadDoc: Record<string, unknown> = {
@@ -329,7 +356,7 @@ async function commitLead(ctx: {
   if (extracted.beneficiaryName) leadDoc.beneficiaryName = extracted.beneficiaryName;
 
   await leadRef.set(leadDoc);
-  return { leadId: leadRef.id, leadCode, codeKind };
+  return { duplicate: false, leadId: leadRef.id, leadCode, codeKind };
 }
 
 // Next.js App Router config — multi-lead can take 30-60s for a 10-page

@@ -3,8 +3,8 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
-import { generateUniqueLeadCode } from '../../../../lib/lead-code-generator';
 import { deriveLeadCode } from '../../../../lib/lead-code-derive';
+import { resolveLeadCodeOrDuplicate } from '../../../../lib/lead-dedup';
 
 /**
  * POST /api/leads/create
@@ -69,35 +69,27 @@ export async function POST(req: NextRequest) {
 
     const db = getAdminFirestore();
 
-    // ── Resolve code (phone → fallback to random `L…` on collision) ──
-    // Atomic check-and-claim: try to create the leadCodes index doc with
-    // the phone-derived code first. If it already exists (rare — two
-    // leads sharing a phone), fall back to a random L-prefix code via
-    // generateUniqueLeadCode (which has its own retry-on-collision loop).
-    let leadCode: string;
-    let codeKind: 'derived' | 'fallback';
+    // ── Resolve code with shared dedup helper ──
+    // Same-agent phone collision → return the existing lead so the
+    // dashboard can surface it. Cross-agent collision → random L
+    // fallback (existing behavior).
     const leadRef = db.collection('agents').doc(agentId).collection('leads').doc();
-
-    try {
-      // `create()` throws if the doc already exists (atomic). This is the
-      // safe collision check — a parallel `.get()`-then-`.set()` race is
-      // possible if two agents create leads with the same phone
-      // simultaneously; `create()` lets the second one fail cleanly.
-      await db.collection('leadCodes').doc(derived).create({
-        agentId,
-        leadId: leadRef.id,
-      });
-      leadCode = derived;
-      codeKind = 'derived';
-    } catch {
-      // Collision (or other Firestore error) — fall back to random.
-      leadCode = await generateUniqueLeadCode();
-      codeKind = 'fallback';
-      await db.collection('leadCodes').doc(leadCode).set({
-        agentId,
-        leadId: leadRef.id,
+    const resolution = await resolveLeadCodeOrDuplicate({
+      db,
+      agentId,
+      phone,
+      newLeadId: leadRef.id,
+    });
+    if (resolution.duplicate) {
+      return NextResponse.json({
+        duplicate: true,
+        existingLeadId: resolution.existingLeadId,
+        existingLeadCode: resolution.existingLeadCode,
+        existingLeadName: resolution.existingLeadName,
       });
     }
+    const leadCode = resolution.leadCode;
+    const codeKind = resolution.codeKind;
 
     // DOB is captured when the agent provides it (from the form or
     // from the optional create-modal field) but is no longer required.
