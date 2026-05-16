@@ -295,6 +295,82 @@ const AMERICO_HMS: BuildChart = {
   notes: 'Single accept range — no rate-class tiers in this chart. Above max = decline.',
 };
 
+// ─── Foresters Strong Foundation Term / Smart UL (Non-Medical) ───────
+// Single accept range. 5'5" minimum in the source shows as "11" — most
+// likely a truncated rendering of "110" (interpolated from neighbors
+// 107 at 5'4" and 114 at 5'6"). Flagged for verification.
+const FORESTERS_STRONG_FOUNDATION: BuildChart = {
+  productId: 'foresters-strong-foundation',
+  unit: 'lbs',
+  source: 'Quility cheat sheet Foresters tab, 2026-05-16',
+  classes: ['standard'],
+  rows: [
+    { heightInches: 56, minWeight: 82,  maxByClass: [185] },  // 4'8"
+    { heightInches: 57, minWeight: 85,  maxByClass: [193] },  // 4'9"
+    { heightInches: 58, minWeight: 88,  maxByClass: [198] },  // 4'10"
+    { heightInches: 59, minWeight: 91,  maxByClass: [207] },  // 4'11"
+    { heightInches: 60, minWeight: 94,  maxByClass: [212] },  // 5'0"
+    { heightInches: 61, minWeight: 97,  maxByClass: [221] },  // 5'1"
+    { heightInches: 62, minWeight: 101, maxByClass: [225] },  // 5'2"
+    { heightInches: 63, minWeight: 104, maxByClass: [234] },  // 5'3"
+    { heightInches: 64, minWeight: 107, maxByClass: [243] },  // 5'4"
+    { heightInches: 65, minWeight: 110, maxByClass: [250] },  // 5'5"  ← min interpolated, verify
+    { heightInches: 66, minWeight: 114, maxByClass: [259] },  // 5'6"
+    { heightInches: 67, minWeight: 118, maxByClass: [265] },  // 5'7"
+    { heightInches: 68, minWeight: 121, maxByClass: [274] },  // 5'8"
+    { heightInches: 69, minWeight: 125, maxByClass: [281] },  // 5'9"
+    { heightInches: 70, minWeight: 128, maxByClass: [292] },  // 5'10"
+    { heightInches: 71, minWeight: 132, maxByClass: [298] },  // 5'11"
+    { heightInches: 72, minWeight: 136, maxByClass: [307] },  // 6'0"
+    { heightInches: 73, minWeight: 140, maxByClass: [314] },  // 6'1"
+    { heightInches: 74, minWeight: 144, maxByClass: [325] },  // 6'2"
+    { heightInches: 75, minWeight: 147, maxByClass: [336] },  // 6'3"
+    { heightInches: 76, minWeight: 151, maxByClass: [342] },  // 6'4"
+    { heightInches: 77, minWeight: 155, maxByClass: [353] },  // 6'5"
+    { heightInches: 78, minWeight: 160, maxByClass: [360] },  // 6'6"
+  ],
+  notes: 'ADULT Build Chart (16+) Non-Medical. Single accept range — over max = decline. 5\'5" min interpolated as 110 (source rendering ambiguous).',
+};
+
+// ─── Foresters Plan Right Whole Life ─────────────────────────────────
+// 3-class chart: PlanRight Preferred / Standard / Basic. Heights 4'8"-6'9".
+// Above PlanRight Basic max = decline.
+const FORESTERS_PLAN_RIGHT: BuildChart = {
+  productId: 'foresters-plan-right',
+  unit: 'lbs',
+  source: 'Quility cheat sheet Foresters tab, 2026-05-16',
+  classes: ['preferred', 'standard', 'rated'],
+  rows: [
+    { heightInches: 56, minWeight: 74,  maxByClass: [201, 216, 232] },  // 4'8"
+    { heightInches: 57, minWeight: 77,  maxByClass: [208, 223, 239] },  // 4'9"
+    { heightInches: 58, minWeight: 80,  maxByClass: [215, 230, 246] },  // 4'10"
+    { heightInches: 59, minWeight: 83,  maxByClass: [222, 237, 253] },  // 4'11"
+    { heightInches: 60, minWeight: 86,  maxByClass: [229, 245, 262] },  // 5'0"
+    { heightInches: 61, minWeight: 89,  maxByClass: [237, 253, 271] },  // 5'1"
+    { heightInches: 62, minWeight: 92,  maxByClass: [246, 262, 280] },  // 5'2"
+    { heightInches: 63, minWeight: 95,  maxByClass: [253, 269, 288] },  // 5'3"
+    { heightInches: 64, minWeight: 98,  maxByClass: [260, 278, 297] },  // 5'4"
+    { heightInches: 65, minWeight: 101, maxByClass: [268, 286, 306] },  // 5'5"
+    { heightInches: 66, minWeight: 104, maxByClass: [275, 294, 315] },  // 5'6"
+    { heightInches: 67, minWeight: 107, maxByClass: [284, 304, 325] },  // 5'7"
+    { heightInches: 68, minWeight: 110, maxByClass: [292, 313, 334] },  // 5'8"
+    { heightInches: 69, minWeight: 113, maxByClass: [299, 321, 343] },  // 5'9"
+    { heightInches: 70, minWeight: 117, maxByClass: [308, 330, 353] },  // 5'10"
+    { heightInches: 71, minWeight: 121, maxByClass: [316, 339, 362] },  // 5'11"
+    { heightInches: 72, minWeight: 125, maxByClass: [325, 348, 372] },  // 6'0"
+    { heightInches: 73, minWeight: 129, maxByClass: [333, 356, 381] },  // 6'1"
+    { heightInches: 74, minWeight: 133, maxByClass: [341, 366, 391] },  // 6'2"
+    { heightInches: 75, minWeight: 137, maxByClass: [349, 373, 399] },  // 6'3"
+    { heightInches: 76, minWeight: 142, maxByClass: [357, 382, 409] },  // 6'4"
+    { heightInches: 77, minWeight: 147, maxByClass: [365, 392, 419] },  // 6'5"
+    { heightInches: 78, minWeight: 152, maxByClass: [373, 406, 434] },  // 6'6"
+    { heightInches: 79, minWeight: 159, maxByClass: [381, 413, 442] },  // 6'7"
+    { heightInches: 80, minWeight: 162, maxByClass: [389, 421, 450] },  // 6'8"
+    { heightInches: 81, minWeight: 167, maxByClass: [397, 430, 460] },  // 6'9"
+  ],
+  notes: 'PlanRight Preferred / Standard / Basic death-benefit tiers. Above Basic = decline.',
+};
+
 export const BUILD_CHARTS: Record<string, BuildChart> = {
   [SBLI_EASYTRAK.productId]: SBLI_EASYTRAK,
   [UHL_SIMPLE_TERM.productId]: UHL_SIMPLE_TERM,
@@ -303,6 +379,8 @@ export const BUILD_CHARTS: Record<string, BuildChart> = {
   [AMAM_EXPRESS_TERM.productId]: AMAM_EXPRESS_TERM,
   [AMAM_HOME_CERTAINTY.productId]: AMAM_HOME_CERTAINTY,
   [AMERICO_HMS.productId]: AMERICO_HMS,
+  [FORESTERS_STRONG_FOUNDATION.productId]: FORESTERS_STRONG_FOUNDATION,
+  [FORESTERS_PLAN_RIGHT.productId]: FORESTERS_PLAN_RIGHT,
 };
 
 // ─── Height parsing ───────────────────────────────────────────────────
