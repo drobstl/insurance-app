@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const committed = await commitLead({ db, agentId, sourceFileUrl, extracted });
+      const committed = await commitLead({ db, agentId, sourceFileUrl, sourceFileStoragePath: storagePath, extracted });
       return NextResponse.json({
         leadId: committed.leadId,
         leadCode: committed.leadCode,
@@ -211,7 +211,7 @@ export async function POST(req: NextRequest) {
           continue;
         }
         try {
-          const committed = await commitLead({ db, agentId, sourceFileUrl, extracted: ex });
+          const committed = await commitLead({ db, agentId, sourceFileUrl, sourceFileStoragePath: storagePath, extracted: ex });
           created.push({
             leadId: committed.leadId,
             leadCode: committed.leadCode,
@@ -256,9 +256,10 @@ async function commitLead(ctx: {
   db: FirebaseFirestore.Firestore;
   agentId: string;
   sourceFileUrl: string;
+  sourceFileStoragePath: string;
   extracted: ExtractedLeadFields;
 }): Promise<{ leadId: string; leadCode: string; codeKind: 'derived' | 'fallback' }> {
-  const { db, agentId, sourceFileUrl, extracted } = ctx;
+  const { db, agentId, sourceFileUrl, sourceFileStoragePath, extracted } = ctx;
   const leadRef = db.collection('agents').doc(agentId).collection('leads').doc();
 
   // ── Resolve lead code (phone-derived preferred, random L fallback) ──
@@ -298,6 +299,9 @@ async function commitLead(ctx: {
     codeKind,
     formType: extracted.formType,
     sourceFileUrl,
+    // Stored separately from sourceFileUrl so the lead-pdf-archive cron
+    // doesn't have to parse the signed URL to find the storage object.
+    sourceFileStoragePath,
     extractionConfidence: extracted.extractionConfidence,
     extractionFlags: extracted.extractionFlags,
     createdAt: FieldValue.serverTimestamp(),

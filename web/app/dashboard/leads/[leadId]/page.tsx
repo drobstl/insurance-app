@@ -64,6 +64,8 @@ interface Lead {
   spouseAgeYears?: number;
   beneficiaryName?: string;
   sourceFileUrl?: string;
+  sourceFileStoragePath?: string;
+  sourceFileArchivedAt?: Timestamp | null;
   extractionConfidence?: number;
   extractionFlags?: string[];
 
@@ -1082,7 +1084,8 @@ export default function LeadDetailPage() {
           manual leads and rich for fully-extracted Digital forms. */}
       {(lead.dateOfBirth || lead.email || lead.address || lead.mortgageDetails ||
         lead.gender || lead.smokerStatus || lead.spouseName || lead.beneficiaryName ||
-        lead.sourceFileUrl || (lead.extractionFlags && lead.extractionFlags.length > 0)) && (
+        lead.sourceFileUrl || lead.sourceFileArchivedAt ||
+        (lead.extractionFlags && lead.extractionFlags.length > 0)) && (
         <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5 mb-6">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider">From the lead form</h3>
@@ -1107,6 +1110,14 @@ export default function LeadDetailPage() {
                 >
                   Open original PDF →
                 </a>
+              )}
+              {!lead.sourceFileUrl && lead.sourceFileArchivedAt && (
+                <span
+                  className="text-xs text-[#707070] italic"
+                  title="Lead PDFs are auto-archived after 21 days of inactivity for compliance. Extracted fields remain available."
+                >
+                  Original PDF archived {lead.sourceFileArchivedAt.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
               )}
             </div>
           </div>
