@@ -51,6 +51,14 @@ export interface ExtractedLeadFields {
     zip: string | null;
   } | null;
 
+  /**
+   * All phone numbers visible on the form. Mail-In forms commonly list
+   * Cell + Home; Symmetry Call-In sometimes has Contact + Caller ID.
+   * `phone` (above) is the primary — equal to `phones[0].number` when
+   * present; older single-phone leads have `phone` only.
+   */
+  phones: Array<{ number: string; label: 'cell' | 'home' | 'work' | 'other' | null }>;
+
   // Underwriting basics
   gender: 'M' | 'F' | null;
   heightText: string | null;           // freeform, as printed on the form
@@ -82,7 +90,20 @@ const EXTRACTION_SCHEMA = {
   type: 'object',
   properties: {
     name: { type: 'string', description: 'Full name of the lead. Combine first + last when split.' },
-    phone: { type: 'string', description: 'Lead phone number, digits + formatting as printed. Empty string if not present.' },
+    phone: { type: 'string', description: 'Lead PRIMARY phone number — prefer Cell if labeled, else Contact Phone, else Home Phone. Digits + formatting as printed. Empty string if not present. Also include in phones[] below.' },
+    phones: {
+      type: 'array',
+      description: 'All visible phone numbers on the form. Always include the primary phone here too as the first entry.',
+      items: {
+        type: 'object',
+        properties: {
+          number: { type: 'string', description: 'Phone digits + formatting as printed.' },
+          label: { type: 'string', enum: ['cell', 'home', 'work', 'other', ''], description: 'cell / home / work / other based on the form label. Empty string if the form does not specify.' },
+        },
+        required: ['number', 'label'],
+        additionalProperties: false,
+      },
+    },
     email: { type: ['string', 'null'] },
     dateOfBirth: {
       type: ['string', 'null'],
@@ -142,7 +163,7 @@ const EXTRACTION_SCHEMA = {
     },
   },
   required: [
-    'name', 'phone', 'email', 'dateOfBirth', 'ageYears',
+    'name', 'phone', 'phones', 'email', 'dateOfBirth', 'ageYears',
     'address', 'gender', 'heightText', 'weightLbs', 'smokerStatus', 'coborrowerStatus',
     'mortgageDetails', 'spouseName', 'spouseAgeYears', 'beneficiaryName',
     'formType', 'extractionConfidence', 'extractionFlags',
@@ -167,7 +188,14 @@ FIELD EXTRACTION RULES:
 
 - **name**: Full name of the lead (the borrower). Combine "First Name" and "Last Name" when they're split. Mail-In forms may have handwritten name in a "Borrower Information" or "Request for Information" box. Strip honorifics (Mr., Mrs., Dr.).
 
-- **phone**: Lead's primary phone. On Call-In forms, prefer "Contact Phone"; on Mail-In, prefer "Cell Phone" then "Home Phone"; on Digital, prefer "Phone Number". Preserve digits and formatting as printed (e.g. "1-816-382-1302" or "(660) 998-1969"). The consumer normalizes downstream.
+- **phone**: Lead's PRIMARY phone. On Call-In forms, prefer "Contact Phone"; on Mail-In, prefer "Cell Phone" then "Home Phone"; on Digital, prefer "Phone Number". Preserve digits and formatting as printed (e.g. "1-816-382-1302" or "(660) 998-1969"). The consumer normalizes downstream.
+
+- **phones**: ALL visible phone numbers on the form (cell, home, work, etc.). ALWAYS include the primary phone here too as the first entry. Examples:
+  - Mail-In with "Cell Phone: (660) 998-1969" and "Home Phone: (660) 998-1234" → [{number: "(660) 998-1969", label: "cell"}, {number: "(660) 998-1234", label: "home"}], and the primary "phone" field equals the cell one.
+  - Symmetry Call-In with "Contact Phone: 1-816-382-1302" only → [{number: "1-816-382-1302", label: ""}].
+  - Symmetry with "Contact Phone" AND "Caller ID" that differ → include both; label the Caller ID as "other".
+  - Digital with one "Phone Number" → [{number: "...", label: ""}].
+  Use label "cell" / "home" / "work" / "other" based on the form's labeling. Use "" (empty string) when the form does not specify a kind. Do not fabricate labels.
 
 - **email**: Only if explicitly visible. Never fabricate.
 
@@ -332,6 +360,35 @@ function normalize(raw: Record<string, unknown>): ExtractedLeadFields {
   const coborrowerStatus: 'Y' | 'N' | null =
     coborrowerRaw === 'Y' || coborrowerRaw === 'N' ? coborrowerRaw : null;
 
+  // Normalize phones[]: keep only entries with a non-empty number,
+  // dedupe by digits-only comparison (so "1-816-382-1302" and
+  // "(816) 382-1302" merge), and clamp label to the enum (empty
+  // string → null). Always ensure the primary phone is in the list.
+  const rawPhones = Array.isArray(raw.phones) ? raw.phones : [];
+  const phones: Array<{ number: string; label: 'cell' | 'home' | 'work' | 'other' | null }> = [];
+  const seenDigits = new Set<string>();
+  const pushPhone = (num: string, lbl: string | null) => {
+    const trimmed = num.trim();
+    if (!trimmed) return;
+    const digits = trimmed.replace(/\D/g, '');
+    if (digits.length < 7) return;
+    if (seenDigits.has(digits)) return;
+    seenDigits.add(digits);
+    const validLabel: 'cell' | 'home' | 'work' | 'other' | null =
+      lbl === 'cell' || lbl === 'home' || lbl === 'work' || lbl === 'other' ? lbl : null;
+    phones.push({ number: trimmed, label: validLabel });
+  };
+  const primaryStr = str(raw.phone);
+  if (primaryStr) pushPhone(primaryStr, null);
+  for (const p of rawPhones) {
+    if (!p || typeof p !== 'object') continue;
+    const num = strOrNull((p as Record<string, unknown>).number) || '';
+    const lbl = strOrNull((p as Record<string, unknown>).label);
+    pushPhone(num, lbl);
+  }
+  // If the model didn't surface the primary in phones[] but did label
+  // others, the primary still ends up first because we pushed it first.
+
   const formTypeRaw = strOrNull(raw.formType);
   const formType: LeadFormType =
     formTypeRaw === 'Mail-In' || formTypeRaw === 'Call-In' || formTypeRaw === 'Digital'
@@ -350,6 +407,7 @@ function normalize(raw: Record<string, unknown>): ExtractedLeadFields {
   return {
     name: str(raw.name),
     phone: str(raw.phone),
+    phones,
     email: strOrNull(raw.email),
     dateOfBirth: strOrNull(raw.dateOfBirth),
     ageYears: intOrNull(raw.ageYears),

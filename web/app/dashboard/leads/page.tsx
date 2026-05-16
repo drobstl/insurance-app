@@ -18,6 +18,7 @@ interface Lead {
   id: string;
   name: string;
   phone: string;
+  phones?: Array<{ number: string; label?: 'cell' | 'home' | 'work' | 'other' | null }>;
   leadCode: string;
   formType?: string;
   createdAt?: Timestamp | null;
@@ -30,7 +31,7 @@ interface Lead {
   // queue queries / sorting don't require reading dialLog[].
   lastDialAt?: Timestamp | null;
   lastDialOutcome?: 'no_answer' | 'left_vm' | 'wrong_number' | 'not_interested' | 'callback_requested' | 'booked' | 'do_not_call';
-  dialLog?: Array<{ at?: Timestamp | null; outcome: string; notes?: string }>;
+  dialLog?: Array<{ at?: Timestamp | null; outcome: string; notes?: string; phoneDialed?: string }>;
   // Attachment dedup (Chunk 4f). Tracks what the booking-confirmation
   // and reminder flows have already sent to this lead.
   attachmentsSent?: {
@@ -82,6 +83,15 @@ export default function LeadsPage() {
     codeKind: 'derived' | 'fallback';
     formType?: string;
     extractionConfidence?: number;
+  } | null>(null);
+
+  // Bulk-upload summary for multi-page PDFs (each page = one lead form).
+  // Shown as a separate banner so the single-lead derived-code messaging
+  // stays clean.
+  const [bulkUpload, setBulkUpload] = useState<{
+    pageCount: number;
+    leads: Array<{ leadId: string; leadCode: string; name: string; codeKind: 'derived' | 'fallback'; page: number }>;
+    failed: Array<{ page: number; reason: string }>;
   } | null>(null);
 
   // PDF upload state (Chunk 2)
@@ -193,13 +203,24 @@ export default function LeadsPage() {
         setUploadError(data?.error || `Upload failed (${res.status})`);
         return;
       }
-      setJustCreated({
-        leadCode: data.leadCode,
-        leadId: data.leadId,
-        codeKind: data.codeKind || 'fallback',
-        formType: data.formType,
-        extractionConfidence: data.extractionConfidence,
-      });
+      if (data.multi) {
+        // Multi-page PDF — one lead per page. Show the summary banner.
+        setBulkUpload({
+          pageCount: data.pageCount,
+          leads: data.leads || [],
+          failed: data.failed || [],
+        });
+        setJustCreated(null);
+      } else {
+        setJustCreated({
+          leadCode: data.leadCode,
+          leadId: data.leadId,
+          codeKind: data.codeKind || 'fallback',
+          formType: data.formType,
+          extractionConfidence: data.extractionConfidence,
+        });
+        setBulkUpload(null);
+      }
     } catch (err) {
       console.error('upload lead error:', err);
       setUploadError('Network error — please try again');
@@ -279,20 +300,51 @@ export default function LeadsPage() {
   // pending-outcome target so the inline chip group appears under
   // this row when the agent returns from the dialer.
   const [pendingOutcomeLeadId, setPendingOutcomeLeadId] = useState<string | null>(null);
+  // Which phone the agent dialed for the lead they tapped. Stamped onto
+  // the dial-log when they pick an outcome chip below.
+  const [pendingOutcomePhone, setPendingOutcomePhone] = useState<string | null>(null);
   const [loggingOutcomeId, setLoggingOutcomeId] = useState<string | null>(null);
   const [outcomeError, setOutcomeError] = useState<string | null>(null);
 
-  const handleQueueCall = useCallback((lead: Lead) => {
+  /**
+   * Pick the number to dial when the agent taps Call on a queue row.
+   * Prefers the least-dialed phone (most likely to actually reach the
+   * lead), with the primary as a tie-break. Falls back to lead.phone
+   * for leads created before multi-phone shipped.
+   */
+  const pickQueueDialNumber = useCallback((lead: Lead): string => {
+    const phones = lead.phones && lead.phones.length > 0
+      ? lead.phones
+      : (lead.phone ? [{ number: lead.phone }] : []);
+    if (phones.length === 0) return lead.phone || '';
+    if (phones.length === 1) return phones[0].number;
+    const digitsOnly = (s: string) => s.replace(/\D/g, '');
+    const log = lead.dialLog || [];
+    const counts = phones.map((p) => {
+      const want = digitsOnly(p.number);
+      return log.filter((d) => digitsOnly(d.phoneDialed || '') === want).length;
+    });
+    // Argmin; first occurrence wins (so primary breaks ties).
+    let minIdx = 0;
+    for (let i = 1; i < counts.length; i++) {
+      if (counts[i] < counts[minIdx]) minIdx = i;
+    }
+    return phones[minIdx].number;
+  }, []);
+
+  const handleQueueCall = useCallback((lead: Lead, phoneOverride?: string) => {
     // Hard-stop on do-not-call leads. The queue filter already drops
     // them from the queue, but they can still appear in the All tab —
     // make sure a stray click doesn't dial them.
     if (lead.lastDialOutcome === 'do_not_call') return;
-    const digits = (lead.phone || '').replace(/\D/g, '');
+    const target = phoneOverride || pickQueueDialNumber(lead);
+    const digits = target.replace(/\D/g, '');
     if (digits.length < 7) return;
     setOutcomeError(null);
     setPendingOutcomeLeadId(lead.id);
+    setPendingOutcomePhone(target);
     window.location.href = `tel:${digits}`;
-  }, []);
+  }, [pickQueueDialNumber]);
 
   // When the agent picks "Booked" as the outcome on a queue row,
   // open the appointment picker (which atomically logs the dial
@@ -322,7 +374,10 @@ export default function LeadsPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ outcome }),
+        body: JSON.stringify({
+          outcome,
+          ...(pendingOutcomePhone ? { phoneDialed: pendingOutcomePhone } : {}),
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -330,6 +385,7 @@ export default function LeadsPage() {
         return;
       }
       setPendingOutcomeLeadId(null);
+      setPendingOutcomePhone(null);
       // Live snapshot picks up the new lastDialAt/lastDialOutcome
       // and the queue useMemo re-sorts on the next render. Booked /
       // not-interested / wrong-number leads drop off the queue
@@ -340,7 +396,7 @@ export default function LeadsPage() {
     } finally {
       setLoggingOutcomeId(null);
     }
-  }, [user, leads]);
+  }, [user, leads, pendingOutcomePhone]);
 
   const formatRelativeFromNow = (ts: Timestamp | null | undefined): string => {
     if (!ts) return '';
@@ -558,6 +614,73 @@ export default function LeadsPage() {
                   </svg>
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Bulk-upload summary — N leads created from a multi-page PDF. */}
+          {bulkUpload && (
+            <div className="mb-6 bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5">
+              <div className="flex items-start justify-between gap-4 mb-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-bold tracking-wider text-[#005851] uppercase">
+                      {bulkUpload.leads.length} {bulkUpload.leads.length === 1 ? 'lead' : 'leads'} created
+                    </span>
+                    <span className="text-[10px] text-[#707070] font-normal">
+                      · {bulkUpload.pageCount} pages
+                      {bulkUpload.failed.length > 0 && (
+                        <> · {bulkUpload.failed.length} couldn&apos;t be read</>
+                      )}
+                    </span>
+                  </div>
+                  <p className="text-sm text-[#444] leading-relaxed">
+                    Each page in the PDF was treated as one lead form. Open any to verify the extracted info.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setBulkUpload(null)}
+                  className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 shrink-0"
+                  aria-label="Dismiss"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              {bulkUpload.leads.length > 0 && (
+                <ul className="space-y-1.5 mb-3">
+                  {bulkUpload.leads.map((l) => (
+                    <li key={l.leadId} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="text-[#374151]">
+                        <span className="text-[10px] text-[#9CA3AF] mr-2">p{l.page}</span>
+                        <strong className="text-[#000000]">{l.name}</strong>
+                        <span className="ml-2 font-mono text-xs text-[#005851]">{l.leadCode}</span>
+                        {l.codeKind === 'fallback' && (
+                          <span className="ml-2 text-[10px] text-amber-700">(random code — phone collision)</span>
+                        )}
+                      </span>
+                      <button
+                        onClick={() => router.push(`/dashboard/leads/${l.leadId}`)}
+                        className="text-xs font-semibold text-[#44bbaa] hover:text-[#005751]"
+                      >
+                        Open →
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {bulkUpload.failed.length > 0 && (
+                <div className="rounded-[5px] bg-amber-50 border border-amber-300/60 px-3 py-2">
+                  <p className="text-[11px] font-semibold text-amber-900 mb-1">
+                    Couldn&apos;t read these pages — use <em>+ Add Lead</em> to enter manually:
+                  </p>
+                  <ul className="text-[11px] text-amber-900/90 space-y-0.5">
+                    {bulkUpload.failed.map((f) => (
+                      <li key={f.page}>Page {f.page} — {f.reason}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
 

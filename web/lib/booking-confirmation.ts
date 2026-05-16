@@ -1,3 +1,5 @@
+import { timeZoneForState } from './state-timezone';
+
 /**
  * Booking-confirmation message composition.
  *
@@ -26,12 +28,18 @@ export interface CompositionInput {
   kind: 'confirmation' | 'reminder';
   /**
    * IANA TZ name (e.g. "America/Chicago") captured at booking time.
-   * When set, day/time render in that zone and a short TZ label (e.g.
-   * "CT") is appended to the time — so the lead sees an unambiguous
-   * time regardless of where the agent is physically when sending.
-   * When absent, falls back to the sender's browser TZ with no label.
+   * Acts as a fallback only — if `leadStateCode` resolves to a TZ
+   * (preferred), that wins. When absent, the SMS body renders in the
+   * sender's browser TZ with no label.
    */
   timeZone?: string;
+  /**
+   * USPS state code from the lead's address. When set, the SMS body
+   * renders the appointment time in this state's dominant TZ — so the
+   * LEAD reads it in their local time, not the agent's. This is the
+   * preferred TZ source; `timeZone` above is the fallback.
+   */
+  leadStateCode?: string;
   /**
    * Per-appointment meeting URL (Zoom, Google Meet, etc.). When set,
    * appended to the message body as a "Join here:" line. Absent for
@@ -96,10 +104,14 @@ export function firstName(fullName: string): string {
 }
 
 export function composeMessage(input: CompositionInput): string {
+  // Prefer the lead's state-derived TZ — the lead is reading this SMS,
+  // so it should render in their local time. Fall back to the booking
+  // TZ (agent's anchor), and finally to the sender's browser TZ.
+  const resolvedTz = timeZoneForState(input.leadStateCode) || input.timeZone;
   const lead = firstName(input.leadFirstName) || 'there';
   const agent = firstName(input.agentFirstName) || 'your agent';
-  const day = formatDayOfWeek(input.scheduledAt, input.timeZone);
-  const time = formatTimeOfDay(input.scheduledAt, input.timeZone);
+  const day = formatDayOfWeek(input.scheduledAt, resolvedTz);
+  const time = formatTimeOfDay(input.scheduledAt, resolvedTz);
 
   const joinLine = input.meetingUrl ? `\n\nJoin here: ${input.meetingUrl}` : '';
 

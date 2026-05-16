@@ -87,6 +87,8 @@ interface CaseResult {
   confidence: number;
   flags: string[];
   durationMs: number;
+  smokerStatus: 'Y' | 'N' | null;
+  coborrowerStatus: 'Y' | 'N' | null;
 }
 
 async function runOne(c: FixtureCase): Promise<CaseResult> {
@@ -113,6 +115,8 @@ async function runOne(c: FixtureCase): Promise<CaseResult> {
       confidence: 0,
       flags: [],
       durationMs: Date.now() - start,
+      smokerStatus: null,
+      coborrowerStatus: null,
     };
   }
 
@@ -147,6 +151,8 @@ async function runOne(c: FixtureCase): Promise<CaseResult> {
     confidence: extracted.extractionConfidence,
     flags: extracted.extractionFlags,
     durationMs: Date.now() - start,
+    smokerStatus: extracted.smokerStatus,
+    coborrowerStatus: extracted.coborrowerStatus,
   };
 }
 
@@ -168,6 +174,8 @@ async function main() {
     if (r.state) console.log(`    state:    ${r.state}`);
     if (r.derivedCode) console.log(`    code:     ${r.derivedCode}`);
     console.log(`    conf:     ${(r.confidence * 100).toFixed(0)}%`);
+    console.log(`    smoker:   ${r.smokerStatus ?? '(absent)'}`);
+    console.log(`    coborrow: ${r.coborrowerStatus ?? '(absent)'}`);
     if (r.flags.length > 0) console.log(`    flags:    ${r.flags.join(', ')}`);
     if (r.reasons.length > 0) {
       r.reasons.forEach((reason) => console.log(`    ✗ ${reason}`));

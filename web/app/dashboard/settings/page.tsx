@@ -16,6 +16,7 @@ import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 import { PRICING_TIERS, type PricingTierId } from '../../../lib/pricing';
 import StateLicensesSection from '../../../components/StateLicensesSection';
+import { DEFAULT_DIAL_SCRIPT, SCRIPT_TOKEN_HINTS } from '../../../lib/dial-script';
 
 type Tab = 'profile' | 'branding' | 'referral-ai' | 'account';
 
@@ -318,6 +319,7 @@ export default function SettingsPage() {
     defaultMeetingLink: agentProfile.defaultMeetingLink || '',
     autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? false,
     reminderPushHoursBefore: agentProfile.reminderPushHoursBefore ?? 1,
+    dialScript: agentProfile.dialScript || '',
   }), [
     agentProfile.name,
     agentProfile.phoneNumber,
@@ -344,6 +346,7 @@ export default function SettingsPage() {
     agentProfile.defaultMeetingLink,
     agentProfile.autoCreateGoogleMeet,
     agentProfile.reminderPushHoursBefore,
+    agentProfile.dialScript,
   ]);
 
   const loadGoogleDriveStatus = useCallback(async () => {
@@ -734,6 +737,7 @@ export default function SettingsPage() {
           if (raw <= 0) return 0;
           return Math.min(24, Math.max(1, Math.round(raw)));
         })(),
+        dialScript: (agentProfile.dialScript || '').slice(0, 8000),
       }, { merge: true });
 
       if (isFirstTimePhone) {
@@ -1918,6 +1922,37 @@ export default function SettingsPage() {
                 </label>
               </>
             )}
+          </div>
+
+          {/* Dial script — shown as an overlay on the lead detail page
+              during a live call. Supports tokens like {agentfirstname},
+              {leadname}, {leadage}, {tobaccouse}, {mortgageamount}. */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Dial script</h3>
+            <p className="text-[11px] text-[#707070] mb-3">
+              Shown on the lead page while you&apos;re on a call. Personalized per lead via tokens.
+            </p>
+            <textarea
+              value={agentProfile.dialScript ?? ''}
+              onChange={(e) => updateField('dialScript', e.target.value)}
+              placeholder={DEFAULT_DIAL_SCRIPT}
+              rows={10}
+              className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm leading-relaxed font-mono focus:outline-none focus:border-[#45bcaa]"
+            />
+            <p className="text-[11px] text-[#707070] mt-2">
+              Leave empty to use the default. Tokens are case-insensitive.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {SCRIPT_TOKEN_HINTS.map((t) => (
+                <span
+                  key={t.token}
+                  title={t.description}
+                  className="inline-block px-2 py-0.5 text-[10px] font-mono rounded bg-[#daf3f0]/60 text-[#005851] border border-[#45bcaa]/30 cursor-help"
+                >
+                  {t.token}
+                </span>
+              ))}
+            </div>
           </div>
 
           {/* Lead-home videos (Chunk 3). Per-agent overrides for the

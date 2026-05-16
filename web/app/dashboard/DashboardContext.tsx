@@ -143,6 +143,13 @@ export interface AgentProfile {
     faqs?: Array<{ id: string; title: string; url: string; path?: string; updatedAt?: string }>;
     caseStudies?: Array<{ id: string; title: string; url: string; path?: string; updatedAt?: string }>;
   };
+  /**
+   * Per-agent dial-script template shown as an overlay during a live
+   * call. Supports `{agentfirstname}`, `{leadname}`, `{leadage}` etc.
+   * (see web/lib/dial-script.ts). Empty/undefined falls back to
+   * DEFAULT_DIAL_SCRIPT.
+   */
+  dialScript?: string;
 }
 
 interface DashboardContextValue {
@@ -262,6 +269,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             ? data.reminderPushHoursBefore
             : 1,
           leadContent: data.leadContent || undefined,
+          dialScript: typeof data.dialScript === 'string' ? data.dialScript : undefined,
         });
       } else {
         setAgentProfile({});

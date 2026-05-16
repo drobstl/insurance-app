@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import type { User } from 'firebase/auth';
 import { useParams, useRouter } from 'next/navigation';
 import {
   doc,
@@ -16,12 +17,19 @@ import {
 import { db } from '../../../../firebase';
 import { useDashboard } from '../../DashboardContext';
 import AppointmentPicker from '../../../../components/AppointmentPicker';
+import { DEFAULT_DIAL_SCRIPT, renderDialScript } from '../../../../lib/dial-script';
 import SendConfirmationDrawer from '../../../../components/SendConfirmationDrawer';
+
+interface LeadPhone {
+  number: string;
+  label?: 'cell' | 'home' | 'work' | 'other' | null;
+}
 
 interface Lead {
   id: string;
   name?: string;
   phone?: string;
+  phones?: LeadPhone[];
   email?: string;
   leadCode?: string;
   formType?: string;
@@ -58,7 +66,7 @@ interface Lead {
   extractionFlags?: string[];
 
   // Dial tracking (Chunk 4b)
-  dialLog?: Array<{ at: Timestamp; outcome: DialOutcome; notes?: string }>;
+  dialLog?: Array<{ at: Timestamp; outcome: DialOutcome; notes?: string; phoneDialed?: string }>;
   lastDialAt?: Timestamp | null;
   lastDialOutcome?: DialOutcome;
 
@@ -99,6 +107,226 @@ const DIAL_OUTCOME_TONE: Record<DialOutcome, string> = {
   booked: 'bg-[#daf3f0] text-[#005851] border-[#45bcaa]',
   do_not_call: 'bg-red-100 text-red-900 border-red-300',
 };
+
+const PHONE_LABEL_OPTIONS: Array<{ value: 'cell' | 'home' | 'work' | 'other' | ''; label: string }> = [
+  { value: '', label: '—' },
+  { value: 'cell', label: 'Cell' },
+  { value: 'home', label: 'Home' },
+  { value: 'work', label: 'Work' },
+  { value: 'other', label: 'Other' },
+];
+
+function digitsOnly(s: string): string {
+  return (s || '').replace(/\D/g, '');
+}
+
+/**
+ * Per-phone Call row stack. Renders one row per phone with:
+ *   - Call button (dials this specific number; stamps onto outcome)
+ *   - Dial count badge (computed live from dialLog.phoneDialed match)
+ *   - Last-outcome chip (most recent dial on this number)
+ *   - Label dropdown (cell/home/work/other) — saves on change
+ *   - Remove button (with confirm) for non-primary phones
+ *   - "+ Add another phone" inline at the bottom
+ *
+ * Edits write to Firestore via updateDoc against the lead doc directly
+ * (same pattern as the other autosave fields on this page).
+ */
+function PhoneList(props: {
+  user: User | null;
+  leadId: string;
+  leadFirstName: string;
+  phones: LeadPhone[];
+  dialLog?: Array<{ at: Timestamp; outcome: DialOutcome; notes?: string; phoneDialed?: string }>;
+  isDoNotCall: boolean;
+  onCall: (number: string) => void;
+  primaryPhone?: string;
+}) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [newNumber, setNewNumber] = useState('');
+  const [newLabel, setNewLabel] = useState<'cell' | 'home' | 'work' | 'other' | ''>('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const dialCount = useCallback((num: string) => {
+    const want = digitsOnly(num);
+    if (!want) return 0;
+    return (props.dialLog || []).filter((d) => digitsOnly(d.phoneDialed || '') === want).length;
+  }, [props.dialLog]);
+
+  const lastOutcomeOn = useCallback((num: string): DialOutcome | null => {
+    const want = digitsOnly(num);
+    if (!want) return null;
+    const matches = (props.dialLog || []).filter((d) => digitsOnly(d.phoneDialed || '') === want);
+    if (matches.length === 0) return null;
+    const newest = matches.reduce((a, b) =>
+      (b.at?.toDate?.().getTime?.() ?? 0) > (a.at?.toDate?.().getTime?.() ?? 0) ? b : a,
+    );
+    return newest.outcome;
+  }, [props.dialLog]);
+
+  const writePhones = useCallback(async (next: LeadPhone[]) => {
+    if (!props.user) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const update: Record<string, unknown> = { phones: next };
+      // Keep the legacy `phone` field aligned to the primary so older
+      // code paths (lead-code derive, queue priority, etc.) still work.
+      if (next.length > 0) update.phone = next[0].number;
+      await updateDoc(doc(db, 'agents', props.user.uid, 'leads', props.leadId), update);
+    } catch (err) {
+      console.error('phones save failed:', err);
+      setError('Save failed — try again');
+    } finally {
+      setSaving(false);
+    }
+  }, [props.user, props.leadId]);
+
+  const handleLabelChange = useCallback((idx: number, value: 'cell' | 'home' | 'work' | 'other' | '') => {
+    const next = [...props.phones];
+    next[idx] = { ...next[idx], label: value || null };
+    void writePhones(next);
+  }, [props.phones, writePhones]);
+
+  const handleRemove = useCallback((idx: number) => {
+    const removed = props.phones[idx];
+    if (!removed) return;
+    if (!window.confirm(`Remove ${removed.number}? Dial history for this number stays on the lead.`)) return;
+    const next = props.phones.filter((_, i) => i !== idx);
+    void writePhones(next);
+  }, [props.phones, writePhones]);
+
+  const handleAdd = useCallback(() => {
+    const trimmed = newNumber.trim();
+    if (!trimmed || digitsOnly(trimmed).length < 7) {
+      setError('Enter a valid phone number (at least 7 digits)');
+      return;
+    }
+    // Dedupe by digits
+    if (props.phones.some((p) => digitsOnly(p.number) === digitsOnly(trimmed))) {
+      setError('That number is already on this lead');
+      return;
+    }
+    const next = [...props.phones, { number: trimmed, label: newLabel || null }];
+    void writePhones(next);
+    setNewNumber('');
+    setNewLabel('');
+    setShowAdd(false);
+  }, [newNumber, newLabel, props.phones, writePhones]);
+
+  return (
+    <div className="mt-3 space-y-2">
+      {props.isDoNotCall && (
+        <div className="px-3 py-2 text-xs font-semibold text-red-800 bg-red-50 border border-red-300 rounded-[5px]">
+          ⛔ This lead asked not to be contacted. Do not dial.
+        </div>
+      )}
+      {props.phones.map((p, idx) => {
+        const count = dialCount(p.number);
+        const lastOutcome = lastOutcomeOn(p.number);
+        const isPrimary = idx === 0;
+        return (
+          <div
+            key={`${p.number}-${idx}`}
+            className="flex items-center gap-2 flex-wrap"
+          >
+            {!props.isDoNotCall && (
+              <button
+                onClick={() => props.onCall(p.number)}
+                className={`inline-flex items-center gap-2 px-3 py-2 font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors text-sm ${
+                  isPrimary
+                    ? 'bg-[#44bbaa] hover:bg-[#005751] text-white'
+                    : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+                {isPrimary ? `Call ${props.leadFirstName}` : 'Call'} <span className="font-mono font-normal text-xs opacity-90">{p.number}</span>
+              </button>
+            )}
+            {props.isDoNotCall && (
+              <span className="text-sm font-mono text-[#374151]">{p.number}</span>
+            )}
+            <select
+              value={p.label || ''}
+              onChange={(e) => handleLabelChange(idx, e.target.value as 'cell' | 'home' | 'work' | 'other' | '')}
+              disabled={saving}
+              className="px-2 py-1.5 text-xs bg-white border border-[#d0d0d0] rounded-[5px] focus:outline-none focus:border-[#45bcaa]"
+            >
+              {PHONE_LABEL_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <span className="text-xs text-[#707070]">
+              {count === 0 ? 'never dialed' : count === 1 ? '1 dial' : `${count} dials`}
+            </span>
+            {lastOutcome && (
+              <span className={`inline-block px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border rounded ${DIAL_OUTCOME_TONE[lastOutcome]}`}>
+                {DIAL_OUTCOME_LABELS[lastOutcome]}
+              </span>
+            )}
+            {!isPrimary && (
+              <button
+                onClick={() => handleRemove(idx)}
+                disabled={saving}
+                className="text-[11px] text-red-600 hover:text-red-800 font-semibold disabled:opacity-50"
+                title="Remove this number"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        );
+      })}
+      {showAdd ? (
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="tel"
+            value={newNumber}
+            onChange={(e) => setNewNumber(e.target.value)}
+            placeholder="(555) 123-4567"
+            disabled={saving}
+            className="px-3 py-1.5 text-sm font-mono bg-white border border-[#d0d0d0] rounded-[5px] focus:outline-none focus:border-[#45bcaa]"
+          />
+          <select
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value as 'cell' | 'home' | 'work' | 'other' | '')}
+            disabled={saving}
+            className="px-2 py-1.5 text-xs bg-white border border-[#d0d0d0] rounded-[5px] focus:outline-none focus:border-[#45bcaa]"
+          >
+            {PHONE_LABEL_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label === '—' ? 'No label' : opt.label}</option>
+            ))}
+          </select>
+          <button
+            onClick={handleAdd}
+            disabled={saving}
+            className="px-3 py-1.5 text-xs font-semibold text-white bg-[#005851] hover:bg-[#004440] rounded-[5px] disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button
+            onClick={() => { setShowAdd(false); setNewNumber(''); setNewLabel(''); setError(null); }}
+            disabled={saving}
+            className="px-3 py-1.5 text-xs font-semibold text-[#0D4D4D] bg-white border border-[#d0d0d0] rounded-[5px] hover:bg-[#f8f8f8] disabled:opacity-50"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => { setShowAdd(true); setError(null); }}
+          className="text-xs font-semibold text-[#44bbaa] hover:text-[#005751]"
+        >
+          + Add another phone
+        </button>
+      )}
+      {error && <p className="text-[11px] text-red-600">{error}</p>}
+    </div>
+  );
+}
 
 interface LeadActivityEntry {
   id: string;
@@ -214,6 +442,10 @@ export default function LeadDetailPage() {
   // because the call duration is unpredictable. Agent picks an
   // outcome when they're back at the keyboard.
   const [outcomePrompt, setOutcomePrompt] = useState(false);
+  // Which phone the agent last tapped Call on — stamped onto the dial
+  // log entry when they pick an outcome. Null means "primary / unknown"
+  // (back-compat with old single-phone leads).
+  const [activeDialPhone, setActiveDialPhone] = useState<string | null>(null);
   const [loggingOutcome, setLoggingOutcome] = useState(false);
   const [outcomeError, setOutcomeError] = useState<string | null>(null);
 
@@ -504,17 +736,17 @@ export default function LeadDetailPage() {
   }, [user, leadId]);
 
   // ── Dial tracking ──
-  const handleStartCall = useCallback(() => {
-    if (!lead?.phone) return;
-    // Tap-to-call via tel: deep link. On iPhone Safari this opens the
-    // dialer with the number pre-filled; on macOS it opens FaceTime
-    // (with phone-relay if configured); on Chrome desktop it offers to
-    // call via the linked phone. All three paths surface a "back" to
-    // the dashboard — at which point we show the outcome prompt so the
-    // agent can log what happened in 1 click.
-    const digits = lead.phone.replace(/\D/g, '');
+  // Per-phone dial. Records which number was tapped so the outcome
+  // chip flow can stamp it onto the dial log entry — that's how
+  // per-number dial counts work. Falls back to the lead's primary
+  // phone if no argument is passed (e.g. an old call-site).
+  const handleStartCall = useCallback((phoneOverride?: string) => {
+    const target = phoneOverride || lead?.phone || '';
+    if (!target) return;
+    const digits = target.replace(/\D/g, '');
     if (digits.length < 7) return;
     setOutcomeError(null);
+    setActiveDialPhone(target);
     setOutcomePrompt(true);
     // US-only — `tel:` with raw digits lets the OS dialer handle
     // country-code interpretation per the device locale.
@@ -541,7 +773,10 @@ export default function LeadDetailPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ outcome }),
+        body: JSON.stringify({
+          outcome,
+          ...(activeDialPhone ? { phoneDialed: activeDialPhone } : {}),
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -549,13 +784,14 @@ export default function LeadDetailPage() {
         return;
       }
       setOutcomePrompt(false);
+      setActiveDialPhone(null);
     } catch (err) {
       console.error('log outcome error:', err);
       setOutcomeError('Network error — please try again');
     } finally {
       setLoggingOutcome(false);
     }
-  }, [user, leadId]);
+  }, [user, leadId, activeDialPhone]);
 
   const handleDelete = useCallback(async () => {
     if (!user || !leadId) return;
@@ -619,6 +855,13 @@ export default function LeadDetailPage() {
   }
   if (!lead) return null;
 
+  // Compute the effective phone list — prefer the structured phones[]
+  // array; fall back to a single-element list from lead.phone for
+  // back-compat with leads created before multi-phone shipped.
+  const effectivePhones: LeadPhone[] = lead.phones && lead.phones.length > 0
+    ? lead.phones
+    : (lead.phone ? [{ number: lead.phone, label: null }] : []);
+
   const ageFromDob = (dob?: string): number | null => {
     if (!dob) return null;
     const d = new Date(dob);
@@ -655,27 +898,26 @@ export default function LeadDetailPage() {
               </span>
             )}
           </p>
-          {/* Tap-to-call + Book appointment. Both available regardless
-              of whether the agent went through the dial flow first —
-              sometimes you book without dialing (referral, etc.). */}
+          {/* Phones list — one row per number with its own Call button,
+              dial-count badge, last-outcome chip, and a label dropdown.
+              Falls back to the legacy single `phone` field when phones[]
+              is absent (older leads or single-phone manual creates). */}
+          {!lead.convertedToClientId && (
+            <PhoneList
+              user={user}
+              leadId={lead.id}
+              leadFirstName={lead.name?.split(' ')[0] || 'lead'}
+              phones={effectivePhones}
+              dialLog={lead.dialLog}
+              isDoNotCall={lead.lastDialOutcome === 'do_not_call'}
+              onCall={(num) => handleStartCall(num)}
+              primaryPhone={lead.phone}
+            />
+          )}
+
+          {/* Book appointment + Convert to client — common to all leads. */}
           {!lead.convertedToClientId && (
             <div className="mt-3 flex items-center gap-2 flex-wrap">
-              {lead.lastDialOutcome === 'do_not_call' && (
-                <div className="w-full mb-1 px-3 py-2 text-xs font-semibold text-red-800 bg-red-50 border border-red-300 rounded-[5px]">
-                  ⛔ This lead asked not to be contacted. Do not dial.
-                </div>
-              )}
-              {lead.phone && lead.lastDialOutcome !== 'do_not_call' && (
-                <button
-                  onClick={handleStartCall}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors text-sm"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                  </svg>
-                  Call {lead.name?.split(' ')[0] || 'lead'}
-                </button>
-              )}
               <button
                 onClick={() => setShowAppointmentPicker(true)}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-white text-[#0D4D4D] font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] hover:bg-[#f8f8f8] transition-colors text-sm"
@@ -750,6 +992,65 @@ export default function LeadDetailPage() {
           )}
         </div>
       )}
+
+      {/* Dial script overlay — floats bottom-right while the outcome prompt
+          is showing. Goes away when the agent picks an outcome (or hits
+          Skip). Per-agent template lives at agentProfile.dialScript;
+          tokens like {agentfirstname} / {leadage} are substituted. */}
+      {outcomePrompt && lead && (() => {
+        const template = (agentProfile.dialScript && agentProfile.dialScript.trim())
+          || DEFAULT_DIAL_SCRIPT;
+        const computedAge = lead.ageYears ?? ageFromDob(lead.dateOfBirth);
+        const rendered = renderDialScript(template, {
+          agentFirstName: agentProfile.name || '',
+          leadFirstName: lead.name || '',
+          leadFullName: lead.name || '',
+          leadAge: computedAge,
+          leadCity: lead.address?.city || '',
+          leadState: lead.address?.state || '',
+          leadPhone: lead.phone || '',
+          tobaccoUse: lead.smokerStatus,
+          mortgageAmount: typeof lead.mortgageDetails?.balance === 'number'
+            ? lead.mortgageDetails.balance
+            : null,
+          spouseName: lead.spouseName || '',
+        });
+        return (
+          <div
+            className="fixed z-[90] bg-white border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] rounded-xl shadow-2xl flex flex-col"
+            style={{
+              bottom: '1rem',
+              right: '1rem',
+              width: 'min(380px, calc(100vw - 2rem))',
+              maxHeight: '70vh',
+            }}
+          >
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#ececec] bg-[#daf3f0]/60 rounded-t-[9px]">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-[#005851]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <p className="text-xs font-bold uppercase tracking-wider text-[#005851]">Dial script</p>
+              </div>
+              <button
+                onClick={() => setOutcomePrompt(false)}
+                className="w-6 h-6 rounded-[5px] hover:bg-white/60 flex items-center justify-center text-[#005851]"
+                title="Dismiss script"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="overflow-y-auto px-4 py-3 text-sm leading-relaxed text-[#1A1A1A] whitespace-pre-wrap">
+              {rendered}
+            </div>
+            <p className="px-4 pb-2 pt-1 text-[10px] text-[#707070] border-t border-[#ececec]">
+              Pick an outcome above to close · Edit in Settings → Profile
+            </p>
+          </div>
+        );
+      })()}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
         <StatusCard
@@ -1293,6 +1594,12 @@ export default function LeadDetailPage() {
           googleCalendarConnected={googleCalendarConnected}
           onBooked={(apptId) => {
             setShowAppointmentPicker(false);
+            // Booking endpoint already logs the dial outcome as 'booked'
+            // atomically — so if the outcome prompt is showing from a
+            // just-completed Call, dismiss it. (Without this, the agent
+            // sees both the "How did the call go?" chips AND the new
+            // appointment card, which is confusing.)
+            setOutcomePrompt(false);
             setConfirmingAppointmentId(apptId);
           }}
           onCancel={() => setShowAppointmentPicker(false)}

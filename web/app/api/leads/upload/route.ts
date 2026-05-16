@@ -2,35 +2,36 @@ import 'server-only';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
+import { PDFDocument } from 'pdf-lib';
 import { getAdminAuth, getAdminFirestore, getAdminStorage } from '../../../../lib/firebase-admin';
 import { generateUniqueLeadCode } from '../../../../lib/lead-code-generator';
 import { deriveLeadCode } from '../../../../lib/lead-code-derive';
 import { extractLeadFromPdf, type ExtractedLeadFields } from '../../../../lib/lead-form-extractor';
 
-const MAX_PDF_BYTES = 10 * 1024 * 1024;  // 10 MB; sample fixtures are <500 KB
+const MAX_PDF_BYTES = 50 * 1024 * 1024;  // 50 MB — multi-lead bundles can run 20-30 MB
+const EXTRACTION_CONCURRENCY = 4;        // Anthropic vision calls in parallel
 
 /**
  * POST /api/leads/upload
  *
- * Multipart form upload of a single lead-form PDF (Mail-In / Call-In /
- * Digital). The endpoint:
- *   1. Verifies the agent's auth token.
- *   2. Pulls the file out of FormData and base64-encodes it.
- *   3. Stores the raw PDF in Firebase Storage at
- *      `agents/{agentId}/leads/_uploads/{timestamp}_{filename}` so the
- *      agent can re-download the original from the lead detail page.
- *   4. Calls the lead-form extractor (Claude vision + JSON schema).
- *   5. Derives the lead code (10-digit MMDDYY+last4 when DOB+phone
- *      are both extracted). Falls back to a random `L…` code when
- *      DOB is missing OR a collision happens.
- *   6. Writes the lead doc + leadCodes index entry.
+ * Multipart form upload of a lead-form PDF. Supports both:
  *
- * Returns the extracted fields so the dashboard can show a preview the
- * agent confirms before the lead is committed visible. (We commit
- * immediately in v1 — agent edits / corrections happen via the
- * existing autosave on the detail page.)
+ *   - **Single-page**: one lead per file. Same response shape as before:
+ *     { leadId, leadCode, codeKind, formType, extractionConfidence, ... }
  *
- * Auth: Bearer ID token. Agent owns leads created from their uploads.
+ *   - **Multi-page**: each page is treated as one lead form. The PDF is
+ *     split with pdf-lib, the extractor runs per page in parallel (cap
+ *     EXTRACTION_CONCURRENCY), and one lead doc is created per
+ *     successful extraction. Pages that miss name/phone are reported in
+ *     `failed[]` but don't fail the whole upload. Response:
+ *
+ *       { multi: true, leads: [{leadId, leadCode, name, ...}, ...],
+ *         failed: [{page, reason}, ...], sourceFileUrl }
+ *
+ * The raw PDF is always stored in Firebase Storage first so the agent
+ * can re-download even if every page fails extraction.
+ *
+ * Auth: Bearer ID token.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -69,9 +70,8 @@ export async function POST(req: NextRequest) {
 
     const arrayBuffer = await file.arrayBuffer();
     const pdfBuffer = Buffer.from(arrayBuffer);
-    const pdfBase64 = pdfBuffer.toString('base64');
 
-    // ── Persist raw PDF first (so we have provenance even if extraction fails) ──
+    // ── Persist raw PDF first (provenance even if extraction fails) ──
     const db = getAdminFirestore();
     const storage = getAdminStorage().bucket();
     const safeFilename = (file.name || 'lead-form.pdf').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
@@ -83,130 +83,160 @@ export async function POST(req: NextRequest) {
         metadata: { contentType: 'application/pdf' },
         resumable: false,
       });
-      // Signed URL valid for 1 year — agents can re-download the original.
       const [signed] = await fileRef.getSignedUrl({
         action: 'read',
         expires: Date.now() + 365 * 24 * 60 * 60 * 1000,
       });
       sourceFileUrl = signed;
     } catch (storageErr) {
-      // Don't fail the whole request if Storage is misconfigured — we
-      // still have the extracted fields. Surface in the response.
       console.error('[leads/upload] Storage write failed:', storageErr);
     }
 
-    // ── Extract fields via Claude ──
-    let extracted: ExtractedLeadFields;
+    // ── Detect page count ──
+    let pageCount = 1;
+    let parentDoc: PDFDocument | null = null;
     try {
-      extracted = await extractLeadFromPdf(pdfBase64);
-    } catch (extractionErr) {
-      console.error('[leads/upload] Extraction failed:', extractionErr);
-      return NextResponse.json(
-        {
-          error: 'Could not read this lead form. Try uploading a different scan, or use + Create Lead to enter manually.',
-          sourceFileUrl,
-        },
-        { status: 422 },
-      );
+      parentDoc = await PDFDocument.load(pdfBuffer);
+      pageCount = parentDoc.getPageCount();
+    } catch (loadErr) {
+      console.error('[leads/upload] pdf-lib load failed:', loadErr);
+      // Fall back to single-page path with the original PDF.
     }
 
-    // ── Validate required fields ──
-    if (!extracted.name) {
-      return NextResponse.json(
-        {
-          error: 'Could not read the lead\'s name from this form. Use + Create Lead to enter manually.',
-          extractionFlags: extracted.extractionFlags,
-          sourceFileUrl,
-        },
-        { status: 422 },
-      );
-    }
-    if (!extracted.phone) {
-      return NextResponse.json(
-        {
-          error: 'Could not read a phone number from this form. Use + Create Lead to enter manually.',
-          extractionFlags: extracted.extractionFlags,
-          sourceFileUrl,
-        },
-        { status: 422 },
-      );
-    }
-
-    // ── Derive code (lead's phone, 10 digits) or fall back to random `L…` ──
-    // Universal — every lead form has a phone. Falls back to random
-    // only when there's a collision with another lead at the same
-    // phone (rare; usually a household with a shared landline).
-    let leadCode: string;
-    let codeKind: 'derived' | 'fallback';
-    const leadRef = db.collection('agents').doc(agentId).collection('leads').doc();
-
-    const derived = deriveLeadCode(extracted.phone);
-
-    if (derived) {
+    // ── Single-page path (existing behavior, unchanged response shape) ──
+    if (pageCount <= 1 || !parentDoc) {
+      const pdfBase64 = pdfBuffer.toString('base64');
+      let extracted: ExtractedLeadFields;
       try {
-        await db.collection('leadCodes').doc(derived).create({
-          agentId,
-          leadId: leadRef.id,
-        });
-        leadCode = derived;
-        codeKind = 'derived';
-      } catch {
-        leadCode = await generateUniqueLeadCode();
-        codeKind = 'fallback';
-        await db.collection('leadCodes').doc(leadCode).set({
-          agentId,
-          leadId: leadRef.id,
-        });
+        extracted = await extractLeadFromPdf(pdfBase64);
+      } catch (extractionErr) {
+        console.error('[leads/upload] Extraction failed:', extractionErr);
+        return NextResponse.json(
+          {
+            error: 'Could not read this lead form. Try uploading a different scan, or use + Create Lead to enter manually.',
+            sourceFileUrl,
+          },
+          { status: 422 },
+        );
       }
-    } else {
-      // Phone too short to derive (less than 10 digits — likely a
-      // partial/garbled extraction). Fall back to random L-code.
-      leadCode = await generateUniqueLeadCode();
-      codeKind = 'fallback';
-      await db.collection('leadCodes').doc(leadCode).set({
-        agentId,
-        leadId: leadRef.id,
+
+      if (!extracted.name) {
+        return NextResponse.json(
+          {
+            error: "Could not read the lead's name from this form. Use + Create Lead to enter manually.",
+            extractionFlags: extracted.extractionFlags,
+            sourceFileUrl,
+          },
+          { status: 422 },
+        );
+      }
+      if (!extracted.phone) {
+        return NextResponse.json(
+          {
+            error: 'Could not read a phone number from this form. Use + Create Lead to enter manually.',
+            extractionFlags: extracted.extractionFlags,
+            sourceFileUrl,
+          },
+          { status: 422 },
+        );
+      }
+
+      const committed = await commitLead({ db, agentId, sourceFileUrl, extracted });
+      return NextResponse.json({
+        leadId: committed.leadId,
+        leadCode: committed.leadCode,
+        codeKind: committed.codeKind,
+        formType: extracted.formType,
+        extractionConfidence: extracted.extractionConfidence,
+        extractionFlags: extracted.extractionFlags,
+        extracted,
+        sourceFileUrl,
       });
     }
 
-    // ── Compose lead doc ──
-    // Strip undefined values so Firestore doesn't choke. Address is
-    // either the structured object or null (no half-state).
-    const leadDoc: Record<string, unknown> = {
-      name: extracted.name,
-      phone: extracted.phone,
-      leadCode,
-      codeKind,
-      formType: extracted.formType,
-      sourceFileUrl,
-      extractionConfidence: extracted.extractionConfidence,
-      extractionFlags: extracted.extractionFlags,
-      createdAt: FieldValue.serverTimestamp(),
-      createdBy: agentId,
-    };
-    if (extracted.email) leadDoc.email = extracted.email;
-    if (extracted.dateOfBirth) leadDoc.dateOfBirth = extracted.dateOfBirth;
-    if (extracted.ageYears !== null) leadDoc.ageYears = extracted.ageYears;
-    if (extracted.address) leadDoc.address = extracted.address;
-    if (extracted.gender) leadDoc.gender = extracted.gender;
-    if (extracted.heightText) leadDoc.heightText = extracted.heightText;
-    if (extracted.weightLbs !== null) leadDoc.weightLbs = extracted.weightLbs;
-    if (extracted.smokerStatus) leadDoc.smokerStatus = extracted.smokerStatus;
-    if (extracted.mortgageDetails) leadDoc.mortgageDetails = extracted.mortgageDetails;
-    if (extracted.spouseName) leadDoc.spouseName = extracted.spouseName;
-    if (extracted.spouseAgeYears !== null) leadDoc.spouseAgeYears = extracted.spouseAgeYears;
-    if (extracted.beneficiaryName) leadDoc.beneficiaryName = extracted.beneficiaryName;
+    // ── Multi-page path: split, extract each page, commit successful ones ──
+    const perPageBuffers: Buffer[] = [];
+    for (let i = 0; i < pageCount; i++) {
+      try {
+        const single = await PDFDocument.create();
+        const [copied] = await single.copyPages(parentDoc, [i]);
+        single.addPage(copied);
+        const bytes = await single.save();
+        perPageBuffers.push(Buffer.from(bytes));
+      } catch (splitErr) {
+        console.error(`[leads/upload] page ${i + 1} split failed:`, splitErr);
+        perPageBuffers.push(Buffer.alloc(0));  // marker — will fail extraction
+      }
+    }
 
-    await leadRef.set(leadDoc);
+    const created: Array<{
+      leadId: string;
+      leadCode: string;
+      codeKind: 'derived' | 'fallback';
+      name: string;
+      phone: string;
+      formType: string;
+      page: number;
+      extractionConfidence: number;
+    }> = [];
+    const failed: Array<{ page: number; reason: string }> = [];
+
+    // Process pages in chunks to respect concurrency cap. Anthropic
+    // vision calls each take 5-15s; with 4 in parallel we cover a
+    // 10-page PDF in ~25-40s — comfortably inside our 90s budget below.
+    for (let chunkStart = 0; chunkStart < perPageBuffers.length; chunkStart += EXTRACTION_CONCURRENCY) {
+      const chunkBuffers = perPageBuffers.slice(chunkStart, chunkStart + EXTRACTION_CONCURRENCY);
+      const results = await Promise.allSettled(
+        chunkBuffers.map(async (buf) => {
+          if (buf.byteLength === 0) throw new Error('split failed');
+          return extractLeadFromPdf(buf.toString('base64'));
+        }),
+      );
+      for (let i = 0; i < results.length; i++) {
+        const r = results[i];
+        const page = chunkStart + i + 1;
+        if (r.status === 'rejected') {
+          failed.push({
+            page,
+            reason: r.reason instanceof Error ? r.reason.message : 'extraction failed',
+          });
+          continue;
+        }
+        const ex = r.value;
+        if (!ex.name || !ex.phone) {
+          failed.push({
+            page,
+            reason: !ex.name ? 'no name on page' : 'no phone on page',
+          });
+          continue;
+        }
+        try {
+          const committed = await commitLead({ db, agentId, sourceFileUrl, extracted: ex });
+          created.push({
+            leadId: committed.leadId,
+            leadCode: committed.leadCode,
+            codeKind: committed.codeKind,
+            name: ex.name,
+            phone: ex.phone,
+            formType: ex.formType,
+            page,
+            extractionConfidence: ex.extractionConfidence,
+          });
+        } catch (commitErr) {
+          console.error(`[leads/upload] commit failed for page ${page}:`, commitErr);
+          failed.push({
+            page,
+            reason: commitErr instanceof Error ? commitErr.message : 'commit failed',
+          });
+        }
+      }
+    }
 
     return NextResponse.json({
-      leadId: leadRef.id,
-      leadCode,
-      codeKind,
-      formType: extracted.formType,
-      extractionConfidence: extracted.extractionConfidence,
-      extractionFlags: extracted.extractionFlags,
-      extracted,
+      multi: true,
+      pageCount,
+      leads: created,
+      failed,
       sourceFileUrl,
     });
   } catch (error) {
@@ -215,8 +245,90 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Next.js App Router config — let the file upload run a bit longer
-// than the default. The Claude call is the long pole (~5-15s for a
-// vision request); 60s is safe.
+/**
+ * Write a single lead doc + leadCodes index entry. Returns the new
+ * leadId, the resolved leadCode, and whether the code was derived from
+ * the lead's phone or fell back to a random L-code.
+ *
+ * Throws on Firestore failure.
+ */
+async function commitLead(ctx: {
+  db: FirebaseFirestore.Firestore;
+  agentId: string;
+  sourceFileUrl: string;
+  extracted: ExtractedLeadFields;
+}): Promise<{ leadId: string; leadCode: string; codeKind: 'derived' | 'fallback' }> {
+  const { db, agentId, sourceFileUrl, extracted } = ctx;
+  const leadRef = db.collection('agents').doc(agentId).collection('leads').doc();
+
+  // ── Resolve lead code (phone-derived preferred, random L fallback) ──
+  let leadCode: string;
+  let codeKind: 'derived' | 'fallback';
+  const derived = deriveLeadCode(extracted.phone);
+  if (derived) {
+    try {
+      await db.collection('leadCodes').doc(derived).create({
+        agentId,
+        leadId: leadRef.id,
+      });
+      leadCode = derived;
+      codeKind = 'derived';
+    } catch {
+      leadCode = await generateUniqueLeadCode();
+      codeKind = 'fallback';
+      await db.collection('leadCodes').doc(leadCode).set({
+        agentId,
+        leadId: leadRef.id,
+      });
+    }
+  } else {
+    leadCode = await generateUniqueLeadCode();
+    codeKind = 'fallback';
+    await db.collection('leadCodes').doc(leadCode).set({
+      agentId,
+      leadId: leadRef.id,
+    });
+  }
+
+  // ── Compose lead doc ──
+  const leadDoc: Record<string, unknown> = {
+    name: extracted.name,
+    phone: extracted.phone,
+    leadCode,
+    codeKind,
+    formType: extracted.formType,
+    sourceFileUrl,
+    extractionConfidence: extracted.extractionConfidence,
+    extractionFlags: extracted.extractionFlags,
+    createdAt: FieldValue.serverTimestamp(),
+    createdBy: agentId,
+  };
+  if (extracted.email) leadDoc.email = extracted.email;
+  if (extracted.dateOfBirth) leadDoc.dateOfBirth = extracted.dateOfBirth;
+  if (extracted.ageYears !== null) leadDoc.ageYears = extracted.ageYears;
+  if (extracted.address) leadDoc.address = extracted.address;
+  if (extracted.gender) leadDoc.gender = extracted.gender;
+  if (extracted.heightText) leadDoc.heightText = extracted.heightText;
+  if (extracted.weightLbs !== null) leadDoc.weightLbs = extracted.weightLbs;
+  if (extracted.smokerStatus) leadDoc.smokerStatus = extracted.smokerStatus;
+  if (extracted.coborrowerStatus) leadDoc.coborrowerStatus = extracted.coborrowerStatus;
+  // Always store phones[] when we have at least one — even single-phone
+  // leads benefit from having the structured array for dial tracking.
+  if (extracted.phones && extracted.phones.length > 0) {
+    leadDoc.phones = extracted.phones;
+  } else if (extracted.phone) {
+    leadDoc.phones = [{ number: extracted.phone, label: null }];
+  }
+  if (extracted.mortgageDetails) leadDoc.mortgageDetails = extracted.mortgageDetails;
+  if (extracted.spouseName) leadDoc.spouseName = extracted.spouseName;
+  if (extracted.spouseAgeYears !== null) leadDoc.spouseAgeYears = extracted.spouseAgeYears;
+  if (extracted.beneficiaryName) leadDoc.beneficiaryName = extracted.beneficiaryName;
+
+  await leadRef.set(leadDoc);
+  return { leadId: leadRef.id, leadCode, codeKind };
+}
+
+// Next.js App Router config — multi-lead can take 30-60s for a 10-page
+// PDF (Anthropic vision calls in chunks of 4). 90s gives headroom.
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 90;

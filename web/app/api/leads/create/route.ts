@@ -105,6 +105,9 @@ export async function POST(req: NextRequest) {
     const leadDoc: Record<string, unknown> = {
       name,
       phone,
+      // Structured phone list — even manually-created single-phone leads
+      // get the array shape so the lead page UI can render uniformly.
+      phones: [{ number: phone, label: null }],
       leadCode,
       codeKind,
       formType,

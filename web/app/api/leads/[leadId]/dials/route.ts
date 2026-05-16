@@ -28,6 +28,12 @@ interface DialEntry {
   at: Timestamp;
   outcome: DialOutcome;
   notes?: string;
+  /**
+   * Which phone number was dialed (digits + formatting as the agent
+   * tapped it). Optional for back-compat with single-phone leads
+   * created before multi-phone shipped.
+   */
+  phoneDialed?: string;
 }
 
 /**
@@ -69,6 +75,7 @@ export async function POST(
     const body = await req.json().catch(() => ({}));
     const outcome = typeof body?.outcome === 'string' ? body.outcome.trim() : '';
     const notes = typeof body?.notes === 'string' ? body.notes.trim().slice(0, 500) : '';
+    const phoneDialed = typeof body?.phoneDialed === 'string' ? body.phoneDialed.trim().slice(0, 40) : '';
 
     if (!VALID_OUTCOMES.includes(outcome as DialOutcome)) {
       return NextResponse.json(
@@ -92,6 +99,7 @@ export async function POST(
       at: Timestamp.now(),
       outcome: outcome as DialOutcome,
       ...(notes ? { notes } : {}),
+      ...(phoneDialed ? { phoneDialed } : {}),
     };
 
     await leadRef.update({
