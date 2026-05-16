@@ -169,6 +169,38 @@ function recommendCarriers(lead: LeadUnderwriting): RankedRecommendation[] {
   - Suggested-carriers card on the lead detail page
 - **Phase 2** (later): transcribe the long-tail medical conditions (40+ more rows) over several sessions. Daniel can also fill rows directly in `carrier-fit-rules.ts` himself — the schema is meant to be agent-editable.
 
+### Bundled-with-this-handoff task: lead PDF auto-archive cron
+
+Daniel raised this alongside the carrier engine. Build it in the **same session**; it's ~100 lines and addresses a real compliance posture concern (lead PDFs hold PII — name, DOB, address, mortgage, sometimes SSN).
+
+**Rule**: archive `lead.sourceFileUrl` after **21 days of inactivity**.
+
+**Inactivity = none of the following in the trailing 21 days**:
+- `lead.lastDialAt`
+- `lead.notesUpdatedAt`
+- Any appointment created / rescheduled / cancelled for the lead
+- Any underwriting / phone / autosave field edited on the lead
+
+**Hard-skip if**:
+- `lead.convertedToClientId` is set (converted leads keep their PDF indefinitely — historical record).
+- The lead has appointments scheduled in the future.
+
+**Action when archiving**:
+1. Delete the storage object at the path embedded in `lead.sourceFileUrl` (parse the signed URL or — better — read a separate `sourceFileStoragePath` field if it exists; if not, store the path on upload going forward).
+2. Update the lead doc: set `sourceFileUrl: null` + stamp `sourceFileArchivedAt: serverTimestamp()`.
+3. UI on the lead detail page shows *"Original PDF archived on {date} after 3 weeks of inactivity"* in place of the "Open original PDF →" link. Extracted fields stay — only the raw PDF is gone.
+
+**Implementation**:
+- New cron at `web/app/api/cron/lead-pdf-archive/route.ts`. Mirrors the auth pattern from `web/app/api/cron/welcome-action-item-expiry/route.ts` (CRON_SECRET bearer check).
+- Daily schedule in `web/vercel.json`: `"0 8 * * *"` (8am UTC).
+- Add `sourceFileStoragePath` field to the lead doc in `web/app/api/leads/upload/route.ts` so the archive cron doesn't have to re-derive it from the signed URL.
+- UI tweak: lead detail page "Open original PDF" link replaced with the archived-on text when `sourceFileUrl` is null + `sourceFileArchivedAt` is set.
+
+**Out of scope for v1**:
+- Per-agent override (Settings → "Archive after N days"). Defer; default of 21 is fine.
+- Notification to the agent that a PDF was archived. Defer.
+- Manual "Archive this lead's PDF now" button. Defer.
+
 ### Open questions to resolve with Daniel before building
 
 1. **Ranking priority** — when multiple carriers ACCEPT, what's the sort order? Alpha by carrier? By commission tier? By product type preference? I assumed alpha until told otherwise.
