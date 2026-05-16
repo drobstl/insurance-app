@@ -257,6 +257,44 @@ const AMAM_HOME_CERTAINTY: BuildChart = {
   notes: 'Identical chart to AMAM Express Term per the AMAM tab.',
 };
 
+// ─── Americo HMS / CBO Term / IUL ────────────────────────────────────
+// Source: Americo tab, the "HMS Plus 125, 125 CBO, HMS Plus 100, 100 CBO,
+// HMS Plus Payment Protector" column. Single accept range per height —
+// no class tiers, just min/max. Above max = decline.
+const AMERICO_HMS: BuildChart = {
+  productId: 'americo-hms',
+  unit: 'lbs',
+  source: 'Quility cheat sheet Americo tab, 2026-05-16',
+  classes: ['standard'],
+  rows: [
+    { heightInches: 56, minWeight: 78,  maxByClass: [189] },  // 4'8"
+    { heightInches: 57, minWeight: 80,  maxByClass: [196] },  // 4'9"
+    { heightInches: 58, minWeight: 83,  maxByClass: [203] },  // 4'10"
+    { heightInches: 59, minWeight: 86,  maxByClass: [210] },  // 4'11"
+    { heightInches: 60, minWeight: 89,  maxByClass: [217] },  // 5'0"
+    { heightInches: 61, minWeight: 92,  maxByClass: [224] },  // 5'1"
+    { heightInches: 62, minWeight: 95,  maxByClass: [232] },  // 5'2"
+    { heightInches: 63, minWeight: 98,  maxByClass: [239] },  // 5'3"
+    { heightInches: 64, minWeight: 101, maxByClass: [247] },  // 5'4"
+    { heightInches: 65, minWeight: 105, maxByClass: [255] },  // 5'5"
+    { heightInches: 66, minWeight: 108, maxByClass: [263] },  // 5'6"
+    { heightInches: 67, minWeight: 111, maxByClass: [271] },  // 5'7"
+    { heightInches: 68, minWeight: 115, maxByClass: [279] },  // 5'8"
+    { heightInches: 69, minWeight: 118, maxByClass: [287] },  // 5'9"
+    { heightInches: 70, minWeight: 121, maxByClass: [296] },  // 5'10"
+    { heightInches: 71, minWeight: 125, maxByClass: [304] },  // 5'11"
+    { heightInches: 72, minWeight: 132, maxByClass: [313] },  // 6'0"
+    { heightInches: 73, minWeight: 133, maxByClass: [322] },  // 6'1"
+    { heightInches: 74, minWeight: 136, maxByClass: [331] },  // 6'2"
+    { heightInches: 75, minWeight: 140, maxByClass: [340] },  // 6'3"
+    { heightInches: 76, minWeight: 143, maxByClass: [349] },  // 6'4"
+    { heightInches: 77, minWeight: 147, maxByClass: [358] },  // 6'5"
+    { heightInches: 78, minWeight: 151, maxByClass: [367] },  // 6'6"
+    { heightInches: 79, minWeight: 155, maxByClass: [377] },  // 6'7"
+  ],
+  notes: 'Single accept range — no rate-class tiers in this chart. Above max = decline.',
+};
+
 export const BUILD_CHARTS: Record<string, BuildChart> = {
   [SBLI_EASYTRAK.productId]: SBLI_EASYTRAK,
   [UHL_SIMPLE_TERM.productId]: UHL_SIMPLE_TERM,
@@ -264,6 +302,7 @@ export const BUILD_CHARTS: Record<string, BuildChart> = {
   [BANNER_QLT_TERM_PLUS.productId]: BANNER_QLT_TERM_PLUS,
   [AMAM_EXPRESS_TERM.productId]: AMAM_EXPRESS_TERM,
   [AMAM_HOME_CERTAINTY.productId]: AMAM_HOME_CERTAINTY,
+  [AMERICO_HMS.productId]: AMERICO_HMS,
 };
 
 // ─── Height parsing ───────────────────────────────────────────────────
