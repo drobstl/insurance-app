@@ -201,11 +201,69 @@ const BANNER_QLT_TERM_PLUS: BuildChart = {
   ],
 };
 
+// ─── AMAM Express Term + Home Certainty Term ─────────────────────────
+// Source has TWO charts that both apply to these two products:
+//  - Main chart: Max Weight Within Table 2 + Max Weight Within Table 4
+//    (rated tier). Heights 4'10"–6'9".
+//  - Preferred Rates (Unisex) chart: tighter thresholds for preferred
+//    class. Heights 4'8"–6'7" only.
+// Build the unified table with `preferred | standard | rated` classes.
+// Where a class doesn't apply at a given height, null is used.
+const AMAM_EXPRESS_TERM_ROWS: BuildChartRow[] = [
+  { heightInches: 56, minWeight: 88,  maxByClass: [144, null, null] },  // 4'8"  (preferred only)
+  { heightInches: 57, minWeight: 90,  maxByClass: [149, null, null] },  // 4'9"  (preferred only)
+  { heightInches: 58, minWeight: 86,  maxByClass: [154, 182, 199] },    // 4'10"
+  { heightInches: 59, minWeight: 88,  maxByClass: [160, 188, 205] },    // 4'11"
+  { heightInches: 60, minWeight: 90,  maxByClass: [165, 195, 212] },    // 5'0"
+  { heightInches: 61, minWeight: 93,  maxByClass: [171, 201, 220] },    // 5'1"
+  { heightInches: 62, minWeight: 95,  maxByClass: [177, 208, 227] },    // 5'2"
+  { heightInches: 63, minWeight: 99,  maxByClass: [182, 215, 234] },    // 5'3"
+  { heightInches: 64, minWeight: 101, maxByClass: [188, 221, 242] },    // 5'4"
+  { heightInches: 65, minWeight: 104, maxByClass: [194, 228, 249] },    // 5'5"
+  { heightInches: 66, minWeight: 106, maxByClass: [200, 235, 257] },    // 5'6"
+  { heightInches: 67, minWeight: 110, maxByClass: [206, 243, 265] },    // 5'7"
+  { heightInches: 68, minWeight: 113, maxByClass: [212, 250, 273] },    // 5'8"
+  { heightInches: 69, minWeight: 117, maxByClass: [219, 257, 281] },    // 5'9"
+  { heightInches: 70, minWeight: 120, maxByClass: [225, 265, 289] },    // 5'10"
+  { heightInches: 71, minWeight: 125, maxByClass: [231, 272, 298] },    // 5'11"
+  { heightInches: 72, minWeight: 129, maxByClass: [238, 280, 306] },    // 6'0"
+  { heightInches: 73, minWeight: 133, maxByClass: [245, 288, 315] },    // 6'1"
+  { heightInches: 74, minWeight: 136, maxByClass: [251, 296, 323] },    // 6'2"
+  { heightInches: 75, minWeight: 140, maxByClass: [258, 304, 332] },    // 6'3"
+  { heightInches: 76, minWeight: 143, maxByClass: [265, 312, 341] },    // 6'4"
+  { heightInches: 77, minWeight: 146, maxByClass: [272, 320, 350] },    // 6'5"
+  { heightInches: 78, minWeight: 149, maxByClass: [279, 329, 359] },    // 6'6"
+  { heightInches: 79, minWeight: 153, maxByClass: [287, 337, 368] },    // 6'7"
+  { heightInches: 80, minWeight: 157, maxByClass: [null, 346, 378] },   // 6'8"  (no preferred row)
+  { heightInches: 81, minWeight: 160, maxByClass: [null, 355, 387] },   // 6'9"  (no preferred row)
+];
+
+const AMAM_EXPRESS_TERM: BuildChart = {
+  productId: 'amam-express-term',
+  unit: 'lbs',
+  source: 'Quility cheat sheet AMAM tab, 2026-05-16',
+  classes: ['preferred', 'standard', 'rated'],
+  rows: AMAM_EXPRESS_TERM_ROWS,
+  notes: 'Standard = within Table 2; Rated = within Table 4 (still accepts but higher tier). Above Table 4 = decline.',
+};
+
+// Identical chart per AMAM tab. Same rows reused.
+const AMAM_HOME_CERTAINTY: BuildChart = {
+  productId: 'amam-home-certainty',
+  unit: 'lbs',
+  source: 'Quility cheat sheet AMAM tab, 2026-05-16',
+  classes: ['preferred', 'standard', 'rated'],
+  rows: AMAM_EXPRESS_TERM_ROWS,
+  notes: 'Identical chart to AMAM Express Term per the AMAM tab.',
+};
+
 export const BUILD_CHARTS: Record<string, BuildChart> = {
   [SBLI_EASYTRAK.productId]: SBLI_EASYTRAK,
   [UHL_SIMPLE_TERM.productId]: UHL_SIMPLE_TERM,
   [UHL_FINAL_EXPENSE.productId]: UHL_FINAL_EXPENSE,
   [BANNER_QLT_TERM_PLUS.productId]: BANNER_QLT_TERM_PLUS,
+  [AMAM_EXPRESS_TERM.productId]: AMAM_EXPRESS_TERM,
+  [AMAM_HOME_CERTAINTY.productId]: AMAM_HOME_CERTAINTY,
 };
 
 // ─── Height parsing ───────────────────────────────────────────────────
