@@ -61,6 +61,10 @@ export interface CarrierProduct {
   priority: number;              // 1 = top healthy-pick, 2 = fallback, 5 = default
   brandNotes?: string;           // e.g. "Quility Secure Future Preferred"
   dataIncomplete?: boolean;      // true when cheat-sheet cells are mostly empty for this column
+  // Carrier-specific tobacco quirks. Rendered under the suggestion only
+  // when the lead's smoker status is 'Y'. Out-of-band from the rules
+  // engine because these affect rate class, not accept/decline.
+  smokerNote?: string;
   rules: Partial<Record<UnderwritingConditionKey, RuleFn>>;
 }
 
@@ -368,6 +372,7 @@ export const CARRIER_PRODUCTS: CarrierProduct[] = [
     ageMin: 40, ageMax: 85,
     smokerAgeMax: 80,
     priority: 2,
+    smokerNote: 'First 3 years at non-tobacco rate. Locks in permanently if they quit. (If they don\'t notify the carrier after 3y, face amount auto-reduces.)',
     rules: {
       hiv: HIV_HARD_DECLINE,
       kidneyDisease: KIDNEY_HARD_DECLINE,
@@ -418,6 +423,7 @@ export const CARRIER_PRODUCTS: CarrierProduct[] = [
     productType: 'term',
     ageMin: 18, ageMax: 80,
     priority: 5,
+    smokerNote: 'Vaping, cigars, and chewing tobacco count as non-tobacco on Strong Foundation. (Smart UL is different — those count as tobacco there.)',
     rules: {
       hiv: HIV_HARD_DECLINE,
       kidneyDisease: KIDNEY_HARD_DECLINE,

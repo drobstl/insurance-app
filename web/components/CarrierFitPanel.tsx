@@ -185,6 +185,11 @@ function CarrierFitPanelInner({
                         {r.notes.slice(0, 2).join(' · ')}
                       </div>
                     )}
+                    {derived.smoker === 'Y' && r.product.smokerNote && (
+                      <div className="mt-1 text-[11px] text-[#0D4D4D] bg-[#daf3f0] rounded-[5px] px-2 py-1">
+                        Tobacco quirk · {r.product.smokerNote}
+                      </div>
+                    )}
                   </div>
                   <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#daf3f0] text-[#005851]">
                     {PRODUCT_TYPE_LABEL[r.product.productType]}
