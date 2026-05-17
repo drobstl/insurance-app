@@ -22,6 +22,11 @@ interface Lead {
   phones?: Array<{ number: string; label?: 'cell' | 'home' | 'work' | 'other' | null }>;
   leadCode: string;
   formType?: string;
+  // Subset of fields from the PDF extractor that the lead list filters
+  // and sorts by. Other extracted fields aren't surfaced here — the lead
+  // detail page handles those.
+  address?: { street?: string; city?: string; state?: string; zip?: string };
+  email?: string;
   createdAt?: Timestamp | null;
   appDownloadedAt?: string | null;
   assessmentCompletedAt?: Timestamp | null;
@@ -42,6 +47,8 @@ interface Lead {
 }
 
 type LeadView = 'all' | 'queue';
+type LeadSortKey = 'name' | 'createdAt' | 'state' | 'source';
+type SortDir = 'asc' | 'desc';
 
 // ── Slide-flow geometry. Mirrors the Add Client flow on the Clients
 // page (web/app/dashboard/clients/page.tsx ~L4231) so the "open the
@@ -68,6 +75,14 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<LeadView>('all');
+
+  // ── Search + sort (All view only) ──
+  // Queue has its own priority sort that we don't override. Search +
+  // explicit sort are All-leads concerns — agent scanning the full
+  // book to find a specific lead or order by source/state/date.
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortKey, setSortKey] = useState<LeadSortKey>('createdAt');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   // Add-Lead flow ── replaces the centered modal with a horizontal
   // slide. addFlowOpen=true → list slides out left, form slides in
@@ -362,6 +377,59 @@ export default function LeadsPage() {
   // Sort: never-dialed first (most urgent — agent should reach out),
   // then by elapsed-time-since-last-attempt with weighting based on
   // outcome (callback-requested ages fast, voicemail ages slowly).
+  // ── Filtered + sorted All-leads view ──
+  // Search matches against name / phone / leadCode / formType / state /
+  // city (case-insensitive substring). Sort key cycles through
+  // name / createdAt / state / source with asc/desc toggle per the
+  // SortIcon helper below.
+  const filteredLeads = useMemo<Lead[]>(() => {
+    let result = leads;
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      result = result.filter((lead) => {
+        const fields = [
+          lead.name,
+          lead.phone,
+          lead.leadCode,
+          lead.formType,
+          lead.email,
+          lead.address?.state,
+          lead.address?.city,
+        ];
+        return fields.some((f) => typeof f === 'string' && f.toLowerCase().includes(q));
+      });
+    }
+    result = [...result].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === 'name') {
+        cmp = (a.name || '').localeCompare(b.name || '');
+      } else if (sortKey === 'createdAt') {
+        const aT = a.createdAt?.toDate().getTime() ?? 0;
+        const bT = b.createdAt?.toDate().getTime() ?? 0;
+        cmp = aT - bT;
+      } else if (sortKey === 'state') {
+        cmp = (a.address?.state || '').localeCompare(b.address?.state || '');
+      } else if (sortKey === 'source') {
+        cmp = (a.formType || '').localeCompare(b.formType || '');
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return result;
+  }, [leads, searchQuery, sortKey, sortDir]);
+
+  const handleSort = useCallback((key: LeadSortKey) => {
+    setSortKey((prev) => {
+      if (prev === key) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+        return prev;
+      }
+      // Default new-sort-key direction: asc for text, desc for date so
+      // the agent sees "newest first" the moment they click Created.
+      setSortDir(key === 'createdAt' ? 'desc' : 'asc');
+      return key;
+    });
+  }, []);
+
   const queueLeads = useMemo<Lead[]>(() => {
     const now = Date.now();
 
@@ -605,29 +673,63 @@ export default function LeadsPage() {
               with outcome-specific cooldowns. Designed for sit-down
               dialing sessions: open queue, dial top of list, log
               outcome, queue auto-resorts. */}
-          <div className="mb-4 flex items-center gap-1 border-b border-[#d0d0d0]">
-            <button
-              onClick={() => setView('all')}
-              className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
-                view === 'all'
-                  ? 'border-[#44bbaa] text-[#005851]'
-                  : 'border-transparent text-[#707070] hover:text-[#005851]'
-              }`}
-            >
-              All leads
-              <span className="ml-1.5 text-xs text-[#9CA3AF] font-normal">{leads.length}</span>
-            </button>
-            <button
-              onClick={() => setView('queue')}
-              className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
-                view === 'queue'
-                  ? 'border-[#44bbaa] text-[#005851]'
-                  : 'border-transparent text-[#707070] hover:text-[#005851]'
-              }`}
-            >
-              Call queue
-              <span className="ml-1.5 text-xs text-[#9CA3AF] font-normal">{queueLeads.length}</span>
-            </button>
+          <div className="mb-4 flex items-end justify-between gap-3 border-b border-[#d0d0d0]">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setView('all')}
+                className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+                  view === 'all'
+                    ? 'border-[#44bbaa] text-[#005851]'
+                    : 'border-transparent text-[#707070] hover:text-[#005851]'
+                }`}
+              >
+                All leads
+                <span className="ml-1.5 text-xs text-[#9CA3AF] font-normal">
+                  {view === 'all' && searchQuery.trim() ? `${filteredLeads.length} / ${leads.length}` : leads.length}
+                </span>
+              </button>
+              <button
+                onClick={() => setView('queue')}
+                className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+                  view === 'queue'
+                    ? 'border-[#44bbaa] text-[#005851]'
+                    : 'border-transparent text-[#707070] hover:text-[#005851]'
+                }`}
+              >
+                Call queue
+                <span className="ml-1.5 text-xs text-[#9CA3AF] font-normal">{queueLeads.length}</span>
+              </button>
+            </div>
+
+            {/* Search — only filters the All view. Hidden in Queue view
+                because the queue's purpose is "who should I call next"
+                — searching by name there would defeat the priority sort. */}
+            {view === 'all' && (
+              <div className="relative w-full max-w-xs mb-1.5">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search leads…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-8 py-1.5 bg-white rounded-[5px] border border-[#d0d0d0] text-sm text-[#000000] placeholder-[#707070] focus:outline-none focus:border-[#45bcaa]"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full text-[#707070] hover:bg-gray-100 flex items-center justify-center"
+                    aria-label="Clear search"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* PDF drop-zone */}
@@ -990,23 +1092,81 @@ export default function LeadsPage() {
                   </button>
                 </div>
               </div>
+            ) : filteredLeads.length === 0 && searchQuery.trim() ? (
+              <div className="p-10 text-center">
+                <p className="text-sm text-[#707070] mb-3">
+                  No leads match <span className="font-semibold text-[#000000]">&ldquo;{searchQuery}&rdquo;</span>.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="text-xs font-semibold text-[#44bbaa] hover:text-[#005751]"
+                >
+                  Clear search
+                </button>
+              </div>
             ) : (
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-[#d0d0d0] bg-[#f8f8f8]">
-                      <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Name</th>
+                      <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">
+                        <button
+                          type="button"
+                          onClick={() => handleSort('name')}
+                          className={`inline-flex items-center gap-1 hover:text-[#005851] ${sortKey === 'name' ? 'text-[#005851]' : ''}`}
+                        >
+                          Name
+                          <span className="text-[10px] w-2 inline-block">
+                            {sortKey === 'name' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                          </span>
+                        </button>
+                      </th>
                       <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Phone</th>
                       <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Code</th>
-                      <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Source</th>
+                      <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">
+                        <button
+                          type="button"
+                          onClick={() => handleSort('source')}
+                          className={`inline-flex items-center gap-1 hover:text-[#005851] ${sortKey === 'source' ? 'text-[#005851]' : ''}`}
+                        >
+                          Source
+                          <span className="text-[10px] w-2 inline-block">
+                            {sortKey === 'source' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                          </span>
+                        </button>
+                      </th>
+                      <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">
+                        <button
+                          type="button"
+                          onClick={() => handleSort('state')}
+                          className={`inline-flex items-center gap-1 hover:text-[#005851] ${sortKey === 'state' ? 'text-[#005851]' : ''}`}
+                        >
+                          State
+                          <span className="text-[10px] w-2 inline-block">
+                            {sortKey === 'state' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                          </span>
+                        </button>
+                      </th>
                       <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Downloaded</th>
                       <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Assessment</th>
-                      <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Created</th>
+                      <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">
+                        <button
+                          type="button"
+                          onClick={() => handleSort('createdAt')}
+                          className={`inline-flex items-center gap-1 hover:text-[#005851] ${sortKey === 'createdAt' ? 'text-[#005851]' : ''}`}
+                        >
+                          Created
+                          <span className="text-[10px] w-2 inline-block">
+                            {sortKey === 'createdAt' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                          </span>
+                        </button>
+                      </th>
                       <th className="px-5 py-3"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {leads.map((lead) => (
+                    {filteredLeads.map((lead) => (
                       <tr
                         key={lead.id}
                         className="border-b border-[#f1f1f1] hover:bg-[#f8f8f8] cursor-pointer transition-colors"
@@ -1040,6 +1200,7 @@ export default function LeadsPage() {
                           </div>
                         </td>
                         <td className="px-5 py-3.5 text-sm text-[#707070]">{lead.formType || '—'}</td>
+                        <td className="px-5 py-3.5 text-sm text-[#707070]">{lead.address?.state || '—'}</td>
                         <td className="px-5 py-3.5 text-sm text-[#707070]">
                           {lead.appDownloadedAt ? <span className="text-[#005851] font-semibold">✓</span> : '—'}
                         </td>
