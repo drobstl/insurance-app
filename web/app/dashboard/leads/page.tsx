@@ -1121,7 +1121,6 @@ export default function LeadsPage() {
                         </button>
                       </th>
                       <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Phone</th>
-                      <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Code</th>
                       <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">
                         <button
                           type="button"
@@ -1174,17 +1173,6 @@ export default function LeadsPage() {
                           </div>
                         </td>
                         <td className="px-5 py-3.5 text-sm text-[#444] whitespace-nowrap">{lead.phone}</td>
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs tracking-wider font-bold text-[#005851]">{lead.leadCode}</span>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); copyToClipboard(lead.leadCode); }}
-                              className="text-xs text-[#44bbaa] hover:text-[#005751] font-semibold"
-                            >
-                              {copiedCode === lead.leadCode ? 'Copied!' : 'Copy'}
-                            </button>
-                          </div>
-                        </td>
                         <td className="px-5 py-3.5 text-sm text-[#707070]">{lead.formType || '—'}</td>
                         <td className="px-5 py-3.5 text-sm text-[#707070]">
                           {lead.appDownloadedAt ? <span className="text-[#005851] font-semibold">✓</span> : '—'}
