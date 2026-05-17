@@ -179,24 +179,19 @@ export default function SendConfirmationDrawer({
   const [postSendOpen, setPostSendOpen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // Detect Web Share API + mobile UA. On macOS the share API exists
-  // but the Messages share-sheet target *drops the recipient* (agent
-  // lands in a blank thread) AND silently drops PDF attachments
-  // (license missing). So we restrict Web Share to mobile, where it
-  // works correctly direct-to-Messages. Desktop falls through to the
-  // sms: path below, which opens Messages with phone + body prefilled
-  // via Continuity and auto-downloads files for a one-drag handoff.
-  //
-  // History: a prior pass briefly flipped this to "Web Share on every
-  // platform" — that broke the macOS flow (no recipient, missing
-  // license). Reverted here.
+  // Web Share API on every platform that supports it — including
+  // macOS desktop. Daniel verified empirically (May 14, commit
+  // 8203ece) that macOS Safari/Chrome's share-sheet → Messages path
+  // pre-fills recipient + body + business card image when both
+  // `text` and `title` are passed to navigator.share(); the share
+  // sheet appears to parse the title for contact context. A May 15
+  // pass disabled this gate based on a different machine's test —
+  // we're restoring the original behavior. macOS-specific fallback
+  // (sms: + auto-download + drag panel) only fires if Web Share
+  // throws or canShare returns false.
   useEffect(() => {
-    if (typeof navigator === 'undefined') return;
-    const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (isMobile && 'canShare' in navigator) {
+    if (typeof navigator !== 'undefined' && 'canShare' in navigator) {
       setHasShareApi(true);
-    } else {
-      setHasShareApi(false);
     }
   }, []);
 
@@ -346,13 +341,19 @@ export default function SendConfirmationDrawer({
         navigator.canShare({ files, text: message })
       ) {
         try {
-          // No `title` — macOS Messages leaks the title into the SMS
-          // body (the lead would see "Appointment confirmation for
-          // Kizzy" prepended). Body text is enough; the share-sheet
-          // doesn't need a header.
+          // Pass `title` along with files + text. Daniel verified
+          // empirically that macOS share-sheet → Messages uses the
+          // title for context inference — it pre-fills the recipient
+          // when the title contains the lead's name (the share sheet
+          // appears to do a Contacts / Messages-history lookup against
+          // the name). A May 15 commit removed title claiming it
+          // leaked into SMS bodies on macOS — that observation may
+          // have been a different bug, and removing title is what
+          // broke the recipient pre-fill. Restoring.
           await navigator.share({
             files,
             text: message,
+            title: `Appointment ${kind === 'reminder' ? 'reminder' : 'confirmation'} for ${leadName}`,
           });
           await stampSent(attachedReport);
           onSent();
