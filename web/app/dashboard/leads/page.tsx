@@ -47,7 +47,7 @@ interface Lead {
 }
 
 type LeadView = 'all' | 'queue';
-type LeadSortKey = 'name' | 'createdAt' | 'state' | 'source';
+type LeadSortKey = 'name' | 'createdAt' | 'source';
 type SortDir = 'asc' | 'desc';
 
 // ── Slide-flow geometry. Mirrors the Add Client flow on the Clients
@@ -407,8 +407,6 @@ export default function LeadsPage() {
         const aT = a.createdAt?.toDate().getTime() ?? 0;
         const bT = b.createdAt?.toDate().getTime() ?? 0;
         cmp = aT - bT;
-      } else if (sortKey === 'state') {
-        cmp = (a.address?.state || '').localeCompare(b.address?.state || '');
       } else if (sortKey === 'source') {
         cmp = (a.formType || '').localeCompare(b.formType || '');
       }
@@ -1136,18 +1134,6 @@ export default function LeadsPage() {
                           </span>
                         </button>
                       </th>
-                      <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">
-                        <button
-                          type="button"
-                          onClick={() => handleSort('state')}
-                          className={`inline-flex items-center gap-1 hover:text-[#005851] ${sortKey === 'state' ? 'text-[#005851]' : ''}`}
-                        >
-                          State
-                          <span className="text-[10px] w-2 inline-block">
-                            {sortKey === 'state' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-                          </span>
-                        </button>
-                      </th>
                       <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Downloaded</th>
                       <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">Assessment</th>
                       <th className="text-left text-xs font-semibold text-[#707070] uppercase tracking-wider px-5 py-3">
@@ -1187,7 +1173,7 @@ export default function LeadsPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-5 py-3.5 text-sm text-[#444]">{lead.phone}</td>
+                        <td className="px-5 py-3.5 text-sm text-[#444] whitespace-nowrap">{lead.phone}</td>
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-xs tracking-wider font-bold text-[#005851]">{lead.leadCode}</span>
@@ -1200,7 +1186,6 @@ export default function LeadsPage() {
                           </div>
                         </td>
                         <td className="px-5 py-3.5 text-sm text-[#707070]">{lead.formType || '—'}</td>
-                        <td className="px-5 py-3.5 text-sm text-[#707070]">{lead.address?.state || '—'}</td>
                         <td className="px-5 py-3.5 text-sm text-[#707070]">
                           {lead.appDownloadedAt ? <span className="text-[#005851] font-semibold">✓</span> : '—'}
                         </td>
@@ -1208,7 +1193,7 @@ export default function LeadsPage() {
                           {lead.assessmentCompletedAt ? <span className="text-[#005851] font-semibold">✓</span> : '—'}
                         </td>
                         <td className="px-5 py-3.5 text-sm text-[#707070]">{formatTimestamp(lead.createdAt)}</td>
-                        <td className="px-5 py-3.5 text-right">
+                        <td className="px-5 py-3.5 text-right whitespace-nowrap">
                           <span className="text-[#44bbaa] text-sm font-semibold">Open →</span>
                         </td>
                       </tr>
