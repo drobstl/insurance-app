@@ -675,23 +675,16 @@ export default function SendConfirmationDrawer({
           <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/30 p-3 text-xs text-[#0D4D4D] leading-relaxed">
             {platform === 'mobile' && (
               <>
-                <strong>iPhone / Android:</strong> Tap Send → your share sheet opens with
+                <strong>On your phone:</strong> Tap Send → your share sheet opens with
                 files + message ready. Pick Messages → tap send. Done.
               </>
             )}
-            {platform === 'mac' && (
+            {platform !== 'mobile' && (
               <>
-                <strong>macOS:</strong> Two clicks. <strong>1.</strong> Opens Messages with
-                the recipient + message ready. <strong>2.</strong> Pops the share sheet
-                so you can drop the card + license into the open thread. Or use the
-                <em> Send from iPhone</em> link below for a one-tap version on your phone.
-              </>
-            )}
-            {platform === 'other' && (
-              <>
-                <strong>Desktop:</strong> Tap Send → Messages opens with the text ready.
-                Attachments don&apos;t auto-attach via SMS protocol — files download to
-                your tray and a panel appears so you can drag them into the message.
+                <strong>Desktop:</strong> Tap <strong>📱 Send from your phone</strong> →
+                a QR pops up → scan it with your phone&apos;s camera → AFL opens on
+                your phone with this confirmation ready → tap Send. One smooth flow,
+                no copying or dragging.
               </>
             )}
           </div>
@@ -713,13 +706,15 @@ export default function SendConfirmationDrawer({
               Not now
             </button>
 
-            {/* Platform-specific primary action.
-                - mobile (iPhone/Android): single-tap Web Share. Magic.
-                - mac: two-button flow — step 1 fires `sms:` URL,
-                  step 2 fires `navigator.share({ files })` so files
-                  land in the focused Messages thread.
-                - other desktop: sms: + auto-download + drag panel. */}
-            {platform === 'mobile' && (
+            {/* Primary action diverges by platform:
+                - mobile: single-tap Web Share to Messages (magical).
+                - desktop (Mac or other): show the QR — agent scans
+                  with their phone, AFL opens on phone with the drawer
+                  mounted, they tap Send there. The phone's Web Share
+                  delivers recipient + body + all files in one shot.
+                  Desktop browsers fundamentally can't match that, so
+                  we don't try anymore. */}
+            {platform === 'mobile' ? (
               <button
                 onClick={handleSendMobile}
                 disabled={busy || licenseLoading}
@@ -728,61 +723,59 @@ export default function SendConfirmationDrawer({
               >
                 {licenseLoading ? 'Loading license…' : busy ? 'Opening…' : 'Send'}
               </button>
-            )}
-
-            {platform === 'mac' && macStep === 'idle' && (
+            ) : (
               <button
-                onClick={handleMacStep1}
+                onClick={() => setShowQrModal(true)}
                 disabled={busy || licenseLoading}
                 className="flex-1 py-2.5 px-4 text-sm font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-50"
                 title={licenseLoading ? 'Waiting for license PDF to finish loading…' : undefined}
               >
-                {licenseLoading ? 'Loading license…' : '1. Open message draft →'}
-              </button>
-            )}
-
-            {platform === 'mac' && macStep === 'opened' && (
-              <button
-                onClick={handleMacStep2}
-                disabled={busy}
-                className="flex-1 py-2.5 px-4 text-sm font-semibold text-white bg-[#005851] hover:bg-[#004440] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-50 animate-pulse"
-              >
-                2. Copy {willAttachBusinessCard && willAttachLicense ? 'card + license' : willAttachBusinessCard ? 'card' : 'license'} to paste →
-              </button>
-            )}
-
-            {platform === 'other' && (
-              <button
-                onClick={handleSendOther}
-                disabled={busy || licenseLoading}
-                className="flex-1 py-2.5 px-4 text-sm font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-50"
-                title={licenseLoading ? 'Waiting for license PDF to finish loading…' : undefined}
-              >
-                {licenseLoading ? 'Loading license…' : busy ? 'Opening…' : 'Send'}
+                {licenseLoading ? 'Loading license…' : '📱 Send from your phone →'}
               </button>
             )}
           </div>
 
-          {/* Mac step-1 hint between clicks. Confirms Messages should
-              be open and tells the agent what's about to happen. */}
-          {platform === 'mac' && macStep === 'opened' && (
-            <p className="text-[11px] text-[#005851] text-center px-2">
-              Messages opened with the text — now click <strong>Copy</strong>, switch to Messages, and press <strong>Cmd+V</strong> to paste each attachment into the open thread.
-            </p>
+          {/* Fallback for desktop when the agent doesn't have their
+              phone handy — tucked under as a secondary action. The
+              actual flow is sms: + drag panel (Windows/Linux) or
+              sms: + copy/paste panel (Mac). Both are slower than the
+              QR path; we surface them only as a "don't have your
+              phone?" affordance. */}
+          {platform === 'mac' && (
+            macStep === 'idle' ? (
+              <button
+                type="button"
+                onClick={handleMacStep1}
+                disabled={busy || licenseLoading}
+                className="w-full py-2 px-3 text-xs font-semibold text-[#707070] hover:text-[#005851] transition-colors disabled:opacity-50"
+              >
+                Or send from this Mac (slower — open Messages + paste card/license)
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={handleMacStep2}
+                  disabled={busy}
+                  className="w-full py-2 px-3 text-xs font-semibold text-[#005851] hover:text-[#003832] bg-white rounded-[5px] border border-[#d0d0d0] transition-colors disabled:opacity-50 animate-pulse"
+                >
+                  Step 2: Copy {willAttachBusinessCard && willAttachLicense ? 'card + license' : willAttachBusinessCard ? 'card' : 'license'} to paste into Messages →
+                </button>
+                <p className="text-[11px] text-[#707070] text-center px-2">
+                  Messages opened with the text — now copy each attachment and Cmd+V into the open thread.
+                </p>
+              </div>
+            )
           )}
 
-          {/* "Send from phone" hand-off — available on every desktop
-              tier. Opens a QR modal that the agent scans with their
-              iPhone; the URL deep-links into AFL on the phone where
-              iOS Web Share delivers the magical one-tap flow. */}
-          {platform !== 'mobile' && (
+          {platform === 'other' && (
             <button
               type="button"
-              onClick={() => setShowQrModal(true)}
-              disabled={busy}
-              className="w-full py-2 px-3 text-xs font-semibold text-[#005851] hover:text-[#003832] hover:bg-white rounded-[5px] transition-colors disabled:opacity-50"
+              onClick={handleSendOther}
+              disabled={busy || licenseLoading}
+              className="w-full py-2 px-3 text-xs font-semibold text-[#707070] hover:text-[#005851] transition-colors disabled:opacity-50"
             >
-              📱 Or scan with your iPhone to send from there →
+              Or send from this computer (slower — opens SMS + downloads files to drag in)
             </button>
           )}
         </div>
@@ -797,9 +790,9 @@ export default function SendConfirmationDrawer({
           <div className="absolute inset-0 z-20 bg-white flex flex-col">
             <div className="p-5 border-b border-[#ececec] flex items-start justify-between">
               <div>
-                <h3 className="text-xl font-bold text-[#005851]">Send from your iPhone</h3>
+                <h3 className="text-xl font-bold text-[#005851]">Scan with your phone</h3>
                 <p className="text-xs text-[#707070] mt-1 leading-relaxed max-w-md">
-                  Open your iPhone&apos;s camera, point it at the QR code, and tap the notification. AFL opens on your phone with this confirmation ready to send — one tap and it&apos;s out the door.
+                  Point your phone&apos;s camera at the QR code (iPhone Camera app, or Android Camera / Google Lens). Tap the notification — AFL opens on your phone with this confirmation ready to send. One tap and it&apos;s out the door.
                 </p>
               </div>
               <button
