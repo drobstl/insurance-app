@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, type CSSProperties } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useMemo, useRef, type CSSProperties } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   collection,
   onSnapshot,
@@ -14,6 +14,7 @@ import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
 import AppointmentPicker from '../../../components/AppointmentPicker';
 import SendConfirmationDrawer from '../../../components/SendConfirmationDrawer';
+import LeadDetailPanel from '../../../components/LeadDetailPanel';
 
 interface Lead {
   id: string;
@@ -70,7 +71,15 @@ const SURFACE_HEADER = 'sticky top-0 z-10 flex items-center justify-between p-5 
 
 export default function LeadsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, agentProfile } = useDashboard();
+
+  // Right-pane selection (desktop call-queue view only). The URL param
+  // is the source of truth so refresh + back/forward + shareable links
+  // all work. `?leadId=ID` selects a lead into the right pane; when
+  // missing on the queue view, the auto-select effect below fills it
+  // with queueLeads[0] (top of the dial queue).
+  const urlSelectedLeadId = searchParams?.get('leadId') ?? null;
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -507,6 +516,41 @@ export default function LeadsPage() {
     return phones[minIdx].number;
   }, []);
 
+  // Replace the `?leadId=` param without scrolling or touching history.
+  // We use replace (not push) so each row click doesn't pile entries
+  // on the back stack — the agent moves through many leads per dial
+  // session and they shouldn't have to back-button through every one
+  // to get out.
+  const setSelectedLeadIdInUrl = useCallback((id: string | null) => {
+    const params = new URLSearchParams(searchParams?.toString() || '');
+    if (id) params.set('leadId', id);
+    else params.delete('leadId');
+    const qs = params.toString();
+    router.replace(qs ? `/dashboard/leads?${qs}` : '/dashboard/leads', { scroll: false });
+  }, [router, searchParams]);
+
+  // Viewport-aware row tap. On desktop (≥ md), the queue uses the
+  // two-pane layout — tapping a row updates `?leadId=` so the right
+  // pane loads the detail. On mobile, the right pane isn't rendered;
+  // fall through to the standalone detail route the way the lead list
+  // has worked all along.
+  const handleRowSelect = useCallback((leadId: string) => {
+    const isDesktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches;
+    if (isDesktop) {
+      setSelectedLeadIdInUrl(leadId);
+    } else {
+      router.push(`/dashboard/leads/${leadId}`);
+    }
+  }, [router, setSelectedLeadIdInUrl]);
+
+  // Desktop-only "select + dial" handoff. The queue picks the phone
+  // (least-dialed wins), bumps the nonce, and the LeadDetailPanel's
+  // pendingDial effect fires `tel:` + opens the outcome prompt in one
+  // motion. Mobile keeps the existing inline-outcome-chip flow inside
+  // `handleQueueCall`.
+  const [desktopPendingDial, setDesktopPendingDial] = useState<{ leadId: string; phone: string; nonce: number } | null>(null);
+  const dialNonceRef = useRef(0);
+
   const handleQueueCall = useCallback((lead: Lead, phoneOverride?: string) => {
     // Hard-stop on do-not-call leads. The queue filter already drops
     // them from the queue, but they can still appear in the All tab —
@@ -515,11 +559,23 @@ export default function LeadsPage() {
     const target = phoneOverride || pickQueueDialNumber(lead);
     const digits = target.replace(/\D/g, '');
     if (digits.length < 7) return;
+    const isDesktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches;
+    if (isDesktop) {
+      // Desktop two-pane: hand off the dial to LeadDetailPanel — it
+      // fires `tel:` and renders the outcome prompt inside the right
+      // pane. The nonce ensures the same phone fired twice in a row
+      // still re-triggers the panel's effect.
+      setSelectedLeadIdInUrl(lead.id);
+      dialNonceRef.current += 1;
+      setDesktopPendingDial({ leadId: lead.id, phone: target, nonce: dialNonceRef.current });
+      return;
+    }
+    // Mobile: dial inline + open the outcome chip under this row.
     setOutcomeError(null);
     setPendingOutcomeLeadId(lead.id);
     setPendingOutcomePhone(target);
     window.location.href = `tel:${digits}`;
-  }, [pickQueueDialNumber]);
+  }, [pickQueueDialNumber, setSelectedLeadIdInUrl]);
 
   // When the agent picks "Booked" as the outcome on a queue row,
   // open the appointment picker (which atomically logs the dial
@@ -626,6 +682,40 @@ export default function LeadsPage() {
     opacity: addFlowOpen ? 1 : 0,
     pointerEvents: addFlowOpen ? 'auto' : 'none',
   };
+
+  // ── Right-pane selection (desktop call-queue view only) ──
+  // URL is the source of truth; when missing, default to queueLeads[0]
+  // so the agent lands on "who you should call next" without an extra
+  // click. Falls back to null if the queue is empty.
+  const effectiveSelectedLeadId =
+    urlSelectedLeadId
+    ?? (view === 'queue' && queueLeads.length > 0 ? queueLeads[0].id : null);
+
+  // pendingDial is only forwarded to the panel when it matches the lead
+  // currently in the right pane — protects against a stale handoff if
+  // the user re-selected before the panel mounted.
+  const pendingDialForPanel =
+    desktopPendingDial && desktopPendingDial.leadId === effectiveSelectedLeadId
+      ? { phone: desktopPendingDial.phone, nonce: desktopPendingDial.nonce }
+      : null;
+
+  // Auto-advance after the panel logs an outcome (chip, booking, or
+  // convert). Booked / not_interested / wrong_number / do_not_call drop
+  // the lead off the queue; the others (no_answer / left_vm / callback)
+  // re-score to a heavily-negative number and fall to the bottom. So
+  // queueLeads.find(l => l.id !== current) reliably points at the next
+  // lead. We synchronously advance without waiting for the snapshot to
+  // re-arrive — the panel's POST has already gone out, and queueLeads
+  // will recompute as soon as Firestore confirms.
+  const advanceToNextQueueLead = useCallback(() => {
+    if (view !== 'queue') return;
+    const currentIdx = queueLeads.findIndex((l) => l.id === effectiveSelectedLeadId);
+    const next =
+      (currentIdx >= 0 ? queueLeads[currentIdx + 1] : null)
+      || queueLeads.find((l) => l.id !== effectiveSelectedLeadId)
+      || null;
+    setSelectedLeadIdInUrl(next ? next.id : null);
+  }, [view, queueLeads, effectiveSelectedLeadId, setSelectedLeadIdInUrl]);
 
   return (
     <div className={`max-w-7xl mx-auto ${addFlowOpen ? 'overflow-x-visible' : 'overflow-x-clip'}`}>
@@ -924,8 +1014,16 @@ export default function LeadsPage() {
             </div>
           )}
 
-          {/* List card — branches on view */}
-          <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden">
+          {/* List card — branches on view. In queue view with at least
+              one lead, desktop (≥ md) splits into a narrow list rail on
+              the left + LeadDetailPanel on the right so the agent sees
+              the full lead profile while dialing. Mobile keeps the
+              single-column layout with the inline outcome chip flow
+              under each row. */}
+          <div className={view === 'queue' && !loading && queueLeads.length > 0 ? 'md:flex md:gap-4 md:items-start' : ''}>
+          <div className={`bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden ${
+            view === 'queue' && !loading && queueLeads.length > 0 ? 'md:w-[360px] md:shrink-0' : ''
+          }`}>
             {view === 'queue' && !loading && queueLeads.length > 0 ? (
               <div>
                 <div className="px-5 py-3 bg-[#daf3f0]/30 border-b border-[#d0d0d0] text-xs text-[#005851] font-semibold">
@@ -936,12 +1034,17 @@ export default function LeadsPage() {
                   {queueLeads.map((lead, idx) => {
                     const isPending = pendingOutcomeLeadId === lead.id;
                     const isLogging = loggingOutcomeId === lead.id;
+                    const isSelected = effectiveSelectedLeadId === lead.id;
                     return (
-                      <li key={lead.id} className={`px-5 py-3.5 ${isPending ? 'bg-[#FEFCE8]' : 'hover:bg-[#f8f8f8]'}`}>
+                      <li key={lead.id} className={`px-5 py-3.5 ${
+                        isPending ? 'bg-[#FEFCE8]' :
+                        isSelected ? 'md:bg-[#daf3f0]/40 hover:bg-[#f8f8f8] md:hover:bg-[#daf3f0]/50' :
+                        'hover:bg-[#f8f8f8]'
+                      }`}>
                         <div className="flex items-center gap-3">
                           <span className="text-xs font-bold text-[#9CA3AF] w-6 shrink-0 text-right">{idx + 1}.</span>
                           <button
-                            onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                            onClick={() => handleRowSelect(lead.id)}
                             className="flex-1 min-w-0 text-left"
                           >
                             <div className="text-sm font-semibold text-[#000000] truncate flex items-center gap-2">
@@ -983,12 +1086,14 @@ export default function LeadsPage() {
                           </button>
                         </div>
 
-                        {/* Inline outcome prompt — appears when agent
-                            tapped Call on this row. Same vocabulary as
-                            the detail-page prompt. Stays open until
-                            agent picks an outcome or hits Skip. */}
+                        {/* Inline outcome prompt — mobile-only. On
+                            desktop the LeadDetailPanel in the right
+                            pane owns the outcome chip flow. Same
+                            vocabulary as the detail-page prompt;
+                            stays open until agent picks an outcome
+                            or hits Skip. */}
                         {isPending && (
-                          <div className="mt-3 ml-9 flex items-center gap-2 flex-wrap">
+                          <div className="mt-3 ml-9 flex items-center gap-2 flex-wrap md:hidden">
                             <span className="text-xs font-semibold text-[#92400E]">How did it go?</span>
                             {(['no_answer', 'left_vm', 'callback_requested', 'booked', 'not_interested', 'wrong_number', 'do_not_call'] as const).map((outcome) => (
                               <button
@@ -1190,6 +1295,30 @@ export default function LeadsPage() {
                 </table>
               </div>
             )}
+          </div>
+          {/* Right pane — desktop call-queue view only. The LeadDetailPanel
+              shows the full lead profile + Call buttons + outcome chip +
+              Book/Convert next to the narrow list rail. Selection is in
+              `?leadId=`; auto-advances to the next queue lead after any
+              outcome chip / booking / conversion / deletion. */}
+          {view === 'queue' && !loading && queueLeads.length > 0 && (
+            <div className="hidden md:block md:flex-1 md:min-w-0">
+              <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5">
+                {effectiveSelectedLeadId ? (
+                  <LeadDetailPanel
+                    key={effectiveSelectedLeadId}
+                    leadId={effectiveSelectedLeadId}
+                    pendingDial={pendingDialForPanel}
+                    onConverted={advanceToNextQueueLead}
+                    onDeleted={advanceToNextQueueLead}
+                    onOutcomeLogged={advanceToNextQueueLead}
+                  />
+                ) : (
+                  <p className="text-sm text-[#707070]">Pick a lead from the queue to see their details.</p>
+                )}
+              </div>
+            </div>
+          )}
           </div>
         </div>
 
