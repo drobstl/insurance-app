@@ -178,11 +178,6 @@ export default function SendConfirmationDrawer({
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [licenseSignedUrl, setLicenseSignedUrl] = useState<string | null>(null);
   const [hasShareApi, setHasShareApi] = useState(false);
-  // After the desktop sms: send fires, swap the drawer body to a
-  // "Drag these in" panel with previews + Copy buttons. Lets the
-  // agent finish the attachment hand-off without leaving AFL.
-  const [postSendOpen, setPostSendOpen] = useState(false);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Platform tier:
   //   - 'mobile' (iPhone/Android) → Web Share is direct-to-Messages
@@ -211,12 +206,7 @@ export default function SendConfirmationDrawer({
     }
   }, []);
 
-  // Mac two-button state machine. 'idle' shows "Open message draft".
-  // After step 1 fires, advances to 'opened' which shows "Attach card
-  // + license". After step 2 fires, stamps sent + closes.
-  const [macStep, setMacStep] = useState<'idle' | 'opened'>('idle');
-
-  // QR/deep-link to iPhone modal.
+  // QR/deep-link to phone modal — the canonical desktop bridge.
   const [showQrModal, setShowQrModal] = useState(false);
 
   // True while we're fetching the license PDF bytes for the matched
@@ -289,105 +279,6 @@ export default function SendConfirmationDrawer({
   const willAttachBusinessCard = !businessCardAlreadySent && Boolean(businessCardFile);
   const willAttachLicense = !licenseAlreadySent && Boolean(licenseFile) && Boolean(matchedLicense);
 
-  /**
-   * Fire a browser download for a File by creating a temporary
-   * blob-URL anchor and clicking it. Used in the desktop sms: path
-   * (which can't carry attachments) so the agent has the files
-   * waiting in their Downloads to drag into Messages.
-   */
-  const triggerBrowserDownload = useCallback((file: File) => {
-    try {
-      const url = URL.createObjectURL(file);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = file.name;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      // Revoke after a short delay so the download actually picks up.
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (err) {
-      console.warn('triggerBrowserDownload failed:', err);
-    }
-  }, []);
-
-  /**
-   * Render the first page of a PDF File to a PNG Blob using pdfjs-dist.
-   * Dynamic import keeps the ~500 KB lib out of the main bundle —
-   * only loaded when an agent actually clicks "Copy license" on a
-   * macOS desktop session. Returns null on failure (caller falls
-   * back to download).
-   */
-  const renderPdfToPngBlob = useCallback(async (file: File): Promise<Blob | null> => {
-    try {
-      const pdfjs = await import('pdfjs-dist');
-      // pdfjs-dist needs a worker. Load the version-matched worker
-      // from unpkg at render time. Agent is online whenever they're
-      // sending a confirmation (web app), so the CDN dep is fine.
-      pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-      const arrayBuffer = await file.arrayBuffer();
-      const doc = await pdfjs.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
-      const page = await doc.getPage(1);
-      // Render at 2× scale so the image looks crisp when pasted into
-      // a Messages attachment preview.
-      const viewport = page.getViewport({ scale: 2 });
-      const canvas = document.createElement('canvas');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return null;
-      await page.render({ canvasContext: ctx, viewport, canvas }).promise;
-      return await new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), 'image/png'));
-    } catch (err) {
-      console.error('renderPdfToPngBlob failed:', err);
-      return null;
-    }
-  }, []);
-
-  /**
-   * Copy a File to the clipboard so the agent can paste it into
-   * Messages with Cmd+V. Image files go in directly. PDFs get
-   * rendered to a PNG first (via pdfjs-dist) then copied — this lets
-   * the license land in Messages as an inline image attachment via
-   * paste rather than requiring a drag-from-Downloads step.
-   */
-  const copyFileToClipboard = useCallback(async (file: File, key: string) => {
-    try {
-      if (file.type.startsWith('image/') && typeof ClipboardItem !== 'undefined') {
-        await navigator.clipboard.write([
-          new ClipboardItem({ [file.type]: file }),
-        ]);
-        setCopiedKey(key);
-        setTimeout(() => setCopiedKey((c) => (c === key ? null : c)), 1800);
-        return;
-      }
-      // PDF → render first page to PNG, then copy as image. Lets the
-      // license paste directly into a Messages thread on macOS via
-      // Cmd+V. If rendering fails, fall back to download so the agent
-      // still has the file in their Downloads tray.
-      if (file.type === 'application/pdf' && typeof ClipboardItem !== 'undefined') {
-        setCopiedKey(`${key}:loading`);
-        const pngBlob = await renderPdfToPngBlob(file);
-        if (pngBlob) {
-          await navigator.clipboard.write([
-            new ClipboardItem({ 'image/png': pngBlob }),
-          ]);
-          setCopiedKey(key);
-          setTimeout(() => setCopiedKey((c) => (c === key ? null : c)), 1800);
-          return;
-        }
-      }
-      // Final fallback — download.
-      triggerBrowserDownload(file);
-      setCopiedKey(key);
-      setTimeout(() => setCopiedKey((c) => (c === key ? null : c)), 1800);
-    } catch (err) {
-      console.warn('copyFileToClipboard failed:', err);
-      triggerBrowserDownload(file);
-    }
-  }, [renderPdfToPngBlob, triggerBrowserDownload]);
-
   // ── Helpers shared across send paths ──
   const buildFiles = useCallback(() => {
     const files: File[] = [];
@@ -453,81 +344,6 @@ export default function SendConfirmationDrawer({
       setBusy(false);
     }
   }, [buildFiles, message, stampSent, attachedReport, onSent, buildSmsUrl]);
-
-  /** Mac step 1 — fire `sms:` to open Messages with recipient + body.
-   *  No files attached yet. Advances state so the drawer footer shows
-   *  step 2. */
-  const handleMacStep1 = useCallback(() => {
-    setError(null);
-    const url = buildSmsUrl();
-    if (!url) {
-      setError('Lead phone number is missing or too short');
-      return;
-    }
-    // Note: `window.location.href = sms:…` would navigate the page
-    // away. We use a click on a hidden <a> to open the URL in a
-    // way that keeps the AFL tab focused (anchor click is treated
-    // as an external app launch, not a navigation).
-    const a = document.createElement('a');
-    a.href = url;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setMacStep('opened');
-  }, [buildSmsUrl]);
-
-  /** Mac step 2 — empirically, `navigator.share({ files })` on macOS
-   *  opens a new blank Messages thread instead of routing files into
-   *  the focused thread from step 1 (Daniel tested 2026-05-18). So
-   *  step 2 instead opens the copy-paste panel: Copy buttons that
-   *  push each file to the clipboard (PDF licenses get rendered to
-   *  PNG first via pdfjs-dist), and the agent pastes (Cmd+V) into
-   *  the already-open Messages thread. */
-  const handleMacStep2 = useCallback(async () => {
-    setError(null);
-    const files = buildFiles();
-    if (files.length === 0) {
-      // No attachments to send — treat as sent.
-      await stampSent(attachedReport);
-      onSent();
-      return;
-    }
-    setPostSendOpen(true);
-    await stampSent(attachedReport);
-  }, [buildFiles, stampSent, attachedReport, onSent]);
-
-  /** Windows / Linux desktop — sms: URL + auto-download attachments
-   *  + show drag panel so the agent can drag files into Messages
-   *  (or the equivalent SMS bridge on those platforms). */
-  const handleSendOther = useCallback(async () => {
-    setError(null);
-    setBusy(true);
-    try {
-      if (willAttachBusinessCard && businessCardFile) triggerBrowserDownload(businessCardFile);
-      if (willAttachLicense && licenseFile) triggerBrowserDownload(licenseFile);
-      const url = buildSmsUrl();
-      if (url) {
-        setTimeout(() => { window.location.href = url; }, 150);
-      }
-      setPostSendOpen(true);
-      await stampSent(attachedReport);
-    } catch (err) {
-      console.error('desktop send error:', err);
-      setError(err instanceof Error ? err.message : 'Send failed');
-    } finally {
-      setBusy(false);
-    }
-  }, [
-    willAttachBusinessCard,
-    businessCardFile,
-    willAttachLicense,
-    licenseFile,
-    buildSmsUrl,
-    stampSent,
-    attachedReport,
-    triggerBrowserDownload,
-  ]);
 
   /** "Send from phone" deep-link URL — agent scans QR with phone, the
    *  URL opens AFL in iPhone Safari deep-linked to this drawer. */
@@ -735,49 +551,6 @@ export default function SendConfirmationDrawer({
             )}
           </div>
 
-          {/* Fallback for desktop when the agent doesn't have their
-              phone handy — tucked under as a secondary action. The
-              actual flow is sms: + drag panel (Windows/Linux) or
-              sms: + copy/paste panel (Mac). Both are slower than the
-              QR path; we surface them only as a "don't have your
-              phone?" affordance. */}
-          {platform === 'mac' && (
-            macStep === 'idle' ? (
-              <button
-                type="button"
-                onClick={handleMacStep1}
-                disabled={busy || licenseLoading}
-                className="w-full py-2 px-3 text-xs font-semibold text-[#707070] hover:text-[#005851] transition-colors disabled:opacity-50"
-              >
-                Or send from this Mac (slower — open Messages + paste card/license)
-              </button>
-            ) : (
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={handleMacStep2}
-                  disabled={busy}
-                  className="w-full py-2 px-3 text-xs font-semibold text-[#005851] hover:text-[#003832] bg-white rounded-[5px] border border-[#d0d0d0] transition-colors disabled:opacity-50 animate-pulse"
-                >
-                  Step 2: Copy {willAttachBusinessCard && willAttachLicense ? 'card + license' : willAttachBusinessCard ? 'card' : 'license'} to paste into Messages →
-                </button>
-                <p className="text-[11px] text-[#707070] text-center px-2">
-                  Messages opened with the text — now copy each attachment and Cmd+V into the open thread.
-                </p>
-              </div>
-            )
-          )}
-
-          {platform === 'other' && (
-            <button
-              type="button"
-              onClick={handleSendOther}
-              disabled={busy || licenseLoading}
-              className="w-full py-2 px-3 text-xs font-semibold text-[#707070] hover:text-[#005851] transition-colors disabled:opacity-50"
-            >
-              Or send from this computer (slower — opens SMS + downloads files to drag in)
-            </button>
-          )}
         </div>
 
         {/* "Send from phone" QR overlay. Encodes a URL that, when
@@ -831,95 +604,6 @@ export default function SendConfirmationDrawer({
           </div>
         )}
 
-        {/* Post-send overlay — appears AFTER the sms: fires on desktop.
-            Files have been auto-downloaded; this panel shows previews +
-            Copy/Drag affordances so the agent can paste them into Messages
-            without leaving AFL. Closes via "Done" → onSent(). */}
-        {postSendOpen && (
-          <div className="absolute inset-0 z-10 bg-white flex flex-col">
-            <div className="p-5 border-b border-[#ececec]">
-              <h3 className="text-xl font-bold text-[#005851]">
-                {platform === 'mac' ? 'Paste these into Messages →' : 'Drag these into Messages →'}
-              </h3>
-              <p className="text-xs text-[#707070] mt-1 leading-relaxed">
-                {platform === 'mac' ? (
-                  <>
-                    Messages is open with the text + recipient. Click <strong>Copy</strong> below, switch to Messages, press <strong>Cmd+V</strong> to paste, then click Copy on the next file and paste it too. License PDF is rendered as an image for pasting.
-                  </>
-                ) : (
-                  <>
-                    Messages is opening with the text + phone prefilled. The files are saved to your Downloads folder. Drag them into the chat (or click <strong>Copy</strong> below and paste with Cmd+V), then hit Send in Messages.
-                  </>
-                )}
-              </p>
-            </div>
-            <div className="overflow-y-auto p-5 space-y-3 flex-1">
-              {willAttachBusinessCard && businessCardFile && (
-                <div className="flex items-center gap-3 rounded-[5px] border border-[#d0d0d0] bg-[#fafafa] p-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={agentBusinessCardBase64 ? `data:image/jpeg;base64,${agentBusinessCardBase64}` : ''}
-                    alt="Business card"
-                    className="h-14 w-14 object-cover rounded border border-[#d0d0d0]"
-                    draggable
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[#374151]">Business card</p>
-                    <p className="text-[11px] text-[#707070] truncate">{businessCardFile.name}</p>
-                  </div>
-                  <button
-                    onClick={() => copyFileToClipboard(businessCardFile, 'card')}
-                    className="px-3 py-1.5 text-xs font-semibold text-white bg-[#005851] hover:bg-[#004440] rounded-[5px]"
-                  >
-                    {copiedKey === 'card' ? 'Copied ✓' : 'Copy'}
-                  </button>
-                  <button
-                    onClick={() => triggerBrowserDownload(businessCardFile)}
-                    className="px-3 py-1.5 text-xs font-semibold text-[#0D4D4D] bg-white border border-[#d0d0d0] rounded-[5px] hover:bg-[#f8f8f8]"
-                  >
-                    Re-save
-                  </button>
-                </div>
-              )}
-              {willAttachLicense && licenseFile && (
-                <div className="flex items-center gap-3 rounded-[5px] border border-[#d0d0d0] bg-[#fafafa] p-3">
-                  <div className="h-14 w-14 rounded border border-[#d0d0d0] bg-white flex items-center justify-center text-[10px] font-bold text-[#005851]">
-                    PDF
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[#374151]">{pickedState} license</p>
-                    <p className="text-[11px] text-[#707070] truncate">{licenseFile.name}</p>
-                  </div>
-                  <button
-                    onClick={() => copyFileToClipboard(licenseFile, 'license')}
-                    className="px-3 py-1.5 text-xs font-semibold text-white bg-[#005851] hover:bg-[#004440] rounded-[5px]"
-                  >
-                    {copiedKey === 'license' ? 'Copied ✓' : 'Copy'}
-                  </button>
-                  <button
-                    onClick={() => triggerBrowserDownload(licenseFile)}
-                    className="px-3 py-1.5 text-xs font-semibold text-[#0D4D4D] bg-white border border-[#d0d0d0] rounded-[5px] hover:bg-[#f8f8f8]"
-                  >
-                    Re-save
-                  </button>
-                </div>
-              )}
-              {!willAttachBusinessCard && !willAttachLicense && (
-                <p className="text-sm text-[#707070]">
-                  No attachments for this send — message only. Hit Done when you&apos;ve sent in Messages.
-                </p>
-              )}
-            </div>
-            <div className="flex gap-3 p-5 border-t border-[#ececec] bg-[#fafafa]">
-              <button
-                onClick={() => { setPostSendOpen(false); onSent(); }}
-                className="flex-1 py-2.5 px-4 text-sm font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
