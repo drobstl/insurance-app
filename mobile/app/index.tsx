@@ -143,14 +143,17 @@ export function navigateToProfile(
   _linqLinePhone: string = '',
 ) {
   const clientCode = (clientData.clientCode as string) || '';
-  // Both clients AND leads register push tokens — leads need them for the
-  // appointment-reminder cron (Chunk 4f-extension), which auto-pushes a
-  // reminder to the lead's phone an agent-configurable number of hours
-  // before their appointment. The lead-code path uses the same
-  // /api/push-token/register endpoint (which now resolves both client
-  // codes and L-prefix lead codes). The lead doc gets a `pushToken` field
-  // identical in shape to a client's.
-  if (accessType === 'client' || accessType === 'lead') {
+  // Push-token registration is deliberately client-only — iOS gives exactly
+  // one "would like to send you notifications" OS prompt per install, and
+  // we save it for the close-of-sale activation ritual (when the agent is
+  // on the phone walking the new client through download + activation +
+  // notifications grant). Leads that later convert will hit this branch
+  // when they enter their new client code, and `activate.tsx`'s
+  // auto-prompt logic will fire the OS prompt fresh. Lead-side appointment
+  // push reminders won't have tokens to push to — that's accepted; leads
+  // get called by their agent at appointment time regardless. See
+  // HANDOFF_2026-05-18.
+  if (accessType === 'client') {
     registerAndSavePushToken(clientCode).catch((err) =>
       console.warn('Push token registration failed:', err),
     );
