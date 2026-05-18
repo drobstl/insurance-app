@@ -313,10 +313,44 @@ export default function SendConfirmationDrawer({
   }, []);
 
   /**
+   * Render the first page of a PDF File to a PNG Blob using pdfjs-dist.
+   * Dynamic import keeps the ~500 KB lib out of the main bundle —
+   * only loaded when an agent actually clicks "Copy license" on a
+   * macOS desktop session. Returns null on failure (caller falls
+   * back to download).
+   */
+  const renderPdfToPngBlob = useCallback(async (file: File): Promise<Blob | null> => {
+    try {
+      const pdfjs = await import('pdfjs-dist');
+      // pdfjs-dist needs a worker. Load the version-matched worker
+      // from unpkg at render time. Agent is online whenever they're
+      // sending a confirmation (web app), so the CDN dep is fine.
+      pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+      const arrayBuffer = await file.arrayBuffer();
+      const doc = await pdfjs.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+      const page = await doc.getPage(1);
+      // Render at 2× scale so the image looks crisp when pasted into
+      // a Messages attachment preview.
+      const viewport = page.getViewport({ scale: 2 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+      return await new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), 'image/png'));
+    } catch (err) {
+      console.error('renderPdfToPngBlob failed:', err);
+      return null;
+    }
+  }, []);
+
+  /**
    * Copy a File to the clipboard so the agent can paste it into
-   * Messages with Cmd+V. Images go in as image data; PDFs fall back
-   * to a download (Clipboard API doesn't reliably accept PDFs across
-   * browsers).
+   * Messages with Cmd+V. Image files go in directly. PDFs get
+   * rendered to a PNG first (via pdfjs-dist) then copied — this lets
+   * the license land in Messages as an inline image attachment via
+   * paste rather than requiring a drag-from-Downloads step.
    */
   const copyFileToClipboard = useCallback(async (file: File, key: string) => {
     try {
@@ -328,9 +362,23 @@ export default function SendConfirmationDrawer({
         setTimeout(() => setCopiedKey((c) => (c === key ? null : c)), 1800);
         return;
       }
-      // PDFs / non-image fallback — re-download. Most macOS Messages
-      // flows accept drag from Downloads more reliably than clipboard
-      // PDFs anyway.
+      // PDF → render first page to PNG, then copy as image. Lets the
+      // license paste directly into a Messages thread on macOS via
+      // Cmd+V. If rendering fails, fall back to download so the agent
+      // still has the file in their Downloads tray.
+      if (file.type === 'application/pdf' && typeof ClipboardItem !== 'undefined') {
+        setCopiedKey(`${key}:loading`);
+        const pngBlob = await renderPdfToPngBlob(file);
+        if (pngBlob) {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': pngBlob }),
+          ]);
+          setCopiedKey(key);
+          setTimeout(() => setCopiedKey((c) => (c === key ? null : c)), 1800);
+          return;
+        }
+      }
+      // Final fallback — download.
       triggerBrowserDownload(file);
       setCopiedKey(key);
       setTimeout(() => setCopiedKey((c) => (c === key ? null : c)), 1800);
@@ -338,7 +386,7 @@ export default function SendConfirmationDrawer({
       console.warn('copyFileToClipboard failed:', err);
       triggerBrowserDownload(file);
     }
-  }, [triggerBrowserDownload]);
+  }, [renderPdfToPngBlob, triggerBrowserDownload]);
 
   // ── Helpers shared across send paths ──
   const buildFiles = useCallback(() => {
@@ -429,37 +477,24 @@ export default function SendConfirmationDrawer({
     setMacStep('opened');
   }, [buildSmsUrl]);
 
-  /** Mac step 2 — `navigator.share({ files })` only (no text, no
-   *  title). The picked Messages target should land files into the
-   *  thread already focused from step 1. Bet is verified empirically
-   *  by Daniel. */
+  /** Mac step 2 — empirically, `navigator.share({ files })` on macOS
+   *  opens a new blank Messages thread instead of routing files into
+   *  the focused thread from step 1 (Daniel tested 2026-05-18). So
+   *  step 2 instead opens the copy-paste panel: Copy buttons that
+   *  push each file to the clipboard (PDF licenses get rendered to
+   *  PNG first via pdfjs-dist), and the agent pastes (Cmd+V) into
+   *  the already-open Messages thread. */
   const handleMacStep2 = useCallback(async () => {
     setError(null);
-    setBusy(true);
-    try {
-      const files = buildFiles();
-      if (files.length === 0) {
-        // No attachments to send — treat as sent.
-        await stampSent(attachedReport);
-        onSent();
-        return;
-      }
-      if (typeof navigator === 'undefined' || !('canShare' in navigator) || !navigator.canShare({ files })) {
-        setError('This browser cannot attach files via share sheet');
-        return;
-      }
-      await navigator.share({ files });
+    const files = buildFiles();
+    if (files.length === 0) {
+      // No attachments to send — treat as sent.
       await stampSent(attachedReport);
       onSent();
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        return;
-      }
-      console.error('mac step2 error:', err);
-      setError(err instanceof Error ? err.message : 'Attach failed');
-    } finally {
-      setBusy(false);
+      return;
     }
+    setPostSendOpen(true);
+    await stampSent(attachedReport);
   }, [buildFiles, stampSent, attachedReport, onSent]);
 
   /** Windows / Linux desktop — sms: URL + auto-download attachments
@@ -712,7 +747,7 @@ export default function SendConfirmationDrawer({
                 disabled={busy}
                 className="flex-1 py-2.5 px-4 text-sm font-semibold text-white bg-[#005851] hover:bg-[#004440] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-50 animate-pulse"
               >
-                {busy ? 'Opening…' : `2. Attach ${willAttachBusinessCard && willAttachLicense ? 'card + license' : willAttachBusinessCard ? 'card' : 'license'} →`}
+                2. Copy {willAttachBusinessCard && willAttachLicense ? 'card + license' : willAttachBusinessCard ? 'card' : 'license'} to paste →
               </button>
             )}
 
@@ -732,7 +767,7 @@ export default function SendConfirmationDrawer({
               be open and tells the agent what's about to happen. */}
           {platform === 'mac' && macStep === 'opened' && (
             <p className="text-[11px] text-[#005851] text-center px-2">
-              Messages opened with the text — now click <strong>Attach</strong> and pick Messages in the share sheet. Files will drop into the open thread.
+              Messages opened with the text — now click <strong>Copy</strong>, switch to Messages, and press <strong>Cmd+V</strong> to paste each attachment into the open thread.
             </p>
           )}
 
@@ -785,6 +820,11 @@ export default function SendConfirmationDrawer({
               <p className="text-[11px] text-[#9CA3AF] break-all text-center max-w-md px-4">
                 {phoneHandoffUrl}
               </p>
+              {/^https?:\/\/(localhost|127\.|192\.168\.|10\.|0\.0\.0\.0)/.test(phoneHandoffUrl) && (
+                <div className="max-w-md mx-2 px-3 py-2 rounded-[5px] bg-[#FEF3C7] border border-[#FCD34D] text-[11px] text-[#92400E] leading-relaxed">
+                  <strong>Dev mode:</strong> your phone can&apos;t reach <code>localhost</code> from Wi-Fi. To test the hand-off locally, start the dev server bound to your Mac&apos;s LAN IP (e.g. <code>HOST=0.0.0.0 npm run dev</code>) and replace <code>localhost</code> in the URL above with your Mac&apos;s IP. Or wait until AFL is deployed — the QR works automatically against the deployed domain.
+                </div>
+              )}
             </div>
             <div className="p-5 border-t border-[#ececec] bg-[#fafafa]">
               <button
@@ -805,9 +845,19 @@ export default function SendConfirmationDrawer({
         {postSendOpen && (
           <div className="absolute inset-0 z-10 bg-white flex flex-col">
             <div className="p-5 border-b border-[#ececec]">
-              <h3 className="text-xl font-bold text-[#005851]">Drag these into Messages →</h3>
+              <h3 className="text-xl font-bold text-[#005851]">
+                {platform === 'mac' ? 'Paste these into Messages →' : 'Drag these into Messages →'}
+              </h3>
               <p className="text-xs text-[#707070] mt-1 leading-relaxed">
-                Messages is opening with the text + phone prefilled. The files are saved to your Downloads folder. Drag them into the chat (or click <strong>Copy</strong> below and paste with Cmd+V), then hit Send in Messages.
+                {platform === 'mac' ? (
+                  <>
+                    Messages is open with the text + recipient. Click <strong>Copy</strong> below, switch to Messages, press <strong>Cmd+V</strong> to paste, then click Copy on the next file and paste it too. License PDF is rendered as an image for pasting.
+                  </>
+                ) : (
+                  <>
+                    Messages is opening with the text + phone prefilled. The files are saved to your Downloads folder. Drag them into the chat (or click <strong>Copy</strong> below and paste with Cmd+V), then hit Send in Messages.
+                  </>
+                )}
               </p>
             </div>
             <div className="overflow-y-auto p-5 space-y-3 flex-1">
