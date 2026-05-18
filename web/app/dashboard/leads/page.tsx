@@ -1214,6 +1214,7 @@ export default function LeadsPage() {
           <SendConfirmationDrawer
             user={user}
             appointmentId={confirmingLead.appointmentId}
+            leadId={confirmingLead.lead.id}
             leadName={confirmingLead.lead.name}
             leadPhone={confirmingLead.lead.phone}
             leadState={null /* leads list doesn't denormalize state — agent picks in drawer */}

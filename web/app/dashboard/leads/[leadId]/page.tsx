@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { User } from 'firebase/auth';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   doc,
   onSnapshot,
@@ -379,8 +379,14 @@ const AUTOSAVE_DEBOUNCE_MS = 600;
 export default function LeadDetailPage() {
   const router = useRouter();
   const params = useParams<{ leadId: string }>();
+  const searchParams = useSearchParams();
   const leadId = params?.leadId;
   const { user, agentProfile } = useDashboard();
+  // Deep-link query param — set by the "Send from phone" QR hand-off
+  // on macOS. When the agent scans the QR with their iPhone, AFL
+  // opens to this lead detail page with `?openConfirmation={apptId}`
+  // and the send-confirmation drawer auto-opens for that appointment.
+  const openConfirmationParam = searchParams?.get('openConfirmation');
 
   const [lead, setLead] = useState<Lead | null>(null);
   const [activity, setActivity] = useState<LeadActivityEntry[]>([]);
@@ -471,6 +477,26 @@ export default function LeadDetailPage() {
   // button on appointment cards that haven't been sent yet. Tracked
   // by appointment ID so the drawer knows which appointment to stamp.
   const [confirmingAppointmentId, setConfirmingAppointmentId] = useState<string | null>(null);
+  // Auto-open the send-confirmation drawer when the URL has
+  // ?openConfirmation={apptId} (the QR/deep-link hand-off from
+  // macOS). Wait until appointments are loaded so we can confirm the
+  // ID is valid before opening, and clear the param from the URL so
+  // a refresh doesn't re-open the drawer.
+  const handoffOpenedRef = useRef(false);
+  useEffect(() => {
+    if (handoffOpenedRef.current) return;
+    if (!openConfirmationParam || appointments.length === 0) return;
+    const match = appointments.find((a) => a.id === openConfirmationParam);
+    if (!match) return;
+    setConfirmingAppointmentId(openConfirmationParam);
+    handoffOpenedRef.current = true;
+    // Strip the param so a page refresh doesn't re-open the drawer.
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('openConfirmation');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [openConfirmationParam, appointments]);
 
   // ── Live lead doc ──
   useEffect(() => {
@@ -1727,6 +1753,7 @@ export default function LeadDetailPage() {
           <SendConfirmationDrawer
             user={user}
             appointmentId={appt.id}
+            leadId={lead.id}
             leadName={lead.name || ''}
             leadPhone={lead.phone || ''}
             leadState={lead.address?.state || null}

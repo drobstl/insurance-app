@@ -224,6 +224,7 @@ export default function UpcomingAppointmentsCard({
         <SendConfirmationDrawer
           user={user}
           appointmentId={reminderTarget.id}
+          leadId={reminderTarget.leadId}
           leadName={reminderTarget.leadName}
           leadPhone={reminderTarget.leadPhone}
           leadState={reminderTarget.leadState}

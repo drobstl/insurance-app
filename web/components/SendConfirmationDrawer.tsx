@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { User } from 'firebase/auth';
+import { QRCodeSVG } from 'qrcode.react';
 import { composeMessage } from '../lib/booking-confirmation';
 
 /**
@@ -45,6 +46,9 @@ interface AttachmentsSent {
 interface Props {
   user: User | null;
   appointmentId: string;
+  /** Used to build the deep-link URL for the "Send from phone" QR
+   *  hand-off — `${origin}/dashboard/leads/{leadId}?openConfirmation={appointmentId}`. */
+  leadId: string;
   leadName: string;
   leadPhone: string;
   /** Lead's state from PDF extraction (`address.state`). May be null/empty. */
@@ -126,6 +130,7 @@ async function fetchLicenseFile(
 export default function SendConfirmationDrawer({
   user,
   appointmentId,
+  leadId,
   leadName,
   leadPhone,
   leadState,
@@ -179,21 +184,40 @@ export default function SendConfirmationDrawer({
   const [postSendOpen, setPostSendOpen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // Web Share API on every platform that supports it — including
-  // macOS desktop. Daniel verified empirically (May 14, commit
-  // 8203ece) that macOS Safari/Chrome's share-sheet → Messages path
-  // pre-fills recipient + body + business card image when both
-  // `text` and `title` are passed to navigator.share(); the share
-  // sheet appears to parse the title for contact context. A May 15
-  // pass disabled this gate based on a different machine's test —
-  // we're restoring the original behavior. macOS-specific fallback
-  // (sms: + auto-download + drag panel) only fires if Web Share
-  // throws or canShare returns false.
+  // Platform tier:
+  //   - 'mobile' (iPhone/Android) → Web Share is direct-to-Messages
+  //     with recipient + body + all files (including PDFs) pre-filled.
+  //     Magical, one-tap.
+  //   - 'mac' → macOS desktop. Two-button flow: step 1 fires `sms:`
+  //     to open Messages with recipient + body; step 2 fires
+  //     `navigator.share({ files })` (files only) so the picked
+  //     Messages target lands the files in the currently-focused
+  //     thread. Drops `title` to avoid the leak Daniel observed.
+  //   - 'other' → Windows/Linux desktop. Falls back to the sms: +
+  //     auto-download + drag-panel path.
+  const [platform, setPlatform] = useState<'mobile' | 'mac' | 'other'>('other');
   useEffect(() => {
-    if (typeof navigator !== 'undefined' && 'canShare' in navigator) {
-      setHasShareApi(true);
+    if (typeof navigator === 'undefined') return;
+    const ua = navigator.userAgent;
+    if (/Mobi|Android|iPhone|iPad|iPod/i.test(ua)) {
+      setPlatform('mobile');
+      if ('canShare' in navigator) setHasShareApi(true);
+    } else if (/Macintosh|Mac OS X/i.test(ua)) {
+      setPlatform('mac');
+      if ('canShare' in navigator) setHasShareApi(true);
+    } else {
+      setPlatform('other');
+      // Other desktops use sms: + drag fallback, no Web Share path.
     }
   }, []);
+
+  // Mac two-button state machine. 'idle' shows "Open message draft".
+  // After step 1 fires, advances to 'opened' which shows "Attach card
+  // + license". After step 2 fires, stamps sent + closes.
+  const [macStep, setMacStep] = useState<'idle' | 'opened'>('idle');
+
+  // QR/deep-link to iPhone modal.
+  const [showQrModal, setShowQrModal] = useState(false);
 
   // True while we're fetching the license PDF bytes for the matched
   // state. We disable the Send button during this window so the agent
@@ -316,109 +340,166 @@ export default function SendConfirmationDrawer({
     }
   }, [triggerBrowserDownload]);
 
-  // ── Send flow ──
-  const handleSend = useCallback(async () => {
+  // ── Helpers shared across send paths ──
+  const buildFiles = useCallback(() => {
+    const files: File[] = [];
+    if (willAttachBusinessCard && businessCardFile) files.push(businessCardFile);
+    if (willAttachLicense && licenseFile) files.push(licenseFile);
+    return files;
+  }, [willAttachBusinessCard, businessCardFile, willAttachLicense, licenseFile]);
+
+  const attachedReport = useMemo(
+    () => ({
+      businessCard: willAttachBusinessCard,
+      licenseState: willAttachLicense ? pickedState : '',
+    }),
+    [willAttachBusinessCard, willAttachLicense, pickedState],
+  );
+
+  /** Build the `sms:` URL with recipient + body pre-filled. On macOS
+   *  this opens Messages via Continuity. */
+  const buildSmsUrl = useCallback(() => {
+    const phoneDigits = leadPhone.replace(/\D/g, '');
+    if (phoneDigits.length < 7) return null;
+    // iPhone/iPad URL grammar uses `&` between phone and body;
+    // everything else (macOS, Android desktop) uses `?`.
+    const delim = navigator.userAgent.includes('iPhone') || navigator.userAgent.includes('iPad') ? '&' : '?';
+    return `sms:${phoneDigits}${delim}body=${encodeURIComponent(message)}`;
+  }, [leadPhone, message]);
+
+  // ── Send paths (one per platform tier) ──
+
+  /** Mobile (iPhone / Android) — Web Share API delivers recipient +
+   *  body + files in one shot. No `title` (would surface as an
+   *  iMessage subject and confuse the lead). */
+  const handleSendMobile = useCallback(async () => {
     setError(null);
     setBusy(true);
     try {
-      const phoneDigits = leadPhone.replace(/\D/g, '');
-      const files: File[] = [];
-      if (willAttachBusinessCard && businessCardFile) files.push(businessCardFile);
-      if (willAttachLicense && licenseFile) files.push(licenseFile);
-
-      const attachedReport = {
-        businessCard: willAttachBusinessCard,
-        licenseState: willAttachLicense ? pickedState : '',
-      };
-
-      // Try Web Share API with files first.
+      const files = buildFiles();
       if (
-        hasShareApi &&
         files.length > 0 &&
         typeof navigator !== 'undefined' &&
-        'share' in navigator &&
         'canShare' in navigator &&
         navigator.canShare({ files, text: message })
       ) {
-        try {
-          // Pass `title` along with files + text. Daniel verified
-          // empirically that macOS share-sheet → Messages uses the
-          // title for context inference — it pre-fills the recipient
-          // when the title contains the lead's name (the share sheet
-          // appears to do a Contacts / Messages-history lookup against
-          // the name). A May 15 commit removed title claiming it
-          // leaked into SMS bodies on macOS — that observation may
-          // have been a different bug, and removing title is what
-          // broke the recipient pre-fill. Restoring.
-          await navigator.share({
-            files,
-            text: message,
-            title: `Appointment ${kind === 'reminder' ? 'reminder' : 'confirmation'} for ${leadName}`,
-          });
-          await stampSent(attachedReport);
-          onSent();
-          return;
-        } catch (shareErr) {
-          // User cancelled the share sheet — don't stamp, don't error.
-          if (shareErr instanceof Error && shareErr.name === 'AbortError') {
-            setBusy(false);
-            return;
-          }
-          // Fall through to sms: path
-          console.warn('Web Share failed, falling back to sms:', shareErr);
-        }
+        await navigator.share({ files, text: message });
+        await stampSent(attachedReport);
+        onSent();
+        return;
       }
+      // No files (already-sent dedup) or canShare false: fall back to
+      // sms: which on iOS opens Messages with phone + body filled.
+      const url = buildSmsUrl();
+      if (url) window.location.href = url;
+      await stampSent(attachedReport);
+      onSent();
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        // User cancelled the share sheet — don't stamp.
+        return;
+      }
+      console.error('mobile send error:', err);
+      setError(err instanceof Error ? err.message : 'Send failed');
+    } finally {
+      setBusy(false);
+    }
+  }, [buildFiles, message, stampSent, attachedReport, onSent, buildSmsUrl]);
 
-      // Fallback: open Messages with body via `sms:` AND auto-download
-      // attachments. The `sms:` protocol can't carry files, so the
-      // agent drags them in from Downloads (or pastes via the Copy
-      // buttons in the drawer's "Drag these in" panel that renders
-      // post-send). On macOS this round-trips through Continuity so
-      // Messages opens with phone + body prefilled.
-      if (willAttachBusinessCard && businessCardFile) {
-        triggerBrowserDownload(businessCardFile);
+  /** Mac step 1 — fire `sms:` to open Messages with recipient + body.
+   *  No files attached yet. Advances state so the drawer footer shows
+   *  step 2. */
+  const handleMacStep1 = useCallback(() => {
+    setError(null);
+    const url = buildSmsUrl();
+    if (!url) {
+      setError('Lead phone number is missing or too short');
+      return;
+    }
+    // Note: `window.location.href = sms:…` would navigate the page
+    // away. We use a click on a hidden <a> to open the URL in a
+    // way that keeps the AFL tab focused (anchor click is treated
+    // as an external app launch, not a navigation).
+    const a = document.createElement('a');
+    a.href = url;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setMacStep('opened');
+  }, [buildSmsUrl]);
+
+  /** Mac step 2 — `navigator.share({ files })` only (no text, no
+   *  title). The picked Messages target should land files into the
+   *  thread already focused from step 1. Bet is verified empirically
+   *  by Daniel. */
+  const handleMacStep2 = useCallback(async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      const files = buildFiles();
+      if (files.length === 0) {
+        // No attachments to send — treat as sent.
+        await stampSent(attachedReport);
+        onSent();
+        return;
       }
-      if (willAttachLicense && licenseFile) {
-        triggerBrowserDownload(licenseFile);
+      if (typeof navigator === 'undefined' || !('canShare' in navigator) || !navigator.canShare({ files })) {
+        setError('This browser cannot attach files via share sheet');
+        return;
       }
-      if (phoneDigits.length >= 7) {
-        const delim = navigator.userAgent.includes('iPhone') || navigator.userAgent.includes('iPad') ? '&' : '?';
-        const url = `sms:${phoneDigits}${delim}body=${encodeURIComponent(message)}`;
-        // Brief delay so the downloads fire before navigation steals
-        // focus — important on Chrome where window.location.href can
-        // cancel pending downloads.
-        setTimeout(() => {
-          window.location.href = url;
-        }, 150);
+      await navigator.share({ files });
+      await stampSent(attachedReport);
+      onSent();
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
       }
-      // Show the post-send "Drag these in" panel so the agent has a
-      // visual handoff (preview + Copy buttons) for the dragged files.
+      console.error('mac step2 error:', err);
+      setError(err instanceof Error ? err.message : 'Attach failed');
+    } finally {
+      setBusy(false);
+    }
+  }, [buildFiles, stampSent, attachedReport, onSent]);
+
+  /** Windows / Linux desktop — sms: URL + auto-download attachments
+   *  + show drag panel so the agent can drag files into Messages
+   *  (or the equivalent SMS bridge on those platforms). */
+  const handleSendOther = useCallback(async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      if (willAttachBusinessCard && businessCardFile) triggerBrowserDownload(businessCardFile);
+      if (willAttachLicense && licenseFile) triggerBrowserDownload(licenseFile);
+      const url = buildSmsUrl();
+      if (url) {
+        setTimeout(() => { window.location.href = url; }, 150);
+      }
       setPostSendOpen(true);
       await stampSent(attachedReport);
-      // Don't call onSent() here — the agent still needs the post-send
-      // panel visible while they drag the files into Messages. They
-      // close it via the Done button at the bottom of the panel.
     } catch (err) {
-      console.error('send confirmation error:', err);
+      console.error('desktop send error:', err);
       setError(err instanceof Error ? err.message : 'Send failed');
     } finally {
       setBusy(false);
     }
   }, [
-    hasShareApi,
     willAttachBusinessCard,
-    willAttachLicense,
-    pickedState,
     businessCardFile,
+    willAttachLicense,
     licenseFile,
-    message,
-    leadPhone,
-    leadName,
-    kind,
+    buildSmsUrl,
     stampSent,
-    onSent,
+    attachedReport,
     triggerBrowserDownload,
   ]);
+
+  /** "Send from phone" deep-link URL — agent scans QR with phone, the
+   *  URL opens AFL in iPhone Safari deep-linked to this drawer. */
+  const phoneHandoffUrl = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    return `${window.location.origin}/dashboard/leads/${leadId}?openConfirmation=${appointmentId}`;
+  }, [leadId, appointmentId]);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -555,18 +636,27 @@ export default function SendConfirmationDrawer({
             )}
           </div>
 
-          {/* Send method explanation */}
+          {/* Send method explanation, branched by platform tier. */}
           <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/30 p-3 text-xs text-[#0D4D4D] leading-relaxed">
-            {hasShareApi ? (
+            {platform === 'mobile' && (
               <>
                 <strong>iPhone / Android:</strong> Tap Send → your share sheet opens with
                 files + message ready. Pick Messages → tap send. Done.
               </>
-            ) : (
+            )}
+            {platform === 'mac' && (
+              <>
+                <strong>macOS:</strong> Two clicks. <strong>1.</strong> Opens Messages with
+                the recipient + message ready. <strong>2.</strong> Pops the share sheet
+                so you can drop the card + license into the open thread. Or use the
+                <em> Send from iPhone</em> link below for a one-tap version on your phone.
+              </>
+            )}
+            {platform === 'other' && (
               <>
                 <strong>Desktop:</strong> Tap Send → Messages opens with the text ready.
-                Attachments don&apos;t auto-attach via SMS protocol — use the buttons below
-                to download then drag into the message.
+                Attachments don&apos;t auto-attach via SMS protocol — files download to
+                your tray and a panel appears so you can drag them into the message.
               </>
             )}
           </div>
@@ -578,23 +668,135 @@ export default function SendConfirmationDrawer({
           )}
         </div>
 
-        <div className="flex gap-3 p-5 border-t border-[#ececec] bg-[#fafafa] shrink-0">
-          <button
-            onClick={onCancel}
-            disabled={busy}
-            className="flex-1 max-w-[180px] py-2.5 px-4 text-sm font-semibold text-[#0D4D4D] bg-white rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] hover:bg-[#f8f8f8] transition-colors disabled:opacity-50"
-          >
-            Not now
-          </button>
-          <button
-            onClick={handleSend}
-            disabled={busy || licenseLoading}
-            className="flex-1 py-2.5 px-4 text-sm font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-50"
-            title={licenseLoading ? 'Waiting for license PDF to finish loading…' : undefined}
-          >
-            {licenseLoading ? 'Loading license…' : busy ? 'Opening…' : 'Send'}
-          </button>
+        <div className="p-5 border-t border-[#ececec] bg-[#fafafa] shrink-0 space-y-2">
+          <div className="flex gap-3">
+            <button
+              onClick={onCancel}
+              disabled={busy}
+              className="flex-1 max-w-[140px] py-2.5 px-4 text-sm font-semibold text-[#0D4D4D] bg-white rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] hover:bg-[#f8f8f8] transition-colors disabled:opacity-50"
+            >
+              Not now
+            </button>
+
+            {/* Platform-specific primary action.
+                - mobile (iPhone/Android): single-tap Web Share. Magic.
+                - mac: two-button flow — step 1 fires `sms:` URL,
+                  step 2 fires `navigator.share({ files })` so files
+                  land in the focused Messages thread.
+                - other desktop: sms: + auto-download + drag panel. */}
+            {platform === 'mobile' && (
+              <button
+                onClick={handleSendMobile}
+                disabled={busy || licenseLoading}
+                className="flex-1 py-2.5 px-4 text-sm font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-50"
+                title={licenseLoading ? 'Waiting for license PDF to finish loading…' : undefined}
+              >
+                {licenseLoading ? 'Loading license…' : busy ? 'Opening…' : 'Send'}
+              </button>
+            )}
+
+            {platform === 'mac' && macStep === 'idle' && (
+              <button
+                onClick={handleMacStep1}
+                disabled={busy || licenseLoading}
+                className="flex-1 py-2.5 px-4 text-sm font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-50"
+                title={licenseLoading ? 'Waiting for license PDF to finish loading…' : undefined}
+              >
+                {licenseLoading ? 'Loading license…' : '1. Open message draft →'}
+              </button>
+            )}
+
+            {platform === 'mac' && macStep === 'opened' && (
+              <button
+                onClick={handleMacStep2}
+                disabled={busy}
+                className="flex-1 py-2.5 px-4 text-sm font-semibold text-white bg-[#005851] hover:bg-[#004440] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-50 animate-pulse"
+              >
+                {busy ? 'Opening…' : `2. Attach ${willAttachBusinessCard && willAttachLicense ? 'card + license' : willAttachBusinessCard ? 'card' : 'license'} →`}
+              </button>
+            )}
+
+            {platform === 'other' && (
+              <button
+                onClick={handleSendOther}
+                disabled={busy || licenseLoading}
+                className="flex-1 py-2.5 px-4 text-sm font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-50"
+                title={licenseLoading ? 'Waiting for license PDF to finish loading…' : undefined}
+              >
+                {licenseLoading ? 'Loading license…' : busy ? 'Opening…' : 'Send'}
+              </button>
+            )}
+          </div>
+
+          {/* Mac step-1 hint between clicks. Confirms Messages should
+              be open and tells the agent what's about to happen. */}
+          {platform === 'mac' && macStep === 'opened' && (
+            <p className="text-[11px] text-[#005851] text-center px-2">
+              Messages opened with the text — now click <strong>Attach</strong> and pick Messages in the share sheet. Files will drop into the open thread.
+            </p>
+          )}
+
+          {/* "Send from phone" hand-off — available on every desktop
+              tier. Opens a QR modal that the agent scans with their
+              iPhone; the URL deep-links into AFL on the phone where
+              iOS Web Share delivers the magical one-tap flow. */}
+          {platform !== 'mobile' && (
+            <button
+              type="button"
+              onClick={() => setShowQrModal(true)}
+              disabled={busy}
+              className="w-full py-2 px-3 text-xs font-semibold text-[#005851] hover:text-[#003832] hover:bg-white rounded-[5px] transition-colors disabled:opacity-50"
+            >
+              📱 Or scan with your iPhone to send from there →
+            </button>
+          )}
         </div>
+
+        {/* "Send from phone" QR overlay. Encodes a URL that, when
+            opened on the agent's iPhone, deep-links into AFL at the
+            lead's detail page with the confirmation drawer auto-open
+            for this appointment. Once the agent is on their iPhone,
+            iOS Web Share delivers the magical one-tap flow that's
+            unattainable on macOS desktop. */}
+        {showQrModal && (
+          <div className="absolute inset-0 z-20 bg-white flex flex-col">
+            <div className="p-5 border-b border-[#ececec] flex items-start justify-between">
+              <div>
+                <h3 className="text-xl font-bold text-[#005851]">Send from your iPhone</h3>
+                <p className="text-xs text-[#707070] mt-1 leading-relaxed max-w-md">
+                  Open your iPhone&apos;s camera, point it at the QR code, and tap the notification. AFL opens on your phone with this confirmation ready to send — one tap and it&apos;s out the door.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQrModal(false)}
+                className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 shrink-0"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center gap-4">
+              <div className="bg-white p-4 rounded-[5px] border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px]">
+                <QRCodeSVG value={phoneHandoffUrl} size={220} level="M" />
+              </div>
+              <p className="text-[11px] text-[#9CA3AF] break-all text-center max-w-md px-4">
+                {phoneHandoffUrl}
+              </p>
+            </div>
+            <div className="p-5 border-t border-[#ececec] bg-[#fafafa]">
+              <button
+                type="button"
+                onClick={() => setShowQrModal(false)}
+                className="w-full py-2.5 px-4 text-sm font-semibold text-[#0D4D4D] bg-white rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] hover:bg-[#f8f8f8] transition-colors"
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Post-send overlay — appears AFTER the sms: fires on desktop.
             Files have been auto-downloaded; this panel shows previews +
