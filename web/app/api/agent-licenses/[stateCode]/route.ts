@@ -5,7 +5,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore, getAdminStorage } from '../../../../lib/firebase-admin';
 import {
   isValidStateCode,
-  licenseStoragePath,
+  getLicenseForState,
   getLicenseSignedUrl,
   type StateCode,
 } from '../../../../lib/agent-licenses';
@@ -35,9 +35,9 @@ export async function GET(
     } catch {
       return NextResponse.json({ error: 'Invalid auth token' }, { status: 401 });
     }
-    const url = await getLicenseSignedUrl(decoded.uid, stateCode as StateCode);
-    if (!url) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    return NextResponse.json({ url });
+    const result = await getLicenseSignedUrl(decoded.uid, stateCode as StateCode);
+    if (!result) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    return NextResponse.json({ url: result.url, contentType: result.contentType });
   } catch (error) {
     console.error('agent-licenses/get error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -125,11 +125,14 @@ export async function DELETE(
     const db = getAdminFirestore();
     const storage = getAdminStorage().bucket();
 
-    // Best-effort delete of the PDF; missing file is fine.
-    await storage
-      .file(licenseStoragePath(decoded.uid, stateCode as StateCode))
-      .delete()
-      .catch(() => {});
+    // Best-effort delete of the stored file; missing file is fine.
+    // Use the entry's `pdfStoragePath` directly so we hit the right
+    // extension (legacy .pdf vs new .jpg / .png).
+    const entry = await getLicenseForState(decoded.uid, stateCode);
+    const path = entry?.pdfStoragePath;
+    if (path) {
+      await storage.file(path).delete().catch(() => {});
+    }
 
     // Remove the field from the agent doc using FieldValue.delete().
     await db.collection('agents').doc(decoded.uid).update({

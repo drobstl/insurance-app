@@ -320,6 +320,7 @@ export default function SettingsPage() {
     autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? false,
     reminderPushHoursBefore: agentProfile.reminderPushHoursBefore ?? 1,
     dialScript: agentProfile.dialScript || '',
+    dialPersistence: agentProfile.dialPersistence ?? 1,
     forwardInboundSms: agentProfile.forwardInboundSms ?? true,
   }), [
     agentProfile.name,
@@ -348,6 +349,7 @@ export default function SettingsPage() {
     agentProfile.autoCreateGoogleMeet,
     agentProfile.reminderPushHoursBefore,
     agentProfile.dialScript,
+    agentProfile.dialPersistence,
     agentProfile.forwardInboundSms,
   ]);
 
@@ -740,6 +742,11 @@ export default function SettingsPage() {
           return Math.min(24, Math.max(1, Math.round(raw)));
         })(),
         dialScript: (agentProfile.dialScript || '').slice(0, 8000),
+        dialPersistence: (() => {
+          const raw = Number(agentProfile.dialPersistence ?? 1);
+          if (raw === 2 || raw === 3) return raw;
+          return 1;
+        })(),
         forwardInboundSms: agentProfile.forwardInboundSms ?? true,
       }, { merge: true });
 
@@ -1976,6 +1983,44 @@ export default function SettingsPage() {
                   {t.token}
                 </span>
               ))}
+            </div>
+          </div>
+
+          {/* Dial persistence — how many attempts on a lead before the
+              call queue auto-advances. Transient outcomes (no answer,
+              voicemail) count toward the threshold; terminal outcomes
+              (booked, do_not_call, not_interested, wrong_number,
+              callback_requested) always advance regardless. */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Dial persistence</h3>
+            <p className="text-[11px] text-[#707070] mb-3">
+              How many times to dial a lead before the call queue moves on. Counts no-answer and voicemail outcomes; booked / wrong-number / not-interested / do-not-call / callback always advance immediately.
+            </p>
+            <div className="inline-flex rounded-[5px] border border-[#d0d0d0] overflow-hidden">
+              {([
+                { v: 1, label: 'Single', sub: '1 attempt' },
+                { v: 2, label: 'Double', sub: '2 attempts' },
+                { v: 3, label: 'Triple', sub: '3 attempts' },
+              ] as const).map((opt, idx) => {
+                const active = (agentProfile.dialPersistence ?? 1) === opt.v;
+                return (
+                  <button
+                    key={opt.v}
+                    type="button"
+                    onClick={() => updateField('dialPersistence', opt.v)}
+                    className={`px-4 py-2 text-sm font-semibold transition-colors text-left ${idx > 0 ? 'border-l border-[#d0d0d0]' : ''} ${
+                      active
+                        ? 'bg-[#005851] text-white'
+                        : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                    }`}
+                  >
+                    <div>{opt.label}</div>
+                    <div className={`text-[10px] font-normal ${active ? 'text-white/70' : 'text-[#707070]'}`}>
+                      {opt.sub}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
