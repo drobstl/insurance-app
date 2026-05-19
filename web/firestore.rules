@@ -81,6 +81,47 @@ service cloud.firestore {
         allow read: if request.auth != null && request.auth.uid == agentId;
         allow write: if false;
       }
+      // ─── LEADS (Phase 1 lead-mode) ───
+      // Pre-clients the agent set an appointment with. Code-only auth on
+      // the mobile side (lead users are not Firebase users) — reads from
+      // the mobile app go through the Admin SDK via
+      // /api/mobile/lookup-client-code and /api/mobile/lead-assessment, so
+      // no public read access is needed here. Dashboard reads + writes
+      // (autosave on notes / monthlyMortgageAmount) are client-direct and
+      // gated to the owning agent.
+      match /leads/{leadId} {
+        allow read: if request.auth != null && request.auth.uid == agentId;
+        allow write: if request.auth != null && request.auth.uid == agentId;
+      }
+      // ─── LEAD ACTIVITY (timeline for the lead-detail page) ───
+      // Server writes via Admin SDK on assessment submission etc.
+      // Dashboard reads via onSnapshot for the live activity timeline.
+      match /leadActivity/{entryId} {
+        allow read: if request.auth != null && request.auth.uid == agentId;
+        allow write: if false;
+      }
+      // ─── APPOINTMENTS (Phase 1 lead-mode booking) ───
+      // Stored at agents/{agentId}/appointments/{apptId} (top-level
+      // under the agent, not nested under the lead) so day-of cron
+      // jobs and the dashboard "today's appointments" view scan one
+      // subcollection per agent. The doc carries leadId as a back-
+      // reference for lead-detail filtering.
+      //
+      // Server writes via Admin SDK on POST /api/leads/[id]/appointments
+      // and PATCH /api/appointments/[id]. Dashboard reads client-side
+      // via onSnapshot for live appointment lists.
+      match /appointments/{apptId} {
+        allow read: if request.auth != null && request.auth.uid == agentId;
+        allow write: if false;
+      }
+    }
+    // ═══ LEAD CODES (top-level index for O(1) mobile lookup) ═══
+    // Mirrors the clientCodes pattern. Mobile lookup hits this via
+    // Admin SDK (server-side) so public read isn't strictly required,
+    // but match clientCodes for consistency (defensive write gating).
+    match /leadCodes/{code} {
+      allow read: if true;
+      allow write: if request.auth != null;
     }
     // ═══ TOP-LEVEL MIRRORS (for mobile app) ═══
     match /clients/{clientId} {

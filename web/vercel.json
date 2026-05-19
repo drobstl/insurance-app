@@ -67,6 +67,14 @@
     {
       "path": "/api/cron/bulk-import-drip-release",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/appointment-push-reminders",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/lead-pdf-archive",
+      "schedule": "0 8 * * *"
     }
   ]
 }

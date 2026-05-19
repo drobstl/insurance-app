@@ -12,6 +12,7 @@ import DashboardTicker from '../../components/DashboardTicker';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
 import { ANALYTICS_EVENTS } from '../../lib/analytics-events';
 import { captureEvent } from '../../lib/posthog';
+import { LEAD_MODE_ENABLED } from '../../lib/feature-flags';
 
 const FOUNDING_ACTIVATION_TIMEOUT_MS = 12000;
 // Hard ceiling for the activation spinner: if `activatingFounding` is still true
@@ -413,6 +414,16 @@ const NAV_ITEMS = [
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
     </svg>
   )},
+  // Pre-clients (Phase 1 lead-mode). Manual create + PDF upload (Mail-In /
+  // Call-In / Digital). Lead docs live at agents/{agentId}/leads/{leadId};
+  // generated codes are prefixed `L`. Lead-mode mobile screen lives at
+  // mobile/app/lead-home.tsx and detects lead vs client by accessType
+  // returned from /api/mobile/lookup-client-code.
+  { key: 'leads', path: '/dashboard/leads', label: 'Leads', icon: (
+    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+    </svg>
+  )},
   // Cross-lane agent action items surface (May 9, 2026 — Item 7).
   // Replaces the welcome-only queue. Tabs: Welcome / Retention /
   // Anniversary / Referral. Per-lane card components live in
@@ -564,6 +575,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const activeKey = (() => {
     if (pathname === '/dashboard') return 'home';
     if (pathname.startsWith('/dashboard/clients')) return 'clients';
+    if (pathname.startsWith('/dashboard/leads')) return 'leads';
     if (pathname.startsWith('/dashboard/referrals')) return 'referrals';
     if (pathname.startsWith('/dashboard/conservation')) return 'conservation';
     if (pathname.startsWith('/dashboard/policy-reviews')) return 'policy-reviews';
@@ -576,9 +588,15 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const isAdminRoute = pathname.startsWith('/dashboard/admin');
   const activeAdminKey = ADMIN_NAV_ITEMS.find(item => pathname.startsWith(item.path))?.key ?? null;
-  const mobileNavItems = NAV_ITEMS.filter((item) =>
-    ['home', 'clients', 'action-items', 'referrals', 'conservation'].includes(item.key),
-  );
+  // 6 items on mobile bottom bar. Leads replaces the previous Settings
+  // slot — settings is already reachable via the gear in the top-right
+  // header, so duplicating it down here wastes a tap target. When the
+  // lead-mode feature flag is off, drop Leads from the mobile nav entirely
+  // (mobile gets no "Coming soon" placeholder — Daniel's spec).
+  const mobileNavItems = NAV_ITEMS.filter((item) => {
+    if (item.key === 'leads' && !LEAD_MODE_ENABLED) return false;
+    return ['home', 'clients', 'leads', 'action-items', 'referrals', 'conservation'].includes(item.key);
+  });
   const dismissSubscriptionCelebration = () => {
     setShowSubscriptionCelebration(false);
     if (user) {
@@ -633,25 +651,51 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="mt-4 px-2 space-y-1">
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.key}
-              data-onboarding-target={item.key === 'clients' ? 'nav-clients' : undefined}
-              onClick={() => router.push(item.path)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
-                activeKey === item.key
-                  ? 'bg-[#daf3f0] text-[#005851]'
-                  : 'text-white/80 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              <div className="relative shrink-0">
-                {item.icon}
-              </div>
-              <span className="whitespace-nowrap overflow-hidden text-sm font-semibold opacity-100 w-auto">
-                {item.label}
-              </span>
-            </button>
-          ))}
+          {NAV_ITEMS.map((item) => {
+            // Pre-application lead-mode surface is gated by
+            // NEXT_PUBLIC_LEAD_MODE_ENABLED. When off, the Leads row
+            // renders as a non-interactive placeholder with strikethrough
+            // text and a "Coming soon" chip on top — per Daniel's spec:
+            // visually present, unreachable.
+            if (item.key === 'leads' && !LEAD_MODE_ENABLED) {
+              return (
+                <div
+                  key={item.key}
+                  aria-disabled
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] text-white/40 relative cursor-default select-none"
+                >
+                  <div className="relative shrink-0 opacity-60">
+                    {item.icon}
+                  </div>
+                  <span className="whitespace-nowrap overflow-hidden text-sm font-semibold line-through">
+                    {item.label}
+                  </span>
+                  <span className="absolute -top-1 right-1 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider bg-[#44bbaa]/20 text-[#daf3f0] border border-[#45bcaa]/30 rounded leading-none">
+                    Coming soon
+                  </span>
+                </div>
+              );
+            }
+            return (
+              <button
+                key={item.key}
+                data-onboarding-target={item.key === 'clients' ? 'nav-clients' : undefined}
+                onClick={() => router.push(item.path)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
+                  activeKey === item.key
+                    ? 'bg-[#daf3f0] text-[#005851]'
+                    : 'text-white/80 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <div className="relative shrink-0">
+                  {item.icon}
+                </div>
+                <span className="whitespace-nowrap overflow-hidden text-sm font-semibold opacity-100 w-auto">
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
 
           {isAdmin && (
             <>
@@ -833,7 +877,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-[#d0d0d0]">
-        <div className="grid grid-cols-6">
+        <div className={mobileNavItems.length === 6 ? 'grid grid-cols-6' : 'grid grid-cols-5'}>
           {mobileNavItems.map((item) => {
             const active = activeKey === item.key;
             return (
@@ -850,19 +894,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               </button>
             );
           })}
-          <button
-            data-onboarding-target="nav-settings"
-            onClick={() => router.push('/dashboard/settings')}
-            className={`py-2 px-1 flex flex-col items-center justify-center gap-1 ${
-              activeKey === 'settings' ? 'text-[#005851]' : 'text-[#707070]'
-            }`}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            <span className="text-[10px] font-semibold leading-none">Settings</span>
-          </button>
         </div>
       </nav>
 

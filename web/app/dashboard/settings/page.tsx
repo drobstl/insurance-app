@@ -15,6 +15,8 @@ import { useDashboard } from '../DashboardContext';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 import { PRICING_TIERS, type PricingTierId } from '../../../lib/pricing';
+import StateLicensesSection from '../../../components/StateLicensesSection';
+import { DEFAULT_DIAL_SCRIPT, SCRIPT_TOKEN_HINTS } from '../../../lib/dial-script';
 
 type Tab = 'profile' | 'branding' | 'referral-ai' | 'account';
 
@@ -36,6 +38,121 @@ interface GoogleDriveStatusResponse {
     hasRefreshToken: boolean;
   };
   error?: string;
+}
+
+interface GoogleCalendarStatusResponse {
+  success: boolean;
+  connected: boolean;
+  data?: {
+    googleEmail?: string;
+    connectedAt?: string;
+    updatedAt?: string;
+    scope?: string;
+    hasRefreshToken: boolean;
+  };
+  error?: string;
+}
+
+interface LeadVideoItem {
+  id: string;
+  title: string;
+  url: string;
+  path?: string;
+  updatedAt?: string;
+}
+
+/**
+ * Reusable upload list for FAQ + case-study video slots. Renders one
+ * row per existing item with a title input + preview/remove, plus a
+ * "+ Add" row for a new upload (title field + file picker).
+ */
+function LeadVideoList({
+  kind,
+  label,
+  items,
+  busyKey,
+  onUpload,
+  onDelete,
+}: {
+  kind: 'faq' | 'caseStudy';
+  label: string;
+  items: LeadVideoItem[];
+  busyKey: string | null;
+  onUpload: (file: File, slotId: string, title: string) => void;
+  onDelete: (slotId: string) => void;
+}) {
+  const [newTitle, setNewTitle] = useState('');
+  const handleNewFile = useCallback((file: File) => {
+    const slotId = `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const title = newTitle.trim() || 'Untitled video';
+    onUpload(file, slotId, title);
+    setNewTitle('');
+  }, [kind, newTitle, onUpload]);
+
+  return (
+    <div className="mb-5 pb-5 border-b border-[#ececec] last:border-b-0 last:pb-0 last:mb-0">
+      <h4 className="text-xs font-semibold text-[#374151] mb-2">{label}</h4>
+      {items.length === 0 && (
+        <p className="text-[11px] text-[#707070] mb-2">No videos uploaded yet.</p>
+      )}
+      <ul className="space-y-2 mb-3">
+        {items.map((item) => {
+          const itemBusy = busyKey === `${kind}:${item.id}`;
+          return (
+            <li key={item.id} className="flex items-center justify-between gap-3 rounded-[5px] border border-[#d0d0d0] bg-[#fafafa] px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-[#374151] truncate">{item.title || '(no title)'}</p>
+                {item.url && (
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10px] text-[#44bbaa] hover:text-[#005751] font-semibold"
+                  >
+                    Preview →
+                  </a>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => onDelete(item.id)}
+                disabled={itemBusy}
+                className="text-[11px] text-red-600 hover:text-red-800 font-semibold disabled:opacity-50"
+              >
+                {itemBusy ? 'Working…' : 'Remove'}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={newTitle}
+          onChange={(e) => setNewTitle(e.target.value)}
+          placeholder={kind === 'faq' ? 'e.g. Is this a sales pitch?' : 'e.g. How a real client handled this'}
+          className="flex-1 px-3 py-2 bg-white border border-[#d0d0d0] rounded-[5px] text-xs focus:outline-none focus:border-[#45bcaa]"
+        />
+        <label>
+          <input
+            type="file"
+            accept="video/mp4,video/quicktime,video/webm"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) {
+                handleNewFile(f);
+                e.currentTarget.value = '';
+              }
+            }}
+          />
+          <span className="inline-block px-3 py-2 text-xs font-semibold rounded-[5px] cursor-pointer bg-[#005851] hover:bg-[#004440] text-white">
+            + Add
+          </span>
+        </label>
+      </div>
+    </div>
+  );
 }
 
 function resizeImage(file: File, maxSize: number): Promise<string> {
@@ -114,7 +231,7 @@ function detectSchedulingPlatform(url: string): string | null {
 }
 
 export default function SettingsPage() {
-  const { user, agentProfile, setAgentProfile, loading } = useDashboard();
+  const { user, agentProfile, setAgentProfile, loading, refreshProfile } = useDashboard();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -155,6 +272,11 @@ export default function SettingsPage() {
   const [googleDriveDisconnecting, setGoogleDriveDisconnecting] = useState(false);
   const [googleDriveStatus, setGoogleDriveStatus] = useState<GoogleDriveStatusResponse['data'] | null>(null);
   const [googleDriveError, setGoogleDriveError] = useState<string | null>(null);
+  const [googleCalendarLoading, setGoogleCalendarLoading] = useState(false);
+  const [googleCalendarConnecting, setGoogleCalendarConnecting] = useState(false);
+  const [googleCalendarDisconnecting, setGoogleCalendarDisconnecting] = useState(false);
+  const [googleCalendarStatus, setGoogleCalendarStatus] = useState<GoogleCalendarStatusResponse['data'] | null>(null);
+  const [googleCalendarError, setGoogleCalendarError] = useState<string | null>(null);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -193,6 +315,11 @@ export default function SettingsPage() {
     beneficiaryAIFollowupsEnabled: agentProfile.beneficiaryAIFollowupsEnabled ?? false,
     beneficiaryMaxTouchesPer30Days: agentProfile.beneficiaryMaxTouchesPer30Days ?? 3,
     skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
+    appointmentMode: agentProfile.appointmentMode || 'phone',
+    defaultMeetingLink: agentProfile.defaultMeetingLink || '',
+    autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? false,
+    reminderPushHoursBefore: agentProfile.reminderPushHoursBefore ?? 1,
+    dialScript: agentProfile.dialScript || '',
     forwardInboundSms: agentProfile.forwardInboundSms ?? true,
   }), [
     agentProfile.name,
@@ -216,6 +343,11 @@ export default function SettingsPage() {
     agentProfile.beneficiaryAIFollowupsEnabled,
     agentProfile.beneficiaryMaxTouchesPer30Days,
     agentProfile.skipWelcomeSmsConfirmation,
+    agentProfile.appointmentMode,
+    agentProfile.defaultMeetingLink,
+    agentProfile.autoCreateGoogleMeet,
+    agentProfile.reminderPushHoursBefore,
+    agentProfile.dialScript,
     agentProfile.forwardInboundSms,
   ]);
 
@@ -320,6 +452,205 @@ export default function SettingsPage() {
     }
   }, [user]);
 
+  const loadGoogleCalendarStatus = useCallback(async () => {
+    if (!user) return;
+    setGoogleCalendarLoading(true);
+    setGoogleCalendarError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/integrations/google-calendar/status', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json()) as GoogleCalendarStatusResponse;
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to load Google Calendar status.');
+      }
+      setGoogleCalendarStatus(data.connected ? (data.data || null) : null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load Google Calendar status.';
+      setGoogleCalendarError(message);
+      setGoogleCalendarStatus(null);
+    } finally {
+      setGoogleCalendarLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    loadGoogleCalendarStatus();
+  }, [loadGoogleCalendarStatus]);
+
+  useEffect(() => {
+    const status = searchParams.get('google_calendar');
+    if (!status) return;
+
+    if (status === 'success') {
+      setSaveMessage({ type: 'success', text: 'Google Calendar connected successfully.' });
+      loadGoogleCalendarStatus();
+    } else if (status === 'error') {
+      const reason = searchParams.get('reason');
+      setSaveMessage({
+        type: 'error',
+        text: reason ? `Google Calendar connection failed: ${reason}` : 'Google Calendar connection failed.',
+      });
+    }
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('google_calendar');
+    params.delete('reason');
+    const next = params.toString();
+    router.replace(next ? `${pathname}?${next}` : pathname);
+  }, [searchParams, pathname, router, loadGoogleCalendarStatus]);
+
+  const handleGoogleCalendarConnect = useCallback(async () => {
+    if (!user) return;
+    setGoogleCalendarConnecting(true);
+    setGoogleCalendarError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/integrations/google-calendar/auth', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ returnTo: pathname }),
+      });
+      const data = (await res.json()) as { success: boolean; authUrl?: string; error?: string };
+      if (!res.ok || !data.success || !data.authUrl) {
+        throw new Error(data.error || 'Failed to start Google Calendar OAuth.');
+      }
+      window.location.assign(data.authUrl);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to connect Google Calendar.';
+      setGoogleCalendarError(message);
+      setSaveMessage({ type: 'error', text: message });
+      setGoogleCalendarConnecting(false);
+    }
+  }, [pathname, user]);
+
+  const handleGoogleCalendarDisconnect = useCallback(async () => {
+    if (!user) return;
+    setGoogleCalendarDisconnecting(true);
+    setGoogleCalendarError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/integrations/google-calendar/disconnect', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json()) as { success: boolean; error?: string };
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to disconnect Google Calendar.');
+      }
+      setGoogleCalendarStatus(null);
+      setSaveMessage({ type: 'success', text: 'Google Calendar disconnected.' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to disconnect Google Calendar.';
+      setGoogleCalendarError(message);
+      setSaveMessage({ type: 'error', text: message });
+    } finally {
+      setGoogleCalendarDisconnecting(false);
+    }
+  }, [user]);
+
+  // ── Lead-home video uploads (Chunk 3) ──
+  const [leadVideoBusy, setLeadVideoBusy] = useState<string | null>(null);
+  const [leadVideoError, setLeadVideoError] = useState<string | null>(null);
+
+  const uploadLeadVideo = useCallback(async (params: {
+    file: File;
+    slot: 'intro' | 'faq' | 'caseStudy';
+    slotId?: string;
+    title?: string;
+  }) => {
+    if (!user) return;
+    const busyKey = params.slot === 'intro' ? 'intro' : `${params.slot}:${params.slotId}`;
+    setLeadVideoBusy(busyKey);
+    setLeadVideoError(null);
+    try {
+      const token = await user.getIdToken();
+      const form = new FormData();
+      form.set('file', params.file);
+      form.set('slot', params.slot);
+      if (params.slotId) form.set('slotId', params.slotId);
+      if (params.title) form.set('title', params.title);
+      const res = await fetch('/api/lead-content/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `Upload failed (${res.status})`);
+      // Patch agentProfile.leadContent in-place so the UI updates immediately
+      // without a round-trip through fetchProfile.
+      setAgentProfile((prev) => {
+        const next = { ...prev };
+        const lc = { ...(next.leadContent || {}) };
+        if (params.slot === 'intro') {
+          lc.intro = data.entry;
+        } else {
+          const arrKey = params.slot === 'faq' ? 'faqs' : 'caseStudies';
+          const current = (lc[arrKey] as LeadVideoItem[] | undefined) || [];
+          const arr: LeadVideoItem[] = [...current];
+          const idx = arr.findIndex((e) => e.id === params.slotId);
+          if (idx >= 0) arr[idx] = data.entry as LeadVideoItem;
+          else arr.push(data.entry as LeadVideoItem);
+          lc[arrKey] = arr;
+        }
+        next.leadContent = lc;
+        return next;
+      });
+      setSaveMessage({ type: 'success', text: 'Video uploaded.' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Upload failed';
+      setLeadVideoError(message);
+      setSaveMessage({ type: 'error', text: message });
+    } finally {
+      setLeadVideoBusy(null);
+    }
+  }, [user, setAgentProfile]);
+
+  const deleteLeadVideo = useCallback(async (slot: 'intro' | 'faq' | 'caseStudy', slotId?: string) => {
+    if (!user) return;
+    const busyKey = slot === 'intro' ? 'intro' : `${slot}:${slotId}`;
+    setLeadVideoBusy(busyKey);
+    setLeadVideoError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/lead-content/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ slot, slotId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `Delete failed (${res.status})`);
+      setAgentProfile((prev) => {
+        const next = { ...prev };
+        const lc = { ...(next.leadContent || {}) };
+        if (slot === 'intro') {
+          delete lc.intro;
+        } else {
+          const arrKey = slot === 'faq' ? 'faqs' : 'caseStudies';
+          const arr: LeadVideoItem[] = ((lc[arrKey] as LeadVideoItem[] | undefined) || [])
+            .filter((e) => e.id !== slotId);
+          lc[arrKey] = arr;
+        }
+        next.leadContent = lc;
+        return next;
+      });
+      setSaveMessage({ type: 'success', text: 'Video removed.' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Delete failed';
+      setLeadVideoError(message);
+      setSaveMessage({ type: 'error', text: message });
+    } finally {
+      setLeadVideoBusy(null);
+    }
+  }, [user, setAgentProfile]);
+
   const handleImageUpload = useCallback(
     async (file: File, maxSize: number, field: 'photoBase64' | 'agencyLogoBase64' | 'businessCardBase64') => {
       try {
@@ -398,6 +729,17 @@ export default function SettingsPage() {
           return Math.min(10, Math.max(1, Math.round(parsed)));
         })(),
         skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
+        appointmentMode: agentProfile.appointmentMode === 'video' ? 'video' : 'phone',
+        defaultMeetingLink: (agentProfile.defaultMeetingLink || '').trim(),
+        autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? false,
+        reminderPushHoursBefore: (() => {
+          const raw = Number(agentProfile.reminderPushHoursBefore ?? 1);
+          if (!Number.isFinite(raw)) return 1;
+          // 0 = disabled; otherwise clamp to 1..24.
+          if (raw <= 0) return 0;
+          return Math.min(24, Math.max(1, Math.round(raw)));
+        })(),
+        dialScript: (agentProfile.dialScript || '').slice(0, 8000),
         forwardInboundSms: agentProfile.forwardInboundSms ?? true,
       }, { merge: true });
 
@@ -815,6 +1157,14 @@ export default function SettingsPage() {
               <p className="text-xs text-[#707070] mt-1.5">Supports Calendly, Cal.com, Acuity, and Google Calendar links.</p>
             </div>
           </div>
+
+          {/* State Licenses (Chunk 4d) — multi-state PDFs that the
+              booking-confirmation flow attaches based on lead.state. */}
+          <StateLicensesSection
+            user={user}
+            licenses={agentProfile.licenses}
+            onChanged={() => { void refreshProfile(); }}
+          />
         </div>
       )}
 
@@ -1458,6 +1808,269 @@ export default function SettingsPage() {
             {googleDriveError && (
               <p className="text-xs text-red-600 mt-3">{googleDriveError}</p>
             )}
+          </div>
+
+          {/* Google Calendar */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Google Calendar</h3>
+            {googleCalendarLoading ? (
+              <p className="text-sm text-[#707070]">Checking connection...</p>
+            ) : googleCalendarStatus ? (
+              <div className="space-y-3">
+                <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/40 px-3 py-2">
+                  <p className="text-sm font-medium text-[#005851]">Connected</p>
+                  <p className="text-xs text-[#005851]/80 mt-0.5">
+                    {googleCalendarStatus.googleEmail || 'Google account connected'}
+                  </p>
+                </div>
+                <button
+                  onClick={handleGoogleCalendarDisconnect}
+                  disabled={googleCalendarDisconnecting}
+                  className="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-[5px] hover:bg-red-50 transition-colors disabled:opacity-50"
+                >
+                  {googleCalendarDisconnecting ? 'Disconnecting...' : 'Disconnect'}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-[#707070]">
+                  Connect Google Calendar to push your AFL appointments to your calendar app, with native device reminders.
+                </p>
+                <button
+                  onClick={handleGoogleCalendarConnect}
+                  disabled={googleCalendarConnecting}
+                  className="px-4 py-2 text-sm font-medium text-white bg-[#005851] rounded-[5px] hover:bg-[#004440] transition-colors disabled:opacity-50"
+                >
+                  {googleCalendarConnecting ? 'Redirecting...' : 'Connect Google Calendar'}
+                </button>
+              </div>
+            )}
+            {googleCalendarError && (
+              <p className="text-xs text-red-600 mt-3">{googleCalendarError}</p>
+            )}
+          </div>
+
+          {/* Appointment defaults — phone vs video, default meeting link, auto-Meet */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Appointments</h3>
+
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-[#374151] mb-2">
+                Most of your appointments are:
+              </label>
+              <div className="inline-flex rounded-[5px] border border-[#d0d0d0] overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => updateField('appointmentMode', 'phone')}
+                  className={`px-4 py-2 text-sm font-semibold transition-colors ${
+                    (agentProfile.appointmentMode || 'phone') === 'phone'
+                      ? 'bg-[#005851] text-white'
+                      : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                  }`}
+                >
+                  Phone
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateField('appointmentMode', 'video')}
+                  className={`px-4 py-2 text-sm font-semibold transition-colors border-l border-[#d0d0d0] ${
+                    agentProfile.appointmentMode === 'video'
+                      ? 'bg-[#005851] text-white'
+                      : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                  }`}
+                >
+                  Video
+                </button>
+              </div>
+              <p className="text-[11px] text-[#707070] mt-1.5">
+                Sets the default when you book — you can override per appointment.
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-[#374151] mb-1">
+                Auto push-reminder timing
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  max={24}
+                  value={agentProfile.reminderPushHoursBefore ?? 1}
+                  onChange={(e) => {
+                    const v = e.target.value === '' ? 1 : Number(e.target.value);
+                    updateField('reminderPushHoursBefore', Number.isFinite(v) ? v : 1);
+                  }}
+                  className="w-20 px-3 py-2 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+                />
+                <span className="text-sm text-[#374151]">hours before the appointment</span>
+              </div>
+              <p className="text-[11px] text-[#707070] mt-1">
+                If the lead has downloaded your app, AFL will auto-push a reminder this far before the appointment. Set to 0 to disable.
+              </p>
+            </div>
+
+            {agentProfile.appointmentMode === 'video' && (
+              <>
+                <div className="mb-4">
+                  <label className="block text-xs font-semibold text-[#374151] mb-1">
+                    Default meeting link
+                  </label>
+                  <input
+                    type="url"
+                    value={agentProfile.defaultMeetingLink || ''}
+                    onChange={(e) => updateField('defaultMeetingLink', e.target.value)}
+                    placeholder="https://zoom.us/j/123… or https://meet.google.com/abc-xyz"
+                    className="w-full px-3 py-2 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+                  />
+                  <p className="text-[11px] text-[#707070] mt-1">
+                    Your Zoom personal room or permanent Meet room. Used unless &quot;auto-create Google Meet&quot; is on.
+                  </p>
+                </div>
+
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={agentProfile.autoCreateGoogleMeet ?? false}
+                    onChange={(e) => updateField('autoCreateGoogleMeet', e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span className="text-sm text-[#374151] leading-snug">
+                    Auto-create a unique Google Meet link for every video appointment
+                    {!googleCalendarStatus && (
+                      <span className="block text-[11px] text-amber-700 mt-0.5">
+                        Requires Google Calendar connection (above).
+                      </span>
+                    )}
+                  </span>
+                </label>
+              </>
+            )}
+          </div>
+
+          {/* Dial script — shown as an overlay on the lead detail page
+              during a live call. Supports tokens like {agentfirstname},
+              {leadname}, {leadage}, {tobaccouse}, {mortgageamount}. */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Dial script</h3>
+            <p className="text-[11px] text-[#707070] mb-3">
+              Shown on the lead page while you&apos;re on a call. Personalized per lead via tokens.
+            </p>
+            <textarea
+              value={agentProfile.dialScript ?? ''}
+              onChange={(e) => updateField('dialScript', e.target.value)}
+              placeholder={DEFAULT_DIAL_SCRIPT}
+              rows={10}
+              className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm leading-relaxed font-mono focus:outline-none focus:border-[#45bcaa]"
+            />
+            <p className="text-[11px] text-[#707070] mt-2">
+              Leave empty to use the default. Tokens are case-insensitive.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {SCRIPT_TOKEN_HINTS.map((t) => (
+                <span
+                  key={t.token}
+                  title={t.description}
+                  className="inline-block px-2 py-0.5 text-[10px] font-mono rounded bg-[#daf3f0]/60 text-[#005851] border border-[#45bcaa]/30 cursor-help"
+                >
+                  {t.token}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Lead-home videos (Chunk 3). Per-agent overrides for the
+              intro / FAQ / case-study slots rendered in the mobile
+              lead-home screen. */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Lead-home videos</h3>
+            <p className="text-[11px] text-[#707070] mb-4">
+              These videos play in your leads&apos; AFL app after they log in with their phone code. Without uploads the lead-home looks empty.
+            </p>
+
+            {/* Intro slot */}
+            <div className="mb-5 pb-5 border-b border-[#ececec]">
+              <div className="flex items-center justify-between mb-1">
+                <h4 className="text-xs font-semibold text-[#374151]">Intro video</h4>
+                {agentProfile.leadContent?.intro?.url && (
+                  <button
+                    type="button"
+                    onClick={() => deleteLeadVideo('intro')}
+                    disabled={leadVideoBusy === 'intro'}
+                    className="text-[11px] text-red-600 hover:text-red-800 font-semibold disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              {agentProfile.leadContent?.intro?.url ? (
+                <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/40 px-3 py-2">
+                  <p className="text-sm font-medium text-[#005851]">
+                    {agentProfile.leadContent.intro.title || 'Uploaded'}
+                  </p>
+                  <a
+                    href={agentProfile.leadContent.intro.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-[#44bbaa] hover:text-[#005751] font-semibold"
+                  >
+                    Preview →
+                  </a>
+                </div>
+              ) : (
+                <p className="text-[11px] text-[#707070] mb-2">Not uploaded yet.</p>
+              )}
+              <label className="inline-block mt-2">
+                <input
+                  type="file"
+                  accept="video/mp4,video/quicktime,video/webm"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) {
+                      void uploadLeadVideo({ file: f, slot: 'intro', title: 'Intro' });
+                      e.currentTarget.value = '';
+                    }
+                  }}
+                />
+                <span className={`inline-block px-3 py-2 text-xs font-semibold rounded-[5px] cursor-pointer ${
+                  leadVideoBusy === 'intro'
+                    ? 'bg-gray-200 text-gray-500'
+                    : 'bg-[#005851] hover:bg-[#004440] text-white'
+                }`}>
+                  {leadVideoBusy === 'intro'
+                    ? 'Uploading…'
+                    : (agentProfile.leadContent?.intro?.url ? 'Replace' : 'Upload intro video')}
+                </span>
+              </label>
+            </div>
+
+            {/* FAQs */}
+            <LeadVideoList
+              kind="faq"
+              label="FAQ videos"
+              items={agentProfile.leadContent?.faqs || []}
+              busyKey={leadVideoBusy}
+              onUpload={(file, slotId, title) => uploadLeadVideo({ file, slot: 'faq', slotId, title })}
+              onDelete={(slotId) => deleteLeadVideo('faq', slotId)}
+            />
+
+            {/* Case studies */}
+            <LeadVideoList
+              kind="caseStudy"
+              label="Case-study videos"
+              items={agentProfile.leadContent?.caseStudies || []}
+              busyKey={leadVideoBusy}
+              onUpload={(file, slotId, title) => uploadLeadVideo({ file, slot: 'caseStudy', slotId, title })}
+              onDelete={(slotId) => deleteLeadVideo('caseStudy', slotId)}
+            />
+
+            {leadVideoError && (
+              <p className="text-xs text-red-600 mt-3">{leadVideoError}</p>
+            )}
+            <p className="text-[10px] text-[#707070] mt-3">
+              Max 200 MB per video. .mp4, .mov, or .webm. Videos are signed for 1 year — re-upload after that to refresh.
+            </p>
           </div>
 
           {/* Email */}

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { checkRateLimit, getClientIp } from '../../../../lib/rate-limit';
 import { findClientByCode } from '../../../../lib/client-code-lookup';
+import { findLeadByCode } from '../../../../lib/lead-code-lookup';
 import { PUSH_PERMISSION_REVOKED_FIELD } from '../../../../lib/push-permission-lifecycle';
 
 /**
@@ -36,24 +37,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing or invalid pushToken' }, { status: 400 });
     }
 
-    const match = await findClientByCode(clientCode);
-    if (!match) {
-      return NextResponse.json({ error: 'Client code not found' }, { status: 404 });
+    // First try as a client code. If that misses, fall back to a lead code
+    // (which start with `L`). Same Firestore lifecycle on both — pushToken
+    // field + PUSH_PERMISSION_REVOKED_FIELD cleared. The push send path
+    // (sendExpoPush) doesn't care whether the holder doc is a client or a
+    // lead; it just looks up pushToken + pushPermissionRevokedAt.
+    const clientMatch = await findClientByCode(clientCode);
+    if (clientMatch) {
+      await clientMatch.clientRef.update({
+        pushToken,
+        [PUSH_PERMISSION_REVOKED_FIELD]: FieldValue.delete(),
+      });
+      return NextResponse.json({
+        success: true,
+        agentId: clientMatch.agentId,
+        clientId: clientMatch.clientId,
+        kind: 'client',
+      });
     }
 
-    // Successful re-registration is the canonical "push permission re-granted"
-    // signal — clear any prior revocation timestamp so the client routes back
-    // through push-eligible lanes. See `web/lib/push-permission-lifecycle.ts`.
-    await match.clientRef.update({
-      pushToken,
-      [PUSH_PERMISSION_REVOKED_FIELD]: FieldValue.delete(),
-    });
+    const leadMatch = await findLeadByCode(clientCode);
+    if (leadMatch) {
+      await leadMatch.leadRef.update({
+        pushToken,
+        [PUSH_PERMISSION_REVOKED_FIELD]: FieldValue.delete(),
+      });
+      return NextResponse.json({
+        success: true,
+        agentId: leadMatch.agentId,
+        leadId: leadMatch.leadId,
+        kind: 'lead',
+      });
+    }
 
-    return NextResponse.json({
-      success: true,
-      agentId: match.agentId,
-      clientId: match.clientId,
-    });
+    return NextResponse.json({ error: 'Code not found' }, { status: 404 });
   } catch (error) {
     console.error('push-token/register error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

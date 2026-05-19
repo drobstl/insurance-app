@@ -1,0 +1,150 @@
+import 'server-only';
+
+import { NextRequest, NextResponse } from 'next/server';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { getAdminAuth, getAdminFirestore } from '../../../../../lib/firebase-admin';
+
+/**
+ * POST /api/leads/[leadId]/convert
+ *
+ * Convert a lead to a client. Creates a new client record under
+ * `agents/{agentId}/clients/{newId}`, mirrors to the top-level
+ * `clients/{newId}` + `clientCodes/{code}` indexes (same shape the
+ * existing Add Client flow writes), and stamps the source lead with
+ * `convertedToClientId` + `convertedAt` so it falls out of the call
+ * queue but stays around as a historical record.
+ *
+ * Does NOT delete the lead. The agent can still navigate to it via
+ * the lead URL — the lead page itself renders a "Converted to client"
+ * banner once `convertedToClientId` is set.
+ *
+ * Welcome SMS / action items are NOT triggered here. They flow through
+ * the same surface used by manually-added clients (the welcome action
+ * item appears in the agent's queue on next reload).
+ *
+ * Auth: Bearer ID token; agent owns the lead.
+ *
+ * Response: `{ clientId, clientCode }` on success.
+ */
+
+// Client code generator — kept inline (mirror of generateClientCode in
+// web/app/dashboard/clients/page.tsx; 6 chars from the unambiguous
+// alphabet). Don't import the client-side helper into a server route.
+const CLIENT_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function generateClientCode(): string {
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += CLIENT_CODE_ALPHABET.charAt(Math.floor(Math.random() * CLIENT_CODE_ALPHABET.length));
+  }
+  return code;
+}
+
+async function generateUniqueClientCode(db: FirebaseFirestore.Firestore): Promise<string> {
+  // 6 chars × 32 alphabet = ~1 billion combos. Collision is rare;
+  // 5 retries is plenty.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = generateClientCode();
+    const existing = await db.collection('clientCodes').doc(code).get();
+    if (!existing.exists) return code;
+  }
+  throw new Error('Could not generate a unique client code after 5 attempts.');
+}
+
+export async function POST(
+  req: NextRequest,
+  context: { params: Promise<{ leadId: string }> },
+) {
+  try {
+    const { leadId } = await context.params;
+    if (!leadId) return NextResponse.json({ error: 'Missing leadId' }, { status: 400 });
+
+    const authHeader = req.headers.get('authorization') || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!token) return NextResponse.json({ error: 'Missing auth token' }, { status: 401 });
+    let decoded;
+    try {
+      decoded = await getAdminAuth().verifyIdToken(token);
+    } catch {
+      return NextResponse.json({ error: 'Invalid auth token' }, { status: 401 });
+    }
+    const agentId = decoded.uid;
+
+    const db = getAdminFirestore();
+    const leadRef = db.collection('agents').doc(agentId).collection('leads').doc(leadId);
+    const leadSnap = await leadRef.get();
+    if (!leadSnap.exists) {
+      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
+    const leadData = leadSnap.data() ?? {};
+
+    if (typeof leadData.convertedToClientId === 'string' && leadData.convertedToClientId) {
+      // Idempotent — return the existing client id rather than creating a duplicate.
+      return NextResponse.json({
+        clientId: leadData.convertedToClientId,
+        clientCode: typeof leadData.convertedToClientCode === 'string' ? leadData.convertedToClientCode : null,
+        alreadyConverted: true,
+      });
+    }
+
+    const name = typeof leadData.name === 'string' ? leadData.name.trim() : '';
+    if (!name) {
+      return NextResponse.json({ error: 'Lead is missing a name — fill it in before converting.' }, { status: 400 });
+    }
+    const phone = typeof leadData.phone === 'string' ? leadData.phone.trim() : '';
+    const email = typeof leadData.email === 'string' ? leadData.email.trim() : '';
+    const dateOfBirth = typeof leadData.dateOfBirth === 'string' ? leadData.dateOfBirth : null;
+
+    const clientCode = await generateUniqueClientCode(db);
+    const now = Timestamp.now();
+
+    // Create the per-agent client doc.
+    const clientRef = db.collection('agents').doc(agentId).collection('clients').doc();
+    const clientPayload: Record<string, unknown> = {
+      name,
+      phone,
+      email,
+      clientCode,
+      agentId,
+      createdAt: now,
+      preferredLanguage: 'en',
+      convertedFromLeadId: leadId,
+      convertedFromLeadAt: now,
+    };
+    if (dateOfBirth) clientPayload.dateOfBirth = dateOfBirth;
+
+    // Top-level mirrors (matches the existing Add Client flow).
+    const topLevelClientPayload: Record<string, unknown> = {
+      name,
+      phone,
+      email,
+      clientCode,
+      agentId,
+      createdAt: now,
+      preferredLanguage: 'en',
+    };
+    if (dateOfBirth) topLevelClientPayload.dateOfBirth = dateOfBirth;
+
+    const batch = db.batch();
+    batch.set(clientRef, clientPayload);
+    batch.set(db.collection('clients').doc(clientRef.id), topLevelClientPayload);
+    batch.set(db.collection('clientCodes').doc(clientCode), { agentId, clientId: clientRef.id });
+    batch.update(leadRef, {
+      convertedToClientId: clientRef.id,
+      convertedToClientCode: clientCode,
+      convertedAt: now,
+      lastDialOutcome: FieldValue.delete(),  // falls out of queue regardless
+    });
+    await batch.commit();
+
+    return NextResponse.json({
+      clientId: clientRef.id,
+      clientCode,
+      alreadyConverted: false,
+    });
+  } catch (error) {
+    console.error('leads/convert POST error:', error);
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

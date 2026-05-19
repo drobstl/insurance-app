@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth } from '../../../../../lib/firebase-admin';
-import { buildGoogleConsentUrl } from '../../../../../lib/google-oauth';
+import { buildGoogleConsentUrl, GOOGLE_DRIVE_SCOPE } from '../../../../../lib/google-oauth';
 import { buildGoogleOAuthState, createGoogleOAuthState } from '../../../../../lib/google-drive-store';
 
 interface AuthRouteResponse {
@@ -53,6 +53,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<AuthRouteResp
     const authUrl = buildGoogleConsentUrl({
       redirectUri: getCallbackUrl(req),
       state,
+      scopes: [GOOGLE_DRIVE_SCOPE],
     });
 
     return NextResponse.json({ success: true, authUrl });
