@@ -69,6 +69,13 @@ interface ImportHealthStatus {
   actions: string[];
 }
 
+interface IngestionSigningHealth {
+  status: 'healthy' | 'unhealthy' | 'checking';
+  errorCode: string | null;
+  message: string | null;
+  checkedAt: number | null;
+}
+
 interface IngestionReconcileLatest {
   scannedAgents: number;
   scannedBatches: number;
@@ -281,6 +288,12 @@ export default function AdminStatsPage() {
   const [importHealthLoading, setImportHealthLoading] = useState(false);
   const [ingestionReconcileHealth, setIngestionReconcileHealth] = useState<IngestionReconcileHealth | null>(null);
   const [ingestionReconcileLoading, setIngestionReconcileLoading] = useState(false);
+  const [ingestionSigningHealth, setIngestionSigningHealth] = useState<IngestionSigningHealth>({
+    status: 'checking',
+    errorCode: null,
+    message: null,
+    checkedAt: null,
+  });
 
   /* ---- Auth + admin check ---- */
   useEffect(() => {
@@ -367,6 +380,48 @@ export default function AdminStatsPage() {
     fetchIngestionReconcileHealth();
   }, [fetchImportHealth, fetchIngestionReconcileHealth, fetchStats]);
 
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false;
+
+    const fetchSigningHealth = async () => {
+      try {
+        const res = await fetch('/api/health/ingestion-signing', {
+          cache: 'no-store',
+        });
+        const body = await res.json() as {
+          status?: string;
+          errorCode?: string;
+          message?: string;
+        };
+        if (cancelled) return;
+        const isHealthy = res.ok && body.status === 'healthy';
+        setIngestionSigningHealth({
+          status: isHealthy ? 'healthy' : 'unhealthy',
+          errorCode: body.errorCode || null,
+          message: body.message || null,
+          checkedAt: Date.now(),
+        });
+      } catch (error) {
+        if (cancelled) return;
+        setIngestionSigningHealth({
+          status: 'unhealthy',
+          errorCode: 'HEALTH_CHECK_FAILED',
+          message: error instanceof Error ? error.message : 'Failed to check upload signing health.',
+          checkedAt: Date.now(),
+        });
+      }
+    };
+
+    void fetchSigningHealth();
+    const id = window.setInterval(fetchSigningHealth, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [user]);
+
   /* ---- Manual refresh (authenticated endpoint) ---- */
   const handleRefresh = async () => {
     if (!user) return;
@@ -411,6 +466,51 @@ export default function AdminStatsPage() {
   return (
     <div className="min-h-screen bg-[#e4e4e4] flex">
       <main className="ml-0 flex-1 p-6 max-w-6xl mx-auto w-full">
+        <div
+          className={`w-full mb-4 rounded-lg border px-3 py-2 ${
+            ingestionSigningHealth.status === 'healthy'
+              ? 'bg-emerald-50 border-emerald-200'
+              : ingestionSigningHealth.status === 'checking'
+                ? 'bg-gray-50 border-gray-200'
+                : 'bg-red-50 border-red-200'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  ingestionSigningHealth.status === 'healthy'
+                    ? 'bg-emerald-500'
+                    : ingestionSigningHealth.status === 'checking'
+                      ? 'bg-gray-400'
+                      : 'bg-red-500'
+                }`}
+              />
+              <span className="text-xs font-semibold text-[#000000] uppercase tracking-wide">
+                Upload Signing Health
+              </span>
+            </div>
+            <span className="text-xs text-[#4b5563]">
+              {ingestionSigningHealth.status === 'healthy'
+                ? 'Healthy'
+                : ingestionSigningHealth.status === 'checking'
+                  ? 'Checking...'
+                  : 'Action needed'}
+            </span>
+          </div>
+          {ingestionSigningHealth.status === 'unhealthy' && (
+            <p className="mt-1 text-xs text-red-700">
+              {ingestionSigningHealth.errorCode ? `[${ingestionSigningHealth.errorCode}] ` : ''}
+              {ingestionSigningHealth.message || 'Signed uploads may fail for users.'}
+            </p>
+          )}
+          {ingestionSigningHealth.checkedAt && (
+            <p className="mt-1 text-[11px] text-[#6b7280]">
+              Last checked {new Date(ingestionSigningHealth.checkedAt).toLocaleTimeString()}
+            </p>
+          )}
+        </div>
+
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>

@@ -81,13 +81,6 @@ interface Policy {
   createdAt: Timestamp;
 }
 
-interface IngestionSigningHealth {
-  status: 'healthy' | 'unhealthy' | 'checking';
-  errorCode: string | null;
-  message: string | null;
-  checkedAt: number | null;
-}
-
 function isBirthdayToday(dob: string | undefined): boolean {
   if (!dob) return false;
   const now = new Date();
@@ -111,7 +104,7 @@ function formatValue(n: number): string {
 
 export default function DashboardHomePage() {
   const router = useRouter();
-  const { user, loading, agentProfile, dismissTip, isAdmin } = useDashboard();
+  const { user, loading, agentProfile, dismissTip } = useDashboard();
 
   const [clients, setClients] = useState<Client[]>([]);
   const [conservationAlerts, setConservationAlerts] = useState<ConservationAlert[]>([]);
@@ -129,12 +122,6 @@ export default function DashboardHomePage() {
     totalFailed: number;
     clientsWithAttention: number;
   } | null>(null);
-  const [ingestionSigningHealth, setIngestionSigningHealth] = useState<IngestionSigningHealth>({
-    status: 'checking',
-    errorCode: null,
-    message: null,
-    checkedAt: null,
-  });
   const fanAnchorRef = useRef<HTMLDivElement>(null);
   const weeklyFetched = useRef(false);
 
@@ -283,48 +270,6 @@ export default function DashboardHomePage() {
     return () => { cancelled = true; };
   }, [user, clients, startedPolicyReviewPolicyIds]);
 
-  useEffect(() => {
-    if (!isAdmin) return;
-
-    let cancelled = false;
-
-    const fetchSigningHealth = async () => {
-      try {
-        const res = await fetch('/api/health/ingestion-signing', {
-          cache: 'no-store',
-        });
-        const body = await res.json() as {
-          status?: string;
-          errorCode?: string;
-          message?: string;
-        };
-        if (cancelled) return;
-        const isHealthy = res.ok && body.status === 'healthy';
-        setIngestionSigningHealth({
-          status: isHealthy ? 'healthy' : 'unhealthy',
-          errorCode: body.errorCode || null,
-          message: body.message || null,
-          checkedAt: Date.now(),
-        });
-      } catch (error) {
-        if (cancelled) return;
-        setIngestionSigningHealth({
-          status: 'unhealthy',
-          errorCode: 'HEALTH_CHECK_FAILED',
-          message: error instanceof Error ? error.message : 'Failed to check upload signing health.',
-          checkedAt: Date.now(),
-        });
-      }
-    };
-
-    void fetchSigningHealth();
-    const id = window.setInterval(fetchSigningHealth, 60_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [isAdmin]);
-
   const activeConservation = conservationAlerts.filter(
     (a) => a.status !== 'saved' && a.status !== 'lost',
   );
@@ -378,55 +323,6 @@ export default function DashboardHomePage() {
           in the bottom-right corner.
         </SectionTipCard>
       )}
-      {isAdmin && (
-        <button
-          type="button"
-          onClick={() => router.push('/dashboard/clients')}
-          className={`w-full mb-4 rounded-lg border px-3 py-2 text-left transition-colors ${
-            ingestionSigningHealth.status === 'healthy'
-              ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
-              : ingestionSigningHealth.status === 'checking'
-                ? 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                : 'bg-red-50 border-red-200 hover:bg-red-100'
-          }`}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  ingestionSigningHealth.status === 'healthy'
-                    ? 'bg-emerald-500'
-                    : ingestionSigningHealth.status === 'checking'
-                      ? 'bg-gray-400'
-                      : 'bg-red-500'
-                }`}
-              />
-              <span className="text-xs font-semibold text-[#000000] uppercase tracking-wide">
-                Upload Signing Health
-              </span>
-            </div>
-            <span className="text-xs text-[#4b5563]">
-              {ingestionSigningHealth.status === 'healthy'
-                ? 'Healthy'
-                : ingestionSigningHealth.status === 'checking'
-                  ? 'Checking...'
-                  : 'Action needed'}
-            </span>
-          </div>
-          {ingestionSigningHealth.status === 'unhealthy' && (
-            <p className="mt-1 text-xs text-red-700">
-              {ingestionSigningHealth.errorCode ? `[${ingestionSigningHealth.errorCode}] ` : ''}
-              {ingestionSigningHealth.message || 'Signed uploads may fail for users.'}
-            </p>
-          )}
-          {ingestionSigningHealth.checkedAt && (
-            <p className="mt-1 text-[11px] text-[#6b7280]">
-              Last checked {new Date(ingestionSigningHealth.checkedAt).toLocaleTimeString()}
-            </p>
-          )}
-        </button>
-      )}
-
       {/* ── Value Hero ─────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6 mt-2 mb-8 md:mb-10">
         <div>
