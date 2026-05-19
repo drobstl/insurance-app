@@ -79,9 +79,6 @@ export interface AgentProfile {
   welcomeSmsTemplate?: string;
   beneficiaryWelcomeTemplateEn?: string;
   beneficiaryWelcomeTemplateEs?: string;
-  beneficiaryHolidayTouchpointsEnabled?: boolean;
-  beneficiaryAIFollowupsEnabled?: boolean;
-  beneficiaryMaxTouchesPer30Days?: number;
   skipWelcomeSmsConfirmation?: boolean;
   forwardInboundSms?: boolean;
   onboardingComplete?: boolean;
@@ -265,9 +262,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           welcomeSmsTemplate: data.welcomeSmsTemplate,
           beneficiaryWelcomeTemplateEn: data.beneficiaryWelcomeTemplateEn,
           beneficiaryWelcomeTemplateEs: data.beneficiaryWelcomeTemplateEs,
-          beneficiaryHolidayTouchpointsEnabled: data.beneficiaryHolidayTouchpointsEnabled,
-          beneficiaryAIFollowupsEnabled: data.beneficiaryAIFollowupsEnabled,
-          beneficiaryMaxTouchesPer30Days: data.beneficiaryMaxTouchesPer30Days,
           skipWelcomeSmsConfirmation: data.skipWelcomeSmsConfirmation,
           forwardInboundSms: data.forwardInboundSms,
           onboardingComplete: data.onboardingComplete,

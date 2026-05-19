@@ -311,9 +311,6 @@ export default function SettingsPage() {
     welcomeSmsTemplate: agentProfile.welcomeSmsTemplate || '',
     beneficiaryWelcomeTemplateEn: agentProfile.beneficiaryWelcomeTemplateEn || '',
     beneficiaryWelcomeTemplateEs: agentProfile.beneficiaryWelcomeTemplateEs || '',
-    beneficiaryHolidayTouchpointsEnabled: agentProfile.beneficiaryHolidayTouchpointsEnabled ?? false,
-    beneficiaryAIFollowupsEnabled: agentProfile.beneficiaryAIFollowupsEnabled ?? false,
-    beneficiaryMaxTouchesPer30Days: agentProfile.beneficiaryMaxTouchesPer30Days ?? 3,
     skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
     appointmentMode: agentProfile.appointmentMode || 'phone',
     defaultMeetingLink: agentProfile.defaultMeetingLink || '',
@@ -340,9 +337,6 @@ export default function SettingsPage() {
     agentProfile.welcomeSmsTemplate,
     agentProfile.beneficiaryWelcomeTemplateEn,
     agentProfile.beneficiaryWelcomeTemplateEs,
-    agentProfile.beneficiaryHolidayTouchpointsEnabled,
-    agentProfile.beneficiaryAIFollowupsEnabled,
-    agentProfile.beneficiaryMaxTouchesPer30Days,
     agentProfile.skipWelcomeSmsConfirmation,
     agentProfile.appointmentMode,
     agentProfile.defaultMeetingLink,
@@ -723,13 +717,6 @@ export default function SettingsPage() {
         welcomeSmsTemplate: agentProfile.welcomeSmsTemplate || '',
         beneficiaryWelcomeTemplateEn: agentProfile.beneficiaryWelcomeTemplateEn || '',
         beneficiaryWelcomeTemplateEs: agentProfile.beneficiaryWelcomeTemplateEs || '',
-        beneficiaryHolidayTouchpointsEnabled: agentProfile.beneficiaryHolidayTouchpointsEnabled ?? false,
-        beneficiaryAIFollowupsEnabled: agentProfile.beneficiaryAIFollowupsEnabled ?? false,
-        beneficiaryMaxTouchesPer30Days: (() => {
-          const parsed = Number(agentProfile.beneficiaryMaxTouchesPer30Days ?? 3);
-          if (!Number.isFinite(parsed)) return 3;
-          return Math.min(10, Math.max(1, Math.round(parsed)));
-        })(),
         skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
         appointmentMode: agentProfile.appointmentMode === 'video' ? 'video' : 'phone',
         defaultMeetingLink: (agentProfile.defaultMeetingLink || '').trim(),
@@ -1452,66 +1439,6 @@ export default function SettingsPage() {
                     {tag}
                   </span>
                 ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Beneficiary Relationship Automation */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Beneficiary Relationship Automation</h3>
-            <div className="space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-[#000000]">Auto-Send Beneficiary Holiday Touchpoints</p>
-                  <p className="text-xs text-[#707070] mt-1">
-                    Sends role-aware holiday check-ins to beneficiaries using SMS first with email fallback.
-                  </p>
-                </div>
-                <button
-                  onClick={() => updateField('beneficiaryHolidayTouchpointsEnabled', !(agentProfile.beneficiaryHolidayTouchpointsEnabled ?? false))}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
-                    (agentProfile.beneficiaryHolidayTouchpointsEnabled ?? false) ? 'bg-[#44bbaa]' : 'bg-gray-300'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
-                      (agentProfile.beneficiaryHolidayTouchpointsEnabled ?? false) ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-[#000000]">Enable AI Follow-up Sequence (Day 2/5/10)</p>
-                  <p className="text-xs text-[#707070] mt-1">
-                    After a beneficiary intro is sent, queue staged follow-ups with safe caps and automatic stop on failed contact.
-                  </p>
-                </div>
-                <button
-                  onClick={() => updateField('beneficiaryAIFollowupsEnabled', !(agentProfile.beneficiaryAIFollowupsEnabled ?? false))}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
-                    (agentProfile.beneficiaryAIFollowupsEnabled ?? false) ? 'bg-[#44bbaa]' : 'bg-gray-300'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
-                      (agentProfile.beneficiaryAIFollowupsEnabled ?? false) ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#000000] mb-1.5">Max Beneficiary Touches per 30 Days</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={agentProfile.beneficiaryMaxTouchesPer30Days ?? 3}
-                  onChange={(e) => updateField('beneficiaryMaxTouchesPer30Days', Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
-                />
               </div>
             </div>
           </div>
