@@ -44,6 +44,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Defense in depth — when lead mode is disabled the dashboard isn't
+  // creating new lead docs and the existing leads are unreachable from
+  // the UI, so the cron has nothing useful to do. Skip cleanly with a
+  // structured response rather than scanning every agent's leads
+  // subcollection for a wasted no-op.
+  if (process.env.NEXT_PUBLIC_LEAD_MODE_ENABLED !== 'true') {
+    return NextResponse.json({ skipped: true, reason: 'lead_mode_disabled' });
+  }
+
   const dryRun = req.nextUrl.searchParams.get('dryRun') === '1';
   const startedAt = Date.now();
   const now = Date.now();

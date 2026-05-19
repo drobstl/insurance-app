@@ -15,6 +15,7 @@ import { useDashboard } from '../DashboardContext';
 import AppointmentPicker from '../../../components/AppointmentPicker';
 import SendConfirmationDrawer from '../../../components/SendConfirmationDrawer';
 import LeadDetailPanel from '../../../components/LeadDetailPanel';
+import { LEAD_MODE_ENABLED } from '../../../lib/feature-flags';
 
 interface Lead {
   id: string;
@@ -73,6 +74,17 @@ export default function LeadsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, agentProfile } = useDashboard();
+
+  // Feature flag gate. When NEXT_PUBLIC_LEAD_MODE_ENABLED is not 'true',
+  // the lead-mode surface is invisible to agents and any direct nav
+  // (bookmark, typed URL) bounces back to the dashboard. The sidebar
+  // renders this row as a non-interactive "Coming soon" placeholder, so
+  // a real human shouldn't reach this page in the off state — this is
+  // belt-and-suspenders for the URL-typed case.
+  useEffect(() => {
+    if (!LEAD_MODE_ENABLED) router.replace('/dashboard');
+  }, [router]);
+  if (!LEAD_MODE_ENABLED) return null;
 
   // Right-pane selection (desktop call-queue view only). The URL param
   // is the source of truth so refresh + back/forward + shareable links

@@ -12,6 +12,7 @@ import DashboardTicker from '../../components/DashboardTicker';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
 import { ANALYTICS_EVENTS } from '../../lib/analytics-events';
 import { captureEvent } from '../../lib/posthog';
+import { LEAD_MODE_ENABLED } from '../../lib/feature-flags';
 
 const FOUNDING_ACTIVATION_TIMEOUT_MS = 12000;
 // Hard ceiling for the activation spinner: if `activatingFounding` is still true
@@ -589,10 +590,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const activeAdminKey = ADMIN_NAV_ITEMS.find(item => pathname.startsWith(item.path))?.key ?? null;
   // 6 items on mobile bottom bar. Leads replaces the previous Settings
   // slot — settings is already reachable via the gear in the top-right
-  // header, so duplicating it down here wastes a tap target.
-  const mobileNavItems = NAV_ITEMS.filter((item) =>
-    ['home', 'clients', 'leads', 'action-items', 'referrals', 'conservation'].includes(item.key),
-  );
+  // header, so duplicating it down here wastes a tap target. When the
+  // lead-mode feature flag is off, drop Leads from the mobile nav entirely
+  // (mobile gets no "Coming soon" placeholder — Daniel's spec).
+  const mobileNavItems = NAV_ITEMS.filter((item) => {
+    if (item.key === 'leads' && !LEAD_MODE_ENABLED) return false;
+    return ['home', 'clients', 'leads', 'action-items', 'referrals', 'conservation'].includes(item.key);
+  });
   const dismissSubscriptionCelebration = () => {
     setShowSubscriptionCelebration(false);
     if (user) {
@@ -647,25 +651,51 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="mt-4 px-2 space-y-1">
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.key}
-              data-onboarding-target={item.key === 'clients' ? 'nav-clients' : undefined}
-              onClick={() => router.push(item.path)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
-                activeKey === item.key
-                  ? 'bg-[#daf3f0] text-[#005851]'
-                  : 'text-white/80 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              <div className="relative shrink-0">
-                {item.icon}
-              </div>
-              <span className="whitespace-nowrap overflow-hidden text-sm font-semibold opacity-100 w-auto">
-                {item.label}
-              </span>
-            </button>
-          ))}
+          {NAV_ITEMS.map((item) => {
+            // Pre-application lead-mode surface is gated by
+            // NEXT_PUBLIC_LEAD_MODE_ENABLED. When off, the Leads row
+            // renders as a non-interactive placeholder with strikethrough
+            // text and a "Coming soon" chip on top — per Daniel's spec:
+            // visually present, unreachable.
+            if (item.key === 'leads' && !LEAD_MODE_ENABLED) {
+              return (
+                <div
+                  key={item.key}
+                  aria-disabled
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] text-white/40 relative cursor-default select-none"
+                >
+                  <div className="relative shrink-0 opacity-60">
+                    {item.icon}
+                  </div>
+                  <span className="whitespace-nowrap overflow-hidden text-sm font-semibold line-through">
+                    {item.label}
+                  </span>
+                  <span className="absolute -top-1 right-1 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider bg-[#44bbaa]/20 text-[#daf3f0] border border-[#45bcaa]/30 rounded leading-none">
+                    Coming soon
+                  </span>
+                </div>
+              );
+            }
+            return (
+              <button
+                key={item.key}
+                data-onboarding-target={item.key === 'clients' ? 'nav-clients' : undefined}
+                onClick={() => router.push(item.path)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
+                  activeKey === item.key
+                    ? 'bg-[#daf3f0] text-[#005851]'
+                    : 'text-white/80 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <div className="relative shrink-0">
+                  {item.icon}
+                </div>
+                <span className="whitespace-nowrap overflow-hidden text-sm font-semibold opacity-100 w-auto">
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
 
           {isAdmin && (
             <>
@@ -847,7 +877,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-[#d0d0d0]">
-        <div className="grid grid-cols-6">
+        <div className={mobileNavItems.length === 6 ? 'grid grid-cols-6' : 'grid grid-cols-5'}>
           {mobileNavItems.map((item) => {
             const active = activeKey === item.key;
             return (
