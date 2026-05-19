@@ -46,11 +46,17 @@ export async function GET(req: NextRequest) {
     let pushSkippedRevoked = 0;
     let tokensInvalidated = 0;
 
+    // Cap on beneficiary outreach in a 30-day window. Hardcoded — not
+    // agent-tunable. The v3.1 invite-only architecture doesn't generate
+    // agent-driven beneficiary outreach, so this cap effectively only
+    // applies to holiday pushes; 3/month is plenty given the typical
+    // holiday cadence (New Year, Valentine's, July 4th, Thanksgiving,
+    // Christmas — 5 holidays/year, ~half a month apart in practice).
+    const MAX_TOUCHES_PER_30_DAYS = 3;
+
     const agentsSnap = await db.collection('agents').get();
     for (const agentDoc of agentsSnap.docs) {
       const agentData = agentDoc.data();
-      if (agentData.beneficiaryHolidayTouchpointsEnabled !== true) continue;
-      const maxTouches = Math.min(10, Math.max(1, Number(agentData.beneficiaryMaxTouchesPer30Days || 3)));
       const agentName = (agentData.name as string) || 'Your Agent';
       const agencyName = (agentData.agencyName as string) || '';
       const agentSignature = agencyName ? `${agentName}, ${agencyName}` : agentName;
@@ -97,7 +103,7 @@ export async function GET(req: NextRequest) {
               .where('status', '==', 'sent')
               .where('sentAt', '>=', thirtyDaysAgo)
               .get();
-            if (eventsSnap.size >= maxTouches) {
+            if (eventsSnap.size >= MAX_TOUCHES_PER_30_DAYS) {
               skipped += 1;
               continue;
             }
