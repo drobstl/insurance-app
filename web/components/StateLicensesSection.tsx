@@ -86,7 +86,7 @@ export default function StateLicensesSection({ user, licenses, onChanged }: Prop
     if (!user) return;
     if (!form.stateCode) return setError('Pick a state');
     if (!form.number.trim()) return setError('License number is required');
-    if (!form.file) return setError('Upload your license PDF');
+    if (!form.file) return setError('Upload your license file');
     setBusy(true);
     setError(null);
     try {
@@ -155,7 +155,7 @@ export default function StateLicensesSection({ user, licenses, onChanged }: Prop
       if (res.ok && data?.url) {
         window.open(data.url, '_blank', 'noopener,noreferrer');
       } else {
-        setError(data?.error || 'Could not open license PDF');
+        setError(data?.error || 'Could not open license');
       }
     } finally {
       setOpeningPdfFor(null);
@@ -168,7 +168,7 @@ export default function StateLicensesSection({ user, licenses, onChanged }: Prop
         <div>
           <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide">State Licenses</h3>
           <p className="text-xs text-[#707070] mt-1">
-            Upload one license PDF per state you&apos;re licensed in. AFL attaches the
+            Upload one license per state you&apos;re licensed in. AFL attaches the
             state-matched license to your booking confirmation messages automatically
             based on the lead&apos;s state.
           </p>
@@ -230,7 +230,7 @@ export default function StateLicensesSection({ user, licenses, onChanged }: Prop
                   disabled={openingPdfFor === stateCode}
                   className="text-xs text-[#44bbaa] hover:text-[#005751] font-semibold disabled:opacity-50"
                 >
-                  {openingPdfFor === stateCode ? 'Opening…' : 'View PDF'}
+                  {openingPdfFor === stateCode ? 'Opening…' : 'View'}
                 </button>
                 {isPendingDelete ? (
                   <div className="flex items-center gap-1.5">
@@ -307,11 +307,11 @@ export default function StateLicensesSection({ user, licenses, onChanged }: Prop
             </div>
           </div>
 
-          <div className="flex items-center gap-3 mb-3">
+          <div className="flex items-center gap-3 mb-1">
             <input
               ref={fileInputRef}
               type="file"
-              accept="application/pdf,.pdf"
+              accept="application/pdf,.pdf,image/jpeg,.jpg,.jpeg,image/png,.png"
               onChange={(e) => setForm({ ...form, file: e.target.files?.[0] || null })}
               disabled={busy}
               className="hidden"
@@ -321,7 +321,7 @@ export default function StateLicensesSection({ user, licenses, onChanged }: Prop
               disabled={busy}
               className="px-3 py-2 text-sm font-medium text-[#005851] border border-[#005851] rounded-[5px] hover:bg-[#005851] hover:text-white transition-colors"
             >
-              {form.file ? 'Change file' : 'Upload PDF'}
+              {form.file ? 'Change file' : 'Upload file'}
             </button>
             {form.file && (
               <span className="text-xs text-[#707070] truncate flex-1 min-w-0">
@@ -329,6 +329,7 @@ export default function StateLicensesSection({ user, licenses, onChanged }: Prop
               </span>
             )}
           </div>
+          <p className="text-[11px] text-[#707070] mb-3">PDF, JPEG, or PNG · 10 MB max</p>
 
           {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
 

@@ -115,11 +115,17 @@ async function fetchLicenseFile(
     const data = await res.json();
     const url = data?.url;
     if (!url) return { file: null, signedUrl: null };
-    // Fetch the PDF bytes for the share sheet.
-    const pdfRes = await fetch(url);
-    if (!pdfRes.ok) return { file: null, signedUrl: url };
-    const blob = await pdfRes.blob();
-    const file = new File([blob], `${stateCode}-license.pdf`, { type: 'application/pdf' });
+    // contentType is returned by the API as of the JPEG/PNG license
+    // support; missing on responses cached before that ships → assume
+    // PDF for back-compat.
+    const contentType: string = (typeof data?.contentType === 'string' && data.contentType)
+      || 'application/pdf';
+    const ext = contentType === 'image/jpeg' ? 'jpg' : contentType === 'image/png' ? 'png' : 'pdf';
+    // Fetch the file bytes for the share sheet.
+    const fileRes = await fetch(url);
+    if (!fileRes.ok) return { file: null, signedUrl: url };
+    const blob = await fileRes.blob();
+    const file = new File([blob], `${stateCode}-license.${ext}`, { type: contentType });
     return { file, signedUrl: url };
   } catch (err) {
     console.error('fetchLicenseFile error:', err);

@@ -507,6 +507,13 @@ export default function LeadDetailPanel({
   // button on appointment cards that haven't been sent yet. Tracked
   // by appointment ID so the drawer knows which appointment to stamp.
   const [confirmingAppointmentId, setConfirmingAppointmentId] = useState<string | null>(null);
+  // Drawer-dismiss advance gate. Set TRUE when the drawer is opened
+  // from the just-booked flow (AppointmentPicker.onBooked) so the queue
+  // parent advances to the next lead only after the agent finishes
+  // with the QR/confirmation, not the moment booking completes. Stays
+  // FALSE for the manual re-open path (Send confirmation button on an
+  // existing appointment card) where the agent is just reviewing.
+  const advanceQueueOnDrawerDismissRef = useRef(false);
   // Auto-open the send-confirmation drawer when the URL has
   // ?openConfirmation={apptId} (the QR/deep-link hand-off from
   // macOS). Wait until appointments are loaded so we can confirm the
@@ -1682,10 +1689,13 @@ export default function LeadDetailPanel({
             // sees both the "How did the call go?" chips AND the new
             // appointment card, which is confusing.)
             setOutcomePrompt(false);
+            // Mark so the drawer dismiss handlers advance the queue to
+            // the next lead. Setting state alone isn't enough — the
+            // queue parent's advance changes `selectedLeadId`, which
+            // flips the panel's key, which unmounts the panel before
+            // the drawer can render. We hold the advance until dismiss.
+            advanceQueueOnDrawerDismissRef.current = true;
             setConfirmingAppointmentId(apptId);
-            // Signal the queue parent to advance — booked drops the lead
-            // off the queue (filter excludes lastDialOutcome === 'booked').
-            onOutcomeLogged?.('booked');
           }}
           onCancel={() => setShowAppointmentPicker(false)}
         />
@@ -1812,8 +1822,20 @@ export default function LeadDetailPanel({
             agentBusinessCardBase64={agentProfile.businessCardBase64}
             licenses={agentProfile.licenses || {}}
             attachmentsSent={lead.attachmentsSent}
-            onSent={() => setConfirmingAppointmentId(null)}
-            onCancel={() => setConfirmingAppointmentId(null)}
+            onSent={() => {
+              setConfirmingAppointmentId(null);
+              if (advanceQueueOnDrawerDismissRef.current) {
+                advanceQueueOnDrawerDismissRef.current = false;
+                onOutcomeLogged?.('booked');
+              }
+            }}
+            onCancel={() => {
+              setConfirmingAppointmentId(null);
+              if (advanceQueueOnDrawerDismissRef.current) {
+                advanceQueueOnDrawerDismissRef.current = false;
+                onOutcomeLogged?.('booked');
+              }
+            }}
           />
         );
       })()}

@@ -5,10 +5,13 @@ import { getAdminAuth, getAdminFirestore, getAdminStorage } from '../../../../li
 import {
   isValidStateCode,
   licenseStoragePath,
+  extForLicenseContentType,
+  SUPPORTED_LICENSE_CONTENT_TYPES,
   type StateCode,
+  type SupportedLicenseContentType,
 } from '../../../../lib/agent-licenses';
 
-const MAX_PDF_BYTES = 10 * 1024 * 1024;  // 10 MB
+const MAX_FILE_BYTES = 10 * 1024 * 1024;  // 10 MB — applies to PDF, JPEG, and PNG alike
 
 /**
  * POST /api/agent-licenses/upload
@@ -62,23 +65,53 @@ export async function POST(req: NextRequest) {
     if (!file || !(file instanceof File)) {
       return NextResponse.json({ error: 'Missing "file" field' }, { status: 400 });
     }
-    if (file.size > MAX_PDF_BYTES) {
+    if (file.size > MAX_FILE_BYTES) {
       return NextResponse.json(
-        { error: `File too large (${file.size} bytes; max ${MAX_PDF_BYTES})` },
+        { error: `File too large (${file.size} bytes; max ${MAX_FILE_BYTES})` },
         { status: 413 },
       );
     }
-    if (!file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf')) {
-      return NextResponse.json({ error: 'File must be a PDF' }, { status: 400 });
+
+    // Resolve content type. Browsers occasionally hand us empty
+    // `file.type` (drag-drop from some apps); fall back to the file
+    // extension before rejecting.
+    const lowerName = file.name.toLowerCase();
+    const resolvedContentType: SupportedLicenseContentType | null = (() => {
+      const t = file.type;
+      if (t === 'application/pdf' || t === 'image/jpeg' || t === 'image/png') return t;
+      if (!t) {
+        if (lowerName.endsWith('.pdf')) return 'application/pdf';
+        if (lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) return 'image/jpeg';
+        if (lowerName.endsWith('.png')) return 'image/png';
+      }
+      return null;
+    })();
+    if (!resolvedContentType) {
+      return NextResponse.json(
+        { error: `File must be one of: ${SUPPORTED_LICENSE_CONTENT_TYPES.join(', ')}` },
+        { status: 400 },
+      );
     }
 
     const arrayBuffer = await file.arrayBuffer();
-    const pdfBuffer = Buffer.from(arrayBuffer);
+    const fileBuffer = Buffer.from(arrayBuffer);
     const storage = getAdminStorage().bucket();
-    const path = licenseStoragePath(agentId, stateCode);
+    const newExt = extForLicenseContentType(resolvedContentType);
+    const path = licenseStoragePath(agentId, stateCode, newExt);
 
-    await storage.file(path).save(pdfBuffer, {
-      metadata: { contentType: 'application/pdf' },
+    // Replacing a license? Delete any old file at a DIFFERENT extension
+    // before writing the new one — otherwise the orphaned old file sits
+    // in Storage forever and could come back if the user re-uploads at
+    // the old extension later.
+    const db = getAdminFirestore();
+    const existingSnap = await db.collection('agents').doc(agentId).get();
+    const existing = (existingSnap.data()?.licenses as Record<string, { pdfStoragePath?: string } | undefined> | undefined)?.[stateCode];
+    if (existing?.pdfStoragePath && existing.pdfStoragePath !== path) {
+      await storage.file(existing.pdfStoragePath).delete().catch(() => {});
+    }
+
+    await storage.file(path).save(fileBuffer, {
+      metadata: { contentType: resolvedContentType },
       resumable: false,
     });
 
@@ -87,12 +120,12 @@ export async function POST(req: NextRequest) {
       number,
       expiresOn: expiresOn || null,
       pdfStoragePath: path,
+      fileContentType: resolvedContentType,
       uploadedAt,
     };
 
     // Merge — overwrites any existing entry for this state code,
     // leaves others untouched.
-    const db = getAdminFirestore();
     await db.collection('agents').doc(agentId).set(
       { licenses: { [stateCode]: entry } },
       { merge: true },
