@@ -1021,8 +1021,17 @@ export default function LeadsPage() {
               single-column layout with the inline outcome chip flow
               under each row. */}
           <div className={view === 'queue' && !loading && queueLeads.length > 0 ? 'md:flex md:gap-4 md:items-start' : ''}>
+          {/* List rail. Desktop two-pane: sticky to the top of the
+              scrollable main so the agent never loses the queue while
+              scrolling the long right pane (form fields + appointments
+              + dial history). max-h sized to leave room for the dashboard
+              header (h-14) + ticker + main padding above the scrollport;
+              internal overflow-y-auto kicks in when the queue is taller
+              than viewport. x-axis stays clipped for the rounded corners. */}
           <div className={`bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden ${
-            view === 'queue' && !loading && queueLeads.length > 0 ? 'md:w-[360px] md:shrink-0' : ''
+            view === 'queue' && !loading && queueLeads.length > 0
+              ? 'md:w-[360px] md:shrink-0 md:sticky md:top-0 md:max-h-[calc(100vh-8rem)] md:overflow-y-auto'
+              : ''
           }`}>
             {view === 'queue' && !loading && queueLeads.length > 0 ? (
               <div>
