@@ -5155,16 +5155,20 @@ export default function ClientsPage() {
               </button>
             </div>
 
-            <p className="text-xs text-[#707070] text-center mt-4 leading-relaxed">
-              Have a very large book of business?{' '}
+            {/* Concierge-import callout — visible but secondary. The
+                mailto pre-fills subject + body so the agent can fire it
+                off in one tap instead of staring at a blank email. */}
+            <div className="mt-5 flex justify-center">
               <a
-                href="mailto:support@agentforlife.app?subject=Concierge%20import"
-                className="text-[#0D4D4D] font-semibold underline hover:text-[#005751]"
+                href={`mailto:support@agentforlife.app?subject=${encodeURIComponent('Concierge import — large book of business')}&body=${encodeURIComponent("I'm interested in the concierge service for importing my large book of business.")}`}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#daf3f0]/60 border border-[#45bcaa]/40 text-[#0D4D4D] text-sm font-semibold hover:bg-[#daf3f0] hover:border-[#45bcaa]/70 transition-colors"
               >
-                Ask us about our concierge import service
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Very large book? Ask about our concierge import service →
               </a>
-              .
-            </p>
+            </div>
           </div>
         </div>
       ) : filteredClients.length === 0 ? (
