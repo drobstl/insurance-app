@@ -5154,6 +5154,17 @@ export default function ClientsPage() {
                 Add a client
               </button>
             </div>
+
+            <p className="text-xs text-[#707070] text-center mt-4 leading-relaxed">
+              Have a very large book of business?{' '}
+              <a
+                href="mailto:support@agentforlife.app?subject=Concierge%20import"
+                className="text-[#0D4D4D] font-semibold underline hover:text-[#005751]"
+              >
+                Ask us about our concierge import service
+              </a>
+              .
+            </p>
           </div>
         </div>
       ) : filteredClients.length === 0 ? (
