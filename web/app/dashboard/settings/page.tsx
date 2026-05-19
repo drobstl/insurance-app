@@ -320,6 +320,7 @@ export default function SettingsPage() {
     autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? false,
     reminderPushHoursBefore: agentProfile.reminderPushHoursBefore ?? 1,
     dialScript: agentProfile.dialScript || '',
+    forwardInboundSms: agentProfile.forwardInboundSms ?? true,
   }), [
     agentProfile.name,
     agentProfile.phoneNumber,
@@ -347,6 +348,7 @@ export default function SettingsPage() {
     agentProfile.autoCreateGoogleMeet,
     agentProfile.reminderPushHoursBefore,
     agentProfile.dialScript,
+    agentProfile.forwardInboundSms,
   ]);
 
   const loadGoogleDriveStatus = useCallback(async () => {
@@ -738,6 +740,7 @@ export default function SettingsPage() {
           return Math.min(24, Math.max(1, Math.round(raw)));
         })(),
         dialScript: (agentProfile.dialScript || '').slice(0, 8000),
+        forwardInboundSms: agentProfile.forwardInboundSms ?? true,
       }, { merge: true });
 
       if (isFirstTimePhone) {
@@ -1104,6 +1107,27 @@ export default function SettingsPage() {
                   placeholder="(555) 123-4567"
                   className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
                 />
+              </div>
+              <div className="flex items-start justify-between gap-4 pt-2 border-t border-gray-100">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-[#000000]">Forward Linq texts to my cell</p>
+                  <p className="text-xs text-[#707070] mt-1">
+                    When a client or beneficiary texts your Linq line out of the blue (not part of a referral, conservation, or policy review the AI is already handling), we&rsquo;ll text you a copy at the number above so you can reply directly from your phone.
+                  </p>
+                </div>
+                <button
+                  onClick={() => updateField('forwardInboundSms', !(agentProfile.forwardInboundSms ?? true))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
+                    (agentProfile.forwardInboundSms ?? true) ? 'bg-[#44bbaa]' : 'bg-gray-300'
+                  }`}
+                  aria-label="Toggle Linq text forwarding"
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
+                      (agentProfile.forwardInboundSms ?? true) ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
               </div>
             </div>
           </div>
