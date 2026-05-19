@@ -464,6 +464,15 @@ export default function LeadDetailPanel({
   const emailTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const emailHydratedRef = useRef(false);
 
+  // PDF extraction occasionally swaps first/last (e.g. "Smith John"
+  // instead of "John Smith") — agent needs to fix it in place rather
+  // than dropping the lead.
+  const [name, setName] = useState('');
+  const [nameSavedAt, setNameSavedAt] = useState<Date | null>(null);
+  const [nameSaving, setNameSaving] = useState(false);
+  const nameTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nameHydratedRef = useRef(false);
+
   // Yes/No fields — saved immediately (no debounce needed for a button).
   // Tri-state via null = unknown.
   const [smoker, setSmoker] = useState<'Y' | 'N' | null>(null);
@@ -578,6 +587,10 @@ export default function LeadDetailPanel({
       if (!emailHydratedRef.current) {
         setEmail(typeof data.email === 'string' ? data.email : '');
         emailHydratedRef.current = true;
+      }
+      if (!nameHydratedRef.current) {
+        setName(typeof data.name === 'string' ? data.name : '');
+        nameHydratedRef.current = true;
       }
       if (!smokerHydratedRef.current) {
         setSmoker(data.smokerStatus === 'Y' || data.smokerStatus === 'N' ? data.smokerStatus : null);
@@ -776,6 +789,34 @@ export default function LeadDetailPanel({
         console.error('email autosave failed:', err);
       } finally {
         setEmailSaving(false);
+      }
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }, [user, leadId]);
+
+  // Name autosave. Mostly used to fix the occasional PDF extraction
+  // where first/last get swapped ("Smith John" → "John Smith"). The
+  // dial-script `{leadFirstName}` token splits on the first space, so
+  // a corrected name flows through dial-script personalization on the
+  // next render.
+  const scheduleNameSave = useCallback((value: string) => {
+    if (!user || !leadId) return;
+    if (nameTimer.current) clearTimeout(nameTimer.current);
+    nameTimer.current = setTimeout(async () => {
+      const v = value.trim();
+      // Refuse empty saves — every lead must have a name. The agent
+      // can clear the input visually, but we won't blow away the
+      // existing value in Firestore.
+      if (!v) return;
+      setNameSaving(true);
+      try {
+        await updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+          name: v,
+        });
+        setNameSavedAt(new Date());
+      } catch (err) {
+        console.error('name autosave failed:', err);
+      } finally {
+        setNameSaving(false);
       }
     }, AUTOSAVE_DEBOUNCE_MS);
   }, [user, leadId]);
@@ -1298,6 +1339,28 @@ export default function LeadDetailPanel({
       <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5 mb-6">
         <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider mb-3">Lead profile</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="block text-sm font-semibold text-[#374151] mb-1">
+              Name
+              <span className="ml-2 text-xs font-normal text-[#707070]">
+                {nameSaving ? 'Saving…' : nameSavedAt ? `Saved · ${formatRelativeTime(nameSavedAt)}` : ''}
+              </span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => {
+                const v = e.target.value;
+                setName(v);
+                scheduleNameSave(v);
+              }}
+              placeholder="First Last"
+              className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+            />
+            <p className="text-[11px] text-[#707070] mt-1">
+              Fix here if the PDF extracted the name backwards. First word is treated as the first name everywhere else (dial script, SMS templates).
+            </p>
+          </div>
           <div>
             <label className="block text-sm font-semibold text-[#374151] mb-1">
               Email
