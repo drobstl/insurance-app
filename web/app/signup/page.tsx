@@ -28,6 +28,11 @@ function SignupPageInner() {
   const [refCode, setRefCode] = useState<string | null>(null);
   const [referrerName, setReferrerName] = useState<string | null>(null);
   const [referrerId, setReferrerId] = useState<string | null>(null);
+  // Held false until onAuthStateChanged confirms no user is signed in.
+  // While false we show a spinner instead of the signup form so an
+  // already-authed visitor never sees "Create Your Account" flash
+  // before the redirect to checkout / dashboard.
+  const [authChecked, setAuthChecked] = useState(false);
 
   // Track C (May 10, 2026): the pricing page routes through
   // /signup?tier=starter|growth|pro. After auth we POST to
@@ -98,7 +103,12 @@ function SignupPageInner() {
   // dashboard's SubscriptionGate handles unsubscribed users.
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
-      if (!user) return;
+      if (!user) {
+        setAuthChecked(true);
+        return;
+      }
+      // Leave authChecked=false so the form stays hidden through the
+      // redirect — the page is going away, no need to render it.
       if (selectedTier) {
         void startCheckout(user, selectedTier);
         return;
@@ -184,6 +194,14 @@ function SignupPageInner() {
 
         {/* Signup Form Card */}
         <div className="w-full max-w-md">
+          {!authChecked ? (
+            <div className="bg-white rounded-[5px] shadow-xl border border-[#d0d0d0] p-12 flex items-center justify-center min-h-[420px]">
+              <svg className="animate-spin w-8 h-8 text-[#44bbaa]" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+            </div>
+          ) : (
           <div className="bg-white rounded-[5px] shadow-xl border border-[#d0d0d0] p-8">
             <div className="text-center mb-8">
               <h1 className="text-2xl font-bold text-[#005851]">Create Your Account</h1>
@@ -302,6 +320,7 @@ function SignupPageInner() {
               </p>
             </div>
           </div>
+          )}
 
           {/* Back to Home Link */}
           <div className="mt-6 text-center">
