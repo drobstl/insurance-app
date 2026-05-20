@@ -24,3 +24,14 @@
  */
 export const LEAD_MODE_ENABLED =
   process.env.NEXT_PUBLIC_LEAD_MODE_ENABLED === 'true';
+
+/**
+ * NEXT_PUBLIC_ACTIVITY_ENABLED — gates the agent KPI dashboard at
+ * /dashboard/activity (dials, contacts, booked, sales, APV, saved APV,
+ * funnel, recent wins). When off, the Activity sidebar nav item
+ * renders strikethrough + "Coming soon" chip, the route redirects to
+ * /dashboard, and the underlying /api/agent/activity endpoint returns
+ * a 404. Same flip-requires-redeploy mechanics as LEAD_MODE_ENABLED.
+ */
+export const ACTIVITY_ENABLED =
+  process.env.NEXT_PUBLIC_ACTIVITY_ENABLED === 'true';

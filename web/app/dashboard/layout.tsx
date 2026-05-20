@@ -12,7 +12,7 @@ import DashboardTicker from '../../components/DashboardTicker';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
 import { ANALYTICS_EVENTS } from '../../lib/analytics-events';
 import { captureEvent } from '../../lib/posthog';
-import { LEAD_MODE_ENABLED } from '../../lib/feature-flags';
+import { LEAD_MODE_ENABLED, ACTIVITY_ENABLED } from '../../lib/feature-flags';
 
 const FOUNDING_ACTIVATION_TIMEOUT_MS = 12000;
 // Hard ceiling for the activation spinner: if `activatingFounding` is still true
@@ -663,12 +663,15 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
         <nav className="mt-4 px-2 space-y-1">
           {NAV_ITEMS.map((item) => {
-            // Pre-application lead-mode surface is gated by
-            // NEXT_PUBLIC_LEAD_MODE_ENABLED. When off, the Leads row
-            // renders as a non-interactive placeholder with strikethrough
-            // text and a "Coming soon" chip on top — per Daniel's spec:
-            // visually present, unreachable.
-            if (item.key === 'leads' && !LEAD_MODE_ENABLED) {
+            // Feature-flagged surfaces render as non-interactive
+            // "Coming soon" placeholders when their env-var gate is
+            // off. Visually present so the upcoming feature is
+            // discoverable, but unreachable — same pattern as the
+            // pre-application lead-mode surface.
+            const isFlaggedOff =
+              (item.key === 'leads' && !LEAD_MODE_ENABLED) ||
+              (item.key === 'activity' && !ACTIVITY_ENABLED);
+            if (isFlaggedOff) {
               return (
                 <div
                   key={item.key}
