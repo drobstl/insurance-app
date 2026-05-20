@@ -1,12 +1,12 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
-import { isStripeBillableTier, PRICING_TIERS } from '../../lib/pricing';
+import { isStripeBillableTier, PRICING_TIERS, type StripeBillableTierId } from '../../lib/pricing';
 
 export default function SignupPage() {
   return (
@@ -58,6 +58,56 @@ function SignupPageInner() {
       .catch(() => setRefCode(null));
   }, [searchParams]);
 
+  // POST to create-checkout-session for an authenticated Firebase user
+  // and hand off to Stripe. Shared between handleSignup (fresh signup
+  // with ?tier=) and the already-authed redirect path below.
+  const startCheckout = useCallback(
+    async (user: User, tier: StripeBillableTierId) => {
+      try {
+        const token = await user.getIdToken();
+        const referralCode = (() => {
+          try { return sessionStorage.getItem('agentReferralCode'); } catch { return null; }
+        })();
+        const res = await fetch('/api/stripe/create-checkout-session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ tier, referralCode }),
+        });
+        const data = await res.json();
+        if (res.ok && data.url) {
+          window.location.href = data.url;
+          return;
+        }
+        console.error('[signup] checkout-session failed', data);
+        router.push('/pricing?error=checkout');
+      } catch (checkoutErr) {
+        console.error('[signup] checkout-session network error', checkoutErr);
+        router.push('/pricing?error=checkout');
+      }
+    },
+    [router],
+  );
+
+  // If a user is already signed in when they hit /signup, don't run
+  // createUserWithEmailAndPassword again — Firebase throws
+  // email-already-in-use and the user gets stuck. Forward them to
+  // checkout (when a tier is selected) or into the app, where the
+  // dashboard's SubscriptionGate handles unsubscribed users.
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (!user) return;
+      if (selectedTier) {
+        void startCheckout(user, selectedTier);
+        return;
+      }
+      router.replace('/dashboard');
+    });
+    return unsub;
+  }, [selectedTier, router, startCheckout]);
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -84,38 +134,10 @@ function SignupPageInner() {
 
       // Track C (May 10, 2026): if a tier was preselected from the
       // pricing page, kick off Stripe Checkout immediately. Otherwise
-      // route to /pricing so the user picks one. The legacy
-      // /subscribe page (now a thin redirect to /pricing) is no
-      // longer the post-signup destination.
+      // route to /pricing so the user picks one.
       if (selectedTier) {
-        try {
-          const token = await user.getIdToken();
-          const referralCode = (() => {
-            try { return sessionStorage.getItem('agentReferralCode'); } catch { return null; }
-          })();
-          const res = await fetch('/api/stripe/create-checkout-session', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ tier: selectedTier, referralCode }),
-          });
-          const data = await res.json();
-          if (res.ok && data.url) {
-            window.location.href = data.url;
-            return;
-          }
-          console.error('[signup] checkout-session failed', data);
-          // Fall through to /pricing so the user can retry — better
-          // than leaving them stuck on the signup page.
-          router.push('/pricing?error=checkout');
-          return;
-        } catch (checkoutErr) {
-          console.error('[signup] checkout-session network error', checkoutErr);
-          router.push('/pricing?error=checkout');
-          return;
-        }
+        await startCheckout(user, selectedTier);
+        return;
       }
 
       router.push('/pricing');
