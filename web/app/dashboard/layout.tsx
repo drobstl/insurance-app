@@ -424,6 +424,16 @@ const NAV_ITEMS = [
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
     </svg>
   )},
+  // Agent activity stats (May 20, 2026). Closr-style KPI dashboard:
+  // dials, contacts, booked, sales, APV (split by source: bought
+  // leads / referrals / rewrites / manual), saved APV from retention
+  // wins, funnel viz, recent wins. Computed on-demand from existing
+  // leads / appointments / clients / policies / conservationAlerts.
+  { key: 'activity', path: '/dashboard/activity', label: 'Activity', icon: (
+    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 17l6-6 4 4 7-7m-3 0h3v3" />
+    </svg>
+  )},
   // Cross-lane agent action items surface (May 9, 2026 — Item 7).
   // Replaces the welcome-only queue. Tabs: Welcome / Retention /
   // Anniversary / Referral. Per-lane card components live in
@@ -576,6 +586,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     if (pathname === '/dashboard') return 'home';
     if (pathname.startsWith('/dashboard/clients')) return 'clients';
     if (pathname.startsWith('/dashboard/leads')) return 'leads';
+    if (pathname.startsWith('/dashboard/activity')) return 'activity';
     if (pathname.startsWith('/dashboard/referrals')) return 'referrals';
     if (pathname.startsWith('/dashboard/conservation')) return 'conservation';
     if (pathname.startsWith('/dashboard/policy-reviews')) return 'policy-reviews';
