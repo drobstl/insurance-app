@@ -662,54 +662,68 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="mt-4 px-2 space-y-1">
-          {NAV_ITEMS.map((item) => {
-            // Feature-flagged surfaces render as non-interactive
-            // "Coming soon" placeholders when their env-var gate is
-            // off. Visually present so the upcoming feature is
-            // discoverable, but unreachable — same pattern as the
-            // pre-application lead-mode surface.
-            const isFlaggedOff =
+          {/* Feature-flagged surfaces render as non-interactive "Coming
+              soon" placeholders when their env-var gate is off, AND are
+              pushed to the bottom of the nav so the prime real estate
+              stays focused on daily-workflow tools (Home / Clients /
+              Action Items / Referrals / Retention / Rewrites). When the
+              flag flips on, the item snaps back to its natural position
+              in NAV_ITEMS order. */}
+          {NAV_ITEMS.filter((item) => {
+            if (item.key === 'leads') return LEAD_MODE_ENABLED;
+            if (item.key === 'activity') return ACTIVITY_ENABLED;
+            return true;
+          }).map((item) => (
+            <button
+              key={item.key}
+              data-onboarding-target={item.key === 'clients' ? 'nav-clients' : undefined}
+              onClick={() => router.push(item.path)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
+                activeKey === item.key
+                  ? 'bg-[#daf3f0] text-[#005851]'
+                  : 'text-white/80 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              <div className="relative shrink-0">
+                {item.icon}
+              </div>
+              <span className="whitespace-nowrap overflow-hidden text-sm font-semibold opacity-100 w-auto">
+                {item.label}
+              </span>
+            </button>
+          ))}
+
+          {/* Gated-off placeholders — pushed below the live items but
+              above Admin / Settings. Subtle divider so they read as a
+              distinct "what's coming" group. Listed in NAV_ITEMS order
+              (so Leads appears above Activity). */}
+          {(() => {
+            const gatedOff = NAV_ITEMS.filter((item) =>
               (item.key === 'leads' && !LEAD_MODE_ENABLED) ||
-              (item.key === 'activity' && !ACTIVITY_ENABLED);
-            if (isFlaggedOff) {
-              return (
-                <div
-                  key={item.key}
-                  aria-disabled
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] text-white/40 relative cursor-default select-none"
-                >
-                  <div className="relative shrink-0 opacity-60">
-                    {item.icon}
-                  </div>
-                  <span className="whitespace-nowrap overflow-hidden text-sm font-semibold line-through">
-                    {item.label}
-                  </span>
-                  <span className="absolute -top-1 right-1 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider bg-[#44bbaa]/20 text-[#daf3f0] border border-[#45bcaa]/30 rounded leading-none">
-                    Coming soon
-                  </span>
-                </div>
-              );
-            }
-            return (
-              <button
-                key={item.key}
-                data-onboarding-target={item.key === 'clients' ? 'nav-clients' : undefined}
-                onClick={() => router.push(item.path)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
-                  activeKey === item.key
-                    ? 'bg-[#daf3f0] text-[#005851]'
-                    : 'text-white/80 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                <div className="relative shrink-0">
-                  {item.icon}
-                </div>
-                <span className="whitespace-nowrap overflow-hidden text-sm font-semibold opacity-100 w-auto">
-                  {item.label}
-                </span>
-              </button>
+              (item.key === 'activity' && !ACTIVITY_ENABLED)
             );
-          })}
+            if (gatedOff.length === 0) return null;
+            return (
+              <>
+                <div className="my-2 mx-1 border-t border-white/10" />
+                <p className="px-3 pt-1 pb-0.5 text-[9px] font-bold uppercase tracking-wider text-white/30">Coming soon</p>
+                {gatedOff.map((item) => (
+                  <div
+                    key={item.key}
+                    aria-disabled
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] text-white/40 relative cursor-default select-none"
+                  >
+                    <div className="relative shrink-0 opacity-60">
+                      {item.icon}
+                    </div>
+                    <span className="whitespace-nowrap overflow-hidden text-sm font-semibold line-through">
+                      {item.label}
+                    </span>
+                  </div>
+                ))}
+              </>
+            );
+          })()}
 
           {isAdmin && (
             <>
