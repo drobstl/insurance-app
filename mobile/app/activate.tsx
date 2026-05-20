@@ -194,16 +194,23 @@ export default function ActivateScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const { status } = await Notifications.getPermissionsAsync();
+        const { status, canAskAgain } = await Notifications.getPermissionsAsync();
         if (status === 'granted') {
           setPushStatus('enabled');
           return;
         }
-        if (status === 'denied') {
+        // On Android 13+ the initial pre-prompt state is reported as
+        // 'denied' with canAskAgain:true (Android has no 'undetermined'
+        // equivalent — pre-ask and explicit-deny share the same status).
+        // Treat that as "we haven't asked yet" and trigger the OS dialog.
+        // Only stop at 'denied' when canAskAgain is false (the user has
+        // actually said no, or hit "don't ask again").
+        if (status === 'denied' && !canAskAgain) {
           setPushStatus('denied');
           return;
         }
-        // 'undetermined' — auto-prompt so the dialog appears now.
+        // Either 'undetermined' (iOS first run) or 'denied'+canAskAgain
+        // (Android first run) — auto-prompt so the dialog appears now.
         setPushStatus('requesting');
         try {
           await registerForPushNotificationsAsync();

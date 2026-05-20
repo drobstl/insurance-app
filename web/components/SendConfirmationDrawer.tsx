@@ -115,11 +115,17 @@ async function fetchLicenseFile(
     const data = await res.json();
     const url = data?.url;
     if (!url) return { file: null, signedUrl: null };
-    // Fetch the PDF bytes for the share sheet.
-    const pdfRes = await fetch(url);
-    if (!pdfRes.ok) return { file: null, signedUrl: url };
-    const blob = await pdfRes.blob();
-    const file = new File([blob], `${stateCode}-license.pdf`, { type: 'application/pdf' });
+    // contentType is returned by the API as of the JPEG/PNG license
+    // support; missing on responses cached before that ships → assume
+    // PDF for back-compat.
+    const contentType: string = (typeof data?.contentType === 'string' && data.contentType)
+      || 'application/pdf';
+    const ext = contentType === 'image/jpeg' ? 'jpg' : contentType === 'image/png' ? 'png' : 'pdf';
+    // Fetch the file bytes for the share sheet.
+    const fileRes = await fetch(url);
+    if (!fileRes.ok) return { file: null, signedUrl: url };
+    const blob = await fileRes.blob();
+    const file = new File([blob], `${stateCode}-license.${ext}`, { type: contentType });
     return { file, signedUrl: url };
   } catch (err) {
     console.error('fetchLicenseFile error:', err);
@@ -180,9 +186,12 @@ export default function SendConfirmationDrawer({
   const [hasShareApi, setHasShareApi] = useState(false);
 
   // Platform tier:
-  //   - 'mobile' (iPhone/Android) → Web Share is direct-to-Messages
-  //     with recipient + body + all files (including PDFs) pre-filled.
-  //     Magical, one-tap.
+  //   - 'mobile' (iPhone/Android) → Web Share opens Messages with
+  //     body + all files (including PDFs) pre-filled. The Web Share
+  //     spec has NO recipient field, so iOS hands the agent an empty
+  //     To: line. We copy the lead's phone to clipboard right before
+  //     invoking share so the agent can paste it with one tap. The
+  //     heads-up text under the Send button (line ~410) explains this.
   //   - 'mac' → macOS desktop. Two-button flow: step 1 fires `sms:`
   //     to open Messages with recipient + body; step 2 fires
   //     `navigator.share({ files })` (files only) so the picked
@@ -308,13 +317,30 @@ export default function SendConfirmationDrawer({
 
   // ── Send paths (one per platform tier) ──
 
-  /** Mobile (iPhone / Android) — Web Share API delivers recipient +
-   *  body + files in one shot. No `title` (would surface as an
-   *  iMessage subject and confuse the lead). */
+  /** Mobile (iPhone / Android) — Web Share API delivers body + files
+   *  in one shot. Recipient pre-fill is NOT supported by the Web
+   *  Share spec, so we copy the lead's phone to the system clipboard
+   *  right before invoking share. iOS keeps the clipboard alive
+   *  across the share-sheet → Messages transition; the agent
+   *  long-presses the To: field and taps Paste to fill in the number.
+   *  No `title` field (would surface as an iMessage subject and
+   *  confuse the lead). */
   const handleSendMobile = useCallback(async () => {
     setError(null);
     setBusy(true);
     try {
+      // Clipboard write must happen inside the same user-gesture as
+      // the share invocation. We don't fail the send if clipboard
+      // write rejects — Permissions API or transient errors shouldn't
+      // block the actual confirmation message.
+      const phoneDigits = leadPhone.replace(/\D/g, '');
+      if (phoneDigits.length >= 7 && typeof navigator !== 'undefined' && navigator.clipboard) {
+        try {
+          await navigator.clipboard.writeText(leadPhone);
+        } catch (clipboardErr) {
+          console.warn('clipboard write failed (non-fatal):', clipboardErr);
+        }
+      }
       const files = buildFiles();
       if (
         files.length > 0 &&
@@ -343,7 +369,7 @@ export default function SendConfirmationDrawer({
     } finally {
       setBusy(false);
     }
-  }, [buildFiles, message, stampSent, attachedReport, onSent, buildSmsUrl]);
+  }, [buildFiles, message, stampSent, attachedReport, onSent, buildSmsUrl, leadPhone]);
 
   /** "Send from phone" deep-link URL — agent scans QR with phone, the
    *  URL opens AFL in iPhone Safari deep-linked to this drawer. */
@@ -513,6 +539,14 @@ export default function SendConfirmationDrawer({
         </div>
 
         <div className="p-5 border-t border-[#ececec] bg-[#fafafa] shrink-0 space-y-2">
+          {platform === 'mobile' && (
+            <div className="rounded-[5px] bg-[#FEF3C7] border border-[#FCD34D] px-3 py-2 text-[11px] text-[#92400E] leading-relaxed">
+              <strong>Heads up:</strong> iOS won&apos;t pre-fill the recipient. Tap Send —
+              we&apos;ll copy
+              <span className="font-mono mx-1">{leadPhone}</span>
+              to your clipboard so you can long-press the To: field in Messages and paste.
+            </div>
+          )}
           <div className="flex gap-3">
             <button
               onClick={onCancel}
@@ -523,13 +557,14 @@ export default function SendConfirmationDrawer({
             </button>
 
             {/* Primary action diverges by platform:
-                - mobile: single-tap Web Share to Messages (magical).
+                - mobile: tap Web Share to Messages. Body + files
+                  pre-filled; recipient is NOT pre-filled by the Web
+                  Share spec — we copy the lead's phone to clipboard
+                  in handleSendMobile so the agent can paste into the
+                  To: field with one long-press.
                 - desktop (Mac or other): show the QR — agent scans
                   with their phone, AFL opens on phone with the drawer
-                  mounted, they tap Send there. The phone's Web Share
-                  delivers recipient + body + all files in one shot.
-                  Desktop browsers fundamentally can't match that, so
-                  we don't try anymore. */}
+                  mounted, they tap Send there. */}
             {platform === 'mobile' ? (
               <button
                 onClick={handleSendMobile}

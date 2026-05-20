@@ -79,9 +79,6 @@ export interface AgentProfile {
   welcomeSmsTemplate?: string;
   beneficiaryWelcomeTemplateEn?: string;
   beneficiaryWelcomeTemplateEs?: string;
-  beneficiaryHolidayTouchpointsEnabled?: boolean;
-  beneficiaryAIFollowupsEnabled?: boolean;
-  beneficiaryMaxTouchesPer30Days?: number;
   skipWelcomeSmsConfirmation?: boolean;
   forwardInboundSms?: boolean;
   onboardingComplete?: boolean;
@@ -151,6 +148,18 @@ export interface AgentProfile {
    * DEFAULT_DIAL_SCRIPT.
    */
   dialScript?: string;
+  /**
+   * How many times the agent wants to dial a lead before the call
+   * queue auto-advances. 1 = current behavior (advance after every
+   * outcome). 2 = double-dial — stay on the lead until they've been
+   * dialed twice OR a terminal outcome (booked / not_interested /
+   * wrong_number / do_not_call / callback_requested) is chipped.
+   * 3 = triple-dial — same logic, three attempts. Transient outcomes
+   * `no_answer` and `left_vm` count toward the dial-count threshold;
+   * terminal outcomes always advance regardless of count. Defaults to
+   * 1. Persisted at `agents/{agentId}.dialPersistence`.
+   */
+  dialPersistence?: 1 | 2 | 3;
 }
 
 interface DashboardContextValue {
@@ -253,9 +262,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           welcomeSmsTemplate: data.welcomeSmsTemplate,
           beneficiaryWelcomeTemplateEn: data.beneficiaryWelcomeTemplateEn,
           beneficiaryWelcomeTemplateEs: data.beneficiaryWelcomeTemplateEs,
-          beneficiaryHolidayTouchpointsEnabled: data.beneficiaryHolidayTouchpointsEnabled,
-          beneficiaryAIFollowupsEnabled: data.beneficiaryAIFollowupsEnabled,
-          beneficiaryMaxTouchesPer30Days: data.beneficiaryMaxTouchesPer30Days,
           skipWelcomeSmsConfirmation: data.skipWelcomeSmsConfirmation,
           forwardInboundSms: data.forwardInboundSms,
           onboardingComplete: data.onboardingComplete,
@@ -272,6 +278,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             : 1,
           leadContent: data.leadContent || undefined,
           dialScript: typeof data.dialScript === 'string' ? data.dialScript : undefined,
+          dialPersistence: (data.dialPersistence === 2 || data.dialPersistence === 3)
+            ? data.dialPersistence
+            : 1,
         });
       } else {
         setAgentProfile({});

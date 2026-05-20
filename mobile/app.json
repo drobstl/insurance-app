@@ -71,6 +71,28 @@
               "RNFBApp",
               "RNFBAnalytics"
             ]
+          },
+          "android": {
+            "manifestQueries": {
+              "intent": [
+                {
+                  "action": "android.intent.action.VIEW",
+                  "data": [{ "scheme": "sms" }]
+                },
+                {
+                  "action": "android.intent.action.VIEW",
+                  "data": [{ "scheme": "smsto" }]
+                },
+                {
+                  "action": "android.intent.action.SENDTO",
+                  "data": [{ "scheme": "sms" }]
+                },
+                {
+                  "action": "android.intent.action.SENDTO",
+                  "data": [{ "scheme": "smsto" }]
+                }
+              ]
+            }
           }
         }
       ],

@@ -563,6 +563,14 @@ export default function LeadsPage() {
   const [desktopPendingDial, setDesktopPendingDial] = useState<{ leadId: string; phone: string; nonce: number } | null>(null);
   const dialNonceRef = useRef(0);
 
+  // Per-lead dial-session counter. Drives the dial-persistence setting
+  // (1/2/3 attempts before auto-advance). Incremented every time the
+  // desktop Call button fires on a lead. Cleared when the queue
+  // advances off that lead OR when a terminal outcome (booked /
+  // not_interested / wrong_number / do_not_call / callback_requested)
+  // is chipped. In-memory only — session-scoped, no Firestore mirror.
+  const dialAttemptsForLeadRef = useRef<Map<string, number>>(new Map());
+
   const handleQueueCall = useCallback((lead: Lead, phoneOverride?: string) => {
     // Hard-stop on do-not-call leads. The queue filter already drops
     // them from the queue, but they can still appear in the All tab —
@@ -580,6 +588,13 @@ export default function LeadsPage() {
       setSelectedLeadIdInUrl(lead.id);
       dialNonceRef.current += 1;
       setDesktopPendingDial({ leadId: lead.id, phone: target, nonce: dialNonceRef.current });
+      // Bump the per-lead dial-attempt counter for the persistence
+      // setting. Cleared when the queue advances or on terminal
+      // outcome — see advanceToNextQueueLead below.
+      dialAttemptsForLeadRef.current.set(
+        lead.id,
+        (dialAttemptsForLeadRef.current.get(lead.id) || 0) + 1,
+      );
       return;
     }
     // Mobile: dial inline + open the outcome chip under this row.
@@ -711,23 +726,53 @@ export default function LeadsPage() {
       ? { phone: desktopPendingDial.phone, nonce: desktopPendingDial.nonce }
       : null;
 
-  // Auto-advance after the panel logs an outcome (chip, booking, or
-  // convert). Booked / not_interested / wrong_number / do_not_call drop
-  // the lead off the queue; the others (no_answer / left_vm / callback)
-  // re-score to a heavily-negative number and fall to the bottom. So
-  // queueLeads.find(l => l.id !== current) reliably points at the next
-  // lead. We synchronously advance without waiting for the snapshot to
-  // re-arrive — the panel's POST has already gone out, and queueLeads
-  // will recompute as soon as Firestore confirms.
-  const advanceToNextQueueLead = useCallback(() => {
+  // Auto-advance after the panel logs an outcome (chip, booking,
+  // convert, delete). Gated by the agent's `dialPersistence` setting:
+  //
+  //   - Terminal outcomes (booked / not_interested / wrong_number /
+  //     do_not_call / callback_requested) ALWAYS advance — the lead
+  //     has resolved one way or another.
+  //   - Transient outcomes (no_answer / left_vm) only advance when
+  //     the per-lead session attempt count meets the threshold.
+  //   - Convert / delete (no outcome string) always advance — the
+  //     lead is leaving the queue entirely.
+  //
+  // Booked / not_interested / wrong_number / do_not_call also drop
+  // the lead off the queue via the live snapshot's lastDialOutcome
+  // filter; transient outcomes re-score to a heavily-negative number
+  // and fall to the bottom. queueLeads.find(l => l.id !== current)
+  // reliably points at the next lead. We synchronously advance
+  // without waiting for the snapshot to re-arrive — the panel's
+  // POST has already gone out, and queueLeads will recompute as
+  // soon as Firestore confirms.
+  const TERMINAL_OUTCOMES = useMemo(
+    () => new Set(['booked', 'not_interested', 'wrong_number', 'do_not_call', 'callback_requested']),
+    [],
+  );
+  const advanceToNextQueueLead = useCallback((outcome?: string) => {
     if (view !== 'queue') return;
+    const persistence = agentProfile.dialPersistence ?? 1;
+    const currentLeadId = effectiveSelectedLeadId;
+    const attempts = (currentLeadId && dialAttemptsForLeadRef.current.get(currentLeadId)) || 0;
+    const isTerminal = !outcome || TERMINAL_OUTCOMES.has(outcome);
+    const reachedThreshold = attempts >= persistence;
+    if (!isTerminal && !reachedThreshold) {
+      // Persistence dictates staying on this lead for another attempt.
+      // The right pane keeps showing the same lead; the agent hits
+      // Call again from the panel (or the list rail) to re-dial.
+      return;
+    }
+    // Clear the attempt counter for the lead we're leaving so that
+    // future re-entries (e.g. callback_requested resurfacing later)
+    // start fresh.
+    if (currentLeadId) dialAttemptsForLeadRef.current.delete(currentLeadId);
     const currentIdx = queueLeads.findIndex((l) => l.id === effectiveSelectedLeadId);
     const next =
       (currentIdx >= 0 ? queueLeads[currentIdx + 1] : null)
       || queueLeads.find((l) => l.id !== effectiveSelectedLeadId)
       || null;
     setSelectedLeadIdInUrl(next ? next.id : null);
-  }, [view, queueLeads, effectiveSelectedLeadId, setSelectedLeadIdInUrl]);
+  }, [view, queueLeads, effectiveSelectedLeadId, agentProfile.dialPersistence, TERMINAL_OUTCOMES, setSelectedLeadIdInUrl]);
 
   return (
     <div className={`max-w-7xl mx-auto ${addFlowOpen ? 'overflow-x-visible' : 'overflow-x-clip'}`}>

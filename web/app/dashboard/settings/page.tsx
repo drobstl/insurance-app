@@ -311,15 +311,13 @@ export default function SettingsPage() {
     welcomeSmsTemplate: agentProfile.welcomeSmsTemplate || '',
     beneficiaryWelcomeTemplateEn: agentProfile.beneficiaryWelcomeTemplateEn || '',
     beneficiaryWelcomeTemplateEs: agentProfile.beneficiaryWelcomeTemplateEs || '',
-    beneficiaryHolidayTouchpointsEnabled: agentProfile.beneficiaryHolidayTouchpointsEnabled ?? false,
-    beneficiaryAIFollowupsEnabled: agentProfile.beneficiaryAIFollowupsEnabled ?? false,
-    beneficiaryMaxTouchesPer30Days: agentProfile.beneficiaryMaxTouchesPer30Days ?? 3,
     skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
     appointmentMode: agentProfile.appointmentMode || 'phone',
     defaultMeetingLink: agentProfile.defaultMeetingLink || '',
     autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? false,
     reminderPushHoursBefore: agentProfile.reminderPushHoursBefore ?? 1,
     dialScript: agentProfile.dialScript || '',
+    dialPersistence: agentProfile.dialPersistence ?? 1,
     forwardInboundSms: agentProfile.forwardInboundSms ?? true,
   }), [
     agentProfile.name,
@@ -339,15 +337,13 @@ export default function SettingsPage() {
     agentProfile.welcomeSmsTemplate,
     agentProfile.beneficiaryWelcomeTemplateEn,
     agentProfile.beneficiaryWelcomeTemplateEs,
-    agentProfile.beneficiaryHolidayTouchpointsEnabled,
-    agentProfile.beneficiaryAIFollowupsEnabled,
-    agentProfile.beneficiaryMaxTouchesPer30Days,
     agentProfile.skipWelcomeSmsConfirmation,
     agentProfile.appointmentMode,
     agentProfile.defaultMeetingLink,
     agentProfile.autoCreateGoogleMeet,
     agentProfile.reminderPushHoursBefore,
     agentProfile.dialScript,
+    agentProfile.dialPersistence,
     agentProfile.forwardInboundSms,
   ]);
 
@@ -721,13 +717,6 @@ export default function SettingsPage() {
         welcomeSmsTemplate: agentProfile.welcomeSmsTemplate || '',
         beneficiaryWelcomeTemplateEn: agentProfile.beneficiaryWelcomeTemplateEn || '',
         beneficiaryWelcomeTemplateEs: agentProfile.beneficiaryWelcomeTemplateEs || '',
-        beneficiaryHolidayTouchpointsEnabled: agentProfile.beneficiaryHolidayTouchpointsEnabled ?? false,
-        beneficiaryAIFollowupsEnabled: agentProfile.beneficiaryAIFollowupsEnabled ?? false,
-        beneficiaryMaxTouchesPer30Days: (() => {
-          const parsed = Number(agentProfile.beneficiaryMaxTouchesPer30Days ?? 3);
-          if (!Number.isFinite(parsed)) return 3;
-          return Math.min(10, Math.max(1, Math.round(parsed)));
-        })(),
         skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
         appointmentMode: agentProfile.appointmentMode === 'video' ? 'video' : 'phone',
         defaultMeetingLink: (agentProfile.defaultMeetingLink || '').trim(),
@@ -740,6 +729,11 @@ export default function SettingsPage() {
           return Math.min(24, Math.max(1, Math.round(raw)));
         })(),
         dialScript: (agentProfile.dialScript || '').slice(0, 8000),
+        dialPersistence: (() => {
+          const raw = Number(agentProfile.dialPersistence ?? 1);
+          if (raw === 2 || raw === 3) return raw;
+          return 1;
+        })(),
         forwardInboundSms: agentProfile.forwardInboundSms ?? true,
       }, { merge: true });
 
@@ -1449,66 +1443,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Beneficiary Relationship Automation */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Beneficiary Relationship Automation</h3>
-            <div className="space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-[#000000]">Auto-Send Beneficiary Holiday Touchpoints</p>
-                  <p className="text-xs text-[#707070] mt-1">
-                    Sends role-aware holiday check-ins to beneficiaries using SMS first with email fallback.
-                  </p>
-                </div>
-                <button
-                  onClick={() => updateField('beneficiaryHolidayTouchpointsEnabled', !(agentProfile.beneficiaryHolidayTouchpointsEnabled ?? false))}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
-                    (agentProfile.beneficiaryHolidayTouchpointsEnabled ?? false) ? 'bg-[#44bbaa]' : 'bg-gray-300'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
-                      (agentProfile.beneficiaryHolidayTouchpointsEnabled ?? false) ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-[#000000]">Enable AI Follow-up Sequence (Day 2/5/10)</p>
-                  <p className="text-xs text-[#707070] mt-1">
-                    After a beneficiary intro is sent, queue staged follow-ups with safe caps and automatic stop on failed contact.
-                  </p>
-                </div>
-                <button
-                  onClick={() => updateField('beneficiaryAIFollowupsEnabled', !(agentProfile.beneficiaryAIFollowupsEnabled ?? false))}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
-                    (agentProfile.beneficiaryAIFollowupsEnabled ?? false) ? 'bg-[#44bbaa]' : 'bg-gray-300'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
-                      (agentProfile.beneficiaryAIFollowupsEnabled ?? false) ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#000000] mb-1.5">Max Beneficiary Touches per 30 Days</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={agentProfile.beneficiaryMaxTouchesPer30Days ?? 3}
-                  onChange={(e) => updateField('beneficiaryMaxTouchesPer30Days', Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
-                />
-              </div>
-            </div>
-          </div>
-
           {/* Holiday Cards */}
           <div className="bg-white rounded-[5px] border border-gray-200 p-5">
             <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Holiday Cards</h3>
@@ -1976,6 +1910,44 @@ export default function SettingsPage() {
                   {t.token}
                 </span>
               ))}
+            </div>
+          </div>
+
+          {/* Dial persistence — how many attempts on a lead before the
+              call queue auto-advances. Transient outcomes (no answer,
+              voicemail) count toward the threshold; terminal outcomes
+              (booked, do_not_call, not_interested, wrong_number,
+              callback_requested) always advance regardless. */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Dial persistence</h3>
+            <p className="text-[11px] text-[#707070] mb-3">
+              How many times to dial a lead before the call queue moves on. Counts no-answer and voicemail outcomes; booked / wrong-number / not-interested / do-not-call / callback always advance immediately.
+            </p>
+            <div className="inline-flex rounded-[5px] border border-[#d0d0d0] overflow-hidden">
+              {([
+                { v: 1, label: 'Single', sub: '1 attempt' },
+                { v: 2, label: 'Double', sub: '2 attempts' },
+                { v: 3, label: 'Triple', sub: '3 attempts' },
+              ] as const).map((opt, idx) => {
+                const active = (agentProfile.dialPersistence ?? 1) === opt.v;
+                return (
+                  <button
+                    key={opt.v}
+                    type="button"
+                    onClick={() => updateField('dialPersistence', opt.v)}
+                    className={`px-4 py-2 text-sm font-semibold transition-colors text-left ${idx > 0 ? 'border-l border-[#d0d0d0]' : ''} ${
+                      active
+                        ? 'bg-[#005851] text-white'
+                        : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                    }`}
+                  >
+                    <div>{opt.label}</div>
+                    <div className={`text-[10px] font-normal ${active ? 'text-white/70' : 'text-[#707070]'}`}>
+                      {opt.sub}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
