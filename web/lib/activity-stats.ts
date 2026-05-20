@@ -207,6 +207,38 @@ function timestampMillis(t: unknown): number | null {
   return null;
 }
 
+/** Parse a YYYY-MM-DD string into UTC midnight millis. */
+function ymdMillis(s: unknown): number | null {
+  if (typeof s !== 'string') return null;
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]) - 1;
+  const day = Number(m[3]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  return Date.UTC(year, month, day);
+}
+
+/** Determine the date a sale actually happened from a policy doc.
+ *  Agent commissions accrue from when the client signed the application —
+ *  NOT when the policy row was written to Firestore (which can be much
+ *  later, e.g. when the application PDF was imported into AFL). Order:
+ *    1. applicationSignedDate (the signature on the application)
+ *    2. effectiveDate (carrier issue date)
+ *    3. createdAt (Firestore write — last-resort fallback for legacy /
+ *       manual entries where neither extracted date exists)
+ *
+ *  This is the single source of truth for "when was this sale earned"
+ *  across all activity stats. Don't filter policies by createdAt
+ *  anywhere in this module. */
+export function policySaleDateMillis(policy: {
+  applicationSignedDate?: unknown;
+  effectiveDate?: unknown;
+  createdAt?: unknown;
+}): number | null {
+  return ymdMillis(policy.applicationSignedDate) ?? ymdMillis(policy.effectiveDate) ?? timestampMillis(policy.createdAt);
+}
+
 export async function getActivityStats(
   agentId: string,
   range: ActivityRange,
@@ -298,29 +330,36 @@ export async function getActivityStats(
     for (const policyDoc of policiesSnap.docs) {
       const p = policyDoc.data() as {
         createdAt?: unknown;
+        applicationSignedDate?: unknown;
+        effectiveDate?: unknown;
         premiumAmount?: number | null;
         premiumFrequency?: string | null;
         source?: PolicySource;
       };
-      const createdMs = timestampMillis(p.createdAt);
-      if (createdMs === null) continue;
+      // Sale date = when the policy was sold, not when Firestore got
+      // the doc. See policySaleDateMillis for the field precedence.
+      // Agent commissions are first-year only, so we only count a
+      // policy in a period when the SALE happened in that period.
+      const saleMs = policySaleDateMillis(p);
+      if (saleMs === null) continue;
       const apv = computeAPV(p.premiumAmount, p.premiumFrequency);
       // Honor an explicit source field if a future phase stamps one;
-      // otherwise infer from context.
-      const source: PolicySource = p.source || inferPolicySource(createdMs, ctx);
-      if (createdMs >= fromMs && createdMs < toMs) {
+      // otherwise infer from context. Inference still uses the sale
+      // date vs the client's createdAt to decide rewrite vs initial.
+      const source: PolicySource = p.source || inferPolicySource(saleMs, ctx);
+      if (saleMs >= fromMs && saleMs < toMs) {
         salesCount += 1;
         salesApv += apv;
         sourceBuckets[source].count += 1;
         sourceBuckets[source].apv += apv;
         recentWins.push({
-          at: new Date(createdMs).toISOString(),
+          at: new Date(saleMs).toISOString(),
           kind: 'sale',
           clientName: clientData.name || 'Unnamed client',
           amount: apv,
           source,
         });
-      } else if (createdMs >= prevFromMs && createdMs < prevToMs) {
+      } else if (saleMs >= prevFromMs && saleMs < prevToMs) {
         salesCountPrev += 1;
       }
     }
