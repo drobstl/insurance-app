@@ -24,6 +24,14 @@ const VALID_RANGES: ReadonlySet<ActivityRange> = new Set([
  */
 export async function GET(req: NextRequest) {
   try {
+    // Feature flag defense in depth — the UI page redirects when the
+    // flag is off, but the API endpoint shouldn't be reachable
+    // either. Read process.env directly here rather than importing
+    // the client-marked feature-flags module from a server-only route.
+    if (process.env.NEXT_PUBLIC_ACTIVITY_ENABLED !== 'true') {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
     const authHeader = req.headers.get('authorization') || '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
     if (!token) return NextResponse.json({ error: 'Missing auth token' }, { status: 401 });

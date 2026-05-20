@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useDashboard } from '../DashboardContext';
+import { ACTIVITY_ENABLED } from '../../../lib/feature-flags';
 
 type ActivityRange = 'today' | 'week' | 'month' | 'last30' | 'ytd';
 
@@ -251,14 +253,22 @@ function RecentWins({ wins }: { wins: ActivityStats['recentWins'] }) {
 }
 
 export default function ActivityPage() {
+  const router = useRouter();
   const { user } = useDashboard();
   const [range, setRange] = useState<ActivityRange>('month');
   const [stats, setStats] = useState<ActivityStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Feature flag redirect — bookmark/typed-URL defense. The sidebar
+  // already hides this row behind a strikethrough "Coming soon"
+  // placeholder when ACTIVITY_ENABLED is off.
+  useEffect(() => {
+    if (!ACTIVITY_ENABLED) router.replace('/dashboard');
+  }, [router]);
+
   const fetchStats = useCallback(async () => {
-    if (!user) return;
+    if (!user || !ACTIVITY_ENABLED) return;
     setLoading(true);
     setError(null);
     try {
@@ -289,6 +299,11 @@ export default function ActivityPage() {
     if (!stats) return 0;
     return Math.max(...stats.funnel.map((s) => s.count), 1);
   }, [stats]);
+
+  // Render-time gate — sits AFTER all hooks so rules-of-hooks is
+  // satisfied. The useEffect above already kicked off the redirect;
+  // returning null prevents a blink of the activity layout.
+  if (!ACTIVITY_ENABLED) return null;
 
   return (
     <div className="max-w-7xl mx-auto">
