@@ -319,10 +319,16 @@ export async function getActivityStats(
     if (firstBookedMs < fromMs || firstBookedMs >= toMs) continue;
     booked += 1;
     // Outcome for this entity = status of the LATEST appointment doc
-    // (most recent scheduledAt; falls back to most recent createdAt).
+    // for this lead, by createdAt (most recent agent action). If a
+    // lead's original appointment was cancelled but they got put back
+    // on the calendar and showed up, the latest doc reflects that
+    // and they correctly count as showed — overriding the earlier
+    // cancellation. Reschedules of the same lead update an existing
+    // doc's scheduledAt without changing status, so they don't move
+    // the lead between buckets until the meeting actually happens.
     const latest = [...appts].sort((a, b) => {
-      const aMs = timestampMillis(a.scheduledAt) ?? timestampMillis(a.createdAt) ?? 0;
-      const bMs = timestampMillis(b.scheduledAt) ?? timestampMillis(b.createdAt) ?? 0;
+      const aMs = timestampMillis(a.createdAt) ?? 0;
+      const bMs = timestampMillis(b.createdAt) ?? 0;
       return bMs - aMs;
     })[0];
     const status = latest?.status || 'scheduled';
@@ -330,8 +336,13 @@ export async function getActivityStats(
     else if (status === 'cancelled' || status === 'no_show') noShowed += 1;
     else unresolved += 1;
   }
-  const resolvedBookings = showed + noShowed;
-  const showRate = resolvedBookings > 0 ? showed / resolvedBookings : 0;
+  // Show rate = showed / booked (total). Daniel's definition: "if an
+  // agent books 20 and 10 show up, show rate is 50%." Unresolved
+  // pending appointments stay in the denominator — they'll eventually
+  // resolve to showed or no-show, but until then they correctly drag
+  // the rate down because the agent hasn't completed those meetings
+  // yet.
+  const showRate = booked > 0 ? showed / booked : 0;
   const bookRate = dialsCurr.contacts > 0 ? booked / dialsCurr.contacts : 0;
 
   // ── Sales / APV / source breakdown ──
