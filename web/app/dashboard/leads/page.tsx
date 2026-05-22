@@ -1378,6 +1378,18 @@ export default function LeadsPage() {
                     onConverted={advanceToNextQueueLead}
                     onDeleted={advanceToNextQueueLead}
                     onOutcomeLogged={advanceToNextQueueLead}
+                    onCallFired={() => {
+                      // Re-dials from the panel's multi-phone editor
+                      // count toward the dial-persistence threshold.
+                      // Queue-row initial dials are bumped by
+                      // handleQueueCall before pendingDial fires, so
+                      // this fires only for in-panel re-dials.
+                      if (!effectiveSelectedLeadId) return;
+                      dialAttemptsForLeadRef.current.set(
+                        effectiveSelectedLeadId,
+                        (dialAttemptsForLeadRef.current.get(effectiveSelectedLeadId) || 0) + 1,
+                      );
+                    }}
                   />
                 ) : (
                   <p className="text-sm text-[#707070]">Pick a lead from the queue to see their details.</p>
