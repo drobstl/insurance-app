@@ -3,6 +3,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../lib/firebase-admin';
+import { autoCompleteRecentAppointment } from '../../../lib/appointment-auto-complete';
 
 function countPolicySignals(policy: Record<string, unknown>): number {
   let signals = 0;
@@ -115,6 +116,16 @@ export async function POST(request: NextRequest) {
     const docRef = await policiesCol(authUser.uid, clientId).add({
       ...cleanData,
       createdAt: FieldValue.serverTimestamp(),
+    });
+
+    // Auto-complete a recent appointment for this client. Treats the
+    // sale as the agent's signal that the meeting actually happened —
+    // matches an appointment within −48h to +4h of now. Fire-and-forget;
+    // never blocks the policy-create response.
+    void autoCompleteRecentAppointment({
+      agentId: authUser.uid,
+      clientId,
+      reason: 'sale',
     });
 
     return NextResponse.json({ id: docRef.id });

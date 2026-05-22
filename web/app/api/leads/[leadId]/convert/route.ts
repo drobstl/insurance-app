@@ -3,6 +3,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../../lib/firebase-admin';
+import { autoCompleteRecentAppointment } from '../../../../../lib/appointment-auto-complete';
 
 /**
  * POST /api/leads/[leadId]/convert
@@ -148,6 +149,19 @@ export async function POST(
       lastDialOutcome: FieldValue.delete(),  // falls out of queue regardless
     });
     await batch.commit();
+
+    // Auto-complete a recent appointment for this lead. Conversion
+    // implies the sale happened, which implies the lead showed.
+    // Matches an appointment within −48h to +4h of now. The
+    // appointment doc still references the original leadId (it was
+    // booked while the entity was a lead), so we look it up by that.
+    // Fire-and-forget — never blocks the convert response.
+    void autoCompleteRecentAppointment({
+      agentId,
+      leadId,
+      clientId: clientRef.id,
+      reason: 'convert',
+    });
 
     return NextResponse.json({
       clientId: clientRef.id,
