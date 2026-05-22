@@ -1390,6 +1390,19 @@ export default function LeadsPage() {
                         (dialAttemptsForLeadRef.current.get(effectiveSelectedLeadId) || 0) + 1,
                       );
                     }}
+                    onBookingComplete={(appointmentId, scheduledAt) => {
+                      // Host the confirmation drawer here at the queue
+                      // page rather than inside the panel. The booking
+                      // POST stamps `lastDialOutcome:'booked'` on the
+                      // lead, queueLeads filters it out, and (when
+                      // urlSelectedLeadId is null) effectiveSelectedLeadId
+                      // flips to the next lead — unmounting the panel
+                      // mid-render. Drawer at parent level survives
+                      // that re-mount and stays visible until dismiss.
+                      const lead = leads.find((l) => l.id === effectiveSelectedLeadId);
+                      if (!lead) return;
+                      setConfirmingLead({ lead, appointmentId, scheduledAt });
+                    }}
                   />
                 ) : (
                   <p className="text-sm text-[#707070]">Pick a lead from the queue to see their details.</p>
