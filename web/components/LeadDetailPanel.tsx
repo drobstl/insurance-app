@@ -405,6 +405,18 @@ export interface LeadDetailPanelProps {
   // dial-persistence counter, leaving agents stuck on a lead forever
   // when dialPersistence is 2 or 3.
   onCallFired?: () => void;
+  // Fired when AppointmentPicker returns from a successful book. When
+  // present, the panel hands the confirmation drawer off to the parent
+  // (queue page) instead of rendering it locally. Required for the
+  // queue context because the booking POST stamps `lastDialOutcome:
+  // 'booked'`, which drops the lead from queueLeads, which (when
+  // urlSelectedLeadId is null) shifts effectiveSelectedLeadId to the
+  // next lead, which flips the panel's React key and unmounts it
+  // before the local drawer ever rendered. Hosting the drawer at the
+  // parent level keeps it alive across that re-mount.
+  // Absent: standalone /dashboard/leads/[leadId] route uses the local
+  // drawer fallback (no queue, no re-mount race).
+  onBookingComplete?: (appointmentId: string, scheduledAt: Date) => void;
   // When true (route page), the lead-not-found state renders a "back to
   // all leads" button. When false (queue right-pane), the parent owns
   // the navigation/empty state.
@@ -419,6 +431,7 @@ export default function LeadDetailPanel({
   onDeleted,
   onOutcomeLogged,
   onCallFired,
+  onBookingComplete,
   showNotFoundBackLink,
 }: LeadDetailPanelProps) {
   const { user, agentProfile } = useDashboard();
@@ -1779,15 +1792,18 @@ export default function LeadDetailPanel({
             // sees both the "How did the call go?" chips AND the new
             // appointment card, which is confusing.)
             setOutcomePrompt(false);
-            // Mark so the drawer dismiss handlers advance the queue to
-            // the next lead. Setting state alone isn't enough — the
-            // queue parent's advance changes `selectedLeadId`, which
-            // flips the panel's key, which unmounts the panel before
-            // the drawer can render. We hold the advance until dismiss.
+            // Queue context: hand off to the parent. The parent renders
+            // the confirmation drawer (at queue-page level) so it
+            // survives the panel re-mount that the booking-driven
+            // snapshot update triggers when urlSelectedLeadId is null.
+            if (onBookingComplete) {
+              onBookingComplete(apptId, scheduledAt);
+              return;
+            }
+            // Standalone route page: no queue, no re-mount race —
+            // local drawer works. Keep the existing advance-on-dismiss
+            // ref for the (queue-only) path where this still matters.
             advanceQueueOnDrawerDismissRef.current = true;
-            // Pass scheduledAt straight through to the drawer instead
-            // of waiting for the appointments snapshot to catch up —
-            // see the comment on the `confirming` state declaration.
             setConfirming({ appointmentId: apptId, scheduledAt });
           }}
           onCancel={() => setShowAppointmentPicker(false)}
