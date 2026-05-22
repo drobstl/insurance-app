@@ -398,6 +398,13 @@ export interface LeadDetailPanelProps {
   // outcome). Used by the call-queue parent to auto-advance the right
   // pane to the next queue lead.
   onOutcomeLogged?: (outcome: string) => void;
+  // Fired whenever the panel's own Call button (multi-phone editor)
+  // fires a tel: dial. The initial queue-row Call is already counted
+  // by the parent's handleQueueCall before it sets pendingDial — this
+  // covers in-panel re-dials that would otherwise be invisible to the
+  // dial-persistence counter, leaving agents stuck on a lead forever
+  // when dialPersistence is 2 or 3.
+  onCallFired?: () => void;
   // When true (route page), the lead-not-found state renders a "back to
   // all leads" button. When false (queue right-pane), the parent owns
   // the navigation/empty state.
@@ -411,6 +418,7 @@ export default function LeadDetailPanel({
   onConverted,
   onDeleted,
   onOutcomeLogged,
+  onCallFired,
   showNotFoundBackLink,
 }: LeadDetailPanelProps) {
   const { user, agentProfile } = useDashboard();
@@ -513,9 +521,22 @@ export default function LeadDetailPanel({
 
   // Send-confirmation drawer (Chunk 4e). Opens automatically right
   // after a booking save, and on demand from a "Send confirmation"
-  // button on appointment cards that haven't been sent yet. Tracked
-  // by appointment ID so the drawer knows which appointment to stamp.
-  const [confirmingAppointmentId, setConfirmingAppointmentId] = useState<string | null>(null);
+  // button on appointment cards that haven't been sent yet.
+  //
+  // `scheduledAt` is captured directly from the AppointmentPicker's
+  // onBooked callback (just-booked path) so the drawer renders
+  // immediately — without it we had to look up the appointment in the
+  // live snapshot, which could be empty for a beat after the POST
+  // returned (race) or empty indefinitely if the composite index for
+  // the appointments query is missing (silent failure). Re-open paths
+  // (Send confirmation button on an existing card, ?openConfirmation
+  // URL handoff) pass `scheduledAt: null` and fall back to the snapshot
+  // lookup, which is fine because those appointments already exist in
+  // the snapshot by the time the user can click them.
+  const [confirming, setConfirming] = useState<{
+    appointmentId: string;
+    scheduledAt: Date | null;
+  } | null>(null);
   // Drawer-dismiss advance gate. Set TRUE when the drawer is opened
   // from the just-booked flow (AppointmentPicker.onBooked) so the queue
   // parent advances to the next lead only after the agent finishes
@@ -534,7 +555,7 @@ export default function LeadDetailPanel({
     if (!openConfirmationParam || appointments.length === 0) return;
     const match = appointments.find((a) => a.id === openConfirmationParam);
     if (!match) return;
-    setConfirmingAppointmentId(openConfirmationParam);
+    setConfirming({ appointmentId: openConfirmationParam, scheduledAt: null });
     handoffOpenedRef.current = true;
     // Strip the param so a page refresh doesn't re-open the drawer.
     if (typeof window !== 'undefined') {
@@ -854,10 +875,16 @@ export default function LeadDetailPanel({
     setOutcomeError(null);
     setActiveDialPhone(target);
     setOutcomePrompt(true);
+    // Tell the parent we just fired a dial so the queue's
+    // dial-persistence counter advances. Queue-row initial dials are
+    // already counted in the parent's handleQueueCall before pendingDial
+    // is set — pendingDialEffect deliberately doesn't fire onCallFired
+    // to avoid double-counting.
+    onCallFired?.();
     // US-only — `tel:` with raw digits lets the OS dialer handle
     // country-code interpretation per the device locale.
     window.location.href = `tel:${digits}`;
-  }, [lead?.phone]);
+  }, [lead?.phone, onCallFired]);
 
   const handleLogOutcome = useCallback(async (outcome: DialOutcome) => {
     if (!user || !leadId) return;
@@ -1636,7 +1663,7 @@ export default function LeadDetailPanel({
                     <div className="shrink-0 flex flex-col gap-1.5 items-end">
                       {!appt.sentConfirmationAt && appt.status === 'scheduled' && (
                         <button
-                          onClick={() => setConfirmingAppointmentId(appt.id)}
+                          onClick={() => setConfirming({ appointmentId: appt.id, scheduledAt: null })}
                           className="px-3 py-1.5 text-xs font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors"
                         >
                           Send confirmation
@@ -1744,7 +1771,7 @@ export default function LeadDetailPanel({
           agentDefaultMeetingLink={agentProfile.defaultMeetingLink}
           agentAutoCreateGoogleMeet={agentProfile.autoCreateGoogleMeet}
           googleCalendarConnected={googleCalendarConnected}
-          onBooked={(apptId) => {
+          onBooked={(apptId, scheduledAt) => {
             setShowAppointmentPicker(false);
             // Booking endpoint already logs the dial outcome as 'booked'
             // atomically — so if the outcome prompt is showing from a
@@ -1758,7 +1785,10 @@ export default function LeadDetailPanel({
             // flips the panel's key, which unmounts the panel before
             // the drawer can render. We hold the advance until dismiss.
             advanceQueueOnDrawerDismissRef.current = true;
-            setConfirmingAppointmentId(apptId);
+            // Pass scheduledAt straight through to the drawer instead
+            // of waiting for the appointments snapshot to catch up —
+            // see the comment on the `confirming` state declaration.
+            setConfirming({ appointmentId: apptId, scheduledAt });
           }}
           onCancel={() => setShowAppointmentPicker(false)}
         />
@@ -1864,36 +1894,41 @@ export default function LeadDetailPanel({
         );
       })()}
 
-      {/* Send-confirmation drawer (Chunk 4e). The appointment lookup
-          here finds the row from our live snapshot — works for both
-          just-booked appointments and ones the agent re-opens later. */}
-      {confirmingAppointmentId && lead && (() => {
-        const appt = appointments.find((a) => a.id === confirmingAppointmentId);
-        if (!appt || !appt.scheduledAt) return null;
+      {/* Send-confirmation drawer (Chunk 4e). Prefer the scheduledAt
+          captured directly from the picker (just-booked path) — the
+          appointments snapshot can lag behind the POST or fail silently
+          if the composite index is missing. Re-open paths pass
+          scheduledAt:null and fall back to the snapshot, which has the
+          appointment by then. We still consult the snapshot when
+          available to enrich the drawer with timezone + meetingUrl. */}
+      {confirming && lead && (() => {
+        const appt = appointments.find((a) => a.id === confirming.appointmentId);
+        const scheduledAt = confirming.scheduledAt ?? appt?.scheduledAt?.toDate() ?? null;
+        if (!scheduledAt) return null;
         return (
           <SendConfirmationDrawer
             user={user}
-            appointmentId={appt.id}
+            appointmentId={confirming.appointmentId}
             leadId={lead.id}
             leadName={lead.name || ''}
             leadPhone={lead.phone || ''}
             leadState={lead.address?.state || null}
-            scheduledAt={appt.scheduledAt.toDate()}
-            scheduledAtTimeZone={appt.scheduledAtTimeZone || null}
-            meetingUrl={appt.meetingUrl || null}
+            scheduledAt={scheduledAt}
+            scheduledAtTimeZone={appt?.scheduledAtTimeZone || null}
+            meetingUrl={appt?.meetingUrl || null}
             agentName={agentProfile.name || ''}
             agentBusinessCardBase64={agentProfile.businessCardBase64}
             licenses={agentProfile.licenses || {}}
             attachmentsSent={lead.attachmentsSent}
             onSent={() => {
-              setConfirmingAppointmentId(null);
+              setConfirming(null);
               if (advanceQueueOnDrawerDismissRef.current) {
                 advanceQueueOnDrawerDismissRef.current = false;
                 onOutcomeLogged?.('booked');
               }
             }}
             onCancel={() => {
-              setConfirmingAppointmentId(null);
+              setConfirming(null);
               if (advanceQueueOnDrawerDismissRef.current) {
                 advanceQueueOnDrawerDismissRef.current = false;
                 onOutcomeLogged?.('booked');
