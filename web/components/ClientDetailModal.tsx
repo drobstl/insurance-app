@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Timestamp, collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { formatCurrency, formatDate, formatDateLong, getStatusColor, getPolicyTypeIcon, getAnniversaryDate, daysUntilAnniversary } from '../lib/policyUtils';
@@ -27,6 +27,10 @@ interface Client {
   sourceReferralId?: string;
   sourceReferralName?: string;
   preferredLanguage?: SupportedLanguage;
+  // Agent-private editorial notes. Initially seeded from the lead's
+  // notes on convert; freely editable from this modal afterward.
+  notes?: string;
+  notesUpdatedAt?: Timestamp;
 }
 
 interface Policy {
@@ -203,6 +207,24 @@ export default function ClientDetailModal({
   const [clientEditSuccess, setClientEditSuccess] = useState('');
   const [savingClientInline, setSavingClientInline] = useState(false);
 
+  // ── Agent-private notes ─────────────────────────────────────────────
+  // Seeded from the lead's notes on convert (see
+  // web/app/api/leads/[leadId]/convert/route.ts). Debounced autosave to
+  // `agents/{agentId}/clients/{clientId}.notes` — same pattern as the
+  // lead-side editor in LeadDetailPanel.tsx.
+  const NOTES_AUTOSAVE_DEBOUNCE_MS = 600;
+  const [notes, setNotes] = useState('');
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesSavedAt, setNotesSavedAt] = useState<Date | null>(null);
+  const notesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Re-seed when the modal opens for a different client. Cleared in
+  // the same effect so switching clients doesn't show the prior
+  // client's notes for a frame.
+  useEffect(() => {
+    setNotes(client?.notes || '');
+    setNotesSavedAt(null);
+  }, [client?.id, client?.notes]);
+
   // Animate in on mount
   useEffect(() => {
     if (client && !isPane) {
@@ -265,6 +287,30 @@ export default function ClientDetailModal({
     })();
     return () => { cancelled = true; };
   }, [client?.sourceReferralId, client?.sourceReferralName, client?.agentId]);
+
+  const scheduleNotesSave = useCallback((value: string) => {
+    if (!client) return;
+    if (notesTimer.current) clearTimeout(notesTimer.current);
+    notesTimer.current = setTimeout(async () => {
+      setNotesSaving(true);
+      try {
+        const firestore = await import('firebase/firestore');
+        const { db } = await import('../firebase');
+        await firestore.updateDoc(
+          firestore.doc(db, 'agents', client.agentId, 'clients', client.id),
+          {
+            notes: value,
+            notesUpdatedAt: firestore.serverTimestamp(),
+          },
+        );
+        setNotesSavedAt(new Date());
+      } catch (err) {
+        console.error('client notes autosave failed:', err);
+      } finally {
+        setNotesSaving(false);
+      }
+    }, NOTES_AUTOSAVE_DEBOUNCE_MS);
+  }, [client]);
 
   const handleClearReferralLink = useCallback(async () => {
     if (!client) return;
@@ -1260,6 +1306,46 @@ export default function ClientDetailModal({
                 )}
               </div>
             )}
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-gray-200" />
+
+          {/* Notes Section — agent-private, debounced autosave. Mirrors
+              the lead-side editor so context built up during prospecting
+              survives the convert-to-client transition. */}
+          <div className="px-6 pt-5 pb-2">
+            <div className="flex items-center gap-2 mb-2">
+              <h3 className="text-lg font-bold text-[#000000]">Notes</h3>
+              <span className="text-xs font-normal text-[#707070]">
+                {notesSaving
+                  ? 'Saving…'
+                  : notesSavedAt
+                  ? `Saved · ${(() => {
+                      const ms = Date.now() - notesSavedAt.getTime();
+                      const m = Math.floor(ms / 60_000);
+                      if (m < 1) return 'just now';
+                      if (m < 60) return `${m}m ago`;
+                      const h = Math.floor(m / 60);
+                      if (h < 24) return `${h}h ago`;
+                      return notesSavedAt.toLocaleDateString();
+                    })()}`
+                  : client?.notesUpdatedAt
+                  ? `Last saved ${formatDate(client.notesUpdatedAt.toDate().toISOString())}`
+                  : ''}
+              </span>
+            </div>
+            <textarea
+              value={notes}
+              onChange={(e) => {
+                const v = e.target.value;
+                setNotes(v);
+                scheduleNotesSave(v);
+              }}
+              placeholder="Anything you want to remember — call history, family situation, pain points, prior coverage, sale context. Autosaves as you type."
+              rows={5}
+              className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm leading-relaxed focus:outline-none focus:border-[#45bcaa]"
+            />
           </div>
 
           {/* Divider */}

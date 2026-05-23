@@ -94,6 +94,14 @@ export async function POST(
     const phone = typeof leadData.phone === 'string' ? leadData.phone.trim() : '';
     const email = typeof leadData.email === 'string' ? leadData.email.trim() : '';
     const dateOfBirth = typeof leadData.dateOfBirth === 'string' ? leadData.dateOfBirth : null;
+    // Agent-private editorial notes carry over from lead → client so
+    // the context the agent built up during prospecting + booking
+    // doesn't get stranded the moment the sale closes. Top-level mirror
+    // intentionally omits this — notes are per-agent and shouldn't
+    // leak across the cross-agent client-code lookup surface.
+    const notes = typeof leadData.notes === 'string' && leadData.notes.trim()
+      ? leadData.notes
+      : null;
 
     const clientCode = await generateUniqueClientCode(db);
     const now = Timestamp.now();
@@ -112,6 +120,10 @@ export async function POST(
       convertedFromLeadAt: now,
     };
     if (dateOfBirth) clientPayload.dateOfBirth = dateOfBirth;
+    if (notes) {
+      clientPayload.notes = notes;
+      clientPayload.notesUpdatedAt = now;
+    }
 
     // Top-level mirrors (matches the existing Add Client flow).
     const topLevelClientPayload: Record<string, unknown> = {

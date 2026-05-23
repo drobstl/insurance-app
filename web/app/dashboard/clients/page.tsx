@@ -191,6 +191,9 @@ interface Client {
   agentId: string;
   sourceReferralId?: string;
   preferredLanguage?: SupportedLanguage;
+  /** Agent-private notes; seeded from lead.notes on convert. */
+  notes?: string;
+  notesUpdatedAt?: Timestamp;
 }
 
 /** Calendar date written on the application (YYYY-MM-DD), distinct from Firestore createdAt. */
