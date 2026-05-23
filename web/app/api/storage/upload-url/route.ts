@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { getAdminStorage } from '../../../../lib/firebase-admin';
 
-const MAX_UPLOAD_BYTES = 16 * 1024 * 1024;
+// 25MB ceiling — matches V3_CLIENT_POLICY.maxUploadBytes.
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 let corsConfigured = false;
 
 interface UploadUrlResponse {

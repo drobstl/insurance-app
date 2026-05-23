@@ -82,7 +82,13 @@ const DEFAULT_BULK_PDF_CONCURRENCY = 5;
 const MAX_BULK_PDF_CONCURRENCY = 6;
 const BULK_GCS_UPLOAD_TIMEOUT_MS = 120_000;
 const BULK_PARSE_MAX_RETRIES = 2;
-const MAX_APPLICATION_PDF_BYTES = 13 * 1024 * 1024;
+// 25MB ceiling — matches V3_CLIENT_POLICY.maxUploadBytes everywhere
+// else in the upload pipeline. Originally 13MB on this path only,
+// which was the last laggard of the locked 16MB Phase 2 standardization
+// (FAILURE-TAXONOMY.md). May 23, 2026: revised locked decision to
+// 25MB after Daniel hit a 16.7MB Americo IUL PDF — PDF.js handles
+// 25MB comfortably on any modern agent workstation.
+const MAX_APPLICATION_PDF_BYTES = 25 * 1024 * 1024;
 const MAX_APPLICATION_RENDER_PAGES = 6;
 const DEFAULT_APPLICATION_TYPE = 'unknown';
 const BULK_IMPORT_SPLIT_TYPE_MESSAGE =
@@ -927,6 +933,13 @@ export default function ClientsPage() {
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
   const [policyFormData, setPolicyFormData] = useState<PolicyFormData>({ ...emptyPolicyForm });
   const [policyFormError, setPolicyFormError] = useState('');
+  // Upload-specific error, displayed inline directly under the Upload
+  // PDF button so size / parse failures are immediately visible.
+  // Previously these errors flowed into policyFormError, which renders
+  // at the bottom of the modal — easy to miss for agents on smaller
+  // screens. Daniel hit this with a 16.7MB Americo IUL PDF where the
+  // "file too large" error was below the fold.
+  const [policyApplicationError, setPolicyApplicationError] = useState('');
   const [policyFormSuccess, setPolicyFormSuccess] = useState('');
   const [policySubmitting, setPolicySubmitting] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState<Policy | null>(null);
@@ -2291,6 +2304,7 @@ export default function ClientsPage() {
     setEditingPolicy(null);
     setPolicyFormData({ ...emptyPolicyForm });
     setPolicyFormError('');
+    setPolicyApplicationError('');
     setPolicyFormSuccess('');
     setPolicyApplicationNote(null);
     setPolicyApplicationType(DEFAULT_APPLICATION_TYPE);
@@ -2309,6 +2323,7 @@ export default function ClientsPage() {
     setEditingPolicy(null);
     setPolicyFormData({ ...emptyPolicyForm });
     setPolicyFormError('');
+    setPolicyApplicationError('');
     setPolicyFormSuccess('');
     setPolicyApplicationNote(null);
     setPolicyApplicationType(DEFAULT_APPLICATION_TYPE);
@@ -2485,7 +2500,7 @@ export default function ClientsPage() {
       throw new Error('Please upload a PDF file.');
     }
     if (file.size > MAX_APPLICATION_PDF_BYTES) {
-      throw new Error('File is too large. Maximum size is 13MB.');
+      throw new Error('This PDF is too large. Maximum size is 25MB. To shrink it: open in macOS Preview → File → Export → Quartz Filter → "Reduce File Size".');
     }
 
     const runDirectParseFallback = async (): Promise<ParseApplicationResult> => {
@@ -2798,7 +2813,11 @@ export default function ClientsPage() {
     setPolicyApplicationUploading(true);
     setPolicyApplicationNote(null);
     setPolicyParseProgress({ fileName: file.name, progress: 5, label: 'Preparing file...' });
+    // Clear both — submit-side error and upload-side error — so a
+    // prior failure of either kind doesn't linger across a fresh
+    // upload attempt.
     setPolicyFormError('');
+    setPolicyApplicationError('');
     setPolicyFormSuccess('');
     const controller = new AbortController();
     policyApplicationAbortRef.current = controller;
@@ -2816,7 +2835,10 @@ export default function ClientsPage() {
       setPolicyFormData((prev) => ({ ...prev, ...mapped }));
       setPolicyApplicationNote(parsed.note || null);
     } catch (err) {
-      setPolicyFormError(err instanceof Error ? err.message : 'Failed to parse application PDF.');
+      // Surface inline under the Upload button, NOT at the bottom of
+      // the modal — agents on smaller screens were missing the old
+      // policyFormError display below the fold.
+      setPolicyApplicationError(err instanceof Error ? err.message : 'Failed to parse application PDF.');
     } finally {
       policyApplicationAbortRef.current = null;
       activePolicyJobIdRef.current = null;
@@ -2850,7 +2872,9 @@ export default function ClientsPage() {
     policyApplicationAbortRef.current = null;
     setPolicyApplicationUploading(false);
     setPolicyParseProgress(null);
-    setPolicyFormError('Cancelled by agent.');
+    // Cancellation is also an upload-side message — surface inline
+    // under the Upload button to match the post-May-23 placement.
+    setPolicyApplicationError('Cancelled by agent.');
   }, [user]);
 
   useEffect(() => {
@@ -5869,8 +5893,19 @@ export default function ClientsPage() {
                     className="hidden"
                   />
                   <p className="text-xs text-[#707070]">
-                    AI will extract client info and policy details in one step. Max 13MB.
+                    AI will extract client info and policy details in one step. Max 25MB.
                   </p>
+                  {/* Upload-side error — surfaced inline so size/parse
+                      failures are immediately visible to the agent
+                      without scrolling the modal. */}
+                  {policyApplicationError && !policyApplicationUploading && (
+                    <div className="flex items-start gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-[5px] text-xs text-red-700">
+                      <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="leading-relaxed">{policyApplicationError}</span>
+                    </div>
+                  )}
                   {policyApplicationUploading && policyParseProgress && (
                     <div className="rounded-[5px] border border-[#0099FF]/25 bg-[#0099FF]/5 p-3">
                       <div className="flex items-center justify-between text-xs text-[#0A5CA8] mb-1">

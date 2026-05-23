@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { extractApplicationFields } from '../../../lib/application-extractor';
 import type { ParseApplicationResponse } from '../../../lib/types';
 
-const MAX_APPLICATION_PDF_BYTES = 16 * 1024 * 1024;
+// 25MB ceiling — matches V3_CLIENT_POLICY.maxUploadBytes. See
+// CONTEXT.md for the locked-decision history.
+const MAX_APPLICATION_PDF_BYTES = 25 * 1024 * 1024;
 
 export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicationResponse>> {
   const startedAt = Date.now();
@@ -25,7 +27,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ParseApplicat
     }
     if (file.size > MAX_APPLICATION_PDF_BYTES) {
       return NextResponse.json(
-        { success: false, error: 'This file is too large. Please upload a PDF under 16 MB.' },
+        { success: false, error: 'This file is too large. Please upload a PDF under 25 MB.' },
         { status: 400 },
       );
     }

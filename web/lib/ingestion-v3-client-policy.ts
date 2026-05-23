@@ -3,7 +3,13 @@ import type { ExtractedApplicationData } from './types';
 export const V3_CLIENT_POLICY = {
   hardResolveMs: 120_000,
   pollIntervalMs: 1_500,
-  maxUploadBytes: 16 * 1024 * 1024,
+  // 25MB ceiling — see CONTEXT.md for the locked decision history.
+  // Originally 16MB; revised May 23, 2026 after Daniel hit a 16.7MB
+  // Americo IUL PDF. PDF.js handles 25MB comfortably on any modern
+  // agent workstation (peak memory ~150MB during render). 99% of
+  // insurance application PDFs are under 25MB; rare exceeders should
+  // see a clear inline error suggesting they compress the file.
+  maxUploadBytes: 25 * 1024 * 1024,
   gcsUploadTimeoutMs: 30_000,
   stepTimeoutMs: 25_000,
   statusTimeoutMs: 12_000,
