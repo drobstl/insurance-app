@@ -8,7 +8,9 @@ import type { IngestionV3ErrorDetails } from '../../../../../lib/types';
 
 export const maxDuration = 60;
 
-const MAX_UPLOAD_BYTES = 16 * 1024 * 1024;
+// 25MB ceiling — matches V3_CLIENT_POLICY.maxUploadBytes. See
+// CONTEXT.md for the locked-decision history.
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 const SIGNED_URL_TTL_MS = 10 * 60 * 1000;
 let corsConfigured = false;
 

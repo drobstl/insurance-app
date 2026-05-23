@@ -155,7 +155,7 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
       return;
     }
     if (file.size > MAX_RELIABLE_APPLICATION_FILE_BYTES) {
-      setErrorMessage('This file is too large. Please upload a file under 16 MB.');
+      setErrorMessage('This file is too large. Please upload a file under 25 MB.');
       setStage('error');
       isProcessingRef.current = false;
       return;
@@ -688,8 +688,8 @@ export default function ApplicationUpload({ clientName, onExtracted, onClose, on
                   </p>
                   <p className="text-gray-500 text-sm">
                     {isClientAndPolicy
-                      ? 'AI will extract client info and policy details in one step. Max 16 MB.'
-                      : 'Drag & drop or click to browse. Max 16 MB.'}
+                      ? 'AI will extract client info and policy details in one step. Max 25 MB.'
+                      : 'Drag & drop or click to browse. Max 25 MB.'}
                   </p>
                 </div>
               </label>
