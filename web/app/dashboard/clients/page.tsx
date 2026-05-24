@@ -960,11 +960,27 @@ export default function ClientsPage() {
   const [extractionOverloadedAt, setExtractionOverloadedAt] = useState<number | null>(null);
   const [clientApplicationType, setClientApplicationType] = useState<ApplicationFormType>(DEFAULT_APPLICATION_TYPE);
   const [clientParseProgress, setClientParseProgress] = useState<ParseProgressState | null>(null);
+  // Staged file — picked from the file dialog but not yet sent for
+  // extraction. Mirrors the Add Policy modal's policyStagedFile —
+  // forces the agent to confirm Application Type before extraction
+  // runs, instead of silently locking carrierFormType to the default
+  // ("Other Carrier") and degrading extraction quality for everyone
+  // who knows the carrier but doesn't pre-set the dropdown.
+  const [clientStagedFile, setClientStagedFile] = useState<File | null>(null);
   const [policyApplicationUploading, setPolicyApplicationUploading] = useState(false);
   const [policyApplicationNote, setPolicyApplicationNote] = useState<string | null>(null);
   const [policyApplicationType, setPolicyApplicationType] = useState<ApplicationFormType>(DEFAULT_APPLICATION_TYPE);
   const [policyParseProgress, setPolicyParseProgress] = useState<ParseProgressState | null>(null);
   const [autoOpenPolicyUploadPicker, setAutoOpenPolicyUploadPicker] = useState(false);
+  // Staged file — picked from the file dialog but not yet sent for
+  // extraction. The agent has to (re)confirm carrier + form type and
+  // click Upload before parseApplicationFile fires. Prevents the
+  // pre-staging behavior where auto-open silently picked DEFAULT
+  // carrier ("Other Carrier") and ran extraction with the generic
+  // prompt supplement, missing fields like phone/email even when
+  // page 1 was rendered. See CONTEXT.md (May 23, 2026 carrier-staging
+  // change) for why carrier type matters at extraction time.
+  const [policyStagedFile, setPolicyStagedFile] = useState<File | null>(null);
 
   // ── Import state ──
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -1612,6 +1628,7 @@ export default function ClientsPage() {
     setClientApplicationType(DEFAULT_APPLICATION_TYPE);
     setClientApplicationUploading(false);
     setClientParseProgress(null);
+    setClientStagedFile(null);
     setManualEntryExpanded(false);
     setAddFlowPolicyForm({ ...emptyPolicyForm });
     setCreatedClientContext(null);
@@ -2310,6 +2327,7 @@ export default function ClientsPage() {
     setPolicyApplicationType(DEFAULT_APPLICATION_TYPE);
     setPolicyApplicationUploading(false);
     setPolicyParseProgress(null);
+    setPolicyStagedFile(null);
     activePolicyJobIdRef.current = null;
     setAutoOpenPolicyUploadPicker(options?.openUploadPicker === true);
     setIsPolicyModalOpen(true);
@@ -2329,6 +2347,7 @@ export default function ClientsPage() {
     setPolicyApplicationType(DEFAULT_APPLICATION_TYPE);
     setPolicyApplicationUploading(false);
     setPolicyParseProgress(null);
+    setPolicyStagedFile(null);
     setAutoOpenPolicyUploadPicker(false);
   }, []);
 
@@ -2733,9 +2752,23 @@ export default function ClientsPage() {
     }
   }, [user]);
 
-  const handleClientApplicationFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+  // File-pick handler: STAGES the file only. Extraction waits for the
+  // agent to click Upload on the staging UI, after they've had a
+  // chance to confirm Application Type. See the matching comment on
+  // handlePolicyApplicationFileSelect for the carrierFormType rationale.
+  const handleClientApplicationFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
+    if (!file) return;
+    setFormError('');
+    setFormSuccess('');
+    setClientApplicationNote(null);
+    setClientApplicationShortPdfWarning(null);
+    setClientStagedFile(file);
+  }, []);
+
+  const handleClientApplicationExtract = useCallback(async () => {
+    const file = clientStagedFile;
     if (!file) return;
 
     setClientApplicationUploading(true);
@@ -2761,6 +2794,9 @@ export default function ClientsPage() {
       setClientApplicationShortPdfWarning(parsed.shortPdfWarning || null);
       // Success — clear any sticky overload banner from a previous attempt.
       setExtractionOverloadedAt(null);
+      // Drop the staged file so the staging UI collapses back to the
+      // post-extract state (review fields, etc.).
+      setClientStagedFile(null);
     } catch (err) {
       const isOverloaded =
         err instanceof Error &&
@@ -2769,13 +2805,15 @@ export default function ClientsPage() {
         setExtractionOverloadedAt(Date.now());
       }
       setFormError(err instanceof Error ? err.message : 'Failed to parse application PDF.');
+      // Keep the staged file so the agent can fix the carrier type
+      // and retry without re-picking.
     } finally {
       clientApplicationAbortRef.current = null;
       activeClientJobIdRef.current = null;
       setClientApplicationUploading(false);
       setClientParseProgress(null);
     }
-  }, [clientApplicationType, handleClientApplicationExtracted, parseApplicationFile]);
+  }, [clientStagedFile, clientApplicationType, handleClientApplicationExtracted, parseApplicationFile]);
 
   const handleClickClientApplicationUpload = useCallback(() => {
     if (clientApplicationUploading) return;
@@ -2805,20 +2843,35 @@ export default function ClientsPage() {
     setFormError('Cancelled by agent.');
   }, [user]);
 
-  const handlePolicyApplicationFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+  // File-pick handler: STAGES the file only. Extraction now waits for
+  // an explicit Upload click on the staging UI, so the agent has a
+  // chance to set Application Type → carrier (which the previous
+  // auto-extract flow silently bypassed, locking carrierFormType to
+  // DEFAULT_APPLICATION_TYPE / "Other Carrier" and degrading
+  // extraction quality on every Americo / known-carrier upload).
+  const handlePolicyApplicationFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
+    if (!file) return;
+    // Clear prior errors / notes so the staging UI starts clean.
+    setPolicyFormError('');
+    setPolicyApplicationError('');
+    setPolicyFormSuccess('');
+    setPolicyApplicationNote(null);
+    setPolicyStagedFile(file);
+  }, []);
+
+  // Runs when the agent clicks Upload on the staging UI, after they've
+  // had a chance to confirm Application Type. This is what used to
+  // happen inline inside handlePolicyApplicationFileSelect.
+  const handlePolicyApplicationExtract = useCallback(async () => {
+    const file = policyStagedFile;
     if (!file) return;
 
     setPolicyApplicationUploading(true);
     setPolicyApplicationNote(null);
     setPolicyParseProgress({ fileName: file.name, progress: 5, label: 'Preparing file...' });
-    // Clear both — submit-side error and upload-side error — so a
-    // prior failure of either kind doesn't linger across a fresh
-    // upload attempt.
-    setPolicyFormError('');
     setPolicyApplicationError('');
-    setPolicyFormSuccess('');
     const controller = new AbortController();
     policyApplicationAbortRef.current = controller;
     activePolicyJobIdRef.current = null;
@@ -2834,10 +2887,13 @@ export default function ClientsPage() {
       const mapped = mapExtractedApplicationToPolicyFormData(parsed.data);
       setPolicyFormData((prev) => ({ ...prev, ...mapped }));
       setPolicyApplicationNote(parsed.note || null);
+      // Successful extraction → drop the staged file so the staging
+      // UI collapses back to the post-extract review state.
+      setPolicyStagedFile(null);
     } catch (err) {
-      // Surface inline under the Upload button, NOT at the bottom of
-      // the modal — agents on smaller screens were missing the old
-      // policyFormError display below the fold.
+      // Surface inline under the Upload button. Keep the staged file
+      // so the agent can adjust carrier type and retry without
+      // re-picking the file.
       setPolicyApplicationError(err instanceof Error ? err.message : 'Failed to parse application PDF.');
     } finally {
       policyApplicationAbortRef.current = null;
@@ -2845,7 +2901,7 @@ export default function ClientsPage() {
       setPolicyApplicationUploading(false);
       setPolicyParseProgress(null);
     }
-  }, [parseApplicationFile, policyApplicationType]);
+  }, [policyStagedFile, parseApplicationFile, policyApplicationType]);
 
   const handleClickPolicyApplicationUpload = useCallback(() => {
     if (policyApplicationUploading) return;
@@ -5444,15 +5500,58 @@ export default function ClientsPage() {
                     ))}
                   </select>
                 </div>
-                <button
-                  data-onboarding-target="clients-addflow-upload-pdf"
-                  type="button"
-                  onClick={handleClickClientApplicationUpload}
-                  disabled={clientApplicationUploading}
-                  className="w-full px-4 py-3 border-2 border-dashed border-[#45bcaa]/40 hover:border-[#45bcaa] bg-[#daf3f0]/30 hover:bg-[#daf3f0]/60 rounded-[5px] text-sm font-medium text-[#005851] transition-all"
-                >
-                  {clientApplicationUploading ? 'Reading application PDF...' : 'Upload Application PDF'}
-                </button>
+                {/* PRE-STAGE: no file picked yet → original dashed CTA. */}
+                {!clientStagedFile && !clientApplicationUploading && (
+                  <button
+                    data-onboarding-target="clients-addflow-upload-pdf"
+                    type="button"
+                    onClick={handleClickClientApplicationUpload}
+                    disabled={clientApplicationUploading}
+                    className="w-full px-4 py-3 border-2 border-dashed border-[#45bcaa]/40 hover:border-[#45bcaa] bg-[#daf3f0]/30 hover:bg-[#daf3f0]/60 rounded-[5px] text-sm font-medium text-[#005851] transition-all"
+                  >
+                    Upload Application PDF
+                  </button>
+                )}
+
+                {/* STAGED: file picked, awaiting carrier confirm + Upload.
+                    Mirrors the Add Policy modal's staging UI so agents
+                    see one consistent ritual across both upload flows. */}
+                {clientStagedFile && !clientApplicationUploading && (
+                  <div className="rounded-[5px] border border-[#45bcaa]/40 bg-[#daf3f0]/30 p-3 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <svg className="w-4 h-4 shrink-0 text-[#005851]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span className="text-sm font-medium text-[#005851] truncate" title={clientStagedFile.name}>
+                          {clientStagedFile.name}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleClickClientApplicationUpload}
+                        className="text-xs font-semibold text-[#005851] hover:underline shrink-0"
+                      >
+                        Change file
+                      </button>
+                    </div>
+                    <p className="text-xs text-[#005851] leading-relaxed">
+                      Confirm <strong>Application Type</strong> above is correct for this PDF, then upload.
+                      Picking the right carrier helps us read the form more accurately.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleClientApplicationExtract}
+                      className="w-full px-4 py-2.5 bg-[#005851] hover:bg-[#004440] text-white text-sm font-semibold rounded-[5px] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Upload
+                    </button>
+                  </div>
+                )}
+
                 <input ref={clientApplicationFileInputRef} type="file" accept=".pdf,application/pdf" onChange={handleClientApplicationFileSelect} className="hidden" />
                 {clientApplicationUploading && clientParseProgress && (
                   <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/40 p-3">
@@ -5874,17 +5973,68 @@ export default function ClientsPage() {
                     </select>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleClickPolicyApplicationUpload}
-                    disabled={policyApplicationUploading}
-                    className="w-full px-4 py-3 border-2 border-dashed border-[#0099FF]/30 hover:border-[#0099FF] bg-[#0099FF]/5 hover:bg-[#0099FF]/10 rounded-[5px] text-sm font-medium text-[#0099FF] transition-all flex items-center justify-center gap-2 disabled:opacity-60"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    {policyApplicationUploading ? 'Reading application PDF...' : 'Upload Application PDF to Auto-Fill'}
-                  </button>
+                  {/* PRE-STAGE: nothing picked yet → the original dashed
+                      "Upload Application PDF to Auto-Fill" CTA. */}
+                  {!policyStagedFile && !policyApplicationUploading && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleClickPolicyApplicationUpload}
+                        disabled={policyApplicationUploading}
+                        className="w-full px-4 py-3 border-2 border-dashed border-[#0099FF]/30 hover:border-[#0099FF] bg-[#0099FF]/5 hover:bg-[#0099FF]/10 rounded-[5px] text-sm font-medium text-[#0099FF] transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        Upload Application PDF to Auto-Fill
+                      </button>
+                      <p className="text-xs text-[#707070]">
+                        AI will extract client info and policy details in one step. Max 25MB.
+                      </p>
+                    </>
+                  )}
+
+                  {/* STAGED: file picked, awaiting carrier confirm + Upload.
+                      Forces the agent to revisit Application Type above
+                      before extraction runs — fixes the prior auto-extract
+                      flow that silently locked carrierFormType to the
+                      default and degraded extraction quality. */}
+                  {policyStagedFile && !policyApplicationUploading && (
+                    <div className="rounded-[5px] border border-[#0099FF]/30 bg-[#0099FF]/5 p-3 space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <svg className="w-4 h-4 shrink-0 text-[#0099FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <span className="text-sm font-medium text-[#0D4D4D] truncate" title={policyStagedFile.name}>
+                            {policyStagedFile.name}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleClickPolicyApplicationUpload}
+                          className="text-xs font-semibold text-[#0099FF] hover:underline shrink-0"
+                        >
+                          Change file
+                        </button>
+                      </div>
+                      <p className="text-xs text-[#0A5CA8] leading-relaxed">
+                        Confirm <strong>Application Type</strong> above is correct for this PDF, then upload.
+                        Picking the right carrier helps us read the form more accurately.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handlePolicyApplicationExtract}
+                        className="w-full px-4 py-2.5 bg-[#0099FF] hover:bg-[#0079CC] text-white text-sm font-semibold rounded-[5px] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Upload
+                      </button>
+                    </div>
+                  )}
+
                   <input
                     ref={policyApplicationFileInputRef}
                     type="file"
@@ -5892,9 +6042,6 @@ export default function ClientsPage() {
                     onChange={handlePolicyApplicationFileSelect}
                     className="hidden"
                   />
-                  <p className="text-xs text-[#707070]">
-                    AI will extract client info and policy details in one step. Max 25MB.
-                  </p>
                   {/* Upload-side error — surfaced inline so size/parse
                       failures are immediately visible to the agent
                       without scrolling the modal. */}
