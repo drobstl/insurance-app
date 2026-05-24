@@ -332,7 +332,7 @@ export async function getActivityStats(
       return bMs - aMs;
     })[0];
     const status = latest?.status || 'scheduled';
-    if (status === 'completed') showed += 1;
+    if (status === 'completed' || status === 'sit_no_sale' || status === 'sit_think_about_it') showed += 1;
     else if (status === 'cancelled' || status === 'no_show') noShowed += 1;
     else unresolved += 1;
   }

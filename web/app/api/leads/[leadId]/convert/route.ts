@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../../lib/firebase-admin';
 import { autoCompleteRecentAppointment } from '../../../../../lib/appointment-auto-complete';
+import { queueOrRefreshWelcomeActionItem } from '../../../../../lib/welcome-action-item-writer';
 
 /**
  * POST /api/leads/[leadId]/convert
@@ -19,9 +20,11 @@ import { autoCompleteRecentAppointment } from '../../../../../lib/appointment-au
  * the lead URL — the lead page itself renders a "Converted to client"
  * banner once `convertedToClientId` is set.
  *
- * Welcome SMS / action items are NOT triggered here. They flow through
- * the same surface used by manually-added clients (the welcome action
- * item appears in the agent's queue on next reload).
+ * Queues the welcome action item the same way the Add Client flow does
+ * (via `queueOrRefreshWelcomeActionItem`). This is what creates the
+ * `welcome_pending_{clientId}` placeholder thread + byPhone resolver
+ * entry — without it, the inbound activation SMS from the mobile app
+ * has nothing to match against and lands in the generic inbox.
  *
  * Auth: Bearer ID token; agent owns the lead.
  *
@@ -162,6 +165,26 @@ export async function POST(
       clientId: clientRef.id,
       reason: 'convert',
     });
+
+    try {
+      const welcomeResult = await queueOrRefreshWelcomeActionItem({
+        db,
+        agentId,
+        clientId: clientRef.id,
+      });
+      console.log('[leads/convert] welcome action item', {
+        agentId,
+        clientId: clientRef.id,
+        itemId: welcomeResult.itemId,
+        outcome: welcomeResult.outcome,
+      });
+    } catch (welcomeErr) {
+      console.error('[leads/convert] welcome action item queue failed (non-blocking)', {
+        agentId,
+        clientId: clientRef.id,
+        error: welcomeErr instanceof Error ? welcomeErr.message : String(welcomeErr),
+      });
+    }
 
     return NextResponse.json({
       clientId: clientRef.id,
