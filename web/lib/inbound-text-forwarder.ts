@@ -71,7 +71,7 @@ export async function forwardInboundToAgentCell(
       : 'Reply: (sender number unavailable)';
 
     const body = [
-      '📲 New text to your Linq line',
+      '📲 New text to your AFL line',
       `From: ${fromLabel}`,
       `"${trimmedText}"`,
       replyLine,

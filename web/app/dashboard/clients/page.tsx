@@ -109,9 +109,9 @@ const BULK_IMPORT_FUN_STATES = ['Processing your import...', 'Preparing client r
 const DEFAULT_WELCOME_SMS_TEMPLATE =
   'Hey {{firstName}}! {{agentName}} here. Quick setup:\n\n'
   + '1. Download: https://agentforlife.app/app\n'
-  + '2. Tap Activate, then tap Send\n'
-  + '3. Log in with code {{code}}\n\n'
-  + 'Done – allow notifications when prompted so I can reach you with important updates.';
+  + '2. ALLOW notifications when prompted so I can reach you with important updates.\n'
+  + '3. Tap Activate, then tap Send and wait for the text back\n\n'
+  + 'Done – head back to your personalized app and log in with code {{code}}';
 import { KNOWN_CARRIER_NAMES } from '../../../lib/carriers';
 
 const KNOWN_CARRIERS = KNOWN_CARRIER_NAMES;

@@ -1105,9 +1105,9 @@ export default function SettingsPage() {
               </div>
               <div className="flex items-start justify-between gap-4 pt-2 border-t border-gray-100">
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-[#000000]">Forward Linq texts to my cell</p>
+                  <p className="text-sm font-medium text-[#000000]">Forward AFL texts to my cell</p>
                   <p className="text-xs text-[#707070] mt-1">
-                    When a client or beneficiary texts your Linq line out of the blue (not part of a referral, conservation, or policy review the AI is already handling), we&rsquo;ll text you a copy at the number above so you can reply directly from your phone.
+                    When a client or beneficiary texts your AFL line out of the blue (not part of a referral, conservation, or policy review the AI is already handling), we&rsquo;ll text you a copy at the number above so you can reply directly from your phone.
                   </p>
                 </div>
                 <button
@@ -1115,7 +1115,7 @@ export default function SettingsPage() {
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
                     (agentProfile.forwardInboundSms ?? true) ? 'bg-[#44bbaa]' : 'bg-gray-300'
                   }`}
-                  aria-label="Toggle Linq text forwarding"
+                  aria-label="Toggle AFL text forwarding"
                 >
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
@@ -1361,7 +1361,7 @@ export default function SettingsPage() {
                 <textarea
                   value={agentProfile.welcomeSmsTemplate || ''}
                   onChange={(e) => updateField('welcomeSmsTemplate', e.target.value)}
-                  placeholder={'Hey {{firstName}}! {{agentName}} here. Quick setup:\n\n1. Download: https://agentforlife.app/app\n2. Tap Activate, then tap Send\n3. Log in with code {{code}}\n\nDone – allow notifications when prompted so I can reach you with important updates.'}
+                  placeholder={'Hey {{firstName}}! {{agentName}} here. Quick setup:\n\n1. Download: https://agentforlife.app/app\n2. ALLOW notifications when prompted so I can reach you with important updates.\n3. Tap Activate, then tap Send and wait for the text back\n\nDone – head back to your personalized app and log in with code {{code}}'}
                   rows={8}
                   className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa] resize-y"
                 />

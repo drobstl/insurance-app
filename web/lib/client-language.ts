@@ -44,9 +44,9 @@ export function buildWelcomeMessage(params: {
   return (
     `Hey ${firstName}! ${agentName} here. Quick setup:\n\n`
     + `1. Download: ${params.appUrl}\n`
-    + '2. Tap Activate, then tap Send\n'
-    + `3. Log in with code ${params.code}\n\n`
-    + 'Done – allow notifications when prompted so I can reach you with important updates.'
+    + '2. ALLOW notifications when prompted so I can reach you with important updates.\n'
+    + '3. Tap Activate, then tap Send and wait for the text back\n\n'
+    + `Done – head back to your personalized app and log in with code ${params.code}`
   );
 }
 

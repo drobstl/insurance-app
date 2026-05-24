@@ -119,17 +119,17 @@ export function buildPhase1WelcomeBody(params: {
       + 'so your policy details are always on your phone and you can reach me '
       + 'with one tap. Quick setup:\n\n'
       + `1. Download: ${APP_DOWNLOAD_URL}\n`
-      + '2. Tap Activate, then tap Send\n'
-      + `3. Log in with code ${params.clientCode}\n\n`
-      + 'Allow notifications when prompted so I can keep you posted on your coverage.'
+      + '2. ALLOW notifications when prompted so I can reach you with important updates.\n'
+      + '3. Tap Activate, then tap Send and wait for the text back\n\n'
+      + `Done – head back to your personalized app and log in with code ${params.clientCode}`
     );
   }
   return (
     `Hey ${firstName}! ${agentName} here. Quick setup:\n\n`
     + `1. Download: ${APP_DOWNLOAD_URL}\n`
-    + '2. Tap Activate, then tap Send\n'
-    + `3. Log in with code ${params.clientCode}\n\n`
-    + 'Done – allow notifications when prompted so I can reach you with important updates.'
+    + '2. ALLOW notifications when prompted so I can reach you with important updates.\n'
+    + '3. Tap Activate, then tap Send and wait for the text back\n\n'
+    + `Done – head back to your personalized app and log in with code ${params.clientCode}`
   );
 }
 
