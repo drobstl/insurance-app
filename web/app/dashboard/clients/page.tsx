@@ -90,7 +90,8 @@ const BULK_PARSE_MAX_RETRIES = 2;
 // 25MB comfortably on any modern agent workstation.
 const MAX_APPLICATION_PDF_BYTES = 25 * 1024 * 1024;
 const MAX_APPLICATION_RENDER_PAGES = 6;
-const DEFAULT_APPLICATION_TYPE = 'unknown';
+// DEFAULT_APPLICATION_TYPE now lives in lib/application-type-options.ts
+// (imported at the top alongside APPLICATION_TYPE_OPTIONS).
 const BULK_IMPORT_SPLIT_TYPE_MESSAGE =
   'Please import spreadsheets and PDFs in separate runs for faster, more reliable processing.';
 const BULK_ENCRYPTED_PDF_UNSUPPORTED_MESSAGE =
@@ -115,26 +116,14 @@ const DEFAULT_WELCOME_SMS_TEMPLATE =
 import { KNOWN_CARRIER_NAMES } from '../../../lib/carriers';
 
 const KNOWN_CARRIERS = KNOWN_CARRIER_NAMES;
-type ApplicationFormType = string;
-const APPLICATION_TYPE_OPTIONS: Array<{ label: string; value: ApplicationFormType }> = [
-  { label: 'Americo - Term or CBO', value: 'americo_icc18_5160' },
-  { label: 'Americo - IUL', value: 'americo_icc18_5160_iul' },
-  { label: 'Americo - Whole Life', value: 'americo_icc24_5426' },
-  { label: 'American-Amicable - Mortgage Protection', value: 'amam_icc15_aa9466' },
-  { label: 'American-Amicable - Term', value: 'amam_icc18_aa3487' },
-  { label: 'Foresters - Term Life', value: 'foresters_icc15_770825' },
-  { label: 'United Home Life - Term', value: 'uhl_icc22_200_878a' },
-  { label: 'United Home Life - GIWL', value: 'uhl_icc20_200_854a_giwl' },
-  { label: 'Transamerica - Whole Life', value: 'transamerica_icc22_t_ap_wl11ic_0822' },
-  { label: 'Corebridge/AIG', value: 'corebridge_aig_icc15_108847' },
-  { label: 'SBLI - Policy Packet', value: 'sbli_policy_packet' },
-  { label: 'F&G - IUL', value: 'fg_iul' },
-  { label: 'Mutual of Omaha - Term Life Express / IUL Express', value: 'moo_icc22_l683a' },
-  { label: 'Mutual of Omaha - Living Promise', value: 'moo_icc23_l681a' },
-  { label: 'Mutual of Omaha - Accidental Death', value: 'moo_ma5981' },
-  { label: 'Banner/LGA - Term', value: 'banner_lga_icc17_lia' },
-  { label: 'Other Carrier', value: 'unknown' },
-];
+// Carrier / application-type options moved to a shared lib so the
+// Close Sale ritual can use the same source of truth without
+// duplicating the list. See web/lib/application-type-options.ts.
+import {
+  APPLICATION_TYPE_OPTIONS,
+  DEFAULT_APPLICATION_TYPE,
+  type ApplicationFormType,
+} from '../../../lib/application-type-options';
 
 function getBulkPdfConcurrencyLimit(): number {
   const raw = process.env.NEXT_PUBLIC_IMPORT_PDF_CONCURRENCY;

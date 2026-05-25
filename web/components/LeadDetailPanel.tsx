@@ -18,6 +18,7 @@ import { useDashboard } from '../app/dashboard/DashboardContext';
 import AppointmentPicker from './AppointmentPicker';
 import { DEFAULT_DIAL_SCRIPT, renderDialScript } from '../lib/dial-script';
 import SendConfirmationDrawer from './SendConfirmationDrawer';
+import { CloseSaleRitual } from './CloseSaleRitual';
 
 interface LeadPhone {
   number: string;
@@ -533,6 +534,11 @@ export default function LeadDetailPanel({
   // spinner overlapping another's.
   const [outcomeUpdatingApptId, setOutcomeUpdatingApptId] = useState<string | null>(null);
   const [showConvertConfirm, setShowConvertConfirm] = useState(false);
+  // Close Sale ritual modal (Growth+ on-call workflow that combines
+  // convert + create policy + send welcome + activation coaching).
+  // The plain "Convert to client" path stays available for the case
+  // where the agent doesn't have the application PDF in hand.
+  const [showCloseSale, setShowCloseSale] = useState(false);
   const [convertBusy, setConvertBusy] = useState(false);
   const [convertError, setConvertError] = useState<string | null>(null);
   // Whether Google Calendar is connected — gates the calendar-invite + Meet
@@ -1117,7 +1123,8 @@ export default function LeadDetailPanel({
             />
           )}
 
-          {/* Book appointment + Convert to client — common to all leads. */}
+          {/* Book appointment + Close Sale + Convert to client. Hidden
+              once the lead is converted (then we show the banner below). */}
           {!lead.convertedToClientId && (
             <div className="mt-3 flex items-center gap-2 flex-wrap">
               <button
@@ -1129,10 +1136,26 @@ export default function LeadDetailPanel({
                 </svg>
                 Book appointment
               </button>
+              {/* Close Sale — the single-motion on-call ritual. Primary
+                  CTA color because it's the most common close path for
+                  Growth+ agents. The plain "Convert to client" stays
+                  next to it for cases where the agent doesn't have the
+                  application PDF in hand (e.g., they'll upload it later
+                  from the new client profile). */}
+              <button
+                onClick={() => setShowCloseSale(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[#0099FF] hover:bg-[#0079CC] text-white font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors text-sm"
+                title="Close the sale: convert + upload application + send welcome + activate, all in one ritual"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Close Sale
+              </button>
               <button
                 onClick={() => setShowConvertConfirm(true)}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-[#005851] hover:bg-[#004440] text-white font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors text-sm"
-                title="Convert this lead to a client — they closed!"
+                title="Convert without uploading an application PDF — agent will add the policy later"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -2030,6 +2053,32 @@ export default function LeadDetailPanel({
           />
         );
       })()}
+
+      {/* Close Sale ritual — single-motion convert + create policy +
+          send welcome + activation coaching. Modal owns its own state;
+          we hand it the user, agentProfile.name, agentId, and lead. */}
+      {lead && user && (
+        <CloseSaleRitual
+          open={showCloseSale}
+          onClose={() => setShowCloseSale(false)}
+          user={user}
+          agentId={user.uid}
+          agentName={agentProfile.name || ''}
+          lead={{
+            id: lead.id,
+            name: lead.name || 'this lead',
+            firstName: (lead.name || '').trim().split(/\s+/)[0] || 'there',
+            phone: lead.phone || '',
+          }}
+          onConverted={() => {
+            // Fires after Card 1 succeeds (lead is converted, policy
+            // created). Trigger the parent queue's advance, same as
+            // the plain convert path does. Don't close the modal —
+            // the ritual continues into Cards 2 + 3.
+            onConverted?.();
+          }}
+        />
+      )}
 
       {/* Convert-to-client confirmation. Calls POST /api/leads/[id]/convert
           which creates the client doc + mirrors + stamps the lead with
