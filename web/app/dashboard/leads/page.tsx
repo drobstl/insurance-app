@@ -1397,51 +1397,103 @@ function LeadsPageInner() {
               outcome chip / booking / conversion / deletion. */}
           {view === 'queue' && !loading && queueLeads.length > 0 && (
             <div className="hidden md:block md:flex-1 md:min-w-0">
-              <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5">
-                {effectiveSelectedLeadId ? (
-                  <LeadDetailPanel
-                    key={effectiveSelectedLeadId}
-                    leadId={effectiveSelectedLeadId}
-                    pendingDial={pendingDialForPanel}
-                    onConverted={advanceToNextQueueLead}
-                    onDeleted={advanceToNextQueueLead}
-                    onOutcomeLogged={advanceToNextQueueLead}
-                    onCallFired={() => {
-                      // Re-dials from the panel's multi-phone editor
-                      // count toward the dial-persistence threshold.
-                      // Queue-row initial dials are bumped by
-                      // handleQueueCall before pendingDial fires, so
-                      // this fires only for in-panel re-dials.
-                      if (!effectiveSelectedLeadId) return;
-                      dialAttemptsForLeadRef.current.set(
-                        effectiveSelectedLeadId,
-                        (dialAttemptsForLeadRef.current.get(effectiveSelectedLeadId) || 0) + 1,
-                      );
-                    }}
-                    onBookingComplete={(appointmentId, scheduledAt) => {
-                      // Host the confirmation drawer here at the queue
-                      // page rather than inside the panel. The booking
-                      // POST stamps `lastDialOutcome:'booked'` on the
-                      // lead, queueLeads filters it out, and (when
-                      // urlSelectedLeadId is null) effectiveSelectedLeadId
-                      // flips to the next lead — unmounting the panel
-                      // mid-render. Drawer at parent level survives
-                      // that re-mount and stays visible until dismiss.
-                      const lead = leads.find((l) => l.id === effectiveSelectedLeadId);
-                      if (!lead) return;
-                      setConfirmingLead({ lead, appointmentId, scheduledAt });
-                    }}
-                    onRequestCloseSale={(leadSnapshot) => {
-                      // Panel hands us a captured snapshot — the modal
-                      // renders against this even after the panel
-                      // below unmounts mid-ritual.
-                      advanceAfterCloseSale.current = false;
-                      setCloseSaleLead(leadSnapshot);
-                    }}
-                  />
-                ) : (
-                  <p className="text-sm text-[#707070]">Pick a lead from the queue to see their details.</p>
-                )}
+              {/* Slide-belt container — LeadDetailPanel and the
+                  Close Sale surface live in here side by side. When
+                  Close Sale opens, the lead panel slides left and
+                  Close Sale slides in from the right (matches the
+                  Add Client flow on /dashboard/clients). */}
+              <div className="relative overflow-hidden" style={{ minHeight: closeSaleLead ? 900 : undefined }}>
+                {/* Lead detail panel — slides left when Close Sale active. */}
+                <div
+                  className="transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
+                  style={{
+                    transform: closeSaleLead ? 'translateX(-110%)' : 'translateX(0)',
+                    opacity: closeSaleLead ? 0 : 1,
+                    pointerEvents: closeSaleLead ? 'none' : 'auto',
+                  }}
+                  aria-hidden={!!closeSaleLead}
+                >
+                  <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5">
+                    {effectiveSelectedLeadId ? (
+                      <LeadDetailPanel
+                        key={effectiveSelectedLeadId}
+                        leadId={effectiveSelectedLeadId}
+                        pendingDial={pendingDialForPanel}
+                        onConverted={advanceToNextQueueLead}
+                        onDeleted={advanceToNextQueueLead}
+                        onOutcomeLogged={advanceToNextQueueLead}
+                        onCallFired={() => {
+                          // Re-dials from the panel's multi-phone editor
+                          // count toward the dial-persistence threshold.
+                          // Queue-row initial dials are bumped by
+                          // handleQueueCall before pendingDial fires, so
+                          // this fires only for in-panel re-dials.
+                          if (!effectiveSelectedLeadId) return;
+                          dialAttemptsForLeadRef.current.set(
+                            effectiveSelectedLeadId,
+                            (dialAttemptsForLeadRef.current.get(effectiveSelectedLeadId) || 0) + 1,
+                          );
+                        }}
+                        onBookingComplete={(appointmentId, scheduledAt) => {
+                          // Host the confirmation drawer here at the queue
+                          // page rather than inside the panel. The booking
+                          // POST stamps `lastDialOutcome:'booked'` on the
+                          // lead, queueLeads filters it out, and (when
+                          // urlSelectedLeadId is null) effectiveSelectedLeadId
+                          // flips to the next lead — unmounting the panel
+                          // mid-render. Drawer at parent level survives
+                          // that re-mount and stays visible until dismiss.
+                          const lead = leads.find((l) => l.id === effectiveSelectedLeadId);
+                          if (!lead) return;
+                          setConfirmingLead({ lead, appointmentId, scheduledAt });
+                        }}
+                        onRequestCloseSale={(leadSnapshot) => {
+                          // Panel hands us a captured snapshot — the surface
+                          // renders against this even after the panel
+                          // below unmounts mid-ritual.
+                          advanceAfterCloseSale.current = false;
+                          setCloseSaleLead(leadSnapshot);
+                        }}
+                      />
+                    ) : (
+                      <p className="text-sm text-[#707070]">Pick a lead from the queue to see their details.</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Close Sale surface — slides in from the right when active. */}
+                <div
+                  className="absolute inset-x-0 top-0 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
+                  style={{
+                    transform: closeSaleLead ? 'translateX(0)' : 'translateX(110%)',
+                    opacity: closeSaleLead ? 1 : 0,
+                    pointerEvents: closeSaleLead ? 'auto' : 'none',
+                  }}
+                  aria-hidden={!closeSaleLead}
+                >
+                  {closeSaleLead && user && (
+                    <CloseSaleRitual
+                      open={!!closeSaleLead}
+                      user={user}
+                      agentId={user.uid}
+                      agentName={agentProfile.name || ''}
+                      lead={closeSaleLead}
+                      onConverted={() => {
+                        // Card 1 success — defer queue advance until
+                        // the surface closes so the agent finishes
+                        // Cards 2 + 3.
+                        advanceAfterCloseSale.current = true;
+                      }}
+                      onClose={() => {
+                        setCloseSaleLead(null);
+                        if (advanceAfterCloseSale.current) {
+                          advanceAfterCloseSale.current = false;
+                          advanceToNextQueueLead();
+                        }
+                      }}
+                    />
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -1483,35 +1535,9 @@ function LeadsPageInner() {
           />
         )}
 
-        {/* Close Sale ritual — hosted here at the page level (not inside
-            LeadDetailPanel) so it survives the panel re-mount that
-            Card 1's convert triggers when queueLeads drops the
-            converted lead. Same architectural shape as the booking
-            drawer above (and PR #15's fix). */}
-        {closeSaleLead && user && (
-          <CloseSaleRitual
-            open={!!closeSaleLead}
-            user={user}
-            agentId={user.uid}
-            agentName={agentProfile.name || ''}
-            lead={closeSaleLead}
-            onConverted={() => {
-              // Card 1 succeeded — record it so onClose knows to fire
-              // the queue advance when the agent finishes the ritual.
-              // Don't advance now: the modal is still showing Cards
-              // 2 + 3 and shouldn't be unmounted out from under the
-              // agent.
-              advanceAfterCloseSale.current = true;
-            }}
-            onClose={() => {
-              setCloseSaleLead(null);
-              if (advanceAfterCloseSale.current) {
-                advanceAfterCloseSale.current = false;
-                advanceToNextQueueLead();
-              }
-            }}
-          />
-        )}
+        {/* Close Sale surface is rendered inside the right pane above
+            so it can slide-belt with LeadDetailPanel (Add-Client-flow
+            pattern), not floated over the page. */}
 
         {/* ── Add-Lead surface (slides in from the right) ── */}
         <div
