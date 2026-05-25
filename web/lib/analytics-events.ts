@@ -230,25 +230,29 @@ export type AnalyticsEventPropertiesMap = {
   // by lane for cross-lane analysis or filter to a single lane for
   // welcome-only Phase 1 metrics.
   action_item_created: {
-    lane?: 'welcome' | 'anniversary' | 'retention' | 'referral';
+    lane?: 'welcome' | 'anniversary' | 'retention' | 'referral' | 'appointment_outcome';
     trigger_reason?: string;
     is_idempotent_replay?: boolean;
     days_until_expiry?: number;
   } & GenericEventProperties;
   action_item_viewed: {
-    lane?: 'welcome' | 'anniversary' | 'retention' | 'referral';
+    lane?: 'welcome' | 'anniversary' | 'retention' | 'referral' | 'appointment_outcome';
     trigger_reason?: string;
     view_count_after?: number;
     age_days?: number;
   } & GenericEventProperties;
   action_item_completed: {
-    lane?: 'welcome' | 'anniversary' | 'retention' | 'referral';
+    lane?: 'welcome' | 'anniversary' | 'retention' | 'referral' | 'appointment_outcome';
     trigger_reason?: string;
     completion_action?:
       | 'text_personally'
       | 'call'
       | 'send_templated_email'
       | 'toggle_ai_back_on'
+      | 'mark_outcome_no_sale'
+      | 'mark_outcome_think_about_it'
+      | 'mark_outcome_no_show'
+      | 'mark_outcome_cancelled'
       | 'skip'
       | 'expired_unhandled';
     age_days?: number;

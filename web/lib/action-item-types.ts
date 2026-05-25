@@ -12,7 +12,7 @@
  * action vocabulary), keep the divergence in the per-lane lookup tables
  * below rather than in branching code at every call site.
  */
-export type ActionItemLane = 'welcome' | 'anniversary' | 'retention' | 'referral';
+export type ActionItemLane = 'welcome' | 'anniversary' | 'retention' | 'referral' | 'appointment_outcome';
 
 /**
  * Why this action item was created. Phase 1 only emits `welcome_pending`;
@@ -31,7 +31,12 @@ export type ActionItemTriggerReason =
   | 'retention_first_sms_unanswered_48h'
   | 'retention_first_sms_unresolved_5d'
   // Referral lane (Phase 2 — placeholder)
-  | 'referral_24h_followup_unanswered';
+  | 'referral_24h_followup_unanswered'
+  // Appointment outcome lane (Phase 2 follow-up — close-the-sale ritual
+  // unhappy-path funnel capture). Fired by the day-after cron when a
+  // booked appointment's scheduledAt has elapsed without a sale or a
+  // manual outcome marker.
+  | 'appointment_outcome_day_after';
 
 /**
  * Concrete actions an agent can take from an action item card. Each lane
@@ -53,6 +58,14 @@ export type ActionItemSuggestedAction =
   | 'call'
   | 'send_templated_email'
   | 'toggle_ai_back_on'
+  // Appointment outcome lane vocabulary — each maps 1:1 to a status
+  // we PATCH onto the appointment doc. Distinct from `skip` so the
+  // completion telemetry tells us which outcome the agent picked,
+  // which is the whole analytic point of the prompt.
+  | 'mark_outcome_no_sale'        // → status: 'sit_no_sale'
+  | 'mark_outcome_think_about_it' // → status: 'sit_think_about_it'
+  | 'mark_outcome_no_show'        // → status: 'no_show'
+  | 'mark_outcome_cancelled'      // → status: 'cancelled'
   | 'skip';
 
 export type ActionItemStatus = 'pending' | 'completed' | 'expired';
@@ -79,6 +92,12 @@ export const ACTION_ITEM_EXPIRATION_DAYS: Readonly<Record<ActionItemLane, number
   anniversary: 30,
   retention: 7,
   referral: 14,
+  // 14 days gives the agent two weeks to remember what happened on the
+  // call before the item expires unhandled. Past that, agent recall is
+  // unreliable enough that the funnel-data value of a late mark is
+  // questionable. Tune up if real usage shows agents reliably marking
+  // older items.
+  appointment_outcome: 14,
 };
 
 /**
@@ -100,6 +119,18 @@ export const ACTION_ITEM_SUGGESTED_ACTIONS_BY_LANE: Readonly<
   anniversary: ['text_personally', 'call', 'skip'],
   retention: ['text_personally', 'call', 'skip'],
   referral: ['text_personally', 'call', 'skip'],
+  // Appointment outcome order matches the agent's mental model of
+  // "what most likely happened" on a sit that didn't auto-complete via
+  // sale: they showed but didn't close, they showed and are thinking,
+  // they didn't show, or the meeting got cancelled. Skip last as the
+  // "don't know / don't remember" escape hatch.
+  appointment_outcome: [
+    'mark_outcome_no_sale',
+    'mark_outcome_think_about_it',
+    'mark_outcome_no_show',
+    'mark_outcome_cancelled',
+    'skip',
+  ],
 };
 
 /**
@@ -136,6 +167,21 @@ export interface ActionItemDisplayContext {
   agentName?: string | null;
   /** Preferred language for the subject — drives Spanish welcome copy. */
   preferredLanguage?: 'en' | 'es' | null;
+  /**
+   * Appointment-outcome-lane only. ISO timestamp of when the meeting
+   * was scheduled — surfaced on the card as "your meeting yesterday
+   * at 2pm" so the agent has enough context to remember what happened
+   * without having to click into the lead.
+   */
+  appointmentScheduledAt?: string | null;
+  /**
+   * Appointment-outcome-lane only. Short timezone label captured at
+   * creation time (e.g., "CT" / "PT") so the card displays in the
+   * agent's local time without round-tripping to recompute. Source
+   * is the agent's `appointmentTimezone` profile field; falls back
+   * to the appointment doc's own `agentTimezone` if present.
+   */
+  appointmentScheduledTzShort?: string | null;
 }
 
 /** Read the pre-filled SMS body, preferring the canonical field but
@@ -154,7 +200,8 @@ export type ActionItemLinkedEntityType =
   | 'prospect'
   | 'policyReview'
   | 'conservationAlert'
-  | 'referral';
+  | 'referral'
+  | 'appointment';
 
 export interface ActionItemDoc {
   itemId: string;
