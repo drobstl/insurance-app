@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { collection, doc, onSnapshot, query, orderBy, Timestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
 import SectionTipCard from '../../../components/SectionTipCard';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
+import { getAnniversaryDate, daysUntilAnniversary } from '../../../lib/policyUtils';
 
 interface ReviewMessage {
   role: 'client' | 'agent-ai' | 'agent-manual';
@@ -27,6 +28,33 @@ interface ReviewGatheredInfo {
   clientConcerns?: string;
   urgencyLevel?: string;
   [key: string]: unknown;
+}
+
+interface ClientLite {
+  id: string;
+  name: string;
+}
+
+interface PolicyLite {
+  id: string;
+  policyType?: string;
+  carrier?: string;
+  premiumAmount?: number;
+  effectiveDate?: string;
+  createdAt?: Timestamp | { seconds: number; nanoseconds: number };
+  status?: string;
+}
+
+interface PendingAnniversary {
+  policyId: string;
+  clientId: string;
+  clientName: string;
+  clientFirstName: string;
+  policyType: string;
+  carrier: string;
+  premiumAmount?: number;
+  anniversary: Date;
+  daysUntil: number;
 }
 
 interface PolicyReviewUI {
@@ -105,6 +133,8 @@ export default function PolicyReviewsPage() {
   const [sendingMessage, setSendingMessage] = useState(false);
   const emptyStateTrackedRef = useRef(false);
   const [filter, setFilter] = useState<'active' | 'booked' | 'all'>('active');
+  const [clients, setClients] = useState<ClientLite[]>([]);
+  const [pending, setPending] = useState<PendingAnniversary[]>([]);
 
   const fetchReviews = useCallback(async () => {
     if (!user) return;
@@ -164,6 +194,65 @@ export default function PolicyReviewsPage() {
     }, 30_000);
     return () => window.clearInterval(intervalId);
   }, [user, fetchReviews]);
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'agents', user.uid, 'clients'), orderBy('createdAt', 'desc'));
+    return onSnapshot(q, (snap) => {
+      setClients(snap.docs.map((d) => ({ id: d.id, name: (d.data().name as string) || 'Client' })));
+    }, () => {});
+  }, [user]);
+
+  const startedPolicyReviewPolicyIds = useMemo(() => {
+    const set = new Set<string>();
+    reviews.forEach((r) => { if (r.policyId) set.add(r.policyId); });
+    return set;
+  }, [reviews]);
+
+  useEffect(() => {
+    if (!user || clients.length === 0) {
+      setPending([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const next: PendingAnniversary[] = [];
+        await Promise.all(
+          clients.map(async (client) => {
+            try {
+              const res = await fetch(`/api/policies?clientId=${client.id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (!res.ok) return;
+              const { policies } = await res.json() as { policies: PolicyLite[] };
+              (policies || []).forEach((p) => {
+                if (startedPolicyReviewPolicyIds.has(p.id)) return;
+                const anniversary = getAnniversaryDate(p.createdAt, p.effectiveDate);
+                if (!anniversary) return;
+                const nameParts = (client.name || 'Client').trim().split(/\s+/);
+                next.push({
+                  policyId: p.id,
+                  clientId: client.id,
+                  clientName: client.name || 'Client',
+                  clientFirstName: nameParts[0] || 'Client',
+                  policyType: p.policyType || 'Policy',
+                  carrier: p.carrier || '',
+                  premiumAmount: p.premiumAmount,
+                  anniversary,
+                  daysUntil: daysUntilAnniversary(anniversary),
+                });
+              });
+            } catch { /* skip */ }
+          }),
+        );
+        next.sort((a, b) => a.daysUntil - b.daysUntil);
+        if (!cancelled) setPending(next);
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user, clients, startedPolicyReviewPolicyIds]);
 
   const handleToggleAi = async (reviewId: string, currentValue: boolean) => {
     if (!user) return;
@@ -327,8 +416,49 @@ export default function PolicyReviewsPage() {
         ))}
       </div>
 
+      {/* Coming Up — anniversaries in next 30 days, no campaign yet */}
+      {pending.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-baseline justify-between mb-2">
+            <h2 className="text-sm font-bold text-[#0D4D4D] uppercase tracking-wider">Coming Up</h2>
+            <span className="text-xs text-[#6B7280]">AI outreach fires the day after each anniversary</span>
+          </div>
+          <div className="space-y-2">
+            {pending.map((item) => {
+              const dayLabel = item.daysUntil === 0
+                ? 'Today'
+                : item.daysUntil === 1
+                  ? 'Tomorrow'
+                  : `in ${item.daysUntil} days`;
+              const dateLabel = item.anniversary.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+              return (
+                <div key={item.policyId} className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[4px] border-b-[4px] p-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 bg-amber-500 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-white text-xs font-bold">{item.clientFirstName?.[0] || '?'}</span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#0D4D4D] truncate">{item.clientName}</p>
+                      <p className="text-xs text-[#6B7280] truncate">
+                        {item.policyType}{item.carrier ? ` · ${item.carrier}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <span className="text-xs text-[#6B7280] hidden sm:block">{dateLabel}</span>
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">
+                      {dayLabel}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Empty state */}
-      {reviews.length === 0 && !reviewsLoading && (
+      {reviews.length === 0 && pending.length === 0 && !reviewsLoading && (
         <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-12 text-center">
           <div className="w-16 h-16 bg-[#3DD6C3]/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
