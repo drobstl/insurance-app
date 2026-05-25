@@ -958,7 +958,11 @@ export default function ClientsPage() {
   const [clientStagedFile, setClientStagedFile] = useState<File | null>(null);
   const [policyApplicationUploading, setPolicyApplicationUploading] = useState(false);
   const [policyApplicationNote, setPolicyApplicationNote] = useState<string | null>(null);
-  const [policyApplicationType, setPolicyApplicationType] = useState<ApplicationFormType>(DEFAULT_APPLICATION_TYPE);
+  // Carrier required, no default — parallels Close Sale (see
+  // CloseSaleRitual.tsx). Empty string ('') represents "agent hasn't
+  // picked yet"; the Upload button stays disabled until they do.
+  // DEFAULT_APPLICATION_TYPE is no longer used on this surface.
+  const [policyApplicationType, setPolicyApplicationType] = useState<ApplicationFormType | ''>('');
   const [policyParseProgress, setPolicyParseProgress] = useState<ParseProgressState | null>(null);
   const [autoOpenPolicyUploadPicker, setAutoOpenPolicyUploadPicker] = useState(false);
   // Staged file — picked from the file dialog but not yet sent for
@@ -2313,7 +2317,12 @@ export default function ClientsPage() {
     setPolicyApplicationError('');
     setPolicyFormSuccess('');
     setPolicyApplicationNote(null);
-    setPolicyApplicationType(DEFAULT_APPLICATION_TYPE);
+    // Empty default = no carrier selected. Forces the agent to pick
+    // one explicitly before the Upload button enables (matches Close
+    // Sale's strictness — the prior "default to Other Carrier" silently
+    // ran extraction in fallback mode for known carriers, missing
+    // fields like phone/email even when page 1 was rendered).
+    setPolicyApplicationType('');
     setPolicyApplicationUploading(false);
     setPolicyParseProgress(null);
     setPolicyStagedFile(null);
@@ -2333,7 +2342,12 @@ export default function ClientsPage() {
     setPolicyApplicationError('');
     setPolicyFormSuccess('');
     setPolicyApplicationNote(null);
-    setPolicyApplicationType(DEFAULT_APPLICATION_TYPE);
+    // Empty default = no carrier selected. Forces the agent to pick
+    // one explicitly before the Upload button enables (matches Close
+    // Sale's strictness — the prior "default to Other Carrier" silently
+    // ran extraction in fallback mode for known carriers, missing
+    // fields like phone/email even when page 1 was rendered).
+    setPolicyApplicationType('');
     setPolicyApplicationUploading(false);
     setPolicyParseProgress(null);
     setPolicyStagedFile(null);
@@ -2856,6 +2870,13 @@ export default function ClientsPage() {
   const handlePolicyApplicationExtract = useCallback(async () => {
     const file = policyStagedFile;
     if (!file) return;
+    // Defense-in-depth: the Upload button is disabled when no carrier
+    // is picked, but guard here too so a programmatic invocation
+    // can't bypass it and silently extract with `''`.
+    if (!policyApplicationType) {
+      setPolicyApplicationError('Pick the Application Type above before uploading.');
+      return;
+    }
 
     setPolicyApplicationUploading(true);
     setPolicyApplicationNote(null);
@@ -5947,19 +5968,25 @@ export default function ClientsPage() {
               {!editingPolicy && (
                 <div className="space-y-2">
                   <div>
-                    <label className="block text-sm font-medium text-[#000000] mb-1">Application Type</label>
+                    <label className="block text-sm font-medium text-[#000000] mb-1">
+                      Application Type <span className="text-red-600">*</span>
+                    </label>
                     <select
                       value={policyApplicationType}
-                      onChange={(e) => setPolicyApplicationType(e.target.value as ApplicationFormType)}
+                      onChange={(e) => setPolicyApplicationType(e.target.value as ApplicationFormType | '')}
                       className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
                       disabled={policyApplicationUploading}
                     >
+                      <option value="">— Select carrier and form type —</option>
                       {APPLICATION_TYPE_OPTIONS.map((option) => (
                         <option key={option.label} value={option.value}>
                           {option.label}
                         </option>
                       ))}
                     </select>
+                    <p className="mt-1 text-xs text-[#707070]">
+                      Required. Picking the right carrier helps us read the form more accurately.
+                    </p>
                   </div>
 
                   {/* PRE-STAGE: nothing picked yet → the original dashed
@@ -6008,13 +6035,15 @@ export default function ClientsPage() {
                         </button>
                       </div>
                       <p className="text-xs text-[#0A5CA8] leading-relaxed">
-                        Confirm <strong>Application Type</strong> above is correct for this PDF, then upload.
-                        Picking the right carrier helps us read the form more accurately.
+                        {policyApplicationType
+                          ? <>Confirm <strong>Application Type</strong> above is correct for this PDF, then upload.</>
+                          : <><strong>Pick the Application Type above</strong> before uploading. Required so we read the right pages of the form.</>}
                       </p>
                       <button
                         type="button"
                         onClick={handlePolicyApplicationExtract}
-                        className="w-full px-4 py-2.5 bg-[#0099FF] hover:bg-[#0079CC] text-white text-sm font-semibold rounded-[5px] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors flex items-center justify-center gap-2"
+                        disabled={!policyApplicationType}
+                        className="w-full px-4 py-2.5 bg-[#0099FF] hover:bg-[#0079CC] text-white text-sm font-semibold rounded-[5px] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
