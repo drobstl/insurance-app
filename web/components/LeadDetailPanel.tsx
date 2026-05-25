@@ -345,7 +345,17 @@ interface AppointmentEntry {
   durationMinutes?: number;
   notes?: string;
   meetingUrl?: string | null;
-  status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+  // Mirrors `AppointmentStatus` from `web/lib/appointments.ts` — keep
+  // in sync. `completed` is the Sold sit (auto-set by the sale path);
+  // `sit_no_sale` / `sit_think_about_it` are agent-marked outcomes for
+  // meetings that happened but didn't close.
+  status:
+    | 'scheduled'
+    | 'completed'
+    | 'sit_no_sale'
+    | 'sit_think_about_it'
+    | 'cancelled'
+    | 'no_show';
   sentConfirmationAt?: Timestamp | null;
   sentReminderAt?: Timestamp | null;
 }
@@ -910,7 +920,12 @@ export default function LeadDetailPanel({
   // the row, so no optimistic UI gymnastics needed here.
   const handleSetAppointmentOutcome = useCallback(async (
     apptId: string,
-    newStatus: 'completed' | 'no_show',
+    // Sit outcomes — agent-set after the meeting. `completed` is
+    // reserved for the Sold sit (auto-set by the sale/convert path in
+    // appointment-auto-complete.ts); agents pick from the explicit
+    // sit_* values + no_show + cancelled. Matches the appointment
+    // outcome action item card vocabulary.
+    newStatus: 'sit_no_sale' | 'sit_think_about_it' | 'no_show' | 'cancelled',
   ) => {
     if (!user) return;
     setOutcomeUpdatingApptId(apptId);
@@ -1828,27 +1843,67 @@ export default function LeadDetailPanel({
                           </button>
                         </div>
                       )}
-                      {/* Outcome toggle — only appears once the
-                          appointment's scheduledAt is in the past. Both
-                          buttons stay visible and are reversible so the
-                          agent can flip a miscategorized outcome at any
-                          time. Active state filled; idle outlined. */}
-                      {isPast && appt.status !== 'cancelled' && (() => {
+                      {/* Outcome marker — only appears once the
+                          appointment's scheduledAt is in the past. All
+                          buttons stay visible and reversible so the
+                          agent can flip a miscategorized outcome at
+                          any time. Matches the appointment-outcome
+                          action item card vocabulary so picking the
+                          outcome here OR from the action item queue
+                          updates the same source-of-truth status.
+
+                          `completed` (= Sold) intentionally NOT exposed
+                          here — that status is reserved for the auto-
+                          complete path on sale/convert in
+                          appointment-auto-complete.ts. If the agent
+                          closed the sale, they use Close Sale (or the
+                          plain Convert button) — not this row. */}
+                      {isPast && (() => {
                         const busy = outcomeUpdatingApptId === appt.id;
-                        const isShowed = appt.status === 'completed';
+                        const isNoSale = appt.status === 'sit_no_sale';
+                        const isThinking = appt.status === 'sit_think_about_it';
                         const isNoShow = appt.status === 'no_show';
+                        const isCancelled = appt.status === 'cancelled';
+                        const isSold = appt.status === 'completed';
+                        if (isSold) {
+                          // Auto-completed via the sale path. Show a
+                          // read-only chip so the agent has confirmation
+                          // the row landed in the right place.
+                          return (
+                            <span className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-[#005851] text-white border border-[#005851]">
+                              ✓ Sold
+                            </span>
+                          );
+                        }
+                        const baseIdle =
+                          'text-[#0D4D4D] bg-white border-[#d0d0d0] hover:bg-[#f8f8f8]';
+                        const showedIdle =
+                          'text-[#0099FF] bg-white border-[#0099FF]/30 hover:bg-[#0099FF]/5';
                         return (
-                          <div className="flex gap-1.5">
+                          <div className="flex flex-wrap gap-1.5 justify-end max-w-[18rem]">
                             <button
-                              onClick={() => void handleSetAppointmentOutcome(appt.id, 'completed')}
+                              onClick={() => void handleSetAppointmentOutcome(appt.id, 'sit_no_sale')}
                               disabled={busy}
+                              title="They showed up. You didn't close."
                               className={`px-2.5 py-1 text-[11px] font-semibold rounded-md border transition-colors disabled:opacity-50 ${
-                                isShowed
-                                  ? 'bg-[#005851] text-white border-[#005851] hover:bg-[#004440]'
-                                  : 'text-[#0D4D4D] bg-white border-[#d0d0d0] hover:bg-[#f8f8f8]'
+                                isNoSale
+                                  ? 'bg-[#0099FF] text-white border-[#0099FF] hover:bg-[#0079CC]'
+                                  : showedIdle
                               }`}
                             >
-                              {isShowed ? '✓ Showed' : 'Mark showed'}
+                              {isNoSale ? '✓ Showed · no sale' : 'Showed · no sale'}
+                            </button>
+                            <button
+                              onClick={() => void handleSetAppointmentOutcome(appt.id, 'sit_think_about_it')}
+                              disabled={busy}
+                              title="They showed up. They're thinking about it."
+                              className={`px-2.5 py-1 text-[11px] font-semibold rounded-md border transition-colors disabled:opacity-50 ${
+                                isThinking
+                                  ? 'bg-[#0099FF] text-white border-[#0099FF] hover:bg-[#0079CC]'
+                                  : showedIdle
+                              }`}
+                            >
+                              {isThinking ? '✓ Thinking' : 'Showed · thinking'}
                             </button>
                             <button
                               onClick={() => void handleSetAppointmentOutcome(appt.id, 'no_show')}
@@ -1859,7 +1914,18 @@ export default function LeadDetailPanel({
                                   : 'text-amber-700 bg-white border-amber-200 hover:bg-amber-50'
                               }`}
                             >
-                              {isNoShow ? '✓ No-show' : 'Mark no-show'}
+                              {isNoShow ? '✓ No-show' : 'No-show'}
+                            </button>
+                            <button
+                              onClick={() => void handleSetAppointmentOutcome(appt.id, 'cancelled')}
+                              disabled={busy}
+                              className={`px-2.5 py-1 text-[11px] font-semibold rounded-md border transition-colors disabled:opacity-50 ${
+                                isCancelled
+                                  ? 'bg-gray-500 text-white border-gray-500 hover:bg-gray-600'
+                                  : baseIdle
+                              }`}
+                            >
+                              {isCancelled ? '✓ Cancelled' : 'Cancelled'}
                             </button>
                           </div>
                         );

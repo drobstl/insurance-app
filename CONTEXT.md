@@ -320,9 +320,18 @@ This sequence supersedes the Phase 1 plan in v3.1 §11. Source: strategy decisio
 
   Replaces previous May 7 numbered-step copy. Existing welcome action item writer needs to update. Also referenced in the Close-the-sale ritual Card 2 below.
 
-### Phase 2 follow-up — Close-the-sale ritual & funnel polish (next up; locked May 24, 2026)
+### Phase 2 follow-up — Close-the-sale ritual & funnel polish (locked May 24, 2026)
 
-This work is **higher leverage than the remaining Phase 2 operational items** because every paying agent runs through it on every sale. All prerequisites already exist: convert endpoint (`/api/leads/[leadId]/convert`), `web/lib/appointment-auto-complete.ts`, PDF upload + parsing pipeline, welcome action item queue, client `onSnapshot` infrastructure.
+**Status (May 25, 2026): mostly shipped.**
+- ✅ Close-the-sale ritual three-card panel (PR #21) — built atomically by parallel session
+- ✅ Activation status listener hook + component (PR #20)
+- ✅ Welcome SMS copy lock + convert-route welcome action item queueing (PR #19)
+- ✅ Appointment status enum (`sit_no_sale`, `sit_think_about_it`) + manual Mark-outcome buttons on LeadDetailPanel past-appointment rows (PR #19)
+- ✅ Activity page book/show/close rate tiles (PR #23)
+- ✅ Equity protection calculator on lead form (PR #22)
+- ⏳ Day-after appointment outcome **cron** (automated prompt) — pending; manual buttons already work as the fallback path
+
+This work was **higher leverage than the remaining Phase 2 operational items** because every paying agent runs through it on every sale. All prerequisites already existed: convert endpoint (`/api/leads/[leadId]/convert`), `web/lib/appointment-auto-complete.ts`, PDF upload + parsing pipeline, welcome action item queue, client `onSnapshot` infrastructure.
 
 **Three goals:** (1) Stop dropping agents off the rails mid-call when they close a sale. (2) Make activation visible in the moment so the load-bearing *"I can see it activated, you're all set"* sentence is real. (3) Get funnel data (book/show/close rates) accurate automatically as a side-effect of running the ritual.
 
@@ -392,11 +401,13 @@ Items with rough design but no scheduled phase. Mostly Agency-tier follow-ons or
 - **Mentor calendar (Agency tier only).** Senior producer in an agency (e.g., Rob with his downlines) publishes availability; downline newer agents book the mentor onto their own client appointments. Both attend; senior runs the call, newer agent learns and gets an early win. APV credit split via `mentorAgentId` tagging on the resulting client doc — half the APV populates the mentor's dashboard. **Cash commission flows through the carrier exactly as today — AFL only splits production credit on the dashboard, not cash.** Calendar primitive can reuse the existing `AppointmentPicker` infrastructure.
 - **SME calendar + FIF tracking (Pro + Agency).** FIF = Financial Information Form. Mortgage protection agents refer clients to advanced-market SMEs (debt-free life, IUL, retirement, infinite banking) for an "FIF Reset" appointment. SME runs the relationship from the first call onward; referring agent does the warm intro and sits back. Same calendar primitive as Mentor; same APV split via `referringAgentId` tagging. Engineering scope is small (~2 weeks) because no separate commission engine is needed — APV split through agent tagging covers it.
 - **Performance page (Pro + Agency).** Agents/agency owners paste a sales call transcript; AFL scores it against ideal script + ideal strategy and returns coaching feedback. Scoring engine pulled from Closr AI — integration approach (call as a service vs. port logic) deferred until access to that repo is granted. Likely lives as a third tab on Activity or its own top-level nav item — decision deferred.
-- **Quote calculator on lead form (Growth+).** Inline next to the monthly mortgage payment field on the lead form. Always shows 24/18/12/9/6 month buttons. Math is `coverage = monthly_mortgage × months`. Purpose: for older/sicker clients where final expense / mortgage protection fits and term doesn't. Monthly mortgage payment field already saves; the calculator is derived display on top of it. **Post-sale connection:** when the application PDF is parsed, the policy's face value ÷ the saved monthly mortgage = months of mortgage protection actually covered. That number is already surfaced as the hero metric in the client mobile app for mortgage protection policies (shipped). The agent's pre-sale calculator and the client's post-sale display tell the same story with the same number.
 - **OCR for handwritten mail-in forms.** Not yet discussed in depth. **Volume question first** — if total handwritten mail-ins are <20/week across the entire book, a VA + Claude vision approach beats a built pipeline. Defer architectural decisions until volume is known.
 - **Agency Rocket partnership (#3 from Rob's May 24 call).** Customer-facing financial-planning tools (IUL comparisons, debt-free life, infinite banking). Possible integration / affiliate model. Strategic / non-engineering — decide via discovery call before any product work.
-- **Combined "Close Sale" button (UX simplification).** Today, conversion + Add Policy + welcome are three actions. Likely subsumed by the Phase 2 follow-up Close-the-sale ritual above; revisit only if the ritual ships and there's still daylight.
-- **Weekly training session infrastructure (#4 from Rob's May 24 call).** Two live training/office-hours sessions per week, hosted by Daniel. Dashboard pieces: persistent "Next training session" card on dashboard home with one-click join button, reminder popup 15 minutes before each session, add-to-calendar (Google + Apple + Outlook). Recording the sessions and posting them to a sub-only library is the retention multiplier. Pitch line locked: *"Learn new features. Master the system. Capture ROI."* Not yet phased; primarily ops, with small engineering pieces.
+- **Weekly training session infrastructure (#4 from Rob's May 24 call).** Two live training/office-hours sessions per week, hosted by Daniel. Dashboard pieces: persistent "Next training session" card on dashboard home with one-click join button, reminder popup 15 minutes before each session, add-to-calendar (Google + Apple + Outlook). Recording the sessions and posting them to a sub-only library is the retention multiplier. Pitch line locked: *"Learn new features. Master the system. Capture ROI."* Tentative slots floated: Tuesday 11am Central + Thursday 7pm Central. Not yet phased; primarily ops, with small engineering pieces.
+
+**Recently shipped (moved out of backlog):**
+- ✅ **Equity protection calculator on lead form (Growth+).** PR #22, shipped May 25, 2026. Inline below the monthly mortgage payment input on the lead detail page. Always shows 24/18/12/9/6 month coverage chips. Math: `coverage = monthly_mortgage × months`. For older/sicker clients where final expense / mortgage protection fits and term doesn't. Pure display — never saves the agent's selection. Recomputes live as the agent edits the mortgage value. **Pre-sale calculator and post-sale client-app hero metric (face_value ÷ monthly_mortgage = months covered) tell the same story with the same number.**
+- ✅ **"Close Sale" single-motion button.** Subsumed by the full Close-the-sale ritual shipped in PR #21 — see Phase 2 follow-up section above.
 
 ### Phase 2 success metrics
 - Agent welcome-send compliance > 80%.

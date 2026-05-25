@@ -16,6 +16,7 @@ import WelcomeActionItemCard from '../../../components/WelcomeActionItemCard';
 import RetentionCallActionItemCard from '../../../components/RetentionCallActionItemCard';
 import RetentionTextActionItemCard from '../../../components/RetentionTextActionItemCard';
 import AnniversaryReferralActionItemCard from '../../../components/AnniversaryReferralActionItemCard';
+import AppointmentOutcomeActionItemCard from '../../../components/AppointmentOutcomeActionItemCard';
 import UpcomingAppointmentsCard from '../../../components/UpcomingAppointmentsCard';
 import type {
   ActionItemDoc,
@@ -39,10 +40,15 @@ import type {
  * and text card per stage) stays visually correct.
  */
 
-const LANE_ORDER: ActionItemLane[] = ['welcome', 'retention', 'anniversary', 'referral'];
+// Lane order on the tab strip. Outcome lane sits after Welcome since
+// both are most-active "things you do today" surfaces — Welcome for
+// new clients, Outcome for yesterday's meetings. Retention / anniversary
+// / referral come after because they're slower-moving.
+const LANE_ORDER: ActionItemLane[] = ['welcome', 'appointment_outcome', 'retention', 'anniversary', 'referral'];
 
 const LANE_LABEL: Record<ActionItemLane, string> = {
   welcome: 'Welcomes',
+  appointment_outcome: 'Meeting outcomes',
   retention: 'Retention',
   anniversary: 'Anniversary',
   referral: 'Referrals',
@@ -50,6 +56,7 @@ const LANE_LABEL: Record<ActionItemLane, string> = {
 
 const LANE_SUBTITLE: Record<ActionItemLane, string> = {
   welcome: 'New clients waiting for their first text. Send from any device.',
+  appointment_outcome: 'Meetings from the past day that need an outcome marked — keeps your book/show/close rates accurate.',
   retention: 'At-risk clients where automated touches went unanswered. Time to call or text personally.',
   anniversary: 'Anniversary check-ins where push delivery failed. Reach out personally.',
   referral: 'Warm referrals where the AI conversation went quiet. Your turn to follow up.',
@@ -57,6 +64,7 @@ const LANE_SUBTITLE: Record<ActionItemLane, string> = {
 
 const LANE_EMPTY_TITLE: Record<ActionItemLane, string> = {
   welcome: "You're all caught up.",
+  appointment_outcome: 'No meetings need an outcome.',
   retention: 'No retention items.',
   anniversary: 'No anniversary items.',
   referral: 'No referral items.',
@@ -64,6 +72,7 @@ const LANE_EMPTY_TITLE: Record<ActionItemLane, string> = {
 
 const LANE_EMPTY_BODY: Record<ActionItemLane, string> = {
   welcome: 'New welcomes appear here the moment you create a client profile.',
+  appointment_outcome: 'Items appear the day after a booked meeting if you haven\'t marked the outcome (showed-no-sale, no-show, etc.). Marking outcomes here keeps your show rate and close rate honest.',
   retention: 'Items appear when a retention campaign reaches the call or text stage.',
   anniversary: 'Items appear when a push send fails for an anniversary check-in.',
   referral: 'Items appear 24h after a referral drip goes unanswered.',
@@ -87,7 +96,13 @@ function dayKeyForSort(iso: string): number {
 }
 
 function isLane(value: string | null): value is ActionItemLane {
-  return value === 'welcome' || value === 'retention' || value === 'anniversary' || value === 'referral';
+  return (
+    value === 'welcome' ||
+    value === 'retention' ||
+    value === 'anniversary' ||
+    value === 'referral' ||
+    value === 'appointment_outcome'
+  );
 }
 
 function isRetentionCall(item: ActionItemDoc): boolean {
@@ -116,12 +131,14 @@ function ActionItemsPageInner() {
     retention: [],
     anniversary: [],
     referral: [],
+    appointment_outcome: [],
   });
   const [loaded, setLoaded] = useState<Record<ActionItemLane, boolean>>({
     welcome: false,
     retention: false,
     anniversary: false,
     referral: false,
+    appointment_outcome: false,
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -181,6 +198,9 @@ function ActionItemsPageInner() {
   const renderCard = (item: ActionItemDoc) => {
     if (item.lane === 'welcome') {
       return <WelcomeActionItemCard key={item.itemId} item={item} user={user} />;
+    }
+    if (item.lane === 'appointment_outcome') {
+      return <AppointmentOutcomeActionItemCard key={item.itemId} item={item} user={user} />;
     }
     if (item.lane === 'retention') {
       if (isRetentionCall(item)) {
