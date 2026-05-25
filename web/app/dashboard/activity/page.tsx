@@ -356,12 +356,15 @@ export default function ActivityPage() {
 
       {stats && (
         <div className={loading ? 'opacity-60 pointer-events-none transition-opacity' : 'transition-opacity'}>
-          {/* Hero tile row */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+          {/* Hero tile row — raw counts. Rates pulled out into their
+              own row below (per Daniel's May 24 ask) so agents see
+              book/show/close rate as first-class KPIs instead of
+              having them buried in secondary text. */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3">
             <HeroTile
               label="Dials"
               primary={stats.dials.total.toLocaleString()}
-              secondary={`${stats.dials.contacts} contacts · ${fmtPct(stats.dials.contactRate)}`}
+              secondary={`${stats.dials.contacts} contacts`}
               delta={stats.dials.deltaPct}
             />
             <HeroTile
@@ -374,15 +377,19 @@ export default function ActivityPage() {
               primary={stats.appointments.booked.toLocaleString()}
               secondary={
                 stats.appointments.unresolved > 0
-                  ? `${fmtPct(stats.appointments.bookRate)} book rate · ${stats.appointments.unresolved} pending`
-                  : `${fmtPct(stats.appointments.bookRate)} book rate`
+                  ? `${stats.appointments.unresolved} pending`
+                  : undefined
               }
               delta={stats.appointments.deltaPct}
             />
             <HeroTile
               label="Sales"
               primary={stats.sales.count.toLocaleString()}
-              secondary={`${fmtPct(stats.sales.closeRate)} of shows · ${fmtPct(stats.appointments.showRate)} show rate · ${stats.appointments.noShowed} no-show`}
+              secondary={
+                stats.appointments.noShowed > 0
+                  ? `${stats.appointments.noShowed} no-show`
+                  : undefined
+              }
               delta={stats.sales.deltaPct}
             />
             <HeroTile
@@ -390,6 +397,33 @@ export default function ActivityPage() {
               primary={fmtUsd(stats.sales.apv)}
               secondary={stats.sales.count > 0 ? `${fmtUsd(stats.sales.apv / stats.sales.count)} avg` : '—'}
               delta={stats.sales.deltaPct}
+            />
+          </div>
+
+          {/* Conversion-rate row. Funnel order left-to-right: book →
+              show → close. Each tile shows the rate prominently and
+              names the formula in plain English in the secondary line
+              so agents trust the number (and remember which is which
+              when coaching their downline). Deltas intentionally
+              omitted on rate tiles — rate trends are slower-moving
+              than counts, and a noisy ±% chip on a 50%-ish rate
+              creates more confusion than insight. Use the count
+              deltas above + the rate values here to read the period. */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+            <HeroTile
+              label="Book rate"
+              primary={fmtPct(stats.appointments.bookRate)}
+              secondary={`booked / contacts · ${stats.appointments.booked} of ${stats.dials.contacts}`}
+            />
+            <HeroTile
+              label="Show rate"
+              primary={fmtPct(stats.appointments.showRate)}
+              secondary={`showed / booked · ${stats.appointments.showed} of ${stats.appointments.booked}`}
+            />
+            <HeroTile
+              label="Close rate"
+              primary={fmtPct(stats.sales.closeRate)}
+              secondary={`sales / showed · ${stats.sales.count} of ${stats.appointments.showed}`}
             />
           </div>
 
