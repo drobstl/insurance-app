@@ -15,6 +15,7 @@ import { useDashboard } from '../DashboardContext';
 import AppointmentPicker from '../../../components/AppointmentPicker';
 import SendConfirmationDrawer from '../../../components/SendConfirmationDrawer';
 import LeadDetailPanel from '../../../components/LeadDetailPanel';
+import { CloseSaleRitual } from '../../../components/CloseSaleRitual';
 import { LEAD_MODE_ENABLED } from '../../../lib/feature-flags';
 
 interface Lead {
@@ -622,6 +623,22 @@ function LeadsPageInner() {
   // agent can fire the SMS while the lead is still on the line.
   const [bookingForLead, setBookingForLead] = useState<Lead | null>(null);
   const [confirmingLead, setConfirmingLead] = useState<{ lead: Lead; appointmentId: string; scheduledAt: Date } | null>(null);
+  // Close Sale ritual state — modal hosted at the page level so it
+  // survives the LeadDetailPanel re-mount that Card 1's convert
+  // triggers (snapshot drops the converted lead from queueLeads →
+  // effectiveSelectedLeadId shifts → panel key flips → panel
+  // unmounts). `closeSaleLead` holds the lead the ritual was opened
+  // for; `advanceAfterCloseSale` records whether Card 1 actually
+  // converted so onClose can fire the queue advance only when the
+  // agent finished a real conversion (vs. closed the modal having
+  // done nothing).
+  const [closeSaleLead, setCloseSaleLead] = useState<{
+    id: string;
+    name: string;
+    firstName: string;
+    phone: string;
+  } | null>(null);
+  const advanceAfterCloseSale = useRef(false);
 
   const handleQueueLogOutcome = useCallback(async (leadId: string, outcome: string) => {
     if (!user) return;
@@ -1414,6 +1431,13 @@ function LeadsPageInner() {
                       if (!lead) return;
                       setConfirmingLead({ lead, appointmentId, scheduledAt });
                     }}
+                    onRequestCloseSale={(leadSnapshot) => {
+                      // Panel hands us a captured snapshot — the modal
+                      // renders against this even after the panel
+                      // below unmounts mid-ritual.
+                      advanceAfterCloseSale.current = false;
+                      setCloseSaleLead(leadSnapshot);
+                    }}
                   />
                 ) : (
                   <p className="text-sm text-[#707070]">Pick a lead from the queue to see their details.</p>
@@ -1456,6 +1480,36 @@ function LeadsPageInner() {
             attachmentsSent={confirmingLead.lead.attachmentsSent}
             onSent={() => setConfirmingLead(null)}
             onCancel={() => setConfirmingLead(null)}
+          />
+        )}
+
+        {/* Close Sale ritual — hosted here at the page level (not inside
+            LeadDetailPanel) so it survives the panel re-mount that
+            Card 1's convert triggers when queueLeads drops the
+            converted lead. Same architectural shape as the booking
+            drawer above (and PR #15's fix). */}
+        {closeSaleLead && user && (
+          <CloseSaleRitual
+            open={!!closeSaleLead}
+            user={user}
+            agentId={user.uid}
+            agentName={agentProfile.name || ''}
+            lead={closeSaleLead}
+            onConverted={() => {
+              // Card 1 succeeded — record it so onClose knows to fire
+              // the queue advance when the agent finishes the ritual.
+              // Don't advance now: the modal is still showing Cards
+              // 2 + 3 and shouldn't be unmounted out from under the
+              // agent.
+              advanceAfterCloseSale.current = true;
+            }}
+            onClose={() => {
+              setCloseSaleLead(null);
+              if (advanceAfterCloseSale.current) {
+                advanceAfterCloseSale.current = false;
+                advanceToNextQueueLead();
+              }
+            }}
           />
         )}
 

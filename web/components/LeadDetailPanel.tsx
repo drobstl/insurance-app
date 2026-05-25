@@ -18,7 +18,6 @@ import { useDashboard } from '../app/dashboard/DashboardContext';
 import AppointmentPicker from './AppointmentPicker';
 import { DEFAULT_DIAL_SCRIPT, renderDialScript } from '../lib/dial-script';
 import SendConfirmationDrawer from './SendConfirmationDrawer';
-import { CloseSaleRitual } from './CloseSaleRitual';
 
 interface LeadPhone {
   number: string;
@@ -406,6 +405,20 @@ export interface LeadDetailPanelProps {
   // dial-persistence counter, leaving agents stuck on a lead forever
   // when dialPersistence is 2 or 3.
   onCallFired?: () => void;
+  // Fired when the agent clicks the Close Sale button. Parent owns the
+  // CloseSaleRitual modal (queue page or standalone route page) so the
+  // modal survives this panel's unmount when the conversion completes
+  // and the parent advances to the next lead. We pass a captured
+  // snapshot of the lead's identity fields so the parent doesn't have
+  // to refetch — and so the modal renders against a stable copy even
+  // after the panel below it unmounts. Absent = no Close Sale button
+  // shown (currently both real call sites pass it).
+  onRequestCloseSale?: (lead: {
+    id: string;
+    name: string;
+    firstName: string;
+    phone: string;
+  }) => void;
   // Fired when AppointmentPicker returns from a successful book. When
   // present, the panel hands the confirmation drawer off to the parent
   // (queue page) instead of rendering it locally. Required for the
@@ -432,6 +445,7 @@ export default function LeadDetailPanel({
   onDeleted,
   onOutcomeLogged,
   onCallFired,
+  onRequestCloseSale,
   onBookingComplete,
   showNotFoundBackLink,
 }: LeadDetailPanelProps) {
@@ -534,11 +548,6 @@ export default function LeadDetailPanel({
   // spinner overlapping another's.
   const [outcomeUpdatingApptId, setOutcomeUpdatingApptId] = useState<string | null>(null);
   const [showConvertConfirm, setShowConvertConfirm] = useState(false);
-  // Close Sale ritual modal (Growth+ on-call workflow that combines
-  // convert + create policy + send welcome + activation coaching).
-  // The plain "Convert to client" path stays available for the case
-  // where the agent doesn't have the application PDF in hand.
-  const [showCloseSale, setShowCloseSale] = useState(false);
   const [convertBusy, setConvertBusy] = useState(false);
   const [convertError, setConvertError] = useState<string | null>(null);
   // Whether Google Calendar is connected — gates the calendar-invite + Meet
@@ -1123,45 +1132,55 @@ export default function LeadDetailPanel({
             />
           )}
 
-          {/* Book appointment + Close Sale + Convert to client. Hidden
-              once the lead is converted (then we show the banner below). */}
+          {/* Book appointment + Close Sale are the two prominent
+              actions for an un-converted lead. "Convert without PDF"
+              is demoted to a small secondary link below — it covers
+              the rare case where the agent closed the sale verbally
+              with a paper application (or e-app PDF that arrives
+              async) and wants to record the conversion now and
+              upload the application later from the new client
+              profile. Hidden entirely once the lead is converted. */}
           {!lead.convertedToClientId && (
-            <div className="mt-3 flex items-center gap-2 flex-wrap">
-              <button
-                onClick={() => setShowAppointmentPicker(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-white text-[#0D4D4D] font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] hover:bg-[#f8f8f8] transition-colors text-sm"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                Book appointment
-              </button>
-              {/* Close Sale — the single-motion on-call ritual. Primary
-                  CTA color because it's the most common close path for
-                  Growth+ agents. The plain "Convert to client" stays
-                  next to it for cases where the agent doesn't have the
-                  application PDF in hand (e.g., they'll upload it later
-                  from the new client profile). */}
-              <button
-                onClick={() => setShowCloseSale(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-[#0099FF] hover:bg-[#0079CC] text-white font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors text-sm"
-                title="Close the sale: convert + upload application + send welcome + activate, all in one ritual"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                Close Sale
-              </button>
-              <button
-                onClick={() => setShowConvertConfirm(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-[#005851] hover:bg-[#004440] text-white font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors text-sm"
-                title="Convert without uploading an application PDF — agent will add the policy later"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Convert to client
-              </button>
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => setShowAppointmentPicker(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-white text-[#0D4D4D] font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] hover:bg-[#f8f8f8] transition-colors text-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Book appointment
+                </button>
+                {onRequestCloseSale && (
+                  <button
+                    onClick={() => onRequestCloseSale({
+                      id: lead.id,
+                      name: lead.name || 'this lead',
+                      firstName: (lead.name || '').trim().split(/\s+/)[0] || 'there',
+                      phone: lead.phone || '',
+                    })}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-[#0099FF] hover:bg-[#0079CC] text-white font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors text-sm"
+                    title="Close the sale: convert + upload application + send welcome + activate, all in one ritual"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Close Sale
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-[#707070] leading-snug">
+                Don&apos;t have the application PDF yet?{' '}
+                <button
+                  type="button"
+                  onClick={() => setShowConvertConfirm(true)}
+                  className="text-[#005851] font-semibold underline decoration-dotted underline-offset-2 hover:text-[#004440]"
+                >
+                  Convert without PDF →
+                </button>{' '}
+                <span className="text-[#9CA3AF]">(paper app or async e-app — upload the PDF later from the new client&apos;s profile)</span>
+              </p>
             </div>
           )}
           {lead.convertedToClientId && (
@@ -2101,31 +2120,13 @@ export default function LeadDetailPanel({
         );
       })()}
 
-      {/* Close Sale ritual — single-motion convert + create policy +
-          send welcome + activation coaching. Modal owns its own state;
-          we hand it the user, agentProfile.name, agentId, and lead. */}
-      {lead && user && (
-        <CloseSaleRitual
-          open={showCloseSale}
-          onClose={() => setShowCloseSale(false)}
-          user={user}
-          agentId={user.uid}
-          agentName={agentProfile.name || ''}
-          lead={{
-            id: lead.id,
-            name: lead.name || 'this lead',
-            firstName: (lead.name || '').trim().split(/\s+/)[0] || 'there',
-            phone: lead.phone || '',
-          }}
-          onConverted={() => {
-            // Fires after Card 1 succeeds (lead is converted, policy
-            // created). Trigger the parent queue's advance, same as
-            // the plain convert path does. Don't close the modal —
-            // the ritual continues into Cards 2 + 3.
-            onConverted?.();
-          }}
-        />
-      )}
+      {/* Close Sale ritual is rendered by the PARENT (queue page or
+          standalone lead route), NOT here. Reason: Card 1's success
+          fires the parent's onConverted, which advances/navigates the
+          parent — that would unmount this panel mid-ritual, destroying
+          the modal before the agent ever sees Card 2 or Card 3. Same
+          shape as the queue-booking drawer fix (PR #15). The Close
+          Sale button below just signals up via onRequestCloseSale. */}
 
       {/* Convert-to-client confirmation. Calls POST /api/leads/[id]/convert
           which creates the client doc + mirrors + stamps the lead with
