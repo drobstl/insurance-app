@@ -85,18 +85,21 @@ function TierCard({ tier }: { tier: PricingTier }) {
             {tier.id === 'agency' ? '/mo + $39/seat' : '/mo'}
           </span>
         </div>
-        {tier.conversationsPerMonth !== null ? (
+        {tier.id === 'starter' ? (
           <p className="mt-2 text-xs text-[#6B7280]">
-            <span className="font-bold text-[#0D4D4D]">
-              {tier.conversationsPerMonth} Linq conversations
-            </span>
-            {tier.dailyConversationCap !== null
-              ? ` · ${tier.dailyConversationCap}/day cap`
-              : ''}
+            <span className="font-bold text-[#0D4D4D]">Light book</span>
+          </p>
+        ) : tier.id === 'growth' ? (
+          <p className="mt-2 text-xs text-[#6B7280]">
+            <span className="font-bold text-[#0D4D4D]">Active book</span>
+          </p>
+        ) : tier.id === 'pro' ? (
+          <p className="mt-2 text-xs text-[#6B7280]">
+            <span className="font-bold text-[#0D4D4D]">Full book</span>
           </p>
         ) : (
           <p className="mt-2 text-xs text-[#6B7280]">
-            Pooled conversations across seats
+            <span className="font-bold text-[#0D4D4D]">Team pool</span>
           </p>
         )}
       </div>
@@ -179,8 +182,8 @@ export default function PricingPage() {
           </h1>
           <p className="mx-auto mt-3 max-w-2xl text-base text-[#4B5563]">
             One simple monthly fee. Unlimited push notifications, agent-phone one-tap, and
-            email — across every tier. Linq conversations are budgeted per tier so your line
-            health stays clean.
+            email — across every tier. AI conversations are budgeted per tier and sized to
+            match the book you're running.
           </p>
         </section>
 
@@ -200,10 +203,21 @@ export default function PricingPage() {
                 What counts as a “conversation”?
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">
-                A conversation is a unique outbound thread on the AFL Linq pooled SMS
-                line — typically a referral, a retention SMS, or a beneficiary message.
-                Push notifications, agent-phone one-tap texts, and email are unlimited
-                on every tier and don&apos;t count.
+                A conversation is a unique outbound text thread on the AFL pooled SMS
+                line — typically a referral, a retention check-in, or a beneficiary
+                message. Push notifications, agent-phone one-tap texts, and email are
+                unlimited on every tier and don&apos;t count.
+              </p>
+            </div>
+            <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
+              <h3 className="text-sm font-bold text-[#0D4D4D]">
+                How many conversations does each tier include?
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">
+                Light book (Starter): 30 / month · Active book (Growth): 75 / month · Full
+                book (Pro): 200 / month · Team pool (Agency): pooled across your team,
+                sized to your agency. Daily caps apply on every tier to keep your line
+                health clean.
               </p>
             </div>
             <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
@@ -242,7 +256,7 @@ export default function PricingPage() {
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">
                 No. AFL handles all the messaging infrastructure for you — including the
-                Linq pooled line for AI-driven referral and retention conversations.
+                pooled SMS line used for AI-driven referral and retention conversations.
               </p>
             </div>
           </div>

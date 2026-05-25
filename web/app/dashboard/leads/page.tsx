@@ -70,21 +70,32 @@ const BELT_OFFSET = 'calc(72% + 15.25rem)';   // 72% of width + 14rem step + 1.2
 const SURFACE_SHELL = 'relative w-full max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden';
 const SURFACE_HEADER = 'sticky top-0 z-10 flex items-center justify-between p-5 border-b border-[#ececec] bg-white';
 
+// Feature flag gate at the wrapper level so the inner component's
+// ~50 hooks never run when the flag is off. Inlining the gate inside
+// the inner component (where the original code lived) triggered 49
+// react-hooks/rules-of-hooks lint errors because every hook below
+// the early return became conditional. NEXT_PUBLIC_LEAD_MODE_ENABLED
+// is build-time-baked so it never actually changes mid-session — but
+// the wrapper pattern is the canonical fix per React docs and keeps
+// the lint signal-to-noise clean. When a real human navigates here
+// with the flag off (bookmark, typed URL — the sidebar renders this
+// row as a non-interactive "Coming soon" placeholder so this is
+// belt-and-suspenders), the redirect bounces them back to /dashboard.
 export default function LeadsPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const { user, agentProfile } = useDashboard();
 
-  // Feature flag gate. When NEXT_PUBLIC_LEAD_MODE_ENABLED is not 'true',
-  // the lead-mode surface is invisible to agents and any direct nav
-  // (bookmark, typed URL) bounces back to the dashboard. The sidebar
-  // renders this row as a non-interactive "Coming soon" placeholder, so
-  // a real human shouldn't reach this page in the off state — this is
-  // belt-and-suspenders for the URL-typed case.
   useEffect(() => {
     if (!LEAD_MODE_ENABLED) router.replace('/dashboard');
   }, [router]);
   if (!LEAD_MODE_ENABLED) return null;
+
+  return <LeadsPageInner />;
+}
+
+function LeadsPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user, agentProfile } = useDashboard();
 
   // Right-pane selection (desktop call-queue view only). The URL param
   // is the source of truth so refresh + back/forward + shareable links

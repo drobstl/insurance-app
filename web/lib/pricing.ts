@@ -70,7 +70,7 @@ export const PRICING_TIERS: Readonly<Record<PricingTierId, PricingTier>> = {
     dailyConversationCap: 3,
     trialDays: 14,
     bullets: [
-      '30 Linq conversations / month',
+      'Light book — AI conversations sized for a small book',
       'Unlimited push, one-tap, email',
       'Branded client mobile app',
       'AFL referral assistant',
@@ -89,7 +89,7 @@ export const PRICING_TIERS: Readonly<Record<PricingTierId, PricingTier>> = {
     dailyConversationCap: 8,
     trialDays: 14,
     bullets: [
-      '75 Linq conversations / month',
+      'Active book — more AI conversations for a growing book',
       'Everything in Starter',
       'Bulk import onboarding ceremony',
       'Anniversary rewrite alerts',
@@ -109,7 +109,7 @@ export const PRICING_TIERS: Readonly<Record<PricingTierId, PricingTier>> = {
     dailyConversationCap: 20,
     trialDays: 0,
     bullets: [
-      '200 Linq conversations / month',
+      'Full book — high-volume AI conversations',
       'Everything in Growth',
       'Advanced analytics',
       'Priority support',
@@ -128,11 +128,11 @@ export const PRICING_TIERS: Readonly<Record<PricingTierId, PricingTier>> = {
     dailyConversationCap: null,
     trialDays: 0,
     bullets: [
-      '$199/mo platform + $39/seat',
-      '100 conversations / seat (pooled)',
+      'Team pool — pooled AI conversations across your team',
       'Team admin tools',
-      'Per-seat dashboard',
+      'Per-agent dashboard',
       'Concierge onboarding',
+      'Mentor + SME calendars (when available)',
     ],
     bestFor: 'Agency owner with a downline of agents',
     isStripeBillable: false,

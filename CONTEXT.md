@@ -292,21 +292,90 @@ This sequence supersedes the Phase 1 plan in v3.1 §11. Source: strategy decisio
 - Pre-application lead management ("lead mode"). **Status: shipped to branch May 12–18, 2026; not yet deployed to prod.** New dashboard surface at `/dashboard/leads` for managing leads BEFORE they sign an application. Three lead-form templates extract via the v3 pipeline (Mail-In / Call-In / Digital). Lead docs at `agents/{agentId}/leads/{leadId}` with `L`-prefixed codes; lookup endpoint resolves both client codes and L-codes. Multi-phone support with per-phone dial buttons, dial-count badges, last-outcome chips, label dropdowns. Dial-tracking + outcome chips with cooldown-aware call queue (never-dialed first, then by elapsed-time with outcome-specific cooldowns: callback 4h / no_answer 24h / left_vm 48h). Appointment booking via `AppointmentPicker` (atomically logs dial outcome + creates appointment). Send-confirmation drawer with QR-scan desktop→phone hand-off (the canonical desktop send path after a long iteration; see May 16–18 entry). Convert-to-Client surface produces a client record. Mobile lead-home screen (`mobile/app/lead-home.tsx`) renders intro video + assessment + FAQ + case studies. Lead PDF auto-archive cron (21-day inactivity) at `/api/cron/lead-pdf-archive`. Booked chip on lead rows from a live `agents/{agentId}/appointments` subscription. Lead list search + sortable columns. Lead import dedup (same-agent phone collision surfaces "Already imported" link instead of silently creating an L-fallback). Daniel has NOT yet pushed lead mode to prod — the entire surface is on `claude/charming-satoshi-3be4cc`. Feature flag work to gate the surface before deploy is queued for the next session (`HANDOFF_2026-05-18_evening_to_queue_polish.md`).
 
 ### Phase 2 — KPI tiers, beneficiary, retention, supporting infrastructure (months 3–4)
-- KPI tier system (5 tiers, 7-day rolling, line-level — see `KPI Tier System` below). **Phase A (visibility only) shipped May 10, 2026.** Admin widget at `/dashboard/admin/line-health` reads daily counter docs, computes 7-day rolling reply rate, classifies the line into one of 5 tiers, supports manual override (for Linq PSM warnings we can't auto-detect). Per-tier recommended actions surfaced on the widget. Phase B (auto-throttle enforcement) deferred until 1-2 weeks of real reply-rate data confirms spec thresholds match AFL traffic patterns.
-- Line-health dashboard widget. **Status: complete (May 10, 2026).** Admin-only; surfaces effective tier, 7-day reply rate, send:reply ratio, today's counters, per-lane outbound breakdown, manual override controls.
-- Auto-throttle at Tier 1 and Tier 2 (provisional — may downgrade to manual triage if Tier 1 events are rare). **(Phase B follow-up — pending real data.)**
-- Beneficiary invite mechanic (parallel to client activation, three invite prompts). **Status: complete (May 10, 2026).** v3.1 invite-only flow shipped — mobile Invite button on `policies.tsx` (OTA'd same day, update group `6635b2bf-047f-4863-a156-4d4956518e80`), server `/api/beneficiary/queue-invite` endpoint, `web/lib/beneficiary-activation-handler.ts` (parallels welcome handler), Linq webhook routing, multi-policy coalescing on `/api/mobile/policies` so a beneficiary on multiple policies sees all of them after activation. Locked copy: invite SMS drops policyholder first name (recipient already knows sender), Linq vCard reply ends with an explicit question to invite reciprocity. Legacy `/api/beneficiary/send-intro` deprecated June 9 deletion target.
-- Bulk import onboarding ceremony (re-enable UI, drip release rules). **Status: complete (May 9, 2026).** Mode 2 drip release shipped — `/api/cron/bulk-import-drip-release` cron releases ≤15/day per agent into the welcome action item queue with cold-context Mode 2 copy. Bulk Import CTA in `/dashboard/clients` re-enabled (no PWA gate, no Web Push gate, no window rules — per Daniel's locked simplifications). Legacy "Send intro to N clients" bulk-blast UI replaced with drip-aware confirmation.
-- Lapse/retention cadence rewrite. **Status: complete (May 9, 2026).** Final cadence after Daniel's locked May 9 simplification: push first → 1 Linq SMS (if push unavailable) → call action item → text action item → email at 48h intervals. Max 1 Linq outbound per campaign. 60-day quiet period after campaign ends. Toggle-AI-back-on mechanic dropped (too complex; cadence already gives agent two personal-action stages). Templated-email button also dropped. New `TouchStage` enum (`stage_push | stage_sms | stage_call | stage_text | stage_email`), new `RetentionCallActionItemCard` + `RetentionTextActionItemCard` components, retention writers in `web/lib/retention-action-item-writer.ts`.
-- Cross-lane Action Items dashboard surface. **Status: complete (May 9, 2026).** Replaced welcome-only `/dashboard/welcomes` with `/dashboard/action-items` tabbed surface across welcome / retention / anniversary / referral lanes. Each tab subscribes independently to `actionItems` filtered by lane + status='pending'; live count badges update without polling. Legacy `/dashboard/welcomes` is now a client-side redirect to `/dashboard/action-items?lane=welcome`.
-- Linq line-health copy audit + fixes. **Status: complete (May 10, 2026).** Audit against Linq partner guidelines (per screenshots Daniel shared) found `enforceOutreachBookingCta` was injecting booking URL into retention 1st SMS cold first contact — direct contradiction of Linq's "no links in opener" rule. Fixed by adding `channel` + `clientHasReplied` params; SMS first contact = no URL injection. Tightened referral first-message prompt to require ending question. Tightened retention SMS prompt's no-URL wording for SMS channel.
-- Email infrastructure cleanup (centralize Resend usages, bounce/complaint webhook, suppression list). **(Phase 2 follow-up — pending.)**
-- Engineering dependency for Phase 3 Agency tier: pooled-capacity logic, team admin dashboard, per-seat dashboard. **(Phase 3 work — pending until first Agency customer surfaces.)**
 
-### Phase 3 — Concierge launch + pricing rollout completion (months 5–6)
-- Concierge add-on (operator dashboard role with scoped data access, $1,500 / $2,500 SKUs). Available to any tier; gated by book size and willingness to pay.
-- Pricing rollout completion and overage billing validation with a small cohort (5–10 agents) before general release.
-- Book-size-aware multi-line eligibility unlocked for Pro tier.
+**Phase 2 is ~80% shipped.** Original scope is mostly in production; what remains is operational follow-up plus the close-the-sale ritual work (broken out as its own subsection below).
+
+**Shipped (May 9–10, 2026):**
+- KPI tier system Phase A (visibility only). Admin widget at `/dashboard/admin/line-health` reads daily counter docs, computes 7-day rolling reply rate, classifies the line into one of 5 tiers, supports manual override (for Linq PSM warnings we can't auto-detect). Per-tier recommended actions surfaced on the widget. (5-tier definitions: see `KPI Tier System` below.)
+- Line-health dashboard widget. Admin-only; surfaces effective tier, 7-day reply rate, send:reply ratio, today's counters, per-lane outbound breakdown, manual override controls.
+- Beneficiary invite mechanic — parallel to client activation, three invite prompts. v3.1 invite-only flow shipped: mobile Invite button on `policies.tsx` (OTA'd same day, update group `6635b2bf-047f-4863-a156-4d4956518e80`), server `/api/beneficiary/queue-invite` endpoint, `web/lib/beneficiary-activation-handler.ts` (parallels welcome handler), Linq webhook routing, multi-policy coalescing on `/api/mobile/policies`. Locked copy: invite SMS drops policyholder first name; Linq vCard reply ends with an explicit question. Legacy `/api/beneficiary/send-intro` deprecated June 9 deletion target.
+- Bulk import onboarding ceremony (Mode 2 drip release). `/api/cron/bulk-import-drip-release` cron releases ≤15/day per agent into the welcome action item queue with cold-context Mode 2 copy. Bulk Import CTA in `/dashboard/clients` re-enabled (no PWA gate, no Web Push gate, no window rules). Legacy "Send intro to N clients" bulk-blast UI replaced with drip-aware confirmation.
+- Lapse/retention cadence rewrite. Final cadence: push first → 1 Linq SMS (if push unavailable) → call action item → text action item → email at 48h intervals. Max 1 Linq outbound per campaign. 60-day quiet period after campaign ends. Toggle-AI-back-on mechanic dropped. Templated-email button dropped. New `TouchStage` enum (`stage_push | stage_sms | stage_call | stage_text | stage_email`), new `RetentionCallActionItemCard` + `RetentionTextActionItemCard` components, retention writers in `web/lib/retention-action-item-writer.ts`.
+- Cross-lane Action Items dashboard surface. Replaced welcome-only `/dashboard/welcomes` with `/dashboard/action-items` tabbed surface across welcome / retention / anniversary / referral lanes. Live count badges update without polling. Legacy `/dashboard/welcomes` is now a client-side redirect.
+- Linq line-health copy audit + fixes. `enforceOutreachBookingCta` no longer injects booking URL into retention 1st SMS cold first contact (Linq's "no links in opener" rule). Tightened referral first-message prompt to require ending question. Tightened retention SMS prompt's no-URL wording for SMS channel.
+
+**Open (Phase 2 follow-up — pending):**
+- **Auto-throttle at KPI Tier 1 and Tier 2.** Provisional — may downgrade to manual triage if Tier 1 events are rare. Deferred until 1–2 weeks of real reply-rate data confirms spec thresholds match AFL traffic patterns. Phase B follow-up.
+- **Email infrastructure cleanup.** Centralize Resend usages, bounce/complaint webhook, suppression list. No work started.
+- **Phase 2 success metrics measurement plan.** Targets in `Phase 2 success metrics` below (welcome-send compliance, activation rate, thumbs-up rate, retention reply rate, anniversary discipline) need a source-of-truth dashboard, cadence for re-measuring, and an owner. Currently aspirational; should be benchmarked now that the underlying flows are live.
+- **Customer-facing terminology audit ("Linq" leakage).** Pricing page (`/pricing` — 4 spots: line 91 tier subtitle, line 182 hero, lines 203 + 245 FAQ), `web/lib/pricing.ts` tier bullets (lines 73 / 92 / 112), `web/app/dashboard/settings/page.tsx` forwarding toggle (lines 1108–1118), and Patch system prompt (`web/app/api/dashboard-assistant/route.ts`) all reference "Linq" by name to agents/prospects. Internal name must not appear on customer surfaces. **Rule:** "Linq" = internal-only (admin tooling, backend, partner docs). Customer-facing surfaces use "AFL pooled line" or just "AFL line." Tier-card label change to **Light book / Active book / Full book / Team pool** (no exposed numbers on the cards; FAQ shows the actual caps). Pending green-light to ship code changes.
+- **Welcome SMS copy revision (locked May 24, 2026):**
+  > Hey {clientFirstName}! {agentFirstName} here. Quick setup:
+  >
+  > 1. Download: https://agentforlife.app/app
+  > 2. ALLOW notifications when prompted so I can reach you with important updates.
+  > 3. Tap Activate, then tap Send and wait for the text back
+  >
+  > Done – head back to your personalized app and log in with code {Code}
+
+  Replaces previous May 7 numbered-step copy. Existing welcome action item writer needs to update. Also referenced in the Close-the-sale ritual Card 2 below.
+
+### Phase 2 follow-up — Close-the-sale ritual & funnel polish (next up; locked May 24, 2026)
+
+This work is **higher leverage than the remaining Phase 2 operational items** because every paying agent runs through it on every sale. All prerequisites already exist: convert endpoint (`/api/leads/[leadId]/convert`), `web/lib/appointment-auto-complete.ts`, PDF upload + parsing pipeline, welcome action item queue, client `onSnapshot` infrastructure.
+
+**Three goals:** (1) Stop dropping agents off the rails mid-call when they close a sale. (2) Make activation visible in the moment so the load-bearing *"I can see it activated, you're all set"* sentence is real. (3) Get funnel data (book/show/close rates) accurate automatically as a side-effect of running the ritual.
+
+**The Close-the-sale flow** lives on the lead detail page as the primary location. May also surface as a CTA from a lead detail row context elsewhere — **NOT on the call queue row** (that row already has the Call CTA; closing happens after the appointment, not from the dial queue). Conveyor-belt animation matching the `/dashboard/clients` Add Client flow — one card centered at a time, sliding left as completed.
+
+- **Card 1 — Capture the application.** Two inputs in either order: (a) the PDF the agent just downloaded from filling out the carrier e-app **live with the client over the phone** (agent generates the PDF on their own machine; the carrier portal does not deliver it client-side); (b) the carrier form type (Mutual of Omaha Term, AMAM Mortgage Protection, Foresters, etc. — list reflects shipped supplements). Then Extract. Existing `parseApplicationFile` pipeline parses against the chosen form type. Parsed values render as a compact confirmation chip. On Confirm: convert lead→client, write policy doc, `appointment-auto-complete.ts` matches the booked appointment (−48h/+4h window) and marks it `status: completed` + `autoCompletedReason: convert` — sale auto-linked to appointment.
+- **Card 2 — Send the welcome.** Mode 1 inline compose (per May 7 amendment): copy pre-filled in client's preferred language using the locked May 24 SMS copy above. Editable but discouraged. Primary CTA is environment-aware:
+  - On Mac → **"Send via iMessage"** (native Messages app; blue-bubble rendering from agent's actual phone number is part of the customer-visible value).
+  - On Windows/Linux → **"Send via text"** is the proposed label (uses Linq pooled line or agent's connected mobile path). Final label decision pending.
+- **Card 3 — Activation status.** Pinned card with `onSnapshot` listener on `agents/{agentId}/clients/{clientId}.clientActivatedAt` plus the push permission signal. Three states surfaced inline with explicit coaching text for the agent:
+  1. Waiting on client to install/open the app — coaching: *"Tell client to tap the link and install the app."*
+  2. App opened, activation in progress — **load-bearing coaching:** *"Push permission prompt is about to pop up. Tell client to tap Allow — that's how anniversary, holiday, birthday, and retention lanes reach them."*
+  3. Activated + notifications on (green) — agent delivers: *"I can see it activated and your notifications are on. You're all set."* **This sentence is the ritual.**
+  - If client activates but declines push → yellow warning state with coaching to fix before hanging up. Push is a hard gate per May 8 decision; no skip.
+
+**Day-after appointment outcome action item.** Captures unhappy-path funnel data. After a booked appointment's scheduled time passes without an auto-complete (i.e., no sale registered), fire an action item the next day: *"How did your meeting with [name] go? **Closed / Showed-no-close / No-show / Rescheduled.**"* Outcomes populate the `appointment.status` field accordingly. Together with the Card 1 auto-complete, this makes book/show/close rates real numbers (not estimates) across the entire funnel.
+
+**Activity page KPI row update.** Add `bookRate`, `showRate`, `closeRate` tiles next to existing Dials / Booked / Sales. Rates derived from the data the ritual + outcome action item capture above. All paid tiers with Activity access see their own numbers.
+
+**Implementation staging** (avoid the "week-long branch" trap; each stage has standalone value):
+- **Stage 1 (day 1):** Route-on-convert with existing `handleOpenPolicyModal({ openUploadPicker: true })` — collapses 3 navigations into 0 for PDF capture. Most acute pain fix.
+- **Stage 2 (1–2 days):** Pinned activation status row on the client detail page using the `onSnapshot` listener. Biggest leverage piece — delivers the verbal close-the-loop moment without needing a full panel. ~30 lines of code with outsized impact.
+- **Stage 3 (later, polish pass):** Convert all three (capture / welcome compose / activation status) into the unified inline conveyor-belt panel. May not be necessary if stages 1+2 already cover most of the value.
+
+**Tier gating** (see `Business Model > Tier gating` for full matrix):
+- Close-the-sale flow itself: **Growth / Pro / Agency** (requires Leads section; Starter doesn't have it).
+- Activation status listener: **all paid tiers** — Starter agents enter the activation ritual via Clients → Add Client → Add Policy; activation status row works identically on the client detail page regardless of how the client got there.
+- KPI row with book/show/close rates: **Growth / Pro / Agency** (requires Activity page).
+- Day-after outcome action item: **Growth / Pro / Agency** (requires appointment infrastructure tied to Leads).
+
+### Phase 3 — Agency tier shipping for real (months 5–6, may move up)
+
+The original Phase 3 framing ("Concierge launch + pricing rollout completion") is incomplete. Phase 3 is primarily the **Agency tier shipping for real**, plus Concierge.
+
+**Open decision before any of this builds: new Agency pricing model.**
+- Per-seat pricing ($39/seat) is OUT (locked May 24, 2026). The current `web/lib/pricing.ts` Agency entry ($199 + $39/seat) is a placeholder; agency tier is currently surfaced as a "Contact Sales" mailto on `/pricing` so nothing is actively billing against the placeholder.
+- Direction: **band pricing** — flat monthly that covers a band of agents (e.g., up to 5, up to 15, up to 35) with overage / upgrade prompts at band boundaries. Specifics deferred — see `Business Model > Pricing band parking lot`.
+
+**The work itself:**
+- **Team tab on Activity page** — agency-owner view. Two tabs render only if the user is an agency owner: (1) My Activity (existing single-agent view), (2) Team Activity (own metrics + each downline agent's metrics with drill-down). Both tabs include book/show/close rates from the Phase 2 follow-up work.
+- **Chargeback comparison widget** (Team tab). Auto-computed from existing retention status — `saved` = win; `at-risk` lingering 4+ weeks = chargeback. Split display by chargeback severity per the **10-month rule**: pre-month-10 = full commission clawback (catastrophic); months 10–12 = 25% held-back portion releases instead of clawing (recoverable). Optional comparison line vs Symmetry-wide benchmark — single number maintained manually in admin until a Symmetry data feed exists.
+- **Per-agent metrics drill-down** inside Team tab. Per-agent grid: name, APV produced, welcomes sent, action items completed, conversation budget used, last-login.
+- **Pooled conversation budget mechanic.** Agency-wide pool replaces per-seat allocation. Pool size scales with the chosen band (worked example: ~100 conv per nominal agent in the band). Overage at $0.50/conv against the pool.
+- **Concierge add-on** — operator dashboard role with scoped data access, $1,500 / $2,500 SKUs. Available to any tier. Spec already in Business Model > Concierge.
+- **Pricing rollout completion + overage billing validation** with a small cohort (5–10 agents) before general release. Depends on conversation counter + overage enforcement (below).
+- **Conversation counter + overage enforcement** (broken out — this is ~1 week of focused work, not the one-line item it was framed as):
+  1. Per-agent monthly counter (Firestore bucket; increment on new outbound conversation start; reset on billing-cycle anchor) — ~1–2 days.
+  2. Dashboard widget: "conversations used this month" — ~½ day.
+  3. Threshold notifications at 80% and 100% of cap — ~½ day.
+  4. Stripe metered SKU at $0.50/conv; usage records reported per overage; billed on next invoice — ~2–3 days.
+  5. Cap-aware send logic in outbound code: pick **auto-bill / auto-pause / auto-prompt-upgrade** as the policy — ~1 day plus the policy decision.
+
+**What's deferred to Phase 4 or Backlog:** Mentor calendar, SME calendar / FIF tracking, Performance page (Closr AI scoring), book-size-aware multi-line for Pro. All depend on Phase 3 prereqs being in place. See `Backlog (not yet phased)` below.
 
 ### Phase 4 — Provider abstraction, multi-line, contingencies (months 7–12)
 - Provider abstraction layer (`MessagingProvider` interface, `LinqProvider` adapter). **Deferred from v3.1's Phase 1** per strategy §3.
@@ -315,6 +384,19 @@ This sequence supersedes the Phase 1 plan in v3.1 §11. Source: strategy decisio
 - AMB evaluated as direct-Apple registration if branded sender becomes strategically important. (Linq has confirmed they do not run AMB.)
 - Number replacement playbook activated only if a second Limited episode occurs under the new operating model.
 - Pause functionality if churn data shows seasonal patterns. Annual prepay if customer demand emerges. Native iOS/Android agent app evaluated against PWA usage data.
+
+### Backlog (not yet phased)
+
+Items with rough design but no scheduled phase. Mostly Agency-tier follow-ons or strategic features that depend on Phase 3 + Closr AI integration. Captured here so they don't get lost.
+
+- **Mentor calendar (Agency tier only).** Senior producer in an agency (e.g., Rob with his downlines) publishes availability; downline newer agents book the mentor onto their own client appointments. Both attend; senior runs the call, newer agent learns and gets an early win. APV credit split via `mentorAgentId` tagging on the resulting client doc — half the APV populates the mentor's dashboard. **Cash commission flows through the carrier exactly as today — AFL only splits production credit on the dashboard, not cash.** Calendar primitive can reuse the existing `AppointmentPicker` infrastructure.
+- **SME calendar + FIF tracking (Pro + Agency).** FIF = Financial Information Form. Mortgage protection agents refer clients to advanced-market SMEs (debt-free life, IUL, retirement, infinite banking) for an "FIF Reset" appointment. SME runs the relationship from the first call onward; referring agent does the warm intro and sits back. Same calendar primitive as Mentor; same APV split via `referringAgentId` tagging. Engineering scope is small (~2 weeks) because no separate commission engine is needed — APV split through agent tagging covers it.
+- **Performance page (Pro + Agency).** Agents/agency owners paste a sales call transcript; AFL scores it against ideal script + ideal strategy and returns coaching feedback. Scoring engine pulled from Closr AI — integration approach (call as a service vs. port logic) deferred until access to that repo is granted. Likely lives as a third tab on Activity or its own top-level nav item — decision deferred.
+- **Quote calculator on lead form (Growth+).** Inline next to the monthly mortgage payment field on the lead form. Always shows 24/18/12/9/6 month buttons. Math is `coverage = monthly_mortgage × months`. Purpose: for older/sicker clients where final expense / mortgage protection fits and term doesn't. Monthly mortgage payment field already saves; the calculator is derived display on top of it. **Post-sale connection:** when the application PDF is parsed, the policy's face value ÷ the saved monthly mortgage = months of mortgage protection actually covered. That number is already surfaced as the hero metric in the client mobile app for mortgage protection policies (shipped). The agent's pre-sale calculator and the client's post-sale display tell the same story with the same number.
+- **OCR for handwritten mail-in forms.** Not yet discussed in depth. **Volume question first** — if total handwritten mail-ins are <20/week across the entire book, a VA + Claude vision approach beats a built pipeline. Defer architectural decisions until volume is known.
+- **Agency Rocket partnership (#3 from Rob's May 24 call).** Customer-facing financial-planning tools (IUL comparisons, debt-free life, infinite banking). Possible integration / affiliate model. Strategic / non-engineering — decide via discovery call before any product work.
+- **Combined "Close Sale" button (UX simplification).** Today, conversion + Add Policy + welcome are three actions. Likely subsumed by the Phase 2 follow-up Close-the-sale ritual above; revisit only if the ritual ships and there's still daylight.
+- **Weekly training session infrastructure (#4 from Rob's May 24 call).** Two live training/office-hours sessions per week, hosted by Daniel. Dashboard pieces: persistent "Next training session" card on dashboard home with one-click join button, reminder popup 15 minutes before each session, add-to-calendar (Google + Apple + Outlook). Recording the sessions and posting them to a sub-only library is the retention multiplier. Pitch line locked: *"Learn new features. Master the system. Capture ROI."* Not yet phased; primarily ops, with small engineering pieces.
 
 ### Phase 2 success metrics
 - Agent welcome-send compliance > 80%.
@@ -364,9 +446,30 @@ Source: `docs/AFL_Pricing_Packaging_Playbook_v3.md`. Conversation-based pricing,
 | Starter | $29/mo | 30 | 3 | $0.50/conv | Year-1 agent, small book |
 | Growth | $59/mo | 75 | 8 | $0.50/conv | Established producer (anchor tier) |
 | Pro | $119/mo | 200 | 20 | $0.50/conv | Top producer, large book |
-| Agency | $199/mo + $39/seat | 100/seat pooled | 10/seat | $0.50/conv against pool | Agency owner with downline |
+| Agency | $199/mo + $39/seat ⚠️ placeholder | 100/seat pooled | 10/seat | $0.50/conv against pool | Agency owner with downline |
+
+⚠️ **Agency row is a placeholder.** Per-seat pricing is OUT (locked May 24, 2026). Agency tier is currently surfaced as "Contact Sales" mailto on `/pricing` — nothing is billing against the placeholder. New band-pricing model pending; see `Pricing band parking lot` below.
 
 All tiers include unlimited push, agent-phone one-tap, and email. The conversation count is a budget for Linq pooled-line SMS only. Client-initiated inbound activation messages do NOT count against agent allowances. Bulk import (Onboarding Ceremony) included on Growth, Pro, and Agency. Advanced analytics on Pro and Agency. Priority support on Pro and Agency. Team admin tools only on Agency.
+
+### Tier gating (locked May 24, 2026)
+
+| Capability | Starter | Growth | Pro | Agency |
+|---|---|---|---|---|
+| Clients section + post-sale flows (welcome, retention, referrals) | ✓ | ✓ | ✓ | ✓ |
+| Activation ritual via Clients → Add Client → Add Policy | ✓ | ✓ | ✓ | ✓ |
+| Leads section | — | ✓ | ✓ | ✓ |
+| Activity page (personal KPIs incl. book/show/close rates) | — | ✓ | ✓ | ✓ |
+| Close-the-sale ritual (convert-from-lead → inline flow) | — | ✓ | ✓ | ✓ |
+| Performance page (Closr AI transcript scoring) | — | — | ✓ | ✓ |
+| SME calendar / FIF tracking | — | — | ✓ | ✓ |
+| Team tab on Activity (agency-owner view of downlines) | — | — | — | ✓ |
+| Chargeback comparison widget | — | — | — | ✓ |
+| Mentor calendar | — | — | — | ✓ |
+
+**Principle:** Starter is **post-sale only** — no pre-sale tools. Growth opens up the Leads / Activity / Close-the-sale surfaces. Pro adds the Performance page and SME/FIF features. Agency adds team-level views, chargeback comparison, and mentor calendar.
+
+**The activation ritual itself** (Card 3 — the `onSnapshot` listener showing live activation status) is available on **all paid tiers** — Starter agents enter it via the manual Add Client → Add Policy path; the higher tiers via the Close-the-sale flow. The load-bearing close-of-sale sentence works identically either way. This was the deliberate design choice: the ritual is product-level load-bearing, not premium-tier gated.
 
 **Founding 34 ("free for life"):**
 - Grandfathered at Growth-equivalent (75 convs/mo, 8/day cap). Free seat is permanent and exempt from base-tier price increases.
@@ -403,6 +506,31 @@ All tiers include unlimited push, agent-phone one-tap, and email. The conversati
 - Founding members exempt from base-tier price increases. Overage rate increases apply normally.
 
 **Annual prepay** is deferred to Phase 4+ pending demand signal. **Pause functionality** is deferred to Phase 4 pending churn pattern data.
+
+### Pricing band parking lot (Agency tier, May 24, 2026)
+
+Per-seat pricing is OUT. Band pricing (flat monthly covering a band of agents, with step-ups for larger bands) is the agreed direction. Specifics deferred. Decisions to come back to before the new Agency SKU ships:
+
+1. **Smallest agency we'd serve.** 3 agents? 5? 10? Sets the floor band.
+2. **Typical agency size in target market.** Rob's downline size is a real data point worth pulling.
+3. **Number of bands.** 2 is simple; 3 is standard; 4+ starts to look like per-seat creep.
+4. **Floor price.** Must be meaningfully above 3× Pro ($357) so it doesn't compete with a 3-person Pro setup. Likely $350–500/mo.
+5. **Effective per-agent cost at each band.** Should be lower than Pro as a volume incentive; not so low it cannibalizes Pro signups.
+6. **Pool size per band.** Today's math is 100 conv/seat; new math is band's nominal agent count × ~100 as the agency-wide pool.
+7. **Soft cap vs. hard cap vs. auto-upgrade** at band boundaries. Lean toward **soft cap with upgrade prompt** in the dashboard.
+8. **How agent count is measured.** All invited, active-in-last-30-days, or paid seats. Lean toward **active-in-last-30-days** for fairness around agency turnover.
+9. **Whether agency owner counts as a seat.** Lean toward **yes** (they sell), to keep math simple.
+
+**Worked example for shape comparison** (NOT a recommendation — illustrative only):
+
+| Band | Price | Active agents (30d) | Pooled conv | $/agent effective |
+|---|---|---|---|---|
+| Agency S | $399/mo | up to 5 | 500/mo | $80 |
+| Agency M | $899/mo | up to 15 | 1,500/mo | $60 |
+| Agency L | $1,799/mo | up to 35 | 3,500/mo | $51 |
+| Enterprise | Contact sales | 35+ | Custom | — |
+
+Overage stays at $0.50/conv against the pool. Soft cap surfaces upgrade prompt in dashboard when active-agent count exceeds band.
 
 ### Margin model
 

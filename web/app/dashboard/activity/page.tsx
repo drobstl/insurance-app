@@ -16,7 +16,7 @@ interface ActivityStats {
     booked: number;
     showed: number;
     noShowed: number;
-    cancelled: number;
+    unresolved: number;
     showRate: number;
     bookRate: number;
     deltaPct: number | null;
@@ -372,13 +372,17 @@ export default function ActivityPage() {
             <HeroTile
               label="Booked"
               primary={stats.appointments.booked.toLocaleString()}
-              secondary={`${fmtPct(stats.appointments.bookRate)} book rate`}
+              secondary={
+                stats.appointments.unresolved > 0
+                  ? `${fmtPct(stats.appointments.bookRate)} book rate · ${stats.appointments.unresolved} pending`
+                  : `${fmtPct(stats.appointments.bookRate)} book rate`
+              }
               delta={stats.appointments.deltaPct}
             />
             <HeroTile
               label="Sales"
               primary={stats.sales.count.toLocaleString()}
-              secondary={`${fmtPct(stats.sales.closeRate)} of shows · ${fmtPct(stats.appointments.showRate)} show rate`}
+              secondary={`${fmtPct(stats.sales.closeRate)} of shows · ${fmtPct(stats.appointments.showRate)} show rate · ${stats.appointments.noShowed} no-show`}
               delta={stats.sales.deltaPct}
             />
             <HeroTile

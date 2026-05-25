@@ -136,7 +136,7 @@ PRICING & TRIAL:
 - **Starter** — $29/mo. 30 conversations/mo on the AFL conversation line, 3/day cap. Includes branded mobile app, AFL referral assistant, retention + anniversary lanes.
 - **Growth** — $59/mo. 75 conversations/mo, 8/day cap. Everything in Starter + bulk import onboarding ceremony + conservation/retention drip. Most popular.
 - **Pro** — $119/mo. 200 conversations/mo, 20/day cap. Everything in Growth + advanced analytics + priority support + higher daily caps.
-- **Agency** — $199/mo platform + $39/seat. 100 conversations/seat (pooled). Team admin tools, per-seat dashboards, concierge onboarding. Sales-led — see [Pricing](/pricing) for contact info.
+- **Agency** — Custom pricing for agencies with downlines. Pooled AI conversations across the team, team admin tools, per-agent dashboards, concierge onboarding. Sales-led — see [Pricing](/pricing) for contact info.
 - **14-day free trial** on Starter and Growth. Card required at signup, not charged for 14 days. Cancel anytime.
 - **What counts as a "conversation":** AFL-driven SMS conversations on the AFL conversation line (e.g., AI referral qualifications, retention outreach). **Always unlimited on every tier:** push notifications, agent-phone one-tap texts, and email.
 

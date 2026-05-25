@@ -3,6 +3,8 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../../lib/firebase-admin';
+import { autoCompleteRecentAppointment } from '../../../../../lib/appointment-auto-complete';
+import { queueOrRefreshWelcomeActionItem } from '../../../../../lib/welcome-action-item-writer';
 
 /**
  * POST /api/leads/[leadId]/convert
@@ -18,9 +20,11 @@ import { getAdminAuth, getAdminFirestore } from '../../../../../lib/firebase-adm
  * the lead URL — the lead page itself renders a "Converted to client"
  * banner once `convertedToClientId` is set.
  *
- * Welcome SMS / action items are NOT triggered here. They flow through
- * the same surface used by manually-added clients (the welcome action
- * item appears in the agent's queue on next reload).
+ * Queues the welcome action item the same way the Add Client flow does
+ * (via `queueOrRefreshWelcomeActionItem`). This is what creates the
+ * `welcome_pending_{clientId}` placeholder thread + byPhone resolver
+ * entry — without it, the inbound activation SMS from the mobile app
+ * has nothing to match against and lands in the generic inbox.
  *
  * Auth: Bearer ID token; agent owns the lead.
  *
@@ -148,6 +152,39 @@ export async function POST(
       lastDialOutcome: FieldValue.delete(),  // falls out of queue regardless
     });
     await batch.commit();
+
+    // Auto-complete a recent appointment for this lead. Conversion
+    // implies the sale happened, which implies the lead showed.
+    // Matches an appointment within −48h to +4h of now. The
+    // appointment doc still references the original leadId (it was
+    // booked while the entity was a lead), so we look it up by that.
+    // Fire-and-forget — never blocks the convert response.
+    void autoCompleteRecentAppointment({
+      agentId,
+      leadId,
+      clientId: clientRef.id,
+      reason: 'convert',
+    });
+
+    try {
+      const welcomeResult = await queueOrRefreshWelcomeActionItem({
+        db,
+        agentId,
+        clientId: clientRef.id,
+      });
+      console.log('[leads/convert] welcome action item', {
+        agentId,
+        clientId: clientRef.id,
+        itemId: welcomeResult.itemId,
+        outcome: welcomeResult.outcome,
+      });
+    } catch (welcomeErr) {
+      console.error('[leads/convert] welcome action item queue failed (non-blocking)', {
+        agentId,
+        clientId: clientRef.id,
+        error: welcomeErr instanceof Error ? welcomeErr.message : String(welcomeErr),
+      });
+    }
 
     return NextResponse.json({
       clientId: clientRef.id,

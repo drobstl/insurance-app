@@ -10,16 +10,28 @@
  * lead-detail page filters by `where('leadId', '==', leadId)`.
  *
  * Status lifecycle:
- *   scheduled   → default on create
- *   completed   → manually marked by the agent after the appointment
- *   cancelled   → manually marked by the agent before/at appointment time
- *   no_show     → manually marked when the lead doesn't appear
+ *   scheduled              → default on create
+ *   completed              → set by the auto-complete-on-sale/convert path;
+ *                            paired with the lead's convertedToClientId, this
+ *                            is the "Sold" sit. Agents don't pick this manually
+ *                            anymore — they pick one of the explicit sit_*
+ *                            values below or land here via the sale path.
+ *   sit_no_sale            → meeting happened, didn't close
+ *   sit_think_about_it     → meeting happened, lead is deliberating
+ *   cancelled              → marked before/at appointment time
+ *   no_show                → marked when the lead doesn't appear
  *
  * sentConfirmationAt + sentReminderAt are stamped by the booking-
  * confirmation + reminder flows (Chunk 4e + 4f).
  */
 
-export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+export type AppointmentStatus =
+  | 'scheduled'
+  | 'completed'
+  | 'sit_no_sale'
+  | 'sit_think_about_it'
+  | 'cancelled'
+  | 'no_show';
 
 export interface AppointmentDoc {
   id: string;
@@ -71,7 +83,26 @@ export interface AppointmentDoc {
 }
 
 export const DEFAULT_DURATION_MINUTES = 30;
-export const VALID_STATUSES: AppointmentStatus[] = ['scheduled', 'completed', 'cancelled', 'no_show'];
+export const VALID_STATUSES: AppointmentStatus[] = [
+  'scheduled',
+  'completed',
+  'sit_no_sale',
+  'sit_think_about_it',
+  'cancelled',
+  'no_show',
+];
+
+/**
+ * Statuses where the meeting actually happened — used by show-rate
+ * stats and the "did the sit go down" UI affordances. `completed` is
+ * the Sold sit (auto-set via sale/convert paths); the explicit
+ * sit_* values are agent-marked.
+ */
+export const SIT_HAPPENED_STATUSES: AppointmentStatus[] = [
+  'completed',
+  'sit_no_sale',
+  'sit_think_about_it',
+];
 
 export function isValidIsoTimestamp(s: string): boolean {
   if (!s) return false;

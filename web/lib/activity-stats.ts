@@ -149,11 +149,11 @@ export interface ActivityStats {
   range: { from: string; to: string; label: string; key: ActivityRange };
   dials: { total: number; contacts: number; contactRate: number; deltaPct: number | null };
   appointments: {
-    booked: number;
-    showed: number;
-    noShowed: number;
-    cancelled: number;
-    showRate: number;       // showed / (showed + noShowed + cancelled-after-confirmed)
+    booked: number;         // unique leads booked in window (reschedules don't double-count)
+    showed: number;         // booked leads whose latest appt is completed
+    noShowed: number;       // booked leads whose latest appt is cancelled OR no_show
+    unresolved: number;     // booked leads whose latest appt is still scheduled (no outcome yet)
+    showRate: number;       // showed / (showed + noShowed) — excludes unresolved
     bookRate: number;       // booked / contacts (current window)
     deltaPct: number | null;
   };
@@ -264,34 +264,85 @@ export async function getActivityStats(
     countDialsInWindow(data.dialLog, prevFromMs, prevToMs, dialsPrev);
   }
 
-  // ── Appointments: by createdAt for "booked"; by scheduledAt + status
-  //    for showed/no-show/cancelled. ──
+  // ── Appointments: per-lead, NOT per-appointment doc ──
+  // Daniel's mental model: "I get 30 leads/week, the goal is to book
+  // 20–25 of them." Booked counts uniquely per lead/client. Reschedules
+  // of the same lead don't add to the count (they create new appt docs
+  // but share the same entity ID). Cancellations count as no-shows
+  // (the booking happened, the meeting just didn't). Show rate is
+  // computed only over RESOLVED bookings (completed / cancelled /
+  // no_show) so an upcoming-but-pending appointment doesn't suppress
+  // the rate.
+  interface ApptDoc {
+    createdAt?: unknown;
+    scheduledAt?: unknown;
+    status?: string;
+    leadId?: string;
+    clientId?: string;
+  }
   const apptsSnap = await db
     .collection('agents')
     .doc(agentId)
     .collection('appointments')
     .get();
-  let booked = 0;
-  let showed = 0;
-  let noShowed = 0;
-  let cancelled = 0;
-  let bookedPrev = 0;
+  // Group all appointments by the underlying entity (leadId, falling
+  // back to clientId when the lead has converted). Multiple appointment
+  // docs for one entity = reschedules; we collapse them.
+  const apptsByEntity = new Map<string, ApptDoc[]>();
   for (const apptDoc of apptsSnap.docs) {
-    const data = apptDoc.data() as { createdAt?: unknown; scheduledAt?: unknown; status?: string };
-    const createdMs = timestampMillis(data.createdAt);
-    if (createdMs !== null) {
-      if (createdMs >= fromMs && createdMs < toMs) booked += 1;
-      else if (createdMs >= prevFromMs && createdMs < prevToMs) bookedPrev += 1;
-    }
-    const scheduledMs = timestampMillis(data.scheduledAt);
-    if (scheduledMs !== null && scheduledMs >= fromMs && scheduledMs < toMs) {
-      if (data.status === 'completed') showed += 1;
-      else if (data.status === 'no_show') noShowed += 1;
-      else if (data.status === 'cancelled') cancelled += 1;
-    }
+    const data = apptDoc.data() as ApptDoc;
+    const entityId = data.leadId || data.clientId;
+    if (!entityId) continue;
+    const arr = apptsByEntity.get(entityId);
+    if (arr) arr.push(data);
+    else apptsByEntity.set(entityId, [data]);
   }
-  const showableTotal = showed + noShowed; // cancellations excluded — agent didn't waste a show
-  const showRate = showableTotal > 0 ? showed / showableTotal : 0;
+  let booked = 0;
+  let bookedPrev = 0;
+  let showed = 0;
+  let noShowed = 0;       // includes explicit no_show + cancellations
+  let unresolved = 0;     // booked-in-window but no outcome yet (still scheduled)
+  for (const appts of apptsByEntity.values()) {
+    // First-booked moment for this entity = earliest createdAt.
+    // Reschedules carry forward the original "I booked this lead"
+    // moment; the rescheduled doc's createdAt is later but doesn't
+    // re-trigger the count.
+    const firstBookedMs = appts
+      .map((a) => timestampMillis(a.createdAt))
+      .filter((ms): ms is number => ms !== null)
+      .reduce((min, ms) => (ms < min ? ms : min), Number.POSITIVE_INFINITY);
+    if (!Number.isFinite(firstBookedMs)) continue;
+    if (firstBookedMs >= prevFromMs && firstBookedMs < prevToMs) {
+      bookedPrev += 1;
+      continue;
+    }
+    if (firstBookedMs < fromMs || firstBookedMs >= toMs) continue;
+    booked += 1;
+    // Outcome for this entity = status of the LATEST appointment doc
+    // for this lead, by createdAt (most recent agent action). If a
+    // lead's original appointment was cancelled but they got put back
+    // on the calendar and showed up, the latest doc reflects that
+    // and they correctly count as showed — overriding the earlier
+    // cancellation. Reschedules of the same lead update an existing
+    // doc's scheduledAt without changing status, so they don't move
+    // the lead between buckets until the meeting actually happens.
+    const latest = [...appts].sort((a, b) => {
+      const aMs = timestampMillis(a.createdAt) ?? 0;
+      const bMs = timestampMillis(b.createdAt) ?? 0;
+      return bMs - aMs;
+    })[0];
+    const status = latest?.status || 'scheduled';
+    if (status === 'completed' || status === 'sit_no_sale' || status === 'sit_think_about_it') showed += 1;
+    else if (status === 'cancelled' || status === 'no_show') noShowed += 1;
+    else unresolved += 1;
+  }
+  // Show rate = showed / booked (total). Daniel's definition: "if an
+  // agent books 20 and 10 show up, show rate is 50%." Unresolved
+  // pending appointments stay in the denominator — they'll eventually
+  // resolve to showed or no-show, but until then they correctly drag
+  // the rate down because the agent hasn't completed those meetings
+  // yet.
+  const showRate = booked > 0 ? showed / booked : 0;
   const bookRate = dialsCurr.contacts > 0 ? booked / dialsCurr.contacts : 0;
 
   // ── Sales / APV / source breakdown ──
@@ -452,7 +503,7 @@ export async function getActivityStats(
       booked,
       showed,
       noShowed,
-      cancelled,
+      unresolved,
       showRate,
       bookRate,
       deltaPct: pct(booked, bookedPrev),

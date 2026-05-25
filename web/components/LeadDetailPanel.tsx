@@ -525,6 +525,13 @@ export default function LeadDetailPanel({
   const [reschedulingAppointmentId, setReschedulingAppointmentId] = useState<string | null>(null);
   const [cancellingAppointmentId, setCancellingAppointmentId] = useState<string | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
+  // Per-row busy state for the Mark Showed / Mark No-show toggle on
+  // past appointments. Holds the id of the appointment whose PATCH
+  // is currently in flight; null when idle. We track per-id rather
+  // than a single boolean so multiple agents working through a queue
+  // could in theory toggle in quick succession without one click's
+  // spinner overlapping another's.
+  const [outcomeUpdatingApptId, setOutcomeUpdatingApptId] = useState<string | null>(null);
   const [showConvertConfirm, setShowConvertConfirm] = useState(false);
   const [convertBusy, setConvertBusy] = useState(false);
   const [convertError, setConvertError] = useState<string | null>(null);
@@ -880,6 +887,40 @@ export default function LeadDetailPanel({
   // chip flow can stamp it onto the dial log entry — that's how
   // per-number dial counts work. Falls back to the lead's primary
   // phone if no argument is passed (e.g. an old call-site).
+  // Manual outcome marker for appointments whose scheduledAt has passed.
+  // Buttons appear on the appointment row only when scheduledAt is
+  // in the past. Toggling between 'completed' (showed) and 'no_show'
+  // (didn't show) — agent can flip if they hit the wrong one. The
+  // live Firestore snapshot picks up the status change and re-renders
+  // the row, so no optimistic UI gymnastics needed here.
+  const handleSetAppointmentOutcome = useCallback(async (
+    apptId: string,
+    newStatus: 'completed' | 'no_show',
+  ) => {
+    if (!user) return;
+    setOutcomeUpdatingApptId(apptId);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/appointments/${apptId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data?.error || `Couldn't update appointment status (${res.status})`);
+      }
+    } catch (err) {
+      console.error('outcome update error:', err);
+      alert('Network error — please try again');
+    } finally {
+      setOutcomeUpdatingApptId(null);
+    }
+  }, [user]);
+
   const handleStartCall = useCallback((phoneOverride?: string) => {
     const target = phoneOverride || lead?.phone || '';
     if (!target) return;
@@ -1698,6 +1739,42 @@ export default function LeadDetailPanel({
                           </button>
                         </div>
                       )}
+                      {/* Outcome toggle — only appears once the
+                          appointment's scheduledAt is in the past. Both
+                          buttons stay visible and are reversible so the
+                          agent can flip a miscategorized outcome at any
+                          time. Active state filled; idle outlined. */}
+                      {isPast && appt.status !== 'cancelled' && (() => {
+                        const busy = outcomeUpdatingApptId === appt.id;
+                        const isShowed = appt.status === 'completed';
+                        const isNoShow = appt.status === 'no_show';
+                        return (
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={() => void handleSetAppointmentOutcome(appt.id, 'completed')}
+                              disabled={busy}
+                              className={`px-2.5 py-1 text-[11px] font-semibold rounded-md border transition-colors disabled:opacity-50 ${
+                                isShowed
+                                  ? 'bg-[#005851] text-white border-[#005851] hover:bg-[#004440]'
+                                  : 'text-[#0D4D4D] bg-white border-[#d0d0d0] hover:bg-[#f8f8f8]'
+                              }`}
+                            >
+                              {isShowed ? '✓ Showed' : 'Mark showed'}
+                            </button>
+                            <button
+                              onClick={() => void handleSetAppointmentOutcome(appt.id, 'no_show')}
+                              disabled={busy}
+                              className={`px-2.5 py-1 text-[11px] font-semibold rounded-md border transition-colors disabled:opacity-50 ${
+                                isNoShow
+                                  ? 'bg-amber-600 text-white border-amber-600 hover:bg-amber-700'
+                                  : 'text-amber-700 bg-white border-amber-200 hover:bg-amber-50'
+                              }`}
+                            >
+                              {isNoShow ? '✓ No-show' : 'Mark no-show'}
+                            </button>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </li>
