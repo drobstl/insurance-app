@@ -54,12 +54,10 @@ import {
   APPLICATION_TYPE_OPTIONS,
   type ApplicationFormType,
 } from '../lib/application-type-options';
+import { mapExtractedApplicationToPolicyFormData } from '../lib/extracted-to-policy-form-data';
 import { runApplicationExtractionV3 } from '../lib/run-application-extraction-v3';
 import { buildCloseSaleWelcomeBody } from '../lib/welcome-sms-body';
 import { ClientActivationStatusRow } from './ClientActivationStatusRow';
-import type { ExtractedApplicationData } from '../lib/types';
-import { formatClientDisplayName } from '../lib/name-utils';
-import { KNOWN_CARRIER_NAMES } from '../lib/carriers';
 
 const MAX_PDF_BYTES = 25 * 1024 * 1024;
 
@@ -93,48 +91,10 @@ interface Props {
   onConverted: (newClientId: string) => void;
 }
 
-// Mirror of mapExtractedApplicationToPolicyFormData from
-// clients/page.tsx. Duplicated rather than imported because the
-// source lives in a Next.js page module that can't be imported.
-// TODO follow-up: extract both to a shared lib alongside
-// `mapExtractedApplicationToPolicyFormData` (tracked separately so
-// this PR stays scoped to Close Sale).
-function mapExtractedToPolicyPayload(data: ExtractedApplicationData): Record<string, unknown> {
-  const out: Record<string, unknown> = { status: 'Active' };
-  if (data.policyType) out.policyType = data.policyType;
-  if (data.policyNumber) out.policyNumber = data.policyNumber;
-  if (data.insuranceCompany) {
-    const match = KNOWN_CARRIER_NAMES.find(
-      (c) => c.toLowerCase() === data.insuranceCompany!.toLowerCase(),
-    );
-    if (match) {
-      out.insuranceCompany = match;
-    } else {
-      out.insuranceCompany = 'Other';
-      out.otherCarrier = data.insuranceCompany;
-    }
-  }
-  if (data.policyOwner) out.policyOwner = formatClientDisplayName(data.policyOwner);
-  if (data.beneficiaries && data.beneficiaries.length > 0) {
-    out.beneficiaries = data.beneficiaries.map((b) => ({
-      name: formatClientDisplayName(b.name),
-      type: b.type,
-      relationship: b.relationship || '',
-      percentage: b.percentage,
-      phone: b.phone || '',
-      email: b.email || '',
-      dateOfBirth: b.dateOfBirth || '',
-      address: b.address || '',
-      accessCode: b.accessCode || '',
-    }));
-  }
-  if (data.coverageAmount != null) out.coverageAmount = String(data.coverageAmount);
-  if (data.premiumAmount != null) out.premiumAmount = String(data.premiumAmount);
-  if (data.premiumFrequency) out.premiumFrequency = data.premiumFrequency;
-  if (data.renewalDate) out.renewalDate = data.renewalDate;
-  if (data.effectiveDate) out.effectiveDate = data.effectiveDate;
-  return out;
-}
+// mapExtractedApplicationToPolicyFormData now lives in
+// web/lib/extracted-to-policy-form-data.ts (shared with the Add
+// Policy modal). The local duplicate that used to live here was
+// removed in the same PR that created the shared lib.
 
 function detectMac(): boolean {
   if (typeof navigator === 'undefined') return false;
@@ -257,7 +217,7 @@ export function CloseSaleRitual({
       //    flag the warning so the agent knows to fill in fields
       //    later from the new client profile.
       setExtractProgress({ pct: 98, label: 'Creating policy...' });
-      const policyPayload = mapExtractedToPolicyPayload(extracted.data);
+      const policyPayload = mapExtractedApplicationToPolicyFormData(extracted.data);
       const policyRes = await fetch('/api/policies', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
