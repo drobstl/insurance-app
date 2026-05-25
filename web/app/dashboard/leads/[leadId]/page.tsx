@@ -19,10 +19,9 @@ export default function LeadDetailPage() {
 
   const { user, agentProfile } = useDashboard();
 
-  // Close Sale ritual modal — hosted here (not inside LeadDetailPanel)
-  // so it survives the panel's unmount after Card 1's convert. Same
-  // shape as the queue page wiring. See comments in
-  // LeadDetailPanel.tsx and CloseSaleRitual.tsx.
+  // Close Sale slide state — see queue page for the same pattern.
+  // LeadDetailPanel slides left out of view; Close Sale slides in
+  // from the right. Matches the Add Client flow on /dashboard/clients.
   const [closeSaleLead, setCloseSaleLead] = useState<{
     id: string;
     name: string;
@@ -48,43 +47,62 @@ export default function LeadDetailPage() {
       >
         ← All leads
       </button>
-      <LeadDetailPanel
-        key={leadId}
-        leadId={leadId}
-        initialOpenConfirmationApptId={openConfirmationParam}
-        onConverted={() => router.push('/dashboard/clients')}
-        onDeleted={() => router.push('/dashboard/leads')}
-        onRequestCloseSale={(leadSnapshot) => {
-          navigateAfterCloseSale.current = false;
-          setCloseSaleLead(leadSnapshot);
-        }}
-        showNotFoundBackLink
-      />
 
-      {closeSaleLead && user && (
-        <CloseSaleRitual
-          open={!!closeSaleLead}
-          user={user}
-          agentId={user.uid}
-          agentName={agentProfile.name || ''}
-          lead={closeSaleLead}
-          onConverted={() => {
-            // Card 1 success — defer navigation until the modal
-            // closes so the agent can finish Cards 2 + 3.
-            navigateAfterCloseSale.current = true;
+      {/* Slide-belt container — LeadDetailPanel ↔ CloseSaleRitual. */}
+      <div className="relative overflow-hidden" style={{ minHeight: closeSaleLead ? 900 : undefined }}>
+        <div
+          className="transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
+          style={{
+            transform: closeSaleLead ? 'translateX(-110%)' : 'translateX(0)',
+            opacity: closeSaleLead ? 0 : 1,
+            pointerEvents: closeSaleLead ? 'none' : 'auto',
           }}
-          onClose={() => {
-            setCloseSaleLead(null);
-            if (navigateAfterCloseSale.current) {
+          aria-hidden={!!closeSaleLead}
+        >
+          <LeadDetailPanel
+            key={leadId}
+            leadId={leadId}
+            initialOpenConfirmationApptId={openConfirmationParam}
+            onConverted={() => router.push('/dashboard/clients')}
+            onDeleted={() => router.push('/dashboard/leads')}
+            onRequestCloseSale={(leadSnapshot) => {
               navigateAfterCloseSale.current = false;
-              // Same destination the plain `onConverted` path uses
-              // on this surface — the new client is sorted to the
-              // top of /dashboard/clients.
-              router.push('/dashboard/clients');
-            }
+              setCloseSaleLead(leadSnapshot);
+            }}
+            showNotFoundBackLink
+          />
+        </div>
+
+        <div
+          className="absolute inset-x-0 top-0 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
+          style={{
+            transform: closeSaleLead ? 'translateX(0)' : 'translateX(110%)',
+            opacity: closeSaleLead ? 1 : 0,
+            pointerEvents: closeSaleLead ? 'auto' : 'none',
           }}
-        />
-      )}
+          aria-hidden={!closeSaleLead}
+        >
+          {closeSaleLead && user && (
+            <CloseSaleRitual
+              open={!!closeSaleLead}
+              user={user}
+              agentId={user.uid}
+              agentName={agentProfile.name || ''}
+              lead={closeSaleLead}
+              onConverted={() => {
+                navigateAfterCloseSale.current = true;
+              }}
+              onClose={() => {
+                setCloseSaleLead(null);
+                if (navigateAfterCloseSale.current) {
+                  navigateAfterCloseSale.current = false;
+                  router.push('/dashboard/clients');
+                }
+              }}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

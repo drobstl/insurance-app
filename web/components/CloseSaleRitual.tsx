@@ -324,12 +324,17 @@ export function CloseSaleRitual({
     transition: 'transform 600ms cubic-bezier(0.22, 1, 0.36, 1)',
   };
 
+  // In-page surface — NOT a modal. Matches the Add Client flow shell
+  // on /dashboard/clients (max-w-4xl, brand border, sticky header) so
+  // Close Sale feels like a continuation of the page, not a popup
+  // floating over a blurred background. The slide-in animation
+  // between LeadDetailPanel and this surface is owned by the parent
+  // (queue right pane / standalone lead route).
   return (
-    <div className="fixed inset-0 z-[55] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-2xl bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-200 shrink-0">
+    <div className="relative w-full max-w-4xl mx-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden flex flex-col">
+      {/* Sticky header — matches incomingSurfaceHeaderClass on the
+          Add Client flow. */}
+      <div className="sticky top-0 z-10 flex items-center justify-between p-6 border-b border-gray-200 bg-white shrink-0">{/* keep this structure parallel to Add Client */}
           <div>
             <h2 className="text-lg font-bold text-[#0D4D4D]">Close Sale — {lead.name}</h2>
             <p className="text-xs text-[#707070] mt-0.5">
@@ -519,7 +524,6 @@ export function CloseSaleRitual({
             </div>
           </div>
         </div>
-      </div>
     </div>
   );
 }
