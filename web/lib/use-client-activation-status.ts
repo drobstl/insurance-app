@@ -74,22 +74,41 @@ export interface ActivationStatus {
 
 /**
  * Window after activation during which a missing push token reads as
- * "user is still tapping through the prompt" rather than "user denied."
- * Calibrated to comfortably exceed typical iOS/Android prompt resolve
- * times (~1-3 seconds) without making the agent wait too long for
- * the green or yellow state to settle.
+ * "client is still working through the rest of the flow" rather than
+ * "client denied push permission."
+ *
+ * Calibrated against the real-world post-Activate flow observed during
+ * Daniel's May 25, 2026 smoke test:
+ *   1. Client taps Activate → server stamps `clientActivatedAt`
+ *      (Linq SMS round-trip, ~1-3s).
+ *   2. Client switches apps to find the welcome SMS, reads off the
+ *      code (the welcome text-message handoff).
+ *   3. Client switches back to AFL, types the code, submits.
+ *   4. App authenticates against the code → registers the push token
+ *      against the now-known user → `pushToken` lands on the server.
+ *
+ * The gap between (1) and (4) is realistically 30-90 seconds and can
+ * be longer for a slow client. The original 10-second window fired
+ * yellow "activated · notifications off" warnings during step 2-3 of
+ * the smoke test even though the client had already tapped Allow on
+ * the OS push prompt — push permission and push-token-on-server are
+ * not the same event from this hook's perspective, and the latter
+ * only happens after login. 5 minutes covers the realistic worst case
+ * (slow client, distracted, switching between Messages and the AFL
+ * app) while still flipping yellow if the client truly walked away
+ * mid-activation.
  */
-export const PUSH_PROMPT_RESOLVE_WINDOW_MS = 10_000;
+export const PUSH_PROMPT_RESOLVE_WINDOW_MS = 5 * 60 * 1000;
 
 const COACHING: Record<ActivationState, string> = {
   waiting:
     'Tell client to tap the link in the text and install the app.',
   activated_pending:
-    'Push permission prompt is on their screen now. Tell them to tap Allow — that\'s how anniversary, holiday, birthday, and retention lanes reach them.',
+    'They opened the app — keep them moving. Walk them through grabbing the code from your welcome text and logging in. The card flips green once their notifications register on our end.',
   activated_granted:
     'Deliver the line: "I can see it activated and your notifications are on. You\'re all set."',
   activated_denied:
-    'Activated but notifications are off. Walk them through enabling notifications in Settings before hanging up.',
+    'Activated but notifications never registered. Walk them through enabling notifications in Settings before hanging up.',
 };
 
 interface ClientDocShape {
