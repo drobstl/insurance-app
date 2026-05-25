@@ -124,6 +124,10 @@ import {
   DEFAULT_APPLICATION_TYPE,
   type ApplicationFormType,
 } from '../../../lib/application-type-options';
+import {
+  mapExtractedApplicationToPolicyFormData,
+  type PolicyFormData,
+} from '../../../lib/extracted-to-policy-form-data';
 
 function getBulkPdfConcurrencyLimit(): number {
   const raw = process.env.NEXT_PUBLIC_IMPORT_PDF_CONCURRENCY;
@@ -241,32 +245,9 @@ interface Policy {
   createdAt: Timestamp;
 }
 
-interface PolicyFormData {
-  policyType: string;
-  policyNumber: string;
-  insuranceCompany: string;
-  otherCarrier: string;
-  policyOwner: string;
-  beneficiaries: {
-    name: string;
-    type: 'primary' | 'contingent';
-    relationship?: string;
-    percentage?: number;
-    phone?: string;
-    email?: string;
-    dateOfBirth?: string;
-    address?: string;
-    accessCode?: string;
-  }[];
-  coverageAmount: string;
-  premiumAmount: string;
-  premiumFrequency: string;
-  renewalDate: string;
-  effectiveDate: string;
-  amountOfProtection: string;
-  protectionUnit: string;
-  status: string;
-}
+// PolicyFormData + mapExtractedApplicationToPolicyFormData now live in
+// the shared lib so Close Sale can use them without duplicating.
+// See web/lib/extracted-to-policy-form-data.ts for the full type.
 
 type AddFlowStage = 'list' | 'upload' | 'review' | 'welcome';
 
@@ -750,45 +731,11 @@ const emptyPolicyForm: PolicyFormData = {
   status: 'Active',
 };
 
-function mapExtractedApplicationToPolicyFormData(data: ExtractedApplicationData): Partial<PolicyFormData> {
-  const mapped: Partial<PolicyFormData> = {};
-  if (data.policyType) mapped.policyType = data.policyType;
-  if (data.insuranceCompany) {
-    const match = KNOWN_CARRIERS.find(
-      (c) => c.toLowerCase() === data.insuranceCompany!.toLowerCase()
-    );
-    if (match) {
-      mapped.insuranceCompany = match;
-    } else {
-      mapped.insuranceCompany = 'Other';
-      mapped.otherCarrier = data.insuranceCompany;
-    }
-  }
-  // Carrier-printed names commonly arrive in "Last, First [Middle]"
-  // order. Normalize here at the extraction boundary so the form +
-  // Firestore both store the natural "First [Middle] Last" form.
-  if (data.policyOwner) mapped.policyOwner = formatClientDisplayName(data.policyOwner);
-  if (data.beneficiaries && data.beneficiaries.length > 0) {
-    mapped.beneficiaries = data.beneficiaries.map((b) => ({
-      name: formatClientDisplayName(b.name),
-      type: b.type,
-      relationship: b.relationship || '',
-      percentage: b.percentage,
-      phone: b.phone || '',
-      email: b.email || '',
-      dateOfBirth: b.dateOfBirth || '',
-      address: b.address || '',
-      accessCode: b.accessCode || '',
-    }));
-  }
-  if (data.coverageAmount != null) mapped.coverageAmount = String(data.coverageAmount);
-  if (data.premiumAmount != null) mapped.premiumAmount = String(data.premiumAmount);
-  if (data.premiumFrequency) mapped.premiumFrequency = data.premiumFrequency;
-  if (data.renewalDate) mapped.renewalDate = data.renewalDate;
-  if (data.effectiveDate) mapped.effectiveDate = data.effectiveDate;
-  mapped.status = 'Active';
-  return mapped;
-}
+// mapExtractedApplicationToPolicyFormData lives in
+// web/lib/extracted-to-policy-form-data.ts (shared with Close Sale).
+// Note: the consolidated version also maps `policyNumber` from the
+// extraction, which the prior local copy here didn't — small
+// behavior improvement.
 
 // ─── Policy API helpers (Admin SDK) ────────────────────────
 
