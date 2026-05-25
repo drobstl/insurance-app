@@ -1624,6 +1624,53 @@ export default function LeadDetailPanel({
             placeholder="1850"
             className="w-full md:w-64 px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm font-mono focus:outline-none focus:border-[#45bcaa]"
           />
+
+          {/* Equity protection calculator. Surfaces coverage options at
+              5 common durations (24/18/12/9/6 months) so the agent can
+              pitch final expense / mortgage protection on the call when
+              term doesn't fit (older or sicker clients). Pure display —
+              never saves the agent's selection. Always recomputes from
+              the current mortgage input value so the agent can tweak
+              the number mid-call and watch the math update live.
+
+              Math intentionally matches the post-sale display: when the
+              policy PDF is uploaded, the client app shows
+              `face_value / monthly_mortgage = months covered` as the
+              hero metric for mortgage protection policies. Pre-sale
+              calculator and post-sale display tell the same story with
+              the same number. See CONTEXT.md → Backlog → equity
+              protection calculator. */}
+          {(() => {
+            const numeric = parseFloat(mortgage.replace(/[^0-9.]/g, ''));
+            if (!Number.isFinite(numeric) || numeric <= 0) return null;
+            const months = [24, 18, 12, 9, 6];
+            return (
+              <div className="mt-3">
+                <p className="text-xs font-medium text-[#374151] mb-1.5">
+                  Mortgage protection coverage
+                  <span className="ml-1.5 text-xs font-normal text-[#707070]">
+                    · for final expense or mortgage protection (not term)
+                  </span>
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {months.map((m) => {
+                    const coverage = Math.round(numeric * m);
+                    const formatted = `$${coverage.toLocaleString('en-US')}`;
+                    return (
+                      <div
+                        key={m}
+                        className="px-3 py-1.5 rounded-[5px] border border-[#d0d0d0] bg-[#f8f8f8] text-xs"
+                      >
+                        <span className="font-semibold text-[#0D4D4D]">{m} mo</span>
+                        <span className="mx-1 text-[#9CA3AF]">·</span>
+                        <span className="font-mono text-[#005851]">{formatted}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         <div>
