@@ -587,6 +587,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     if (pathname.startsWith('/dashboard/clients')) return 'clients';
     if (pathname.startsWith('/dashboard/leads')) return 'leads';
     if (pathname.startsWith('/dashboard/activity')) return 'activity';
+    if (pathname.startsWith('/dashboard/action-items')) return 'action-items';
     if (pathname.startsWith('/dashboard/referrals')) return 'referrals';
     if (pathname.startsWith('/dashboard/conservation')) return 'conservation';
     if (pathname.startsWith('/dashboard/policy-reviews')) return 'policy-reviews';

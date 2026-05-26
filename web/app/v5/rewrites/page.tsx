@@ -157,7 +157,7 @@ export default function RewritesDeepDiveDesktop() {
         className="relative overflow-hidden"
         style={{
           background:
-            '#070E1B radial-gradient(ellipse 500px 500px at 100% 100%, rgba(244,132,95,0.07), transparent 70%), radial-gradient(ellipse 400px 400px at 0% 0%, rgba(61,214,195,0.04), transparent 70%)',
+            'radial-gradient(ellipse 500px 500px at 100% 100%, rgba(244,132,95,0.07), transparent 70%), radial-gradient(ellipse 400px 400px at 0% 0%, rgba(61,214,195,0.04), transparent 70%), #070E1B',
         }}
       >
         <div className="relative max-w-[1400px] mx-auto px-10 lg:px-20 py-24 lg:py-32">
@@ -489,7 +489,7 @@ export default function RewritesDeepDiveDesktop() {
         className="relative overflow-hidden py-28 lg:py-36"
         style={{
           background:
-            '#070E1B radial-gradient(ellipse 500px 500px at 100% 100%, rgba(244,132,95,0.08), transparent 70%), radial-gradient(ellipse 400px 400px at 0% 50%, rgba(61,214,195,0.04), transparent 70%)',
+            'radial-gradient(ellipse 500px 500px at 100% 100%, rgba(244,132,95,0.08), transparent 70%), radial-gradient(ellipse 400px 400px at 0% 50%, rgba(61,214,195,0.04), transparent 70%), #070E1B',
         }}
       >
         <div className="relative max-w-[1400px] mx-auto px-10 lg:px-20">
@@ -539,7 +539,7 @@ export default function RewritesDeepDiveDesktop() {
         className="relative overflow-hidden py-32 lg:py-40"
         style={{
           background:
-            '#0D4D4D radial-gradient(ellipse 400px 400px at 25% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 300px 300px at 75% 100%, rgba(253,204,2,0.06), transparent 70%)',
+            'radial-gradient(ellipse 400px 400px at 25% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 300px 300px at 75% 100%, rgba(253,204,2,0.06), transparent 70%), #0D4D4D',
         }}
       >
         <motion.div
