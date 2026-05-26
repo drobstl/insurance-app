@@ -493,7 +493,7 @@ export default function MobileLandingV2() {
       {/* ═══════════════════════════════════════════════════
          WELCOME FLOW — Stop being the agent they forgot
          ═══════════════════════════════════════════════════ */}
-      <section className="relative px-5 py-20 overflow-hidden" style={{ background: '#0D4D4D radial-gradient(ellipse 400px 400px at 50% 0%, rgba(61,214,195,0.14), transparent 70%), radial-gradient(ellipse 300px 300px at 50% 100%, rgba(253,204,2,0.06), transparent 70%)' }}>
+      <section className="relative px-5 py-20 overflow-hidden" style={{ background: 'radial-gradient(ellipse 400px 400px at 50% 0%, rgba(61,214,195,0.14), transparent 70%), radial-gradient(ellipse 300px 300px at 50% 100%, rgba(253,204,2,0.06), transparent 70%), #0D4D4D' }}>
         <div className="absolute inset-0 opacity-[0.04] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
         <motion.div
           initial={{ opacity: 0, y: 24 }}

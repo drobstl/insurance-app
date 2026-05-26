@@ -248,7 +248,7 @@ export default function RetentionDeepDiveDesktop() {
       <section
         className="w-full relative overflow-hidden"
         style={{
-          background: '#0D4D4D radial-gradient(ellipse 400px 400px at 0% 100%, rgba(253,204,2,0.07), transparent 70%), radial-gradient(ellipse 300px 300px at 100% 0%, rgba(61,214,195,0.05), transparent 70%)',
+          background: 'radial-gradient(ellipse 400px 400px at 0% 100%, rgba(253,204,2,0.07), transparent 70%), radial-gradient(ellipse 300px 300px at 100% 0%, rgba(61,214,195,0.05), transparent 70%), #0D4D4D',
         }}
       >
         <div className="relative w-full px-8 lg:px-16 xl:px-24 py-28">
@@ -341,7 +341,7 @@ export default function RetentionDeepDiveDesktop() {
       <section
         className="w-full relative overflow-hidden"
         style={{
-          background: '#070E1B radial-gradient(ellipse 400px 400px at 0% 0%, rgba(239,68,68,0.05), transparent 70%), radial-gradient(ellipse 300px 300px at 100% 100%, rgba(61,214,195,0.04), transparent 70%)',
+          background: 'radial-gradient(ellipse 400px 400px at 0% 0%, rgba(239,68,68,0.05), transparent 70%), radial-gradient(ellipse 300px 300px at 100% 100%, rgba(61,214,195,0.04), transparent 70%), #070E1B',
         }}
       >
         <div className="relative w-full px-8 lg:px-16 xl:px-24 py-28 space-y-28">
@@ -485,7 +485,7 @@ export default function RetentionDeepDiveDesktop() {
       <section
         className="w-full relative overflow-hidden"
         style={{
-          background: '#0D4D4D radial-gradient(ellipse 400px 400px at 25% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 300px 300px at 75% 100%, rgba(253,204,2,0.08), transparent 70%)',
+          background: 'radial-gradient(ellipse 400px 400px at 25% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 300px 300px at 75% 100%, rgba(253,204,2,0.08), transparent 70%), #0D4D4D',
         }}
       >
         <motion.div
