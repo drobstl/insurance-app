@@ -276,11 +276,13 @@ export default function ActivateScreen() {
     };
   }, [activating, activationStarted, pulseAnim]);
 
-  // Auto-advance to the login screen once the user comes back from
+  // Auto-advance to the agent profile once the user comes back from
   // iMessage. The activation event is processed server-side
   // asynchronously when the Linq webhook fires; the mobile UI doesn't
-  // need to wait. After Activate, the next step is for the user to
-  // enter their code on /login (May 8 flow inversion).
+  // need to wait. Reverted May 25, 2026 from /login → /agent-profile:
+  // login is now the unauthenticated entry, so by the time the user
+  // reaches /activate they're already identified and the profile params
+  // are in the URL — push them through directly.
   useEffect(() => {
     if (!activationStarted) return;
     const handleAppStateChange = (nextState: AppStateStatus) => {
@@ -297,7 +299,25 @@ export default function ActivateScreen() {
 
   const forwardAfterActivate = () => {
     if (advancedRef.current === false) advancedRef.current = true;
-    router.replace('/login' as never);
+    // Carry the sharedParams through to /agent-profile so the profile
+    // screen has everything it needs without re-fetching. Mirrors the
+    // shape navigateToProfile uses when routing directly to profile.
+    router.replace({
+      pathname: '/agent-profile',
+      params: {
+        agentId: getParamValue(params.agentId),
+        agentName,
+        agentEmail: getParamValue(params.agentEmail),
+        agentPhone: getParamValue(params.agentPhone),
+        agentPhotoBase64,
+        agencyName: getParamValue(params.agencyName),
+        agencyLogoBase64: getParamValue(params.agencyLogoBase64),
+        clientId: getParamValue(params.clientId),
+        clientName,
+        referralMessage: getParamValue(params.referralMessage),
+        businessCardBase64: getParamValue(params.businessCardBase64),
+      },
+    });
   };
 
   // Keep the ref in sync with the latest forwardAfterActivate closure.
@@ -440,22 +460,12 @@ export default function ActivateScreen() {
                   Opens Messages with your hello pre-written — just tap Send.
                 </Text>
 
-                {/* Lead-mode entry. Subtle text-only link so it doesn't
-                    compete with the Activate CTA. Only relevant for users
-                    who got an `L…` code from an agent who hasn't sold them
-                    a policy yet — the link routes to /lead-login which
-                    enforces the L-prefix server-side and refuses client
-                    codes (so this is NOT a path for clients to skip
-                    Activate, per feedback_no_client_activate_skip.md). */}
-                <TouchableOpacity
-                  style={styles.leadEntryLink}
-                  onPress={() => router.push('/lead-login' as never)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.leadEntryLinkText}>
-                    Got a code from your agent before your appointment? Enter it here →
-                  </Text>
-                </TouchableOpacity>
+                {/* Lead-mode "I'm a lead, enter here" link removed
+                    May 25, 2026 as part of the login-first refactor.
+                    Leads no longer reach /activate at all (login resolves
+                    accessType: 'lead' and routes to /lead-home directly),
+                    so the affordance has nothing to refer to. /lead-login
+                    is now orphaned but kept in place as a fallback route. */}
               </View>
             </View>
           </SafeAreaView>
