@@ -77,19 +77,19 @@
               "intent": [
                 {
                   "action": "android.intent.action.VIEW",
-                  "data": [{ "scheme": "sms" }]
+                  "data": { "scheme": "sms" }
                 },
                 {
                   "action": "android.intent.action.VIEW",
-                  "data": [{ "scheme": "smsto" }]
+                  "data": { "scheme": "smsto" }
                 },
                 {
                   "action": "android.intent.action.SENDTO",
-                  "data": [{ "scheme": "sms" }]
+                  "data": { "scheme": "sms" }
                 },
                 {
                   "action": "android.intent.action.SENDTO",
-                  "data": [{ "scheme": "smsto" }]
+                  "data": { "scheme": "smsto" }
                 }
               ]
             }
