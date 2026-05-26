@@ -2,7 +2,7 @@
 # CONTEXT.md — AgentForLife (AFL)
 
 > Drop this in the repo root. Read it before any strategic or architectural decision.
-> Last updated: May 18, 2026
+> Last updated: May 26, 2026 — pricing structure relock (Starter killed for new / Growth $49 post-sale only / Pro $99 + pre-sale / Agency band $349+ + team Performance); cap-aware policy locked (auto-prompt 80% + auto-bill overage); Founding 34 mechanic clarified ($50 perm discount on Pro upgrade). Implementation work captured in §"Tier gating".
 
 ## Source-of-Truth Documents
 
@@ -379,11 +379,11 @@ The original Phase 3 framing ("Concierge launch + pricing rollout completion") i
 - **Concierge add-on** — operator dashboard role with scoped data access, $1,500 / $2,500 SKUs. Available to any tier. Spec already in Business Model > Concierge.
 - **Pricing rollout completion + overage billing validation** with a small cohort (5–10 agents) before general release. Depends on conversation counter + overage enforcement (below).
 - **Conversation counter + overage enforcement** (broken out — this is ~1 week of focused work, not the one-line item it was framed as):
-  1. Per-agent monthly counter (Firestore bucket; increment on new outbound conversation start; reset on billing-cycle anchor) — ~1–2 days.
+  1. Per-agent monthly counter (Firestore bucket; increment on new outbound conversation start; reset on billing-cycle anchor) — ~1–2 days. *"Conversation" = first outbound message of a new thread on the AFL pooled line. Replies within an existing thread don't count.*
   2. Dashboard widget: "conversations used this month" — ~½ day.
   3. Threshold notifications at 80% and 100% of cap — ~½ day.
   4. Stripe metered SKU at $0.50/conv; usage records reported per overage; billed on next invoice — ~2–3 days.
-  5. Cap-aware send logic in outbound code: pick **auto-bill / auto-pause / auto-prompt-upgrade** as the policy — ~1 day plus the policy decision.
+  5. Cap-aware send logic in outbound code — ~1 day. **Policy locked May 26, 2026: auto-prompt upgrade starting at 80% + auto-bill overage at $0.50/conv as the safety net.** Rationale: never silently break a live retention/referral conversation (rules out hard pause); bill clearly when the cap is exceeded (rules out silent overage); surface upgrade aggressively at 80% so the agent has agency before getting charged. Mixed model — agent sees the upgrade prompt, chooses whether to upgrade, and if they ignore it the overage bills land predictably.
 
 **What's deferred to Phase 4 or Backlog:** Mentor calendar, SME calendar / FIF tracking, Performance page (Closr AI scoring), book-size-aware multi-line for Pro. All depend on Phase 3 prereqs being in place. See `Backlog (not yet phased)` below.
 
@@ -453,47 +453,62 @@ Carrier-level overlays (when per-carrier metrics are available): STOP rate > 1% 
 ### As Closr AI add-on (primary distribution, deferred)
 Pricing for the Closr AI bundle is **deferred until Closr AI is post-MVP**. The historical $29/agent/month assumption is no longer authoritative.
 
-### As standalone (AFL pricing v3 — launches in Phase 1)
+### As standalone (AFL pricing — locked May 26, 2026)
 
-Source: `docs/AFL_Pricing_Packaging_Playbook_v3.md`. Conversation-based pricing, not message-based or seat-based.
+Source: `docs/AFL_Pricing_Packaging_Playbook_v3.md` (numeric values now superseded by the May 26, 2026 lock below — playbook still authoritative for mechanics like overage, capacity model, Concierge add-on). Conversation-based pricing, not message-based or seat-based.
 
 | Tier | Price | Convs/mo (Linq line only) | Daily cap | Overage | Buyer |
 |------|-------|---------------------------|-----------|---------|-------|
-| Starter | $29/mo | 30 | 3 | $0.50/conv | Year-1 agent, small book |
-| Growth | $59/mo | 75 | 8 | $0.50/conv | Established producer (anchor tier) |
-| Pro | $119/mo | 200 | 20 | $0.50/conv | Top producer, large book |
-| Agency | $199/mo + $39/seat ⚠️ placeholder | 100/seat pooled | 10/seat | $0.50/conv against pool | Agency owner with downline |
+| Starter | $29/mo ⚠️ grandfathered only | 30 | 3 | $0.50/conv | Pitched-but-not-yet-paid agents from the May 26 cohort + future case-by-case. **Killed for general new signups.** |
+| Growth | $49/mo | 75 | 8 | $0.50/conv | Post-sale only: retention, referrals, anniversary, holiday/birthday, manual Add Client + activation ritual. Anchor tier. |
+| Pro | $99/mo | 200 | 20 | $0.50/conv | Growth + pre-sale tools (Leads, Activity, Close-the-sale conveyor) + SME/FIF + Performance page (individual). |
+| Agency | $349+ band pricing | Band-scaled pool | Band-scaled | $0.50/conv against pool | Pro + Team tab, mentor calendar, chargeback comparison, pooled conversation budget, Performance page (team-aggregation: leaderboards + coaching-priorities dashboard). |
 
-⚠️ **Agency row is a placeholder.** Per-seat pricing is OUT (locked May 24, 2026). Agency tier is currently surfaced as "Contact Sales" mailto on `/pricing` — nothing is billing against the placeholder. New band-pricing model pending; see `Pricing band parking lot` below.
+**Why the May 26 lock changed prices from $29/$59/$119:** Rob Griffin's May 24 call recommended eliminating the $29 starter (avoid competing with Funnel's $60/mo), making Growth the new entry at $49, and moving Pro to $99. After working through the structure on May 26, Daniel locked: kill Starter for new signups, drop Growth to $49 and reposition as post-sale-only, drop Pro to $99 and load it with the pre-sale unlock (which was previously in Growth). Each tier now has a distinct *feature unlock*, not just a conversation-budget bump. See `Tier gating (locked May 26, 2026)` below for the gating implications and `[[project-rob-pricing-decision-resolved]]` memory for the working notes.
+
+⚠️ **Agency row is band pricing.** Per-seat is OUT (locked May 24, 2026). Specific band thresholds + floor pricing still pending — see `Pricing band parking lot` below for the 9 open decisions.
 
 All tiers include unlimited push, agent-phone one-tap, and email. The conversation count is a budget for Linq pooled-line SMS only. Client-initiated inbound activation messages do NOT count against agent allowances. Bulk import (Onboarding Ceremony) included on Growth, Pro, and Agency. Advanced analytics on Pro and Agency. Priority support on Pro and Agency. Team admin tools only on Agency.
 
-### Tier gating (locked May 24, 2026)
+### Tier gating (locked May 26, 2026 — supersedes May 24 lock)
 
-| Capability | Starter | Growth | Pro | Agency |
+| Capability | Starter (legacy) | Growth | Pro | Agency |
 |---|---|---|---|---|
 | Clients section + post-sale flows (welcome, retention, referrals) | ✓ | ✓ | ✓ | ✓ |
 | Activation ritual via Clients → Add Client → Add Policy | ✓ | ✓ | ✓ | ✓ |
-| Leads section | — | ✓ | ✓ | ✓ |
-| Activity page (personal KPIs incl. book/show/close rates) | — | ✓ | ✓ | ✓ |
-| Close-the-sale ritual (convert-from-lead → inline flow) | — | ✓ | ✓ | ✓ |
-| Performance page (Closr AI transcript scoring) | — | — | ✓ | ✓ |
+| Leads section | — | — | ✓ | ✓ |
+| Activity page (personal KPIs incl. book/show/close rates) | — | — | ✓ | ✓ |
+| Close-the-sale ritual (convert-from-lead → inline flow) | — | — | ✓ | ✓ |
 | SME calendar / FIF tracking | — | — | ✓ | ✓ |
+| Performance page — individual (paste/upload own calls → coaching scores) | — | — | ✓ | ✓ |
+| Performance page — team-aggregation (leaderboards, coaching priorities, agency-wide trends) | — | — | — | ✓ |
 | Team tab on Activity (agency-owner view of downlines) | — | — | — | ✓ |
-| Chargeback comparison widget | — | — | — | ✓ |
+| Chargeback comparison widget vs Symmetry average | — | — | — | ✓ |
 | Mentor calendar | — | — | — | ✓ |
+| Pooled conversation budget across all seats | — | — | — | ✓ |
 
-**Principle:** Starter is **post-sale only** — no pre-sale tools. Growth opens up the Leads / Activity / Close-the-sale surfaces. Pro adds the Performance page and SME/FIF features. Agency adds team-level views, chargeback comparison, and mentor calendar.
+**Principle (revised May 26):** Each tier has a *distinct feature unlock*, not just more conversation budget. Starter (grandfathered) and Growth are both **post-sale only**. **Pro** is where pre-sale tools unlock — Leads + Activity + Close-the-sale + SME/FIF + individual Performance page. **Agency** is where team management unlocks — team Performance view (leaderboards + coaching priorities), Team tab, chargeback comparison, mentor calendar, pooled budget.
+
+**Why pre-sale moved from Growth → Pro:** The May 24 lock put Leads + Activity + Close-the-sale at Growth+, but that left Pro with a thin "just more conversations" differentiator. Loading pre-sale into Pro gives it a tangible feature unlock that justifies the $50/mo upgrade — most agents who are actively trying to grow will pay for it. Pricing math (May 26): if 20% of would-be-Growth converts upgrade to Pro for the pre-sale unlock, ARPU breaks even vs. the old structure. Realistic upgrade rate is higher, so this should be ARPU-accretive.
+
+**Founding 34 mapping:** Founders are gated as `'founding'` tier — post-sale features unlocked (same as Growth), pre-sale features locked behind a Pro upgrade. Their upgrade path: pay the $99 Pro SKU with a permanent $50 founding-member Stripe discount = $49 effective. See `Founding 34` section below.
+
+**The activation ritual itself** (Card 3 — the `onSnapshot` listener showing live activation status) is available on **all paid tiers** — Starter/Growth agents enter it via the manual Add Client → Add Policy path; Pro/Agency via the Close-the-sale flow. The load-bearing close-of-sale sentence works identically either way. This was the deliberate design choice: the ritual is product-level load-bearing, not premium-tier gated.
+
+**Implementation status:** Tier gating is currently **not enforced in code**. Leads + Activity are gated only by `isLeadModeVisibleForEmail` (admin-only email check) and `ACTIVITY_ENABLED` env var. Before flipping `NEXT_PUBLIC_LEAD_MODE_ADMIN_ONLY=false` for GA, the gates need to consume `agentProfile.membershipTier`. Scope: new `web/lib/tier-gating.ts` with `isLeadsAccessibleForTier(tier)` / `isActivityAccessibleForTier(tier)` / `isPerformanceAccessibleForTier(tier)` helpers; swap the 4–5 existing gates in `web/app/dashboard/layout.tsx`, `web/app/dashboard/leads/page.tsx`, `web/app/dashboard/leads/[leadId]/page.tsx`, `web/app/dashboard/settings/page.tsx`; add `/activity` + `/api/agent/activity` route guard; upgrade-prompt UI for non-Pro agents who hit a Pro+ surface. Estimated ~2–3 hours.
 
 **The activation ritual itself** (Card 3 — the `onSnapshot` listener showing live activation status) is available on **all paid tiers** — Starter agents enter it via the manual Add Client → Add Policy path; the higher tiers via the Close-the-sale flow. The load-bearing close-of-sale sentence works identically either way. This was the deliberate design choice: the ritual is product-level load-bearing, not premium-tier gated.
 
-**Founding 34 ("free for life"):**
-- Grandfathered at Growth-equivalent (75 convs/mo, 8/day cap). Free seat is permanent and exempt from base-tier price increases.
+**Founding 34 ("free for life") — updated May 26, 2026:**
+- Grandfathered at Growth-equivalent for **post-sale features** (75 convs/mo, 8/day cap). Free seat is permanent.
+- **Pre-sale features (Leads, Activity, Close-the-sale, Performance) are NOT free** — founder pays to unlock them. Upgrade path: $99 Pro SKU with a permanent $50 founding-member Stripe Coupon discount = **$49 effective** for full Pro access. The Stripe Coupon is recurring (applies to every monthly invoice, forever). Downgrading back to free-Growth-equivalent retains the founding grandfather.
 - Overage at full price ($0.50/conv) — no discount, no exemption.
 - All channel features available (push, agent-phone, email) with no limit.
 - Bulk-import onboarding ceremony available once per agent if not already used.
-- Founding agency owners: $199 platform fee waived; pay $39/seat for downline. Pooled capacity = 75 + (100 × downline seats).
+- Founding agency owners: ⚠️ legacy ($199 platform fee waived; pay $39/seat for downline) — needs revisit when Agency band pricing is finalized.
 - Subject to the same KPI throttling rules as paid tiers — no reputation immunity.
+
+**Why the May 26 change:** Original Founding 34 rule said "free for life at Growth-equivalent." But when pre-sale tools moved to Pro (May 26 tier-gating revision), the original promise needed clarification — "free for life" applies to the post-sale features that were locked in when founders signed up, not to features added later that live behind a higher tier. The $50 permanent discount on Pro is the goodwill mechanic that lets founders unlock pre-sale at the same effective $/mo as a fresh Growth signup, recognizing their early support without giving away the entire Pro feature set.
 
 **Concierge add-on (one-time service, available now / Phase 2-aligned):**
 - $1,500 email-only / $2,500 email + SMS. One-time fee billed at engagement start.
@@ -504,10 +519,12 @@ All tiers include unlimited push, agent-phone one-tap, and email. The conversati
 - Recommended by book size: under 100 → Onboarding Ceremony; 100–300 → Hybrid; 300+ → Concierge.
 
 **Trial and refund:**
-- 14-day free trial on Starter and Growth. No trial on Pro or Agency.
-- No CC required to start trial; CC required day 7 to continue.
+- 14-day free trial on Growth. No trial on Pro or Agency. Starter trial mechanically still exists in `web/lib/pricing.ts` (`trialDays: 14`) for the legacy grandfathered cohort but is moot for new signups since Starter is killed for new general signups.
+- **Card required at signup (post-PR #38 pre-pay flow).** Stripe's native `trial_period_days` handles the 14-day grace period — card is collected upfront but not charged until trial ends. This replaces the old "no CC to start trial; CC required day 7 to continue" model, which had a hole that let Firebase users exist without paid subscriptions (the "Pryor Hovis" gap).
 - 14-day money-back guarantee on initial signup post-trial. No refunds after 14 days except for AFL technical failures.
 - Cancellations effective at end of current billing period. No prorated refunds.
+
+**Open trial question for the new pricing:** Pro is currently `trialDays: 0` because the old design assumed a power-producer buyer who knew what they wanted. With Pro now repositioned as the pre-sale unlock at $99, a 14-day trial on Pro may meaningfully boost Growth→Pro conversion (let the agent feel the Leads pipeline before committing). Decision pending.
 
 **Tier change mechanics:**
 - Upgrades effective immediately, prorated for current period.
