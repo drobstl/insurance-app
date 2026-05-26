@@ -18,6 +18,11 @@ import LeadDetailPanel from '../../../components/LeadDetailPanel';
 import { CloseSaleRitual } from '../../../components/CloseSaleRitual';
 import { leadsAccessReason } from '../../../lib/tier-gating';
 import UpgradeToProCard from '../../../components/UpgradeToProCard';
+import {
+  type AppointmentOutcomeChipStatus,
+  getAppointmentOutcomeChip,
+  isAppointmentOutcomeChipStatus,
+} from '../../../lib/appointment-outcome-chip';
 
 interface Lead {
   id: string;
@@ -244,6 +249,48 @@ function LeadsPageInner() {
       setNextApptByLead(map);
     }, (err) => {
       console.error('appointments onSnapshot error:', err);
+    });
+    return () => unsub();
+  }, [user]);
+
+  // ── Past-appointment outcome map (leadId → most recent terminal appt) ──
+  // Powers the "Thinking · May 18" / "No-show · May 18" / etc. chip on
+  // lead rows when there's no upcoming appointment. Same single-field
+  // inequality pattern as the upcoming subscription so it reuses the
+  // default scheduledAt index. Status filter in memory. Bounded to one
+  // year back to cap the initial document read for high-volume agents.
+  const [pastOutcomeByLead, setPastOutcomeByLead] = useState<
+    Map<string, { scheduledAt: Date; tz?: string; status: AppointmentOutcomeChipStatus }>
+  >(new Map());
+  useEffect(() => {
+    if (!user) return;
+    const nowTs = Timestamp.fromMillis(Date.now());
+    const oneYearAgoTs = Timestamp.fromMillis(Date.now() - 365 * 24 * 60 * 60 * 1000);
+    const q = query(
+      collection(db, 'agents', user.uid, 'appointments'),
+      where('scheduledAt', '>=', oneYearAgoTs),
+      where('scheduledAt', '<', nowTs),
+      orderBy('scheduledAt', 'desc'),
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const map = new Map<string, { scheduledAt: Date; tz?: string; status: AppointmentOutcomeChipStatus }>();
+      for (const d of snap.docs) {
+        const data = d.data() as { leadId?: string; scheduledAt?: Timestamp; scheduledAtTimeZone?: string; status?: string };
+        if (!data.leadId || !data.scheduledAt) continue;
+        if (!isAppointmentOutcomeChipStatus(data.status)) continue;
+        // First hit wins because query is sorted descending — that's the
+        // *most recent* past appointment for the lead.
+        if (!map.has(data.leadId)) {
+          map.set(data.leadId, {
+            scheduledAt: data.scheduledAt.toDate(),
+            tz: data.scheduledAtTimeZone,
+            status: data.status,
+          });
+        }
+      }
+      setPastOutcomeByLead(map);
+    }, (err) => {
+      console.error('past-appointments onSnapshot error:', err);
     });
     return () => unsub();
   }, [user]);
@@ -1197,11 +1244,19 @@ function LeadsPageInner() {
                           >
                             <div className="text-sm font-semibold text-[#000000] truncate flex items-center gap-2">
                               <span className="truncate">{lead.name}</span>
-                              {nextApptByLead.get(lead.id) && (
+                              {nextApptByLead.get(lead.id) ? (
                                 <span className="inline-flex items-center shrink-0 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
                                   📅 {formatApptChip(nextApptByLead.get(lead.id)!)}
                                 </span>
-                              )}
+                              ) : pastOutcomeByLead.get(lead.id) && (() => {
+                                const past = pastOutcomeByLead.get(lead.id)!;
+                                const chip = getAppointmentOutcomeChip(past.status, past.scheduledAt);
+                                return (
+                                  <span className={`inline-flex items-center shrink-0 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${chip.classes}`}>
+                                    {chip.label}
+                                  </span>
+                                );
+                              })()}
                             </div>
                             <div className="text-xs text-[#707070] mt-0.5 flex items-center gap-2 flex-wrap">
                               <span>{lead.phone}</span>
@@ -1418,11 +1473,19 @@ function LeadsPageInner() {
                                 Converted
                               </span>
                             )}
-                            {nextApptByLead.get(lead.id) && (
+                            {nextApptByLead.get(lead.id) ? (
                               <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
                                 📅 {formatApptChip(nextApptByLead.get(lead.id)!)}
                               </span>
-                            )}
+                            ) : pastOutcomeByLead.get(lead.id) && (() => {
+                              const past = pastOutcomeByLead.get(lead.id)!;
+                              const chip = getAppointmentOutcomeChip(past.status, past.scheduledAt);
+                              return (
+                                <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${chip.classes}`}>
+                                  {chip.label}
+                                </span>
+                              );
+                            })()}
                           </div>
                         </td>
                         <td className="px-5 py-3.5 text-sm text-[#444] whitespace-nowrap">{lead.phone}</td>

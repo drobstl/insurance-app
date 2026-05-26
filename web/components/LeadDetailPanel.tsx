@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { User } from 'firebase/auth';
 import {
   doc,
@@ -18,6 +18,10 @@ import { useDashboard } from '../app/dashboard/DashboardContext';
 import AppointmentPicker from './AppointmentPicker';
 import { DEFAULT_DIAL_SCRIPT, renderDialScript } from '../lib/dial-script';
 import SendConfirmationDrawer from './SendConfirmationDrawer';
+import {
+  getAppointmentOutcomeChip,
+  isAppointmentOutcomeChipStatus,
+} from '../lib/appointment-outcome-chip';
 
 interface LeadPhone {
   number: string;
@@ -744,6 +748,28 @@ export default function LeadDetailPanel({
     return () => unsub();
   }, [user, leadId]);
 
+  // Header outcome chip — most recent past appointment with a terminal
+  // outcome (sit_no_sale / sit_think_about_it / no_show / cancelled).
+  // `appointments` is already sorted scheduledAt desc, so we take the
+  // first match. Suppressed if there's still an upcoming scheduled
+  // appointment, since that's the more relevant signal to surface
+  // (forward-looking > backward-looking when both exist).
+  const mostRecentPastOutcomeChip = useMemo(() => {
+    const nowMs = Date.now();
+    const hasUpcomingScheduled = appointments.some((a) => {
+      const t = a.scheduledAt?.toMillis();
+      return a.status === 'scheduled' && typeof t === 'number' && t > nowMs;
+    });
+    if (hasUpcomingScheduled) return null;
+    for (const a of appointments) {
+      const t = a.scheduledAt?.toMillis();
+      if (typeof t !== 'number' || t >= nowMs) continue;
+      if (!isAppointmentOutcomeChipStatus(a.status)) continue;
+      return getAppointmentOutcomeChip(a.status, new Date(t));
+    }
+    return null;
+  }, [appointments]);
+
   // ── Notes autosave ──
   const scheduleNotesSave = useCallback((value: string) => {
     if (!user || !leadId) return;
@@ -1139,6 +1165,11 @@ export default function LeadDetailPanel({
             {lead.convertedToClientId && (
               <span className="ml-2 inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
                 Converted to client
+              </span>
+            )}
+            {mostRecentPastOutcomeChip && (
+              <span className={`ml-2 inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${mostRecentPastOutcomeChip.classes}`}>
+                {mostRecentPastOutcomeChip.label}
               </span>
             )}
           </p>
