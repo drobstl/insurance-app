@@ -138,8 +138,39 @@ Run through this before pushing `main` to production:
    - Without these, the welcome queue still works but agent push notifications silently no-op.
 2. **`LINQ_PHONE_NUMBER` set** (probably already is — verify). If unset, mobile Activate falls through to profile and agents see no welcome activation funnel.
 3. **Firestore rules deployed.** New `actionItems` and `conversationThreads` rules are in `web/firestore.rules`. Run `firebase deploy --only firestore:rules` from the `web/` directory if rules aren't auto-deployed.
-4. **Cron entries verified.** `web/vercel.json` declares `/api/cron/welcome-action-item-expiry` at `0 16 * * *`. Verify it appears in Vercel Project → Settings → Cron Jobs after deploy.
-5. **Mobile app rebuild required for Activate screen.** Web changes deploy automatically via Vercel; the mobile React Native app needs `eas build` + App Store / Play Store resubmit. Agents who already have AFL installed will NOT see the Activate screen until they update. New downloads get it immediately.
+4. **Firestore indexes deployed.** Whenever `web/firestore.indexes.json` changes, run `firebase deploy --only firestore:indexes` from `web/`. New composite indexes go into a `Building…` state for a few minutes in Firebase Console → Firestore → Indexes; queries that need them return `FAILED_PRECONDITION` until they finish. Vercel deploys do NOT deploy Firestore config — this is a separate manual step (see "Firestore deploys" below for full instructions).
+5. **Cron entries verified.** `web/vercel.json` declares `/api/cron/welcome-action-item-expiry` at `0 16 * * *`. Verify it appears in Vercel Project → Settings → Cron Jobs after deploy.
+6. **Mobile app rebuild required for Activate screen.** Web changes deploy automatically via Vercel; the mobile React Native app needs `eas build` + App Store / Play Store resubmit. Agents who already have AFL installed will NOT see the Activate screen until they update. New downloads get it immediately.
+
+### Firestore deploys (rules and indexes)
+
+Vercel deploys the web app but does NOT push Firestore config. Whenever `web/firestore.rules` or `web/firestore.indexes.json` changes, run the Firebase CLI manually from the `web/` directory.
+
+**Prerequisites (one-time setup):**
+- Install: `npm install -g firebase-tools`
+- Auth: `firebase login`
+- The project is `insurance-agent-app-6f613`.
+
+**Rules:**
+```bash
+cd web
+firebase deploy --only firestore:rules --project insurance-agent-app-6f613
+```
+Rules apply immediately after deploy completes — no build window.
+
+**Indexes:**
+```bash
+cd web
+firebase deploy --only firestore:indexes --project insurance-agent-app-6f613
+```
+New composite indexes enter a `Building…` state for a few minutes (visible at Firebase Console → Firestore → Indexes). Queries that depend on them throw `FAILED_PRECONDITION` until the build finishes — usually 1–5 minutes for small collections, can be tens of minutes on very large ones. Existing indexes and existing queries are unaffected during the build.
+
+**Drift check:** the deploy command prints a warning if there are indexes or field overrides deployed in the project but missing from `firestore.indexes.json` (typically because someone created them via the Firebase Console). To list them: `firebase firestore:indexes --project insurance-agent-app-6f613`. Do NOT pass `--force` to the deploy command unless you've confirmed each missing entry is actually obsolete — `--force` deletes them and can break live queries.
+
+**Verifying a single cron's index dependency:** hit the cron endpoint manually with the cron secret to surface any missing-index errors before the scheduled fire time:
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://agentforlife.app/api/cron/<cron-name>
+```
 
 ### How to verify Web Push end-to-end (manual smoke test)
 

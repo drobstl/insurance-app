@@ -68,16 +68,21 @@ export function buildSmsUrlForPlatform(phone: string, body: string, platform: Ag
 }
 
 /**
- * Build an `sms:` URL specifically for QR-code encoding. Always uses
- * the spec-compliant `?body=` form (RFC 5724). The agent's PHONE is
- * what scans this — both iOS and Android phones accept `?body=`
- * correctly when scanning, so we don't need per-platform variants
- * for QR.
+ * Build the payload for QR-code encoding. Uses the legacy
+ * `SMSTO:NUMBER:BODY` format rather than RFC 5724 `sms:?body=`.
+ *
+ * Why: Samsung's stock Camera / Bixby Vision scanner on One UI does
+ * not recognize `sms:NUMBER?body=...` as an SMS intent — it sees a
+ * QR, decodes the text, and offers nothing actionable, which looks
+ * to the agent like the QR "isn't picked up." `SMSTO:` is the
+ * de-facto QR standard that virtually every Android scanner (and
+ * iOS Camera) routes to the default messaging app, including
+ * Samsung's. Body is literal text after the second colon — no URL
+ * encoding.
  */
 export function buildSmsUrlForQr(phone: string, body: string): string {
   const phoneClean = phone.trim();
-  const bodyEncoded = encodeURIComponent(body);
-  return `sms:${phoneClean}?body=${bodyEncoded}`;
+  return `SMSTO:${phoneClean}:${body}`;
 }
 
 /**

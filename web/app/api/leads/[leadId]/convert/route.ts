@@ -5,6 +5,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../../lib/firebase-admin';
 import { autoCompleteRecentAppointment } from '../../../../../lib/appointment-auto-complete';
 import { queueOrRefreshWelcomeActionItem } from '../../../../../lib/welcome-action-item-writer';
+import { findExistingClient } from '../../../../../lib/client-dedup';
 
 /**
  * POST /api/leads/[leadId]/convert
@@ -98,6 +99,96 @@ export async function POST(
     const phone = typeof leadData.phone === 'string' ? leadData.phone.trim() : '';
     const email = typeof leadData.email === 'string' ? leadData.email.trim() : '';
     const dateOfBirth = typeof leadData.dateOfBirth === 'string' ? leadData.dateOfBirth : null;
+
+    // ── Phase 4c: optional body flags + duplicate precheck ──────
+    // The leads page UI may pass:
+    //   { force: true } — bypass the precheck; create a new client
+    //     anyway. Used when the agent confirms "Create as new" in the
+    //     "matches existing client" prompt.
+    //   { linkToExistingClientId: '...' } — skip client creation
+    //     entirely; just stamp the lead with that existing client's id
+    //     so the lead "converts" by pointing at the existing record.
+    //     Used when the agent confirms "Link to existing" in the prompt.
+    let force = false;
+    let linkToExistingClientId: string | null = null;
+    try {
+      const body = await req.json().catch(() => null);
+      if (body && typeof body === 'object') {
+        if (body.force === true) force = true;
+        if (typeof body.linkToExistingClientId === 'string' && body.linkToExistingClientId.trim()) {
+          linkToExistingClientId = body.linkToExistingClientId.trim();
+        }
+      }
+    } catch {
+      // No body / parse error — treat as defaults (no force, no link).
+    }
+
+    // ── Link-to-existing path ──
+    if (linkToExistingClientId) {
+      const existingRef = db.collection('agents').doc(agentId).collection('clients').doc(linkToExistingClientId);
+      const existingSnap = await existingRef.get();
+      if (!existingSnap.exists) {
+        return NextResponse.json(
+          { error: `Target client ${linkToExistingClientId} not found.` },
+          { status: 404 },
+        );
+      }
+      const existingData = existingSnap.data() ?? {};
+      const existingCode = typeof existingData.clientCode === 'string' ? existingData.clientCode : null;
+      const now = Timestamp.now();
+      await leadRef.update({
+        convertedToClientId: linkToExistingClientId,
+        convertedToClientCode: existingCode,
+        convertedAt: now,
+        linkedToExistingClient: true,
+        lastDialOutcome: FieldValue.delete(),
+      });
+      // Auto-complete a recent appointment and refresh the welcome
+      // action item just like the full-create path, since this is
+      // still a "lead → client" transition from the funnel's view.
+      void autoCompleteRecentAppointment({
+        agentId, leadId, clientId: linkToExistingClientId, reason: 'convert',
+      });
+      try {
+        await queueOrRefreshWelcomeActionItem({ db, agentId, clientId: linkToExistingClientId });
+      } catch (welcomeErr) {
+        console.error('[leads/convert] welcome refresh failed (non-blocking):', welcomeErr);
+      }
+      return NextResponse.json({
+        clientId: linkToExistingClientId,
+        clientCode: existingCode,
+        linkedToExistingClient: true,
+      });
+    }
+
+    // ── Precheck for duplicates (skipped when force=true) ──
+    if (!force) {
+      const match = await findExistingClient(db, agentId, {
+        name, dateOfBirth, phone, email,
+      });
+      if (match) {
+        const matchedRef = db.collection('agents').doc(agentId).collection('clients').doc(match.clientId);
+        const matchedSnap = await matchedRef.get();
+        const matchedData = matchedSnap.exists ? matchedSnap.data() : null;
+        return NextResponse.json(
+          {
+            matched: true,
+            existingClientId: match.clientId,
+            existingClientName: matchedData?.name ?? '',
+            existingClientCode: matchedData?.clientCode ?? null,
+            existingDateOfBirth: matchedData?.dateOfBirth ?? null,
+            existingPhone: matchedData?.phone ?? null,
+            existingEmail: matchedData?.email ?? null,
+            match: {
+              bucket: match.match.bucket,
+              confidence: match.match.confidence,
+              reason: match.match.reason,
+            },
+          },
+          { status: 409 },
+        );
+      }
+    }
     // Agent-private editorial notes carry over from lead → client so
     // the context the agent built up during prospecting + booking
     // doesn't get stranded the moment the sale closes. Top-level mirror

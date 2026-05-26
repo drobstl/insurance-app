@@ -7,7 +7,7 @@ import { useDashboard } from '../DashboardContext';
 import SectionTipCard from '../../../components/SectionTipCard';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
-import { getAnniversaryDate, daysUntilAnniversary } from '../../../lib/policyUtils';
+import { getUpcomingAnniversaryIfEligible, daysUntilAnniversary } from '../../../lib/policyUtils';
 
 interface ReviewMessage {
   role: 'client' | 'agent-ai' | 'agent-manual';
@@ -68,6 +68,10 @@ interface PolicyReviewUI {
   premiumAmount: number | null;
   coverageAmount: number | null;
   anniversaryDate: string;
+  /** The Nth annual anniversary this campaign was created for (1, 2, ...).
+   *  Missing on campaigns created before the annual-cadence rollout — treat
+   *  those as year 1. */
+  anniversaryYear?: number;
   messageStyle: string;
   status: string;
   conversation: ReviewMessage[];
@@ -161,6 +165,7 @@ export default function PolicyReviewsPage() {
         premiumAmount: review.premiumAmount ?? null,
         coverageAmount: review.coverageAmount ?? null,
         anniversaryDate: review.anniversaryDate || '',
+        anniversaryYear: typeof review.anniversaryYear === 'number' ? review.anniversaryYear : undefined,
         messageStyle: review.messageStyle || 'check_in',
         status: review.status || 'outreach-sent',
         conversation: Array.isArray(review.conversation) ? review.conversation : [],
@@ -203,10 +208,21 @@ export default function PolicyReviewsPage() {
     }, () => {});
   }, [user]);
 
-  const startedPolicyReviewPolicyIds = useMemo(() => {
-    const set = new Set<string>();
-    reviews.forEach((r) => { if (r.policyId) set.add(r.policyId); });
-    return set;
+  // Annual cadence: track the highest anniversaryYear a campaign exists
+  // for, per policy. Older campaigns without the field count as year 1.
+  // The pending-anniversary scan hides a policy only when this map's value
+  // is ≥ the upcoming anniversary year.
+  const startedPolicyReviewYearByPolicyId = useMemo(() => {
+    const map = new Map<string, number>();
+    reviews.forEach((r) => {
+      if (!r.policyId) return;
+      const year = typeof r.anniversaryYear === 'number' && r.anniversaryYear > 0
+        ? r.anniversaryYear
+        : 1;
+      const prev = map.get(r.policyId);
+      if (prev === undefined || year > prev) map.set(r.policyId, year);
+    });
+    return map;
   }, [reviews]);
 
   useEffect(() => {
@@ -228,8 +244,12 @@ export default function PolicyReviewsPage() {
               if (!res.ok) return;
               const { policies } = await res.json() as { policies: PolicyLite[] };
               (policies || []).forEach((p) => {
-                if (startedPolicyReviewPolicyIds.has(p.id)) return;
-                const anniversary = getAnniversaryDate(p.createdAt, p.effectiveDate);
+                const anniversary = getUpcomingAnniversaryIfEligible({
+                  policyId: p.id,
+                  createdAt: p.createdAt,
+                  effectiveDate: p.effectiveDate,
+                  startedPolicyReviewYearByPolicyId,
+                });
                 if (!anniversary) return;
                 const nameParts = (client.name || 'Client').trim().split(/\s+/);
                 next.push({
@@ -252,7 +272,7 @@ export default function PolicyReviewsPage() {
       } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
-  }, [user, clients, startedPolicyReviewPolicyIds]);
+  }, [user, clients, startedPolicyReviewYearByPolicyId]);
 
   const handleToggleAi = async (reviewId: string, currentValue: boolean) => {
     if (!user) return;

@@ -560,6 +560,18 @@ export default function LeadDetailPanel({
   const [showConvertConfirm, setShowConvertConfirm] = useState(false);
   const [convertBusy, setConvertBusy] = useState(false);
   const [convertError, setConvertError] = useState<string | null>(null);
+  // Phase 4c — when the convert endpoint returns 409 it means the lead
+  // matches an existing client. We capture the match and surface a
+  // secondary prompt: link to existing, or create new anyway.
+  const [convertDuplicateMatch, setConvertDuplicateMatch] = useState<{
+    existingClientId: string;
+    existingClientName: string;
+    existingClientCode: string | null;
+    existingDateOfBirth: string | null;
+    existingPhone: string | null;
+    existingEmail: string | null;
+    match: { bucket: string; confidence: number; reason: string };
+  } | null>(null);
   // Whether Google Calendar is connected — gates the calendar-invite + Meet
   // affordances in the appointment picker. Fetched once on mount.
   const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
@@ -2232,16 +2244,32 @@ export default function LeadDetailPanel({
               </button>
               <button
                 onClick={async () => {
-                  if (!user) return;
+                  if (!user || !lead) return;
                   setConvertBusy(true);
                   setConvertError(null);
                   try {
                     const token = await user.getIdToken();
                     const res = await fetch(`/api/leads/${lead.id}/convert`, {
                       method: 'POST',
-                      headers: { Authorization: `Bearer ${token}` },
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({}),
                     });
                     const data = await res.json().catch(() => ({}));
+                    if (res.status === 409 && data?.matched) {
+                      // Duplicate precheck found an existing match — show
+                      // the secondary prompt instead of completing the convert.
+                      setConvertDuplicateMatch({
+                        existingClientId: data.existingClientId,
+                        existingClientName: data.existingClientName ?? '',
+                        existingClientCode: data.existingClientCode ?? null,
+                        existingDateOfBirth: data.existingDateOfBirth ?? null,
+                        existingPhone: data.existingPhone ?? null,
+                        existingEmail: data.existingEmail ?? null,
+                        match: data.match ?? { bucket: 'strong', confidence: 0, reason: '' },
+                      });
+                      setShowConvertConfirm(false);
+                      return;
+                    }
                     if (!res.ok) {
                       setConvertError(data?.error || `Failed (${res.status})`);
                       return;
@@ -2264,6 +2292,132 @@ export default function LeadDetailPanel({
                 className="flex-1 py-2.5 px-4 text-sm font-semibold text-white bg-[#005851] hover:bg-[#004440] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-50"
               >
                 {convertBusy ? 'Converting…' : 'Convert to client'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Phase 4c: duplicate-match prompt — surfaced when the convert
+          API's precheck found an existing client matching this lead.
+          Three actions: link to the existing record (default), create
+          a new client anyway (override), or cancel. */}
+      {convertDuplicateMatch && lead && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => !convertBusy && setConvertDuplicateMatch(null)}
+          />
+          <div className="relative bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="p-5 border-b border-[#ececec]">
+              <h3 className="text-xl font-bold text-[#000000]">
+                Matches an existing client
+              </h3>
+              <p className="text-sm text-[#707070] mt-1">
+                {convertDuplicateMatch.match.reason
+                  ? `${convertDuplicateMatch.match.reason.charAt(0).toUpperCase() + convertDuplicateMatch.match.reason.slice(1)}.`
+                  : 'This lead looks like an existing client in your list.'}
+              </p>
+            </div>
+            <div className="p-5 space-y-3">
+              <div className="rounded-[5px] bg-[#f8f8f8] border border-[#d0d0d0] p-3">
+                <p className="text-sm font-semibold text-[#000000]">
+                  {convertDuplicateMatch.existingClientName || '(no name on file)'}
+                </p>
+                <div className="text-xs text-[#5f5f5f] mt-1 space-y-0.5">
+                  {convertDuplicateMatch.existingDateOfBirth && (
+                    <div>DOB {convertDuplicateMatch.existingDateOfBirth}</div>
+                  )}
+                  {convertDuplicateMatch.existingPhone && <div>{convertDuplicateMatch.existingPhone}</div>}
+                  {convertDuplicateMatch.existingEmail && (
+                    <div className="truncate">{convertDuplicateMatch.existingEmail}</div>
+                  )}
+                  {convertDuplicateMatch.existingClientCode && (
+                    <div className="font-mono text-[#005851]">{convertDuplicateMatch.existingClientCode}</div>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-[#707070] leading-relaxed">
+                Linking points this lead at the existing client without creating a duplicate record.
+                The lead&apos;s notes stay on the lead — copy anything important to the client manually.
+              </p>
+              {convertError && (
+                <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-[5px] px-3 py-2">
+                  {convertError}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col gap-2 p-5 border-t border-[#ececec] bg-[#fafafa]">
+              <button
+                onClick={async () => {
+                  if (!user || !lead) return;
+                  setConvertBusy(true);
+                  setConvertError(null);
+                  try {
+                    const token = await user.getIdToken();
+                    const res = await fetch(`/api/leads/${lead.id}/convert`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({
+                        linkToExistingClientId: convertDuplicateMatch.existingClientId,
+                      }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                      setConvertError(data?.error || `Failed (${res.status})`);
+                      return;
+                    }
+                    setConvertDuplicateMatch(null);
+                    onConverted?.();
+                  } catch (err) {
+                    console.error('link to existing error:', err);
+                    setConvertError('Network error — try again');
+                  } finally {
+                    setConvertBusy(false);
+                  }
+                }}
+                disabled={convertBusy}
+                className="w-full py-2.5 px-4 text-sm font-semibold text-white bg-[#005851] hover:bg-[#004440] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-50"
+              >
+                {convertBusy ? 'Linking…' : `Link to ${convertDuplicateMatch.existingClientName.split(' ')[0] || 'this client'}`}
+              </button>
+              <button
+                onClick={async () => {
+                  if (!user || !lead) return;
+                  setConvertBusy(true);
+                  setConvertError(null);
+                  try {
+                    const token = await user.getIdToken();
+                    const res = await fetch(`/api/leads/${lead.id}/convert`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ force: true }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                      setConvertError(data?.error || `Failed (${res.status})`);
+                      return;
+                    }
+                    setConvertDuplicateMatch(null);
+                    onConverted?.();
+                  } catch (err) {
+                    console.error('force convert error:', err);
+                    setConvertError('Network error — try again');
+                  } finally {
+                    setConvertBusy(false);
+                  }
+                }}
+                disabled={convertBusy}
+                className="w-full py-2.5 px-4 text-sm font-semibold text-[#0D4D4D] bg-white hover:bg-[#f8f8f8] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-50"
+              >
+                Create as new client anyway
+              </button>
+              <button
+                onClick={() => !convertBusy && setConvertDuplicateMatch(null)}
+                disabled={convertBusy}
+                className="w-full py-2 text-xs text-[#707070] hover:text-[#000000] transition-colors disabled:opacity-50"
+              >
+                Cancel
               </button>
             </div>
           </div>

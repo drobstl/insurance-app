@@ -20,7 +20,9 @@ test.describe('Single-file add client flow (authenticated)', () => {
     await page.getByRole('button', { name: 'Add Client' }).click();
 
     await expect(page.getByRole('heading', { name: 'Add Client' })).toBeVisible();
-    await expect(page.getByText('Upload an application or expand manual entry.')).toBeVisible();
+    await expect(
+      page.getByText('Upload an application for an AI draft, or expand manual entry. You can edit every field before saving.'),
+    ).toBeVisible();
     await expect(page.getByRole('button', { name: 'Upload Application PDF' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Expand Manual Entry' }).click();
@@ -98,6 +100,11 @@ test.describe('Single-file add client flow (authenticated)', () => {
         mimeType: 'application/pdf',
         buffer: await buildPdfFixtureBuffer(),
       });
+
+    // Per the staged-PDF flow (commit 6bbb2ac), the file is staged first so
+    // the agent confirms the Application Type / carrier before extraction.
+    // Click the Upload button to actually kick off the extraction job.
+    await page.getByRole('button', { name: 'Upload', exact: true }).click();
 
     await expect(page.getByRole('heading', { name: 'Review & Confirm' })).toBeVisible();
     const reviewPanel = page.locator('[data-onboarding-target="clients-addflow-review-panel"]');

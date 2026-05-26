@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback, useRef, type CSSProperties } from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   collection,
@@ -250,6 +251,27 @@ interface Policy {
 // See web/lib/extracted-to-policy-form-data.ts for the full type.
 
 type AddFlowStage = 'list' | 'upload' | 'review' | 'welcome';
+
+/**
+ * Shape returned by POST /api/clients/find-existing — the create-time
+ * duplicate precheck. Mirrors the keys the API hydrates from the
+ * existing client doc (so the UI can render a useful prompt without a
+ * second round-trip) plus the matcher's bucket/confidence/reason.
+ *
+ * Used by both Phase 4a (PDF submit-time modal) and Phase 4b (inline
+ * warn-as-you-type banner).
+ */
+type DuplicateMatchInfo = {
+  clientId: string;
+  clientName: string;
+  clientCode: string | null;
+  bucket: 'exact' | 'strong' | 'fuzzy-corroborated' | 'fuzzy-name-only' | 'weak';
+  confidence: number;
+  reason: string;
+  dateOfBirth: string | null;
+  phone: string | null;
+  email: string | null;
+};
 
 interface ImportRow {
   name: string;
@@ -855,6 +877,20 @@ export default function ClientsPage() {
   const [addFlowToast, setAddFlowToast] = useState<{ message: string; body?: string; celebrate: boolean } | null>(null);
   const [activeWalkthrough, setActiveWalkthrough] = useState<'onboarding' | 'bulkImport' | null>(null);
 
+  // ── Duplicate-match state (Phases 4a + 4b; see lib/client-dedup.ts) ──
+  // `pdfDuplicateMatch` powers the submit-time modal in the PDF parse
+  // flow (Phase 4a). `liveDuplicateMatch` powers the inline warning
+  // banner that appears as the agent types/edits the form fields
+  // (Phase 4b — manual entry and PDF review both call the same
+  // precheck on a 400ms debounce). They're separate so a stale live
+  // match doesn't accidentally bypass the modal on PDF submit.
+  // `pdfDuplicateOverride` is flipped when the agent explicitly chose
+  // "Create as new" in the modal so a second submit skips the precheck.
+  const [pdfDuplicateMatch, setPdfDuplicateMatch] = useState<DuplicateMatchInfo | null>(null);
+  const [pdfDuplicateOverride, setPdfDuplicateOverride] = useState(false);
+  const [attachingToExisting, setAttachingToExisting] = useState(false);
+  const [liveDuplicateMatch, setLiveDuplicateMatch] = useState<DuplicateMatchInfo | null>(null);
+
   // ── Delete client state ──
   const [deleteConfirmClient, setDeleteConfirmClient] = useState<Client | null>(null);
   const [deletingClient, setDeletingClient] = useState(false);
@@ -999,7 +1035,7 @@ export default function ClientsPage() {
 
   // ── Anniversary visibility ──
   const [clientUpcomingAnniversaryCounts, setClientUpcomingAnniversaryCounts] = useState<Record<string, number>>({});
-  const [startedPolicyReviewPolicyIds, setStartedPolicyReviewPolicyIds] = useState<Set<string>>(new Set());
+  const [startedPolicyReviewYearByPolicyId, setStartedPolicyReviewYearByPolicyId] = useState<Map<string, number>>(new Map());
 
   // ── Share toast state ──
   const [copiedClientId, setCopiedClientId] = useState<string | null>(null);
@@ -1268,14 +1304,19 @@ export default function ClientsPage() {
     if (!user) return;
     const q = query(collection(db, 'agents', user.uid, 'policyReviews'));
     return onSnapshot(q, (snap) => {
-      const policyIds = new Set<string>();
+      // Annual cadence: track the highest anniversaryYear a campaign exists
+      // for, per policy. Older docs without the field count as year 1.
+      const yearByPolicyId = new Map<string, number>();
       snap.docs.forEach((reviewDoc) => {
-        const data = reviewDoc.data() as { policyId?: unknown };
-        if (typeof data.policyId === 'string' && data.policyId.trim().length > 0) {
-          policyIds.add(data.policyId);
-        }
+        const data = reviewDoc.data() as { policyId?: unknown; anniversaryYear?: unknown };
+        if (typeof data.policyId !== 'string' || data.policyId.trim().length === 0) return;
+        const year = typeof data.anniversaryYear === 'number' && data.anniversaryYear > 0
+          ? data.anniversaryYear
+          : 1;
+        const prev = yearByPolicyId.get(data.policyId);
+        if (prev === undefined || year > prev) yearByPolicyId.set(data.policyId, year);
       });
-      setStartedPolicyReviewPolicyIds(policyIds);
+      setStartedPolicyReviewYearByPolicyId(yearByPolicyId);
     }, () => {});
   }, [user]);
 
@@ -1308,7 +1349,7 @@ export default function ClientsPage() {
                     policyId: p.id,
                     createdAt: p.createdAt,
                     effectiveDate: p.effectiveDate,
-                    startedPolicyReviewPolicyIds,
+                    startedPolicyReviewYearByPolicyId,
                   })
                 ) {
                   clientUpcomingCount += 1;
@@ -1332,7 +1373,7 @@ export default function ClientsPage() {
     })();
 
     return () => { cancelled = true; };
-  }, [user, clients, startedPolicyReviewPolicyIds]);
+  }, [user, clients, startedPolicyReviewYearByPolicyId]);
 
   // ─── Fetch policy summaries for client table ──────────────
   useEffect(() => {
@@ -1577,6 +1618,11 @@ export default function ClientsPage() {
     setWelcomeSending(false);
     setWelcomeActionItemId(null);
     setWelcomeCopied(false);
+    // Clear duplicate-match state (Phases 4a/4b) so a fresh add flow
+    // never starts with a stale match from the previous attempt.
+    setPdfDuplicateMatch(null);
+    setPdfDuplicateOverride(false);
+    setLiveDuplicateMatch(null);
   }, []);
 
   const handleStartAddFlow = useCallback(() => {
@@ -2012,6 +2058,43 @@ export default function ClientsPage() {
     setFormSuccess('');
     setSubmitting(true);
     try {
+      // ── Duplicate precheck (Phase 4a) ─────────────────────────
+      // Before creating a new client doc from the extracted PDF,
+      // ask the matcher whether the insured already exists. If so,
+      // surface the confirm modal — agent picks attach-to-existing
+      // or create-as-new. The `pdfDuplicateOverride` flag is set
+      // when the agent already chose "create as new" so a second
+      // trip through this handler skips the precheck.
+      if (!pdfDuplicateOverride && user) {
+        try {
+          const token = await user.getIdToken();
+          const resp = await fetch('/api/clients/find-existing', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              name: formData.name.trim(),
+              dateOfBirth: formData.dateOfBirth || undefined,
+              phone: formData.phone.trim() || undefined,
+              email: formData.email.trim() || undefined,
+            }),
+          });
+          if (resp.ok) {
+            const data = await resp.json() as { match: DuplicateMatchInfo | null };
+            if (data.match) {
+              setPdfDuplicateMatch(data.match);
+              setSubmitting(false);
+              return;
+            }
+          }
+          // On network/server failure, fall through and create as
+          // normal. We don't block client creation on a transient
+          // precheck failure — agents can clean up via the review
+          // screen later if a real dupe slips through.
+        } catch (precheckErr) {
+          console.warn('Duplicate precheck failed (non-blocking):', precheckErr);
+        }
+      }
+
       const editedExtractedCoreFields = Boolean(pendingClientApplicationData) && (
         // Compare against the normalized name (same transform we applied
         // when populating the form) so the "Last, First" → "First Last"
@@ -2047,12 +2130,178 @@ export default function ClientsPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [submitting, createClientFromAddFlow, buildWelcomeSms, formData.preferredLanguage, formData.name, formData.phone, formData.email, formData.dateOfBirth, pendingClientApplicationData, queueWelcomeActionItem]);
+  }, [submitting, createClientFromAddFlow, buildWelcomeSms, formData.preferredLanguage, formData.name, formData.phone, formData.email, formData.dateOfBirth, pendingClientApplicationData, queueWelcomeActionItem, pdfDuplicateOverride, user]);
 
   const finishAddFlow = useCallback((message: string, celebrate: boolean, body?: string) => {
     handleCloseAddFlow();
     setAddFlowToast({ message, body, celebrate });
   }, [handleCloseAddFlow]);
+
+  // ── Duplicate-prompt handlers (Phase 4a) ────────────────────────
+  // Triggered when the precheck inside handleReviewConfirmAndCreate
+  // finds an existing client matching the extracted PDF data.
+
+  /**
+   * "Add as new policy to [Existing]" — skip client creation entirely
+   * and create the extracted policy on the existing client's record.
+   * Uses the same apiCreatePolicy path as the normal flow, just with a
+   * different clientId. Closes the add flow with a success toast.
+   */
+  const handleAttachPolicyToExisting = useCallback(async () => {
+    if (!pdfDuplicateMatch || !user) return;
+    if (attachingToExisting) return;
+    setFormError('');
+    setAttachingToExisting(true);
+    try {
+      const existingClientId = pdfDuplicateMatch.clientId;
+      const existingDisplayName = formatClientDisplayName(pdfDuplicateMatch.clientName) || 'this client';
+
+      // Only attach a policy if the PDF actually carried one. If the
+      // extracted data was just contact fields, the merge is a no-op
+      // and we can close out without writing anything.
+      if (hasAddFlowPolicyInput(addFlowPolicyForm)) {
+        const trimmedName = formData.name.trim() || pdfDuplicateMatch.clientName;
+        const policyData: Record<string, unknown> = {
+          policyType: addFlowPolicyForm.policyType.trim(),
+          insuranceCompany: addFlowPolicyForm.insuranceCompany === 'Other'
+            ? addFlowPolicyForm.otherCarrier.trim()
+            : addFlowPolicyForm.insuranceCompany.trim(),
+          policyOwner: addFlowPolicyForm.policyOwner.trim() || trimmedName,
+          beneficiaries: addFlowPolicyForm.beneficiaries
+            .filter((b) => b.name.trim())
+            .map(normalizeBeneficiaryForSave),
+          coverageAmount: addFlowPolicyForm.coverageAmount ? parseFloat(addFlowPolicyForm.coverageAmount) : 0,
+          premiumAmount: addFlowPolicyForm.premiumAmount ? parseFloat(addFlowPolicyForm.premiumAmount) : 0,
+          premiumFrequency: addFlowPolicyForm.premiumFrequency || 'monthly',
+          renewalDate: addFlowPolicyForm.renewalDate || '',
+          effectiveDate: addFlowPolicyForm.effectiveDate || null,
+          status: 'Active',
+        };
+        if (
+          addFlowPolicyForm.policyType === 'Mortgage Protection' ||
+          addFlowPolicyForm.policyType === 'Whole Life'
+        ) {
+          policyData.amountOfProtection = addFlowPolicyForm.amountOfProtection
+            ? parseFloat(addFlowPolicyForm.amountOfProtection)
+            : 0;
+          policyData.protectionUnit = addFlowPolicyForm.protectionUnit;
+        }
+        const token = await user.getIdToken();
+        const createdPolicyId = await apiCreatePolicy(token, existingClientId, policyData);
+        await syncBeneficiaryCodeIndex(
+          existingClientId,
+          createdPolicyId,
+          (policyData.beneficiaries as Array<{ name: string; type: 'primary' | 'contingent'; accessCode?: string }>) || [],
+        );
+        refreshSummaries();
+      }
+
+      captureEvent(ANALYTICS_EVENTS.CLIENT_ADDED, {
+        method: 'pdf_parse_attached_to_existing',
+      });
+
+      setPdfDuplicateMatch(null);
+      setPdfDuplicateOverride(false);
+      finishAddFlow(
+        `Added new policy to ${existingDisplayName}`,
+        true,
+        'The policy is now attached to their existing record. No new client was created.',
+      );
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to attach policy. Please try again.');
+    } finally {
+      setAttachingToExisting(false);
+    }
+  }, [
+    pdfDuplicateMatch, user, attachingToExisting, addFlowPolicyForm, formData.name,
+    hasAddFlowPolicyInput, refreshSummaries, syncBeneficiaryCodeIndex, finishAddFlow,
+  ]);
+
+  /**
+   * "Create as new client anyway" — agent confirms the match isn't a
+   * real duplicate (twins, alias, etc.). Set the override flag and
+   * re-trigger the normal confirm-and-create path; the precheck inside
+   * handleReviewConfirmAndCreate skips when the override is true.
+   */
+  const handleCreateAsNewOverride = useCallback(() => {
+    setPdfDuplicateMatch(null);
+    setPdfDuplicateOverride(true);
+    // Re-invoke the confirm path on the next tick so React processes
+    // the state flip before the precheck branch reads it.
+    setTimeout(() => { handleReviewConfirmAndCreate(); }, 0);
+  }, [handleReviewConfirmAndCreate]);
+
+  // ── Live duplicate precheck (Phase 4b) ────────────────────────
+  // Debounced 400ms after the agent edits name/dob/phone/email during
+  // the manual entry form OR the PDF review form, calls
+  // /api/clients/find-existing and surfaces an inline warning banner
+  // when a match is found. The banner is informational — submit stays
+  // enabled. For PDF, the submit-time modal (Phase 4a) is the actual
+  // decision point; the inline banner just gives early notice.
+  //
+  // We skip the live precheck when:
+  //   • the add flow is on the list or welcome stage (form not visible)
+  //   • the name is too short (< 2 chars; matches nothing useful)
+  //   • the agent already chose "Create as new" via the Phase 4a modal
+  //     (override flag set) — no point re-warning about the same dup.
+  useEffect(() => {
+    if (!user) return;
+    if (addFlowStage !== 'upload' && addFlowStage !== 'review') {
+      if (liveDuplicateMatch) setLiveDuplicateMatch(null);
+      return;
+    }
+    if (pdfDuplicateOverride) return;
+
+    const name = formData.name.trim();
+    if (name.length < 2) {
+      if (liveDuplicateMatch) setLiveDuplicateMatch(null);
+      return;
+    }
+
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const token = await user.getIdToken();
+        const resp = await fetch('/api/clients/find-existing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            name,
+            dateOfBirth: formData.dateOfBirth || undefined,
+            phone: formData.phone.trim() || undefined,
+            email: formData.email.trim() || undefined,
+          }),
+        });
+        if (!resp.ok) return;
+        const data = await resp.json() as { match: DuplicateMatchInfo | null };
+        if (cancelled) return;
+        setLiveDuplicateMatch(data.match);
+      } catch {
+        // Silent — live precheck is best-effort. Real submit will
+        // re-run via the Phase 4a path for PDF, or be allowed
+        // through for manual (agent saw the warning or not).
+      }
+    }, 400);
+
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [user, addFlowStage, formData.name, formData.dateOfBirth, formData.phone, formData.email, pdfDuplicateOverride, liveDuplicateMatch]);
+
+  /**
+   * "Open existing" — clicked from the inline duplicate warning.
+   * Closes the add flow, sets the clients-list search filter to the
+   * existing client's name so they surface as the only result, and
+   * scrolls back to the top. From there the agent can click the
+   * existing client to view/edit them.
+   */
+  const handleOpenExistingFromBanner = useCallback(() => {
+    if (!liveDuplicateMatch) return;
+    const name = (liveDuplicateMatch.clientName || '').trim();
+    if (name) setSearchQuery(name);
+    handleCloseAddFlow();
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [liveDuplicateMatch, handleCloseAddFlow]);
 
   const handleSkipWelcome = useCallback(() => {
     if (!createdClientContext) {
@@ -4302,9 +4551,18 @@ export default function ClientsPage() {
   return (
     <div className="max-w-5xl mx-auto">
       {/* Page Title */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#000000]">Clients</h1>
-        <p className="text-[#707070] text-sm mt-1">Manage your clients, policies, and applications.</p>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-[#000000]">Clients</h1>
+          <p className="text-[#707070] text-sm mt-1">Manage your clients, policies, and applications.</p>
+        </div>
+        <Link
+          href="/dashboard/clients/duplicates"
+          className="text-sm font-semibold text-[#005851] hover:underline shrink-0 whitespace-nowrap pt-1"
+          title="Scan your client list for duplicates and merge them"
+        >
+          Find duplicates →
+        </Link>
       </div>
 
       {addFlowToast?.celebrate && addFlowToast.body && (
@@ -5548,6 +5806,13 @@ export default function ClientsPage() {
                           <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))} className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
                         </div>
                       </div>
+                      {liveDuplicateMatch && (
+                        <DuplicateInlineBanner
+                          match={liveDuplicateMatch}
+                          onOpen={handleOpenExistingFromBanner}
+                          onDismiss={() => setLiveDuplicateMatch(null)}
+                        />
+                      )}
                       {renderAddFlowPolicyInputs()}
                       {formError && <p className="text-xs text-red-600">{formError}</p>}
                       <div className="flex gap-3">
@@ -5598,6 +5863,13 @@ export default function ClientsPage() {
                     <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))} className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm" />
                   </div>
                 </div>
+                {liveDuplicateMatch && (
+                  <DuplicateInlineBanner
+                    match={liveDuplicateMatch}
+                    onOpen={handleOpenExistingFromBanner}
+                    onDismiss={() => setLiveDuplicateMatch(null)}
+                  />
+                )}
                 {renderAddFlowPolicyInputs()}
                 {formError && <p className="text-xs text-red-600">{formError}</p>}
                 <div className="flex gap-3 pt-2">
@@ -5711,8 +5983,8 @@ export default function ClientsPage() {
                     <div className="shrink-0 rounded-md bg-white p-1.5 border border-[#ececec]">
                       <QRCodeSVG
                         value={buildSmsUrlForQr(createdClientContext.phone, welcomeDraft)}
-                        size={96}
-                        level="M"
+                        size={144}
+                        level="L"
                         marginSize={0}
                       />
                     </div>
@@ -6774,6 +7046,151 @@ export default function ClientsPage() {
         title="Bulk Import walkthrough"
         subtitle="How to migrate your existing book into AFL."
       />
+
+      {/* ── Duplicate match prompt (PDF parse path) ──
+          Surfaces when the precheck during PDF-parse confirmation
+          finds an existing client matching the extracted insured.
+          Two actions: attach the extracted policy to that record
+          (primary; the common case for "this is John's 2nd policy")
+          or create a new client anyway (secondary; for twins, alias,
+          known data error). */}
+      {pdfDuplicateMatch && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative w-full max-w-md bg-white rounded-[5px] border-2 border-[#1A1A1A] border-r-[4px] border-b-[4px] shadow-2xl">
+            <div className="p-6">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="shrink-0 w-9 h-9 rounded-full bg-[#daf3f0] flex items-center justify-center">
+                  <svg className="w-5 h-5 text-[#005851]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-5.13a4 4 0 11-8 0 4 4 0 018 0zm6 3a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-[#000000] leading-tight">
+                    Looks like this is{' '}
+                    {formatClientDisplayName(pdfDuplicateMatch.clientName) || 'an existing client'}&rsquo;s record
+                  </h3>
+                  <p className="text-sm text-[#5f5f5f] mt-1">
+                    {pdfDuplicateMatch.reason
+                      ? `${pdfDuplicateMatch.reason.charAt(0).toUpperCase() + pdfDuplicateMatch.reason.slice(1)}.`
+                      : 'They already exist in your client list.'}
+                    {' '}Add this policy to their record, or create a brand-new client?
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-[5px] bg-[#f8f8f8] border border-[#d0d0d0] p-3 mb-4">
+                <p className="text-sm font-semibold text-[#000000]">
+                  {formatClientDisplayName(pdfDuplicateMatch.clientName) || '(no name)'}
+                </p>
+                <div className="text-xs text-[#5f5f5f] mt-1 space-y-0.5">
+                  {pdfDuplicateMatch.dateOfBirth && <div>DOB {pdfDuplicateMatch.dateOfBirth}</div>}
+                  {pdfDuplicateMatch.phone && <div>{pdfDuplicateMatch.phone}</div>}
+                  {pdfDuplicateMatch.email && <div className="truncate">{pdfDuplicateMatch.email}</div>}
+                </div>
+              </div>
+
+              {formError && (
+                <div className="mb-3 rounded-[5px] bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+                  {formError}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={handleAttachPolicyToExisting}
+                  disabled={attachingToExisting || submitting}
+                  className="w-full px-4 py-2.5 rounded-[5px] text-sm font-semibold bg-[#005851] text-white hover:bg-[#0a6e66] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                >
+                  {attachingToExisting
+                    ? 'Adding policy…'
+                    : `Add as new policy to ${formatClientDisplayName(pdfDuplicateMatch.clientName).split(' ')[0] || 'them'}`}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateAsNewOverride}
+                  disabled={attachingToExisting || submitting}
+                  className="w-full px-4 py-2.5 rounded-[5px] text-sm font-semibold border border-[#1A1A1A] text-[#000000] bg-white hover:bg-[#f8f8f8] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                >
+                  Create as a new client anyway
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPdfDuplicateMatch(null);
+                    setPdfDuplicateOverride(false);
+                  }}
+                  disabled={attachingToExisting || submitting}
+                  className="w-full px-4 py-2 text-xs text-[#707070] hover:text-[#000000] transition-colors disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Inline duplicate-match warning banner (Phase 4b).
+ *
+ * Rendered inside both the manual entry form and the PDF review form,
+ * above the action buttons. Informational — submit stays enabled.
+ * Opens the existing client via search filter, or dismisses for this
+ * session (next debounced precheck will resurface it if the agent
+ * keeps editing toward the same match).
+ */
+function DuplicateInlineBanner({
+  match,
+  onOpen,
+  onDismiss,
+}: {
+  match: DuplicateMatchInfo;
+  onOpen: () => void;
+  onDismiss: () => void;
+}) {
+  const displayName = formatClientDisplayName(match.clientName) || 'an existing client';
+  return (
+    <div
+      className="flex items-start gap-3 rounded-[5px] border border-[#7a5800]/30 bg-[#fff4d6] px-3 py-2.5"
+      role="status"
+      aria-live="polite"
+    >
+      <svg className="w-4 h-4 mt-0.5 shrink-0 text-[#7a5800]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86l-8.5 14.5A1 1 0 002.64 20h16.72a1 1 0 00.85-1.64l-8.5-14.5a1 1 0 00-1.72 0z" />
+      </svg>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-semibold text-[#7a5800] leading-snug">
+          {displayName} is already in your client list.
+        </p>
+        <p className="text-xs text-[#7a5800]/80 mt-0.5 leading-snug">
+          {match.reason ? `${match.reason.charAt(0).toUpperCase() + match.reason.slice(1)}.` : ''}
+          {' '}If this is the same person, open their record instead of creating a duplicate.
+        </p>
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="text-xs font-semibold text-[#005851] hover:underline whitespace-nowrap"
+        >
+          Open existing →
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss duplicate warning"
+          className="ml-1 w-5 h-5 rounded-full flex items-center justify-center text-[#7a5800]/60 hover:text-[#7a5800] hover:bg-[#7a5800]/10 transition-colors"
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
     </div>
   );
 }

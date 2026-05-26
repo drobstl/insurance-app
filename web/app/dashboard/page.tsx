@@ -111,7 +111,7 @@ export default function DashboardHomePage() {
   const [conservationAlerts, setConservationAlerts] = useState<ConservationAlert[]>([]);
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [anniversaryCount, setAnniversaryCount] = useState(0);
-  const [startedPolicyReviewPolicyIds, setStartedPolicyReviewPolicyIds] = useState<Set<string>>(new Set());
+  const [startedPolicyReviewYearByPolicyId, setStartedPolicyReviewYearByPolicyId] = useState<Map<string, number>>(new Map());
   const [stats, setStats] = useState<AgentAggregates | null>(null);
 
   const [fanOpen, setFanOpen] = useState(false);
@@ -187,14 +187,21 @@ export default function DashboardHomePage() {
     if (!user) return;
     const q = query(collection(db, 'agents', user.uid, 'policyReviews'));
     return onSnapshot(q, (snap) => {
-      const policyIds = new Set<string>();
+      // Map policyId → max anniversaryYear seen across this policy's
+      // campaigns. Older docs without `anniversaryYear` are treated as
+      // year 1 (the pre-annual rollout default). The UI hides the
+      // anniversary badge only when this year ≥ the upcoming anniversary.
+      const yearByPolicyId = new Map<string, number>();
       snap.docs.forEach((reviewDoc) => {
-        const data = reviewDoc.data() as { policyId?: unknown };
-        if (typeof data.policyId === 'string' && data.policyId.trim().length > 0) {
-          policyIds.add(data.policyId);
-        }
+        const data = reviewDoc.data() as { policyId?: unknown; anniversaryYear?: unknown };
+        if (typeof data.policyId !== 'string' || data.policyId.trim().length === 0) return;
+        const year = typeof data.anniversaryYear === 'number' && data.anniversaryYear > 0
+          ? data.anniversaryYear
+          : 1;
+        const prev = yearByPolicyId.get(data.policyId);
+        if (prev === undefined || year > prev) yearByPolicyId.set(data.policyId, year);
       });
-      setStartedPolicyReviewPolicyIds(policyIds);
+      setStartedPolicyReviewYearByPolicyId(yearByPolicyId);
     }, () => {});
   }, [user]);
 
@@ -222,7 +229,7 @@ export default function DashboardHomePage() {
                     policyId: p.id,
                     createdAt: p.createdAt,
                     effectiveDate: p.effectiveDate,
-                    startedPolicyReviewPolicyIds,
+                    startedPolicyReviewYearByPolicyId,
                   })
                 ) {
                   count++;
@@ -235,7 +242,7 @@ export default function DashboardHomePage() {
       } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
-  }, [user, clients, startedPolicyReviewPolicyIds]);
+  }, [user, clients, startedPolicyReviewYearByPolicyId]);
 
   const activeConservation = conservationAlerts.filter(
     (a) => a.status !== 'saved' && a.status !== 'lost',
