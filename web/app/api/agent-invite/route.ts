@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       inviteCode,
-      inviteUrl: `https://agentforlife.app/signup?ref=${inviteCode}`,
+      inviteUrl: `https://agentforlife.app/pricing?ref=${inviteCode}`,
       agentsReferred: referredSnap.size,
       referralRewardsGiven: data.referralRewardsGiven ?? 0,
     });

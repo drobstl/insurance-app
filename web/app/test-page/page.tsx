@@ -120,7 +120,7 @@ export default function LandingPage() {
               <Link href="/login" className="text-white/80 hover:text-white transition-colors hidden sm:block">
                 Login
               </Link>
-              <Link href="/signup" className="px-5 py-2.5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white font-semibold rounded-full transition-colors">
+              <Link href="/pricing" className="px-5 py-2.5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white font-semibold rounded-full transition-colors">
                 Get the System
               </Link>
             </div>
@@ -148,7 +148,7 @@ export default function LandingPage() {
           </p>
           
           {/* Primary CTA */}
-          <Link href="/signup" className="inline-flex items-center gap-3 px-10 py-5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-xl font-bold rounded-full transition-all shadow-lg shadow-[#3DD6C3]/40 hover:shadow-[#3DD6C3]/60 hover:scale-105">
+          <Link href="/pricing" className="inline-flex items-center gap-3 px-10 py-5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-xl font-bold rounded-full transition-all shadow-lg shadow-[#3DD6C3]/40 hover:shadow-[#3DD6C3]/60 hover:scale-105">
             Get the System
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
@@ -349,7 +349,7 @@ export default function LandingPage() {
 
             {/* CTA Button */}
             <Link 
-              href="/signup" 
+              href="/pricing" 
               className="block w-full py-4 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-xl font-bold rounded-xl transition-all text-center shadow-lg shadow-[#3DD6C3]/30 hover:shadow-[#3DD6C3]/50 hover:scale-[1.02] active:scale-[0.98]"
             >
               Stop the Leak – Get the System
@@ -493,7 +493,7 @@ export default function LandingPage() {
                   <span className="text-white/80 text-lg">Your face, your branding</span>
                 </li>
               </ul>
-              <Link href="/signup" className="inline-flex items-center gap-2 px-8 py-4 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-lg font-bold rounded-full transition-all shadow-lg shadow-[#3DD6C3]/30">
+              <Link href="/pricing" className="inline-flex items-center gap-2 px-8 py-4 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-lg font-bold rounded-full transition-all shadow-lg shadow-[#3DD6C3]/30">
                 Get the System
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
@@ -826,7 +826,7 @@ export default function LandingPage() {
                       </li>
                     ))}
                   </ul>
-                  <Link href="/signup" className="block w-full py-3.5 bg-white/10 hover:bg-white/20 text-white text-lg font-semibold rounded-xl transition-colors text-center border border-white/20">
+                  <Link href="/pricing" className="block w-full py-3.5 bg-white/10 hover:bg-white/20 text-white text-lg font-semibold rounded-xl transition-colors text-center border border-white/20">
                     Get Started
                   </Link>
                 </div>
@@ -854,7 +854,7 @@ export default function LandingPage() {
                       </li>
                     ))}
                   </ul>
-                  <Link href="/signup" className="block w-full py-3.5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-lg font-semibold rounded-xl transition-colors text-center shadow-lg">
+                  <Link href="/pricing" className="block w-full py-3.5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-lg font-semibold rounded-xl transition-colors text-center shadow-lg">
                     Get Started
                   </Link>
                 </div>
@@ -944,7 +944,7 @@ export default function LandingPage() {
           <p className="text-xl text-[#6B7280] mb-10 max-w-2xl mx-auto">
             The agents who thrive don't chase—they attract. Get the system that makes clients stick.
           </p>
-          <Link href="/signup" className="inline-flex items-center gap-3 px-10 py-5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-xl font-bold rounded-full transition-all shadow-lg shadow-[#3DD6C3]/40 hover:shadow-[#3DD6C3]/60 hover:scale-105">
+          <Link href="/pricing" className="inline-flex items-center gap-3 px-10 py-5 bg-[#3DD6C3] hover:bg-[#2BB5A5] text-white text-xl font-bold rounded-full transition-all shadow-lg shadow-[#3DD6C3]/40 hover:shadow-[#3DD6C3]/60 hover:scale-105">
             Get the System
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />

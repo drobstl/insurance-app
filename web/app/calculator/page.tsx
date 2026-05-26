@@ -132,7 +132,7 @@ function CalculatorPageInner() {
             initialRetentionRate={initRet}
             initialReferralRate={initRef}
             initialRewriteRate={initRew}
-            ctaHref="/signup"
+            ctaHref="/pricing"
             ctaText="Stop the Bleeding →"
             layout="horizontal"
             onValuesChange={handleValuesChange}
@@ -148,7 +148,7 @@ function CalculatorPageInner() {
               <span className="text-[#3DD6C3] font-bold">$49/month</span>.
             </p>
             <Link
-              href="/signup"
+              href="/pricing"
               className="shrink-0 inline-flex items-center gap-2 px-6 py-2.5 bg-[#fdcc02] hover:bg-[#e5b802] text-[#0D4D4D] text-sm font-bold rounded-full transition-all shadow-lg shadow-[#fdcc02]/30 hover:shadow-[#fdcc02]/50 hover:scale-105 active:scale-[0.98]"
             >
               Get Started Free
