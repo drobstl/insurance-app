@@ -300,6 +300,22 @@ export async function POST(request: NextRequest) {
       const name = (primaryRow.name || '').trim();
       if (!name) continue;
 
+      // Pre-compute the max effective date across this client's
+      // policies so the drip-release query can orderBy it without
+      // touching the policies subcollection. Stored as YYYY-MM-DD
+      // (lex-sortable). Empty string for clients with no parseable
+      // effective date — they still match the orderBy query and sort
+      // last in DESC order.
+      let latestEffectiveDate = '';
+      for (const row of allRows) {
+        const raw = (row.effectiveDate || '').trim();
+        if (!raw) continue;
+        const parsed = normalizeImportDate(raw);
+        if (parsed && parsed > latestEffectiveDate) {
+          latestEffectiveDate = parsed;
+        }
+      }
+
       const code = generateClientCode();
       const clientPayload: Record<string, unknown> = {
         name,
@@ -316,6 +332,7 @@ export async function POST(request: NextRequest) {
         // welcome action item, and clears the flag.
         bulkImportPendingDrip: true,
         bulkImportSource: 'csv',
+        bulkImportLatestPolicyEffectiveDate: latestEffectiveDate,
       };
       if ((primaryRow.dateOfBirth || '').trim()) {
         clientPayload.dateOfBirth = primaryRow.dateOfBirth.trim();

@@ -282,7 +282,7 @@ export default function WelcomeActionItemCard({
           </summary>
           <div className="mt-2 flex items-center gap-3 rounded-lg border border-[#e3e3e3] bg-white px-3 py-3">
             <div className="shrink-0 rounded-md bg-white p-1.5 border border-[#ececec]">
-              <QRCodeSVG value={qrValue} size={88} level="M" marginSize={0} />
+              <QRCodeSVG value={qrValue} size={144} level="L" marginSize={0} />
             </div>
             <p className="text-[11px] text-[#4f4f4f] leading-snug">
               Point your phone&apos;s camera at this code, tap the notification, and Messages opens with everything pre-filled — works on any phone.

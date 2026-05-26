@@ -15,6 +15,9 @@ interface SerializableReview {
   premiumAmount: number | null;
   coverageAmount: number | null;
   anniversaryDate: string;
+  /** Nth annual anniversary this campaign was created for. Optional —
+   *  campaigns created before the annual-cadence rollout do not have it. */
+  anniversaryYear?: number;
   messageStyle: string;
   status: string;
   conversation: Array<{ role: string; body: string; timestamp: string }>;
@@ -85,6 +88,9 @@ export async function GET(req: NextRequest) {
         premiumAmount: typeof data.premiumAmount === 'number' ? data.premiumAmount : null,
         coverageAmount: typeof data.coverageAmount === 'number' ? data.coverageAmount : null,
         anniversaryDate: typeof data.anniversaryDate === 'string' ? data.anniversaryDate : '',
+        anniversaryYear: typeof data.anniversaryYear === 'number' && data.anniversaryYear > 0
+          ? data.anniversaryYear
+          : undefined,
         messageStyle: typeof data.messageStyle === 'string' ? data.messageStyle : 'check_in',
         status: typeof data.status === 'string' ? data.status : 'outreach-sent',
         conversation,

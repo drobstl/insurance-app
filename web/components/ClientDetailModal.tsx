@@ -50,8 +50,6 @@ interface Policy {
   effectiveDate?: string;
   status: 'Active' | 'Pending' | 'Lapsed';
   createdAt: Timestamp;
-  anniversaryAgentNotifiedAt?: string;
-  anniversaryClientNotifiedAt?: string;
 }
 
 interface BeneficiaryEvent {

@@ -1,10 +1,46 @@
 import React from 'react';
 import { Timestamp } from 'firebase/firestore';
+import { getNextAnniversary as getNextAnniversaryFromDate } from './anniversary-date';
 
 /**
- * Check whether a policy's createdAt date falls within the anniversary display
- * window (0–30 days before the 1-year mark). Used for dashboard/UI to show
- * "anniversary in X days". Client outreach is sent the day after the anniversary.
+ * Resolve the effective "policy start" date from the explicit `effectiveDate`
+ * (preferred) or `createdAt` (fallback). Shared by anniversary math.
+ */
+const resolvePolicyStartDate = (
+  createdAt: Timestamp | { seconds: number; nanoseconds: number } | undefined,
+  effectiveDate?: string,
+): Date | null => {
+  if (effectiveDate) {
+    const parsed = new Date(effectiveDate + 'T00:00:00');
+    if (!isNaN(parsed.getTime())) return parsed;
+  }
+  if (!createdAt) return null;
+  return createdAt instanceof Timestamp
+    ? createdAt.toDate()
+    : new Date(createdAt.seconds * 1000);
+};
+
+/**
+ * Compute the next upcoming anniversary for a policy, plus the anniversary
+ * year N (1 = first anniversary, 2 = second, ...). Delegates to the
+ * pure-date implementation in `anniversary-date.ts` after resolving the
+ * policy's start date from its effective/created fields.
+ *
+ * Returns null when the policy has no resolvable start date.
+ */
+export const getNextAnniversary = (
+  createdAt: Timestamp | { seconds: number; nanoseconds: number } | undefined,
+  effectiveDate?: string,
+): { date: Date; year: number } | null => {
+  const start = resolvePolicyStartDate(createdAt, effectiveDate);
+  if (!start) return null;
+  return getNextAnniversaryFromDate(start);
+};
+
+/**
+ * Check whether a policy is within the anniversary display window (0–30 days
+ * before its next annual anniversary). Used by dashboard/UI counters and
+ * badges. Client outreach is sent the day after the anniversary.
  *
  * Returns `null` if not in window, or the anniversary Date if it is.
  */
@@ -12,31 +48,13 @@ export const getAnniversaryDate = (
   createdAt: Timestamp | { seconds: number; nanoseconds: number } | undefined,
   effectiveDate?: string,
 ): Date | null => {
-  let created: Date | null = null;
-
-  if (effectiveDate) {
-    const parsed = new Date(effectiveDate + 'T00:00:00');
-    if (!isNaN(parsed.getTime())) created = parsed;
-  }
-
-  if (!created) {
-    if (!createdAt) return null;
-    created =
-      createdAt instanceof Timestamp
-        ? createdAt.toDate()
-        : new Date(createdAt.seconds * 1000);
-  }
-
-  const anniversary = new Date(created);
-  anniversary.setFullYear(anniversary.getFullYear() + 1);
+  const next = getNextAnniversary(createdAt, effectiveDate);
+  if (!next) return null;
 
   const now = new Date();
-  const msUntil = anniversary.getTime() - now.getTime();
-  const daysUntil = msUntil / (1000 * 60 * 60 * 24);
-
-  // Display window: 0–30 days before 1-year (for UI). Outreach is day-after.
+  const daysUntil = (next.date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
   if (daysUntil >= 0 && daysUntil <= 30) {
-    return anniversary;
+    return next.date;
   }
   return null;
 };
@@ -49,18 +67,34 @@ export const daysUntilAnniversary = (anniversary: Date): number => {
 
 /**
  * Upcoming anniversary eligibility for UI counters/badges.
- * Excludes policies that already have a started rewrite/policy-review campaign.
+ *
+ * Annual cadence: a Year-1 review must not permanently hide the Year-2
+ * badge. Callers pass a map of `policyId → max anniversaryYear seen in any
+ * existing policyReviews campaign doc`. We hide the badge only when that
+ * stored year is ≥ the *upcoming* anniversary year — i.e. a campaign already
+ * exists for this year's cycle. Older campaigns (lower year) are ignored.
+ *
+ * For campaign docs missing the `anniversaryYear` field (pre-annual rollout),
+ * callers should treat that as `1`.
  */
 export const getUpcomingAnniversaryIfEligible = (params: {
   policyId?: string;
   createdAt: Timestamp | { seconds: number; nanoseconds: number } | undefined;
   effectiveDate?: string;
-  startedPolicyReviewPolicyIds: Set<string>;
+  startedPolicyReviewYearByPolicyId: Map<string, number>;
 }): Date | null => {
-  const anniversary = getAnniversaryDate(params.createdAt, params.effectiveDate);
-  if (!anniversary) return null;
-  if (params.policyId && params.startedPolicyReviewPolicyIds.has(params.policyId)) return null;
-  return anniversary;
+  const next = getNextAnniversary(params.createdAt, params.effectiveDate);
+  if (!next) return null;
+
+  const now = new Date();
+  const daysUntil = (next.date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+  if (daysUntil < 0 || daysUntil > 30) return null;
+
+  if (params.policyId) {
+    const startedYear = params.startedPolicyReviewYearByPolicyId.get(params.policyId);
+    if (startedYear !== undefined && startedYear >= next.year) return null;
+  }
+  return next.date;
 };
 
 /**

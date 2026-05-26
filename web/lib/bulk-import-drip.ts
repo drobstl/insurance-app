@@ -91,13 +91,18 @@ export async function releaseDripForAgent(params: {
     };
   }
 
-  // No orderBy — that would require a composite (bulkImportPendingDrip,
-  // createdAt) index. We don't need strict chronological order; the
-  // pool just needs to drain over successive passes. Default doc-name
-  // ordering is fine; the `.limit()` keeps each pass to the daily cap.
+  // Order by most-recent policy effective date first so the agent's
+  // welcome queue surfaces the freshest policies before older ones —
+  // those are the clients most likely to remember the agent and engage
+  // with a setup text. `bulkImportLatestPolicyEffectiveDate` is
+  // denormalized onto the client doc at import time (see
+  // /api/clients/import-batch) as YYYY-MM-DD or '' when no policy had
+  // a parseable date; the empty-string default keeps date-less clients
+  // in the result set, sorted last under DESC.
   const candidatesSnap = await agentRef
     .collection('clients')
     .where('bulkImportPendingDrip', '==', true)
+    .orderBy('bulkImportLatestPolicyEffectiveDate', 'desc')
     .limit(remainingSlots)
     .get();
 

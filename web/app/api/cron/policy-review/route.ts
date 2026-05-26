@@ -24,14 +24,27 @@ import {
 } from '../../../../lib/push-permission-lifecycle';
 import { queueAnniversaryActionItem } from '../../../../lib/anniversary-action-item-writer';
 import type { ActionItemTriggerReason } from '../../../../lib/action-item-types';
+import { getNextAnniversary } from '../../../../lib/anniversary-date';
 
 /**
- * Daily cron: scans all agents' policies for 1-year anniversaries.
+ * Daily cron: scans all agents' policies for upcoming annual anniversaries.
+ *
+ * Annual cadence: each policy's anniversary observes once per year, every
+ * year, starting at the 1-year mark. Year N is `effectiveYear + N`. The
+ * upcoming anniversary date and N come from `getNextAnniversary` in
+ * `lib/anniversary-date.ts`.
  *
  * Job A — Day -3: Send agent an email digest of upcoming anniversaries.
  * Job B — Day +1: Create policy review campaigns and send initial outreach
- *         via a single channel (push preferred, SMS fallback).
- *         Follow-up stages are handled by the policy-review-drip cron.
+ *         via push. When the agent has AI disabled, use static templates
+ *         (the legacy `/api/cron/anniversary-check` fallback, folded in here
+ *         in May 2026). Follow-up stages are handled by `policy-review-drip`.
+ *
+ * Idempotency: `policyReviewAgentLastNotifiedYear` and
+ * `policyReviewLastNotifiedYear` numeric fields on each policy doc track the
+ * latest anniversary year for which the corresponding touch was sent or
+ * marked-skipped. Pre-annual-rollout docs without these fields fall back to
+ * the legacy `*NotifiedAt` timestamps — presence implies year 1 was handled.
  *
  * Skips ROP and Graded policies (rewrites restart the clock).
  * Skips clients with policyReviewOptOut: true.
@@ -68,6 +81,8 @@ interface AnniversaryPolicy {
   coverageAmount: number | null;
   effectiveDate: string;
   anniversaryDate: string;
+  /** Nth annual anniversary this hit represents (1 = first, 2 = second, ...). */
+  anniversaryYear: number;
   daysUntil: number;
   policyPath: string;
   /** Path to the client doc — used to invalidate push token on permanent Expo failure. */
@@ -156,11 +171,24 @@ export async function GET(req: NextRequest) {
             effectiveDate = createdAt.toDate() as Date;
           }
 
-          const anniversary = new Date(effectiveDate);
-          anniversary.setFullYear(anniversary.getFullYear() + 1);
-
+          // Annual cadence: `getNextAnniversary` returns the upcoming
+          // anniversary plus its year N (1, 2, 3, ...). Year 1 is the
+          // first anniversary; subsequent years recur every 12 months.
+          const { date: anniversary, year: anniversaryYear } = getNextAnniversary(effectiveDate, now);
           const msUntil = anniversary.getTime() - now.getTime();
           const daysUntil = Math.ceil(msUntil / (1000 * 60 * 60 * 24));
+
+          // Per-year idempotency. Fall back to the legacy boolean-style
+          // markers for policy docs predating the annual rollout — a
+          // populated timestamp implies year 1 was already handled.
+          const agentLastNotifiedYear =
+            typeof p.policyReviewAgentLastNotifiedYear === 'number'
+              ? p.policyReviewAgentLastNotifiedYear
+              : (p.policyReviewAgentNotifiedAt ? 1 : 0);
+          const clientLastNotifiedYear =
+            typeof p.policyReviewLastNotifiedYear === 'number'
+              ? p.policyReviewLastNotifiedYear
+              : (p.policyReviewNotifiedAt ? 1 : 0);
 
           const hit: AnniversaryPolicy = {
             clientId: clientDoc.id,
@@ -177,19 +205,20 @@ export async function GET(req: NextRequest) {
             coverageAmount: (p.coverageAmount as number) || null,
             effectiveDate: effectiveDate.toISOString(),
             anniversaryDate: anniversary.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+            anniversaryYear,
             daysUntil,
             policyPath: `agents/${agentDoc.id}/clients/${clientDoc.id}/policies/${policyDoc.id}`,
             clientPath: `agents/${agentDoc.id}/clients/${clientDoc.id}`,
             preferredLanguage,
           };
 
-          // Day -3: Agent heads-up (3 days before anniversary)
-          if (daysUntil >= 2 && daysUntil <= 4 && !p.policyReviewAgentNotifiedAt) {
+          // Day -3: Agent heads-up (3 days before this year's anniversary)
+          if (daysUntil >= 2 && daysUntil <= 4 && agentLastNotifiedYear < anniversaryYear) {
             headsUpHits.push(hit);
           }
 
-          // Day +1: Client outreach (1 day after anniversary, i.e. daysUntil between -2 and 0)
-          if (daysUntil >= -2 && daysUntil <= 0 && !p.policyReviewNotifiedAt) {
+          // Day +1: Client outreach (1 day after anniversary, daysUntil ∈ [-2, 0])
+          if (daysUntil >= -2 && daysUntil <= 0 && clientLastNotifiedYear < anniversaryYear) {
             outreachHits.push(hit);
           }
         }
@@ -218,7 +247,7 @@ export async function GET(req: NextRequest) {
             <div style="font-family:Arial,sans-serif;max-width:600px;color:#2D3748;line-height:1.6;">
               <h2 style="color:#0D4D4D;margin-bottom:8px;">Policy Review Heads-Up</h2>
               <p style="font-size:15px;color:#4A5568;">
-                Hi ${agentFirstName}, these policies are approaching their 1-year anniversary. ${policyReviewAIEnabled ? 'Your AI will send outreach to each client the day after their anniversary.' : 'Review them and reach out when the anniversary hits.'}
+                Hi ${agentFirstName}, these policies are approaching their annual review. ${policyReviewAIEnabled ? 'Your AI will send outreach to each client the day after their anniversary.' : 'Review them and reach out when the anniversary hits.'}
               </p>
               <table style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px;">
                 <thead><tr style="background:#F7FAFC;">
@@ -240,13 +269,20 @@ export async function GET(req: NextRequest) {
 
         const batch = db.batch();
         for (const hit of headsUpHits) {
-          batch.update(db.doc(hit.policyPath), { policyReviewAgentNotifiedAt: now.toISOString() });
+          batch.update(db.doc(hit.policyPath), {
+            policyReviewAgentLastNotifiedYear: hit.anniversaryYear,
+            policyReviewAgentNotifiedAt: now.toISOString(),
+          });
         }
         await batch.commit();
       }
 
       // ─── Job B: Day +1 Client Outreach (single channel, staged) ───
-      if (outreachHits.length > 0 && policyReviewAIEnabled) {
+      //
+      // Runs for every agent, not just AI-enabled ones — the legacy
+      // `anniversary-check` cron used to handle the AI-off fallback with
+      // static templates; that path is folded in below (May 2026 cleanup).
+      if (outreachHits.length > 0) {
         const isCustom = messageStyle === 'custom' && customTemplate.trim();
 
         for (const hit of outreachHits) {
@@ -255,6 +291,8 @@ export async function GET(req: NextRequest) {
             let pushTitleForHit: string;
 
             if (isCustom) {
+              // Custom templates render the same way for AI-on and AI-off
+              // agents — the agent wrote the copy themselves.
               const policyLabel = `your ${hit.policyType} policy`;
               outreachMessage = customTemplate
                 .replace(/\{\{firstName\}\}/g, hit.clientFirstName)
@@ -262,7 +300,7 @@ export async function GET(req: NextRequest) {
                 .replace(/\{\{agentName\}\}/g, agentName)
                 .replace(/\{\{schedulingNote\}\}/g, '');
               pushTitleForHit = customTitle.trim() || 'Policy Review';
-            } else {
+            } else if (policyReviewAIEnabled) {
               const outreachCtx: PolicyReviewOutreachContext = {
                 agentName,
                 agentFirstName,
@@ -281,6 +319,19 @@ export async function GET(req: NextRequest) {
               if (!aiMessage) continue;
               outreachMessage = aiMessage;
               pushTitleForHit = messageStyle === 'lower_price' ? 'Rate Review' : 'Policy Check-In';
+            } else {
+              // AI disabled, no custom template → static fallback (the
+              // former `anniversary-check` behavior, now consolidated here).
+              // Copy is year-agnostic so it reads correctly for any annual
+              // review, not just the first.
+              const policyLabel = `your ${hit.policyType} policy`;
+              if (messageStyle === 'lower_price') {
+                pushTitleForHit = 'Rate Review';
+                outreachMessage = `Hi ${hit.clientFirstName}, ${policyLabel} is up for its annual review and I've been seeing some lower rates for the same coverage. Want me to run the numbers? It'll take 10 minutes. — ${agentName}`;
+              } else {
+                pushTitleForHit = 'Policy Check-In';
+                outreachMessage = `Hi ${hit.clientFirstName}, it's time for your annual review on ${policyLabel}. A lot can change in a year — I'd love to make sure your coverage still fits your life. I'm here whenever you'd like to chat. — ${agentName}`;
+              }
             }
 
             // Anniversary is push-only with no fallback (May 4, 2026
@@ -363,10 +414,12 @@ export async function GET(req: NextRequest) {
             if (!usedChannel) {
               // Push unavailable, revoked, transient-failed, or just
               // permanently invalidated. Anniversary has no fallback —
-              // end the cycle silently for this client until the next
-              // anniversary. Strict semantics: write `policyReviewNotifiedAt`
-              // so this policy is not re-attempted on subsequent days within
-              // the current Day +1 window (~365 days until next anniversary).
+              // end the cycle silently for this client until next year's
+              // anniversary. Strict semantics: stamp
+              // `policyReviewLastNotifiedYear` with this year's N so the
+              // policy is not re-attempted on subsequent days within the
+              // current Day +1 window; next year's anniversary (N+1) will
+              // re-enter the window naturally.
               type SkipReason =
                 | 'push_unavailable'
                 | 'push_revoked'
@@ -384,6 +437,7 @@ export async function GET(req: NextRequest) {
               }
               try {
                 await db.doc(hit.policyPath).update({
+                  policyReviewLastNotifiedYear: hit.anniversaryYear,
                   policyReviewNotifiedAt: now.toISOString(),
                   policyReviewSkippedReason: skipReason,
                 });
@@ -469,6 +523,7 @@ export async function GET(req: NextRequest) {
                 coverageAmount: hit.coverageAmount,
                 effectiveDate: hit.effectiveDate,
                 anniversaryDate: hit.anniversaryDate,
+                anniversaryYear: hit.anniversaryYear,
                 messageStyle,
                 status: 'outreach-sent',
                 conversation: [{
@@ -493,8 +548,11 @@ export async function GET(req: NextRequest) {
             // TODO(posthog): fire "anniversary_rewrite_initiated" here when
             // server-side PostHog capture is available for cron handlers.
 
-            // Mark policy as notified
-            await db.doc(hit.policyPath).update({ policyReviewNotifiedAt: now.toISOString() });
+            // Mark policy as notified for this anniversary year
+            await db.doc(hit.policyPath).update({
+              policyReviewLastNotifiedYear: hit.anniversaryYear,
+              policyReviewNotifiedAt: now.toISOString(),
+            });
 
             totalCampaignsCreated++;
           } catch (err) {
