@@ -12,7 +12,7 @@ import DashboardTicker from '../../components/DashboardTicker';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
 import { ANALYTICS_EVENTS } from '../../lib/analytics-events';
 import { captureEvent } from '../../lib/posthog';
-import { LEAD_MODE_ENABLED, ACTIVITY_ENABLED } from '../../lib/feature-flags';
+import { ACTIVITY_ENABLED, isLeadModeVisibleForEmail } from '../../lib/feature-flags';
 
 const FOUNDING_ACTIVATION_TIMEOUT_MS = 12000;
 // Hard ceiling for the activation spinner: if `activatingFounding` is still true
@@ -599,13 +599,19 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const isAdminRoute = pathname.startsWith('/dashboard/admin');
   const activeAdminKey = ADMIN_NAV_ITEMS.find(item => pathname.startsWith(item.path))?.key ?? null;
+  // Lead-mode visibility is two-axis: the global env flag AND an
+  // admin-only mode (see web/lib/feature-flags.ts). Compute once per
+  // render and reuse for sidebar / mobile-nav / placeholder logic so
+  // the three gates can't drift. For non-admin agents while
+  // LEAD_MODE_ADMIN_ONLY is set, this resolves the same as "flag off."
+  const leadModeVisible = isLeadModeVisibleForEmail(user?.email);
   // 6 items on mobile bottom bar. Leads replaces the previous Settings
   // slot — settings is already reachable via the gear in the top-right
   // header, so duplicating it down here wastes a tap target. When the
   // lead-mode feature flag is off, drop Leads from the mobile nav entirely
   // (mobile gets no "Coming soon" placeholder — Daniel's spec).
   const mobileNavItems = NAV_ITEMS.filter((item) => {
-    if (item.key === 'leads' && !LEAD_MODE_ENABLED) return false;
+    if (item.key === 'leads' && !leadModeVisible) return false;
     return ['home', 'clients', 'leads', 'action-items', 'referrals', 'conservation'].includes(item.key);
   });
   const dismissSubscriptionCelebration = () => {
@@ -670,7 +676,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               flag flips on, the item snaps back to its natural position
               in NAV_ITEMS order. */}
           {NAV_ITEMS.filter((item) => {
-            if (item.key === 'leads') return LEAD_MODE_ENABLED;
+            if (item.key === 'leads') return leadModeVisible;
             if (item.key === 'activity') return ACTIVITY_ENABLED;
             return true;
           }).map((item) => (
@@ -699,7 +705,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               (so Leads appears above Activity). */}
           {(() => {
             const gatedOff = NAV_ITEMS.filter((item) =>
-              (item.key === 'leads' && !LEAD_MODE_ENABLED) ||
+              (item.key === 'leads' && !leadModeVisible) ||
               (item.key === 'activity' && !ACTIVITY_ENABLED)
             );
             if (gatedOff.length === 0) return null;

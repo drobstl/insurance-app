@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import LeadDetailPanel from '../../../../components/LeadDetailPanel';
 import { CloseSaleRitual } from '../../../../components/CloseSaleRitual';
 import { useDashboard } from '../../DashboardContext';
-import { LEAD_MODE_ENABLED } from '../../../../lib/feature-flags';
+import { isLeadModeVisibleForEmail } from '../../../../lib/feature-flags';
 
 export default function LeadDetailPage() {
   const router = useRouter();
@@ -31,11 +31,17 @@ export default function LeadDetailPage() {
   const navigateAfterCloseSale = useRef(false);
 
   // Feature flag gate — see web/app/dashboard/leads/page.tsx for the
-  // matching guard on the list/queue route.
+  // matching guard on the list/queue route. Two-axis: global flag +
+  // admin-only mode. Waits until `user` resolves before deciding to
+  // redirect so we don't bounce an admin who's mid-auth-load. Returns
+  // null in the meantime — by the time this page renders, the
+  // SubscriptionGate above has usually already resolved auth, so the
+  // flicker is sub-frame for admins. Non-admins never see the panel.
+  const leadModeVisible = isLeadModeVisibleForEmail(user?.email);
   useEffect(() => {
-    if (!LEAD_MODE_ENABLED) router.replace('/dashboard');
-  }, [router]);
-  if (!LEAD_MODE_ENABLED) return null;
+    if (user && !leadModeVisible) router.replace('/dashboard');
+  }, [user, leadModeVisible, router]);
+  if (!leadModeVisible) return null;
 
   if (!leadId) return null;
 

@@ -1,3 +1,5 @@
+import { isAdminEmail } from './admin';
+
 /**
  * Global feature flags for AFL.
  *
@@ -24,6 +26,47 @@
  */
 export const LEAD_MODE_ENABLED =
   process.env.NEXT_PUBLIC_LEAD_MODE_ENABLED === 'true';
+
+/**
+ * NEXT_PUBLIC_LEAD_MODE_ADMIN_ONLY — second-axis gate stacked on top of
+ * LEAD_MODE_ENABLED. When `"true"`, the lead-mode surface is visible
+ * ONLY to admin emails (per NEXT_PUBLIC_ADMIN_EMAILS / `isAdminEmail`).
+ * Every other logged-in agent gets the same treatment as when
+ * LEAD_MODE_ENABLED is off (sidebar shows "Coming soon", mobile nav
+ * omits the item, routes redirect to /dashboard).
+ *
+ * Use this to ship lead mode to prod and dogfood on the live App Store
+ * app as the admin agent, without exposing it to the rest of the
+ * agent base. To GA the surface: set this back to `"false"` (or unset)
+ * and redeploy. When `LEAD_MODE_ENABLED` is off, this flag does nothing
+ * — admin-only requires the global flag to be on first.
+ *
+ * The cron (`/api/cron/lead-pdf-archive`) intentionally does NOT respect
+ * this flag — it has no per-user concept, gates on `LEAD_MODE_ENABLED`
+ * only. Safe because non-admin agents can't create lead docs (the UI
+ * to do so is gated), so the cron has nothing to archive for them.
+ */
+export const LEAD_MODE_ADMIN_ONLY =
+  process.env.NEXT_PUBLIC_LEAD_MODE_ADMIN_ONLY === 'true';
+
+/**
+ * Resolves the effective lead-mode visibility for a given user email.
+ * Use this in every client-side gate (sidebar, mobile nav, route
+ * guards, in-page conditionals) — do NOT read `LEAD_MODE_ENABLED`
+ * directly from a client component, or you'll bypass the admin-only
+ * axis and leak the surface.
+ *
+ *   visible = LEAD_MODE_ENABLED && (!LEAD_MODE_ADMIN_ONLY || isAdmin)
+ *
+ * Passes through `null` / `undefined` / empty email as non-admin.
+ */
+export function isLeadModeVisibleForEmail(
+  email: string | null | undefined,
+): boolean {
+  if (!LEAD_MODE_ENABLED) return false;
+  if (!LEAD_MODE_ADMIN_ONLY) return true;
+  return isAdminEmail(email);
+}
 
 /**
  * NEXT_PUBLIC_ACTIVITY_ENABLED — gates the agent KPI dashboard at

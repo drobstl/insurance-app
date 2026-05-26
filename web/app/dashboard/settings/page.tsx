@@ -17,7 +17,7 @@ import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 import { PRICING_TIERS, type PricingTierId } from '../../../lib/pricing';
 import StateLicensesSection from '../../../components/StateLicensesSection';
 import { DEFAULT_DIAL_SCRIPT, SCRIPT_TOKEN_HINTS } from '../../../lib/dial-script';
-import { LEAD_MODE_ENABLED } from '../../../lib/feature-flags';
+import { isLeadModeVisibleForEmail } from '../../../lib/feature-flags';
 
 type Tab = 'profile' | 'branding' | 'referral-ai' | 'account';
 
@@ -1885,10 +1885,11 @@ export default function SettingsPage() {
 
           {/* Lead-mode-gated settings: Dial script + Dial persistence
               + Lead-home videos. All three control surfaces that only
-              exist when NEXT_PUBLIC_LEAD_MODE_ENABLED is on, so they
-              hide entirely from Settings when the flag is off.
-              Re-appears the moment the flag flips. */}
-          {LEAD_MODE_ENABLED && <>
+              exist when lead mode is visible to this agent (global
+              flag + admin-only mode — see web/lib/feature-flags.ts),
+              so they hide entirely from Settings otherwise. Re-appears
+              the moment the gate opens. */}
+          {isLeadModeVisibleForEmail(user?.email) && <>
           {/* Dial script — shown as an overlay on the lead detail page
               during a live call. Supports tokens like {agentfirstname},
               {leadname}, {leadage}, {tobaccouse}, {mortgageamount}. */}
