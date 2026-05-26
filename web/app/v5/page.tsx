@@ -73,7 +73,7 @@ export default function DesktopLandingV5() {
       </nav>
 
       {/* ═══ HERO ═══ */}
-      <section ref={heroRef} className="relative min-h-screen flex items-center overflow-hidden pt-20 pb-20 lg:pb-28" style={{ background: '#0D4D4D radial-gradient(ellipse 600px 600px at 0% 0%, rgba(61,214,195,0.18), transparent 70%), radial-gradient(ellipse 500px 500px at 100% 80%, rgba(253,204,2,0.07), transparent 70%)' }}>
+      <section ref={heroRef} className="relative min-h-screen flex items-center overflow-hidden pt-20 pb-20 lg:pb-28" style={{ background: 'radial-gradient(ellipse 600px 600px at 0% 0%, rgba(61,214,195,0.18), transparent 70%), radial-gradient(ellipse 500px 500px at 100% 80%, rgba(253,204,2,0.07), transparent 70%), #0D4D4D' }}>
         <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
 
         <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8 w-full">
@@ -327,7 +327,7 @@ export default function DesktopLandingV5() {
       </section>
 
       {/* ═══ WELCOME FLOW — Stop being the agent they forgot ═══ */}
-      <section className="relative px-6 lg:px-8 py-28 lg:py-32 overflow-hidden" style={{ background: '#0D4D4D radial-gradient(ellipse 700px 500px at 50% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 500px 400px at 50% 100%, rgba(253,204,2,0.06), transparent 70%)' }}>
+      <section className="relative px-6 lg:px-8 py-28 lg:py-32 overflow-hidden" style={{ background: 'radial-gradient(ellipse 700px 500px at 50% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 500px 400px at 50% 100%, rgba(253,204,2,0.06), transparent 70%), #0D4D4D' }}>
         <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#3DD6C3 1px, transparent 1px), linear-gradient(90deg, #3DD6C3 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
         <div className="relative max-w-3xl mx-auto text-center">
           <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
@@ -355,7 +355,7 @@ export default function DesktopLandingV5() {
       </section>
 
       {/* ═══ ALWAYS IN SYNC — Two Surfaces, One System ═══ */}
-      <section className="px-6 lg:px-8 py-24 lg:py-32 relative overflow-hidden" style={{ background: '#070E1B radial-gradient(ellipse 500px 500px at 25% 33%, rgba(26,122,106,0.05), transparent 70%), radial-gradient(ellipse 400px 400px at 75% 75%, rgba(253,204,2,0.03), transparent 70%)' }}>
+      <section className="px-6 lg:px-8 py-24 lg:py-32 relative overflow-hidden" style={{ background: 'radial-gradient(ellipse 500px 500px at 25% 33%, rgba(26,122,106,0.05), transparent 70%), radial-gradient(ellipse 400px 400px at 75% 75%, rgba(253,204,2,0.03), transparent 70%), #070E1B' }}>
         <div className="absolute inset-0 opacity-[0.02] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#1A7A6A 1px, transparent 1px), linear-gradient(90deg, #1A7A6A 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
 
         <div className="relative max-w-6xl mx-auto">
@@ -601,7 +601,7 @@ export default function DesktopLandingV5() {
       </section>
 
       {/* ═══ ROI ═══ */}
-      <section className="relative px-6 lg:px-8 py-24 overflow-hidden" style={{ background: '#0D4D4D radial-gradient(ellipse 300px 300px at 0% 0%, rgba(239,68,68,0.08), transparent 70%), radial-gradient(ellipse 300px 300px at 100% 100%, rgba(61,214,195,0.08), transparent 70%)' }}>
+      <section className="relative px-6 lg:px-8 py-24 overflow-hidden" style={{ background: 'radial-gradient(ellipse 300px 300px at 0% 0%, rgba(239,68,68,0.08), transparent 70%), radial-gradient(ellipse 300px 300px at 100% 100%, rgba(61,214,195,0.08), transparent 70%), #0D4D4D' }}>
         <div className="relative max-w-5xl mx-auto">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-60px' }} variants={stagger} className="space-y-10">
             <motion.div variants={fadeUp} custom={0} className="text-center">
@@ -775,7 +775,7 @@ export default function DesktopLandingV5() {
       </section>
 
       {/* ═══ FINAL CTA ═══ */}
-      <section className="relative px-6 lg:px-8 py-28 overflow-hidden" style={{ background: '#0D4D4D radial-gradient(ellipse 400px 400px at 25% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 300px 300px at 75% 100%, rgba(253,204,2,0.08), transparent 70%)' }}>
+      <section className="relative px-6 lg:px-8 py-28 overflow-hidden" style={{ background: 'radial-gradient(ellipse 400px 400px at 25% 0%, rgba(61,214,195,0.12), transparent 70%), radial-gradient(ellipse 300px 300px at 75% 100%, rgba(253,204,2,0.08), transparent 70%), #0D4D4D' }}>
         <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="relative text-center max-w-3xl mx-auto space-y-8">
           <p className="text-white/60 text-xs uppercase tracking-[0.2em] font-medium">Stop leaving money on the table</p>
           <h2 className="text-4xl lg:text-5xl font-extrabold text-white leading-tight">

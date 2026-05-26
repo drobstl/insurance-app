@@ -257,7 +257,7 @@ export default function RelationshipsDeepDive() {
       </section>
 
       {/* CTA */}
-      <section className="px-8 py-28 relative overflow-hidden" style={{ background: '#0D4D4D radial-gradient(ellipse 300px 300px at 25% 0%, rgba(161,88,255,0.12), transparent 70%), radial-gradient(ellipse 300px 300px at 75% 100%, rgba(253,204,2,0.08), transparent 70%)' }}>
+      <section className="px-8 py-28 relative overflow-hidden" style={{ background: 'radial-gradient(ellipse 300px 300px at 25% 0%, rgba(161,88,255,0.12), transparent 70%), radial-gradient(ellipse 300px 300px at 75% 100%, rgba(253,204,2,0.08), transparent 70%), #0D4D4D' }}>
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
