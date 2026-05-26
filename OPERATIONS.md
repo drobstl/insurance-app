@@ -198,6 +198,48 @@ Requires `LINQ_OUTBOUND_DISABLED` to be `"false"` (or unset) for the vCard MMS r
 6. Check the test client's phone for the agent's vCard MMS reply (only if Linq outbound is enabled).
 7. Have the test client reply with 👍 — check Vercel logs for `[welcome-activation] thumbs_up_received`.
 
+### How to verify client duplicate detection (manual smoke test)
+
+Shipped May 26, 2026 (PR #34). The full system has three observable surfaces — review screen, create-time prompts, and the reaper cron.
+
+1. **Smoke test the matcher in isolation** (no Firestore needed):
+   ```bash
+   cd web && npm run test:client-dedup
+   ```
+   22 assertions across normalization, Jaro-Winkler at threshold boundaries, all 5 buckets, group construction, blocking, and `notDuplicateOf` suppression. If any case starts failing post-change, the threshold or nickname table likely drifted.
+
+2. **Review surface (post-hoc cleanup):**
+   - Log into `agentforlife.app/dashboard/clients` as an agent with known duplicates.
+   - Click **Find duplicates →** in the page header. Lands on `/dashboard/clients/duplicates`.
+   - Confirm groups load, sorted with "Likely duplicates" first.
+   - Pick one group → confirm canonical radio auto-selected by most-policies-wins → click **Merge**. Spinner → toast showing what moved.
+   - Refresh the clients list — duplicate should be gone, canonical should have the merged policies.
+   - Firestore check: `agents/{agentId}/clients/{dupId}.deleted === true` AND `.mergedInto === canonicalId`; new journal at `agents/{agentId}/clientMerges/{id}` carries the snapshot.
+
+3. **Create-time prevention (PDF parse):**
+   - Add a client manually with a specific name + DOB.
+   - Upload a second policy PDF for the SAME insured. Wait for extraction.
+   - On the Review & Confirm screen, click Confirm.
+   - Expect: modal "Looks like this is [Existing]'s record — add the extracted policy to them, or create a new client?" with **Add as new policy to [first name]** as the primary action.
+   - Click attach. Toast: "Added new policy to [name]. The policy is now attached to their existing record. No new client was created."
+   - Verify in Firestore: original client now has +1 policy in their `policies` subcollection; no new client doc was created.
+
+4. **Create-time prevention (manual add):**
+   - Open Add Client → manual entry.
+   - Type the name of a client that exists. Wait ~400ms.
+   - Expect an inline amber warning above the action buttons: "[Existing] is already in your client list."
+   - Click **Open existing →**. Add flow closes; client list filter is set to that name so they surface immediately.
+
+5. **Create-time prevention (lead convert):**
+   - Open a lead whose name + DOB match an existing client.
+   - Click **Convert to client** → click confirm.
+   - Expect the secondary modal: "Matches an existing client" with **Link to [first name]** primary and "Create as new client anyway" secondary.
+   - Click Link. Lead's `convertedToClientId` is stamped to the existing client; no new client doc created.
+
+6. **Reaper cron (only meaningful 30+ days after a merge):**
+   - Manual trigger: `curl -H "Authorization: Bearer $CRON_SECRET" https://agentforlife.app/api/cron/merged-duplicates-reaper`.
+   - Until late June 2026 (30 days after first real merge) returns `{ ok: true, reaped: 0, ... }`. Use this to confirm the route is wired + the index is ready BEFORE you need it.
+
 ### Rollback procedures
 
 The Track B build was designed for one-line rollback per Daniel's locked Q9 ("hard cutover, deprecate-not-delete"). If a critical bug surfaces post-deploy:
