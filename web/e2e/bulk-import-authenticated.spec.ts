@@ -14,12 +14,14 @@ test.describe('Bulk import (authenticated)', () => {
 
     await page.getByRole('button', { name: 'Bulk Import' }).click();
 
-    await expect(page.getByText('Import clients in 3 steps')).toBeVisible();
-    await expect(page.getByText('1) Add files  2) Review parsed records  3) Import')).toBeVisible();
-    await expect(page.getByText('Pick files from your Drive.')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Bulk Import' })).toBeVisible();
+    await expect(
+      page.getByText('Bring in spreadsheets and PDFs from Google Drive or your computer.'),
+    ).toBeVisible();
+    await expect(page.getByText('Pick files from your Google Drive.')).toBeVisible();
     await expect(page.getByText('Select files from your computer.')).toBeVisible();
-    await expect(page.getByText('Drag and drop files here.')).toBeVisible();
-    await expect(page.getByText('CSV, TSV, Excel, PDF • Max 50 files')).toBeVisible();
+    await expect(page.getByText('Drop files here to start import')).toBeVisible();
+    await expect(page.getByText('CSV, TSV, Excel, PDF', { exact: false }).first()).toBeVisible();
   });
 
   test('can parse local CSV and submit mocked batch import', async ({ page }) => {
