@@ -1,12 +1,29 @@
 'use client';
 
-import { Suspense, useState, useEffect, useCallback } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { createUserWithEmailAndPassword, onAuthStateChanged, type User } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '../../firebase';
-import { isStripeBillableTier, PRICING_TIERS, type StripeBillableTierId } from '../../lib/pricing';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../../firebase';
+import { isStripeBillableTier, PRICING_TIERS } from '../../lib/pricing';
+
+/**
+ * /signup — deferred-account entry (May 25, 2026).
+ *
+ * No Firebase Auth user is created here. The form posts email/name/
+ * tier to /api/signup/start-checkout which creates a Stripe Checkout
+ * session and writes a pendingSignups doc. The webhook creates the
+ * Firebase user only after payment succeeds. See start-checkout
+ * route for the full rationale.
+ *
+ * Routing rules:
+ *   - No tier in URL → redirect to /pricing (preserving ?ref=).
+ *     Closes the bare-/signup hole that let Pryor Hovis sign up
+ *     without ever reaching Stripe.
+ *   - Already-authed user → forward to /dashboard (the
+ *     SubscriptionGate handles inactive subs).
+ *   - Tier present + not authed → show the email/name form.
+ */
 
 export default function SignupPage() {
   return (
@@ -21,27 +38,28 @@ function SignupPageInner() {
   const searchParams = useSearchParams();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState<React.ReactNode>('');
   const [loading, setLoading] = useState(false);
 
   const [refCode, setRefCode] = useState<string | null>(null);
   const [referrerName, setReferrerName] = useState<string | null>(null);
-  const [referrerId, setReferrerId] = useState<string | null>(null);
-  // Held false until onAuthStateChanged confirms no user is signed in.
-  // While false we show a spinner instead of the signup form so an
-  // already-authed visitor never sees "Create Your Account" flash
-  // before the redirect to checkout / dashboard.
   const [authChecked, setAuthChecked] = useState(false);
 
-  // Track C (May 10, 2026): the pricing page routes through
-  // /signup?tier=starter|growth|pro. After auth we POST to
-  // create-checkout-session with this tier and redirect to Stripe.
-  // Falls back to /pricing if no tier (or an unknown tier) is set.
   const tierParam = searchParams.get('tier');
   const selectedTier = tierParam && isStripeBillableTier(tierParam) ? tierParam : null;
   const selectedTierInfo = selectedTier ? PRICING_TIERS[selectedTier] : null;
 
+  // No-tier path: route to /pricing so the user picks a plan first.
+  // Carry the ref code through so the referral credit isn't lost.
+  useEffect(() => {
+    if (selectedTier) return;
+    const ref = searchParams.get('ref');
+    const qs = ref ? `?ref=${encodeURIComponent(ref)}` : '';
+    router.replace(`/pricing${qs}`);
+  }, [selectedTier, searchParams, router]);
+
+  // Validate referral code (if present) and look up the referrer name
+  // for the "Invited by ..." pill. Same UX as the previous flow.
   useEffect(() => {
     const code = searchParams.get('ref');
     if (!code) return;
@@ -55,7 +73,6 @@ function SignupPageInner() {
       .then((data) => {
         if (data.valid) {
           setReferrerName(data.referrerName);
-          setReferrerId(data.referrerId);
         } else {
           setRefCode(null);
         }
@@ -63,117 +80,83 @@ function SignupPageInner() {
       .catch(() => setRefCode(null));
   }, [searchParams]);
 
-  // POST to create-checkout-session for an authenticated Firebase user
-  // and hand off to Stripe. Shared between handleSignup (fresh signup
-  // with ?tier=) and the already-authed redirect path below.
-  const startCheckout = useCallback(
-    async (user: User, tier: StripeBillableTierId) => {
-      try {
-        const token = await user.getIdToken();
-        const referralCode = (() => {
-          try { return sessionStorage.getItem('agentReferralCode'); } catch { return null; }
-        })();
-        const res = await fetch('/api/stripe/create-checkout-session', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ tier, referralCode }),
-        });
-        const data = await res.json();
-        if (res.ok && data.url) {
-          window.location.href = data.url;
-          return;
-        }
-        console.error('[signup] checkout-session failed', data);
-        router.push('/pricing?error=checkout');
-      } catch (checkoutErr) {
-        console.error('[signup] checkout-session network error', checkoutErr);
-        router.push('/pricing?error=checkout');
-      }
-    },
-    [router],
-  );
-
-  // If a user is already signed in when they hit /signup, don't run
-  // createUserWithEmailAndPassword again — Firebase throws
-  // email-already-in-use and the user gets stuck. Forward them to
-  // checkout (when a tier is selected) or into the app, where the
-  // dashboard's SubscriptionGate handles unsubscribed users.
+  // Already-authed visitors → /dashboard. Avoids re-running checkout
+  // for someone who's already paid and just clicked a stale link.
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) {
         setAuthChecked(true);
         return;
       }
-      // Leave authChecked=false so the form stays hidden through the
-      // redirect — the page is going away, no need to render it.
-      if (selectedTier) {
-        void startCheckout(user, selectedTier);
-        return;
-      }
       router.replace('/dashboard');
     });
     return unsub;
-  }, [selectedTier, router, startCheckout]);
+  }, [router]);
 
-  const handleSignup = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedTier) return;
     setError('');
     setLoading(true);
 
     try {
-      const normalizedEmail = email.trim().toLowerCase();
-      const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
-      const user = userCredential.user;
+      const res = await fetch('/api/signup/start-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          name: name.trim(),
+          tier: selectedTier,
+          refCode,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
 
-      const profileData: Record<string, unknown> = {
-        name,
-        email: normalizedEmail,
-        emailLower: normalizedEmail,
-        createdAt: serverTimestamp(),
-      };
-      if (referrerId) profileData.referredByAgent = referrerId;
-
-      await setDoc(doc(db, 'agents', user.uid), profileData);
-
-      if (refCode) {
-        try { sessionStorage.setItem('agentReferralCode', refCode); } catch { /* SSR-safe */ }
-      }
-
-      // Track C (May 10, 2026): if a tier was preselected from the
-      // pricing page, kick off Stripe Checkout immediately. Otherwise
-      // route to /pricing so the user picks one.
-      if (selectedTier) {
-        await startCheckout(user, selectedTier);
+      if (res.ok && data.url) {
+        window.location.href = data.url;
         return;
       }
 
-      router.push('/pricing');
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        const errorMessage = err.message;
-        if (errorMessage.includes('email-already-in-use')) {
-          setError('An account with this email already exists.');
-        } else if (errorMessage.includes('weak-password')) {
-          setError('Password should be at least 6 characters.');
-        } else if (errorMessage.includes('invalid-email')) {
-          setError('Please enter a valid email address.');
-        } else {
-          setError('Failed to create account. Please try again.');
-        }
+      if (res.status === 409 && data.error === 'email_in_use') {
+        setError(
+          <>
+            That email already has an account.{' '}
+            <Link href="/login" className="font-semibold underline">
+              Log in instead
+            </Link>
+            .
+          </>,
+        );
+      } else if (data.error === 'invalid_email') {
+        setError('Please enter a valid email address.');
+      } else if (data.error === 'invalid_name') {
+        setError('Please enter your full name.');
       } else {
-        setError('An unexpected error occurred.');
+        setError('Could not start checkout. Please try again.');
       }
+    } catch (err) {
+      console.error('[signup] start-checkout error', err);
+      setError('Network error. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  // While the no-tier redirect resolves, hold a spinner so the form
+  // never flashes on the way to /pricing.
+  if (!selectedTier || !authChecked) {
+    return (
+      <div className="min-h-screen bg-[#e4e4e4] flex items-center justify-center">
+        <svg className="animate-spin w-8 h-8 text-[#44bbaa]" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        </svg>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#e4e4e4] relative overflow-hidden">
-      {/* Background Pattern */}
       <div className="absolute inset-0">
         <div className="absolute top-0 left-0 right-0 h-80 bg-gradient-to-b from-[#005851] to-[#003e3a]">
           <div className="absolute top-16 left-10 w-64 h-64 bg-[#45bcaa] rounded-full blur-3xl opacity-15"></div>
@@ -182,30 +165,20 @@ function SignupPageInner() {
       </div>
 
       <div className="relative flex flex-col items-center justify-center min-h-screen px-4 py-12">
-        {/* Logo/Brand Section */}
         <Link href="/" className="flex items-center gap-3 mb-8 group">
-          <img 
-            src="/logo.png" 
-            alt="AgentForLife Logo" 
-            className="w-20 h-12 object-contain group-hover:scale-105 transition-transform" 
+          <img
+            src="/logo.png"
+            alt="AgentForLife Logo"
+            className="w-20 h-12 object-contain group-hover:scale-105 transition-transform"
           />
           <span className="text-2xl text-white brand-title">AgentForLife™</span>
         </Link>
 
-        {/* Signup Form Card */}
         <div className="w-full max-w-md">
-          {!authChecked ? (
-            <div className="bg-white rounded-[5px] shadow-xl border border-[#d0d0d0] p-12 flex items-center justify-center min-h-[420px]">
-              <svg className="animate-spin w-8 h-8 text-[#44bbaa]" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-            </div>
-          ) : (
           <div className="bg-white rounded-[5px] shadow-xl border border-[#d0d0d0] p-8">
             <div className="text-center mb-8">
               <h1 className="text-2xl font-bold text-[#005851]">Create Your Account</h1>
-              <p className="text-[#707070] mt-2">Start building stronger client relationships</p>
+              <p className="text-[#707070] mt-2">Add your card on the next step. Set your password right after.</p>
             </div>
 
             {referrerName && (
@@ -219,7 +192,7 @@ function SignupPageInner() {
               </div>
             )}
 
-            <form onSubmit={handleSignup} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-5">
               {error && (
                 <div className="bg-red-50 border border-[#f95951] rounded-[5px] p-4 flex items-start gap-3">
                   <svg className="w-5 h-5 text-[#f95951] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -239,6 +212,7 @@ function SignupPageInner() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
+                  autoComplete="name"
                   className="w-full px-4 py-3 bg-[#f8f8f8] border border-[#a4a4a4bf] rounded-[5px] text-[#000000] placeholder-[#707070] focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa] transition-all duration-200"
                   placeholder="John Smith"
                 />
@@ -254,26 +228,10 @@ function SignupPageInner() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  autoComplete="email"
                   className="w-full px-4 py-3 bg-[#f8f8f8] border border-[#a4a4a4bf] rounded-[5px] text-[#000000] placeholder-[#707070] focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa] transition-all duration-200"
                   placeholder="agent@insurance.com"
                 />
-              </div>
-
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-[#000000] mb-2">
-                  Password
-                </label>
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                  className="w-full px-4 py-3 bg-[#f8f8f8] border border-[#a4a4a4bf] rounded-[5px] text-[#000000] placeholder-[#707070] focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa] transition-all duration-200"
-                  placeholder="••••••••"
-                />
-                <p className="text-[#707070] text-xs mt-2">Must be at least 6 characters</p>
               </div>
 
               <button
@@ -287,15 +245,14 @@ function SignupPageInner() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    Creating account...
+                    Redirecting to payment...
                   </>
                 ) : (
-                  'Get Started'
+                  'Continue to Payment'
                 )}
               </button>
             </form>
 
-            {/* Pricing Note */}
             <div className="mt-6 pt-6 border-t border-[#d0d0d0]">
               <div className="flex items-center justify-center gap-2 text-[#707070] text-sm">
                 <svg className="w-4 h-4 text-[#45bcaa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -306,7 +263,7 @@ function SignupPageInner() {
                     ? selectedTierInfo.trialDays > 0
                       ? `${selectedTierInfo.name} · ${selectedTierInfo.trialDays}-day free trial · $${selectedTierInfo.priceMonthly}/mo after`
                       : `${selectedTierInfo.name} · $${selectedTierInfo.priceMonthly}/mo`
-                    : 'Pick a plan after you sign up · 14-day free trial available'}
+                    : ''}
                 </span>
               </div>
             </div>
@@ -320,20 +277,17 @@ function SignupPageInner() {
               </p>
             </div>
           </div>
-          )}
 
-          {/* Back to Home Link */}
           <div className="mt-6 text-center">
-            <Link href="/" className="text-[#707070] hover:text-[#005851] text-sm transition-colors inline-flex items-center gap-1">
+            <Link href="/pricing" className="text-[#707070] hover:text-[#005851] text-sm transition-colors inline-flex items-center gap-1">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              Back to Home
+              Back to pricing
             </Link>
           </div>
         </div>
 
-        {/* Footer */}
         <p className="text-center text-[#707070] text-sm mt-8">
           © 2026 AgentForLife. All rights reserved.
         </p>

@@ -31,7 +31,10 @@ function formatPrice(amount: number): string {
   return `$${amount.toLocaleString('en-US')}`;
 }
 
-function ctaForTier(tier: PricingTier): { href: string; label: string; isMailto: boolean } {
+function ctaForTier(
+  tier: PricingTier,
+  refCode: string | null,
+): { href: string; label: string; isMailto: boolean } {
   if (!tier.isStripeBillable) {
     return {
       href: `mailto:${AGENCY_SALES_EMAIL}?subject=${encodeURIComponent('Agency tier inquiry')}`,
@@ -39,22 +42,23 @@ function ctaForTier(tier: PricingTier): { href: string; label: string; isMailto:
       isMailto: true,
     };
   }
+  const refSuffix = refCode ? `&ref=${encodeURIComponent(refCode)}` : '';
   if (tier.trialDays > 0) {
     return {
-      href: `/signup?tier=${tier.id}`,
+      href: `/signup?tier=${tier.id}${refSuffix}`,
       label: `Start ${tier.trialDays}-day free trial`,
       isMailto: false,
     };
   }
   return {
-    href: `/signup?tier=${tier.id}`,
+    href: `/signup?tier=${tier.id}${refSuffix}`,
     label: `Get ${tier.name}`,
     isMailto: false,
   };
 }
 
-function TierCard({ tier }: { tier: PricingTier }) {
-  const cta = ctaForTier(tier);
+function TierCard({ tier, refCode }: { tier: PricingTier; refCode: string | null }) {
+  const cta = ctaForTier(tier, refCode);
   const isPopular = tier.emphasis === 'popular';
 
   return (
@@ -155,8 +159,17 @@ function TierCard({ tier }: { tier: PricingTier }) {
   );
 }
 
-export default function PricingPage() {
+export default async function PricingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ref?: string | string[] }>;
+}) {
   const tiers = PRICING_TIER_ORDER.map((id) => PRICING_TIERS[id]);
+  const params = await searchParams;
+  const rawRef = Array.isArray(params.ref) ? params.ref[0] : params.ref;
+  const refCode = typeof rawRef === 'string' && rawRef.trim().length > 0
+    ? rawRef.trim().toUpperCase()
+    : null;
 
   return (
     <div className="min-h-screen bg-[#FAFAFA]">
@@ -189,7 +202,7 @@ export default function PricingPage() {
 
         <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {tiers.map((tier) => (
-            <TierCard key={tier.id} tier={tier} />
+            <TierCard key={tier.id} tier={tier} refCode={refCode} />
           ))}
         </section>
 

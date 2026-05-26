@@ -38,7 +38,7 @@ export default function LeakyBucketCalculator({
   initialRetentionRate = 70,
   initialReferralRate = 5,
   initialRewriteRate = 10,
-  ctaHref = '/signup',
+  ctaHref = '/pricing',
   ctaText = 'Stop the Bleeding →',
   layout = 'vertical',
   theme = 'default',

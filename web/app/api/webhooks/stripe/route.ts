@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
+import { FieldValue } from 'firebase-admin/firestore';
 import { stripe } from '../../../../lib/stripe';
-import { getAdminFirestore } from '../../../../lib/firebase-admin';
+import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
 import { tierIdFromStripePriceId } from '../../../../lib/pricing';
 import {
   isTransientWebhookError,
@@ -42,8 +43,124 @@ function deriveTier(
   return tierIdFromStripePriceId(priceId) ?? 'unknown';
 }
 
+/**
+ * Deferred-account fulfillment (May 25, 2026).
+ *
+ * The pre-pay /signup flow writes `pendingSignups/{sessionId}` with
+ * the user's name/email/tier/referrer before sending them to Stripe
+ * Checkout. When the session completes, we look that doc up and
+ * create the Firebase Auth user + agents/{uid} doc here — i.e. the
+ * account only exists once Stripe says payment succeeded.
+ *
+ * Returns the resolved Firebase userId, or null if this session was
+ * not a deferred-signup flow (e.g. an already-authed user resubscribing
+ * via /api/stripe/create-checkout-session, which sets `firebaseUserId`
+ * in metadata directly).
+ */
+async function fulfillPendingSignup(
+  session: Stripe.Checkout.Session,
+): Promise<{ userId: string; createdNewUser: boolean } | null> {
+  const db = getAdminFirestore();
+  const pendingRef = db.collection('pendingSignups').doc(session.id);
+  const pendingSnap = await pendingRef.get();
+  if (!pendingSnap.exists) return null;
+
+  const pending = pendingSnap.data() as {
+    email?: string;
+    name?: string;
+    tier?: string;
+    referrerId?: string | null;
+    status?: string;
+  };
+
+  // Idempotency — if a duplicate webhook fires after fulfillment, just
+  // return the recorded userId without re-creating anything.
+  if (pending.status === 'fulfilled') {
+    const existingUid = (pendingSnap.data() as { firebaseUserId?: string }).firebaseUserId;
+    if (existingUid) return { userId: existingUid, createdNewUser: false };
+  }
+
+  const email = pending.email?.trim().toLowerCase();
+  const name = pending.name?.trim();
+  if (!email || !name) {
+    throw new Error(`pendingSignup ${session.id} missing email or name`);
+  }
+
+  const auth = getAdminAuth();
+
+  // Race protection: another webhook delivery (or a stranded legacy
+  // signup with the same email) may have created the Auth user
+  // already. Reuse it instead of erroring out.
+  let userId: string;
+  let createdNewUser: boolean;
+  try {
+    const existing = await auth.getUserByEmail(email);
+    userId = existing.uid;
+    createdNewUser = false;
+  } catch (err: unknown) {
+    const code = (err as { code?: string } | null)?.code;
+    if (code !== 'auth/user-not-found') throw err;
+    const created = await auth.createUser({
+      email,
+      displayName: name,
+      emailVerified: false,
+    });
+    userId = created.uid;
+    createdNewUser = true;
+  }
+
+  // Backfill the Stripe Customer's metadata with firebaseUserId so
+  // future webhook events (subscription.updated etc.) can resolve
+  // the user via getFirebaseUserIdFromCustomer.
+  const customerId =
+    typeof session.customer === 'string'
+      ? session.customer
+      : session.customer?.id ?? null;
+  if (customerId) {
+    try {
+      await stripe.customers.update(customerId, {
+        metadata: { firebaseUserId: userId },
+      });
+    } catch (err) {
+      console.warn('[stripe-webhook] could not update customer metadata', {
+        customerId,
+        err: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  // Seed agents/{uid} with profile data the pendingSignup carried.
+  // subscriptionStatus is left for the main handler below — keeping
+  // a single writer for the active/tier fields avoids drift.
+  const profileSeed: Record<string, unknown> = {
+    name,
+    email,
+    emailLower: email,
+    createdAt: FieldValue.serverTimestamp(),
+  };
+  if (pending.referrerId) profileSeed.referredByAgent = pending.referrerId;
+  await db.collection('agents').doc(userId).set(profileSeed, { merge: true });
+
+  await pendingRef.set(
+    {
+      status: 'fulfilled',
+      fulfilledAt: FieldValue.serverTimestamp(),
+      firebaseUserId: userId,
+    },
+    { merge: true },
+  );
+
+  return { userId, createdNewUser };
+}
+
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
-  const userId = session.metadata?.firebaseUserId;
+  // Deferred-signup path: create the Firebase user from the pending
+  // signup doc before falling through to the standard activation
+  // logic. For legacy/resubscribe flows, fulfilledFromPending is null
+  // and we use `session.metadata.firebaseUserId` as before.
+  const fulfilledFromPending = await fulfillPendingSignup(session);
+
+  const userId = fulfilledFromPending?.userId ?? session.metadata?.firebaseUserId;
   const customerId = session.customer as string;
   const subscriptionId = session.subscription as string;
 
@@ -163,6 +280,27 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         const resend = new Resend(key);
         const firstName = agentName?.split(' ')[0] || 'there';
         const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://agentforlife.app').replace(/\/+$/, '');
+
+        // Deferred-signup users have no password yet. Generate a
+        // one-click password-set link as their primary CTA so they
+        // can finish setup even if they closed the browser after
+        // paying. For legacy/resubscribe users (already had a password),
+        // we skip the link and keep the "Open dashboard" CTA.
+        let passwordSetLink: string | null = null;
+        if (fulfilledFromPending?.createdNewUser) {
+          try {
+            passwordSetLink = await getAdminAuth().generatePasswordResetLink(email);
+          } catch (linkErr) {
+            console.error('[stripe-webhook] failed to generate password-set link', linkErr);
+          }
+        }
+
+        const ctaHref = passwordSetLink ?? `${appUrl}/dashboard`;
+        const ctaLabel = passwordSetLink ? 'Set your password' : 'Open your dashboard';
+        const bodyCopy = passwordSetLink
+          ? 'Welcome to AgentForLife. Your payment went through and your account is active. One last step — set your password to log in.'
+          : 'Welcome to AgentForLife. Your account is active and your dashboard is ready.';
+
         await resend.emails.send({
           from: 'Daniel Roberts — AgentForLife™ <support@agentforlife.app>',
           to: email,
@@ -170,16 +308,16 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
           html: `
             <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; color: #2D3748; line-height: 1.7;">
               <p style="font-size: 16px;">Hey ${firstName},</p>
-              <p style="font-size: 16px;">Welcome to AgentForLife. Your account is active and your dashboard is ready.</p>
-              <p style="font-size: 16px;">Best next steps:</p>
+              <p style="font-size: 16px;">${bodyCopy}</p>
+              <p style="margin: 20px 0;">
+                <a href="${ctaHref}" style="display:inline-block;padding:12px 20px;background:#005851;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">${ctaLabel}</a>
+              </p>
+              <p style="font-size: 16px;">Best next steps once you're in:</p>
               <ul style="font-size: 16px; margin: 8px 0 16px 20px; padding: 0;">
                 <li>Add your first client</li>
                 <li>Upload your business card in Settings</li>
                 <li>Turn on AI referral assistant</li>
               </ul>
-              <p style="margin: 20px 0;">
-                <a href="${appUrl}/dashboard" style="display:inline-block;padding:12px 20px;background:#005851;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open your dashboard</a>
-              </p>
               <p style="font-size: 16px;">Questions? Just reply to this email.</p>
               <p style="font-size: 16px;">— Daniel</p>
             </div>

@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       await agentRef.update({ inviteCode });
     }
 
-    const inviteUrl = `https://agentforlife.app/signup?ref=${inviteCode}`;
+    const inviteUrl = `https://agentforlife.app/pricing?ref=${inviteCode}`;
     const message =
       `Quick favor: here is your AgentForLife invite link in case you want to share it with another agent: ${inviteUrl} ` +
       'Could you confirm you got this by replying or giving a thumbs up here?';
