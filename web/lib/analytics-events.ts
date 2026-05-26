@@ -99,7 +99,19 @@ export type AnalyticsEventPropertiesMap = {
     call_type?: string;
   } & GenericEventProperties;
   client_added: {
-    method?: 'manual' | 'csv_import' | 'pdf_parse' | 'book_of_business';
+    method?:
+      | 'manual'
+      | 'csv_import'
+      | 'pdf_parse'
+      | 'book_of_business'
+      // Fired when a PDF-parse upload was about to create a new
+      // client but the duplicate precheck found a match and the
+      // agent chose to attach the extracted policy to the existing
+      // client instead. No new client doc was created — but tracking
+      // it as a client_added variant captures how often the dedup
+      // prompt catches a real 2nd-policy upload, which is one of the
+      // value metrics for Phase 4 create-time prevention.
+      | 'pdf_parse_attached_to_existing';
     imported_count?: number;
   } & GenericEventProperties;
   client_removed: GenericEventProperties;
