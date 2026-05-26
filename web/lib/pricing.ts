@@ -1,31 +1,50 @@
 /**
- * Pricing v3 source of truth — May 10, 2026 (Track C, Phase 1).
+ * Pricing source of truth — last relock May 26, 2026.
  *
- * SOURCE OF TRUTH: `docs/AFL_Pricing_Packaging_Playbook_v3.md` +
- * `CONTEXT.md` > Business Model. Conversation-based pricing,
+ * SOURCE OF TRUTH: `CONTEXT.md` > Business Model + Tier Gating
+ * (sections last updated May 26, 2026). Conversation-based pricing,
  * not message-based or seat-based. The conversation budget is for
- * Linq pooled-line SMS only — push, agent-personal-phone one-tap,
+ * AFL pooled-line SMS only — push, agent-personal-phone one-tap,
  * and email are unlimited across all tiers.
  *
- * Daniel's locked May 9-10 decisions:
+ * May 26, 2026 relock (supersedes the May 9-10 v3 numbers):
+ * - Starter $29 → grandfathered for the May 26 11-agent pitch cohort
+ *   + future case-by-case. **Killed for general new signups** — the
+ *   pricing page filters it out below. Existing $29 customers stay
+ *   forever.
+ * - Growth $59 → **$49**. Repositioned as the post-sale-only anchor.
+ *   No pre-sale tools (Leads / Activity / Close-the-sale) at this
+ *   tier — those move up to Pro.
+ * - Pro $119 → **$99**. Now carries the pre-sale unlock (Leads,
+ *   Activity, Close-the-sale conveyor, SME/FIF) + individual
+ *   Performance page. Tangible feature unlock, not just "more
+ *   conversations."
+ * - Agency $199 + $39/seat → **$349+ band pricing**. Per-seat is OUT.
+ *   Band specifics deferred to the "Pricing band parking lot" in
+ *   CONTEXT. Still sales-led via the mailto CTA.
+ * - Founding 34 → free Growth-equivalent post-sale forever. To unlock
+ *   pre-sale they upgrade to Pro: $99 Pro SKU with a permanent $50
+ *   founding Stripe Coupon = $49 effective. See CONTEXT > Founding 34.
+ *
+ * Earlier locked decisions still in force:
  * - The legacy `charter` ($25) and `inner_circle` ($35) tiers are
  *   removed. No grandfather, no migration — they had no active
  *   subscribers.
- * - Three Stripe-billable tiers ship: Starter, Growth, Pro.
- * - Agency is presented on the pricing page as "Contact Sales"
- *   (mailto link) with no Stripe SKU yet — defers per-seat /
- *   pooled-capacity / team-admin engineering until a real customer
- *   asks.
- * - Founding 34 stay on the `isFoundingMember=true` flag, free for
- *   life, with no Stripe subscription. The 4 founding agents who
- *   signed up before the no-CC flow have inert Stripe customer
- *   records — left untouched.
- * - 14-day free trial on Starter and Growth; CC required at
- *   signup (standard pattern, Stripe-native via
- *   `trial_period_days`). Pro and Agency have no trial per
- *   `docs/AFL_Pricing_Packaging_Playbook_v3.md`.
- * - Monthly billing only at v3 launch. Annual prepay is deferred
- *   to Phase 4+ pending demand signal.
+ * - Founding 34 stay on the `isFoundingMember=true` flag.
+ * - 14-day free trial on Growth (and on Starter for the legacy
+ *   grandfathered cohort, mechanically still set here but
+ *   functionally moot for new signups). CC required at signup
+ *   (standard pattern, Stripe-native via `trial_period_days`).
+ *   Pro and Agency have no trial.
+ * - Monthly billing only. Annual prepay deferred to Phase 4+ pending
+ *   demand signal.
+ *
+ * Stripe Price IDs were edited in-place in the Stripe Dashboard
+ * on May 26, 2026 (Stripe permits `unit_amount` edits on Prices with
+ * no active subscribers — verified empirically). The
+ * `STRIPE_PRICE_ID_GROWTH_MONTHLY` and `STRIPE_PRICE_ID_PRO_MONTHLY`
+ * env vars in Vercel point to the same Price IDs as before; only
+ * the amounts they bill changed.
  */
 
 export type PricingTierId = 'starter' | 'growth' | 'pro' | 'agency';
@@ -36,7 +55,8 @@ export interface PricingTier {
   id: PricingTierId;
   name: string;
   /** Monthly price in USD (whole dollars). Agency price is the
-   *  base ($199/mo platform fee); seat pricing is sales-led. */
+   *  band-1 floor ($349/mo), rendered as "from $349" on the pricing
+   *  page; specific band thresholds are sales-led. */
   priceMonthly: number;
   /** One-line positioning under the tier name. */
   tagline: string;
@@ -65,37 +85,36 @@ export const PRICING_TIERS: Readonly<Record<PricingTierId, PricingTier>> = {
     id: 'starter',
     name: 'Starter',
     priceMonthly: 29,
-    tagline: 'For agents getting started',
+    tagline: 'Grandfathered — closed to new signups',
     conversationsPerMonth: 30,
     dailyConversationCap: 3,
     trialDays: 14,
     bullets: [
-      'Light book — AI conversations sized for a small book',
-      'Unlimited push, one-tap, email',
+      'Light book — sized for a small post-sale book',
       'Branded client mobile app',
-      'AFL referral assistant',
-      'Retention + anniversary lanes',
+      'Retention + anniversary + referral AI',
+      'Unlimited push, one-tap, email',
     ],
-    bestFor: 'Year-1 agent with a small book',
+    bestFor: 'Legacy cohort only (pitched at $29 before May 26 lock)',
     isStripeBillable: true,
     stripePriceIdEnvVar: 'STRIPE_PRICE_ID_STARTER_MONTHLY',
   },
   growth: {
     id: 'growth',
     name: 'Growth',
-    priceMonthly: 59,
-    tagline: 'For established producers',
+    priceMonthly: 49,
+    tagline: 'Keep the book you have',
     conversationsPerMonth: 75,
     dailyConversationCap: 8,
     trialDays: 14,
     bullets: [
-      'Active book — more AI conversations for a growing book',
-      'Everything in Starter',
+      'Active book — full post-sale engine for a steady book',
+      'Branded client mobile app',
+      'Retention + anniversary + referral AI',
       'Bulk import onboarding ceremony',
       'Anniversary rewrite alerts',
-      'Conservation + retention drip',
     ],
-    bestFor: 'Established producer running a steady book',
+    bestFor: 'Established producer focused on retaining + monetizing the book they already have',
     isStripeBillable: true,
     stripePriceIdEnvVar: 'STRIPE_PRICE_ID_GROWTH_MONTHLY',
     emphasis: 'popular',
@@ -103,38 +122,41 @@ export const PRICING_TIERS: Readonly<Record<PricingTierId, PricingTier>> = {
   pro: {
     id: 'pro',
     name: 'Pro',
-    priceMonthly: 119,
-    tagline: 'For top producers',
+    priceMonthly: 99,
+    tagline: 'Grow the book',
     conversationsPerMonth: 200,
     dailyConversationCap: 20,
     trialDays: 0,
     bullets: [
-      'Full book — high-volume AI conversations',
+      'Full book — adds pre-sale tools to the post-sale engine',
       'Everything in Growth',
-      'Advanced analytics',
-      'Priority support',
-      'Higher daily caps',
+      'Lead management + Activity dashboard',
+      'Close-the-sale ritual: lead → client → policy → activation',
+      'Performance page: paste call transcripts, get AI coaching scores',
+      'SME / FIF tracking for advanced-market referrals',
     ],
-    bestFor: 'Top producer with a large active book',
+    bestFor: 'Producer actively running a lead pipeline who wants AI coaching on their calls',
     isStripeBillable: true,
     stripePriceIdEnvVar: 'STRIPE_PRICE_ID_PRO_MONTHLY',
   },
   agency: {
     id: 'agency',
     name: 'Agency',
-    priceMonthly: 199,
-    tagline: 'For agency owners with a downline',
+    /** Displayed as "from $349" on the pricing page. Band specifics
+     *  are sales-led — see CONTEXT.md > Pricing band parking lot. */
+    priceMonthly: 349,
+    tagline: 'Run the team',
     conversationsPerMonth: null,
     dailyConversationCap: null,
     trialDays: 0,
     bullets: [
-      'Team pool — pooled AI conversations across your team',
-      'Team admin tools',
-      'Per-agent dashboard',
-      'Concierge onboarding',
-      'Mentor + SME calendars (when available)',
+      'Team pool — pooled AI conversation budget across all seats',
+      'Everything in Pro for every agent',
+      'Team Performance dashboard (leaderboards + coaching priorities)',
+      'Team admin tools + per-agent dashboards',
+      'Mentor calendar + chargeback comparison vs Symmetry',
     ],
-    bestFor: 'Agency owner with a downline of agents',
+    bestFor: 'Agency owner running a downline who wants team-level visibility + coaching',
     isStripeBillable: false,
     stripePriceIdEnvVar: '',
   },

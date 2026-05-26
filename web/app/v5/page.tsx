@@ -12,7 +12,7 @@ const FAQ_ITEMS = [
   { question: 'How hard is it to get started?', answer: 'You can be live in 10 minutes. Import your clients via CSV or upload PDF applications — AFL extracts everything. Enable the referral assistant with one toggle and your clients get welcomed onto the app one by one.' },
   { question: 'Is my data safe?', answer: "Yes. Your client data is encrypted with AES-256, stored on Google Cloud, and only accessible by you. We never contact your clients independently, and no other agent can see your book of business." },
   { question: 'What carriers does it work with?', answer: 'All of them. Agent for Life is carrier-agnostic. Works for independent agents regardless of which carriers you\'re appointed with.' },
-  { question: 'How does pricing work?', answer: 'Three plans bill through Stripe — Starter at $29/mo (30 conversations), Growth at $59/mo (75 conversations), Pro at $119/mo (200 conversations). Agency is sales-led. Push notifications, agent-phone one-tap texts, and email are unlimited on every tier; the conversation budget is for the AFL-driven conversation line. 14-day free trial on Starter and Growth.' },
+  { question: 'How does pricing work?', answer: 'Growth at $49/mo (75 conversations) runs your post-sale book — retention, anniversaries, referrals, bulk import. Pro at $99/mo (200 conversations) adds the pre-sale tools on top: Leads, Activity, the close-the-sale conveyor, and the Performance page that scores your call transcripts. Agency starts at $349/mo with band pricing for teams. Push notifications, agent-phone one-tap texts, and email are unlimited on every tier; the conversation budget is for the AFL-driven conversation line. 14-day free trial on Growth.' },
 ];
 
 const fadeUp = {
@@ -731,7 +731,7 @@ export default function DesktopLandingV5() {
                 Pricing that fits <span className="text-[#3DD6C3]">your book</span>.
               </h2>
               <p className="text-[#6B7280] text-lg">
-                Starter at $29/mo. Growth at $59/mo. Pro at $119/mo. Agency by request.
+                Growth at $49/mo. Pro at $99/mo. Agency from $349/mo.
               </p>
               <p className="text-[#6B7280] text-sm mt-2">
                 14-day free trial. No contracts. Cancel anytime.
