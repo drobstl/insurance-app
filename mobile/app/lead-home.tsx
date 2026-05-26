@@ -10,9 +10,18 @@ import {
   Modal,
   Linking,
   ActivityIndicator,
+  AppState,
+  type AppStateStatus,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { getSession, clearSession } from './index';
+import {
+  getSession,
+  clearSession,
+  lookupClientCode,
+  saveSession,
+  saveProfileCache,
+  navigateToProfile,
+} from './index';
 import LeadAssessment from '../components/LeadAssessment';
 import {
   fetchLeadHomeContent,
@@ -112,7 +121,99 @@ export default function LeadHomeScreen() {
 
   const handleSignOut = useCallback(async () => {
     await clearSession();
-    router.replace('/activate' as never);
+    router.replace('/login' as never);
+  }, []);
+
+  // ── Live-flip polling: detect lead→client convert in real time ──
+  //
+  // While the prospect is on lead-home, the agent may click "Close the
+  // Sale" on the dashboard. That stamps `convertedToClientId` on the
+  // lead doc + creates a client doc. The mobile lookup endpoint follows
+  // that redirect and returns `accessType: 'client'`. Polling that
+  // endpoint every 10s lets us catch the flip without requiring the
+  // prospect to force-quit and reopen the app — the agent's close-of-
+  // sale verbal script becomes a smooth "you're all set, hit allow on
+  // the notification prompt that just popped up" with no app gymnastics.
+  //
+  // Polling, not Firestore listener, because Firestore security rules
+  // restrict `agents/{agentId}/leads/{leadId}` reads to the agent's
+  // own auth — the mobile app isn't authenticated as the agent, so
+  // direct onSnapshot would fail with permission-denied. The lookup
+  // endpoint already handles the public-read auth model via rate limit
+  // (10 req/min/IP); 10s polling stays well under the cap (6 req/min).
+  //
+  // Pauses when the app is backgrounded; resumes + immediately re-checks
+  // on foreground (catches the case where convert happened while the
+  // prospect was in another app).
+  useEffect(() => {
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let isForeground = true;
+
+    const checkOnce = async () => {
+      if (cancelled || !isForeground) return;
+      try {
+        const session = await getSession();
+        if (!session?.clientCode || cancelled) return;
+        const result = await lookupClientCode(session.clientCode);
+        if (cancelled) return;
+        // Convert detected: accessType flipped from 'lead' to anything
+        // else (typically 'client'). Update cached session + profile,
+        // then hand off to navigateToProfile — for a new client without
+        // `clientActivatedAt`, that routes to /activate where the iOS
+        // notification prompt fires for the first time.
+        if (result.accessType && result.accessType !== 'lead') {
+          await saveSession({
+            clientCode: session.clientCode,
+            agentId: result.agentId,
+            clientId: result.clientId,
+          });
+          await saveProfileCache(result);
+          navigateToProfile(
+            result.agentId,
+            result.clientId,
+            result.clientData,
+            result.agentData,
+            result.accessType,
+            result.linqLinePhone || '',
+          );
+        }
+      } catch (err) {
+        // Network blip or transient lookup failure — swallow and try
+        // again on the next tick. A real failure mode (invalid code
+        // post-convert, or a 4xx) doesn't recover from polling anyway.
+        console.warn('[lead-home] live-flip poll failed:', err);
+      }
+    };
+
+    const scheduleNext = () => {
+      if (cancelled) return;
+      timeoutId = setTimeout(async () => {
+        if (cancelled) return;
+        await checkOnce();
+        if (!cancelled) scheduleNext();
+      }, 10_000);
+    };
+
+    scheduleNext();
+
+    const appStateSub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      const nowActive = next === 'active';
+      if (nowActive && !isForeground) {
+        isForeground = true;
+        // Resumed from background — re-check immediately in case the
+        // convert happened while we were paused.
+        checkOnce();
+      } else if (!nowActive && isForeground) {
+        isForeground = false;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+      appStateSub.remove();
+    };
   }, []);
 
   const hasValidPhoto = agentPhotoBase64

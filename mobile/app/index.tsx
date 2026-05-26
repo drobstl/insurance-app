@@ -139,21 +139,24 @@ export function navigateToProfile(
   clientData: Record<string, unknown>,
   agentData: Record<string, unknown>,
   accessType: 'client' | 'beneficiary' | 'lead' = 'client',
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _linqLinePhone: string = '',
+  linqLinePhone: string = '',
 ) {
   const clientCode = (clientData.clientCode as string) || '';
-  // Push-token registration is deliberately client-only — iOS gives exactly
-  // one "would like to send you notifications" OS prompt per install, and
-  // we save it for the close-of-sale activation ritual (when the agent is
-  // on the phone walking the new client through download + activation +
-  // notifications grant). Leads that later convert will hit this branch
-  // when they enter their new client code, and `activate.tsx`'s
-  // auto-prompt logic will fire the OS prompt fresh. Lead-side appointment
-  // push reminders won't have tokens to push to — that's accepted; leads
-  // get called by their agent at appointment time regardless. See
-  // HANDOFF_2026-05-18.
-  if (accessType === 'client') {
+  const clientActivatedAt = (clientData.clientActivatedAt as string | null | undefined) || null;
+  const isUnactivatedClient = accessType === 'client' && !clientActivatedAt;
+
+  // Push-token registration is deliberately scoped to ACTIVATED clients
+  // only. Unactivated clients land on `/activate` (below), which fires
+  // the iOS notification prompt and saves the token in one motion —
+  // calling `registerAndSavePushToken` here would double-prompt. Leads
+  // and beneficiaries don't participate in the push permission ritual
+  // (per the May 18 push-token narrowing: leads get a verbal close-of-
+  // sale walkthrough; beneficiaries are invite-only and rely on the
+  // policyholder's app). When a lead is converted to a client, the
+  // lookup endpoint follows `convertedToClientId` and returns
+  // `accessType: 'client'` + `!clientActivatedAt`, routing the prospect
+  // to /activate where the prompt fires fresh for the first time.
+  if (accessType === 'client' && clientActivatedAt) {
     registerAndSavePushToken(clientCode).catch((err) =>
       console.warn('Push token registration failed:', err),
     );
@@ -173,9 +176,11 @@ export function navigateToProfile(
     businessCardBase64: (agentData.businessCardBase64 as string) || '',
   };
 
-  // Lead-mode home is the indoctrination screen (intro video + assessment +
-  // FAQ + case studies). Clients and beneficiaries continue to land on the
-  // existing /agent-profile screen.
+  // Lead-mode home is the indoctrination screen (intro video + assessment
+  // + FAQ + case studies). Leads do NOT see /activate or the iOS
+  // notification prompt — that prompt is saved for the close-of-sale
+  // activation ritual (post-convert, the lookup endpoint redirects to
+  // the client identity and the next branch routes them to /activate).
   if (accessType === 'lead') {
     router.replace({
       pathname: '/lead-home',
@@ -184,12 +189,22 @@ export function navigateToProfile(
     return;
   }
 
-  // May 8, 2026 flow inversion: activation happens BEFORE login on
-  // the activate-first entry screen (`/activate`), not after. So
-  // post-login we always route straight to /agent-profile regardless
-  // of `clientActivatedAt`. If activation never fired (race, user
-  // backed out of iMessage), the client just doesn't get push
-  // notifications — agent profile still works.
+  // Unactivated clients land on /activate, where the iOS notification
+  // prompt fires and the activation SMS to the Linq line composes.
+  // This reverses the May 8 "activate-first / login-after" inversion:
+  // login is now the unauthenticated entry, and activate is gated
+  // BEHIND identification so leads bypass it cleanly. Activation
+  // remains a hard gate for clients per
+  // `feedback_no_client_activate_skip.md`.
+  if (isUnactivatedClient) {
+    router.replace({
+      pathname: '/activate',
+      params: { ...sharedParams, linqLinePhone },
+    });
+    return;
+  }
+
+  // Activated clients + beneficiaries land directly on the agent profile.
   router.replace({
     pathname: '/agent-profile',
     params: sharedParams,
@@ -199,16 +214,21 @@ export function navigateToProfile(
 /**
  * Default route — session router.
  *
- * Pre-May-8 the default route was the login (code-entry) screen, with
- * activation gated behind it. The May 8 flow inversion makes the
- * activate-first screen the unauthenticated entry. So this default
- * route is now a thin session check:
+ * Reverted to login-first on May 25, 2026 once leads existed as a
+ * first-class user type. The May 8 "activate-first" flow optimized for
+ * a client-only world; with leads in the mix, /activate is the wrong
+ * unauthenticated entry — it fires the iOS notification prompt and uses
+ * client-funnel copy that confuses leads who haven't bought yet.
  *
- *   - With cached session → auto-login → `/agent-profile`
- *   - No cached session → `/activate` (depersonalized; user activates
- *     first, then enters code on `/login`)
+ *   - With cached session → auto-login → `navigateToProfile` routes by
+ *     `accessType` + `clientActivatedAt` (lead → /lead-home, unactivated
+ *     client → /activate, activated client / beneficiary → /agent-profile).
+ *   - No cached session → `/login` (user enters phone or code; server
+ *     resolves identity; navigateToProfile routes appropriately).
  *
- * The login (code-entry) UI now lives in `mobile/app/login.tsx`.
+ * Activation remains a hard gate for clients (per
+ * `feedback_no_client_activate_skip.md`) — just gated post-login now
+ * instead of pre-login.
  */
 export default function IndexScreen() {
   const [showRetry, setShowRetry] = useState(false);
@@ -230,7 +250,7 @@ export default function IndexScreen() {
         } catch (err) {
           if (err instanceof InvalidCodeError) {
             await clearSession();
-            router.replace('/activate' as never);
+            router.replace('/login' as never);
             return;
           }
           networkFailed = true;
@@ -244,7 +264,7 @@ export default function IndexScreen() {
           } catch (retryErr) {
             if (retryErr instanceof InvalidCodeError) {
               await clearSession();
-              router.replace('/activate' as never);
+              router.replace('/login' as never);
               return;
             }
             console.warn('Auto-login retry failed, falling back to cache');

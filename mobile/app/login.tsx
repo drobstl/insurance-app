@@ -40,7 +40,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!clientCode.trim()) {
-      setError('Please enter your client code');
+      setError('Please enter your phone number or code');
       return;
     }
 
@@ -67,7 +67,7 @@ export default function LoginScreen() {
       );
     } catch (err) {
       if (err instanceof InvalidCodeError) {
-        setError('Invalid client code. Please check and try again.');
+        setError('We couldn\'t find that. Check the number/code and try again.');
       } else {
         console.error('Login error:', err);
         setError('Something went wrong. Please try again.');
@@ -86,8 +86,8 @@ export default function LoginScreen() {
           <View style={styles.logoIcon}>
             <Text style={styles.logoIconText}>✓</Text>
           </View>
-          <Text style={styles.title}>Almost there.</Text>
-          <Text style={styles.subtitle}>Enter the code your agent sent you.</Text>
+          <Text style={styles.title}>Welcome.</Text>
+          <Text style={styles.subtitle}>Enter your phone number or the code your agent sent you.</Text>
         </View>
 
         <KeyboardAvoidingView
@@ -96,7 +96,7 @@ export default function LoginScreen() {
         >
           <SafeAreaView style={styles.formSafeArea}>
             <View style={styles.formContainer}>
-              <Text style={styles.label}>Client Code</Text>
+              <Text style={styles.label}>Phone Number or Code</Text>
               <TextInput
                 style={styles.input}
                 value={clientCode}
@@ -104,7 +104,7 @@ export default function LoginScreen() {
                   setClientCode(text.toUpperCase());
                   setError('');
                 }}
-                placeholder="Enter your code"
+                placeholder="(555) 123-4567 or AB12CD3"
                 placeholderTextColor="#9CA3AF"
                 autoCapitalize="characters"
                 autoCorrect={false}
@@ -131,8 +131,8 @@ export default function LoginScreen() {
               </TouchableOpacity>
 
               <Text style={styles.helpText}>
-                Your client code was provided by your insurance agent.
-                Contact your agent if you need assistance.
+                Use your phone number, or the code your insurance
+                agent sent you. Contact your agent if you need help.
               </Text>
             </View>
           </SafeAreaView>

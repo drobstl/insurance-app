@@ -76,12 +76,93 @@ export async function POST(req: NextRequest) {
       }
 
       const db = getAdminFirestore();
-      const [leadSnap, agentSnap] = await Promise.all([
-        leadMatch.leadRef.get(),
-        db.collection('agents').doc(leadMatch.agentId).get(),
-      ]);
-
+      const leadSnap = await leadMatch.leadRef.get();
       const leadData = leadSnap.data() ?? {};
+
+      // Lead-was-converted redirect. If this lead has been converted to a
+      // client (`/api/leads/[leadId]/convert` stamped `convertedToClientId`),
+      // transparently swap the response to the client's identity +
+      // `accessType: 'client'`. This is the load-bearing piece behind the
+      // "no force-quit and reopen" close-of-sale UX: the mobile lead-home
+      // listener detects the convert in real time and re-runs this lookup,
+      // which now returns client data; the app then navigates the prospect
+      // to /activate where the notification prompt fires for the first
+      // time. Same redirect covers the cold-start case where a converted
+      // lead opens the app for the first time — they land on the client
+      // experience directly without needing a new code.
+      if (typeof leadData.convertedToClientId === 'string' && leadData.convertedToClientId) {
+        const convertedClientId = leadData.convertedToClientId;
+        const clientRef = db
+          .collection('agents')
+          .doc(leadMatch.agentId)
+          .collection('clients')
+          .doc(convertedClientId);
+        const [clientSnap, agentSnap] = await Promise.all([
+          clientRef.get(),
+          db.collection('agents').doc(leadMatch.agentId).get(),
+        ]);
+
+        if (clientSnap.exists) {
+          const clientData = clientSnap.data() ?? {};
+          const agentData = agentSnap.data() ?? {};
+
+          // Same field normalization as the client branch below. Keep in
+          // sync if either side changes.
+          const clientActivatedAtRaw = clientData.clientActivatedAt;
+          const clientActivatedAt =
+            typeof clientActivatedAtRaw === 'object' && clientActivatedAtRaw !== null && 'toDate' in clientActivatedAtRaw
+              ? (clientActivatedAtRaw as { toDate: () => Date }).toDate().toISOString()
+              : (typeof clientActivatedAtRaw === 'string' ? clientActivatedAtRaw : null);
+          const thumbsUpRaw = clientData.welcomeThumbsUpReceivedAt;
+          const welcomeThumbsUpReceivedAt =
+            typeof thumbsUpRaw === 'object' && thumbsUpRaw !== null && 'toDate' in thumbsUpRaw
+              ? (thumbsUpRaw as { toDate: () => Date }).toDate().toISOString()
+              : (typeof thumbsUpRaw === 'string' ? thumbsUpRaw : null);
+          const linqLinePhone = resolveLinqLinePhone(agentData);
+
+          return NextResponse.json({
+            agentId: leadMatch.agentId,
+            clientId: convertedClientId,
+            clientData: {
+              name: clientData.name ?? '',
+              email: clientData.email ?? '',
+              phone: clientData.phone ?? '',
+              // Preserve the original L-code as the session key so the
+              // mobile app keeps using the same identifier across the
+              // convert. Server-side `convertedToClientCode` stamps the
+              // NEW C-code on the lead doc for dashboard cross-reference,
+              // but the prospect never needs to know about it.
+              clientCode: normalizedCode,
+              clientActivatedAt,
+              welcomeThumbsUpReceivedAt,
+            },
+            agentData: {
+              name: agentData.name ?? 'Your Agent',
+              email: agentData.email ?? '',
+              phoneNumber: agentData.phoneNumber ?? '',
+              agencyName: agentData.agencyName ?? '',
+              referralMessage: agentData.referralMessage ?? '',
+              photoBase64: agentData.photoBase64 ?? '',
+              agencyLogoBase64: agentData.agencyLogoBase64 ?? '',
+              businessCardBase64: agentData.businessCardBase64 ?? '',
+            },
+            linqLinePhone,
+            accessType: 'client' as const,
+          });
+        }
+
+        // Lead has convertedToClientId stamped but the client doc is missing
+        // — log loudly and fall through to the lead response as a safety
+        // net so the prospect at least lands on /lead-home and isn't left
+        // staring at an error.
+        console.error('[lookup-client-code] lead has convertedToClientId but client doc is missing; falling back to lead response', {
+          agentId: leadMatch.agentId,
+          leadId: leadMatch.leadId,
+          convertedToClientId: convertedClientId,
+        });
+      }
+
+      const agentSnap = await db.collection('agents').doc(leadMatch.agentId).get();
       const agentData = agentSnap.data() ?? {};
 
       // Stamp appDownloadedAt on first successful lookup. Fire-and-forget;
