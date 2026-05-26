@@ -466,6 +466,22 @@ function LeadsPageInner() {
     });
   }, []);
 
+  // Per-lead dial-session counter. Drives the dial-persistence setting
+  // (1/2/3 attempts before auto-advance). Incremented every time the
+  // desktop Call button fires on a lead. Cleared when the queue
+  // advances off that lead OR when a terminal outcome (booked /
+  // not_interested / wrong_number / do_not_call / callback_requested)
+  // is chipped. In-memory only — session-scoped, no Firestore mirror.
+  //
+  // MUST be declared above `queueLeads` because the useMemo factory
+  // reads `dialAttemptsForLeadRef.current` synchronously during render
+  // (for the persistence-hold scoring branch). A `const` binding below
+  // that read would put the ref in the temporal dead zone on first
+  // render and throw `ReferenceError: Cannot access
+  // 'dialAttemptsForLeadRef' before initialization`, which is what
+  // happened in 16df33a and broke the entire leads page.
+  const dialAttemptsForLeadRef = useRef<Map<string, number>>(new Map());
+
   const queueLeads = useMemo<Lead[]>(() => {
     const persistence = agentProfile.dialPersistence ?? 1;
 
@@ -586,14 +602,6 @@ function LeadsPageInner() {
   // `handleQueueCall`.
   const [desktopPendingDial, setDesktopPendingDial] = useState<{ leadId: string; phone: string; nonce: number } | null>(null);
   const dialNonceRef = useRef(0);
-
-  // Per-lead dial-session counter. Drives the dial-persistence setting
-  // (1/2/3 attempts before auto-advance). Incremented every time the
-  // desktop Call button fires on a lead. Cleared when the queue
-  // advances off that lead OR when a terminal outcome (booked /
-  // not_interested / wrong_number / do_not_call / callback_requested)
-  // is chipped. In-memory only — session-scoped, no Firestore mirror.
-  const dialAttemptsForLeadRef = useRef<Map<string, number>>(new Map());
 
   const handleQueueCall = useCallback((lead: Lead, phoneOverride?: string) => {
     // Hard-stop on do-not-call leads. The queue filter already drops
