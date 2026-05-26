@@ -467,7 +467,7 @@ function LeadsPageInner() {
   }, []);
 
   const queueLeads = useMemo<Lead[]>(() => {
-    const now = Date.now();
+    const persistence = agentProfile.dialPersistence ?? 1;
 
     type Scored = { lead: Lead; score: number };
     const scored: Scored[] = [];
@@ -480,24 +480,31 @@ function LeadsPageInner() {
       const lastDialMs = lead.lastDialAt?.toDate().getTime() ?? null;
       let score: number;
 
-      if (lastDialMs === null) {
-        // Never dialed — highest priority. Sub-sort by created-at so
+      // Persistence hold: a lead the agent has dialed this session but
+      // hasn't reached the dial-persistence threshold yet outranks even
+      // never-dialed leads, so the agent stays on the lead for the next
+      // dial. Only applies to no_answer — left_vm is terminal (once you
+      // left a message, dialing again immediately is pointless). Reads
+      // dialAttemptsForLeadRef at compute time, safe because queueLeads
+      // recomputes when `leads` updates from the Firestore snapshot,
+      // which is exactly when the outcome POST that matters here lands.
+      const sessionAttempts = dialAttemptsForLeadRef.current.get(lead.id) || 0;
+      const inPersistenceHold =
+        sessionAttempts > 0
+        && sessionAttempts < persistence
+        && out === 'no_answer';
+
+      if (inPersistenceHold) {
+        score = Number.MAX_SAFE_INTEGER;
+      } else if (lastDialMs === null) {
+        // Never dialed — top of the rotation. Sub-sort by created-at so
         // newer leads rank slightly higher (they're more "fresh").
         const createdMs = lead.createdAt?.toDate().getTime() ?? 0;
         score = 1_000_000_000 + createdMs / 1000;
       } else {
-        const hoursSince = (now - lastDialMs) / (1000 * 60 * 60);
-        // Outcome-specific cooldown — leads waiting on a callback
-        // should resurface fast; left-vm should rest a couple days
-        // before re-trying.
-        const cooldownHours = (
-          out === 'callback_requested' ? 4 :
-          out === 'no_answer'          ? 24 :
-          out === 'left_vm'            ? 48 :
-                                         24
-        );
-        // Score = how-much-overdue (positive = overdue, negative = still resting)
-        score = hoursSince - cooldownHours;
+        // Dialed leads: oldest-dialed first. No per-outcome cooldown —
+        // the agent cycles through and comes back around naturally.
+        score = -lastDialMs;
       }
 
       scored.push({ lead, score });
@@ -506,7 +513,7 @@ function LeadsPageInner() {
     return scored
       .sort((a, b) => b.score - a.score)
       .map(({ lead }) => lead);
-  }, [leads]);
+  }, [leads, agentProfile.dialPersistence]);
 
   // Tap-to-call — used on the queue rows. US-only — raw digits, the
   // OS dialer handles country-code interpretation. Sets the
@@ -763,23 +770,24 @@ function LeadsPageInner() {
   // convert, delete). Gated by the agent's `dialPersistence` setting:
   //
   //   - Terminal outcomes (booked / not_interested / wrong_number /
-  //     do_not_call / callback_requested) ALWAYS advance — the lead
-  //     has resolved one way or another.
-  //   - Transient outcomes (no_answer / left_vm) only advance when
-  //     the per-lead session attempt count meets the threshold.
+  //     do_not_call / callback_requested / left_vm) ALWAYS advance —
+  //     left_vm is terminal because once a message is left, immediately
+  //     re-dialing the same number is pointless.
+  //   - Transient outcome (no_answer) only advances when the per-lead
+  //     session attempt count meets the threshold.
   //   - Convert / delete (no outcome string) always advance — the
   //     lead is leaving the queue entirely.
   //
   // Booked / not_interested / wrong_number / do_not_call also drop
   // the lead off the queue via the live snapshot's lastDialOutcome
-  // filter; transient outcomes re-score to a heavily-negative number
-  // and fall to the bottom. queueLeads.find(l => l.id !== current)
+  // filter; no_answer re-scores by lastDialAt and cycles to the
+  // bottom of the dialed-leads bucket. queueLeads.find(l => l.id !== current)
   // reliably points at the next lead. We synchronously advance
   // without waiting for the snapshot to re-arrive — the panel's
   // POST has already gone out, and queueLeads will recompute as
   // soon as Firestore confirms.
   const TERMINAL_OUTCOMES = useMemo(
-    () => new Set(['booked', 'not_interested', 'wrong_number', 'do_not_call', 'callback_requested']),
+    () => new Set(['booked', 'not_interested', 'wrong_number', 'do_not_call', 'callback_requested', 'left_vm']),
     [],
   );
   const advanceToNextQueueLead = useCallback((outcome?: string) => {
