@@ -16,7 +16,8 @@ import AppointmentPicker from '../../../components/AppointmentPicker';
 import SendConfirmationDrawer from '../../../components/SendConfirmationDrawer';
 import LeadDetailPanel from '../../../components/LeadDetailPanel';
 import { CloseSaleRitual } from '../../../components/CloseSaleRitual';
-import { isLeadModeVisibleForEmail } from '../../../lib/feature-flags';
+import { leadsAccessReason } from '../../../lib/tier-gating';
+import UpgradeToProCard from '../../../components/UpgradeToProCard';
 
 interface Lead {
   id: string;
@@ -79,21 +80,53 @@ const SURFACE_HEADER = 'sticky top-0 z-10 flex items-center justify-between p-5 
 // conditional. The wrapper pattern is the canonical fix per React
 // docs and keeps the lint signal-to-noise clean.
 //
-// Two-axis gate: global LEAD_MODE_ENABLED + LEAD_MODE_ADMIN_ONLY
-// (see web/lib/feature-flags.ts). Waits for `user` to resolve before
-// deciding to redirect so admins mid-auth-load aren't bounced. The
-// inner component never mounts for non-admins so the leads
-// Firestore listener also stays off. Belt-and-suspenders with the
-// sidebar / mobile-nav gates in dashboard/layout.tsx.
+// Three-axis gate: global LEAD_MODE_ENABLED + LEAD_MODE_ADMIN_ONLY
+// (see web/lib/feature-flags.ts) + tier-based gating (Pro+ only;
+// see web/lib/tier-gating.ts). Waits for both `user` and the
+// agent profile to resolve before deciding so admins / Pro agents
+// mid-auth-load aren't bounced. The inner component never mounts
+// when access is denied so the leads Firestore listener also stays
+// off. Belt-and-suspenders with the sidebar / mobile-nav gates in
+// dashboard/layout.tsx.
+//
+// Three outcomes:
+//   `'accessible'` → render the surface
+//   `'env_off'`    → redirect to /dashboard (legacy behavior; lead
+//                    mode globally disabled, surface doesn't exist
+//                    for anyone)
+//   `'tier_locked'`→ render UpgradeToProCard (the surface exists but
+//                    this agent's tier doesn't qualify; surface the
+//                    upgrade path instead of bouncing them).
 export default function LeadsPage() {
   const router = useRouter();
-  const { user } = useDashboard();
-  const leadModeVisible = isLeadModeVisibleForEmail(user?.email);
+  const { user, agentProfile, profileLoading } = useDashboard();
+  const reason = leadsAccessReason(agentProfile.membershipTier, user?.email);
 
   useEffect(() => {
-    if (user && !leadModeVisible) router.replace('/dashboard');
-  }, [user, leadModeVisible, router]);
-  if (!leadModeVisible) return null;
+    if (!user) return;
+    // Wait for the profile to load before deciding — otherwise an admin
+    // mid-load would see `reason === 'tier_locked'` for a beat and we'd
+    // briefly flash the upgrade card.
+    if (profileLoading) return;
+    if (reason === 'env_off') router.replace('/dashboard');
+  }, [user, profileLoading, reason, router]);
+
+  if (!user || profileLoading) return null;
+  if (reason === 'env_off') return null;
+  if (reason === 'tier_locked') {
+    return (
+      <UpgradeToProCard
+        featureName="Leads"
+        description="Manage your pre-application lead pipeline in AFL: upload lead forms, dial-track with cooldown-aware queues, book appointments, convert to clients with one click."
+        bullets={[
+          'Lead intake from Mail-In / Call-In / Digital forms (PDF auto-extract)',
+          'Dial queue with per-outcome cooldowns (callback 4h, no-answer 24h, left-VM 48h)',
+          'Appointment booking with QR-scan desktop→phone confirmation hand-off',
+          'Convert-to-Client conveyor belt straight into the close-the-sale ritual',
+        ]}
+      />
+    );
+  }
 
   return <LeadsPageInner />;
 }
