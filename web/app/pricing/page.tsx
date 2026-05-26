@@ -24,7 +24,7 @@ import {
 export const metadata = {
   title: 'Pricing — AgentForLife',
   description:
-    'Simple, conversation-based pricing for life insurance agents. 14-day free trial on Starter and Growth.',
+    'Simple, conversation-based pricing for life insurance agents. 14-day free trial on Growth.',
 };
 
 function formatPrice(amount: number): string {
@@ -82,12 +82,13 @@ function TierCard({ tier, refCode }: { tier: PricingTier; refCode: string | null
 
       <div className="mb-5">
         <div className="flex items-baseline gap-1">
+          {tier.id === 'agency' && (
+            <span className="text-sm font-medium text-[#6B7280] mr-1">from</span>
+          )}
           <span className="text-4xl font-extrabold text-[#0D4D4D]">
             {formatPrice(tier.priceMonthly)}
           </span>
-          <span className="text-sm font-medium text-[#6B7280]">
-            {tier.id === 'agency' ? '/mo + $39/seat' : '/mo'}
-          </span>
+          <span className="text-sm font-medium text-[#6B7280]">/mo</span>
         </div>
         {tier.id === 'starter' ? (
           <p className="mt-2 text-xs text-[#6B7280]">
@@ -103,7 +104,7 @@ function TierCard({ tier, refCode }: { tier: PricingTier; refCode: string | null
           </p>
         ) : (
           <p className="mt-2 text-xs text-[#6B7280]">
-            <span className="font-bold text-[#0D4D4D]">Team pool</span>
+            <span className="font-bold text-[#0D4D4D]">Team pool · band pricing</span>
           </p>
         )}
       </div>
@@ -164,7 +165,16 @@ export default async function PricingPage({
 }: {
   searchParams: Promise<{ ref?: string | string[] }>;
 }) {
-  const tiers = PRICING_TIER_ORDER.map((id) => PRICING_TIERS[id]);
+  // Starter is grandfathered for legacy customers only — killed for
+  // general new signups per the May 26 pricing lock. Hide it from the
+  // public pricing page; the 11 legacy Starter agents already have
+  // their subscription, they don't need a card here. The Starter tier
+  // metadata stays in PRICING_TIERS so existing customers' membership
+  // tier still resolves and the Stripe webhook + tier-gating still
+  // know what 'starter' means.
+  const tiers = PRICING_TIER_ORDER
+    .filter((id) => id !== 'starter')
+    .map((id) => PRICING_TIERS[id]);
   const params = await searchParams;
   const rawRef = Array.isArray(params.ref) ? params.ref[0] : params.ref;
   const refCode = typeof rawRef === 'string' && rawRef.trim().length > 0
@@ -200,7 +210,7 @@ export default async function PricingPage({
           </p>
         </section>
 
-        <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {tiers.map((tier) => (
             <TierCard key={tier.id} tier={tier} refCode={refCode} />
           ))}
@@ -227,10 +237,22 @@ export default async function PricingPage({
                 How many conversations does each tier include?
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">
-                Light book (Starter): 30 / month · Active book (Growth): 75 / month · Full
-                book (Pro): 200 / month · Team pool (Agency): pooled across your team,
-                sized to your agency. Daily caps apply on every tier to keep your line
-                health clean.
+                Active book (Growth): 75 / month · Full book (Pro): 200 / month · Team
+                pool (Agency): pooled across your team, sized to your agency. Daily caps
+                apply on every tier to keep your line health clean.
+              </p>
+            </div>
+            <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
+              <h3 className="text-sm font-bold text-[#0D4D4D]">
+                What&apos;s the difference between Growth and Pro?
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">
+                Growth runs your post-sale book — retention, anniversaries, referrals,
+                bulk import. Pro adds the pre-sale tools on top: Leads management, the
+                Activity dashboard, the close-the-sale conveyor (lead → client → policy →
+                activation in one flow), plus the Performance page where you paste call
+                transcripts and get AI coaching scores. If you&apos;re actively running a
+                lead pipeline, Pro pays for itself.
               </p>
             </div>
             <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
@@ -248,10 +270,10 @@ export default async function PricingPage({
                 How does the free trial work?
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">
-                Starter and Growth come with a 14-day free trial. You add a card at signup
-                so we can keep your account active without interruption when the trial
-                ends, but you&apos;re not charged for the first 14 days. Cancel anytime
-                during the trial and you owe nothing.
+                Growth comes with a 14-day free trial. You add a card at signup so we
+                can keep your account active without interruption when the trial ends,
+                but you&apos;re not charged for the first 14 days. Cancel anytime during
+                the trial and you owe nothing.
               </p>
             </div>
             <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
