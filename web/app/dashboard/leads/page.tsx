@@ -16,7 +16,7 @@ import AppointmentPicker from '../../../components/AppointmentPicker';
 import SendConfirmationDrawer from '../../../components/SendConfirmationDrawer';
 import LeadDetailPanel from '../../../components/LeadDetailPanel';
 import { CloseSaleRitual } from '../../../components/CloseSaleRitual';
-import { LEAD_MODE_ENABLED } from '../../../lib/feature-flags';
+import { isLeadModeVisibleForEmail } from '../../../lib/feature-flags';
 
 interface Lead {
   id: string;
@@ -72,23 +72,28 @@ const SURFACE_SHELL = 'relative w-full max-w-4xl mx-auto bg-white rounded-xl bor
 const SURFACE_HEADER = 'sticky top-0 z-10 flex items-center justify-between p-5 border-b border-[#ececec] bg-white';
 
 // Feature flag gate at the wrapper level so the inner component's
-// ~50 hooks never run when the flag is off. Inlining the gate inside
-// the inner component (where the original code lived) triggered 49
-// react-hooks/rules-of-hooks lint errors because every hook below
-// the early return became conditional. NEXT_PUBLIC_LEAD_MODE_ENABLED
-// is build-time-baked so it never actually changes mid-session — but
-// the wrapper pattern is the canonical fix per React docs and keeps
-// the lint signal-to-noise clean. When a real human navigates here
-// with the flag off (bookmark, typed URL — the sidebar renders this
-// row as a non-interactive "Coming soon" placeholder so this is
-// belt-and-suspenders), the redirect bounces them back to /dashboard.
+// ~50 hooks (and the Firestore subscriptions they spin up) never run
+// when the flag is off. Inlining the gate inside the inner component
+// (where the original code lived) triggered 49 react-hooks/rules-of-
+// hooks lint errors because every hook below the early return became
+// conditional. The wrapper pattern is the canonical fix per React
+// docs and keeps the lint signal-to-noise clean.
+//
+// Two-axis gate: global LEAD_MODE_ENABLED + LEAD_MODE_ADMIN_ONLY
+// (see web/lib/feature-flags.ts). Waits for `user` to resolve before
+// deciding to redirect so admins mid-auth-load aren't bounced. The
+// inner component never mounts for non-admins so the leads
+// Firestore listener also stays off. Belt-and-suspenders with the
+// sidebar / mobile-nav gates in dashboard/layout.tsx.
 export default function LeadsPage() {
   const router = useRouter();
+  const { user } = useDashboard();
+  const leadModeVisible = isLeadModeVisibleForEmail(user?.email);
 
   useEffect(() => {
-    if (!LEAD_MODE_ENABLED) router.replace('/dashboard');
-  }, [router]);
-  if (!LEAD_MODE_ENABLED) return null;
+    if (user && !leadModeVisible) router.replace('/dashboard');
+  }, [user, leadModeVisible, router]);
+  if (!leadModeVisible) return null;
 
   return <LeadsPageInner />;
 }
