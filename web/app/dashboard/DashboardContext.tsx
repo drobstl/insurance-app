@@ -64,6 +64,20 @@ export interface AgentProfile {
   subscriptionStatus?: string;
   stripeCustomerId?: string;
   subscriptionId?: string;
+  /**
+   * Tier identifier set by the Stripe webhook on
+   * `checkout.session.completed` / `subscription.updated`, and by the
+   * founding-member activation route. One of:
+   *   `'starter' | 'growth' | 'pro' | 'agency' | 'founding' | 'unknown'`.
+   *
+   * Drives tier-based feature gating in `web/lib/tier-gating.ts`.
+   * Founding members keep `'founding'` until they upgrade to Pro, at
+   * which point the webhook sets it to `'pro'` (with a permanent $50
+   * founding Stripe Coupon making the effective price $49/mo). The
+   * `isFoundingMember` flag persists across that upgrade for badge
+   * purposes.
+   */
+  membershipTier?: string;
   agencyName?: string;
   agencyLogoBase64?: string;
   businessCardBase64?: string;
@@ -247,6 +261,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           subscriptionStatus: data.subscriptionStatus,
           stripeCustomerId: data.stripeCustomerId,
           subscriptionId: data.subscriptionId,
+          membershipTier: typeof data.membershipTier === 'string' ? data.membershipTier : undefined,
           agencyName: data.agencyName,
           agencyLogoBase64: data.agencyLogoBase64,
           businessCardBase64: data.businessCardBase64,

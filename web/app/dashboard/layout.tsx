@@ -12,7 +12,7 @@ import DashboardTicker from '../../components/DashboardTicker';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
 import { ANALYTICS_EVENTS } from '../../lib/analytics-events';
 import { captureEvent } from '../../lib/posthog';
-import { ACTIVITY_ENABLED, isLeadModeVisibleForEmail } from '../../lib/feature-flags';
+import { leadsAccessReason, activityAccessReason } from '../../lib/tier-gating';
 
 const FOUNDING_ACTIVATION_TIMEOUT_MS = 12000;
 // Hard ceiling for the activation spinner: if `activatingFounding` is still true
@@ -600,19 +600,26 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const isAdminRoute = pathname.startsWith('/dashboard/admin');
   const activeAdminKey = ADMIN_NAV_ITEMS.find(item => pathname.startsWith(item.path))?.key ?? null;
-  // Lead-mode visibility is two-axis: the global env flag AND an
-  // admin-only mode (see web/lib/feature-flags.ts). Compute once per
-  // render and reuse for sidebar / mobile-nav / placeholder logic so
-  // the three gates can't drift. For non-admin agents while
-  // LEAD_MODE_ADMIN_ONLY is set, this resolves the same as "flag off."
-  const leadModeVisible = isLeadModeVisibleForEmail(user?.email);
+  // Tier-aware visibility (locked May 26, 2026). Three outcomes per
+  // surface — see web/lib/tier-gating.ts:
+  //   accessible  → render in the main nav, fully clickable
+  //   env_off     → render under "Coming soon" group, non-interactive
+  //   tier_locked → render under "Unlock with Pro" group, clickable
+  //                 (clicking lands the agent on the route's
+  //                  UpgradeToProCard upsell)
+  // Compute once per render so sidebar / mobile-nav / placeholder
+  // logic can't drift. Admin override still applies via the
+  // helpers themselves.
+  const leadsReason = leadsAccessReason(agentProfile.membershipTier, user?.email);
+  const activityReason = activityAccessReason(agentProfile.membershipTier, user?.email);
   // 6 items on mobile bottom bar. Leads replaces the previous Settings
   // slot — settings is already reachable via the gear in the top-right
-  // header, so duplicating it down here wastes a tap target. When the
-  // lead-mode feature flag is off, drop Leads from the mobile nav entirely
-  // (mobile gets no "Coming soon" placeholder — Daniel's spec).
+  // header, so duplicating it down here wastes a tap target. Mobile
+  // omits both env-off AND tier-locked items entirely (no placeholder)
+  // because mobile real estate is tight and the desktop sidebar carries
+  // the upsell surface.
   const mobileNavItems = NAV_ITEMS.filter((item) => {
-    if (item.key === 'leads' && !leadModeVisible) return false;
+    if (item.key === 'leads' && leadsReason !== 'accessible') return false;
     return ['home', 'clients', 'leads', 'action-items', 'referrals', 'conservation'].includes(item.key);
   });
   const dismissSubscriptionCelebration = () => {
@@ -669,16 +676,16 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="mt-4 px-2 space-y-1">
-          {/* Feature-flagged surfaces render as non-interactive "Coming
-              soon" placeholders when their env-var gate is off, AND are
-              pushed to the bottom of the nav so the prime real estate
-              stays focused on daily-workflow tools (Home / Clients /
-              Action Items / Referrals / Retention / Rewrites). When the
-              flag flips on, the item snaps back to its natural position
-              in NAV_ITEMS order. */}
+          {/* Tier-gated surfaces render in one of three states (see
+              `leadsAccessReason` / `activityAccessReason`):
+                - accessible  → in the main nav, clickable
+                - env_off     → "Coming soon" group below, non-interactive
+                - tier_locked → "Unlock with Pro" group below, clickable
+              Daily-workflow tools stay in the prime real estate at the
+              top regardless of which mode the gated items are in. */}
           {NAV_ITEMS.filter((item) => {
-            if (item.key === 'leads') return leadModeVisible;
-            if (item.key === 'activity') return ACTIVITY_ENABLED;
+            if (item.key === 'leads') return leadsReason === 'accessible';
+            if (item.key === 'activity') return activityReason === 'accessible';
             return true;
           }).map((item) => (
             <button
@@ -700,21 +707,26 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             </button>
           ))}
 
-          {/* Gated-off placeholders — pushed below the live items but
-              above Admin / Settings. Subtle divider so they read as a
-              distinct "what's coming" group. Listed in NAV_ITEMS order
-              (so Leads appears above Activity). */}
+          {/* Gated-off groupings — both pushed below the live items but
+              above Admin / Settings. Items group by gating reason so
+              the copy can be honest:
+                "Coming soon"     — env-disabled (the feature isn't built
+                                    for anyone yet on this deploy).
+                                    Non-interactive, strikethrough.
+                "Unlock with Pro" — env-enabled but the agent's tier
+                                    doesn't qualify. Clickable — sends
+                                    them to the route's UpgradeToProCard. */}
           {(() => {
-            const gatedOff = NAV_ITEMS.filter((item) =>
-              (item.key === 'leads' && !leadModeVisible) ||
-              (item.key === 'activity' && !ACTIVITY_ENABLED)
+            const comingSoon = NAV_ITEMS.filter((item) =>
+              (item.key === 'leads' && leadsReason === 'env_off') ||
+              (item.key === 'activity' && activityReason === 'env_off')
             );
-            if (gatedOff.length === 0) return null;
+            if (comingSoon.length === 0) return null;
             return (
               <>
                 <div className="my-2 mx-1 border-t border-white/10" />
                 <p className="px-3 pt-1 pb-0.5 text-[9px] font-bold uppercase tracking-wider text-white/30">Coming soon</p>
-                {gatedOff.map((item) => (
+                {comingSoon.map((item) => (
                   <div
                     key={item.key}
                     aria-disabled
@@ -727,6 +739,37 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                       {item.label}
                     </span>
                   </div>
+                ))}
+              </>
+            );
+          })()}
+
+          {(() => {
+            const tierLocked = NAV_ITEMS.filter((item) =>
+              (item.key === 'leads' && leadsReason === 'tier_locked') ||
+              (item.key === 'activity' && activityReason === 'tier_locked')
+            );
+            if (tierLocked.length === 0) return null;
+            return (
+              <>
+                <div className="my-2 mx-1 border-t border-white/10" />
+                <p className="px-3 pt-1 pb-0.5 text-[9px] font-bold uppercase tracking-wider text-white/30">Unlock with Pro</p>
+                {tierLocked.map((item) => (
+                  <button
+                    key={item.key}
+                    onClick={() => router.push(item.path)}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] text-white/70 hover:text-white hover:bg-white/10 transition-all duration-200 group/locked"
+                  >
+                    <div className="relative shrink-0 opacity-80">
+                      {item.icon}
+                    </div>
+                    <span className="whitespace-nowrap overflow-hidden text-sm font-semibold flex-1 text-left">
+                      {item.label}
+                    </span>
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#44bbaa]/20 text-[#daf3f0] group-hover/locked:bg-[#44bbaa]/30">
+                      Pro
+                    </span>
+                  </button>
                 ))}
               </>
             );

@@ -5,7 +5,8 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import LeadDetailPanel from '../../../../components/LeadDetailPanel';
 import { CloseSaleRitual } from '../../../../components/CloseSaleRitual';
 import { useDashboard } from '../../DashboardContext';
-import { isLeadModeVisibleForEmail } from '../../../../lib/feature-flags';
+import { leadsAccessReason } from '../../../../lib/tier-gating';
+import UpgradeToProCard from '../../../../components/UpgradeToProCard';
 
 export default function LeadDetailPage() {
   const router = useRouter();
@@ -17,7 +18,7 @@ export default function LeadDetailPage() {
   // this appointment and strips the param from the URL.
   const openConfirmationParam = searchParams?.get('openConfirmation') ?? null;
 
-  const { user, agentProfile } = useDashboard();
+  const { user, agentProfile, profileLoading } = useDashboard();
 
   // Close Sale slide state — see queue page for the same pattern.
   // LeadDetailPanel slides left out of view; Close Sale slides in
@@ -30,18 +31,37 @@ export default function LeadDetailPage() {
   } | null>(null);
   const navigateAfterCloseSale = useRef(false);
 
-  // Feature flag gate — see web/app/dashboard/leads/page.tsx for the
-  // matching guard on the list/queue route. Two-axis: global flag +
-  // admin-only mode. Waits until `user` resolves before deciding to
-  // redirect so we don't bounce an admin who's mid-auth-load. Returns
-  // null in the meantime — by the time this page renders, the
-  // SubscriptionGate above has usually already resolved auth, so the
-  // flicker is sub-frame for admins. Non-admins never see the panel.
-  const leadModeVisible = isLeadModeVisibleForEmail(user?.email);
+  // Feature flag + tier gate — see web/app/dashboard/leads/page.tsx
+  // for the matching guard on the list/queue route. Three outcomes:
+  //   accessible  → render the panel
+  //   env_off     → redirect to /dashboard (legacy)
+  //   tier_locked → render UpgradeToProCard
+  // Waits until both `user` and the profile resolve before deciding so
+  // admins / Pro agents mid-load aren't bounced and don't see a
+  // momentary upgrade-card flash.
+  const reason = leadsAccessReason(agentProfile.membershipTier, user?.email);
   useEffect(() => {
-    if (user && !leadModeVisible) router.replace('/dashboard');
-  }, [user, leadModeVisible, router]);
-  if (!leadModeVisible) return null;
+    if (!user) return;
+    if (profileLoading) return;
+    if (reason === 'env_off') router.replace('/dashboard');
+  }, [user, profileLoading, reason, router]);
+
+  if (!user || profileLoading) return null;
+  if (reason === 'env_off') return null;
+  if (reason === 'tier_locked') {
+    return (
+      <UpgradeToProCard
+        featureName="Leads"
+        description="Manage your pre-application lead pipeline in AFL: upload lead forms, dial-track with cooldown-aware queues, book appointments, convert to clients with one click."
+        bullets={[
+          'Lead intake from Mail-In / Call-In / Digital forms (PDF auto-extract)',
+          'Dial queue with per-outcome cooldowns (callback 4h, no-answer 24h, left-VM 48h)',
+          'Appointment booking with QR-scan desktop→phone confirmation hand-off',
+          'Convert-to-Client conveyor belt straight into the close-the-sale ritual',
+        ]}
+      />
+    );
+  }
 
   if (!leadId) return null;
 

@@ -16,7 +16,13 @@ import AppointmentPicker from '../../../components/AppointmentPicker';
 import SendConfirmationDrawer from '../../../components/SendConfirmationDrawer';
 import LeadDetailPanel from '../../../components/LeadDetailPanel';
 import { CloseSaleRitual } from '../../../components/CloseSaleRitual';
-import { isLeadModeVisibleForEmail } from '../../../lib/feature-flags';
+import { leadsAccessReason } from '../../../lib/tier-gating';
+import UpgradeToProCard from '../../../components/UpgradeToProCard';
+import {
+  type AppointmentOutcomeChipStatus,
+  getAppointmentOutcomeChip,
+  isAppointmentOutcomeChipStatus,
+} from '../../../lib/appointment-outcome-chip';
 
 interface Lead {
   id: string;
@@ -79,21 +85,53 @@ const SURFACE_HEADER = 'sticky top-0 z-10 flex items-center justify-between p-5 
 // conditional. The wrapper pattern is the canonical fix per React
 // docs and keeps the lint signal-to-noise clean.
 //
-// Two-axis gate: global LEAD_MODE_ENABLED + LEAD_MODE_ADMIN_ONLY
-// (see web/lib/feature-flags.ts). Waits for `user` to resolve before
-// deciding to redirect so admins mid-auth-load aren't bounced. The
-// inner component never mounts for non-admins so the leads
-// Firestore listener also stays off. Belt-and-suspenders with the
-// sidebar / mobile-nav gates in dashboard/layout.tsx.
+// Three-axis gate: global LEAD_MODE_ENABLED + LEAD_MODE_ADMIN_ONLY
+// (see web/lib/feature-flags.ts) + tier-based gating (Pro+ only;
+// see web/lib/tier-gating.ts). Waits for both `user` and the
+// agent profile to resolve before deciding so admins / Pro agents
+// mid-auth-load aren't bounced. The inner component never mounts
+// when access is denied so the leads Firestore listener also stays
+// off. Belt-and-suspenders with the sidebar / mobile-nav gates in
+// dashboard/layout.tsx.
+//
+// Three outcomes:
+//   `'accessible'` → render the surface
+//   `'env_off'`    → redirect to /dashboard (legacy behavior; lead
+//                    mode globally disabled, surface doesn't exist
+//                    for anyone)
+//   `'tier_locked'`→ render UpgradeToProCard (the surface exists but
+//                    this agent's tier doesn't qualify; surface the
+//                    upgrade path instead of bouncing them).
 export default function LeadsPage() {
   const router = useRouter();
-  const { user } = useDashboard();
-  const leadModeVisible = isLeadModeVisibleForEmail(user?.email);
+  const { user, agentProfile, profileLoading } = useDashboard();
+  const reason = leadsAccessReason(agentProfile.membershipTier, user?.email);
 
   useEffect(() => {
-    if (user && !leadModeVisible) router.replace('/dashboard');
-  }, [user, leadModeVisible, router]);
-  if (!leadModeVisible) return null;
+    if (!user) return;
+    // Wait for the profile to load before deciding — otherwise an admin
+    // mid-load would see `reason === 'tier_locked'` for a beat and we'd
+    // briefly flash the upgrade card.
+    if (profileLoading) return;
+    if (reason === 'env_off') router.replace('/dashboard');
+  }, [user, profileLoading, reason, router]);
+
+  if (!user || profileLoading) return null;
+  if (reason === 'env_off') return null;
+  if (reason === 'tier_locked') {
+    return (
+      <UpgradeToProCard
+        featureName="Leads"
+        description="Manage your pre-application lead pipeline in AFL: upload lead forms, dial-track with cooldown-aware queues, book appointments, convert to clients with one click."
+        bullets={[
+          'Lead intake from Mail-In / Call-In / Digital forms (PDF auto-extract)',
+          'Dial queue with per-outcome cooldowns (callback 4h, no-answer 24h, left-VM 48h)',
+          'Appointment booking with QR-scan desktop→phone confirmation hand-off',
+          'Convert-to-Client conveyor belt straight into the close-the-sale ritual',
+        ]}
+      />
+    );
+  }
 
   return <LeadsPageInner />;
 }
@@ -211,6 +249,48 @@ function LeadsPageInner() {
       setNextApptByLead(map);
     }, (err) => {
       console.error('appointments onSnapshot error:', err);
+    });
+    return () => unsub();
+  }, [user]);
+
+  // ── Past-appointment outcome map (leadId → most recent terminal appt) ──
+  // Powers the "Thinking · May 18" / "No-show · May 18" / etc. chip on
+  // lead rows when there's no upcoming appointment. Same single-field
+  // inequality pattern as the upcoming subscription so it reuses the
+  // default scheduledAt index. Status filter in memory. Bounded to one
+  // year back to cap the initial document read for high-volume agents.
+  const [pastOutcomeByLead, setPastOutcomeByLead] = useState<
+    Map<string, { scheduledAt: Date; tz?: string; status: AppointmentOutcomeChipStatus }>
+  >(new Map());
+  useEffect(() => {
+    if (!user) return;
+    const nowTs = Timestamp.fromMillis(Date.now());
+    const oneYearAgoTs = Timestamp.fromMillis(Date.now() - 365 * 24 * 60 * 60 * 1000);
+    const q = query(
+      collection(db, 'agents', user.uid, 'appointments'),
+      where('scheduledAt', '>=', oneYearAgoTs),
+      where('scheduledAt', '<', nowTs),
+      orderBy('scheduledAt', 'desc'),
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const map = new Map<string, { scheduledAt: Date; tz?: string; status: AppointmentOutcomeChipStatus }>();
+      for (const d of snap.docs) {
+        const data = d.data() as { leadId?: string; scheduledAt?: Timestamp; scheduledAtTimeZone?: string; status?: string };
+        if (!data.leadId || !data.scheduledAt) continue;
+        if (!isAppointmentOutcomeChipStatus(data.status)) continue;
+        // First hit wins because query is sorted descending — that's the
+        // *most recent* past appointment for the lead.
+        if (!map.has(data.leadId)) {
+          map.set(data.leadId, {
+            scheduledAt: data.scheduledAt.toDate(),
+            tz: data.scheduledAtTimeZone,
+            status: data.status,
+          });
+        }
+      }
+      setPastOutcomeByLead(map);
+    }, (err) => {
+      console.error('past-appointments onSnapshot error:', err);
     });
     return () => unsub();
   }, [user]);
@@ -1164,11 +1244,19 @@ function LeadsPageInner() {
                           >
                             <div className="text-sm font-semibold text-[#000000] truncate flex items-center gap-2">
                               <span className="truncate">{lead.name}</span>
-                              {nextApptByLead.get(lead.id) && (
+                              {nextApptByLead.get(lead.id) ? (
                                 <span className="inline-flex items-center shrink-0 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
                                   📅 {formatApptChip(nextApptByLead.get(lead.id)!)}
                                 </span>
-                              )}
+                              ) : pastOutcomeByLead.get(lead.id) && (() => {
+                                const past = pastOutcomeByLead.get(lead.id)!;
+                                const chip = getAppointmentOutcomeChip(past.status, past.scheduledAt);
+                                return (
+                                  <span className={`inline-flex items-center shrink-0 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${chip.classes}`}>
+                                    {chip.label}
+                                  </span>
+                                );
+                              })()}
                             </div>
                             <div className="text-xs text-[#707070] mt-0.5 flex items-center gap-2 flex-wrap">
                               <span>{lead.phone}</span>
@@ -1385,11 +1473,19 @@ function LeadsPageInner() {
                                 Converted
                               </span>
                             )}
-                            {nextApptByLead.get(lead.id) && (
+                            {nextApptByLead.get(lead.id) ? (
                               <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
                                 📅 {formatApptChip(nextApptByLead.get(lead.id)!)}
                               </span>
-                            )}
+                            ) : pastOutcomeByLead.get(lead.id) && (() => {
+                              const past = pastOutcomeByLead.get(lead.id)!;
+                              const chip = getAppointmentOutcomeChip(past.status, past.scheduledAt);
+                              return (
+                                <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${chip.classes}`}>
+                                  {chip.label}
+                                </span>
+                              );
+                            })()}
                           </div>
                         </td>
                         <td className="px-5 py-3.5 text-sm text-[#444] whitespace-nowrap">{lead.phone}</td>

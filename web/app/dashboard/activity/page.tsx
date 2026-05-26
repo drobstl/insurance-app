@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDashboard } from '../DashboardContext';
 import { ACTIVITY_ENABLED } from '../../../lib/feature-flags';
+import { activityAccessReason } from '../../../lib/tier-gating';
+import UpgradeToProCard from '../../../components/UpgradeToProCard';
 
 type ActivityRange = 'today' | 'week' | 'month' | 'last30' | 'ytd';
 
@@ -254,21 +256,28 @@ function RecentWins({ wins }: { wins: ActivityStats['recentWins'] }) {
 
 export default function ActivityPage() {
   const router = useRouter();
-  const { user } = useDashboard();
+  const { user, agentProfile, profileLoading } = useDashboard();
   const [range, setRange] = useState<ActivityRange>('month');
   const [stats, setStats] = useState<ActivityStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Feature flag redirect — bookmark/typed-URL defense. The sidebar
-  // already hides this row behind a strikethrough "Coming soon"
-  // placeholder when ACTIVITY_ENABLED is off.
+  // Three-axis gate: ACTIVITY_ENABLED env var + tier (Pro+) + admin
+  // override. Three outcomes:
+  //   accessible  → render activity dashboard
+  //   env_off     → redirect to /dashboard (legacy)
+  //   tier_locked → render UpgradeToProCard
+  // Bookmark / typed-URL defense — sidebar already hides this row for
+  // tier-locked users via the same helper in dashboard/layout.tsx.
+  const reason = activityAccessReason(agentProfile.membershipTier, user?.email);
   useEffect(() => {
-    if (!ACTIVITY_ENABLED) router.replace('/dashboard');
-  }, [router]);
+    if (!user) return;
+    if (profileLoading) return;
+    if (reason === 'env_off') router.replace('/dashboard');
+  }, [user, profileLoading, reason, router]);
 
   const fetchStats = useCallback(async () => {
-    if (!user || !ACTIVITY_ENABLED) return;
+    if (!user || reason !== 'accessible') return;
     setLoading(true);
     setError(null);
     try {
@@ -289,7 +298,7 @@ export default function ActivityPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, range]);
+  }, [user, range, reason]);
 
   useEffect(() => {
     void fetchStats();
@@ -301,8 +310,27 @@ export default function ActivityPage() {
   }, [stats]);
 
   // Render-time gate — sits AFTER all hooks so rules-of-hooks is
-  // satisfied. The useEffect above already kicked off the redirect;
-  // returning null prevents a blink of the activity layout.
+  // satisfied. The useEffect above already kicked off the redirect for
+  // env_off; here we return null while the profile loads and render
+  // the upgrade card for tier_locked agents.
+  if (!user || profileLoading) return null;
+  if (reason === 'env_off') return null;
+  if (reason === 'tier_locked') {
+    return (
+      <UpgradeToProCard
+        featureName="Activity"
+        description="Track your real numbers, not estimates. Dials, contact rate, book/show/close rates, APV, saved APV, and a full daily funnel — all sourced from the moves you log inside AFL."
+        bullets={[
+          'Book rate / show rate / close rate from your actual appointment data',
+          'APV (Annual Premium Volume) and saved APV trends across day / week / month / YTD',
+          'Daily funnel: dials → contacts → booked → showed → sales',
+          'Recent wins panel so you can see your big policies at a glance',
+        ]}
+      />
+    );
+  }
+  // Defense-in-depth — kept for the legacy ACTIVITY_ENABLED off case,
+  // already handled by reason === 'env_off' above but harmless to retain.
   if (!ACTIVITY_ENABLED) return null;
 
   return (
