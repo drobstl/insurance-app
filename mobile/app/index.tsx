@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { registerForPushNotificationsAsync } from './_layout';
 import * as SecureStore from 'expo-secure-store';
 import { API_BASE } from '../lib/api-base';
+import { getAgentSession } from '../lib/agent-session';
 
 const SESSION_KEY = 'client_session';
 const PROFILE_CACHE_KEY = 'profile_cache';
@@ -236,6 +237,17 @@ export default function IndexScreen() {
   useEffect(() => {
     (async () => {
       try {
+        // Agent path takes precedence: a device that's been paired as
+        // an agent should always land on /agent-home, even if there's
+        // also a leftover client session from earlier dev/testing.
+        // /agent-home validates Firebase auth state and clears the
+        // marker + routes back here if the session is stale.
+        const agentSession = await getAgentSession();
+        if (agentSession) {
+          router.replace('/agent-home' as never);
+          return;
+        }
+
         const session = await getSession();
         if (!session) {
           router.replace('/activate' as never);

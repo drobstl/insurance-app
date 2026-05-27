@@ -10,6 +10,7 @@ import {
   patchCalendarEvent,
   resolveGoogleCalendarAccessToken,
 } from '../../../../lib/google-calendar';
+import { pushAgentForConfirmation } from '../../../../lib/agent-push';
 
 /**
  * PATCH /api/appointments/[apptId]
@@ -160,6 +161,40 @@ export async function PATCH(
           console.error('appointments PATCH calendar mirror failed:', err);
           await ref.update({ googleCalendarSyncError: message }).catch(() => {});
         }
+      }
+    }
+
+    // Reschedule trigger: if the scheduled time actually changed, fire
+    // a fresh "send updated confirmation" push to the agent. Other
+    // edits (notes, status changes) don't trigger this — the lead
+    // doesn't need to hear from the agent every time a note is added.
+    if (updates.scheduledAt !== undefined) {
+      const newTs = updates.scheduledAt as Timestamp;
+      const priorTs = prior.scheduledAt as Timestamp | undefined;
+      const timeActuallyChanged =
+        !priorTs || newTs.toMillis() !== priorTs.toMillis();
+      if (timeActuallyChanged) {
+        const leadName = typeof prior.leadName === 'string' ? prior.leadName : '';
+        void pushAgentForConfirmation({
+          db,
+          agentId,
+          apptId,
+          leadName,
+          kind: 'confirmation',
+        })
+          .then((res) => {
+            if (res.outcome !== 'ok') {
+              console.log('agent reschedule push skipped or failed:', {
+                agentId,
+                apptId,
+                outcome: res.outcome,
+                reason: res.reason,
+              });
+            }
+          })
+          .catch((err) => {
+            console.warn('agent reschedule push threw:', err);
+          });
       }
     }
 

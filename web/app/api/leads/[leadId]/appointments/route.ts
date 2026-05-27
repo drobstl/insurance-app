@@ -9,6 +9,7 @@ import {
   GoogleCalendarNotConnectedError,
   resolveGoogleCalendarAccessToken,
 } from '../../../../../lib/google-calendar';
+import { pushAgentForConfirmation } from '../../../../../lib/agent-push';
 
 /**
  * POST /api/leads/[leadId]/appointments
@@ -169,6 +170,31 @@ export async function POST(
         await apptRef.update({ googleCalendarSyncError }).catch(() => {});
       }
     }
+
+    // Wake the agent's phone with a "tap to send confirmation" push.
+    // Best-effort — failures here NEVER block the appointment response,
+    // because the agent has the dashboard fallback (QR / resend) if
+    // their phone misses the notification. Logged for telemetry only.
+    void pushAgentForConfirmation({
+      db,
+      agentId,
+      apptId: apptRef.id,
+      leadName,
+      kind: 'confirmation',
+    })
+      .then((res) => {
+        if (res.outcome !== 'ok') {
+          console.log('agent confirmation push skipped or failed:', {
+            agentId,
+            apptId: apptRef.id,
+            outcome: res.outcome,
+            reason: res.reason,
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn('agent confirmation push threw:', err);
+      });
 
     return NextResponse.json({
       appointmentId: apptRef.id,

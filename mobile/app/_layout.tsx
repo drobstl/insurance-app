@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus, Linking, Platform } from 'react-native';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack, usePathname } from 'expo-router';
+import { router, Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import analytics from '@react-native-firebase/analytics';
@@ -160,6 +160,22 @@ export default function RootLayout() {
       if (response.actionIdentifier === 'book' && data?.schedulingUrl && typeof data.schedulingUrl === 'string') {
         Linking.openURL(data.schedulingUrl);
       }
+
+      // Agent-side: notifications carrying an appointmentId mean "tap
+      // to send confirmation". Route the agent into the send screen
+      // so the message composer opens with everything filled in.
+      // The `kind` field distinguishes confirmation vs. reminder so the
+      // send screen picks the right template.
+      if (
+        typeof data?.appointmentId === 'string' &&
+        data.appointmentId &&
+        (data.kind === 'confirmation' || data.kind === 'reminder')
+      ) {
+        router.push({
+          pathname: '/send/[apptId]',
+          params: { apptId: data.appointmentId, kind: data.kind },
+        } as never);
+      }
     });
 
     return () => {
@@ -186,6 +202,9 @@ export default function RootLayout() {
         <Stack.Screen name="login" />
         <Stack.Screen name="agent-profile" />
         <Stack.Screen name="policies" />
+        <Stack.Screen name="agent-home" />
+        <Stack.Screen name="pair/[code]" />
+        <Stack.Screen name="send/[apptId]" />
       </Stack>
       <StatusBar style="light" />
     </ThemeProvider>
