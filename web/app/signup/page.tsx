@@ -48,15 +48,24 @@ function SignupPageInner() {
   const tierParam = searchParams.get('tier');
   const selectedTier = tierParam && isStripeBillableTier(tierParam) ? tierParam : null;
   const selectedTierInfo = selectedTier ? PRICING_TIERS[selectedTier] : null;
+  // Coming-soon tiers cannot be purchased — even via a bookmarked
+  // /signup?tier=pro URL. Mirror of the server-side block in
+  // /api/signup/start-checkout. Bounce to /pricing with a notice
+  // query param the pricing page can surface as a banner if desired.
+  const tierComingSoon = !!selectedTierInfo?.comingSoon;
 
-  // No-tier path: route to /pricing so the user picks a plan first.
+  // No-tier path (or coming-soon tier): route to /pricing so the user
+  // can see the tier card with the Coming-soon badge + notify-me CTA.
   // Carry the ref code through so the referral credit isn't lost.
   useEffect(() => {
-    if (selectedTier) return;
+    if (selectedTier && !tierComingSoon) return;
     const ref = searchParams.get('ref');
-    const qs = ref ? `?ref=${encodeURIComponent(ref)}` : '';
-    router.replace(`/pricing${qs}`);
-  }, [selectedTier, searchParams, router]);
+    const params = new URLSearchParams();
+    if (ref) params.set('ref', ref);
+    if (tierComingSoon && selectedTier) params.set('notice', `${selectedTier}-coming-soon`);
+    const qs = params.toString();
+    router.replace(`/pricing${qs ? `?${qs}` : ''}`);
+  }, [selectedTier, tierComingSoon, searchParams, router]);
 
   // Validate referral code (if present) and look up the referrer name
   // for the "Invited by ..." pill. Same UX as the previous flow.
@@ -142,9 +151,9 @@ function SignupPageInner() {
     }
   };
 
-  // While the no-tier redirect resolves, hold a spinner so the form
-  // never flashes on the way to /pricing.
-  if (!selectedTier || !authChecked) {
+  // While the no-tier or coming-soon redirect resolves, hold a spinner
+  // so the form never flashes on the way to /pricing.
+  if (!selectedTier || tierComingSoon || !authChecked) {
     return (
       <div className="min-h-screen bg-[#e4e4e4] flex items-center justify-center">
         <svg className="animate-spin w-8 h-8 text-[#44bbaa]" fill="none" viewBox="0 0 24 24">
