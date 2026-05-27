@@ -491,10 +491,15 @@ function LeadsPageInner() {
   };
 
   // ── Call queue priority ──
-  // Filters: drop converted, booked, not-interested, wrong-number leads.
-  // Sort: never-dialed first (most urgent — agent should reach out),
-  // then by elapsed-time-since-last-attempt with weighting based on
-  // outcome (callback-requested ages fast, voicemail ages slowly).
+  // Filters: drop converted, booked, not-interested, wrong-number,
+  // do-not-call leads.
+  // Sort tiers (top → bottom):
+  //   1. Persistence hold — a no-answer lead the agent dialed this
+  //      session that hasn't hit the dial-persistence threshold yet,
+  //      so the next dial stays on the same lead.
+  //   2. Never dialed, newer first (fresh leads outrank stale ones).
+  //   3. Dialed, oldest-last-call first. No per-outcome weighting —
+  //      the agent cycles through and comes back around naturally.
   // ── Filtered + sorted All-leads view ──
   // Search matches against name / phone / leadCode / formType / state /
   // city (case-insensitive substring). Sort key cycles through
