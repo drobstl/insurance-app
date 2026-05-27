@@ -79,6 +79,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'invalid_tier' }, { status: 400 });
     }
 
+    // Coming-soon tier back-door close (May 26, 2026). Even though the
+    // pricing page swaps the buy CTA for a notify-me mailto, a
+    // bookmarked /signup?tier=pro URL would still POST here. Reject so
+    // nobody pays for a tier that isn't ready, regardless of how they
+    // got to the form.
+    if (PRICING_TIERS[tier].comingSoon) {
+      return NextResponse.json(
+        { error: 'tier_not_yet_available', tier },
+        { status: 400 },
+      );
+    }
+
     // Block re-signup with an email that already has a Firebase user
     // BEFORE checking Stripe config so the user gets a clean "log in
     // instead" message even if pricing is misconfigured.
