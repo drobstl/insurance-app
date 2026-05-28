@@ -46,7 +46,7 @@ interface SurfaceCopy {
 const SURFACE_COPY: Record<UpgradeSurface, SurfaceCopy> = {
   leads: {
     headline: 'The pipeline runs itself.',
-    sub: 'Drop in a lead form and AFL does the rest — extracts every field, queues the next call, drafts the booking text, turns the win into a monitored client. You stay on the phone, where the money is.',
+    sub: 'You stay on the phone, where the money is.',
     bullets: [
       'Drop in a lead form — AFL pulls every field automatically. No retyping.',
       'AFL tells you who to dial next, based on what happened on the last call.',
