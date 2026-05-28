@@ -25,5 +25,10 @@ export const stripe = {
   get subscriptions() { return getStripe().subscriptions; },
   get billingPortal() { return getStripe().billingPortal; },
   get webhooks() { return getStripe().webhooks; },
+  // Added for the in-app upgrade flow (/api/stripe/upgrade-tier):
+  // paymentMethods.retrieve + paymentMethods.list let us detect
+  // whether the agent has a card on file (in_app mode) or needs to
+  // be sent through Checkout to enter one (checkout mode).
+  get paymentMethods() { return getStripe().paymentMethods; },
 };
 
