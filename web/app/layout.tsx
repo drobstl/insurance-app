@@ -61,6 +61,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(w){w.fpr=w.fpr||function(){w.fpr.q = w.fpr.q||[];w.fpr.q[arguments[0]=='set'?'unshift':'push'](arguments);};})(window);fpr("init", {cid:"dnd9y4t9"}); fpr("click");`,
+          }}
+        />
+        <script src="https://cdn.firstpromoter.com/fpr.js" async />
+      </head>
       <body className={`${montserrat.className} antialiased`}>
         <PostHogProvider>{children}</PostHogProvider>
       </body>
