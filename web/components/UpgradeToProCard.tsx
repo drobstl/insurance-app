@@ -42,6 +42,20 @@ interface SurfaceCopy {
   callout?: { title: string; description: string };
 }
 
+/**
+ * Booked-lead prep app feature flag.
+ *
+ * When this lands (branded prep page for booked leads — agent video,
+ * client testimonials, intake assessment), flip this to `true` and the
+ * "Plus" callout on the Leads paywall starts rendering, parallel to
+ * the AI-coaching callout on the Activity paywall.
+ *
+ * Default `false` because shipping the paywall promise before the
+ * feature exists is a refund risk. Copy lives below so it's reviewable
+ * + version-controlled even while gated off.
+ */
+const BOOKED_LEAD_APP_AVAILABLE = false;
+
 const SURFACE_COPY: Record<UpgradeSurface, SurfaceCopy> = {
   leads: {
     headline: 'The pipeline runs itself.',
@@ -52,6 +66,13 @@ const SURFACE_COPY: Record<UpgradeSurface, SurfaceCopy> = {
       'Book the sit-down — AFL drafts the confirmation text with your business card and the state-matched license. You just hit send.',
       'Win the sale — and the lead becomes an Agent for Life client: monitored for lapses and cancellations, kept warm for referrals and rewrites, for life.',
     ],
+    callout: BOOKED_LEAD_APP_AVAILABLE
+      ? {
+          title: 'Plus: Your booked leads show up ready',
+          description:
+            'Every booked lead gets a branded prep page — your video, your testimonials, your intake assessment. They walk in warm, prepped, and halfway sold.',
+        }
+      : undefined,
   },
   activity: {
     headline: 'The numbers track themselves.',
