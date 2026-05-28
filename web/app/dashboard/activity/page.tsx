@@ -18,6 +18,7 @@ interface ActivityStats {
     booked: number;
     showed: number;
     noShowed: number;
+    cancelled: number;
     unresolved: number;
     showRate: number;
     bookRate: number;
@@ -38,6 +39,9 @@ interface ActivityStats {
     }>;
   };
   saved: { apv: number; count: number; deltaPct: number | null };
+  chargebacks: { count: number; rate: number };
+  referralsActivity: { received: number; perClose: number };
+  rewrites: { count: number; rate: number };
   funnel: Array<{ stage: string; count: number; pctOfPrev: number | null }>;
   recentWins: Array<{
     at: string;
@@ -66,6 +70,13 @@ function fmtUsdLong(n: number): string {
 function fmtPct(n: number): string {
   if (!Number.isFinite(n)) return '—';
   return `${(n * 100).toFixed(1)}%`;
+}
+// Referrals-per-close is a ratio, not a percentage — render as "1.6"
+// (not "160%"). One decimal place is the right read for an agent
+// tracking generation against the 2-3-per-close benchmark.
+function fmtRatio(n: number): string {
+  if (!Number.isFinite(n)) return '—';
+  return n.toFixed(1);
 }
 function fmtSignedPct(n: number | null): string {
   if (n === null || !Number.isFinite(n)) return '—';
@@ -222,7 +233,7 @@ const SOURCE_BADGE_LABELS: Record<PolicySource | 'save', string> = {
   bought_lead: 'Bought lead',
   referral: 'Referral',
   rewrite: 'Rewrite',
-  manual_add: 'Manual',
+  manual_add: 'Earned lead',
   save: 'Retention save',
 };
 
@@ -316,18 +327,7 @@ export default function ActivityPage() {
   if (!user || profileLoading) return null;
   if (reason === 'env_off') return null;
   if (reason === 'tier_locked') {
-    return (
-      <UpgradeToProCard
-        featureName="Activity"
-        description="Track your real numbers, not estimates. Dials, contact rate, book/show/close rates, APV, saved APV, and a full daily funnel — all sourced from the moves you log inside AFL."
-        bullets={[
-          'Book rate / show rate / close rate from your actual appointment data',
-          'APV (Annual Premium Volume) and saved APV trends across day / week / month / YTD',
-          'Daily funnel: dials → contacts → booked → showed → sales',
-          'Recent wins panel so you can see your big policies at a glance',
-        ]}
-      />
-    );
+    return <UpgradeToProCard surface="activity" />;
   }
   // Defense-in-depth — kept for the legacy ACTIVITY_ENABLED off case,
   // already handled by reason === 'env_off' above but harmless to retain.
@@ -446,7 +446,7 @@ export default function ActivityPage() {
             <HeroTile
               label="Show rate"
               primary={fmtPct(stats.appointments.showRate)}
-              secondary={`showed / booked · ${stats.appointments.showed} of ${stats.appointments.booked}`}
+              secondary={`showed / (showed + no-show) · ${stats.appointments.showed} of ${stats.appointments.showed + stats.appointments.noShowed}`}
             />
             <HeroTile
               label="Close rate"
@@ -473,6 +473,30 @@ export default function ActivityPage() {
                 />
               ))}
             </div>
+          </div>
+
+          {/* Business Health row. Distinct from the funnel rates above:
+              those answer "is the lead→sale machine working this
+              period?"; these answer "is the business actually
+              compounding?" Maps to AFL's leaky-bucket pitch — plug
+              losses (chargeback), grow via existing clients
+              (referrals), deepen each one (rewrite). */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+            <HeroTile
+              label="Chargeback rate"
+              primary={fmtPct(stats.chargebacks.rate)}
+              secondary={`chargebacks / sales · ${stats.chargebacks.count} of ${stats.sales.count}`}
+            />
+            <HeroTile
+              label="Referrals per close"
+              primary={fmtRatio(stats.referralsActivity.perClose)}
+              secondary={`referrals / sales · ${stats.referralsActivity.received} of ${stats.sales.count}`}
+            />
+            <HeroTile
+              label="Rewrite rate"
+              primary={fmtPct(stats.rewrites.rate)}
+              secondary={`rewrites / sales · ${stats.rewrites.count} of ${stats.sales.count}`}
+            />
           </div>
 
           {/* Source breakdown + Saved APV side by side */}
