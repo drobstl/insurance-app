@@ -5,6 +5,7 @@ import { useCallback, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { BOOKED_LEAD_APP_AVAILABLE } from '../lib/feature-flags';
 import { useDashboard } from '../app/dashboard/DashboardContext';
+import UpgradeConfirmModal, { type UpgradePreview } from './UpgradeConfirmModal';
 
 /**
  * Renders an in-page upgrade prompt for agents whose current tier
@@ -87,28 +88,41 @@ interface UpgradeToProCardProps {
 
 export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
   const copy = SURFACE_COPY[surface];
-  const { user } = useDashboard();
+  const { user, agentProfile } = useDashboard();
   const pathname = usePathname();
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  // In-app upgrade flow state: when the server returns mode='in_app',
+  // we stash the preview here and render <UpgradeConfirmModal>. On
+  // confirm, the modal POSTs back with confirm=true.
+  const [confirmPreview, setConfirmPreview] = useState<UpgradePreview | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
 
-  // Click on "Upgrade to Pro" → POST to /api/stripe/create-checkout-session
-  // → redirect to Stripe Checkout. Sends the current pathname as
-  // `returnPath` so a successful checkout lands the agent back on the
-  // surface they tried to access (Leads or Activity) with
-  // `?subscription=success`, not a generic /dashboard dump.
+  // Tier-aware pricing for DISPLAY only. The actual coupon is applied
+  // server-side based on the trusted Firestore `isFoundingMember`
+  // flag — this is so the agent sees their effective price before
+  // they click (no $99 → $49 bait-and-switch at Checkout).
+  const isFounding = agentProfile?.isFoundingMember === true;
+  const displayPrice = isFounding ? '$49/mo' : '$99/mo';
+
+  // Click on "Upgrade to Pro" → POST to /api/stripe/upgrade-tier with
+  // confirm=false. Server inspects the agent's Stripe customer state
+  // and returns either:
+  //   - { mode: 'in_app', preview }  → render <UpgradeConfirmModal>
+  //   - { mode: 'checkout', url }    → redirect to Stripe Checkout
   //
-  // PR A scope: this just wires the existing Checkout endpoint. PR B
-  // will add the in-place subscription update for existing customers
-  // (skip Stripe Checkout entirely when they already have a card on
-  // file) and tier-aware pricing on the button (Founding $49, etc.).
+  // The in_app path is the "magical" one: agent already has a card
+  // on file, so we skip Checkout entirely. Modal renders, agent hits
+  // Confirm, server runs `stripe.subscriptions.update()` in place,
+  // Firestore is written directly, redirect back with unlocked tier.
   const handleUpgrade = useCallback(async () => {
     if (!user || checkoutLoading) return;
     setCheckoutError(null);
+    setConfirmError(null);
     setCheckoutLoading(true);
     try {
       const token = await user.getIdToken();
-      const res = await fetch('/api/stripe/create-checkout-session', {
+      const res = await fetch('/api/stripe/upgrade-tier', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -119,28 +133,92 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
           returnPath: pathname ?? undefined,
         }),
       });
-      const data = await res.json().catch(() => ({} as { url?: string; error?: string }));
-      if (!res.ok || !data?.url) {
+      const data = await res.json().catch(
+        () =>
+          ({}) as {
+            mode?: string;
+            url?: string;
+            preview?: UpgradePreview;
+            error?: string;
+          },
+      );
+      if (!res.ok) {
         setCheckoutError(
-          (data?.error as string) ?? 'Could not open checkout. Try Compare all plans below.',
+          (data?.error as string) ??
+            'Could not start upgrade. Try Compare all plans below.',
         );
         setCheckoutLoading(false);
         return;
       }
-      // Leaving the SPA → no need to reset state; the browser unloads.
-      window.location.href = data.url as string;
+      if (data.mode === 'checkout' && data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      if (data.mode === 'in_app' && data.preview) {
+        setConfirmPreview(data.preview);
+        setCheckoutLoading(false);
+        return;
+      }
+      setCheckoutError('Unexpected response from server. Try Compare all plans below.');
+      setCheckoutLoading(false);
     } catch (err) {
-      console.error('[upgrade-card] checkout error:', err);
+      console.error('[upgrade-card] upgrade error:', err);
       setCheckoutError('Network error. Try Compare all plans below.');
       setCheckoutLoading(false);
     }
   }, [user, pathname, checkoutLoading]);
 
+  // Modal Confirm → POST upgrade-tier with confirm=true. Server runs
+  // the actual subscription update + writes Firestore. We hard-
+  // navigate so the dashboard re-mounts with the new tier picked up
+  // from the agent profile fetch.
+  const handleConfirmUpgrade = useCallback(async () => {
+    if (!user) return;
+    setConfirmError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/stripe/upgrade-tier', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tier: 'pro',
+          returnPath: pathname ?? undefined,
+          confirm: true,
+        }),
+      });
+      const data = await res.json().catch(
+        () => ({}) as { success?: boolean; redirectPath?: string; error?: string },
+      );
+      if (!res.ok || !data?.success) {
+        setConfirmError(
+          (data?.error as string) ??
+            'Upgrade failed. Try again, or use Compare all plans for an alternate path.',
+        );
+        return;
+      }
+      const target =
+        data.redirectPath ?? `${pathname ?? '/dashboard'}?subscription=success`;
+      window.location.href = target;
+    } catch (err) {
+      console.error('[upgrade-card] confirm error:', err);
+      setConfirmError('Network error. Try again.');
+    }
+  }, [user, pathname]);
+
+  const handleCancelUpgrade = useCallback(() => {
+    setConfirmPreview(null);
+    setConfirmError(null);
+  }, []);
+
   return (
-    // Negative margins break out of the dashboard `<main>` padding
-    // (`p-4 md:p-6` in layout.tsx ~L952) so the blurred backdrop runs
-    // flush to the sidebar/edge — the paywall takes over the whole
-    // content area, not a card-on-a-card.
+    <>
+    {/* Negative margins break out of the dashboard `<main>` padding
+        (`p-4 md:p-6` in layout.tsx ~L952) so the blurred backdrop runs
+        flush to the sidebar/edge — the paywall takes over the whole
+        content area, not a card-on-a-card. */}
     <div className="relative min-h-[75vh] overflow-hidden -m-4 md:-m-6">
       {/* Blurred faux-dashboard backdrop. 1.5px blur + 0.9 opacity:
           legible structure (you can tell it's a dashboard) without
@@ -181,7 +259,7 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
                 Pro
               </span>
               <span className="text-[11px] text-[#707070] font-semibold">
-                Available on Pro · $99/mo · Includes Leads + Activity
+                Available on Pro · {displayPrice} · Includes Leads + Activity
               </span>
             </div>
 
@@ -286,12 +364,12 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
                     </svg>
                     Opening checkout…
                   </span>
-                  <span className="opacity-0 text-sm">$99/mo →</span>
+                  <span className="opacity-0 text-sm">{displayPrice} →</span>
                 </>
               ) : (
                 <>
                   <span>Upgrade to Pro</span>
-                  <span className="opacity-85 text-sm">$99/mo →</span>
+                  <span className="opacity-85 text-sm">{displayPrice} →</span>
                 </>
               )}
             </button>
@@ -312,6 +390,15 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
         </div>
       </div>
     </div>
+    {confirmPreview && (
+      <UpgradeConfirmModal
+        preview={confirmPreview}
+        onConfirm={handleConfirmUpgrade}
+        onCancel={handleCancelUpgrade}
+        error={confirmError}
+      />
+    )}
+    </>
   );
 }
 
