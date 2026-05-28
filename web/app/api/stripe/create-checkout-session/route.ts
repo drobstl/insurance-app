@@ -45,17 +45,47 @@ function resolveAppOrigin(request: NextRequest): string {
   return request.nextUrl.origin;
 }
 
+/**
+ * Sanitizes a return-path string passed by the client (in-app upgrade
+ * card sends the current `usePathname()` here so a successful checkout
+ * lands the agent back on the surface they tried to access).
+ *
+ * Open-redirect guard rejects:
+ *   - anything not starting with `/`
+ *   - protocol-relative `//evil.com` paths
+ *   - paths containing `:` (catches javascript:, data:, etc.)
+ *   - paths with control chars / newlines
+ *   - off-dashboard paths (defense-in-depth — only `/dashboard*` is
+ *     reachable as a tier_locked paywall surface today, so anything
+ *     else is suspicious)
+ *
+ * Returns the normalized path-only portion (drops query string), or
+ * `'/dashboard'` if the input fails validation.
+ */
+function sanitizeReturnPath(raw: unknown): string {
+  if (typeof raw !== 'string') return '/dashboard';
+  if (!raw.startsWith('/')) return '/dashboard';
+  if (raw.startsWith('//')) return '/dashboard';
+  if (raw.includes(':')) return '/dashboard';
+  if (/[\r\n\t]/.test(raw)) return '/dashboard';
+  const pathOnly = raw.split('?')[0] ?? '/dashboard';
+  if (!pathOnly.startsWith('/dashboard')) return '/dashboard';
+  return pathOnly;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json().catch(() => ({}))) as {
       tier?: unknown;
       referralCode?: unknown;
+      returnPath?: unknown;
     };
     const tier = typeof body.tier === 'string' ? body.tier.trim() : '';
     const referralCode =
       typeof body.referralCode === 'string' && body.referralCode.trim().length > 0
         ? body.referralCode.trim()
         : null;
+    const returnPath = sanitizeReturnPath(body.returnPath);
 
     if (!isStripeBillableTier(tier)) {
       return NextResponse.json(
@@ -117,7 +147,7 @@ export async function POST(request: NextRequest) {
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
-      success_url: `${appOrigin}/dashboard?subscription=success`,
+      success_url: `${appOrigin}${returnPath}?subscription=success`,
       cancel_url: `${appOrigin}/pricing?canceled=true`,
       metadata: {
         firebaseUserId: userId,
