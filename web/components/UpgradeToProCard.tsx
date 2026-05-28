@@ -102,13 +102,13 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'radial-gradient(ellipse at center, rgba(248,248,248,0.55) 0%, rgba(248,248,248,0.25) 70%, rgba(248,248,248,0.1) 100%)',
+            'radial-gradient(ellipse at center, rgba(248,248,248,0.30) 0%, rgba(248,248,248,0.15) 70%, rgba(248,248,248,0.05) 100%)',
         }}
       />
 
       {/* Paywall card */}
       <div className="relative z-10 flex items-center justify-center min-h-[75vh] px-4 py-10">
-        <div className="w-full max-w-[520px] bg-white/95 backdrop-blur-md border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] rounded-[14px] overflow-hidden shadow-[0_24px_60px_rgba(0,0,0,0.18)]">
+        <div className="w-full max-w-[520px] bg-white/88 backdrop-blur-md border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] rounded-[14px] overflow-hidden shadow-[0_24px_60px_rgba(0,0,0,0.18)]">
           {/* Brand-gradient cap */}
           <div className="h-1.5 bg-gradient-to-r from-[#005851] to-[#44bbaa]" />
 
@@ -261,22 +261,29 @@ function FauxLeadsBackdrop() {
           <div className="w-20 text-right">Status</div>
         </div>
         {rows.map((label, i) => (
-          <FauxLeadRow key={i} label={label} />
+          <FauxLeadRow key={i} label={label} isNext={i === 0} />
         ))}
       </div>
     </div>
   );
 }
 
-function FauxLeadRow({ label }: { label: string }) {
+function FauxLeadRow({ label, isNext = false }: { label: string; isNext?: boolean }) {
   const tone = FAUX_LEAD_CHIP_TONES[label] ?? 'bg-[#f3f4f6] text-[#374151]';
+  // First row gets a 3px teal left-border + soft teal-tint background to
+  // read as "next to dial" — subtle queue-priority cue without faking
+  // numbers. Other rows stay neutral.
   return (
-    <div className="flex items-center gap-3.5 px-4 py-3 border-b border-[#f1f1f1] last:border-b-0">
+    <div
+      className={`flex items-center gap-3.5 px-4 py-3 border-b border-[#f1f1f1] last:border-b-0 ${
+        isNext ? 'border-l-[3px] border-l-[#44bbaa] bg-[#daf3f0]/30' : ''
+      }`}
+    >
       <span className="w-8 h-8 rounded-full bg-[#daf3f0] flex-shrink-0" />
       <span className="h-2.5 rounded-sm bg-[#e9ecef] w-[200px]" />
       <span className="h-2.5 rounded-sm bg-[#e9ecef] w-[130px]" />
-      <span className="h-2.5 rounded-sm bg-[#e9ecef] flex-1 max-w-[90px]" />
-      <span className={`text-[10px] font-bold px-2 py-1 rounded ${tone} flex-shrink-0`}>
+      <span className="h-2.5 rounded-sm bg-[#e9ecef] w-[90px]" />
+      <span className={`ml-auto text-[10px] font-bold px-2 py-1 rounded ${tone} flex-shrink-0`}>
         {label}
       </span>
     </div>
