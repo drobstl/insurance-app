@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { BOOKED_LEAD_APP_AVAILABLE } from '../lib/feature-flags';
 
 /**
  * Renders an in-page upgrade prompt for agents whose current tier
@@ -41,20 +42,6 @@ interface SurfaceCopy {
   bullets: string[];
   callout?: { title: string; description: string };
 }
-
-/**
- * Booked-lead prep app feature flag.
- *
- * When this lands (branded prep page for booked leads — agent video,
- * client testimonials, intake assessment), flip this to `true` and the
- * "Plus" callout on the Leads paywall starts rendering, parallel to
- * the AI-coaching callout on the Activity paywall.
- *
- * Default `false` because shipping the paywall promise before the
- * feature exists is a refund risk. Copy lives below so it's reviewable
- * + version-controlled even while gated off.
- */
-const BOOKED_LEAD_APP_AVAILABLE = false;
 
 const SURFACE_COPY: Record<UpgradeSurface, SurfaceCopy> = {
   leads: {
