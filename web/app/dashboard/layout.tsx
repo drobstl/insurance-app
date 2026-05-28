@@ -924,7 +924,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                       <svg className="w-5 h-5 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
                       </svg>
-                      <span className="text-sm font-medium">Set up my phone</span>
+                      <span className="text-sm font-medium flex-1">Set up my phone</span>
+                      {!agentProfile.phonePaired && (
+                        <span
+                          aria-label="Setup needed"
+                          className="w-2 h-2 rounded-full bg-[#f59e0b] flex-shrink-0"
+                        />
+                      )}
                     </button>
                     {agentProfile.stripeCustomerId && (
                       <button

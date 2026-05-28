@@ -17,6 +17,7 @@ import PremiumBadge from '../../components/PremiumBadge';
 import BadgeShelf from '../../components/BadgeShelf';
 import BookHealthPopover from '../../components/BookHealthPopover';
 import BadgeCelebration from '../../components/BadgeCelebration';
+import PairPhoneBanner from '../../components/PairPhoneBanner';
 
 interface ActivityItem {
   id: string;
@@ -297,6 +298,7 @@ export default function DashboardHomePage() {
           in the bottom-right corner.
         </SectionTipCard>
       )}
+      <PairPhoneBanner />
       {/* ── Value Hero ─────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6 mt-2 mb-8 md:mb-10">
         <div>

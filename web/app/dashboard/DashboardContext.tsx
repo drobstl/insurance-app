@@ -174,6 +174,16 @@ export interface AgentProfile {
    * 1. Persisted at `agents/{agentId}.dialPersistence`.
    */
   dialPersistence?: 1 | 2 | 3;
+  /**
+   * Derived: whether this agent has paired their phone with the AFL
+   * mobile app and push is active. True iff a `pushToken` is stored on
+   * the agent doc AND `pushPermissionRevokedAt` is unset (lifecycle
+   * rule per push-permission-lifecycle.ts).
+   *
+   * Used by the pair-phone prompts (dashboard banner, confirmation
+   * drawer callout, profile-dropdown badge) to know whether to nudge.
+   */
+  phonePaired?: boolean;
 }
 
 interface DashboardContextValue {
@@ -296,6 +306,11 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           dialPersistence: (data.dialPersistence === 2 || data.dialPersistence === 3)
             ? data.dialPersistence
             : 1,
+          phonePaired: Boolean(
+            typeof data.pushToken === 'string' &&
+            data.pushToken &&
+            !data.pushPermissionRevokedAt,
+          ),
         });
       } else {
         setAgentProfile({});
