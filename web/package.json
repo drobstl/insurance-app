@@ -14,6 +14,7 @@
     "backfill:thread-registry": "node --import tsx ./scripts/backfill-conversation-thread-registry.ts",
     "audit:reactivation": "node --require ./scripts/server-only-shim.cjs --import tsx ./scripts/reactivation-audit.ts",
     "nuke:window-welcomes": "node --require ./scripts/server-only-shim.cjs --import tsx ./scripts/nuke-window-welcome-action-items.ts",
+    "purge:fake-bookings": "node --require ./scripts/server-only-shim.cjs --import tsx ./scripts/purge-fake-bookings.ts",
     "audit:welcome-templates": "node --require ./scripts/server-only-shim.cjs --import tsx ./scripts/welcome-template-audit.ts",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
