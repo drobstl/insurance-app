@@ -49,18 +49,7 @@ export default function LeadDetailPage() {
   if (!user || profileLoading) return null;
   if (reason === 'env_off') return null;
   if (reason === 'tier_locked') {
-    return (
-      <UpgradeToProCard
-        featureName="Leads"
-        description="Manage your pre-application lead pipeline in AFL: upload lead forms, dial-track with cooldown-aware queues, book appointments, convert to clients with one click."
-        bullets={[
-          'Lead intake from Mail-In / Call-In / Digital forms (PDF auto-extract)',
-          'Dial queue with per-outcome cooldowns (callback 4h, no-answer 24h, left-VM 48h)',
-          'Appointment booking with QR-scan desktop→phone confirmation hand-off',
-          'Convert-to-Client conveyor belt straight into the close-the-sale ritual',
-        ]}
-      />
-    );
+    return <UpgradeToProCard surface="leads" />;
   }
 
   if (!leadId) return null;
