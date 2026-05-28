@@ -78,6 +78,13 @@ export interface PricingTier {
   stripePriceIdEnvVar: string;
   /** UI emphasis. `'popular'` shows a "Most Popular" badge. */
   emphasis?: 'popular';
+  /** When true, the tier card renders a "Coming soon" badge, swaps the
+   *  buy CTA for a `mailto:` notify-me link, and the signup chain
+   *  (`/signup?tier=X` + `/api/signup/start-checkout`) rejects the tier
+   *  with `tier_not_yet_available`. Bullets render as-is — the
+   *  card describes the eventual product; the badge + disabled
+   *  button communicate that it's not bookable yet. */
+  comingSoon?: boolean;
 }
 
 export const PRICING_TIERS: Readonly<Record<PricingTierId, PricingTier>> = {
@@ -138,6 +145,7 @@ export const PRICING_TIERS: Readonly<Record<PricingTierId, PricingTier>> = {
     bestFor: 'Producer actively running a lead pipeline who wants AI coaching on their calls',
     isStripeBillable: true,
     stripePriceIdEnvVar: 'STRIPE_PRICE_ID_PRO_MONTHLY',
+    comingSoon: true,
   },
   agency: {
     id: 'agency',
@@ -157,6 +165,7 @@ export const PRICING_TIERS: Readonly<Record<PricingTierId, PricingTier>> = {
       'Mentor calendar + chargeback comparison vs Symmetry',
     ],
     bestFor: 'Agency owner running a downline who wants team-level visibility + coaching',
+    comingSoon: true,
     isStripeBillable: false,
     stripePriceIdEnvVar: '',
   },

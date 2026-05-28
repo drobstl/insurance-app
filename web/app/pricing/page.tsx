@@ -35,6 +35,18 @@ function ctaForTier(
   tier: PricingTier,
   refCode: string | null,
 ): { href: string; label: string; isMailto: boolean } {
+  // Coming-soon tiers don't open Stripe Checkout. The CTA becomes a
+  // mailto so interested buyers self-build a waitlist (replies land in
+  // support@agentforlife.app). The signup chain (start-checkout +
+  // /signup?tier=X) also rejects these tiers as a back-door close so a
+  // bookmarked URL can't sneak through.
+  if (tier.comingSoon) {
+    return {
+      href: `mailto:${AGENCY_SALES_EMAIL}?subject=${encodeURIComponent(`Notify me when ${tier.name} is available`)}`,
+      label: 'Notify me when available',
+      isMailto: true,
+    };
+  }
   if (!tier.isStripeBillable) {
     return {
       href: `mailto:${AGENCY_SALES_EMAIL}?subject=${encodeURIComponent('Agency tier inquiry')}`,
@@ -60,6 +72,7 @@ function ctaForTier(
 function TierCard({ tier, refCode }: { tier: PricingTier; refCode: string | null }) {
   const cta = ctaForTier(tier, refCode);
   const isPopular = tier.emphasis === 'popular';
+  const isComingSoon = !!tier.comingSoon;
 
   return (
     <article
@@ -72,6 +85,11 @@ function TierCard({ tier, refCode }: { tier: PricingTier; refCode: string | null
       {isPopular ? (
         <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#3DD6C3] px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-[#0D4D4D]">
           Most Popular
+        </span>
+      ) : null}
+      {isComingSoon ? (
+        <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#0D4D4D] px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+          Coming Soon
         </span>
       ) : null}
 
@@ -150,7 +168,11 @@ function TierCard({ tier, refCode }: { tier: PricingTier; refCode: string | null
             {cta.label}
           </Link>
         )}
-        {tier.trialDays > 0 && tier.isStripeBillable ? (
+        {isComingSoon ? (
+          <p className="mt-2 text-center text-[11px] text-[#6B7280]">
+            We&apos;ll email you the moment it&apos;s ready.
+          </p>
+        ) : tier.trialDays > 0 && tier.isStripeBillable ? (
           <p className="mt-2 text-center text-[11px] text-[#6B7280]">
             Card required at signup · Not charged for {tier.trialDays} days
           </p>
