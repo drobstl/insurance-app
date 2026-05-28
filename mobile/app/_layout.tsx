@@ -203,6 +203,7 @@ export default function RootLayout() {
         <Stack.Screen name="agent-profile" />
         <Stack.Screen name="policies" />
         <Stack.Screen name="agent-home" />
+        <Stack.Screen name="agent-welcome" />
         <Stack.Screen name="pair/[code]" />
         <Stack.Screen name="send/[apptId]" />
       </Stack>

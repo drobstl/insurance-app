@@ -31,31 +31,69 @@ export default function PairBridgePage({ params }: { params: Promise<{ code: str
   const [appNotFound, setAppNotFound] = useState(false);
   const detectTimerRef = useRef<number | null>(null);
 
+  // Track in a ref so the visibilitychange listener (which is created
+  // once on mount) sees the latest `appNotFound` value without needing
+  // to re-bind on every state change.
+  const appNotFoundRef = useRef(false);
+  useEffect(() => {
+    appNotFoundRef.current = appNotFound;
+  }, [appNotFound]);
+
   useEffect(() => {
     if (!code || typeof window === 'undefined') return;
     const url = `agentforlife://pair/${encodeURIComponent(code)}`;
 
-    // Fire the custom-scheme redirect after a frame so the page has a
-    // chance to paint. iOS sometimes buries the prompt under the load.
-    const launchTimer = window.setTimeout(() => {
+    /**
+     * Fire the custom-scheme redirect and start the "did the app open?"
+     * detection. Called on initial mount, and again every time the user
+     * returns to Safari after going elsewhere (almost always: came back
+     * from the App Store after installing).
+     */
+    const fireScheme = () => {
+      setAppNotFound(false);
       window.location.href = url;
-    }, 50);
+      // Detection: if the app opens, the tab backgrounds (visibilityState
+      // becomes 'hidden') almost immediately. If after ~1.5s we're still
+      // visible, the app didn't open.
+      detectTimerRef.current = window.setTimeout(() => {
+        if (document.visibilityState === 'visible') {
+          setAppNotFound(true);
+        }
+      }, APP_NOT_FOUND_DETECT_MS);
+    };
 
-    // Detection: if the app opens, the tab backgrounds (visibilityState
-    // becomes 'hidden') almost immediately. If after ~1.5s we're still
-    // visible, the app didn't open.
-    detectTimerRef.current = window.setTimeout(() => {
-      if (document.visibilityState === 'visible') {
-        setAppNotFound(true);
-      }
-    }, APP_NOT_FOUND_DETECT_MS);
+    // Initial fire — small delay so the page has a chance to paint
+    // before iOS shows the open-in-app prompt.
+    const launchTimer = window.setTimeout(fireScheme, 50);
 
-    // If visibility flips to hidden, the app opened — cancel the
-    // "not found" detection so we don't flash the wrong UI on return.
+    /**
+     * Auto-retry on return from the App Store.
+     *
+     * When the user taps the App Store link from our "app not found"
+     * UI, Safari backgrounds (hidden) and the App Store opens. After
+     * installing, the user can either:
+     *   (a) Tap "Open" in the App Store — opens AFL fresh, no pair
+     *       code. Handled separately in the mobile app's first-launch
+     *       screen.
+     *   (b) Tap the back arrow to return to Safari — visibility flips
+     *       back to 'visible'. The page is still loaded with the pair
+     *       code in the URL. We re-fire the custom scheme and the app
+     *       (now installed) opens with the code. One scan total.
+     *
+     * We only retry if we previously showed the "app not found" UI —
+     * otherwise normal tab-switching would trigger spurious retries.
+     */
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden' && detectTimerRef.current !== null) {
-        window.clearTimeout(detectTimerRef.current);
-        detectTimerRef.current = null;
+      if (document.visibilityState === 'hidden') {
+        if (detectTimerRef.current !== null) {
+          window.clearTimeout(detectTimerRef.current);
+          detectTimerRef.current = null;
+        }
+      } else if (
+        document.visibilityState === 'visible' &&
+        appNotFoundRef.current
+      ) {
+        fireScheme();
       }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -85,7 +123,8 @@ export default function PairBridgePage({ params }: { params: Promise<{ code: str
           <h1 style={styles.title}>Install Agent for Life first</h1>
           <p style={styles.body}>
             Looks like the app isn’t on this phone yet. Install it from the App Store, then
-            come back and scan the QR again — it’ll work the moment it’s installed.
+            tap the <strong>back arrow</strong> at the top-left to return here — we’ll finish
+            signing you in automatically.
           </p>
           <a href={APP_STORE_URL} style={styles.primaryButton}>
             Get it on the App Store

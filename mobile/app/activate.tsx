@@ -466,6 +466,22 @@ export default function ActivateScreen() {
                     accessType: 'lead' and routes to /lead-home directly),
                     so the affordance has nothing to refer to. /lead-login
                     is now orphaned but kept in place as a fallback route. */}
+
+                {/* Agent fallback: an agent who installed the app via
+                    the App Store and tapped "Open" (instead of returning
+                    to Safari where the pair flow auto-resumes) lands
+                    here without a session and no way forward. This link
+                    routes them to instructions for the QR pair flow.
+                    Real clients who tap it confused will read "head to
+                    your dashboard on your laptop" and back out — no harm
+                    done. */}
+                <TouchableOpacity
+                  style={styles.agentLink}
+                  onPress={() => router.replace('/agent-welcome' as never)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.agentLinkText}>Are you an agent? →</Text>
+                </TouchableOpacity>
               </View>
             </View>
           </SafeAreaView>
@@ -647,6 +663,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 6,
     marginTop: 2,
+  },
+  agentLink: {
+    marginTop: 24,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignSelf: 'center',
+  },
+  agentLinkText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontWeight: '500',
+    textAlign: 'center',
+    textDecorationLine: 'underline',
   },
   leadEntryLink: {
     marginTop: 18,
