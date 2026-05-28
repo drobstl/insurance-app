@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useRef, useState, use } from 'react';
 
 /**
  * /pair/[code] — Universal bridge from the scanned QR to the AFL app.
@@ -13,56 +13,106 @@ import { useEffect, useState, use } from 'react';
  *   QR; that lands here; we bounce immediately to the custom scheme;
  *   iOS hands it to the installed AFL app.
  *
- * Failure modes covered:
- *   - App not installed → custom scheme silently fails, nothing
- *     happens. The visible "Open Agent for Life" button + install
- *     instructions handle this without a confusing dead-end.
- *   - Auto-redirect blocked by browser → button below is the manual
- *     escape hatch.
- *   - Code expired / already used → app shows the error after exchange.
- *     We don't validate here; the bridge is dumb on purpose.
+ * App-not-installed detection:
+ *   We fire the custom scheme, then watch `document.visibilityState`.
+ *   When iOS hands a URL to an installed app, Safari backgrounds and
+ *   the page becomes hidden. If after ~1.5s we're still visible, the
+ *   app didn't open — almost always because it's not installed. We
+ *   swap to a "install the app" UI that leads with the App Store
+ *   instead of leaving the agent staring at a useless retry button.
  */
+
+const APP_STORE_URL = 'https://apps.apple.com/app/agentforlife';
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.danielroberts.agentforlife';
+const APP_NOT_FOUND_DETECT_MS = 1500;
+
 export default function PairBridgePage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
-  const [redirected, setRedirected] = useState(false);
+  const [appNotFound, setAppNotFound] = useState(false);
+  const detectTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!code) return;
+    if (!code || typeof window === 'undefined') return;
     const url = `agentforlife://pair/${encodeURIComponent(code)}`;
-    // Use a setTimeout so the page has a frame to render before iOS
-    // shows the "Open in..." confirmation. Without this delay, some
-    // iOS versions bury the prompt under the loading state.
-    const t = window.setTimeout(() => {
+
+    // Fire the custom-scheme redirect after a frame so the page has a
+    // chance to paint. iOS sometimes buries the prompt under the load.
+    const launchTimer = window.setTimeout(() => {
       window.location.href = url;
-      setRedirected(true);
     }, 50);
-    return () => window.clearTimeout(t);
+
+    // Detection: if the app opens, the tab backgrounds (visibilityState
+    // becomes 'hidden') almost immediately. If after ~1.5s we're still
+    // visible, the app didn't open.
+    detectTimerRef.current = window.setTimeout(() => {
+      if (document.visibilityState === 'visible') {
+        setAppNotFound(true);
+      }
+    }, APP_NOT_FOUND_DETECT_MS);
+
+    // If visibility flips to hidden, the app opened — cancel the
+    // "not found" detection so we don't flash the wrong UI on return.
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && detectTimerRef.current !== null) {
+        window.clearTimeout(detectTimerRef.current);
+        detectTimerRef.current = null;
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      window.clearTimeout(launchTimer);
+      if (detectTimerRef.current !== null) {
+        window.clearTimeout(detectTimerRef.current);
+        detectTimerRef.current = null;
+      }
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [code]);
 
   const manualLink = `agentforlife://pair/${encodeURIComponent(code || '')}`;
 
+  // ── App-not-installed state ── (after detection timeout)
+  if (appNotFound) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.card}>
+          <div style={styles.iconCircle}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0D4D4D" strokeWidth="2">
+              <path d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <h1 style={styles.title}>Install Agent for Life first</h1>
+          <p style={styles.body}>
+            Looks like the app isn’t on this phone yet. Install it from the App Store, then
+            come back and scan the QR again — it’ll work the moment it’s installed.
+          </p>
+          <a href={APP_STORE_URL} style={styles.primaryButton}>
+            Get it on the App Store
+          </a>
+          <a href={PLAY_STORE_URL} style={styles.secondaryLink}>
+            Or get it on Google Play
+          </a>
+          <p style={styles.divider}>Already installed?</p>
+          <a href={manualLink} style={styles.tertiaryLink}>
+            Tap here to open Agent for Life
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Default state — "opening the app..." ──
   return (
     <div style={styles.container}>
       <div style={styles.card}>
         <h1 style={styles.title}>Opening Agent for Life…</h1>
         <p style={styles.body}>
-          {redirected
-            ? 'If the app didn’t open, tap the button below.'
-            : 'You’ll be redirected to the app in a second.'}
+          You’ll be redirected to the app in a second.
         </p>
-        <a href={manualLink} style={styles.button}>
+        <a href={manualLink} style={styles.primaryButton}>
           Open Agent for Life
         </a>
-        <p style={styles.helper}>
-          Don’t have the app yet?{' '}
-          <a
-            style={styles.link}
-            href="https://apps.apple.com/app/agentforlife"
-          >
-            Install it
-          </a>
-          , then scan the QR again.
-        </p>
       </div>
     </div>
   );
@@ -86,11 +136,21 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'center',
     boxShadow: '0 4px 24px rgba(0,0,0,0.2)',
   },
+  iconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#f4f9f9',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    margin: '0 auto 16px',
+  },
   title: {
     fontSize: 22,
     fontWeight: 700,
     color: '#0D4D4D',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   body: {
     fontSize: 15,
@@ -98,7 +158,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 24,
     lineHeight: 1.5,
   },
-  button: {
+  primaryButton: {
     display: 'inline-block',
     backgroundColor: '#0D4D4D',
     color: '#ffffff',
@@ -107,15 +167,25 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 16,
     fontWeight: 600,
     textDecoration: 'none',
+    width: '100%',
+    boxSizing: 'border-box',
   },
-  helper: {
-    fontSize: 13,
-    color: '#888',
-    marginTop: 24,
-    lineHeight: 1.5,
-  },
-  link: {
+  secondaryLink: {
+    display: 'block',
+    marginTop: 12,
     color: '#0D4D4D',
+    fontSize: 14,
+    textDecoration: 'underline',
+  },
+  divider: {
+    marginTop: 28,
+    color: '#888',
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  tertiaryLink: {
+    color: '#0D4D4D',
+    fontSize: 14,
     textDecoration: 'underline',
   },
 };
