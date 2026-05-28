@@ -1,7 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useCallback, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { BOOKED_LEAD_APP_AVAILABLE } from '../lib/feature-flags';
+import { useDashboard } from '../app/dashboard/DashboardContext';
 
 /**
  * Renders an in-page upgrade prompt for agents whose current tier
@@ -84,6 +87,54 @@ interface UpgradeToProCardProps {
 
 export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
   const copy = SURFACE_COPY[surface];
+  const { user } = useDashboard();
+  const pathname = usePathname();
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  // Click on "Upgrade to Pro" → POST to /api/stripe/create-checkout-session
+  // → redirect to Stripe Checkout. Sends the current pathname as
+  // `returnPath` so a successful checkout lands the agent back on the
+  // surface they tried to access (Leads or Activity) with
+  // `?subscription=success`, not a generic /dashboard dump.
+  //
+  // PR A scope: this just wires the existing Checkout endpoint. PR B
+  // will add the in-place subscription update for existing customers
+  // (skip Stripe Checkout entirely when they already have a card on
+  // file) and tier-aware pricing on the button (Founding $49, etc.).
+  const handleUpgrade = useCallback(async () => {
+    if (!user || checkoutLoading) return;
+    setCheckoutError(null);
+    setCheckoutLoading(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tier: 'pro',
+          returnPath: pathname ?? undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({} as { url?: string; error?: string }));
+      if (!res.ok || !data?.url) {
+        setCheckoutError(
+          (data?.error as string) ?? 'Could not open checkout. Try Compare all plans below.',
+        );
+        setCheckoutLoading(false);
+        return;
+      }
+      // Leaving the SPA → no need to reset state; the browser unloads.
+      window.location.href = data.url as string;
+    } catch (err) {
+      console.error('[upgrade-card] checkout error:', err);
+      setCheckoutError('Network error. Try Compare all plans below.');
+      setCheckoutLoading(false);
+    }
+  }, [user, pathname, checkoutLoading]);
 
   return (
     // Negative margins break out of the dashboard `<main>` padding
@@ -200,14 +251,56 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
             )}
 
             {/* CTA — price baked into the button so the upgrade
-                decision and the price land in the same eye-sweep. */}
-            <Link
-              href="/pricing"
-              className="flex items-center justify-between w-full bg-[#005851] hover:bg-[#0d4d4d] text-white font-bold text-[15px] px-4 py-3.5 rounded-lg transition-colors"
+                decision and the price land in the same eye-sweep.
+                Click → Stripe Checkout via /api/stripe/create-
+                checkout-session. Loading state prevents double-click
+                during the API round-trip. */}
+            <button
+              type="button"
+              onClick={handleUpgrade}
+              disabled={checkoutLoading || !user}
+              className="flex items-center justify-between w-full bg-[#005851] hover:bg-[#0d4d4d] disabled:opacity-70 disabled:cursor-wait text-white font-bold text-[15px] px-4 py-3.5 rounded-lg transition-colors"
             >
-              <span>Upgrade to Pro</span>
-              <span className="opacity-85 text-sm">$99/mo →</span>
-            </Link>
+              {checkoutLoading ? (
+                <>
+                  <span className="inline-flex items-center gap-2">
+                    <svg
+                      className="animate-spin h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      aria-hidden
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
+                    </svg>
+                    Opening checkout…
+                  </span>
+                  <span className="opacity-0 text-sm">$99/mo →</span>
+                </>
+              ) : (
+                <>
+                  <span>Upgrade to Pro</span>
+                  <span className="opacity-85 text-sm">$99/mo →</span>
+                </>
+              )}
+            </button>
+
+            {checkoutError && (
+              <p role="alert" className="mt-2 text-[12px] text-red-700 leading-snug">
+                {checkoutError}
+              </p>
+            )}
 
             <div className="flex items-center justify-between mt-3 px-1 text-[11.5px] text-[#707070]">
               <Link href="/pricing" className="text-[#005851] font-semibold hover:underline">
