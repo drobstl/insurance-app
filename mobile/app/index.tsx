@@ -250,7 +250,16 @@ export default function IndexScreen() {
 
         const session = await getSession();
         if (!session) {
-          router.replace('/activate' as never);
+          // Fresh install — no session at all. Route to the
+          // phone/code entry screen, which figures out the user's
+          // role (lead, client, beneficiary, or hints at agent if
+          // not found) and routes them to the right next screen.
+          //
+          // Previously this routed to /activate, which only works
+          // for users who already have a session populated with
+          // agent info. Without that data /activate renders broken
+          // copy and the user is stranded.
+          router.replace('/login' as never);
           return;
         }
 
