@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { BOOKED_LEAD_APP_AVAILABLE } from '../lib/feature-flags';
 
 /**
  * Renders an in-page upgrade prompt for agents whose current tier
@@ -52,6 +53,13 @@ const SURFACE_COPY: Record<UpgradeSurface, SurfaceCopy> = {
       'Book the sit-down — AFL drafts the confirmation text with your business card and the state-matched license. You just hit send.',
       'Win the sale — and the lead becomes an Agent for Life client: monitored for lapses and cancellations, kept warm for referrals and rewrites, for life.',
     ],
+    callout: BOOKED_LEAD_APP_AVAILABLE
+      ? {
+          title: 'Plus: Your booked leads show up ready',
+          description:
+            'Every booked lead gets a branded prep page — your video, your testimonials, your intake assessment. They walk in warm, prepped, and halfway sold.',
+        }
+      : undefined,
   },
   activity: {
     headline: 'The numbers track themselves.',
