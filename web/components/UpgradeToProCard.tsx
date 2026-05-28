@@ -46,7 +46,7 @@ interface SurfaceCopy {
 const SURFACE_COPY: Record<UpgradeSurface, SurfaceCopy> = {
   leads: {
     headline: 'The pipeline runs itself.',
-    sub: 'Drop in a lead form and AFL does the rest — extracts every field, queues the next call, drafts the booking text, turns the win into a monitored client. You stay on the phone, where the money is.',
+    sub: "You just dial. AFL knows who's next, drafts the texts, remembers the follow-ups, and never lets a lead go cold.",
     bullets: [
       'Drop in a lead form — AFL pulls every field automatically. No retyping.',
       'AFL tells you who to dial next, based on what happened on the last call.',
@@ -130,7 +130,7 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
                 Pro
               </span>
               <span className="text-[11px] text-[#707070] font-semibold">
-                Available on Pro · $99/mo
+                Available on Pro · $99/mo · Includes Leads + Activity
               </span>
             </div>
 
