@@ -15,6 +15,7 @@
     "audit:reactivation": "node --require ./scripts/server-only-shim.cjs --import tsx ./scripts/reactivation-audit.ts",
     "nuke:window-welcomes": "node --require ./scripts/server-only-shim.cjs --import tsx ./scripts/nuke-window-welcome-action-items.ts",
     "purge:fake-bookings": "node --require ./scripts/server-only-shim.cjs --import tsx ./scripts/purge-fake-bookings.ts",
+    "purge:test-leads": "node --require ./scripts/server-only-shim.cjs --import tsx ./scripts/purge-test-leads.ts",
     "audit:welcome-templates": "node --require ./scripts/server-only-shim.cjs --import tsx ./scripts/welcome-template-audit.ts",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
