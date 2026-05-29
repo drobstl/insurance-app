@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { User } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { QRCodeSVG } from 'qrcode.react';
 import { composeMessage } from '../lib/booking-confirmation';
 import { useDashboard } from '../app/dashboard/DashboardContext';
+import { db } from '../firebase';
 
 /**
  * Booking-confirmation drawer (Chunk 4e).
@@ -162,9 +164,63 @@ export default function SendConfirmationDrawer({
 
   // Resend-push state for paired agents who didn't catch the auto-push.
   const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent' | 'no_token' | 'failed'>('idle');
+  const [resendReason, setResendReason] = useState<string>('');
+
+  // Live "sent from phone" detection.
+  //
+  // When the agent taps the push notification on their paired phone
+  // and either sends or cancels the iMessage composer, the phone-side
+  // calls /api/appointments/[id]/confirmation-sent (or reminder-sent)
+  // which stamps a timestamp on the appointment doc. By subscribing
+  // to the appointment doc here, the dashboard sees that update the
+  // moment it lands — and we can show the agent visible confirmation
+  // ("Sent from your phone ✓") and auto-close the drawer.
+  //
+  // Capture the initial timestamp at mount so a reschedule of a
+  // previously-sent appointment doesn't immediately trigger the
+  // success state. We only fire success when the timestamp CHANGES
+  // from whatever it was when this drawer opened.
+  const [sentFromPhone, setSentFromPhone] = useState(false);
+  const initialStampRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!user || !appointmentId) return;
+    const apptRef = doc(db, 'agents', user.uid, 'appointments', appointmentId);
+    const stampField = kind === 'reminder' ? 'sentReminderAt' : 'sentConfirmationAt';
+    const unsub = onSnapshot(apptRef, (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const raw = data?.[stampField];
+      // Firestore Timestamps have toMillis(); seconds-based shapes
+      // expose seconds + nanoseconds. Either way we want a comparable
+      // number; null/undefined means "no stamp yet".
+      const ms =
+        raw && typeof raw.toMillis === 'function' ? raw.toMillis() :
+        raw && typeof raw === 'object' && typeof raw.seconds === 'number' ? raw.seconds * 1000 :
+        null;
+      if (initialStampRef.current === null) {
+        initialStampRef.current = ms ?? 0;
+        return;
+      }
+      if (ms !== null && ms > (initialStampRef.current ?? 0)) {
+        setSentFromPhone(true);
+      }
+    });
+    return () => unsub();
+  }, [user, appointmentId, kind]);
+
+  // Once the phone-side stamp lands, give the agent a beat to see the
+  // success overlay, then fire onSent which closes the drawer.
+  useEffect(() => {
+    if (!sentFromPhone) return;
+    const t = window.setTimeout(() => {
+      onSent();
+    }, 1800);
+    return () => window.clearTimeout(t);
+  }, [sentFromPhone, onSent]);
   const handleResendPush = useCallback(async () => {
     if (!user) return;
     setResendStatus('sending');
+    setResendReason('');
     try {
       const token = await user.getIdToken();
       const res = await fetch(`/api/appointments/${appointmentId}/resend-push`, {
@@ -178,14 +234,21 @@ export default function SendConfirmationDrawer({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setResendStatus('failed');
+        setResendReason(`http ${res.status}: ${data?.error || 'unknown'}`);
         return;
       }
       if (data.outcome === 'ok') setResendStatus('sent');
-      else if (data.outcome === 'no_token' || data.outcome === 'ineligible') setResendStatus('no_token');
-      else setResendStatus('failed');
+      else if (data.outcome === 'no_token' || data.outcome === 'ineligible') {
+        setResendStatus('no_token');
+        setResendReason(data.reason || data.outcome);
+      } else {
+        setResendStatus('failed');
+        setResendReason(data.reason || data.outcome || 'unknown');
+      }
     } catch (err) {
       console.warn('resend push failed:', err);
       setResendStatus('failed');
+      setResendReason(err instanceof Error ? err.message : String(err));
     }
   }, [user, appointmentId, kind]);
 
@@ -418,8 +481,27 @@ export default function SendConfirmationDrawer({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={() => !busy && onCancel()} />
+      <div className="absolute inset-0 bg-black/40" onClick={() => !busy && !sentFromPhone && onCancel()} />
       <div className="relative w-full max-w-lg bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+        {sentFromPhone && (
+          <div className="absolute inset-0 z-10 bg-white flex flex-col items-center justify-center px-6 animate-in fade-in duration-300">
+            <div className="w-20 h-20 rounded-full bg-[#3DD6C3] flex items-center justify-center mb-4">
+              <svg
+                className="w-12 h-12 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                strokeWidth={3}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <p className="text-xl font-bold text-[#0D4D4D]">Sent from your phone</p>
+            <p className="text-sm text-[#555] mt-2 text-center">
+              {leadName.split(/\s+/)[0] || 'Your lead'} has the confirmation.
+            </p>
+          </div>
+        )}
         <div className="flex items-start justify-between p-5 border-b border-[#ececec] shrink-0">
           <div>
             <h3 className="text-xl font-bold text-[#000000]">
@@ -500,9 +582,9 @@ export default function SendConfirmationDrawer({
                   {resendStatus === 'sent'
                     ? 'Another notification is on its way.'
                     : resendStatus === 'no_token'
-                    ? 'Notifications look off on your paired phone. Open Agent for Life on the phone to re-enable.'
+                    ? `Notifications look off on your paired phone. ${resendReason ? `(${resendReason})` : ''}`
                     : resendStatus === 'failed'
-                    ? 'Couldn’t resend. Try again or send below.'
+                    ? `Couldn’t resend. ${resendReason ? `(${resendReason})` : 'Try again or send below.'}`
                     : 'Didn’t get it? Resend the notification.'}
                 </p>
               </div>

@@ -2106,7 +2106,15 @@ export default function LeadDetailPanel({
               notes: appt.notes,
               meetingUrl: appt.meetingUrl || undefined,
             }}
-            onBooked={() => setReschedulingAppointmentId(null)}
+            onBooked={(apptId, scheduledAt) => {
+              setReschedulingAppointmentId(null);
+              // Open the confirmation drawer for the rescheduled
+              // appointment so the agent has the same visible feedback
+              // loop as a fresh booking: push fires to phone, drawer
+              // stays open as fallback, drawer flips to "Sent from
+              // your phone ✓" the moment the phone-side stamp lands.
+              setConfirming({ appointmentId: apptId, scheduledAt });
+            }}
             onCancel={() => setReschedulingAppointmentId(null)}
           />
         );

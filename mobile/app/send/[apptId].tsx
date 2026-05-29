@@ -10,7 +10,15 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as SMS from 'expo-sms';
-import * as FileSystem from 'expo-file-system';
+// Important: the top-level `expo-file-system` import in SDK 54+ is
+// the new File/Directory API which DOES NOT export `cacheDirectory`,
+// `writeAsStringAsync`, or `downloadAsync`. The legacy path-based API
+// these calls rely on lives at `expo-file-system/legacy`. Importing
+// from the top level here was a silent bug: `cacheDirectory` came
+// back as undefined and the attachment materialize step bailed out
+// before doing anything, producing an iMessage composer with no
+// attachments and no visible error.
+import * as FileSystem from 'expo-file-system/legacy';
 import { auth } from '../../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { getAgentIdToken } from '../../lib/agent-session';
@@ -74,6 +82,7 @@ export default function SendConfirmationScreen() {
   const [status, setStatus] = useState<Status>('loading');
   const [statusDetail, setStatusDetail] = useState('Loading appointment…');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [attachmentDebug, setAttachmentDebug] = useState<string>('');
 
   // Gate on Firebase auth state. If we got here via push tap on a
   // device that's not signed in as the agent (shouldn't happen, but
@@ -129,8 +138,9 @@ export default function SendConfirmationScreen() {
         // Materialize attachments to local files. We skip anything
         // already-sent (the server signals this via `alreadySent`).
         setStatusDetail('Preparing attachments…');
-        const attachments = await materializeAttachments(bundle);
+        const { attachments, status: attachStatus } = await materializeAttachments(bundle);
         if (cancelled) return;
+        setAttachmentDebug(attachStatus);
 
         // Confirm SMS is even available. False on simulator + browser
         // + devices with no SMS account configured.
@@ -212,11 +222,17 @@ export default function SendConfirmationScreen() {
               <Text style={styles.bigGlyph}>✓</Text>
               <Text style={styles.title}>Sent.</Text>
               <Text style={styles.body}>Confirmation is on its way.</Text>
+              {attachmentDebug ? (
+                <Text style={styles.debug}>{attachmentDebug}</Text>
+              ) : null}
             </>
           ) : status === 'cancelled' ? (
             <>
               <Text style={styles.title}>Didn’t send</Text>
               <Text style={styles.body}>No worries — you can resend from the dashboard.</Text>
+              {attachmentDebug ? (
+                <Text style={styles.debug}>{attachmentDebug}</Text>
+              ) : null}
             </>
           ) : (
             <>
@@ -243,17 +259,25 @@ export default function SendConfirmationScreen() {
  * Errors here are non-fatal — if one attachment fails to materialize,
  * we send without it rather than blocking the whole confirmation.
  */
-async function materializeAttachments(bundle: ConfirmationBundle): Promise<
-  Array<{ uri: string; mimeType: string; filename: string }>
-> {
+async function materializeAttachments(bundle: ConfirmationBundle): Promise<{
+  attachments: Array<{ uri: string; mimeType: string; filename: string }>;
+  status: string;
+}> {
   const cacheDir = FileSystem.cacheDirectory;
-  if (!cacheDir) return [];
+  if (!cacheDir) return { attachments: [], status: 'no cache dir' };
 
   const out: Array<{ uri: string; mimeType: string; filename: string }> = [];
+  const debug: string[] = [];
 
   // Business card (image, from base64).
   const card = bundle.attachments.businessCard;
-  if (card && !card.alreadySent && card.base64) {
+  if (!card) {
+    debug.push('card: not in bundle');
+  } else if (card.alreadySent) {
+    debug.push('card: already sent');
+  } else if (!card.base64) {
+    debug.push('card: no base64');
+  } else {
     try {
       const filename = 'business-card.jpg';
       const path = `${cacheDir}${filename}`;
@@ -264,14 +288,23 @@ async function materializeAttachments(bundle: ConfirmationBundle): Promise<
       const uri =
         Platform.OS === 'android' ? await FileSystem.getContentUriAsync(path) : path;
       out.push({ uri, mimeType: card.mimeType, filename });
+      debug.push('card: ok');
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.warn('business card materialize failed (non-fatal):', err);
+      debug.push(`card: FAIL ${msg.slice(0, 60)}`);
     }
   }
 
   // License (PDF/image, from signed URL).
   const lic = bundle.attachments.license;
-  if (lic && !lic.alreadySent && lic.signedUrl) {
+  if (!lic) {
+    debug.push('license: not in bundle');
+  } else if (lic.alreadySent) {
+    debug.push('license: already sent');
+  } else if (!lic.signedUrl) {
+    debug.push('license: no signedUrl');
+  } else {
     try {
       const ext =
         lic.mimeType === 'image/jpeg' ? 'jpg' :
@@ -284,12 +317,15 @@ async function materializeAttachments(bundle: ConfirmationBundle): Promise<
           ? await FileSystem.getContentUriAsync(downloaded.uri)
           : downloaded.uri;
       out.push({ uri, mimeType: lic.mimeType, filename });
+      debug.push(`license: ok (${downloaded.status})`);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.warn('license materialize failed (non-fatal):', err);
+      debug.push(`license: FAIL ${msg.slice(0, 60)}`);
     }
   }
 
-  return out;
+  return { attachments: out, status: debug.join(' | ') };
 }
 
 /**
@@ -373,5 +409,12 @@ const styles = StyleSheet.create({
     color: '#0D4D4D',
     fontSize: 16,
     fontWeight: '700',
+  },
+  debug: {
+    marginTop: 24,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.5)',
+    textAlign: 'center',
+    paddingHorizontal: 24,
   },
 });

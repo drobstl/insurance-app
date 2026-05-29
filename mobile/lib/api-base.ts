@@ -13,7 +13,7 @@
  * → `app.config.ts`), this is the place to wire it.
  */
 
-const DEV_API_BASE = 'http://192.168.40.133:3001';
+const DEV_API_BASE = 'http://10.40.46.162:3000';
 const PROD_API_BASE = 'https://agentforlife.app';
 
 export const API_BASE = __DEV__ ? DEV_API_BASE : PROD_API_BASE;

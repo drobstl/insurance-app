@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../../lib/firebase-admin';
 import { DEFAULT_DURATION_MINUTES, isValidIsoTimestamp } from '../../../../../lib/appointments';
@@ -175,14 +175,22 @@ export async function POST(
     // Best-effort — failures here NEVER block the appointment response,
     // because the agent has the dashboard fallback (QR / resend) if
     // their phone misses the notification. Logged for telemetry only.
-    void pushAgentForConfirmation({
-      db,
-      agentId,
-      apptId: apptRef.id,
-      leadName,
-      kind: 'confirmation',
-    })
-      .then((res) => {
+    //
+    // Use `after()` (not bare `void ...promise`) so Vercel keeps the
+    // serverless function alive long enough for the Expo push call to
+    // complete after we've returned the response to the dashboard.
+    // The bare void pattern got killed mid-flight on Vercel and the
+    // push silently dropped. `after` is the supported way to defer
+    // work past the response without blocking.
+    after(async () => {
+      try {
+        const res = await pushAgentForConfirmation({
+          db,
+          agentId,
+          apptId: apptRef.id,
+          leadName,
+          kind: 'confirmation',
+        });
         if (res.outcome !== 'ok') {
           console.log('agent confirmation push skipped or failed:', {
             agentId,
@@ -191,10 +199,10 @@ export async function POST(
             reason: res.reason,
           });
         }
-      })
-      .catch((err) => {
+      } catch (err) {
         console.warn('agent confirmation push threw:', err);
-      });
+      }
+    });
 
     return NextResponse.json({
       appointmentId: apptRef.id,

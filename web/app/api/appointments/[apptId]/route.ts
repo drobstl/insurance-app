@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { Timestamp } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
 import { VALID_STATUSES, isValidIsoTimestamp, type AppointmentStatus } from '../../../../lib/appointments';
@@ -168,6 +168,10 @@ export async function PATCH(
     // a fresh "send updated confirmation" push to the agent. Other
     // edits (notes, status changes) don't trigger this — the lead
     // doesn't need to hear from the agent every time a note is added.
+    //
+    // Uses `after()` so Vercel keeps the serverless function alive past
+    // the response long enough for the Expo push call to complete.
+    // The bare void-promise pattern silently dropped pushes mid-flight.
     if (updates.scheduledAt !== undefined) {
       const newTs = updates.scheduledAt as Timestamp;
       const priorTs = prior.scheduledAt as Timestamp | undefined;
@@ -175,14 +179,15 @@ export async function PATCH(
         !priorTs || newTs.toMillis() !== priorTs.toMillis();
       if (timeActuallyChanged) {
         const leadName = typeof prior.leadName === 'string' ? prior.leadName : '';
-        void pushAgentForConfirmation({
-          db,
-          agentId,
-          apptId,
-          leadName,
-          kind: 'confirmation',
-        })
-          .then((res) => {
+        after(async () => {
+          try {
+            const res = await pushAgentForConfirmation({
+              db,
+              agentId,
+              apptId,
+              leadName,
+              kind: 'confirmation',
+            });
             if (res.outcome !== 'ok') {
               console.log('agent reschedule push skipped or failed:', {
                 agentId,
@@ -191,10 +196,10 @@ export async function PATCH(
                 reason: res.reason,
               });
             }
-          })
-          .catch((err) => {
+          } catch (err) {
             console.warn('agent reschedule push threw:', err);
-          });
+          }
+        });
       }
     }
 

@@ -143,29 +143,35 @@ export default function RootLayout() {
 
   // Set up notification listeners
   useEffect(() => {
-    // Listener for when a notification is received while app is foregrounded.
-    // Clear the badge immediately — the user is already in the app.
-    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
-      console.log('Notification received:', notification.request.content.title);
-      Notifications.setBadgeCountAsync(0).catch(() => {});
-    });
-
-    // Listener for when the user taps a notification or its Book action button.
-    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data as Record<string, unknown> | undefined;
+    /**
+     * Route the agent into the send-confirmation screen from a
+     * push-notification tap.
+     *
+     * Two code paths reach the same destination:
+     *   1. Warm-open via `addNotificationResponseReceivedListener` —
+     *      app was already running, listener fires on tap.
+     *   2. Cold-open via `getLastNotificationResponseAsync` — app was
+     *      killed when the push arrived; the OS held the tap response
+     *      and we collect it on mount BEFORE the listener could have
+     *      caught it. Without this we'd race-lose the tap and the
+     *      agent would land on /agent-home with no idea what to do.
+     */
+    const routeFromNotification = (
+      data: Record<string, unknown> | undefined,
+      actionIdentifier?: string,
+    ) => {
       Notifications.setBadgeCountAsync(0).catch(() => {});
       Notifications.dismissAllNotificationsAsync().catch(() => {});
 
       // If they tapped the Book action, open the agent's calendar
-      if (response.actionIdentifier === 'book' && data?.schedulingUrl && typeof data.schedulingUrl === 'string') {
+      if (actionIdentifier === 'book' && data?.schedulingUrl && typeof data.schedulingUrl === 'string') {
         Linking.openURL(data.schedulingUrl);
+        return;
       }
 
       // Agent-side: notifications carrying an appointmentId mean "tap
       // to send confirmation". Route the agent into the send screen
       // so the message composer opens with everything filled in.
-      // The `kind` field distinguishes confirmation vs. reminder so the
-      // send screen picks the right template.
       if (
         typeof data?.appointmentId === 'string' &&
         data.appointmentId &&
@@ -176,6 +182,35 @@ export default function RootLayout() {
           params: { apptId: data.appointmentId, kind: data.kind },
         } as never);
       }
+    };
+
+    // Cold-launch path: ask the OS for the last notification response
+    // that woke us up. If there is one, route immediately. We delay
+    // slightly so the root Stack has a chance to mount before we push
+    // onto it — otherwise expo-router silently drops the push.
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (!response) return;
+        const data = response.notification.request.content.data as Record<string, unknown> | undefined;
+        setTimeout(() => {
+          routeFromNotification(data, response.actionIdentifier);
+        }, 250);
+      })
+      .catch((err) => {
+        console.warn('getLastNotificationResponse failed:', err);
+      });
+
+    // Foreground notifications: clear the badge.
+    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
+      console.log('Notification received:', notification.request.content.title);
+      Notifications.setBadgeCountAsync(0).catch(() => {});
+    });
+
+    // Warm-tap path: listener for when the user taps while the app is
+    // already running.
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as Record<string, unknown> | undefined;
+      routeFromNotification(data, response.actionIdentifier);
     });
 
     return () => {
