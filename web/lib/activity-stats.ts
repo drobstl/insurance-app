@@ -3,6 +3,7 @@ import 'server-only';
 import { Timestamp } from 'firebase-admin/firestore';
 import { getAdminFirestore } from './firebase-admin';
 import { computeAPV } from './apv';
+import { carrierDisplayName } from './carriers';
 
 /**
  * Agent activity stats.
@@ -47,7 +48,13 @@ export const POLICY_SOURCE_LABELS: Record<PolicySource, string> = {
   bought_lead: 'Bought leads',
   referral: 'Referrals',
   rewrite: 'Rewrites',
-  manual_add: 'Manual adds',
+  // "Earned lead" = leads you sourced yourself, outside the lead-vendor
+  // pipeline. Networking contacts, friends/family, inbound calls,
+  // marketing inquiries, re-engaged aged-out leads, cold prospecting,
+  // referrals you logged manually instead of through the referral flow.
+  // They were leads in spirit — just not bought — so they count as
+  // sales activity but live in their own bucket.
+  manual_add: 'Earned leads',
 };
 
 /** Brand-aligned color per source for chart tints. */
@@ -149,22 +156,68 @@ export interface ActivityStats {
   range: { from: string; to: string; label: string; key: ActivityRange };
   dials: { total: number; contacts: number; contactRate: number; deltaPct: number | null };
   appointments: {
-    booked: number;         // unique leads booked in window (reschedules don't double-count)
-    showed: number;         // booked leads whose latest appt is completed
-    noShowed: number;       // booked leads whose latest appt is cancelled OR no_show
-    unresolved: number;     // booked leads whose latest appt is still scheduled (no outcome yet)
-    showRate: number;       // showed / (showed + noShowed) — excludes unresolved
+    // All five counts are unique-entity (lead or client). Reschedules
+    // of the same lead don't double-count.
+    //
+    // Rate-math definitions (May 27 — Daniel's call):
+    //  - A sale-in-window implies the entity showed. You can't sell
+    //    someone who didn't sit.
+    //  - Cancellations are NOT counted as no-shows. A cancel is a
+    //    pre-meeting scrub; a no-show is a ghosting. Cancellations are
+    //    excluded from showRate's denominator.
+    //  - Unresolved (still-pending) appointments are excluded from
+    //    showRate's denominator until they actually resolve.
+    booked: number;         // booked in window, OR sold in window even if booked earlier
+    showed: number;         // status flipped to completed/sit, OR any sale in window
+    noShowed: number;       // status === 'no_show' only (cancellations live in their own bucket)
+    cancelled: number;      // status === 'cancelled' AND no sale on the entity — excluded from rates
+    unresolved: number;     // still scheduled, no outcome yet — excluded from rates
+    showRate: number;       // showed / (showed + noShowed) — cancellations + pending excluded
     bookRate: number;       // booked / contacts (current window)
     deltaPct: number | null;
   };
   sales: {
     count: number;
     apv: number;
-    closeRate: number;      // sales / showed
+    closeRate: number;      // salesCount / showed (households-sold ≤ showed by construction)
     deltaPct: number | null;
     bySource: Array<{ source: PolicySource; label: string; color: string; count: number; apv: number; pct: number }>;
   };
   saved: { apv: number; count: number; deltaPct: number | null };
+  // APV lifecycle (May 29 — Daniel's add). Mirrors his Issue Paid
+  // Tracker: business is submitted, then issued/paid by the carrier,
+  // then some charges back. Net Placed = issued − chargebacks.
+  //   - submitted  : APV of policies SOLD in window (= sales.apv)
+  //   - grossIssued : APV of policies whose issuePaidDate lands in window
+  //   - chargebacks : APV of policies whose chargebackDate lands in window
+  //   - netPlaced  : grossIssued − chargebacks
+  //   - netPlacedPct : netPlaced / submitted (placement quality)
+  // Issue-paid + chargeback dates are entered by the agent (and
+  // auto-stamped on Mark Lost for chargeback-risk policies).
+  apvLifecycle: {
+    submitted: number;
+    grossIssued: number;
+    chargebacks: number;
+    netPlaced: number;
+    netPlacedPct: number;
+  };
+  // Business-health metrics (May 27 — Daniel's add). The funnel rates
+  // above describe "is the lead-to-sale machine working this period."
+  // These three describe "is the business actually compounding" —
+  // matching AFL's leaky-bucket pitch: fewer losses (chargeback),
+  // more referrals (per-close), more rewrites (share of sales).
+  chargebacks: {
+    count: number;          // lost conservation alerts in window where isChargebackRisk=true
+    rate: number;           // chargebacks / salesCount this period — period view (mathematically loose, agent-intuitive)
+  };
+  referralsActivity: {
+    received: number;       // referrals received in window (createdAt)
+    perClose: number;       // received / salesCount — gold-standard generation rate
+  };
+  rewrites: {
+    count: number;          // rewrite-tagged policies in window (already in sales.bySource)
+    rate: number;           // rewrites / salesCount this period
+  };
   funnel: Array<{ stage: string; count: number; pctOfPrev: number | null }>;
   recentWins: Array<{
     at: string;
@@ -172,6 +225,28 @@ export interface ActivityStats {
     clientName: string;
     amount: number;
     source: PolicySource | 'save';
+    carrier: string | null;
+    product: string | null;
+  }>;
+  // Per-policy ledger for the period — the spreadsheet-style view of
+  // the agent's book (Issue Paid Tracker, minus the Costa Rica
+  // aggregate which stays in the sheet). clientId/policyId let the UI
+  // edit the issue-paid + chargeback dates inline.
+  ledger: Array<{
+    clientId: string;
+    policyId: string;
+    clientName: string;
+    carrier: string | null;
+    product: string | null;
+    policyNumber: string | null;
+    submittedAt: string | null;
+    premium: number | null;
+    premiumFrequency: string | null;
+    faceAmount: number | null;
+    apv: number;
+    issuePaidDate: string | null;
+    chargebackDate: string | null;
+    source: PolicySource;
   }>;
 }
 
@@ -268,11 +343,25 @@ export async function getActivityStats(
   // Daniel's mental model: "I get 30 leads/week, the goal is to book
   // 20–25 of them." Booked counts uniquely per lead/client. Reschedules
   // of the same lead don't add to the count (they create new appt docs
-  // but share the same entity ID). Cancellations count as no-shows
-  // (the booking happened, the meeting just didn't). Show rate is
-  // computed only over RESOLVED bookings (completed / cancelled /
-  // no_show) so an upcoming-but-pending appointment doesn't suppress
-  // the rate.
+  // but share the same entity ID).
+  //
+  // Rate math (May 27 — Daniel's call):
+  //   - A sale on this entity in-window implies they showed. We can't
+  //     sell someone who didn't sit. So `showed` is the union of
+  //     (status-flipped) AND (sold-in-window).
+  //   - Cancellations are NOT no-shows. A cancel is a pre-meeting
+  //     scrub; a no-show is a ghosting. Cancellations get their own
+  //     bucket, excluded from showRate's denominator.
+  //   - Unresolved (still-scheduled) appointments are also excluded
+  //     from showRate's denominator. Rate judges resolved meetings.
+  //   - If an entity sold in-window but has no booking in-window (or
+  //     no appointment doc at all), we still count them as booked
+  //     AND showed this window — a sale is proof of both.
+  //
+  // The actual `booked` / `showed` / `noShowed` / `cancelled` /
+  // `unresolved` numbers are tallied later (after the policy walk
+  // populates `soldEntitiesCurr`), in the "reconcile appointments
+  // with sales" block.
   interface ApptDoc {
     createdAt?: unknown;
     scheduledAt?: unknown;
@@ -297,53 +386,34 @@ export async function getActivityStats(
     if (arr) arr.push(data);
     else apptsByEntity.set(entityId, [data]);
   }
-  let booked = 0;
-  let bookedPrev = 0;
-  let showed = 0;
-  let noShowed = 0;       // includes explicit no_show + cancellations
-  let unresolved = 0;     // booked-in-window but no outcome yet (still scheduled)
-  for (const appts of apptsByEntity.values()) {
-    // First-booked moment for this entity = earliest createdAt.
-    // Reschedules carry forward the original "I booked this lead"
-    // moment; the rescheduled doc's createdAt is later but doesn't
-    // re-trigger the count.
+  // Pre-compute first-booked + latest-status per entity. We need this
+  // available before the reconciliation step below, which also needs
+  // to know which entities sold in window — populated by the policy
+  // walk further down.
+  interface EntityApptInfo {
+    firstBookedMs: number;
+    latestStatus: string;
+  }
+  const entityAppts = new Map<string, EntityApptInfo>();
+  for (const [entityId, appts] of apptsByEntity) {
     const firstBookedMs = appts
       .map((a) => timestampMillis(a.createdAt))
       .filter((ms): ms is number => ms !== null)
       .reduce((min, ms) => (ms < min ? ms : min), Number.POSITIVE_INFINITY);
     if (!Number.isFinite(firstBookedMs)) continue;
-    if (firstBookedMs >= prevFromMs && firstBookedMs < prevToMs) {
-      bookedPrev += 1;
-      continue;
-    }
-    if (firstBookedMs < fromMs || firstBookedMs >= toMs) continue;
-    booked += 1;
-    // Outcome for this entity = status of the LATEST appointment doc
-    // for this lead, by createdAt (most recent agent action). If a
-    // lead's original appointment was cancelled but they got put back
-    // on the calendar and showed up, the latest doc reflects that
-    // and they correctly count as showed — overriding the earlier
-    // cancellation. Reschedules of the same lead update an existing
-    // doc's scheduledAt without changing status, so they don't move
-    // the lead between buckets until the meeting actually happens.
+    // Latest = most recent agent action by createdAt. If a lead's
+    // original appt was cancelled but they got rebooked and showed,
+    // the latest doc reflects that.
     const latest = [...appts].sort((a, b) => {
       const aMs = timestampMillis(a.createdAt) ?? 0;
       const bMs = timestampMillis(b.createdAt) ?? 0;
       return bMs - aMs;
     })[0];
-    const status = latest?.status || 'scheduled';
-    if (status === 'completed' || status === 'sit_no_sale' || status === 'sit_think_about_it') showed += 1;
-    else if (status === 'cancelled' || status === 'no_show') noShowed += 1;
-    else unresolved += 1;
+    entityAppts.set(entityId, {
+      firstBookedMs,
+      latestStatus: latest?.status || 'scheduled',
+    });
   }
-  // Show rate = showed / booked (total). Daniel's definition: "if an
-  // agent books 20 and 10 show up, show rate is 50%." Unresolved
-  // pending appointments stay in the denominator — they'll eventually
-  // resolve to showed or no-show, but until then they correctly drag
-  // the rate down because the agent hasn't completed those meetings
-  // yet.
-  const showRate = booked > 0 ? showed / booked : 0;
-  const bookRate = dialsCurr.contacts > 0 ? booked / dialsCurr.contacts : 0;
 
   // ── Sales / APV / source breakdown ──
   // Walk every client + policy. Client doc gives us source-attribution
@@ -363,7 +433,18 @@ export async function getActivityStats(
   let salesCount = 0;
   let salesApv = 0;
   let salesCountPrev = 0;
+  // APV lifecycle accumulators (each filtered by its own date field).
+  let grossIssuedApv = 0;
+  let chargebackApv = 0;
+  let chargebackCount = 0;
   const recentWins: ActivityStats['recentWins'] = [];
+  const ledger: ActivityStats['ledger'] = [];
+  // Track which entities (leadId-or-clientId, matching the appt-doc
+  // keying) had a sale in each window. Used downstream by the
+  // appointment-reconciliation step to enforce "sale implies show"
+  // and to bring sold-without-appt entities into the booked count.
+  const soldEntitiesCurr = new Set<string>();
+  const soldEntitiesPrev = new Set<string>();
 
   for (const clientDoc of clientsSnap.docs) {
     const clientData = clientDoc.data() as {
@@ -377,6 +458,12 @@ export async function getActivityStats(
       hasConvertedFromLeadId: Boolean(clientData.convertedFromLeadId),
       hasSourceReferralId: Boolean(clientData.sourceReferralId),
     };
+    // Appointments are keyed by leadId when one exists; fall back to
+    // clientId. We track BOTH so the reconciliation step downstream
+    // can match either way (leads that converted have appt docs keyed
+    // by leadId but live under the client).
+    const apptKeyA = clientData.convertedFromLeadId;
+    const apptKeyB = clientDoc.id;
     const policiesSnap = await clientDoc.ref.collection('policies').get();
     for (const policyDoc of policiesSnap.docs) {
       const p = policyDoc.data() as {
@@ -386,6 +473,12 @@ export async function getActivityStats(
         premiumAmount?: number | null;
         premiumFrequency?: string | null;
         source?: PolicySource;
+        insuranceCompany?: string | null;
+        policyType?: string | null;
+        policyNumber?: string | null;
+        coverageAmount?: number | null;
+        issuePaidDate?: string | null;
+        chargebackDate?: string | null;
       };
       // Sale date = when the policy was sold, not when Firestore got
       // the doc. See policySaleDateMillis for the field precedence.
@@ -398,23 +491,133 @@ export async function getActivityStats(
       // otherwise infer from context. Inference still uses the sale
       // date vs the client's createdAt to decide rewrite vs initial.
       const source: PolicySource = p.source || inferPolicySource(saleMs, ctx);
-      if (saleMs >= fromMs && saleMs < toMs) {
+      const carrier = carrierDisplayName(p.insuranceCompany);
+      const product = p.policyType || null;
+      // APV lifecycle — each stage keys off its own date, independent of
+      // when the policy was sold. A policy sold last month can issue or
+      // charge back this month, so these don't have to line up with the
+      // sale-in-window filter below.
+      const issuePaidMs = ymdMillis(p.issuePaidDate);
+      const chargebackMs = ymdMillis(p.chargebackDate);
+      const issuedInWindow = issuePaidMs !== null && issuePaidMs >= fromMs && issuePaidMs < toMs;
+      const chargedBackInWindow = chargebackMs !== null && chargebackMs >= fromMs && chargebackMs < toMs;
+      if (issuedInWindow) grossIssuedApv += apv;
+      if (chargedBackInWindow) {
+        chargebackApv += apv;
+        chargebackCount += 1;
+      }
+      const soldInWindow = saleMs >= fromMs && saleMs < toMs;
+      if (soldInWindow) {
         salesCount += 1;
         salesApv += apv;
         sourceBuckets[source].count += 1;
         sourceBuckets[source].apv += apv;
+        if (apptKeyA) soldEntitiesCurr.add(apptKeyA);
+        soldEntitiesCurr.add(apptKeyB);
         recentWins.push({
           at: new Date(saleMs).toISOString(),
           kind: 'sale',
           clientName: clientData.name || 'Unnamed client',
           amount: apv,
           source,
+          carrier,
+          product,
         });
       } else if (saleMs >= prevFromMs && saleMs < prevToMs) {
         salesCountPrev += 1;
+        if (apptKeyA) soldEntitiesPrev.add(apptKeyA);
+        soldEntitiesPrev.add(apptKeyB);
+      }
+      // Ledger row for any policy touching this window via sale, issue,
+      // or chargeback. Drives the spreadsheet-style table on Activity.
+      if (soldInWindow || issuedInWindow || chargedBackInWindow) {
+        ledger.push({
+          clientId: clientDoc.id,
+          policyId: policyDoc.id,
+          clientName: clientData.name || 'Unnamed client',
+          carrier,
+          product,
+          policyNumber: p.policyNumber || null,
+          submittedAt: new Date(saleMs).toISOString(),
+          premium: typeof p.premiumAmount === 'number' ? p.premiumAmount : null,
+          premiumFrequency: p.premiumFrequency || null,
+          faceAmount: typeof p.coverageAmount === 'number' ? p.coverageAmount : null,
+          apv,
+          issuePaidDate: typeof p.issuePaidDate === 'string' ? p.issuePaidDate : null,
+          chargebackDate: typeof p.chargebackDate === 'string' ? p.chargebackDate : null,
+          source,
+        });
       }
     }
   }
+
+  // ── Reconcile appointments with sales ──
+  // Now that we know which entities sold in each window, walk the
+  // per-entity appt info and produce the final booked / showed /
+  // noShowed / cancelled / unresolved counts. Sale-implies-show
+  // overrides whatever status the appt doc carries, and entities
+  // that sold-but-weren't-booked-in-window get pulled in too.
+  let booked = 0;
+  let showed = 0;
+  let noShowed = 0;
+  let cancelled = 0;
+  let unresolved = 0;
+  let bookedPrev = 0;
+  const accountedCurr = new Set<string>();
+  const accountedPrev = new Set<string>();
+  for (const [entityId, info] of entityAppts) {
+    const inCurr = info.firstBookedMs >= fromMs && info.firstBookedMs < toMs;
+    const inPrev = info.firstBookedMs >= prevFromMs && info.firstBookedMs < prevToMs;
+    const soldCurr = soldEntitiesCurr.has(entityId);
+    if (inCurr) {
+      booked += 1;
+      accountedCurr.add(entityId);
+      if (soldCurr) {
+        showed += 1;  // sale-implies-show overrides any appt status
+      } else {
+        const s = info.latestStatus;
+        if (s === 'completed' || s === 'sit_no_sale' || s === 'sit_think_about_it') showed += 1;
+        else if (s === 'no_show') noShowed += 1;
+        else if (s === 'cancelled') cancelled += 1;
+        else unresolved += 1;
+      }
+    } else if (soldCurr) {
+      // Booking pre-dates the window but the sale lands in-window.
+      // Count them as booked AND showed in this period — without
+      // doing so, sales/showed math breaks across period boundaries.
+      booked += 1;
+      showed += 1;
+      accountedCurr.add(entityId);
+    }
+    if (inPrev) {
+      bookedPrev += 1;
+      accountedPrev.add(entityId);
+    } else if (soldEntitiesPrev.has(entityId)) {
+      bookedPrev += 1;
+      accountedPrev.add(entityId);
+    }
+  }
+  // Entities that sold-in-window with no appointment doc at all
+  // (informal close, no calendar booking). A sale implies the meeting
+  // happened, so count them as +1 booked and +1 showed.
+  for (const entityId of soldEntitiesCurr) {
+    if (!accountedCurr.has(entityId)) {
+      booked += 1;
+      showed += 1;
+    }
+  }
+  for (const entityId of soldEntitiesPrev) {
+    if (!accountedPrev.has(entityId)) {
+      bookedPrev += 1;
+    }
+  }
+  // Show rate denominator = resolved meetings only. Pending and
+  // cancelled live outside the rate. "Did the people I sat with show
+  // up?" not "out of everyone I ever scheduled, what fraction has
+  // resolved as a show?"
+  const resolvedMeetings = showed + noShowed;
+  const showRate = resolvedMeetings > 0 ? showed / resolvedMeetings : 0;
+  const bookRate = dialsCurr.contacts > 0 ? booked / dialsCurr.contacts : 0;
 
   // ── Saved APV ── conservationAlerts marked status='saved' in window.
   // alertData.premiumAmount is monthly; multiply × 12 (we don't store a
@@ -433,6 +636,8 @@ export async function getActivityStats(
     const data = alertDoc.data() as {
       premiumAmount?: number;
       clientName?: string;
+      carrier?: string;
+      policyType?: string;
       updatedAt?: unknown;
       savedAt?: unknown;
     };
@@ -448,11 +653,58 @@ export async function getActivityStats(
         clientName: data.clientName || 'Unnamed client',
         amount: apv,
         source: 'save',
+        carrier: carrierDisplayName(data.carrier),
+        product: data.policyType || null,
       });
     } else if (savedMs >= prevFromMs && savedMs < prevToMs) {
       savedApvPrev += apv;
     }
   }
+
+  // ── Chargebacks ── now policy-driven: a policy counts as a chargeback
+  // in the period its `chargebackDate` falls in. That date is entered by
+  // the agent on the policy, and auto-stamped on Mark Lost when the
+  // alert is a chargeback risk (see conservation/update). Counted in the
+  // policy walk above (chargebackCount / chargebackApv).
+  const chargebacksCount = chargebackCount;
+
+  // ── Referrals received in window ──
+  // Each referral has its own doc under agents/{id}/referrals/{id}
+  // with a createdAt timestamp (server-stamped at creation).
+  const referralsSnap = await db
+    .collection('agents')
+    .doc(agentId)
+    .collection('referrals')
+    .get();
+  let referralsReceived = 0;
+  for (const refDoc of referralsSnap.docs) {
+    const data = refDoc.data() as {
+      createdAt?: unknown;
+      receivedAt?: unknown;
+    };
+    // createdAt is the canonical Firestore stamp; some legacy paths
+    // (early Linq webhook) used receivedAt as an ISO string instead.
+    // Try the canonical one first, then parse the ISO string.
+    let createdMs: number | null = timestampMillis(data.createdAt);
+    if (createdMs === null && typeof data.receivedAt === 'string') {
+      const parsed = Date.parse(data.receivedAt);
+      if (Number.isFinite(parsed)) createdMs = parsed;
+    }
+    if (createdMs === null) continue;
+    if (createdMs >= fromMs && createdMs < toMs) {
+      referralsReceived += 1;
+    }
+  }
+
+  // ── Business-health rates ──
+  // All three use salesCount this period as the denominator. Period
+  // view is mathematically loose (chargebacks may be on policies sold
+  // months ago) but matches agent intuition: "of my sales this month,
+  // what's my chargeback ratio." Same shape for the other two.
+  const chargebackRate = salesCount > 0 ? chargebacksCount / salesCount : 0;
+  const referralsPerClose = salesCount > 0 ? referralsReceived / salesCount : 0;
+  const rewriteCount = sourceBuckets.rewrite.count;
+  const rewriteRate = salesCount > 0 ? rewriteCount / salesCount : 0;
 
   // ── Period-over-period deltas ──
   const pct = (curr: number, prev: number): number | null => {
@@ -461,11 +713,18 @@ export async function getActivityStats(
   };
 
   // ── Funnel + source breakdown shaping ──
+  // Each row's pctOfPrev is "what fraction of the previous stage's
+  // count advanced to this one." For Dials/Contacts/Booked we use the
+  // raw count ratio. For Showed we use `showRate` instead of the raw
+  // showed/booked so the funnel matches the Show Rate tile (which
+  // correctly excludes pending + cancelled from the denominator).
+  // Closed already uses showed as its base, which matches the Close
+  // Rate tile. Net effect: every rate on the page agrees with itself.
   const funnel = [
     { stage: 'Dials', count: dialsCurr.total, pctOfPrev: null as number | null },
     { stage: 'Contacts', count: dialsCurr.contacts, pctOfPrev: dialsCurr.total > 0 ? dialsCurr.contacts / dialsCurr.total : null },
     { stage: 'Booked', count: booked, pctOfPrev: dialsCurr.contacts > 0 ? booked / dialsCurr.contacts : null },
-    { stage: 'Showed', count: showed, pctOfPrev: booked > 0 ? showed / booked : null },
+    { stage: 'Showed', count: showed, pctOfPrev: showRate || null },
     { stage: 'Closed', count: salesCount, pctOfPrev: showed > 0 ? salesCount / showed : null },
   ];
 
@@ -486,6 +745,13 @@ export async function getActivityStats(
   recentWins.sort((a, b) => (b.at > a.at ? 1 : -1));
   const recentWinsCapped = recentWins.slice(0, 10);
 
+  // ── APV lifecycle ── submitted → issued → minus chargebacks = net.
+  const netPlacedApv = grossIssuedApv - chargebackApv;
+  const netPlacedPct = salesApv > 0 ? netPlacedApv / salesApv : 0;
+
+  // Ledger newest-first by sale date.
+  ledger.sort((a, b) => ((b.submittedAt || '') > (a.submittedAt || '') ? 1 : -1));
+
   return {
     range: {
       from: win.from.toISOString(),
@@ -503,6 +769,7 @@ export async function getActivityStats(
       booked,
       showed,
       noShowed,
+      cancelled,
       unresolved,
       showRate,
       bookRate,
@@ -520,7 +787,27 @@ export async function getActivityStats(
       count: savedCount,
       deltaPct: pct(savedApv, savedApvPrev),
     },
+    apvLifecycle: {
+      submitted: salesApv,
+      grossIssued: grossIssuedApv,
+      chargebacks: chargebackApv,
+      netPlaced: netPlacedApv,
+      netPlacedPct,
+    },
+    chargebacks: {
+      count: chargebacksCount,
+      rate: chargebackRate,
+    },
+    referralsActivity: {
+      received: referralsReceived,
+      perClose: referralsPerClose,
+    },
+    rewrites: {
+      count: rewriteCount,
+      rate: rewriteRate,
+    },
     funnel,
     recentWins: recentWinsCapped,
+    ledger,
   };
 }

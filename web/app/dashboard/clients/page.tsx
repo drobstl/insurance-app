@@ -242,6 +242,10 @@ interface Policy {
   amountOfProtection?: number;
   protectionUnit?: 'months' | 'years';
   effectiveDate?: string;
+  // Manual lifecycle dates (Issue Paid Tracker parity). Agent enters
+  // these; chargebackDate is also auto-stamped on Mark Lost.
+  issuePaidDate?: string;
+  chargebackDate?: string;
   status: 'Active' | 'Pending' | 'Lapsed';
   createdAt: Timestamp;
 }
@@ -748,6 +752,8 @@ const emptyPolicyForm: PolicyFormData = {
   premiumFrequency: 'monthly',
   renewalDate: '',
   effectiveDate: '',
+  issuePaidDate: '',
+  chargebackDate: '',
   amountOfProtection: '',
   protectionUnit: 'years',
   status: 'Active',
@@ -2581,6 +2587,8 @@ export default function ClientsPage() {
         premiumFrequency: policyFormData.premiumFrequency,
         renewalDate: policyFormData.renewalDate,
         effectiveDate: policyFormData.effectiveDate || null,
+        issuePaidDate: policyFormData.issuePaidDate || null,
+        chargebackDate: policyFormData.chargebackDate || null,
         status: policyFormData.status,
       };
 
@@ -6563,6 +6571,30 @@ export default function ClientsPage() {
                 <p className="text-xs text-[#707070] mt-1">When the policy was originally issued. Used for policy age calculations.</p>
               </div>
 
+              {/* Issue Paid + Chargeback dates (Issue Paid Tracker parity) */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#000000] mb-1">Issue Paid Date</label>
+                  <input
+                    type="date"
+                    value={policyFormData.issuePaidDate}
+                    onChange={(e) => setPolicyFormData((f) => ({ ...f, issuePaidDate: e.target.value }))}
+                    className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                  />
+                  <p className="text-xs text-[#707070] mt-1">When the carrier issued &amp; paid. Counts toward Gross APV Issued.</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#000000] mb-1">Chargeback Date</label>
+                  <input
+                    type="date"
+                    value={policyFormData.chargebackDate}
+                    onChange={(e) => setPolicyFormData((f) => ({ ...f, chargebackDate: e.target.value }))}
+                    className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                  />
+                  <p className="text-xs text-[#707070] mt-1">Set if the policy charged back. Subtracts from Net Placed APV.</p>
+                </div>
+              </div>
+
               {/* Renewal Date (Term Life) */}
               {policyFormData.policyType === 'Term Life' && (
                 <div>
@@ -6804,6 +6836,8 @@ export default function ClientsPage() {
                   premiumFrequency: policy.premiumFrequency || 'monthly',
                   renewalDate: policy.renewalDate || '',
                   effectiveDate: policy.effectiveDate || '',
+                  issuePaidDate: policy.issuePaidDate || '',
+                  chargebackDate: policy.chargebackDate || '',
                   amountOfProtection: policy.amountOfProtection ? String(policy.amountOfProtection) : '',
                   protectionUnit: policy.protectionUnit || 'years',
                   status: policy.status || 'Active',
@@ -6861,6 +6895,8 @@ export default function ClientsPage() {
                   premiumFrequency: policy.premiumFrequency || 'monthly',
                   renewalDate: policy.renewalDate || '',
                   effectiveDate: policy.effectiveDate || '',
+                  issuePaidDate: policy.issuePaidDate || '',
+                  chargebackDate: policy.chargebackDate || '',
                   amountOfProtection: policy.amountOfProtection ? String(policy.amountOfProtection) : '',
                   protectionUnit: policy.protectionUnit || 'years',
                   status: policy.status || 'Active',
