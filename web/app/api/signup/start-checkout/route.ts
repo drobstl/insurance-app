@@ -41,6 +41,7 @@ interface StartCheckoutBody {
   name?: unknown;
   tier?: unknown;
   refCode?: unknown;
+  fp_tid?: unknown;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -67,6 +68,10 @@ export async function POST(request: NextRequest) {
     const refCode =
       typeof body.refCode === 'string' && body.refCode.trim().length > 0
         ? body.refCode.trim().toUpperCase()
+        : null;
+    const fpTid =
+      typeof body.fp_tid === 'string' && body.fp_tid.trim().length > 0
+        ? body.fp_tid.trim()
         : null;
 
     if (!email || !EMAIL_RE.test(email)) {
@@ -145,12 +150,14 @@ export async function POST(request: NextRequest) {
         pendingSignupEmail: email,
         tier,
         ...(refCode ? { referralCode: refCode } : {}),
+        ...(fpTid ? { fp_tid: fpTid } : {}),
       },
       subscription_data: {
         metadata: {
           pendingSignupEmail: email,
           tier,
           ...(refCode ? { referralCode: refCode } : {}),
+          ...(fpTid ? { fp_tid: fpTid } : {}),
         },
         ...(trialDays > 0 ? { trial_period_days: trialDays } : {}),
       },

@@ -261,7 +261,7 @@ const SOURCE_BADGE_LABELS: Record<PolicySource | 'save', string> = {
   bought_lead: 'Bought lead',
   referral: 'Referral',
   rewrite: 'Rewrite',
-  manual_add: 'Manual',
+  manual_add: 'Earned lead',
   save: 'Retention save',
 };
 
@@ -565,18 +565,7 @@ export default function ActivityPage() {
   if (!user || profileLoading) return null;
   if (reason === 'env_off') return null;
   if (reason === 'tier_locked') {
-    return (
-      <UpgradeToProCard
-        featureName="Activity"
-        description="Track your real numbers, not estimates. Dials, contact rate, book/show/close rates, APV, saved APV, and a full daily funnel — all sourced from the moves you log inside AFL."
-        bullets={[
-          'Book rate / show rate / close rate from your actual appointment data',
-          'APV (Annual Premium Volume) and saved APV trends across day / week / month / YTD',
-          'Daily funnel: dials → contacts → booked → showed → sales',
-          'Recent wins panel so you can see your big policies at a glance',
-        ]}
-      />
-    );
+    return <UpgradeToProCard surface="activity" />;
   }
   // Defense-in-depth — kept for the legacy ACTIVITY_ENABLED off case,
   // already handled by reason === 'env_off' above but harmless to retain.

@@ -78,3 +78,21 @@ export function isLeadModeVisibleForEmail(
  */
 export const ACTIVITY_ENABLED =
   process.env.NEXT_PUBLIC_ACTIVITY_ENABLED === 'true';
+
+/**
+ * NEXT_PUBLIC_BOOKED_LEAD_APP_AVAILABLE — gates the "Plus" callout on
+ * the Leads paywall (the branded prep page for booked leads — agent
+ * video, intake assessment, client testimonials). When `"true"`, the
+ * callout renders below the Leads paywall bullets, parallel to the
+ * AI-coaching callout on the Activity paywall. When off / unset, the
+ * Leads paywall renders without the callout (current production state).
+ *
+ * Promise-before-feature guard: copy + structure ship to code while
+ * gated off so we can flip the env var in Vercel on the day the prep
+ * app actually lands — no scramble to write copy in the moment, no
+ * refund risk from promising a feature that doesn't exist yet.
+ *
+ * Same flip-requires-redeploy mechanics as LEAD_MODE_ENABLED.
+ */
+export const BOOKED_LEAD_APP_AVAILABLE =
+  process.env.NEXT_PUBLIC_BOOKED_LEAD_APP_AVAILABLE === 'true';
