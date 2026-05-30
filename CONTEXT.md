@@ -2,16 +2,17 @@
 # CONTEXT.md — AgentForLife (AFL)
 
 > Drop this in the repo root. Read it before any strategic or architectural decision.
-> Last updated: May 31, 2026 — compliance layer Part 1 audit complete (outbound is 100% consolidated through `web/lib/linq.ts`; implementation kicked off in a parallel session). Pricing relock previously shipped across the May 26–28 burst (PRs #43/44/45/47/48/49): tier gating in code, pricing copy live at $49/$99/from $349, Pro + Agency marked Coming Soon with notify-me CTAs, signup back-door blocked. **See `docs/BACKLOG.md`** for the daily working short-list.
+> Last updated: May 31, 2026 — compliance layer Part 1 audit complete (outbound is 100% consolidated through `web/lib/linq.ts`; implementation kicked off in a parallel session). May 30 growth + distribution lock added (`docs/AFL_Growth_Distribution_Lock_2026-05-30.md`): no-card entry with 30-day free Pro, permanent Free tier with caps, Performance feature gating, Starter $29 grandfather migration, FirstPromoter affiliate program at 20% year-1, IMO leader free-seat threshold at 10 agents, FFL/Rob as priority distribution channel. May 28 relock context retained: pricing relock SHIPPED across the May 26–28 burst (PRs #43/44/45/47/48/49). **See `docs/BACKLOG.md`** for the daily working short-list.
 
 ## Source-of-Truth Documents
 
 These documents are authoritative for the operating model and pricing. When they conflict with each other, the precedence order is:
 
-1. `docs/AFL_Welcome_Flow_Amendment_2026-05-07.md` — the May 7, 2026 welcome flow architecture amendment. Establishes the two-mode framing (Mode 1 real-time inline / Mode 2 bulk-import async) and revises the May 4 "PWA + Web Push as HARD gates" + "Welcome Step 1 mobile-only on agent side" + "no desktop send fallback" decisions. Wins over the May 4 strategy doc and v3.1 §3.3 / §9.3 wherever they conflict on the welcome flow architecture.
-2. `docs/AFL_Strategy_Decisions_2026-05-04.md` — the May 4, 2026 strategy session decisions. Wins over v3.1 and v3 wherever they conflict, EXCEPT on welcome flow architecture (see #1 above).
-3. `docs/AFL_Messaging_Operating_Model_v3.1.md` — channel architecture, lane rules, capacity model, KPI tier system, phased rollout.
-4. `docs/AFL_Pricing_Packaging_Playbook_v3.md` — tier structure, founding-member treatment, overage mechanics, pricing-page design, Concierge add-on.
+1. `docs/AFL_Growth_Distribution_Lock_2026-05-30.md` — the May 30, 2026 growth + distribution lock. Authoritative for entry mechanism (no-card, 30-day free Pro, default to Free tier at day 30), Free tier limits, Performance feature gating across tiers, Starter $29 grandfather migration treatment, affiliate program structure (FirstPromoter, 20% year-1), IMO leader free-seat benefit (10-agent threshold), and FFL/Rob distribution priority. Supplements the May 26 pricing relock — tier prices ($49/$99/from $349) remain in force. Wins over v3 pricing playbook wherever entry mechanism, Free tier, Performance gating, or affiliate program are at issue.
+2. `docs/AFL_Welcome_Flow_Amendment_2026-05-07.md` — the May 7, 2026 welcome flow architecture amendment. Establishes the two-mode framing (Mode 1 real-time inline / Mode 2 bulk-import async) and revises the May 4 "PWA + Web Push as HARD gates" + "Welcome Step 1 mobile-only on agent side" + "no desktop send fallback" decisions. Wins over the May 4 strategy doc and v3.1 §3.3 / §9.3 wherever they conflict on the welcome flow architecture.
+3. `docs/AFL_Strategy_Decisions_2026-05-04.md` — the May 4, 2026 strategy session decisions. Wins over v3.1 and v3 wherever they conflict, EXCEPT on welcome flow architecture (see #2 above) and entry mechanism / Free tier / Performance gating / affiliate program (see #1 above).
+4. `docs/AFL_Messaging_Operating_Model_v3.1.md` — channel architecture, lane rules, capacity model, KPI tier system, phased rollout.
+5. `docs/AFL_Pricing_Packaging_Playbook_v3.md` — tier structure (superseded on prices by the May 26 relock and on entry mechanism / Free tier by #1 above), founding-member treatment, overage mechanics, pricing-page design, Concierge add-on. Conversation-as-unit billing model still valid.
 
 Supporting Linq documents (compatible with the above):
 
