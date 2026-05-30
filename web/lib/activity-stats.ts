@@ -3,6 +3,7 @@ import 'server-only';
 import { Timestamp } from 'firebase-admin/firestore';
 import { getAdminFirestore } from './firebase-admin';
 import { computeAPV } from './apv';
+import { carrierDisplayName } from './carriers';
 
 /**
  * Agent activity stats.
@@ -183,6 +184,23 @@ export interface ActivityStats {
     bySource: Array<{ source: PolicySource; label: string; color: string; count: number; apv: number; pct: number }>;
   };
   saved: { apv: number; count: number; deltaPct: number | null };
+  // APV lifecycle (May 29 — Daniel's add). Mirrors his Issue Paid
+  // Tracker: business is submitted, then issued/paid by the carrier,
+  // then some charges back. Net Placed = issued − chargebacks.
+  //   - submitted  : APV of policies SOLD in window (= sales.apv)
+  //   - grossIssued : APV of policies whose issuePaidDate lands in window
+  //   - chargebacks : APV of policies whose chargebackDate lands in window
+  //   - netPlaced  : grossIssued − chargebacks
+  //   - netPlacedPct : netPlaced / submitted (placement quality)
+  // Issue-paid + chargeback dates are entered by the agent (and
+  // auto-stamped on Mark Lost for chargeback-risk policies).
+  apvLifecycle: {
+    submitted: number;
+    grossIssued: number;
+    chargebacks: number;
+    netPlaced: number;
+    netPlacedPct: number;
+  };
   // Business-health metrics (May 27 — Daniel's add). The funnel rates
   // above describe "is the lead-to-sale machine working this period."
   // These three describe "is the business actually compounding" —
@@ -207,6 +225,28 @@ export interface ActivityStats {
     clientName: string;
     amount: number;
     source: PolicySource | 'save';
+    carrier: string | null;
+    product: string | null;
+  }>;
+  // Per-policy ledger for the period — the spreadsheet-style view of
+  // the agent's book (Issue Paid Tracker, minus the Costa Rica
+  // aggregate which stays in the sheet). clientId/policyId let the UI
+  // edit the issue-paid + chargeback dates inline.
+  ledger: Array<{
+    clientId: string;
+    policyId: string;
+    clientName: string;
+    carrier: string | null;
+    product: string | null;
+    policyNumber: string | null;
+    submittedAt: string | null;
+    premium: number | null;
+    premiumFrequency: string | null;
+    faceAmount: number | null;
+    apv: number;
+    issuePaidDate: string | null;
+    chargebackDate: string | null;
+    source: PolicySource;
   }>;
 }
 
@@ -393,7 +433,12 @@ export async function getActivityStats(
   let salesCount = 0;
   let salesApv = 0;
   let salesCountPrev = 0;
+  // APV lifecycle accumulators (each filtered by its own date field).
+  let grossIssuedApv = 0;
+  let chargebackApv = 0;
+  let chargebackCount = 0;
   const recentWins: ActivityStats['recentWins'] = [];
+  const ledger: ActivityStats['ledger'] = [];
   // Track which entities (leadId-or-clientId, matching the appt-doc
   // keying) had a sale in each window. Used downstream by the
   // appointment-reconciliation step to enforce "sale implies show"
@@ -428,6 +473,12 @@ export async function getActivityStats(
         premiumAmount?: number | null;
         premiumFrequency?: string | null;
         source?: PolicySource;
+        insuranceCompany?: string | null;
+        policyType?: string | null;
+        policyNumber?: string | null;
+        coverageAmount?: number | null;
+        issuePaidDate?: string | null;
+        chargebackDate?: string | null;
       };
       // Sale date = when the policy was sold, not when Firestore got
       // the doc. See policySaleDateMillis for the field precedence.
@@ -440,7 +491,23 @@ export async function getActivityStats(
       // otherwise infer from context. Inference still uses the sale
       // date vs the client's createdAt to decide rewrite vs initial.
       const source: PolicySource = p.source || inferPolicySource(saleMs, ctx);
-      if (saleMs >= fromMs && saleMs < toMs) {
+      const carrier = carrierDisplayName(p.insuranceCompany);
+      const product = p.policyType || null;
+      // APV lifecycle — each stage keys off its own date, independent of
+      // when the policy was sold. A policy sold last month can issue or
+      // charge back this month, so these don't have to line up with the
+      // sale-in-window filter below.
+      const issuePaidMs = ymdMillis(p.issuePaidDate);
+      const chargebackMs = ymdMillis(p.chargebackDate);
+      const issuedInWindow = issuePaidMs !== null && issuePaidMs >= fromMs && issuePaidMs < toMs;
+      const chargedBackInWindow = chargebackMs !== null && chargebackMs >= fromMs && chargebackMs < toMs;
+      if (issuedInWindow) grossIssuedApv += apv;
+      if (chargedBackInWindow) {
+        chargebackApv += apv;
+        chargebackCount += 1;
+      }
+      const soldInWindow = saleMs >= fromMs && saleMs < toMs;
+      if (soldInWindow) {
         salesCount += 1;
         salesApv += apv;
         sourceBuckets[source].count += 1;
@@ -453,11 +520,33 @@ export async function getActivityStats(
           clientName: clientData.name || 'Unnamed client',
           amount: apv,
           source,
+          carrier,
+          product,
         });
       } else if (saleMs >= prevFromMs && saleMs < prevToMs) {
         salesCountPrev += 1;
         if (apptKeyA) soldEntitiesPrev.add(apptKeyA);
         soldEntitiesPrev.add(apptKeyB);
+      }
+      // Ledger row for any policy touching this window via sale, issue,
+      // or chargeback. Drives the spreadsheet-style table on Activity.
+      if (soldInWindow || issuedInWindow || chargedBackInWindow) {
+        ledger.push({
+          clientId: clientDoc.id,
+          policyId: policyDoc.id,
+          clientName: clientData.name || 'Unnamed client',
+          carrier,
+          product,
+          policyNumber: p.policyNumber || null,
+          submittedAt: new Date(saleMs).toISOString(),
+          premium: typeof p.premiumAmount === 'number' ? p.premiumAmount : null,
+          premiumFrequency: p.premiumFrequency || null,
+          faceAmount: typeof p.coverageAmount === 'number' ? p.coverageAmount : null,
+          apv,
+          issuePaidDate: typeof p.issuePaidDate === 'string' ? p.issuePaidDate : null,
+          chargebackDate: typeof p.chargebackDate === 'string' ? p.chargebackDate : null,
+          source,
+        });
       }
     }
   }
@@ -547,6 +636,8 @@ export async function getActivityStats(
     const data = alertDoc.data() as {
       premiumAmount?: number;
       clientName?: string;
+      carrier?: string;
+      policyType?: string;
       updatedAt?: unknown;
       savedAt?: unknown;
     };
@@ -562,40 +653,20 @@ export async function getActivityStats(
         clientName: data.clientName || 'Unnamed client',
         amount: apv,
         source: 'save',
+        carrier: carrierDisplayName(data.carrier),
+        product: data.policyType || null,
       });
     } else if (savedMs >= prevFromMs && savedMs < prevToMs) {
       savedApvPrev += apv;
     }
   }
 
-  // ── Chargebacks ── conservation alerts where the campaign ended in
-  // 'lost' status AND the policy was within the chargeback window
-  // (isChargebackRisk=true, meaning < 365 days old when the alert
-  // fired). A 'lost' campaign on an older policy is still a lapse but
-  // not a commission clawback, so it doesn't count here.
-  const lostAlertsSnap = await db
-    .collection('agents')
-    .doc(agentId)
-    .collection('conservationAlerts')
-    .where('status', '==', 'lost')
-    .get();
-  let chargebacksCount = 0;
-  for (const alertDoc of lostAlertsSnap.docs) {
-    const data = alertDoc.data() as {
-      isChargebackRisk?: boolean;
-      updatedAt?: unknown;
-      campaignEndedAt?: unknown;
-    };
-    if (!data.isChargebackRisk) continue;
-    // Use the campaign-ended stamp when present (canonical "this
-    // became a chargeback at"); fall back to updatedAt for older
-    // alerts that pre-date that field.
-    const lostMs = timestampMillis(data.campaignEndedAt) ?? timestampMillis(data.updatedAt);
-    if (lostMs === null) continue;
-    if (lostMs >= fromMs && lostMs < toMs) {
-      chargebacksCount += 1;
-    }
-  }
+  // ── Chargebacks ── now policy-driven: a policy counts as a chargeback
+  // in the period its `chargebackDate` falls in. That date is entered by
+  // the agent on the policy, and auto-stamped on Mark Lost when the
+  // alert is a chargeback risk (see conservation/update). Counted in the
+  // policy walk above (chargebackCount / chargebackApv).
+  const chargebacksCount = chargebackCount;
 
   // ── Referrals received in window ──
   // Each referral has its own doc under agents/{id}/referrals/{id}
@@ -674,6 +745,13 @@ export async function getActivityStats(
   recentWins.sort((a, b) => (b.at > a.at ? 1 : -1));
   const recentWinsCapped = recentWins.slice(0, 10);
 
+  // ── APV lifecycle ── submitted → issued → minus chargebacks = net.
+  const netPlacedApv = grossIssuedApv - chargebackApv;
+  const netPlacedPct = salesApv > 0 ? netPlacedApv / salesApv : 0;
+
+  // Ledger newest-first by sale date.
+  ledger.sort((a, b) => ((b.submittedAt || '') > (a.submittedAt || '') ? 1 : -1));
+
   return {
     range: {
       from: win.from.toISOString(),
@@ -709,6 +787,13 @@ export async function getActivityStats(
       count: savedCount,
       deltaPct: pct(savedApv, savedApvPrev),
     },
+    apvLifecycle: {
+      submitted: salesApv,
+      grossIssued: grossIssuedApv,
+      chargebacks: chargebackApv,
+      netPlaced: netPlacedApv,
+      netPlacedPct,
+    },
     chargebacks: {
       count: chargebacksCount,
       rate: chargebackRate,
@@ -723,5 +808,6 @@ export async function getActivityStats(
     },
     funnel,
     recentWins: recentWinsCapped,
+    ledger,
   };
 }

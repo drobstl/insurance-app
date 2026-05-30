@@ -48,6 +48,8 @@ interface Policy {
   amountOfProtection?: number;
   protectionUnit?: 'months' | 'years';
   effectiveDate?: string;
+  issuePaidDate?: string;
+  chargebackDate?: string;
   status: 'Active' | 'Pending' | 'Lapsed';
   createdAt: Timestamp;
 }

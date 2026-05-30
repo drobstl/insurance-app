@@ -60,6 +60,8 @@ export interface PolicyFormData {
   premiumFrequency: string;
   renewalDate: string;
   effectiveDate: string;
+  issuePaidDate: string;
+  chargebackDate: string;
   amountOfProtection: string;
   protectionUnit: string;
   status: string;

@@ -39,6 +39,13 @@ interface ActivityStats {
     }>;
   };
   saved: { apv: number; count: number; deltaPct: number | null };
+  apvLifecycle: {
+    submitted: number;
+    grossIssued: number;
+    chargebacks: number;
+    netPlaced: number;
+    netPlacedPct: number;
+  };
   chargebacks: { count: number; rate: number };
   referralsActivity: { received: number; perClose: number };
   rewrites: { count: number; rate: number };
@@ -49,6 +56,24 @@ interface ActivityStats {
     clientName: string;
     amount: number;
     source: PolicySource | 'save';
+    carrier: string | null;
+    product: string | null;
+  }>;
+  ledger: Array<{
+    clientId: string;
+    policyId: string;
+    clientName: string;
+    carrier: string | null;
+    product: string | null;
+    policyNumber: string | null;
+    submittedAt: string | null;
+    premium: number | null;
+    premiumFrequency: string | null;
+    faceAmount: number | null;
+    apv: number;
+    issuePaidDate: string | null;
+    chargebackDate: string | null;
+    source: PolicySource;
   }>;
 }
 
@@ -85,7 +110,10 @@ function fmtSignedPct(n: number | null): string {
 }
 function fmtDate(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  // Date-only values (sale / issue dates) are stored as UTC midnight.
+  // Format in UTC so a "2026-05-01" date doesn't render as Apr 30 for
+  // agents west of UTC (Pacific et al.).
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
 function DeltaChip({ pct }: { pct: number | null }) {
@@ -247,19 +275,197 @@ function RecentWins({ wins }: { wins: ActivityStats['recentWins'] }) {
         </p>
       ) : (
         <ul className="divide-y divide-[#f1f1f1]">
-          {wins.map((w, idx) => (
-            <li key={idx} className="flex items-center gap-3 py-2.5">
-              <span className="text-xs text-[#9CA3AF] w-12 shrink-0 tabular-nums">{fmtDate(w.at)}</span>
-              <span className="flex-1 text-sm font-medium text-[#000000] truncate">{w.clientName}</span>
-              <span className="text-sm font-bold text-[#0D4D4D] tabular-nums shrink-0">
-                {fmtUsdLong(w.amount)}
-              </span>
-              <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shrink-0 ${SOURCE_BADGE_TONES[w.source]}`}>
-                {SOURCE_BADGE_LABELS[w.source]}
-              </span>
-            </li>
-          ))}
+          {wins.map((w, idx) => {
+            const policyLine = [w.carrier, w.product].filter(Boolean).join(' · ');
+            return (
+              <li key={idx} className="flex items-center gap-3 py-2.5">
+                <span className="text-xs text-[#9CA3AF] w-12 shrink-0 tabular-nums">{fmtDate(w.at)}</span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-medium text-[#000000] truncate">{w.clientName}</span>
+                  {policyLine && (
+                    <span className="block text-xs text-[#707070] truncate">{policyLine}</span>
+                  )}
+                </span>
+                <span className="text-sm font-bold text-[#0D4D4D] tabular-nums shrink-0">
+                  {fmtUsdLong(w.amount)}
+                </span>
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shrink-0 ${SOURCE_BADGE_TONES[w.source]}`}>
+                  {SOURCE_BADGE_LABELS[w.source]}
+                </span>
+              </li>
+            );
+          })}
         </ul>
+      )}
+    </div>
+  );
+}
+
+function ApvLifecycle({ lifecycle }: { lifecycle: ActivityStats['apvLifecycle'] }) {
+  const steps = [
+    { label: 'Submitted', value: lifecycle.submitted, hint: 'APV sold this period' },
+    { label: 'Gross Issued', value: lifecycle.grossIssued, hint: 'carrier issued & paid' },
+    { label: 'Chargebacks', value: -lifecycle.chargebacks, hint: 'clawed back', negative: true },
+    { label: 'Net Placed', value: lifecycle.netPlaced, hint: 'issued − chargebacks', strong: true },
+  ];
+  return (
+    <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider">APV lifecycle</h3>
+        <span className="text-xs text-[#707070] tabular-nums">
+          Net placed {fmtPct(lifecycle.netPlacedPct)} of submitted
+        </span>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {steps.map((s) => (
+          <div
+            key={s.label}
+            className={`rounded-lg border p-3 ${
+              s.strong
+                ? 'border-[#005851] bg-[#daf3f0]'
+                : s.negative
+                ? 'border-amber-200 bg-amber-50'
+                : 'border-[#e5e5e5] bg-[#fafafa]'
+            }`}
+          >
+            <p className={`text-[10px] uppercase tracking-wider font-bold ${s.negative ? 'text-amber-800' : 'text-[#707070]'}`}>
+              {s.label}
+            </p>
+            <p className={`text-2xl font-bold tabular-nums leading-tight ${s.negative ? 'text-amber-800' : 'text-[#005851]'}`}>
+              {s.negative && s.value !== 0 ? `−${fmtUsdLong(Math.abs(s.value))}` : fmtUsdLong(s.value)}
+            </p>
+            <p className="text-[11px] text-[#9CA3AF]">{s.hint}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LedgerDateInput({
+  value,
+  onCommit,
+}: {
+  value: string | null;
+  onCommit: (next: string) => void;
+}) {
+  return (
+    <input
+      type="date"
+      defaultValue={value || ''}
+      onChange={(e) => onCommit(e.target.value)}
+      className="w-[130px] px-2 py-1 bg-white border border-[#d0d0d0] rounded text-xs text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30"
+    />
+  );
+}
+
+type LedgerStatus = 'submitted' | 'issued' | 'charged_back';
+
+function ledgerRowStatus(row: ActivityStats['ledger'][number]): LedgerStatus {
+  if (row.chargebackDate) return 'charged_back';
+  if (row.issuePaidDate) return 'issued';
+  return 'submitted';
+}
+
+const LEDGER_STATUS_META: Record<LedgerStatus, { label: string; tone: string }> = {
+  submitted: { label: 'Submitted', tone: 'bg-gray-100 text-gray-600' },
+  issued: { label: 'Issued', tone: 'bg-[#daf3f0] text-[#005851]' },
+  charged_back: { label: 'Charged back', tone: 'bg-amber-50 text-amber-800' },
+};
+
+function PolicyLedger({
+  rows,
+  lifecycle,
+  onUpdateDate,
+}: {
+  rows: ActivityStats['ledger'];
+  lifecycle: ActivityStats['apvLifecycle'];
+  onUpdateDate: (clientId: string, policyId: string, field: 'issuePaidDate' | 'chargebackDate', value: string) => void;
+}) {
+  return (
+    <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider">Policy ledger</h3>
+        <span className="text-xs text-[#707070]">Issue-paid &amp; chargeback dates are editable</span>
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-sm text-[#707070] italic py-4 text-center">
+          No policies in this period yet.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="text-left text-[10px] uppercase tracking-wider text-[#707070] border-b border-[#e5e5e5]">
+                <th className="py-2 pr-3 font-bold">Submitted</th>
+                <th className="py-2 pr-3 font-bold">Insured</th>
+                <th className="py-2 pr-3 font-bold">Carrier</th>
+                <th className="py-2 pr-3 font-bold">Product</th>
+                <th className="py-2 pr-3 font-bold text-right">Premium</th>
+                <th className="py-2 pr-3 font-bold text-right">Face</th>
+                <th className="py-2 pr-3 font-bold text-right">APV</th>
+                <th className="py-2 pr-3 font-bold">Issue Paid</th>
+                <th className="py-2 pr-3 font-bold">Chargeback</th>
+                <th className="py-2 pr-3 font-bold">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const status = ledgerRowStatus(r);
+                const meta = LEDGER_STATUS_META[status];
+                return (
+                <tr key={r.policyId} className="border-b border-[#f1f1f1] align-middle">
+                  <td className="py-2 pr-3 text-xs text-[#707070] tabular-nums whitespace-nowrap">
+                    {r.submittedAt ? fmtDate(r.submittedAt) : '—'}
+                  </td>
+                  <td className="py-2 pr-3 font-medium text-[#000000] whitespace-nowrap">{r.clientName}</td>
+                  <td className="py-2 pr-3 text-[#374151] whitespace-nowrap">{r.carrier || '—'}</td>
+                  <td className="py-2 pr-3 text-[#374151] whitespace-nowrap">{r.product || '—'}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums whitespace-nowrap">
+                    {r.premium != null ? fmtUsdLong(r.premium) : '—'}
+                  </td>
+                  <td className="py-2 pr-3 text-right tabular-nums whitespace-nowrap">
+                    {r.faceAmount != null ? fmtUsdLong(r.faceAmount) : '—'}
+                  </td>
+                  <td className="py-2 pr-3 text-right font-semibold text-[#0D4D4D] tabular-nums whitespace-nowrap">
+                    {fmtUsdLong(r.apv)}
+                  </td>
+                  <td className="py-2 pr-3">
+                    <LedgerDateInput
+                      value={r.issuePaidDate}
+                      onCommit={(v) => onUpdateDate(r.clientId, r.policyId, 'issuePaidDate', v)}
+                    />
+                  </td>
+                  <td className="py-2 pr-3">
+                    <LedgerDateInput
+                      value={r.chargebackDate}
+                      onCommit={(v) => onUpdateDate(r.clientId, r.policyId, 'chargebackDate', v)}
+                    />
+                  </td>
+                  <td className="py-2 pr-3 whitespace-nowrap">
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${meta.tone}`}>
+                      {meta.label}
+                    </span>
+                  </td>
+                </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-[#1A1A1A]">
+                <td colSpan={10} className="py-3">
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs font-semibold">
+                    <span className="text-[#707070] uppercase tracking-wider">Totals</span>
+                    <span className="text-[#374151]">Submitted <span className="text-[#0D4D4D] tabular-nums">{fmtUsdLong(lifecycle.submitted)}</span></span>
+                    <span className="text-[#374151]">Gross Issued <span className="text-[#0D4D4D] tabular-nums">{fmtUsdLong(lifecycle.grossIssued)}</span></span>
+                    <span className="text-amber-800">Chargebacks <span className="tabular-nums">{lifecycle.chargebacks > 0 ? `−${fmtUsdLong(lifecycle.chargebacks)}` : fmtUsdLong(0)}</span></span>
+                    <span className="text-[#005851]">Net Placed <span className="tabular-nums font-bold">{fmtUsdLong(lifecycle.netPlaced)}</span></span>
+                  </div>
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       )}
     </div>
   );
@@ -314,6 +520,38 @@ export default function ActivityPage() {
   useEffect(() => {
     void fetchStats();
   }, [fetchStats]);
+
+  const updateLedgerDate = useCallback(
+    async (
+      clientId: string,
+      policyId: string,
+      field: 'issuePaidDate' | 'chargebackDate',
+      value: string,
+    ) => {
+      if (!user) return;
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch('/api/policies', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ clientId, policyId, [field]: value || null }),
+        });
+        if (!res.ok) {
+          setError('Could not save that date — please try again.');
+          return;
+        }
+        // Refetch so the lifecycle totals reflect the new date.
+        await fetchStats();
+      } catch (err) {
+        console.error('ledger date update failed:', err);
+        setError('Network error saving date — please try again.');
+      }
+    },
+    [user, fetchStats],
+  );
 
   const funnelMax = useMemo(() => {
     if (!stats) return 0;
@@ -520,8 +758,18 @@ export default function ActivityPage() {
             </div>
           </div>
 
+          {/* APV lifecycle: submitted → issued → minus chargebacks = net */}
+          <div className="mb-6">
+            <ApvLifecycle lifecycle={stats.apvLifecycle} />
+          </div>
+
           {/* Recent wins */}
-          <RecentWins wins={stats.recentWins} />
+          <div className="mb-6">
+            <RecentWins wins={stats.recentWins} />
+          </div>
+
+          {/* Policy ledger — spreadsheet-style, with editable dates */}
+          <PolicyLedger rows={stats.ledger} lifecycle={stats.apvLifecycle} onUpdateDate={updateLedgerDate} />
         </div>
       )}
     </div>

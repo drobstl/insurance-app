@@ -128,6 +128,20 @@ export async function PATCH(req: NextRequest) {
 
       if (status === 'saved') {
         await policyRef.update({ status: 'Active' });
+      } else if (status === 'lost' && alertData.isChargebackRisk) {
+        // Auto-stamp the chargeback date so Activity's APV lifecycle
+        // (Gross Issued → Net Placed) reflects the loss without the
+        // agent re-entering it on the policy. Only for chargeback-risk
+        // alerts (policy young enough to claw back commission), and only
+        // when not already set — never clobber an agent's manual date.
+        const policySnap = await policyRef.get();
+        const existing = policySnap.exists ? (policySnap.data()?.chargebackDate as string | undefined) : undefined;
+        if (!existing) {
+          await policyRef.update({
+            status: 'Lapsed',
+            chargebackDate: now.slice(0, 10),
+          });
+        }
       }
     }
 
