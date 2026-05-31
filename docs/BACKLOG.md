@@ -13,7 +13,6 @@
 | Item | Effort | Owner | Notes |
 |---|---|---|---|
 | Smoke-test live Growth signup end-to-end | ~30 min | Daniel (Stripe Checkout needs hands) | Test card 4242 first → walk full flow → verify Firestore + welcome email arrives. Real card live test after. |
-| Update CONTEXT.md with today's 4 merged PRs (#43/#44/#45/#47) | ~10 min | Claude | Doc hygiene. Otherwise tomorrow's sessions cite stale state. |
 | **Investigate: Activate-message reply not firing OR not being received by clients** | TBD — diagnosis first | Claude | The load-bearing ritual is breaking somewhere. The reply the AFL pooled line is supposed to send back to a newly-activated client (welcome confirmation + agent vCard + thumbs-up ask per CONTEXT § channel rules) is either not firing on the AFL side or not being delivered. Diagnosis pyramid: (a) is `web/lib/welcome-activation-handler.ts` running when an Activate SMS arrives at the webhook? (b) is `web/app/api/linq/webhook/route.ts` recognizing the inbound and routing to the handler (chatId lookup, `welcome_pending_{clientId}` placeholder thread match)? (c) is `web/lib/linq.ts` `sendMessage` / `createChat` returning a successful send? (d) is the carrier delivering it (Linq dashboard `delivery_status`)? (e) is the client seeing it but missing it (delayed, different thread, MMS attachment failure on vCard)? Daniel observed May 31, 2026 — affects **every new client activation** while broken. **High priority — fix before more clients onboard.** |
 
 ---
