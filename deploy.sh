@@ -15,6 +15,48 @@ if [ ! -f "$SCRIPT_DIR/.vercel/project.json" ]; then
   exit 1
 fi
 
+# ── Stale-deploy guard ─────────────────────────────────────────────
+# Production is ONE shared alias and `vercel --prod` ships whatever's in
+# THIS working tree — so whoever deploys last wins. With multiple
+# worktrees/branches in play, a deploy from a branch that's behind main
+# silently rolls production back (and can ship unreviewed code). Refuse
+# unless this tree's HEAD is exactly origin/main and the tree is clean.
+# Emergency override: ./deploy.sh --allow-stale
+ALLOW_STALE=0
+for arg in "$@"; do [ "$arg" = "--allow-stale" ] && ALLOW_STALE=1; done
+
+if [ "$ALLOW_STALE" -ne 1 ]; then
+  echo "Checking this tree is up-to-date main before deploying..."
+  git -C "$SCRIPT_DIR" fetch origin --quiet
+  LOCAL=$(git -C "$SCRIPT_DIR" rev-parse HEAD)
+  REMOTE_MAIN=$(git -C "$SCRIPT_DIR" rev-parse origin/main)
+  BRANCH=$(git -C "$SCRIPT_DIR" rev-parse --abbrev-ref HEAD)
+  DIRTY=$(git -C "$SCRIPT_DIR" status --porcelain | wc -l | tr -d ' ')
+
+  if [ "$LOCAL" != "$REMOTE_MAIN" ]; then
+    echo ""
+    echo "ERROR: refusing to deploy — this tree is NOT at origin/main."
+    echo "  branch:      $BRANCH"
+    echo "  HEAD:        ${LOCAL:0:12}"
+    echo "  origin/main: ${REMOTE_MAIN:0:12}"
+    echo ""
+    echo "Deploying from a stale branch overwrites production with old code."
+    echo "Deploy current main from an isolated checkout instead:"
+    echo "  git fetch origin && git worktree add --detach /tmp/afl-prod origin/main"
+    echo "  cp -r .vercel /tmp/afl-prod/.vercel && cd /tmp/afl-prod && ./deploy.sh"
+    echo ""
+    echo "(Emergency override only if you KNOW this tree should ship: ./deploy.sh --allow-stale)"
+    exit 1
+  fi
+  if [ "$DIRTY" -ne 0 ]; then
+    echo ""
+    echo "ERROR: refusing to deploy — $DIRTY uncommitted change(s) in this tree."
+    echo "Commit/stash them (so prod matches a real commit), or use --allow-stale."
+    exit 1
+  fi
+  echo "OK — at origin/main (${LOCAL:0:12}), clean tree."
+fi
+
 echo "Deploying AgentForLife web project to production..."
 echo ""
 
