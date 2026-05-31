@@ -54,6 +54,11 @@ export const metadata: Metadata = {
   },
 };
 
+// FirstPromoter affiliate tracking. Setting NEXT_PUBLIC_FPR_CID disables
+// the snippet entirely (kill switch) without needing a code redeploy —
+// flip the env var in Vercel and re-deploy the affected envs.
+const FPR_CID = process.env.NEXT_PUBLIC_FPR_CID?.trim() || '';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -61,6 +66,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        {FPR_CID ? (
+          <>
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `(function(w){w.fpr=w.fpr||function(){w.fpr.q = w.fpr.q||[];w.fpr.q[arguments[0]=='set'?'unshift':'push'](arguments);};})(window);fpr("init", {cid:${JSON.stringify(FPR_CID)}}); fpr("click");`,
+              }}
+            />
+            <script src="https://cdn.firstpromoter.com/fpr.js" async />
+          </>
+        ) : null}
+      </head>
       <body className={`${montserrat.className} antialiased`}>
         <PostHogProvider>{children}</PostHogProvider>
       </body>

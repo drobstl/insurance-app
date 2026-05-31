@@ -31,6 +31,30 @@ export const CARRIER_CONFIG: Record<string, CarrierInfo> = {
 export const KNOWN_CARRIER_NAMES = Object.keys(CARRIER_CONFIG);
 
 /**
+ * Display-name aliases for carriers whose legal name is long or differs
+ * from how agents refer to them. Maps a normalized (lowercased, trimmed)
+ * legal/extracted name to the short label shown in the UI. Extend as new
+ * full names surface from carrier applications / BOB imports.
+ */
+const CARRIER_DISPLAY_ALIASES: Record<string, string> = {
+  'american general life insurance company': 'Corebridge/AIG',
+  'american general': 'Corebridge/AIG',
+  'american-amicable life insurance company of texas': 'American Amicable',
+  'american amicable life insurance company of texas': 'American Amicable',
+};
+
+/**
+ * Normalize a stored carrier name to its preferred short display label.
+ * Returns the original (trimmed) name when no alias is known, and passes
+ * null/empty through unchanged.
+ */
+export function carrierDisplayName(raw: string | null | undefined): string | null {
+  if (!raw) return raw ?? null;
+  const trimmed = raw.trim();
+  return CARRIER_DISPLAY_ALIASES[trimmed.toLowerCase()] ?? trimmed;
+}
+
+/**
  * Look up a carrier's service phone number. Tries exact match first,
  * then partial/case-insensitive match.
  */

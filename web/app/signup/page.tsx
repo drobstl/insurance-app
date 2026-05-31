@@ -109,6 +109,15 @@ function SignupPageInner() {
     setLoading(true);
 
     try {
+      // FirstPromoter tracking ID — populated by the fpr.js snippet in
+      // the root layout once an affiliate link (?fpr=…) has been seen.
+      // Forwarded into Stripe Checkout metadata so FirstPromoter's
+      // Stripe listener can credit the affiliate on conversion.
+      const fpTid =
+        (typeof window !== 'undefined' &&
+          (window as unknown as { FPROM?: { data?: { tid?: string } } }).FPROM?.data?.tid) ||
+        null;
+
       const res = await fetch('/api/signup/start-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,6 +126,7 @@ function SignupPageInner() {
           name: name.trim(),
           tier: selectedTier,
           refCode,
+          fp_tid: fpTid,
         }),
       });
       const data = await res.json().catch(() => ({}));
