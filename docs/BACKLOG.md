@@ -84,6 +84,7 @@ Strategic items captured so they don't get lost — pull into a tier section abo
 | Item | Notes |
 |---|---|
 | Agency Rocket partnership discovery call | Rob's call action item #3 — non-engineering, Daniel-led |
+| **LettrLabs direct mail integration** | Automated postcards + robotic handwritten letters via their API (direct or Zapier; 7,000+ Zapier integrations). Fits AFL's branded-touchpoint pitch — physical retention/anniversary/holiday/birthday cards from the agent. Implementation thoughts: variable per-send cost → likely a Pro+ add-on with usage billing, OR a feature gate ("X cards/year included"). Use cases: anniversary policy reviews (the rewrite pitch lands harder in a hand-addressed envelope), client-won wins (handwritten "welcome to AFL" card from the agent), beneficiary cards. Daniel flagged May 29 as worth exploring as an integration. URL: https://www.lettrlabs.com |
 | Email infrastructure cleanup (Resend centralization, bounce/complaint webhook, suppression list) | Phase 2 backlog. Overlaps with compliance Part 1/2 suppression pattern — design once, ship in two PRs (SMS first, email second). |
 | Auto-throttle at KPI Tier 1 / Tier 2 | Phase 2 backlog. Deferred until 1–2 weeks of real reply-rate data confirms spec thresholds. |
 | Phase 2 success metrics dashboard | Phase 2 backlog. Welcome-send compliance, activation rate, thumbs-up rate, retention reply rate. |
