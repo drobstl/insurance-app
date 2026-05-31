@@ -129,7 +129,8 @@
           "color": "#3DD6C3"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true
