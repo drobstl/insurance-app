@@ -102,6 +102,20 @@ function detectMac(): boolean {
     || /Mac OS X/i.test(navigator.userAgent || '');
 }
 
+// Reduce a phone string to comparable digits (strip formatting + a leading
+// US country code) so "(256)903-6757" and "1-256-903-6757" compare equal.
+// Used only to decide whether the lead's phone and the PDF's phone truly
+// disagree before prompting the agent to pick one.
+function phoneKey(s: string): string {
+  const digits = (s || '').replace(/\D/g, '');
+  return digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+}
+function phonesConflict(a: string, b: string): boolean {
+  const ka = phoneKey(a);
+  const kb = phoneKey(b);
+  return ka.length > 0 && kb.length > 0 && ka !== kb;
+}
+
 export function CloseSaleRitual({
   open,
   onClose,
@@ -122,6 +136,12 @@ export function CloseSaleRitual({
   const [policyQualityWarning, setPolicyQualityWarning] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // Phone reconcile: set when the PDF's insured phone disagrees with the
+  // lead's existing phone. While set, Card 1 shows a "which number?" panel
+  // and holds the conversion until the agent picks. The extracted result is
+  // stashed in a ref so finalize can run once they choose.
+  const [phoneConflict, setPhoneConflict] = useState<{ leadPhone: string; pdfPhone: string } | null>(null);
+  const pendingExtractedRef = useRef<Awaited<ReturnType<typeof runApplicationExtractionV3>> | null>(null);
 
   // ── Card 2 state ──
   const [clientId, setClientId] = useState<string | null>(null);
@@ -140,6 +160,8 @@ export function CloseSaleRitual({
     setExtractProgress({ pct: 0, label: '' });
     setExtractError(null);
     setPolicyQualityWarning(null);
+    setPhoneConflict(null);
+    pendingExtractedRef.current = null;
     setClientId(null);
     setClientCode(null);
     setWelcomeBody('');
@@ -168,34 +190,42 @@ export function CloseSaleRitual({
     setExtractError(null);
   }, []);
 
-  const handleUpload = useCallback(async () => {
-    if (!stagedFile || !carrierType || extracting) return;
+  // Steps 2–4 of the ritual: convert the lead → client (carrying the
+  // PDF-extracted contact fields so the new client inherits the
+  // application's email / DOB / phone), create the policy, then advance
+  // to the welcome card. Split out of handleUpload so a phone-conflict
+  // pause can sit between extraction and this. `preferExtractedPhone` is
+  // the agent's choice when the lead's and the PDF's phones disagree.
+  const finalizeConversion = useCallback(async (
+    extracted: Awaited<ReturnType<typeof runApplicationExtractionV3>>,
+    preferExtractedPhone: boolean,
+  ) => {
     setExtracting(true);
     setExtractError(null);
-    setExtractProgress({ pct: 0, label: 'Starting...' });
     const controller = new AbortController();
     abortRef.current = controller;
+    const data = extracted.data;
 
     try {
-      // 1. Extract policy data from PDF via carrier-aware v3 pipeline.
-      const extracted = await runApplicationExtractionV3({
-        user,
-        file: stagedFile,
-        carrierFormType: carrierType,
-        signal: controller.signal,
-        onProgress: (pct, label) => setExtractProgress({ pct, label }),
-      });
-
-      // 2. Convert lead → client. The convert endpoint also queues
-      //    the welcome action item via the other session's PR #19
-      //    work, so the queue safety net is in place from this
-      //    moment forward regardless of whether the agent finishes
-      //    the ritual.
+      // Convert lead → client. The convert endpoint also queues the
+      // welcome action item, so the queue safety net is in place from
+      // this moment forward regardless of whether the agent finishes
+      // the ritual. We pass the extracted contact fields; the endpoint
+      // gap-fills any the lead is missing (email/DOB/phone) and honors
+      // preferExtractedPhone when the agent resolved a phone conflict.
       setExtractProgress({ pct: 96, label: 'Converting lead to client...' });
       const token = await user.getIdToken();
       const convertRes = await fetch(`/api/leads/${lead.id}/convert`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          extractedContact: {
+            email: data.insuredEmail ?? null,
+            dateOfBirth: data.insuredDateOfBirth ?? null,
+            phone: data.insuredPhone ?? null,
+          },
+          preferExtractedPhone,
+        }),
         signal: controller.signal,
       });
       const convertBody = (await convertRes.json()) as {
@@ -209,15 +239,15 @@ export function CloseSaleRitual({
       const newClientId = convertBody.clientId;
       const newClientCode = convertBody.clientCode;
 
-      // 3. Create the policy on the new client. We send the
-      //    ingestionQualityGate flag so the backend rejects policies
-      //    with <2 extracted signals — that's the "extraction was
-      //    too thin to be useful" case. When that happens, we don't
-      //    error out the ritual; convert already succeeded. We just
-      //    flag the warning so the agent knows to fill in fields
-      //    later from the new client profile.
+      // Create the policy on the new client. We send the
+      // ingestionQualityGate flag so the backend rejects policies
+      // with <2 extracted signals — that's the "extraction was
+      // too thin to be useful" case. When that happens, we don't
+      // error out the ritual; convert already succeeded. We just
+      // flag the warning so the agent knows to fill in fields
+      // later from the new client profile.
       setExtractProgress({ pct: 98, label: 'Creating policy...' });
-      const policyPayload = mapExtractedApplicationToPolicyFormData(extracted.data);
+      const policyPayload = mapExtractedApplicationToPolicyFormData(data);
       const policyRes = await fetch('/api/policies', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -238,8 +268,7 @@ export function CloseSaleRitual({
         );
       }
 
-      // 4. Stash client info for Cards 2 + 3, build the welcome
-      //    SMS body, advance.
+      // Stash client info for Cards 2 + 3, build the welcome SMS body, advance.
       setClientId(newClientId);
       setClientCode(newClientCode);
       setWelcomeBody(buildCloseSaleWelcomeBody({
@@ -256,7 +285,64 @@ export function CloseSaleRitual({
       setExtracting(false);
       abortRef.current = null;
     }
-  }, [stagedFile, carrierType, extracting, user, agentName, lead.id, lead.firstName, onConverted]);
+  }, [user, lead.id, lead.firstName, agentName, onConverted]);
+
+  const handleUpload = useCallback(async () => {
+    if (!stagedFile || !carrierType || extracting) return;
+    setExtracting(true);
+    setExtractError(null);
+    setPhoneConflict(null);
+    pendingExtractedRef.current = null;
+    setExtractProgress({ pct: 0, label: 'Starting...' });
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    // Step 1: extract policy data from the PDF via the carrier-aware v3
+    // pipeline. Kept in its own try so we can branch on the result
+    // (phone conflict vs. straight-through) before converting.
+    let extracted: Awaited<ReturnType<typeof runApplicationExtractionV3>>;
+    try {
+      extracted = await runApplicationExtractionV3({
+        user,
+        file: stagedFile,
+        carrierFormType: carrierType,
+        signal: controller.signal,
+        onProgress: (pct, label) => setExtractProgress({ pct, label }),
+      });
+    } catch (err) {
+      if (!(err instanceof DOMException && err.name === 'AbortError')) {
+        setExtractError(err instanceof Error ? err.message : 'Something went wrong.');
+      }
+      setExtracting(false);
+      abortRef.current = null;
+      return;
+    }
+
+    // If the application's phone disagrees with the lead's existing
+    // phone, pause and let the agent choose before converting. A blank
+    // lead phone (or matching numbers) → no pause; the server silently
+    // gap-fills email / DOB / phone from the extraction.
+    const pdfPhone = (extracted.data.insuredPhone || '').trim();
+    const leadPhone = (lead.phone || '').trim();
+    if (phonesConflict(pdfPhone, leadPhone)) {
+      pendingExtractedRef.current = extracted;
+      setPhoneConflict({ leadPhone, pdfPhone });
+      setExtracting(false);
+      abortRef.current = null;
+      return;
+    }
+
+    await finalizeConversion(extracted, false);
+  }, [stagedFile, carrierType, extracting, user, lead.phone, finalizeConversion]);
+
+  // Agent picked which phone to keep — finalize with their choice.
+  const resolvePhoneConflict = useCallback((preferExtractedPhone: boolean) => {
+    const extracted = pendingExtractedRef.current;
+    if (!extracted) return;
+    pendingExtractedRef.current = null;
+    setPhoneConflict(null);
+    void finalizeConversion(extracted, preferExtractedPhone);
+  }, [finalizeConversion]);
 
   // ── Card 2 send ──
   const handleSendWelcome = useCallback(() => {
@@ -403,14 +489,50 @@ export function CloseSaleRitual({
                 </div>
               )}
 
-              <button
-                type="button"
-                onClick={handleUpload}
-                disabled={!uploadEnabled}
-                className="w-full px-4 py-3 bg-[#0099FF] hover:bg-[#0079CC] text-white text-sm font-semibold rounded-[5px] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {extracting ? 'Working...' : 'Upload'}
-              </button>
+              {phoneConflict && !extracting && (
+                <div className="rounded-[5px] border border-yellow-300 bg-yellow-50 p-3 space-y-2.5">
+                  <div className="flex items-start gap-2">
+                    <svg className="w-4 h-4 shrink-0 mt-0.5 text-yellow-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.84-2.75L13.74 4a2 2 0 00-3.48 0L3.16 16.25A2 2 0 005 19z" />
+                    </svg>
+                    <div>
+                      <p className="text-xs font-semibold text-yellow-900">Phone numbers don&apos;t match</p>
+                      <p className="text-xs text-yellow-800 leading-relaxed mt-0.5">
+                        The application shows a different number than this lead. Which is {lead.firstName}&apos;s number?
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <button
+                      type="button"
+                      onClick={() => resolvePhoneConflict(false)}
+                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] hover:border-[#45bcaa] rounded-[5px] text-left transition-colors"
+                    >
+                      <span className="block text-[10px] uppercase tracking-wide text-[#707070]">Keep lead&apos;s number</span>
+                      <span className="text-sm font-medium text-[#0D4D4D]">{phoneConflict.leadPhone}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => resolvePhoneConflict(true)}
+                      className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] hover:border-[#45bcaa] rounded-[5px] text-left transition-colors"
+                    >
+                      <span className="block text-[10px] uppercase tracking-wide text-[#707070]">Use application&apos;s number</span>
+                      <span className="text-sm font-medium text-[#0D4D4D]">{phoneConflict.pdfPhone}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!phoneConflict && (
+                <button
+                  type="button"
+                  onClick={handleUpload}
+                  disabled={!uploadEnabled}
+                  className="w-full px-4 py-3 bg-[#0099FF] hover:bg-[#0079CC] text-white text-sm font-semibold rounded-[5px] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {extracting ? 'Working...' : 'Upload'}
+                </button>
+              )}
             </div>
 
             {/* ── CARD 2: Send welcome text ── */}
