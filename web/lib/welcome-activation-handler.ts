@@ -10,7 +10,7 @@ import {
 import { resolveClientLanguage, type SupportedLanguage } from './client-language';
 import { extractFirstName } from './name-utils';
 import { upsertThreadFromOutbound } from './conversation-thread-registry';
-import { createChat, LinqOutboundDisabledError } from './linq';
+import { createChat, sendMessage, LinqOutboundDisabledError } from './linq';
 import { isValidE164 } from './phone';
 import { ReactivationFenceError } from './reactivation-fence';
 import {
@@ -145,7 +145,12 @@ export async function findWelcomeActivationCandidate(params: {
   fromPhoneE164: string;
   inboundBody: string;
 }): Promise<ResolvedWelcomeContext | null> {
-  if (!params.fromPhoneE164 || !isValidE164(params.fromPhoneE164)) return null;
+  if (!params.fromPhoneE164 || !isValidE164(params.fromPhoneE164)) {
+    console.log('[welcome-activation] candidate_finder_skipped_invalid_phone', {
+      fromPhoneE164: params.fromPhoneE164 || null,
+    });
+    return null;
+  }
 
   // Phase 1 lookup — match the client's phone against any agent's
   // welcome-activation placeholder thread. We use a collectionGroup
@@ -155,6 +160,13 @@ export async function findWelcomeActivationCandidate(params: {
     .where('phoneE164', '==', params.fromPhoneE164)
     .limit(10)
     .get();
+
+  if (phoneEntries.empty) {
+    console.log('[welcome-activation] candidate_finder_no_byphone_entries', {
+      fromPhoneE164: params.fromPhoneE164,
+    });
+    return null;
+  }
 
   let resolved: ResolvedWelcomeContext | null = null;
   for (const phoneDoc of phoneEntries.docs) {
@@ -201,14 +213,32 @@ export async function findWelcomeActivationCandidate(params: {
     break;
   }
 
-  if (!resolved) return null;
+  if (!resolved) {
+    console.log('[welcome-activation] candidate_finder_no_welcome_placeholder', {
+      fromPhoneE164: params.fromPhoneE164,
+      entriesScanned: phoneEntries.size,
+    });
+    return null;
+  }
 
   // Skip if the client doc is already activated — second inbound
   // shouldn't re-trigger the first response. The post-activation
   // handler (thumbs-up tracking) is wired separately by the webhook.
   if (resolved.clientData.clientActivatedAt) {
+    console.log('[welcome-activation] candidate_finder_already_activated', {
+      fromPhoneE164: params.fromPhoneE164,
+      agentId: resolved.agentId,
+      clientId: resolved.clientId,
+    });
     return null;
   }
+
+  console.log('[welcome-activation] candidate_finder_resolved', {
+    fromPhoneE164: params.fromPhoneE164,
+    agentId: resolved.agentId,
+    clientId: resolved.clientId,
+    matchedByCodeInBody: resolved.matchedByCodeInBody,
+  });
 
   return resolved;
 }
@@ -249,6 +279,13 @@ export async function handleWelcomeActivationInbound(params: {
 }): Promise<HandleResult> {
   const { ctx, db } = params;
 
+  console.log('[welcome-activation] handler_entry', {
+    agentId: ctx.agentId,
+    clientId: ctx.clientId,
+    realLinqChatId: params.realLinqChatId,
+    matchedByCodeInBody: ctx.matchedByCodeInBody,
+  });
+
   if (!isValidE164(ctx.clientPhoneE164)) {
     return { ok: false, outcome: 'no_phone' };
   }
@@ -262,19 +299,24 @@ export async function handleWelcomeActivationInbound(params: {
   // Atomic activation claim: only one webhook delivery wins.
   const claimResult = await db.runTransaction(async (tx) => {
     const snap = await tx.get(clientRef);
-    if (!snap.exists) return { claimed: false } as const;
+    if (!snap.exists) return { claimed: false, reason: 'client_doc_missing' } as const;
     const data = snap.data() as Record<string, unknown>;
-    if (data.clientActivatedAt) return { claimed: false } as const;
+    if (data.clientActivatedAt) return { claimed: false, reason: 'already_activated' } as const;
     tx.update(clientRef, {
       clientActivatedAt: FieldValue.serverTimestamp(),
       welcomeActivationInboundAt: FieldValue.serverTimestamp(),
       welcomeActivationProviderThreadId: params.realLinqChatId,
       welcomeActivationMatchedByCodeInBody: ctx.matchedByCodeInBody,
     });
-    return { claimed: true } as const;
+    return { claimed: true, reason: null } as const;
   });
 
   if (!claimResult.claimed) {
+    console.log('[welcome-activation] claim_skipped', {
+      agentId: ctx.agentId,
+      clientId: ctx.clientId,
+      reason: claimResult.reason,
+    });
     return { ok: true, outcome: 'duplicate_skip' };
   }
 
@@ -309,16 +351,30 @@ export async function handleWelcomeActivationInbound(params: {
     });
   }
 
-  // Two failure modes for the first-response send:
+  // Three failure modes for the first-response send:
   //   1. Suppressed by kill switch / fence (LinqOutboundDisabledError or
   //      ReactivationFenceError). The platform is intentionally not
   //      sending right now. The client's activation IS still real — we
   //      keep the activation stamps, mark the first-response as
   //      suppressed for forensics, and fall through to action item
   //      completion. The vCard MMS reply is the only thing that's lost.
-  //   2. Genuine transient failure (network, Linq 5xx, etc.). Roll back
-  //      the activation claim so a future inbound can retry the whole
-  //      flow cleanly.
+  //   2. Genuine transient failure on the TEXT send (network, Linq 5xx,
+  //      etc.). Roll back the activation claim so a future inbound can
+  //      retry the whole flow cleanly.
+  //   3. The TEXT went out but the vCard MMS followup failed. This was
+  //      the latent bug behind the 2026-05-31 "welcome reply not firing"
+  //      report: passing both `text` and `attachmentIds` to createChat
+  //      makes Linq's lib do an internal two-step (text first, then a
+  //      media-only followup). When the followup throws, the entire
+  //      createChat Promise rejects even though the client already
+  //      received the welcome confirmation text — the old code path
+  //      treated that as a total failure and rolled back the activation,
+  //      so the action item never auto-completed and the agent perceived
+  //      the reply as broken. Fix: send the load-bearing TEXT confirmation
+  //      first via createChat (no attachments), then attach the vCard as
+  //      a separate best-effort sendMessage to the same chat. vCard
+  //      delivery failure is logged but does NOT roll back activation —
+  //      the close-of-sale ritual's confirmation message has landed.
   //
   // Pre-amendment behavior was to roll back unconditionally, which
   // contradicted the locked Option D contract (May 7, 2026) where
@@ -330,9 +386,13 @@ export async function handleWelcomeActivationInbound(params: {
     const result = await createChat({
       to: ctx.clientPhoneE164,
       text: firstResponseBody,
-      attachmentIds: vcardAttachmentId ? [vcardAttachmentId] : undefined,
     });
     realThreadId = result.chatId;
+    console.log('[welcome-activation] first_response_text_sent', {
+      agentId: ctx.agentId,
+      clientId: ctx.clientId,
+      realThreadId,
+    });
   } catch (sendErr) {
     const isSuppressed =
       sendErr instanceof LinqOutboundDisabledError ||
@@ -366,11 +426,43 @@ export async function handleWelcomeActivationInbound(params: {
     }
   }
 
+  // Best-effort vCard MMS followup. If we got a realThreadId from the
+  // text send above, attach the vCard as a separate message so the
+  // client can save the agent's contact. Failure here does NOT roll
+  // back activation — the welcome confirmation text already arrived.
+  let vcardSentSuccessfully = false;
+  if (realThreadId && vcardAttachmentId) {
+    try {
+      await sendMessage({
+        chatId: realThreadId,
+        text: '',
+        attachmentIds: [vcardAttachmentId],
+      });
+      vcardSentSuccessfully = true;
+      console.log('[welcome-activation] vcard_followup_sent', {
+        agentId: ctx.agentId,
+        clientId: ctx.clientId,
+        realThreadId,
+      });
+    } catch (vcardSendErr) {
+      console.warn('[welcome-activation] vcard followup failed (non-blocking)', {
+        agentId: ctx.agentId,
+        clientId: ctx.clientId,
+        realThreadId,
+        error: vcardSendErr instanceof Error ? vcardSendErr.message : String(vcardSendErr),
+      });
+    }
+  }
+
   // Stamp the resolution markers. Different fields depending on whether
-  // we actually sent a first response or were suppressed.
+  // we actually sent a first response or were suppressed. `welcomeActivation
+  // VCardAttached` now reflects whether the MMS followup actually went out,
+  // not just whether the attachment id existed — `vcardSentSuccessfully`
+  // gates it so failed vCard delivery is visible in forensics without
+  // marking activation as failed.
   const resolutionUpdate: Record<string, unknown> = {
     welcomeActivationFirstResponseAt: FieldValue.serverTimestamp(),
-    welcomeActivationVCardAttached: realThreadId ? !!vcardAttachmentId : false,
+    welcomeActivationVCardAttached: vcardSentSuccessfully,
   };
   if (realThreadId) {
     resolutionUpdate.welcomeActivationProviderThreadId = realThreadId;
@@ -468,20 +560,20 @@ export async function handleWelcomeActivationInbound(params: {
   }
 
   const wasSuppressed = realThreadId === null;
-  const vcardAttached = !!vcardAttachmentId && !wasSuppressed;
   console.log('[welcome-activation] activated', {
     agentId: ctx.agentId,
     clientId: ctx.clientId,
     realThreadId,
     matchedByCodeInBody: ctx.matchedByCodeInBody,
-    vcardAttached,
+    vcardAttached: vcardSentSuccessfully,
+    vcardAttachmentAvailable: !!vcardAttachmentId,
     suppressedReason,
   });
 
   let outcome: HandleResult['outcome'];
   if (wasSuppressed) {
     outcome = 'first_response_suppressed_by_kill_switch';
-  } else if (vcardAttachmentId) {
+  } else if (vcardSentSuccessfully) {
     outcome = 'sent_first_response';
   } else {
     outcome = 'no_vcard_attachment_using_text_only';
@@ -491,7 +583,7 @@ export async function handleWelcomeActivationInbound(params: {
     ok: true,
     outcome,
     realThreadId: realThreadId ?? undefined,
-    vcardAttached,
+    vcardAttached: vcardSentSuccessfully,
   };
 }
 
