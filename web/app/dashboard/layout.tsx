@@ -464,6 +464,18 @@ const NAV_ITEMS = [
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
     </svg>
   )},
+  // Refer & Earn — agent-side affiliate program surface (May 31, 2026).
+  // Sourced from the May 30 growth + distribution lock; FirstPromoter
+  // is the underlying tracking provider (PR #58). Self-serve enrollment
+  // via /api/affiliate/create. Hidden gracefully if FIRSTPROMOTER_API_KEY
+  // / FIRSTPROMOTER_ACCOUNT_ID env vars aren't set yet — the page itself
+  // surfaces a "Coming soon" message in that case so we can ship the
+  // surface ahead of the FP key rollout.
+  { key: 'refer-and-earn', path: '/dashboard/refer-and-earn', label: 'Refer & Earn', icon: (
+    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+    </svg>
+  )},
   { key: 'feedback', path: '/dashboard/feedback', label: 'Feedback', icon: (
     <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -592,6 +604,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     if (pathname.startsWith('/dashboard/conservation')) return 'conservation';
     if (pathname.startsWith('/dashboard/policy-reviews')) return 'policy-reviews';
     if (pathname.startsWith('/dashboard/resources')) return 'resources';
+    if (pathname.startsWith('/dashboard/refer-and-earn')) return 'refer-and-earn';
     if (pathname.startsWith('/dashboard/feedback')) return 'feedback';
     if (pathname.startsWith('/dashboard/settings')) return 'settings';
     if (pathname.startsWith('/dashboard/admin')) return 'admin';

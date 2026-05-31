@@ -174,6 +174,22 @@ export interface AgentProfile {
    * 1. Persisted at `agents/{agentId}.dialPersistence`.
    */
   dialPersistence?: 1 | 2 | 3;
+  /**
+   * FirstPromoter affiliate enrollment, populated when the agent
+   * clicks "Get my link" on /dashboard/refer-and-earn. Written by
+   * `/api/affiliate/create` after creating (or recovering) a promoter
+   * in FirstPromoter. The `refLink` is the tracking URL the agent
+   * shares; `refToken` is the bare affiliate username (e.g. for
+   * embedding in dedicated landing pages). Pay-out stats live in
+   * FirstPromoter — we don't mirror them here.
+   */
+  affiliate?: {
+    firstPromoterPromoterId?: number;
+    refLink?: string;
+    refToken?: string | null;
+    coupon?: string | null;
+    createdAt?: unknown;
+  };
 }
 
 interface DashboardContextValue {
@@ -296,6 +312,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           dialPersistence: (data.dialPersistence === 2 || data.dialPersistence === 3)
             ? data.dialPersistence
             : 1,
+          affiliate: data.affiliate && typeof data.affiliate === 'object' ? data.affiliate : undefined,
         });
       } else {
         setAgentProfile({});
