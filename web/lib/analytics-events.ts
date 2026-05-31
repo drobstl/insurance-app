@@ -242,19 +242,19 @@ export type AnalyticsEventPropertiesMap = {
   // by lane for cross-lane analysis or filter to a single lane for
   // welcome-only Phase 1 metrics.
   action_item_created: {
-    lane?: 'welcome' | 'anniversary' | 'retention' | 'referral' | 'appointment_outcome';
+    lane?: 'welcome' | 'anniversary' | 'retention' | 'referral' | 'appointment_outcome' | 'compliance';
     trigger_reason?: string;
     is_idempotent_replay?: boolean;
     days_until_expiry?: number;
   } & GenericEventProperties;
   action_item_viewed: {
-    lane?: 'welcome' | 'anniversary' | 'retention' | 'referral' | 'appointment_outcome';
+    lane?: 'welcome' | 'anniversary' | 'retention' | 'referral' | 'appointment_outcome' | 'compliance';
     trigger_reason?: string;
     view_count_after?: number;
     age_days?: number;
   } & GenericEventProperties;
   action_item_completed: {
-    lane?: 'welcome' | 'anniversary' | 'retention' | 'referral' | 'appointment_outcome';
+    lane?: 'welcome' | 'anniversary' | 'retention' | 'referral' | 'appointment_outcome' | 'compliance';
     trigger_reason?: string;
     completion_action?:
       | 'text_personally'

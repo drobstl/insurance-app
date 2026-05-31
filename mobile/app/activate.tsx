@@ -91,27 +91,35 @@ const getFirstName = (fullName: string | undefined): string => {
 };
 
 /**
- * Build the activation SMS body.
+ * Build the activation SMS body — the inbound the client sends to the
+ * Linq line on tap.
  *
- * Pre-May-8 the body was personalized: "Hi [Agent], it's [Client] —
- * I'm set up on the app!" That worked because the user had already
- * logged in by the time they reached the Activate screen, so we knew
- * both names. Post-May-8 flow inversion (activate-first), the user
- * is unauthenticated when this fires; we don't know who's who.
+ * SOURCE OF TRUTH: `docs/afl-compliance-layer-whatwhy.md` §"Activate
+ * consent copy (ship verbatim)". Wording is fixed by the compliance
+ * spec — the pre-filled message is the strongest opt-in artifact AFL
+ * has (the client's own outbound, in their words), so it must read
+ * as deliberate consent + carry the client-code verification token
+ * the webhook checks against.
  *
- * Body is now generic. Linq line-health rules (Linq safety policy
- * §1) apply to OUTBOUND from the line, not inbound — the activation
- * SMS is inbound, and v3.1 §3.2 confirms inbound-initiated convos
- * are "gold standard" regardless of body content. The OUTBOUND vCard
- * reply we send from Linq is still fully personalized via the
- * webhook handler (which identifies the client by phone match).
+ * Critical constraint: do NOT include the literal words STOP or HELP
+ * here — they would false-trigger the F2 opt-out detection on a
+ * happy-path activation inbound.
  *
- * Args retained for back-compat in case a personalized path is wired
- * later; currently ignored.
+ * Fallback rules:
+ *   - Missing `clientCode` → drop the "code {CODE}." clause; the
+ *     byPhone resolver placeholder is the primary detection mechanism
+ *     and works without the code. Code presence is a verification
+ *     signal stored as `welcomeActivationMatchedByCodeInBody`.
+ *   - Missing `agentFirstName` → fall back to "your agent" so the
+ *     sentence still reads as a deliberate consent statement.
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function buildActivationBody(_agentFirstName: string, _clientFirstName: string): string {
-  return `Hi! I just downloaded the AgentForLife app — ready to connect. Keep me updated.`;
+function buildActivationBody(agentFirstName: string, clientCode: string): string {
+  const agent = agentFirstName?.trim() || 'your agent';
+  const code = clientCode?.trim().toUpperCase();
+  if (code) {
+    return `Activate my account — code ${code}. Yes, I'd like to receive policy updates, reminders, and service texts from ${agent}.`;
+  }
+  return `Activate my account. Yes, I'd like to receive policy updates, reminders, and service texts from ${agent}.`;
 }
 
 /**
@@ -150,6 +158,7 @@ export default function ActivateScreen() {
     agencyName?: string | string[];
     agencyLogoBase64?: string | string[];
     clientId?: string | string[];
+    clientCode?: string | string[];
     clientName?: string | string[];
     referralMessage?: string | string[];
     businessCardBase64?: string | string[];
@@ -160,7 +169,7 @@ export default function ActivateScreen() {
   const agentFirstName = getFirstName(agentName) || 'your agent';
   const agentPhotoBase64 = getParamValue(params.agentPhotoBase64);
   const clientName = getParamValue(params.clientName);
-  const clientFirstName = getFirstName(clientName) || 'me';
+  const clientCode = getParamValue(params.clientCode);
   // Per-client linqLinePhone is only available post-login. The May 8
   // flow inversion (activate-first) reaches this screen WITHOUT a
   // session, so we fall back to the platform default. Today there's
@@ -327,7 +336,7 @@ export default function ActivateScreen() {
     if (activating) return;
     setActivating(true);
     try {
-      const body = buildActivationBody(agentFirstName, clientFirstName);
+      const body = buildActivationBody(agentFirstName, clientCode);
       const smsUrl = buildSmsUrl(linqLinePhone, body);
       const supported = await Linking.canOpenURL(smsUrl);
       if (!supported) {
@@ -458,6 +467,36 @@ export default function ActivateScreen() {
                 </Animated.View>
                 <Text style={styles.activateHint}>
                   Opens Messages with your hello pre-written — just tap Send.
+                </Text>
+
+                {/* Consent disclosure — AFL compliance layer Part 1.
+                    Wording is locked verbatim by
+                    docs/afl-compliance-layer-whatwhy.md §"Activate
+                    consent copy (ship verbatim)". This is the exact
+                    consent the client agrees to when they tap Activate;
+                    do NOT edit without a spec amendment. */}
+                <Text style={styles.consentDisclosure}>
+                  By tapping <Text style={styles.consentBold}>Activate</Text>, you
+                  agree to receive account, policy, and service text messages —
+                  including automated messages — from{' '}
+                  <Text style={styles.consentBold}>{agentName || 'your agent'}</Text>{' '}
+                  at this number. Msg & data rates may apply. Message frequency
+                  varies. Reply <Text style={styles.consentBold}>STOP</Text> to
+                  opt out, <Text style={styles.consentBold}>HELP</Text> for help. See{' '}
+                  <Text
+                    style={styles.consentLink}
+                    onPress={() => Linking.openURL('https://agentforlife.app/terms').catch(() => {})}
+                  >
+                    Terms
+                  </Text>{' '}
+                  &{' '}
+                  <Text
+                    style={styles.consentLink}
+                    onPress={() => Linking.openURL('https://agentforlife.app/privacy').catch(() => {})}
+                  >
+                    Privacy
+                  </Text>
+                  .
                 </Text>
 
                 {/* Lead-mode "I'm a lead, enter here" link removed
@@ -647,6 +686,23 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 6,
     marginTop: 2,
+  },
+  consentDisclosure: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: '#718096',
+    textAlign: 'center',
+    marginTop: 10,
+    paddingHorizontal: 4,
+  },
+  consentBold: {
+    fontWeight: '700',
+    color: '#4a5568',
+  },
+  consentLink: {
+    color: '#0D4D4D',
+    textDecorationLine: 'underline',
+    fontWeight: '600',
   },
   leadEntryLink: {
     marginTop: 18,

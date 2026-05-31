@@ -12,7 +12,7 @@
  * action vocabulary), keep the divergence in the per-lane lookup tables
  * below rather than in branching code at every call site.
  */
-export type ActionItemLane = 'welcome' | 'anniversary' | 'retention' | 'referral' | 'appointment_outcome';
+export type ActionItemLane = 'welcome' | 'anniversary' | 'retention' | 'referral' | 'appointment_outcome' | 'compliance';
 
 /**
  * Why this action item was created. Phase 1 only emits `welcome_pending`;
@@ -36,7 +36,15 @@ export type ActionItemTriggerReason =
   // unhappy-path funnel capture). Fired by the day-after cron when a
   // booked appointment's scheduledAt has elapsed without a sale or a
   // manual outcome marker.
-  | 'appointment_outcome_day_after';
+  | 'appointment_outcome_day_after'
+  // Compliance lane (AFL compliance layer Part 1). The opt-out item
+  // fires when a number tied to an owned client/lead replies STOP or
+  // a natural-language opt-out. The re-engagement item fires when an
+  // ALREADY-suppressed number sends an inbound that isn't a
+  // resubscribe keyword — the spec keeps human judgment in the loop
+  // ("not an automated one") rather than auto-re-enrolling.
+  | 'compliance_client_opted_out'
+  | 'compliance_re_engagement_attempt';
 
 /**
  * Concrete actions an agent can take from an action item card. Each lane
@@ -98,6 +106,11 @@ export const ACTION_ITEM_EXPIRATION_DAYS: Readonly<Record<ActionItemLane, number
   // questionable. Tune up if real usage shows agents reliably marking
   // older items.
   appointment_outcome: 14,
+  // Compliance items keep around long enough that an agent on PTO
+  // still sees the heads-up about a client opt-out when they come
+  // back. 60 days matches the longest legal "you need to know about
+  // this opt-out" window in the spec's "Done looks like" section.
+  compliance: 60,
 };
 
 /**
@@ -131,6 +144,13 @@ export const ACTION_ITEM_SUGGESTED_ACTIONS_BY_LANE: Readonly<
     'mark_outcome_cancelled',
     'skip',
   ],
+  // Compliance lane intentionally surfaces ONLY `call` + `skip`.
+  // `text_personally` is omitted because the body the agent would
+  // text is exactly what was just suppressed — surfacing a text
+  // affordance directly from the opt-out card would normalize the
+  // override path. Calls are explicitly allowed per the spec:
+  // "AFL is suppressing all further outbound. You can still call them."
+  compliance: ['call', 'skip'],
 };
 
 /**
@@ -182,6 +202,15 @@ export interface ActionItemDisplayContext {
    * to the appointment doc's own `agentTimezone` if present.
    */
   appointmentScheduledTzShort?: string | null;
+  /**
+   * Compliance-lane only. Truncated copy of the inbound message that
+   * triggered the action item (STOP / natural-language opt-out /
+   * suppressed-number-re-engagement-attempt). Surfaced on the card
+   * so the agent can see what the client actually said without
+   * clicking through. Capped at 280 chars by the writer; full
+   * message stays on the linked chat thread.
+   */
+  inboundExcerpt?: string | null;
 }
 
 /** Read the pre-filled SMS body, preferring the canonical field but

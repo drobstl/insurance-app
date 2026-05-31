@@ -16,6 +16,8 @@ import {
   platformIsMobile,
   getSendButtonLabel,
 } from '../lib/sms-url';
+import SuppressionStatusChip from './SuppressionStatusChip';
+import SuppressionOverrideModal from './SuppressionOverrideModal';
 
 /**
  * Welcome action item card — the queue page row.
@@ -115,6 +117,32 @@ export default function WelcomeActionItemCard({
   const [agentPlatform, setAgentPlatform] = useState<AgentPlatform>('unknown');
   const viewedRef = useRef(false);
 
+  // Suppression awareness — `docs/afl-compliance-layer-whatwhy.md`
+  // Feature 1 manual sends. We check once per mount; if the number
+  // opted out (globally, across every agent), we intercept the Send
+  // tap to surface the override modal before any `sms:` navigation
+  // fires.
+  const [isSuppressed, setIsSuppressed] = useState<boolean>(false);
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const overrideConfirmedRef = useRef(false);
+  useEffect(() => {
+    let cancelled = false;
+    if (!user || !phone) return;
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch(
+          `/api/compliance/suppression-status?phone=${encodeURIComponent(phone)}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!res.ok) return;
+        const j = (await res.json()) as { suppressed?: boolean };
+        if (!cancelled) setIsSuppressed(!!j.suppressed);
+      } catch { /* best-effort */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user, phone]);
+
   useEffect(() => {
     setAgentPlatform(detectAgentPlatform());
   }, []);
@@ -194,17 +222,34 @@ export default function WelcomeActionItemCard({
     ? buildSmsUrlForQr(phone, body)
     : null;
 
-  const handleSendViaSms = () => {
+  const handleSendViaSms = (e?: React.MouseEvent<HTMLAnchorElement>) => {
+    // Suppression interception (Phase 3): if the target opted out and
+    // the agent hasn't confirmed an override yet, swallow the click,
+    // open the modal, and require a typed reason BEFORE the sms: URL
+    // fires. `overrideConfirmedRef` flips true after a successful
+    // override write so the second click (after modal confirm) lets
+    // the anchor navigate normally.
+    if (isSuppressed && !overrideConfirmedRef.current) {
+      e?.preventDefault();
+      setOverrideOpen(true);
+      return;
+    }
     // The anchor's `href` does the navigation. We just kick off the
     // completion alongside it. iOS / Android may interrupt JS when
     // sms: opens; firing the completion immediately (not in onClick
     // after navigation) lets it reach the server before we lose
     // control.
-    void completePersonally(null);
+    void completePersonally(
+      overrideConfirmedRef.current ? 'Manual send to opted-out number; override logged.' : null,
+    );
   };
 
   const handleCopyText = async () => {
     if (!body) return;
+    if (isSuppressed && !overrideConfirmedRef.current) {
+      setOverrideOpen(true);
+      return;
+    }
     setErrorMsg(null);
     try {
       if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
@@ -213,10 +258,19 @@ export default function WelcomeActionItemCard({
         throw new Error('clipboard_unavailable');
       }
       setCopied(true);
-      void completePersonally('Sent via copy-paste fallback.');
+      void completePersonally(
+        overrideConfirmedRef.current
+          ? 'Sent via copy-paste fallback after opt-out override.'
+          : 'Sent via copy-paste fallback.',
+      );
     } catch {
       setErrorMsg('Could not copy automatically. Long-press the preview and copy manually.');
     }
+  };
+
+  const handleOverrideConfirmed = () => {
+    overrideConfirmedRef.current = true;
+    setOverrideOpen(false);
   };
 
   const showQrSection = !platformIsMobile(agentPlatform) && qrValue;
@@ -226,9 +280,17 @@ export default function WelcomeActionItemCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-bold text-[#0D4D4D]">Welcome {subjectFirst}</p>
-          <p className="text-[12px] text-[#4f4f4f] mt-0.5">
-            {phone ? phone : 'No phone on file'}
-            {item.displayContext.subjectClientCode ? ` · code ${item.displayContext.subjectClientCode}` : ''}
+          <p className="text-[12px] text-[#4f4f4f] mt-0.5 flex flex-wrap items-center gap-1.5">
+            <span>{phone ? phone : 'No phone on file'}</span>
+            {item.displayContext.subjectClientCode ? (
+              <span>· code {item.displayContext.subjectClientCode}</span>
+            ) : null}
+            <SuppressionStatusChip
+              phoneE164={phone || null}
+              user={user}
+              initialSuppressed={isSuppressed}
+              size="sm"
+            />
           </p>
         </div>
         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${styles.pill}`}>
@@ -255,7 +317,7 @@ export default function WelcomeActionItemCard({
         {platformSupportsInlineSend(agentPlatform) && smsHref ? (
           <a
             href={smsHref}
-            onClick={handleSendViaSms}
+            onClick={(e) => handleSendViaSms(e)}
             className="inline-flex items-center gap-1 rounded-lg bg-[#3DD6C3] px-3 py-1.5 text-xs font-bold text-[#0D4D4D] hover:bg-[#32c4b2] active:scale-[0.97] transition"
           >
             {getSendButtonLabel(agentPlatform)}
@@ -290,6 +352,17 @@ export default function WelcomeActionItemCard({
           </div>
         </details>
       ) : null}
+
+      <SuppressionOverrideModal
+        open={overrideOpen}
+        phoneE164={phone}
+        subjectName={item.displayContext.subjectName ?? undefined}
+        lane="welcome"
+        context={{ surface: 'welcome_action_item_card', itemId: item.itemId }}
+        user={user}
+        onCancel={() => setOverrideOpen(false)}
+        onConfirmed={handleOverrideConfirmed}
+      />
     </article>
   );
 }
