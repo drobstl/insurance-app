@@ -111,6 +111,13 @@ export async function POST(
     //     Used when the agent confirms "Link to existing" in the prompt.
     let force = false;
     let linkToExistingClientId: string | null = null;
+    // PDF-extracted contact fields passed by the Close Sale ritual so the
+    // new client inherits the application's email / DOB / phone instead of
+    // dropping them. All optional + sanitized; absent body = legacy behavior.
+    let extractedEmail: string | null = null;
+    let extractedDob: string | null = null;
+    let extractedPhone: string | null = null;
+    let preferExtractedPhone = false;
     try {
       const body = await req.json().catch(() => null);
       if (body && typeof body === 'object') {
@@ -118,6 +125,19 @@ export async function POST(
         if (typeof body.linkToExistingClientId === 'string' && body.linkToExistingClientId.trim()) {
           linkToExistingClientId = body.linkToExistingClientId.trim();
         }
+        const ec = body.extractedContact;
+        if (ec && typeof ec === 'object') {
+          if (typeof ec.email === 'string' && ec.email.trim() && ec.email.includes('@')) {
+            extractedEmail = ec.email.trim();
+          }
+          if (typeof ec.dateOfBirth === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ec.dateOfBirth.trim())) {
+            extractedDob = ec.dateOfBirth.trim();
+          }
+          if (typeof ec.phone === 'string' && ec.phone.trim()) {
+            extractedPhone = ec.phone.trim();
+          }
+        }
+        if (body.preferExtractedPhone === true) preferExtractedPhone = true;
       }
     } catch {
       // No body / parse error — treat as defaults (no force, no link).
@@ -201,12 +221,26 @@ export async function POST(
     const clientCode = await generateUniqueClientCode(db);
     const now = Timestamp.now();
 
+    // ── Carry PDF-extracted contact into the new client ──
+    // Gap-fill ONLY where the lead itself is blank, so we never clobber a
+    // value the agent curated on the lead. Email + DOB fill silently. Phone
+    // gap-fills the same way UNLESS the ritual flagged a lead/PDF phone
+    // conflict and the agent chose the application's number
+    // (preferExtractedPhone), in which case the extracted phone wins. Name
+    // is intentionally left as the lead's. The dedup precheck above ran on
+    // the original lead values and is unaffected.
+    const finalEmail = email || extractedEmail || '';
+    const finalDateOfBirth = dateOfBirth || extractedDob || null;
+    const finalPhone = (preferExtractedPhone && extractedPhone)
+      ? extractedPhone
+      : (phone || extractedPhone || '');
+
     // Create the per-agent client doc.
     const clientRef = db.collection('agents').doc(agentId).collection('clients').doc();
     const clientPayload: Record<string, unknown> = {
       name,
-      phone,
-      email,
+      phone: finalPhone,
+      email: finalEmail,
       clientCode,
       agentId,
       createdAt: now,
@@ -214,23 +248,24 @@ export async function POST(
       convertedFromLeadId: leadId,
       convertedFromLeadAt: now,
     };
-    if (dateOfBirth) clientPayload.dateOfBirth = dateOfBirth;
+    if (finalDateOfBirth) clientPayload.dateOfBirth = finalDateOfBirth;
     if (notes) {
       clientPayload.notes = notes;
       clientPayload.notesUpdatedAt = now;
     }
 
-    // Top-level mirrors (matches the existing Add Client flow).
+    // Top-level mirrors (matches the existing Add Client flow). Keep the
+    // gap-filled contact values in sync with the per-agent doc above.
     const topLevelClientPayload: Record<string, unknown> = {
       name,
-      phone,
-      email,
+      phone: finalPhone,
+      email: finalEmail,
       clientCode,
       agentId,
       createdAt: now,
       preferredLanguage: 'en',
     };
-    if (dateOfBirth) topLevelClientPayload.dateOfBirth = dateOfBirth;
+    if (finalDateOfBirth) topLevelClientPayload.dateOfBirth = finalDateOfBirth;
 
     const batch = db.batch();
     batch.set(clientRef, clientPayload);
