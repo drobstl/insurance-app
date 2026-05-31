@@ -553,6 +553,11 @@ export default function SettingsPage() {
   // ── Lead-home video uploads (Chunk 3) ──
   const [leadVideoBusy, setLeadVideoBusy] = useState<string | null>(null);
   const [leadVideoError, setLeadVideoError] = useState<string | null>(null);
+  // Local-only state for the intro title input. We initialize from
+  // the saved title (if any) and let the agent edit before uploading.
+  // The string lives here rather than on agentProfile so typing
+  // doesn't trigger Firestore writes on every keystroke.
+  const [introTitleDraft, setIntroTitleDraft] = useState<string>('');
 
   const uploadLeadVideo = useCallback(async (params: {
     file: File;
@@ -1985,7 +1990,7 @@ export default function SettingsPage() {
                 )}
               </div>
               {agentProfile.leadContent?.intro?.url ? (
-                <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/40 px-3 py-2">
+                <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/40 px-3 py-2 mb-3">
                   <p className="text-sm font-medium text-[#005851]">
                     {agentProfile.leadContent.intro.title || 'Uploaded'}
                   </p>
@@ -2001,7 +2006,23 @@ export default function SettingsPage() {
               ) : (
                 <p className="text-[11px] text-[#707070] mb-2">Not uploaded yet.</p>
               )}
-              <label className="inline-block mt-2">
+              {/* Title input — shown to the agent so the intro card on
+                  the lead-home isn't stuck on the platform default
+                  ("Welcome — what to do next"). Empty input falls back
+                  to that default on upload. Pre-fills from whatever's
+                  saved so the agent can edit-then-replace. */}
+              <label className="block text-[11px] font-semibold text-[#374151] mb-1">
+                Card title <span className="text-[#707070] font-normal">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={introTitleDraft || agentProfile.leadContent?.intro?.title || ''}
+                onChange={(e) => setIntroTitleDraft(e.target.value)}
+                placeholder="Welcome — what to do next"
+                maxLength={120}
+                className="w-full px-3 py-2 text-sm border border-[#d0d0d0] rounded-[5px] focus:outline-none focus:border-[#45bcaa] mb-2"
+              />
+              <label className="inline-block mt-1">
                 <input
                   type="file"
                   accept="video/mp4,video/quicktime,video/webm"
@@ -2009,7 +2030,11 @@ export default function SettingsPage() {
                   onChange={(e) => {
                     const f = e.target.files?.[0];
                     if (f) {
-                      void uploadLeadVideo({ file: f, slot: 'intro', title: 'Intro' });
+                      const title =
+                        introTitleDraft.trim() ||
+                        agentProfile.leadContent?.intro?.title ||
+                        'Welcome — what to do next';
+                      void uploadLeadVideo({ file: f, slot: 'intro', title });
                       e.currentTarget.value = '';
                     }
                   }}

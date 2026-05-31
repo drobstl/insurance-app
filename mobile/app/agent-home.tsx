@@ -9,7 +9,8 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../firebase';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { auth, db } from '../firebase';
 import {
   getAgentSession,
   clearAgentSession,
@@ -95,6 +96,79 @@ export default function AgentHomeScreen() {
     router.replace('/' as never);
   };
 
+  // Live "needs your attention" list.
+  //
+  // Push notifications are best-effort delivery — they expire on the
+  // lock screen, get dismissed accidentally, or arrive when the agent
+  // is mid-call. Without an in-app catch-up surface, the only recovery
+  // path is the dashboard's Resend button, which an agent on the go
+  // doesn't have hands for.
+  //
+  // This list shows every scheduled future appointment that still
+  // needs an action from the agent — either the post-booking
+  // confirmation hasn't been sent, or it's inside the 1-hour reminder
+  // window and the reminder hasn't been sent. Each row is a one-tap
+  // route to the send composer for that specific appointment, same
+  // destination as the notification tap.
+  const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
+  useEffect(() => {
+    if (!session?.uid) return;
+    const apptsRef = collection(db, 'agents', session.uid, 'appointments');
+    const q = query(apptsRef, where('status', '==', 'scheduled'));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const nowMs = Date.now();
+        const reminderWindowMs = 90 * 60 * 1000; // catch-up window for reminders: 90 min
+        const items: PendingItem[] = [];
+        snap.forEach((docSnap) => {
+          const data = docSnap.data();
+          const scheduledMs = tsToMillis(data.scheduledAt);
+          if (scheduledMs === null) return;
+          // Don't surface appointments that are already in the past
+          // beyond the reminder window — those become noise.
+          if (scheduledMs + reminderWindowMs < nowMs) return;
+          const leadName = typeof data.leadName === 'string' ? data.leadName : '';
+          const needsConfirmation = !data.sentConfirmationAt;
+          const withinReminderWindow =
+            scheduledMs - nowMs <= reminderWindowMs && scheduledMs - nowMs > -reminderWindowMs;
+          const needsReminder = withinReminderWindow && !data.sentReminderAt;
+          if (needsConfirmation) {
+            items.push({
+              apptId: docSnap.id,
+              kind: 'confirmation',
+              leadName,
+              scheduledMs,
+            });
+          }
+          if (needsReminder) {
+            items.push({
+              apptId: docSnap.id,
+              kind: 'reminder',
+              leadName,
+              scheduledMs,
+            });
+          }
+        });
+        // Sort: most urgent first. Reminders for soon-starting appts
+        // come before generic confirmation backlog.
+        items.sort((a, b) => a.scheduledMs - b.scheduledMs);
+        setPendingItems(items);
+      },
+      (err) => {
+        console.warn('agent-home pending items snapshot failed:', err);
+      },
+    );
+    return () => unsub();
+  }, [session?.uid]);
+
+  const handlePendingTap = (item: PendingItem) => {
+    router.push({
+      pathname: '/send/[apptId]',
+      params: { apptId: item.apptId, kind: item.kind },
+    } as never);
+  };
+
   if (!session) {
     return (
       <View style={styles.container}>
@@ -115,15 +189,45 @@ export default function AgentHomeScreen() {
             )}
           </View>
 
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>What happens next</Text>
-            <Text style={styles.cardBody}>
-              When you book an appointment from your dashboard, this phone will
-              buzz with a notification. Tap it and the confirmation text to your
-              lead opens up, already addressed and ready to send. You just hit
-              send.
-            </Text>
-          </View>
+          {/* Catch-up list: lives above the "what happens next" card
+              when there's anything pending, so the agent's eyes land
+              on actionable items first. When empty, falls back to the
+              instructional card so first-time / between-bookings agents
+              still get context. */}
+          {pendingItems.length > 0 ? (
+            <View style={styles.pendingCard}>
+              <Text style={styles.pendingTitle}>Needs your attention</Text>
+              {pendingItems.map((item) => (
+                <Pressable
+                  key={`${item.apptId}-${item.kind}`}
+                  style={styles.pendingRow}
+                  onPress={() => handlePendingTap(item)}
+                >
+                  <View style={styles.pendingRowText}>
+                    <Text style={styles.pendingRowName}>
+                      {item.leadName || 'Unnamed lead'}
+                    </Text>
+                    <Text style={styles.pendingRowSub}>
+                      {formatRelativeTime(item.scheduledMs)} •{' '}
+                      {item.kind === 'reminder' ? 'Send reminder' : 'Send confirmation'}
+                    </Text>
+                  </View>
+                  <Text style={styles.pendingRowArrow}>›</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>You’re all caught up</Text>
+              <Text style={styles.cardBody}>
+                When you book an appointment from your dashboard, this phone will
+                buzz with a notification. Tap it and the confirmation text to your
+                lead opens up, already addressed and ready to send. You just hit
+                send. If you ever miss the buzz, the appointment will show up here
+                until you’ve sent.
+              </Text>
+            </View>
+          )}
 
           <View style={styles.statusBox}>
             <Text style={styles.statusLabel}>Notifications</Text>
@@ -152,6 +256,68 @@ export default function AgentHomeScreen() {
       </SafeAreaView>
     </View>
   );
+}
+
+interface PendingItem {
+  apptId: string;
+  kind: 'confirmation' | 'reminder';
+  leadName: string;
+  scheduledMs: number;
+}
+
+/**
+ * Pull a millis value off whatever shape Firestore handed us for the
+ * scheduledAt field. Server-set Timestamps come through as objects
+ * with toMillis(); locally-set Timestamps (or after restoration from
+ * cache) sometimes have only seconds + nanoseconds.
+ */
+function tsToMillis(value: unknown): number | null {
+  if (!value) return null;
+  if (typeof (value as { toMillis?: () => number }).toMillis === 'function') {
+    return (value as { toMillis: () => number }).toMillis();
+  }
+  if (typeof value === 'object' && value !== null && 'seconds' in value) {
+    return (value as { seconds: number }).seconds * 1000;
+  }
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+/**
+ * Friendly relative formatting for the pending list — "in 2 hours",
+ * "today at 3:00pm", "tomorrow at 9:30am", "Thursday at 1:00pm".
+ * Long enough to convey when, short enough to fit on one row.
+ */
+function formatRelativeTime(ms: number): string {
+  const date = new Date(ms);
+  const now = new Date();
+  const diffMin = Math.round((ms - now.getTime()) / 60000);
+  const timeStr = date
+    .toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+    .toLowerCase()
+    .replace(' ', '');
+  if (Math.abs(diffMin) < 60) {
+    if (diffMin === 0) return 'starting now';
+    if (diffMin > 0) return `in ${diffMin} min`;
+    return `${Math.abs(diffMin)} min ago`;
+  }
+  const sameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+  if (sameDay) return `today at ${timeStr}`;
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const isTomorrow =
+    date.getFullYear() === tomorrow.getFullYear() &&
+    date.getMonth() === tomorrow.getMonth() &&
+    date.getDate() === tomorrow.getDate();
+  if (isTomorrow) return `tomorrow at ${timeStr}`;
+  const weekday = date.toLocaleDateString(undefined, { weekday: 'long' });
+  return `${weekday} at ${timeStr}`;
 }
 
 function pushStatusKey(s: typeof pushStatusValues[number]): 'pushPending' | 'pushGranted' | 'pushDenied' | 'pushError' {
@@ -229,6 +395,49 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#333',
     lineHeight: 22,
+  },
+  pendingCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 6,
+    marginBottom: 20,
+  },
+  pendingTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0D4D4D',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 10,
+  },
+  pendingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#ececec',
+  },
+  pendingRowText: {
+    flex: 1,
+  },
+  pendingRowName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0D4D4D',
+  },
+  pendingRowSub: {
+    fontSize: 13,
+    color: '#555',
+    marginTop: 2,
+  },
+  pendingRowArrow: {
+    fontSize: 28,
+    color: '#aaa',
+    marginLeft: 8,
+    marginTop: -4,
   },
   statusBox: {
     backgroundColor: 'rgba(255,255,255,0.08)',

@@ -493,7 +493,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#0D4D4D',
     borderRadius: 16,
     padding: 16,
-    minHeight: 120,
+    // Was 120 — too tight on the narrow FAQ two-up grid: a 2-line
+    // title at the bottom would visually crash into the top-left play
+    // badge. 150 buys ~30px of vertical breathing room.
+    minHeight: 150,
     justifyContent: 'flex-end',
   },
   videoTileBig: {
@@ -512,7 +515,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     position: 'absolute',
     top: 16,
-    left: 16,
+    // Moved from `left: 16` to `right: 16` so the badge sits opposite
+    // the left-aligned title at the bottom of the card. With both
+    // changes, the badge and the title can never visually overlap
+    // regardless of how the title wraps.
+    right: 16,
   },
   videoPlayBadgeText: {
     color: '#0D4D4D',
