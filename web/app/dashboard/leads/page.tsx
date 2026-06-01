@@ -1104,7 +1104,9 @@ function LeadsPageInner() {
                   {uploading ? 'Reading…' : 'Drop a lead form PDF, or a CSV / Excel lead list here'}
                 </p>
                 <p className="text-xs text-[#005851]/70 mt-0.5">
-                  PDFs get extracted automatically; each row of a spreadsheet becomes one lead.
+                  PDFs get read automatically. For a spreadsheet, each row becomes one
+                  lead — we pull name, phone, email, date of birth, and address; other
+                  columns are ignored.
                 </p>
               </div>
             </div>
