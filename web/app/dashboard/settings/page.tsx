@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import Cropper from 'react-easy-crop';
 import type { Area } from 'react-easy-crop';
+import { Upload as TusUpload } from 'tus-js-client';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import {
   updatePassword,
@@ -57,8 +58,10 @@ interface GoogleCalendarStatusResponse {
 interface LeadVideoItem {
   id: string;
   title: string;
-  url: string;
-  path?: string;
+  url: string;             // HLS playlist — what the mobile player plays.
+  iframeUrl?: string;      // Bunny hosted-player URL — used for in-browser preview.
+  thumbnailUrl?: string;
+  videoId?: string;        // Bunny GUID — needed when deleting.
   updatedAt?: string;
 }
 
@@ -72,6 +75,7 @@ function LeadVideoList({
   label,
   items,
   busyKey,
+  addingProgress,
   onUpload,
   onDelete,
 }: {
@@ -79,6 +83,7 @@ function LeadVideoList({
   label: string;
   items: LeadVideoItem[];
   busyKey: string | null;
+  addingProgress: number | null;
   onUpload: (file: File, slotId: string, title: string) => void;
   onDelete: (slotId: string) => void;
 }) {
@@ -103,9 +108,9 @@ function LeadVideoList({
             <li key={item.id} className="flex items-center justify-between gap-3 rounded-[5px] border border-[#d0d0d0] bg-[#fafafa] px-3 py-2">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-[#374151] truncate">{item.title || '(no title)'}</p>
-                {item.url && (
+                {(item.iframeUrl || item.url) && (
                   <a
-                    href={item.url}
+                    href={item.iframeUrl || item.url}
                     target="_blank"
                     rel="noreferrer"
                     className="text-[10px] text-[#44bbaa] hover:text-[#005751] font-semibold"
@@ -134,11 +139,12 @@ function LeadVideoList({
           placeholder={kind === 'faq' ? 'e.g. Is this a sales pitch?' : 'e.g. How a real client handled this'}
           className="flex-1 px-3 py-2 bg-white border border-[#d0d0d0] rounded-[5px] text-xs focus:outline-none focus:border-[#45bcaa]"
         />
-        <label>
+        <label className={addingProgress !== null ? 'pointer-events-none' : ''}>
           <input
             type="file"
             accept="video/mp4,video/quicktime,video/webm"
             className="hidden"
+            disabled={addingProgress !== null}
             onChange={(e) => {
               const f = e.target.files?.[0];
               if (f) {
@@ -147,8 +153,12 @@ function LeadVideoList({
               }
             }}
           />
-          <span className="inline-block px-3 py-2 text-xs font-semibold rounded-[5px] cursor-pointer bg-[#005851] hover:bg-[#004440] text-white">
-            + Add
+          <span className={`inline-block px-3 py-2 text-xs font-semibold rounded-[5px] cursor-pointer whitespace-nowrap ${
+            addingProgress !== null
+              ? 'bg-gray-200 text-gray-500 cursor-default'
+              : 'bg-[#005851] hover:bg-[#004440] text-white'
+          }`}>
+            {addingProgress !== null ? `Uploading… ${addingProgress}%` : '+ Add'}
           </span>
         </label>
       </div>
@@ -550,8 +560,9 @@ export default function SettingsPage() {
     }
   }, [user]);
 
-  // ── Lead-home video uploads (Chunk 3) ──
+  // ── Lead-home video uploads (Chunk 3 — Bunny.net Stream + TUS) ──
   const [leadVideoBusy, setLeadVideoBusy] = useState<string | null>(null);
+  const [leadVideoProgress, setLeadVideoProgress] = useState<Record<string, number>>({});
   const [leadVideoError, setLeadVideoError] = useState<string | null>(null);
   // Local-only state for the intro title input. We initialize from
   // the saved title (if any) and let the agent edit before uploading.
@@ -568,35 +579,69 @@ export default function SettingsPage() {
     if (!user) return;
     const busyKey = params.slot === 'intro' ? 'intro' : `${params.slot}:${params.slotId}`;
     setLeadVideoBusy(busyKey);
+    setLeadVideoProgress((prev) => ({ ...prev, [busyKey]: 0 }));
     setLeadVideoError(null);
     try {
       const token = await user.getIdToken();
-      const form = new FormData();
-      form.set('file', params.file);
-      form.set('slot', params.slot);
-      if (params.slotId) form.set('slotId', params.slotId);
-      if (params.title) form.set('title', params.title);
-      const res = await fetch('/api/lead-content/upload', {
+      const title = params.title || 'Intro';
+
+      // Step 1: provision Bunny.net upload endpoint.
+      const provRes = await fetch('/api/lead-content/upload-url', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ slot: params.slot, slotId: params.slotId, title }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || `Upload failed (${res.status})`);
-      // Patch agentProfile.leadContent in-place so the UI updates immediately
-      // without a round-trip through fetchProfile.
+      const provData = await provRes.json().catch(() => ({}));
+      if (!provRes.ok) throw new Error(provData?.error || `Could not start upload (${provRes.status})`);
+      const { videoId, uploadUrl, headers: uploadHeaders } = provData as {
+        videoId: string;
+        uploadUrl: string;
+        headers: Record<string, string>;
+      };
+
+      // Step 2: stream the file straight to Bunny via TUS (resumable, bypasses Vercel).
+      await new Promise<void>((resolve, reject) => {
+        const upload = new TusUpload(params.file, {
+          endpoint: uploadUrl,
+          headers: uploadHeaders,
+          metadata: { filetype: params.file.type, title },
+          chunkSize: 50 * 1024 * 1024,
+          retryDelays: [0, 1000, 3000, 5000, 10000],
+          onProgress: (sent, total) => {
+            setLeadVideoProgress((prev) => ({
+              ...prev,
+              [busyKey]: Math.min(99, Math.round((sent / total) * 100)),
+            }));
+          },
+          onSuccess: () => resolve(),
+          onError: (err) => reject(err instanceof Error ? err : new Error(String(err))),
+        });
+        upload.start();
+      });
+      setLeadVideoProgress((prev) => ({ ...prev, [busyKey]: 100 }));
+
+      // Step 3: persist the new entry on Firestore.
+      const commitRes = await fetch('/api/lead-content/commit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ slot: params.slot, slotId: params.slotId, title, videoId }),
+      });
+      const commitData = await commitRes.json().catch(() => ({}));
+      if (!commitRes.ok) throw new Error(commitData?.error || `Could not save video (${commitRes.status})`);
+
+      // Patch agentProfile.leadContent in-place so the UI updates immediately.
       setAgentProfile((prev) => {
         const next = { ...prev };
         const lc = { ...(next.leadContent || {}) };
         if (params.slot === 'intro') {
-          lc.intro = data.entry;
+          lc.intro = commitData.entry;
         } else {
           const arrKey = params.slot === 'faq' ? 'faqs' : 'caseStudies';
           const current = (lc[arrKey] as LeadVideoItem[] | undefined) || [];
           const arr: LeadVideoItem[] = [...current];
           const idx = arr.findIndex((e) => e.id === params.slotId);
-          if (idx >= 0) arr[idx] = data.entry as LeadVideoItem;
-          else arr.push(data.entry as LeadVideoItem);
+          if (idx >= 0) arr[idx] = commitData.entry as LeadVideoItem;
+          else arr.push(commitData.entry as LeadVideoItem);
           lc[arrKey] = arr;
         }
         next.leadContent = lc;
@@ -609,6 +654,11 @@ export default function SettingsPage() {
       setSaveMessage({ type: 'error', text: message });
     } finally {
       setLeadVideoBusy(null);
+      setLeadVideoProgress((prev) => {
+        const next = { ...prev };
+        delete next[busyKey];
+        return next;
+      });
     }
   }, [user, setAgentProfile]);
 
@@ -1995,7 +2045,7 @@ export default function SettingsPage() {
                     {agentProfile.leadContent.intro.title || 'Uploaded'}
                   </p>
                   <a
-                    href={agentProfile.leadContent.intro.url}
+                    href={agentProfile.leadContent.intro.iframeUrl || agentProfile.leadContent.intro.url}
                     target="_blank"
                     rel="noreferrer"
                     className="text-[11px] text-[#44bbaa] hover:text-[#005751] font-semibold"
@@ -2039,13 +2089,13 @@ export default function SettingsPage() {
                     }
                   }}
                 />
-                <span className={`inline-block px-3 py-2 text-xs font-semibold rounded-[5px] cursor-pointer ${
+                <span className={`inline-block px-3 py-2 text-xs font-semibold rounded-[5px] cursor-pointer whitespace-nowrap ${
                   leadVideoBusy === 'intro'
-                    ? 'bg-gray-200 text-gray-500'
+                    ? 'bg-gray-200 text-gray-500 cursor-default'
                     : 'bg-[#005851] hover:bg-[#004440] text-white'
                 }`}>
                   {leadVideoBusy === 'intro'
-                    ? 'Uploading…'
+                    ? `Uploading… ${leadVideoProgress.intro ?? 0}%`
                     : (agentProfile.leadContent?.intro?.url ? 'Replace' : 'Upload intro video')}
                 </span>
               </label>
@@ -2057,6 +2107,7 @@ export default function SettingsPage() {
               label="FAQ videos"
               items={agentProfile.leadContent?.faqs || []}
               busyKey={leadVideoBusy}
+              addingProgress={leadVideoBusy?.startsWith('faq:') ? (leadVideoProgress[leadVideoBusy] ?? 0) : null}
               onUpload={(file, slotId, title) => uploadLeadVideo({ file, slot: 'faq', slotId, title })}
               onDelete={(slotId) => deleteLeadVideo('faq', slotId)}
             />
@@ -2067,6 +2118,7 @@ export default function SettingsPage() {
               label="Case-study videos"
               items={agentProfile.leadContent?.caseStudies || []}
               busyKey={leadVideoBusy}
+              addingProgress={leadVideoBusy?.startsWith('caseStudy:') ? (leadVideoProgress[leadVideoBusy] ?? 0) : null}
               onUpload={(file, slotId, title) => uploadLeadVideo({ file, slot: 'caseStudy', slotId, title })}
               onDelete={(slotId) => deleteLeadVideo('caseStudy', slotId)}
             />
@@ -2075,7 +2127,7 @@ export default function SettingsPage() {
               <p className="text-xs text-red-600 mt-3">{leadVideoError}</p>
             )}
             <p className="text-[10px] text-[#707070] mt-3">
-              Max 200 MB per video. .mp4, .mov, or .webm. Videos are signed for 1 year — re-upload after that to refresh.
+              .mp4, .mov, or .webm. Uploads stream directly to Bunny.net — large files work, and Bunny transcodes for smooth playback on the lead-home screen.
             </p>
           </div>
           </>}

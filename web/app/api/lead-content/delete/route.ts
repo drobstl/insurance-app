@@ -2,7 +2,8 @@ import 'server-only';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
-import { getAdminAuth, getAdminFirestore, getAdminStorage } from '../../../../lib/firebase-admin';
+import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
+import { deleteVideo as deleteBunnyVideo } from '../../../../lib/bunny-stream';
 
 type Slot = 'intro' | 'faq' | 'caseStudy';
 
@@ -11,9 +12,14 @@ type Slot = 'intro' | 'faq' | 'caseStudy';
  *
  * Remove a lead-home video. Body: { slot, slotId? }.
  *
- *   - slot='intro': clears `leadContent.intro` and deletes the storage object.
+ *   - slot='intro': clears `leadContent.intro` and deletes the Bunny video.
  *   - slot='faq'/'caseStudy' + slotId: removes that array entry and its
- *     storage object.
+ *     Bunny video.
+ *
+ * Bunny delete failures are logged but swallowed — the Firestore entry
+ * still gets removed so the UI / mobile reflect the deletion. A leftover
+ * orphan video in Bunny is recoverable (deleteVideo is idempotent and we
+ * can replay), but a stuck UI entry is not.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -39,28 +45,37 @@ export async function POST(req: NextRequest) {
     }
 
     const db = getAdminFirestore();
-    const storage = getAdminStorage().bucket();
     const agentRef = db.collection('agents').doc(agentId);
     const snap = await agentRef.get();
     const leadContent = (snap.data()?.leadContent || {}) as Record<string, unknown>;
 
     if (slot === 'intro') {
-      const intro = leadContent.intro as { path?: string } | undefined;
-      if (intro?.path) {
-        await storage.file(intro.path).delete().catch(() => {});
+      const intro = leadContent.intro as { videoId?: string } | undefined;
+      if (intro?.videoId) {
+        try {
+          await deleteBunnyVideo(intro.videoId);
+        } catch (err) {
+          console.warn('Bunny delete failed (intro):', err);
+        }
       }
       await agentRef.set({ leadContent: { intro: FieldValue.delete() } }, { merge: true });
       return NextResponse.json({ ok: true });
     }
 
     const arrKey: 'faqs' | 'caseStudies' = slot === 'faq' ? 'faqs' : 'caseStudies';
-    const arr = Array.isArray(leadContent[arrKey]) ? [...(leadContent[arrKey] as Array<Record<string, unknown>>)] : [];
+    const arr = Array.isArray(leadContent[arrKey])
+      ? [...(leadContent[arrKey] as Array<Record<string, unknown>>)]
+      : [];
     const targetIdx = arr.findIndex((e) => e?.id === slotId);
     if (targetIdx >= 0) {
       const target = arr[targetIdx];
-      const path = typeof target?.path === 'string' ? target.path : '';
-      if (path) {
-        await storage.file(path).delete().catch(() => {});
+      const videoId = typeof target?.videoId === 'string' ? target.videoId : '';
+      if (videoId) {
+        try {
+          await deleteBunnyVideo(videoId);
+        } catch (err) {
+          console.warn(`Bunny delete failed (${arrKey}/${slotId}):`, err);
+        }
       }
       arr.splice(targetIdx, 1);
     }

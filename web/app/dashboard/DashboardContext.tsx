@@ -146,14 +146,16 @@ export interface AgentProfile {
    */
   reminderPushHoursBefore?: number;
   /**
-   * Per-agent video manifest for the mobile lead-home screen
-   * (Chunk 3). Uploaded via /api/lead-content/upload; consumed by
-   * /api/mobile/lead-content which merges this over platform defaults.
+   * Per-agent video manifest for the mobile lead-home screen.
+   * Videos live in Bunny.net Stream — uploaded via TUS direct-from-browser
+   * (/api/lead-content/upload-url provisions, /api/lead-content/commit
+   * persists). `url` is the HLS playlist; consumed by /api/mobile/lead-content
+   * which merges this over platform defaults.
    */
   leadContent?: {
-    intro?: { url: string; path?: string; title?: string; updatedAt?: string };
-    faqs?: Array<{ id: string; title: string; url: string; path?: string; updatedAt?: string }>;
-    caseStudies?: Array<{ id: string; title: string; url: string; path?: string; updatedAt?: string }>;
+    intro?: { url: string; iframeUrl?: string; thumbnailUrl?: string; videoId?: string; title?: string; updatedAt?: string };
+    faqs?: Array<{ id: string; title: string; url: string; iframeUrl?: string; thumbnailUrl?: string; videoId?: string; updatedAt?: string }>;
+    caseStudies?: Array<{ id: string; title: string; url: string; iframeUrl?: string; thumbnailUrl?: string; videoId?: string; updatedAt?: string }>;
   };
   /**
    * Per-agent dial-script template shown as an overlay during a live

@@ -8,12 +8,12 @@ import {
   ScrollView,
   Image,
   Modal,
-  Linking,
   ActivityIndicator,
   AppState,
   type AppStateStatus,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import {
   getSession,
   clearSession,
@@ -341,48 +341,84 @@ export default function LeadHomeScreen() {
         )}
       </Modal>
 
-      {/* Video modal — Phase 1 placeholder. Once a real player is wired
-          (Chunk 3, expo-video), this swaps to inline playback. For now we
-          open the URL in the system browser as a robust default. */}
+      {/* Video modal — inline HLS playback via expo-video (Bunny.net Stream).
+          When the slot has a URL, render the player fullscreen with AVPlayer
+          (iOS) / ExoPlayer (Android) under the hood — both speak HLS natively
+          and give us picture-in-picture + fullscreen for free. When the agent
+          hasn't recorded the video yet (empty URL), fall back to a brief
+          "coming soon" card so the tap doesn't open a blank player. */}
       <Modal
         visible={Boolean(activeVideo)}
-        animationType="fade"
-        transparent
+        animationType="slide"
+        presentationStyle="fullScreen"
         onRequestClose={() => setActiveVideo(null)}
       >
-        <View style={styles.videoModalOverlay}>
-          <View style={styles.videoModalCard}>
-            <Text style={styles.videoModalTitle}>{activeVideo?.title}</Text>
-            {activeVideo?.url ? (
-              <>
-                <Text style={styles.videoModalBody}>
-                  Open this video in your browser?
-                </Text>
-                <TouchableOpacity
-                  style={styles.videoModalPlayBtn}
-                  onPress={() => {
-                    if (activeVideo?.url) Linking.openURL(activeVideo.url).catch(() => {});
-                    setActiveVideo(null);
-                  }}
-                >
-                  <Text style={styles.videoModalPlayBtnText}>Play</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
+        {activeVideo?.url ? (
+          <VideoPlayerScreen
+            url={activeVideo.url}
+            title={activeVideo.title}
+            onClose={() => setActiveVideo(null)}
+          />
+        ) : (
+          <SafeAreaView style={styles.videoComingSoonScreen}>
+            <View style={styles.videoModalCard}>
+              <Text style={styles.videoModalTitle}>{activeVideo?.title || 'Video'}</Text>
               <Text style={styles.videoModalBody}>
                 Your agent hasn&apos;t recorded this video yet. Check back soon.
               </Text>
-            )}
-            <TouchableOpacity
-              style={styles.videoModalCloseBtn}
-              onPress={() => setActiveVideo(null)}
-            >
-              <Text style={styles.videoModalCloseBtnText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+              <TouchableOpacity
+                style={styles.videoModalCloseBtn}
+                onPress={() => setActiveVideo(null)}
+              >
+                <Text style={styles.videoModalCloseBtnText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        )}
       </Modal>
     </View>
+  );
+}
+
+function VideoPlayerScreen({
+  url,
+  title,
+  onClose,
+}: {
+  url: string;
+  title: string;
+  onClose: () => void;
+}) {
+  // Initialize the player with the HLS URL; auto-play once it's ready.
+  // Keeping `loop = false` so the player stops at the end rather than
+  // restarting (lead is moving on to the next step, not rewatching).
+  const player = useVideoPlayer(url, (p) => {
+    p.loop = false;
+    p.play();
+  });
+
+  return (
+    <SafeAreaView style={styles.videoPlayerScreen}>
+      <View style={styles.videoPlayerHeader}>
+        <Text style={styles.videoPlayerTitle} numberOfLines={1}>
+          {title}
+        </Text>
+        <TouchableOpacity
+          onPress={onClose}
+          style={styles.videoPlayerCloseBtn}
+          hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+        >
+          <Text style={styles.videoPlayerCloseText}>Done</Text>
+        </TouchableOpacity>
+      </View>
+      <VideoView
+        style={styles.videoPlayer}
+        player={player}
+        allowsFullscreen
+        allowsPictureInPicture
+        contentFit="contain"
+      />
+    </SafeAreaView>
   );
 }
 
@@ -612,9 +648,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-  videoModalOverlay: {
+  videoPlayerScreen: {
     flex: 1,
-    backgroundColor: 'rgba(13, 77, 77, 0.85)',
+    backgroundColor: '#000000',
+  },
+  videoPlayerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#000000',
+  },
+  videoPlayerTitle: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+    marginRight: 12,
+  },
+  videoPlayerCloseBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  videoPlayerCloseText: {
+    color: '#3DD6C3',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  videoPlayer: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  videoComingSoonScreen: {
+    flex: 1,
+    backgroundColor: '#0D4D4D',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
@@ -637,17 +705,6 @@ const styles = StyleSheet.create({
     color: '#374151',
     marginBottom: 20,
     lineHeight: 22,
-  },
-  videoModalPlayBtn: {
-    backgroundColor: '#3DD6C3',
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  videoModalPlayBtnText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
   },
   videoModalCloseBtn: {
     marginTop: 12,

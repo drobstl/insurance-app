@@ -2,7 +2,7 @@
   "expo": {
     "name": "AgentForLife",
     "slug": "agentforlife",
-    "version": "1.6.4",
+    "version": "1.6.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "agentforlife",
@@ -129,7 +129,8 @@
           "color": "#3DD6C3"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true

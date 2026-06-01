@@ -48,6 +48,7 @@
     "resend": "^6.9.1",
     "server-only": "^0.0.1",
     "stripe": "^20.1.0",
+    "tus-js-client": "^4.3.1",
     "web-push": "^3.6.7",
     "xlsx": "^0.18.5"
   },
