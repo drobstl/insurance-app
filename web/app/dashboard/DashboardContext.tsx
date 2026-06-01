@@ -184,6 +184,22 @@ export interface AgentProfile {
    * drawer callout, profile-dropdown badge) to know whether to nudge.
    */
   phonePaired?: boolean;
+  /**
+   * FirstPromoter affiliate enrollment, populated when the agent
+   * clicks "Get my link" on /dashboard/refer-and-earn. Written by
+   * `/api/affiliate/create` after creating (or recovering) a promoter
+   * in FirstPromoter. The `refLink` is the tracking URL the agent
+   * shares; `refToken` is the bare affiliate username (e.g. for
+   * embedding in dedicated landing pages). Pay-out stats live in
+   * FirstPromoter — we don't mirror them here.
+   */
+  affiliate?: {
+    firstPromoterPromoterId?: number;
+    refLink?: string;
+    refToken?: string | null;
+    coupon?: string | null;
+    createdAt?: unknown;
+  };
 }
 
 interface DashboardContextValue {
@@ -311,6 +327,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             data.pushToken &&
             !data.pushPermissionRevokedAt,
           ),
+          affiliate: data.affiliate && typeof data.affiliate === 'object' ? data.affiliate : undefined,
         });
       } else {
         setAgentProfile({});

@@ -16,6 +16,8 @@ import {
   platformIsMobile,
   getSendButtonLabel,
 } from '../lib/sms-url';
+import SuppressionStatusChip from './SuppressionStatusChip';
+import SuppressionOverrideModal from './SuppressionOverrideModal';
 
 /**
  * Retention text action item card.
@@ -96,9 +98,32 @@ export default function RetentionTextActionItemCard({
   const [agentPlatform, setAgentPlatform] = useState<AgentPlatform>('unknown');
   const viewedRef = useRef(false);
 
+  // Suppression awareness — see WelcomeActionItemCard for full notes.
+  const [isSuppressed, setIsSuppressed] = useState(false);
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const overrideConfirmedRef = useRef(false);
+
   useEffect(() => {
     setAgentPlatform(detectAgentPlatform());
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!user || !phone) return;
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch(
+          `/api/compliance/suppression-status?phone=${encodeURIComponent(phone)}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!res.ok) return;
+        const j = (await res.json()) as { suppressed?: boolean };
+        if (!cancelled) setIsSuppressed(!!j.suppressed);
+      } catch { /* best-effort */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user, phone]);
 
   useEffect(() => {
     if (viewedRef.current) return;
@@ -164,12 +189,24 @@ export default function RetentionTextActionItemCard({
     ? buildSmsUrlForQr(phone, body)
     : null;
 
-  const handleSendViaSms = () => {
-    void completeWith('text_personally', null);
+  const handleSendViaSms = (e?: React.MouseEvent<HTMLAnchorElement>) => {
+    if (isSuppressed && !overrideConfirmedRef.current) {
+      e?.preventDefault();
+      setOverrideOpen(true);
+      return;
+    }
+    void completeWith(
+      'text_personally',
+      overrideConfirmedRef.current ? 'Manual send to opted-out number; override logged.' : null,
+    );
   };
 
   const handleCopyText = async () => {
     if (!body) return;
+    if (isSuppressed && !overrideConfirmedRef.current) {
+      setOverrideOpen(true);
+      return;
+    }
     setErrorMsg(null);
     try {
       if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
@@ -178,10 +215,20 @@ export default function RetentionTextActionItemCard({
         throw new Error('clipboard_unavailable');
       }
       setCopied(true);
-      void completeWith('text_personally', 'Sent via copy-paste fallback.');
+      void completeWith(
+        'text_personally',
+        overrideConfirmedRef.current
+          ? 'Sent via copy-paste fallback after opt-out override.'
+          : 'Sent via copy-paste fallback.',
+      );
     } catch {
       setErrorMsg('Could not copy automatically. Long-press the preview and copy manually.');
     }
+  };
+
+  const handleOverrideConfirmed = () => {
+    overrideConfirmedRef.current = true;
+    setOverrideOpen(false);
   };
 
   const showQrSection = !platformIsMobile(agentPlatform) && qrValue;
@@ -191,8 +238,14 @@ export default function RetentionTextActionItemCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-bold text-[#0D4D4D]">Text {subjectFirst}</p>
-          <p className="text-[12px] text-[#4f4f4f] mt-0.5">
-            {phone || 'No phone on file'} · retention · call unanswered
+          <p className="text-[12px] text-[#4f4f4f] mt-0.5 flex flex-wrap items-center gap-1.5">
+            <span>{phone || 'No phone on file'} · retention · call unanswered</span>
+            <SuppressionStatusChip
+              phoneE164={phone || null}
+              user={user}
+              initialSuppressed={isSuppressed}
+              size="sm"
+            />
           </p>
         </div>
         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${styles.pill}`}>
@@ -227,7 +280,7 @@ export default function RetentionTextActionItemCard({
         {platformSupportsInlineSend(agentPlatform) && smsHref ? (
           <a
             href={smsHref}
-            onClick={handleSendViaSms}
+            onClick={(e) => handleSendViaSms(e)}
             className="inline-flex items-center gap-1 rounded-lg bg-[#3DD6C3] px-3 py-1.5 text-xs font-bold text-[#0D4D4D] hover:bg-[#32c4b2] active:scale-[0.97] transition"
           >
             💬 {getSendButtonLabel(agentPlatform)}
@@ -262,6 +315,17 @@ export default function RetentionTextActionItemCard({
           </div>
         </details>
       ) : null}
+
+      <SuppressionOverrideModal
+        open={overrideOpen}
+        phoneE164={phone}
+        subjectName={item.displayContext.subjectName ?? undefined}
+        lane="retention"
+        context={{ surface: 'retention_text_action_item_card', itemId: item.itemId }}
+        user={user}
+        onCancel={() => setOverrideOpen(false)}
+        onConfirmed={handleOverrideConfirmed}
+      />
     </article>
   );
 }

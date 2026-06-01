@@ -5,8 +5,10 @@ import { normalizePhone } from './phone';
 import { assertNotBeforeFence } from './reactivation-fence';
 import { getAdminFirestore } from './firebase-admin';
 import { recordLinqOutbound } from './line-health';
+import { assertNotSuppressed, type ConsentLane } from './suppression';
 
 export { ReactivationFenceError } from './reactivation-fence';
+export { SuppressedRecipientError } from './suppression';
 
 const LINQ_BASE_URL = 'https://api.linqapp.com/api/partner/v3';
 const DEFAULT_MIN_SEND_INTERVAL_MS = 1000;
@@ -14,7 +16,7 @@ const URL_REGEX = /\bhttps?:\/\/[^\s]+/gi;
 const TRAILING_URL_PUNCTUATION_REGEX = /[).,!?:;]+$/;
 
 // ---------------------------------------------------------------------------
-// Outbound suppression — two layered gates
+// Outbound suppression — three layered gates
 // ---------------------------------------------------------------------------
 //
 // Layer 1 — `LINQ_OUTBOUND_DISABLED=true` halts every outbound call into
@@ -27,6 +29,14 @@ const TRAILING_URL_PUNCTUATION_REGEX = /[).,!?:;]+$/;
 // `ReactivationFenceError` BEFORE the kill-switch check so the more
 // specific fence message wins when both are set. Auto-expires when the
 // timestamp passes; no manual unset required.
+//
+// Layer 3 — per-recipient suppression (`suppression.ts`) blocks sends to
+// numbers that opted out via inbound STOP / natural-language opt-out or
+// were manually suppressed. Global per number across every agent + lane
+// (the shared-line operating model). Throws `SuppressedRecipientError`
+// AFTER the fence + kill-switch so the broader off-switches still win
+// when both apply. Group sends are blocked if any participant is
+// suppressed.
 //
 // Every existing caller wraps these calls in try/catch and treats failure as
 // "skip and move on" (cron logs error and returns null; webhook handler
@@ -293,6 +303,19 @@ export async function createChat(opts: {
   attachmentIds?: string[];
   idempotencyKey?: string;
   from?: string;
+  /** Lane label written to consent_events on a suppressed_skip. */
+  suppressionLane?: ConsentLane;
+  /** Agent attribution written to consent_events on a suppressed_skip. */
+  suppressionAgentId?: string | null;
+  /**
+   * Internal use only — bypass the suppression gate. Set by the
+   * compliance-intent handler when sending the opt-out confirmation
+   * reply to a number we JUST suppressed (the gate would otherwise
+   * block our own ack), and by the manual-send override endpoint
+   * AFTER it has captured the agent's typed reason in the ledger.
+   * Any other use is a bug.
+   */
+  bypassSuppression?: boolean;
 }): Promise<CreateChatResult> {
   assertNotBeforeFence('createChat');
   if (isLinqOutboundDisabled()) {
@@ -303,6 +326,13 @@ export async function createChat(opts: {
       hasMedia: Boolean(opts.mediaUrls?.length || opts.attachmentIds?.length),
     });
     throw new LinqOutboundDisabledError('createChat');
+  }
+  if (!opts.bypassSuppression) {
+    await assertNotSuppressed(opts.to, {
+      fn: 'createChat',
+      lane: opts.suppressionLane ?? 'system',
+      agentId: opts.suppressionAgentId ?? null,
+    });
   }
   const from = normalizePhone(opts.from || getLinqPhoneNumber());
   const toArray = (Array.isArray(opts.to) ? opts.to : [opts.to]).map(normalizePhone);
@@ -354,6 +384,11 @@ export async function createChat(opts: {
       idempotencyKey: opts.idempotencyKey
         ? `${opts.idempotencyKey}:followup`
         : undefined,
+      // The parent createChat already ran the suppression gate against
+      // the same `to`; skip the lookup-by-chatId fallback that would
+      // otherwise fire here (the chat was just created — no
+      // conversationThreads doc exists yet).
+      skipSuppression: true,
     });
     }
   }
@@ -375,13 +410,29 @@ export async function createChat(opts: {
 
 /**
  * Send a message to an existing chat.
+ *
+ * `to` SHOULD be passed when the caller knows the recipient phone(s) —
+ * it skips the chat→phone lookup that would otherwise run for the
+ * suppression gate. Pass an array for group sends. When omitted the
+ * gate falls back to `conversationThreads.participantPhonesE164` keyed
+ * on the chatId; if THAT lookup also returns nothing, the send is
+ * allowed through with a `[suppression:lookup-miss]` warning rather
+ * than failing closed (avoids breaking sends in chats that predate the
+ * thread registry). Suppression checks within `linq.ts`'s own
+ * `createChat` followup invocation are skipped (`skipSuppression`)
+ * because the parent already gated.
  */
 export async function sendMessage(opts: {
   chatId: string;
   text: string;
+  to?: string | string[];
   mediaUrls?: string[];
   attachmentIds?: string[];
   idempotencyKey?: string;
+  suppressionLane?: ConsentLane;
+  suppressionAgentId?: string | null;
+  /** Internal use only — set when the parent already ran the suppression gate. */
+  skipSuppression?: boolean;
 }): Promise<SendMessageResult> {
   assertNotBeforeFence('sendMessage');
   if (isLinqOutboundDisabled()) {
@@ -392,6 +443,24 @@ export async function sendMessage(opts: {
       hasMedia: Boolean(opts.mediaUrls?.length || opts.attachmentIds?.length),
     });
     throw new LinqOutboundDisabledError('sendMessage');
+  }
+  if (!opts.skipSuppression) {
+    const phones = opts.to
+      ? (Array.isArray(opts.to) ? opts.to : [opts.to])
+      : await resolveChatRecipientPhones(opts.chatId);
+    if (phones.length === 0) {
+      console.warn('[suppression:lookup-miss]', JSON.stringify({
+        fn: 'sendMessage',
+        chatId: opts.chatId,
+      }));
+    } else {
+      await assertNotSuppressed(phones, {
+        fn: 'sendMessage',
+        lane: opts.suppressionLane ?? 'system',
+        agentId: opts.suppressionAgentId ?? null,
+        chatId: opts.chatId,
+      });
+    }
   }
   const message: Record<string, unknown> = {
     parts: buildParts(opts.text, opts.mediaUrls, opts.attachmentIds),
@@ -433,6 +502,10 @@ export async function sendOrCreateChat(opts: {
   mediaUrls?: string[];
   attachmentIds?: string[];
   idempotencyKey?: string;
+  suppressionLane?: ConsentLane;
+  suppressionAgentId?: string | null;
+  /** Internal use only — see `createChat.bypassSuppression`. */
+  bypassSuppression?: boolean;
 }): Promise<{ chatId: string; messageId: string }> {
   assertNotBeforeFence('sendOrCreateChat');
   if (isLinqOutboundDisabled()) {
@@ -445,13 +518,27 @@ export async function sendOrCreateChat(opts: {
     });
     throw new LinqOutboundDisabledError('sendOrCreateChat');
   }
+  // Gate once here using the known `to`; the child call passes
+  // `skipSuppression` so the gate doesn't run twice (and so the
+  // chat→phone lookup fallback in sendMessage doesn't fire for chats
+  // that exist in Linq but predate the conversationThreads registry).
+  if (!opts.bypassSuppression) {
+    await assertNotSuppressed(opts.to, {
+      fn: 'sendOrCreateChat',
+      lane: opts.suppressionLane ?? 'system',
+      agentId: opts.suppressionAgentId ?? null,
+      chatId: opts.chatId ?? null,
+    });
+  }
   if (opts.chatId) {
     const result = await sendMessage({
       chatId: opts.chatId,
       text: opts.text,
+      to: opts.to,
       mediaUrls: opts.mediaUrls,
       attachmentIds: opts.attachmentIds,
       idempotencyKey: opts.idempotencyKey,
+      skipSuppression: true,
     });
     return { chatId: result.chatId, messageId: result.messageId };
   }
@@ -462,8 +549,54 @@ export async function sendOrCreateChat(opts: {
     mediaUrls: opts.mediaUrls,
     attachmentIds: opts.attachmentIds,
     idempotencyKey: opts.idempotencyKey,
+    suppressionLane: opts.suppressionLane,
+    suppressionAgentId: opts.suppressionAgentId,
+    bypassSuppression: opts.bypassSuppression,
   });
   return { chatId: result.chatId, messageId: result.messageId };
+}
+
+/**
+ * Resolve the recipient phone(s) for an existing Linq chat. Used by the
+ * suppression gate in `sendMessage` when the caller didn't pass `to`.
+ *
+ * Looks in two places, in order:
+ *   1. `agents/{agentId}/conversationThreads/*` where `providerThreadId
+ *      == chatId` — written by `upsertThreadFromOutbound` and similar
+ *      registry helpers. Authoritative when present.
+ *   2. The legacy `linqChats` mapping (currently absent; reserved for
+ *      a future per-chat cache if the thread registry doesn't cover a
+ *      send path).
+ *
+ * Returns an empty array on miss; the caller logs `[suppression:
+ * lookup-miss]` and allows the send through. This is a deliberate
+ * fail-open: blocking every legacy chat that's not in the registry
+ * would create a much larger broken-send surface than the leak it
+ * patches. Phase 2 of the compliance layer will tighten this once
+ * universal outbound originates through the registry.
+ */
+async function resolveChatRecipientPhones(chatId: string): Promise<string[]> {
+  if (!chatId) return [];
+  const db = getAdminFirestore();
+  try {
+    const snap = await db
+      .collectionGroup('conversationThreads')
+      .where('providerThreadId', '==', chatId)
+      .limit(1)
+      .get();
+    if (snap.empty) return [];
+    const data = snap.docs[0].data() as { participantPhonesE164?: unknown };
+    const raw = Array.isArray(data.participantPhonesE164) ? data.participantPhonesE164 : [];
+    return raw
+      .filter((v): v is string => typeof v === 'string' && v.length > 0)
+      .map(normalizePhone);
+  } catch (err) {
+    console.warn('[suppression:lookup-failed]', JSON.stringify({
+      chatId,
+      error: err instanceof Error ? err.message : String(err),
+    }));
+    return [];
+  }
 }
 
 // ---------------------------------------------------------------------------

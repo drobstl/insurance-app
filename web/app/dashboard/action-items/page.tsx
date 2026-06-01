@@ -17,6 +17,7 @@ import RetentionCallActionItemCard from '../../../components/RetentionCallAction
 import RetentionTextActionItemCard from '../../../components/RetentionTextActionItemCard';
 import AnniversaryReferralActionItemCard from '../../../components/AnniversaryReferralActionItemCard';
 import AppointmentOutcomeActionItemCard from '../../../components/AppointmentOutcomeActionItemCard';
+import ComplianceActionItemCard from '../../../components/ComplianceActionItemCard';
 import UpcomingAppointmentsCard from '../../../components/UpcomingAppointmentsCard';
 import type {
   ActionItemDoc,
@@ -44,7 +45,7 @@ import type {
 // both are most-active "things you do today" surfaces — Welcome for
 // new clients, Outcome for yesterday's meetings. Retention / anniversary
 // / referral come after because they're slower-moving.
-const LANE_ORDER: ActionItemLane[] = ['welcome', 'appointment_outcome', 'retention', 'anniversary', 'referral'];
+const LANE_ORDER: ActionItemLane[] = ['welcome', 'appointment_outcome', 'retention', 'anniversary', 'referral', 'compliance'];
 
 const LANE_LABEL: Record<ActionItemLane, string> = {
   welcome: 'Welcomes',
@@ -52,6 +53,7 @@ const LANE_LABEL: Record<ActionItemLane, string> = {
   retention: 'Retention',
   anniversary: 'Anniversary',
   referral: 'Referrals',
+  compliance: 'Opt-outs',
 };
 
 const LANE_SUBTITLE: Record<ActionItemLane, string> = {
@@ -60,6 +62,7 @@ const LANE_SUBTITLE: Record<ActionItemLane, string> = {
   retention: 'At-risk clients where automated touches went unanswered. Time to call or text personally.',
   anniversary: 'Anniversary check-ins where push delivery failed. Reach out personally.',
   referral: 'Warm referrals where the AI conversation went quiet. Your turn to follow up.',
+  compliance: 'Clients who opted out of texts. AFL has stopped automated outbound — your call whether to phone them.',
 };
 
 const LANE_EMPTY_TITLE: Record<ActionItemLane, string> = {
@@ -68,6 +71,7 @@ const LANE_EMPTY_TITLE: Record<ActionItemLane, string> = {
   retention: 'No retention items.',
   anniversary: 'No anniversary items.',
   referral: 'No referral items.',
+  compliance: 'No opt-out items.',
 };
 
 const LANE_EMPTY_BODY: Record<ActionItemLane, string> = {
@@ -76,6 +80,7 @@ const LANE_EMPTY_BODY: Record<ActionItemLane, string> = {
   retention: 'Items appear when a retention campaign reaches the call or text stage.',
   anniversary: 'Items appear when a push send fails for an anniversary check-in.',
   referral: 'Items appear 24h after a referral drip goes unanswered.',
+  compliance: 'Items appear when a client texts STOP (or a natural-language opt-out) on the shared line.',
 };
 
 function dayKey(iso: string): string {
@@ -101,7 +106,8 @@ function isLane(value: string | null): value is ActionItemLane {
     value === 'retention' ||
     value === 'anniversary' ||
     value === 'referral' ||
-    value === 'appointment_outcome'
+    value === 'appointment_outcome' ||
+    value === 'compliance'
   );
 }
 
@@ -132,6 +138,7 @@ function ActionItemsPageInner() {
     anniversary: [],
     referral: [],
     appointment_outcome: [],
+    compliance: [],
   });
   const [loaded, setLoaded] = useState<Record<ActionItemLane, boolean>>({
     welcome: false,
@@ -139,6 +146,7 @@ function ActionItemsPageInner() {
     anniversary: false,
     referral: false,
     appointment_outcome: false,
+    compliance: false,
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -213,6 +221,9 @@ function ActionItemsPageInner() {
       // shouldn't exist (writer guarantees the suffix), but render
       // something rather than nothing if it does.
       return <RetentionCallActionItemCard key={item.itemId} item={item} user={user} />;
+    }
+    if (item.lane === 'compliance') {
+      return <ComplianceActionItemCard key={item.itemId} item={item} user={user} />;
     }
     return <AnniversaryReferralActionItemCard key={item.itemId} item={item} user={user} />;
   };

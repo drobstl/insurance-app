@@ -25,6 +25,38 @@ import { isStripeBillableTier, PRICING_TIERS } from '../../lib/pricing';
  *   - Tier present + not authed → show the email/name form.
  */
 
+/**
+ * Resolves the FirstPromoter tracking id (tid) for the current visitor.
+ * Returns null if no tid is available (visitor arrived without an
+ * affiliate link, or fpr.js never loaded successfully).
+ *
+ * Order:
+ *   1. `window.FPROM.data.tid` — populated synchronously by fpr.js
+ *      once the queued `fpr("click")` from the root layout runs.
+ *   2. `_fprom_tid` cookie — written by fpr.js after the click
+ *      response. Canonical per FirstPromoter's own docs, and survives
+ *      navigation, bfcache restore, and intermittent CDN failures
+ *      when the global is missing.
+ */
+function resolveFpTid(): string | null {
+  if (typeof window === 'undefined') return null;
+  const fromGlobal = (
+    window as unknown as { FPROM?: { data?: { tid?: string } } }
+  ).FPROM?.data?.tid;
+  if (typeof fromGlobal === 'string' && fromGlobal.length > 0) {
+    return fromGlobal;
+  }
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/(?:^|;\s*)_fprom_tid=([^;]+)/);
+  if (!match) return null;
+  try {
+    const decoded = decodeURIComponent(match[1]);
+    return decoded.length > 0 ? decoded : null;
+  } catch {
+    return match[1].length > 0 ? match[1] : null;
+  }
+}
+
 export default function SignupPage() {
   return (
     <Suspense>
@@ -109,14 +141,28 @@ function SignupPageInner() {
     setLoading(true);
 
     try {
-      // FirstPromoter tracking ID — populated by the fpr.js snippet in
-      // the root layout once an affiliate link (?fpr=…) has been seen.
-      // Forwarded into Stripe Checkout metadata so FirstPromoter's
-      // Stripe listener can credit the affiliate on conversion.
-      const fpTid =
-        (typeof window !== 'undefined' &&
-          (window as unknown as { FPROM?: { data?: { tid?: string } } }).FPROM?.data?.tid) ||
-        null;
+      // FirstPromoter tracking ID — forwarded into Stripe Checkout
+      // metadata so FirstPromoter's Stripe listener can credit the
+      // affiliate on conversion.
+      //
+      // Two sources, in order:
+      //   1. `window.FPROM.data.tid` — set by fpr.js after the inline
+      //      `fpr("click")` runs. This is the "happy path" — when the
+      //      script loaded successfully on this page or a prior page
+      //      this session.
+      //   2. `_fprom_tid` cookie — written by fpr.js when the click
+      //      response returns. Per FirstPromoter's own docs, the
+      //      cookie IS the canonical source for the tid. We fall back
+      //      to it when the global is missing because the script can
+      //      be in an inconsistent state: e.g. fpr.js failed to load
+      //      from CDN on this page (ad blocker, network blip, racing
+      //      with bfcache restore after a Stripe Checkout back-nav).
+      //
+      // Verified May 31, 2026: the cookie and the global hold the
+      // SAME UUID when both are present, so the cookie is a safe
+      // recovery path. PR #58's metadata path on the server side
+      // accepts the tid identically from either source.
+      const fpTid = resolveFpTid();
 
       const res = await fetch('/api/signup/start-checkout', {
         method: 'POST',

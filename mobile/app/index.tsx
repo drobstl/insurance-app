@@ -172,6 +172,7 @@ export function navigateToProfile(
     agencyName: (agentData.agencyName as string) || '',
     agencyLogoBase64: (agentData.agencyLogoBase64 as string) || '',
     clientId,
+    clientCode,
     clientName: (clientData.name as string) || 'Client',
     referralMessage: (agentData.referralMessage as string) || '',
     businessCardBase64: (agentData.businessCardBase64 as string) || '',
