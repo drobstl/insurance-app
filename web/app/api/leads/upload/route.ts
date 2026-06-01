@@ -209,7 +209,10 @@ export async function POST(req: NextRequest) {
       const results = await Promise.allSettled(
         chunkBuffers.map(async (buf) => {
           if (buf.byteLength === 0) throw new Error('split failed');
-          return extractLeadFromPdf(buf.toString('base64'));
+          // No second-pass escalation in bulk: a 10-page bundle running
+          // Opus on every Mail-In page would blow the 90s budget. The
+          // single-page close-of-sale path keeps escalation on.
+          return extractLeadFromPdf(buf.toString('base64'), { escalate: false });
         }),
       );
       for (let i = 0; i < results.length; i++) {

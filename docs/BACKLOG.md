@@ -24,22 +24,25 @@
 
 ---
 
-## 🚀 Entry-mechanism cutover — the May 30 strategy shift
+## 🚀 Entry-mechanism cutover — the May 30 strategy shift *(amended Jun 1: 14-day trial, not 30)*
 
-The biggest net-new work area. Per `docs/AFL_Growth_Distribution_Lock_2026-05-30.md`: new agents sign up with **no card**, get **30 days of full Pro**, then default to a **permanent Free tier** unless they pick a paid plan. This replaces the card-at-signup flow (PR #38) as the front door. Multi-week build broken into stages — DO NOT touch `/pricing` or marketing CTAs until the cutover ships as one coordinated change.
+> **⚠️ Jun 1, 2026 amendment** to `docs/AFL_Growth_Distribution_Lock_2026-05-30.md`:
+> Trial duration is now **14 days, not 30**. Plan-choice moment moves to **day 12**, and the soft email is replaced with a **strong full-screen in-dashboard forcing function** (non-dismissable until the agent picks Growth / Pro / Stay Free). Personalized with the agent's actual trial usage numbers. **Heads-up to the spawned Phase 1 session:** update your `trialEndsAt = now + 14 days` (was 30). No other Phase 1 changes — same architecture, same tier-gating, same data shape. No-card-at-signup decision unchanged.
+
+The biggest net-new work area. Per the amended `docs/AFL_Growth_Distribution_Lock_2026-05-30.md`: new agents sign up with **no card**, get **14 days of full Pro**, then default to a **permanent Free tier** unless they pick a paid plan. This replaces the card-at-signup flow (PR #38) as the front door. Multi-week build broken into stages — DO NOT touch `/pricing` or marketing CTAs until the cutover ships as one coordinated change.
 
 | Item | Effort | Notes |
 |---|---|---|
-| 🟡 **No-card signup flow** (email + name + phone, no payment) | 2–3 days | New `/signup` surface that creates the Firebase user + Stripe customer (no subscription) + `agents/{uid}` doc with `tier: 'trial'`, `trialStartedAt`, `trialEndsAt` (30 days out). |
-| 🟡 **30-day Pro feature unlock** during trial window | 1–2 days | Tier-gating helpers check `tier === 'trial' && trialEndsAt > now` → grant Pro-equivalent access. Existing `canAccessLeads` / `canAccessActivity` etc. get a trial branch. |
-| 🟡 **Day-25 plan-choice email** | ~half day | Cron at day-25 of trial → email: *"Pick your plan in 5 days — Pro $99, Growth $49, or stay Free with limits"* with explicit picker links. Stripe Checkout starts from those links. |
-| 🟡 **Day-30 default-to-Free auto-transition** | ~half day | Cron at day-30 → if agent hasn't selected a paid plan, set `tier: 'free'`, `subscriptionStatus: 'free'`. No charge, no interruption, just feature gating tightens. |
+| 🟢 **No-card signup flow** (email + name + phone, no payment) | 2–3 days | **In flight — session spawned Jun 1 on branch `entry-mechanism-phase-1`, worktree at `insurance-app-entry-mechanism-phase-1/`. Phase 1 scope.** New `/signup` surface that creates the Firebase user + Stripe customer (no subscription) + `agents/{uid}` doc with `tier: 'trial'`, `trialStartedAt`, `trialEndsAt` (**14 days out — amended Jun 1**, was 30). |
+| 🟢 **14-day Pro feature unlock** during trial window | 1–2 days | **In flight — same session (Phase 1 scope).** Tier-gating helpers check `tier === 'trial' && trialEndsAt > now` → grant Pro-equivalent access. Existing `canAccessLeads` / `canAccessActivity` etc. get a trial branch. |
+| 🟡 **Day-12 strong in-dashboard "pick your plan" forcing function** *(new, replaces the soft day-25 email)* | 1–2 days | Full-screen, non-dismissable surface that renders on every dashboard route from day 12 onward. Personalized with the agent's actual trial usage: *"You added N clients, tracked $X APV, watched Y clients activate the app. On Free you'll keep 25 of those clients and lose the Activity dashboard."* Three buttons: Growth $49 / Pro $99 / Stay Free. Each picks a plan and dismisses the surface (Stripe Checkout starts for paid picks; "Stay Free" sets `tier: 'free'` immediately). Same surface keeps appearing every login through day 14 if they keep dismissing → but it cannot be dismissed without picking. **This is the load-bearing conversion mechanism — invest hard here.** |
+| 🟡 **Day-14 default-to-Free auto-transition** | ~half day | Cron at day-14 → if agent hasn't selected a paid plan, set `tier: 'free'`, `subscriptionStatus: 'free'`. No charge, no interruption, just feature gating tightens. Lower priority than the day-12 surface since most conversions should happen via that. |
 | 🟡 **Free tier feature gating + caps** | 1–2 days | 25-contact hard cap on `clients` collection writes, 5-PDF/month cap on the upload pipeline, cadences ENABLED on those 25 (touch the conservation/anniversary/holiday cron eligibility), Activity Policy Ledger / bulk-import / pre-sale features hidden. Upgrade prompts explain which tier resolves each cap. |
 | 🟡 **Starter $29 → Growth feature migration** | ~half day | Existing 11 Starter customers: keep $29/mo price (grandfather), unlock Growth feature set in code (tier-gating helpers treat `tier === 'starter'` as Growth-equivalent). One-time announcement email. |
 | 🟡 **Performance feature metering on Growth** | 1 day | Growth gets 4 Performance scores/month (Free: 0, Pro+: unlimited). New per-month counter on `agents/{uid}.performance.usedThisMonth`. Resets on billing-cycle anchor. UI shows remaining count. |
 | 🟡 **Pricing-page cutover** (4 tiers including Free, signup-first CTAs, remove Coming Soon pills) | ~half day | Tear out the `comingSoon: true` flags. Pricing page becomes informational comparison (not transactional). Marketing CTAs point at the new `/signup` surface. Ships as one coordinated change when the no-card flow is built and tested. |
 | 🟡 **IMO leader free-seat mechanic** | 1 day | When an IMO leader's referred-agent count crosses 10, auto-grant them a free Growth-equivalent seat. Tracked via `agents/{leaderUid}.imoLeader.activeDownlineCount`. |
-| 🟡 **Decide:** PR #38 (pre-pay signup) — keep as the explicit-paid-pick path, or rewrite? | Decision-only | Talk through how the no-card entry coexists with PR #38's card-at-signup flow. Probably: PR #38 stays as the path when an agent explicitly picks paid mid-trial or at day-30; the no-card flow is the default front door. |
+| 🟡 **Decide:** PR #38 (pre-pay signup) — keep as the explicit-paid-pick path, or rewrite? | Decision-only | Talk through how the no-card entry coexists with PR #38's card-at-signup flow. Probably: PR #38 stays as the path when an agent explicitly picks paid mid-trial or at day-14; the no-card flow is the default front door. |
 
 ---
 
@@ -54,7 +57,6 @@ Per the May 30 lock: ~50K-agent network, Rob actively driving signups, highest-l
 | 🟡 One-page pitch script for the next national call | 1–2 hr | Daniel + Claude | Marketing copy. Daniel drafts the pitch, Claude polishes. |
 | 🟡 30/60/90-day FFL signup targets | 30 min | Daniel + Claude | Decision-only — sets the joint review cadence. |
 | 🟡 Onboard 5–10 additional high-reach affiliates | Ongoing | Daniel | Each gets their own FirstPromoter link + a simple promo kit (copy, screenshots, calculator angle). |
-| 🟢 Refer & Earn dashboard nav + page cosmetic polish | ~1 hr | Parallel session | **In flight — May 31.** Cosmetic follow-up on top of the shipped Refer & Earn page (PR #72). |
 
 ---
 
@@ -67,6 +69,7 @@ Per the May 30 lock: ~50K-agent network, Rob actively driving signups, highest-l
 | 🟡 Founding 34 → Pro $50 Stripe Coupon (`FOUNDING34_PRO`) | 5 min | Daniel (Stripe Dashboard) | $50/mo recurring forever. Required if founding mechanic stays after May 30 strategy. |
 | 🟡 Verify failing e2e specs are actually fixed | 15 min | Claude | Old memory said 3 specs broken; recent CI green. Reconcile. |
 | 🟡 Deep-link in activation reply that opens the AFL app back up | 30–60 min once activate-reply bug is fixed | Claude | Universal Links + App Links recommended. Bundle with the activate-reply fix (PR #69). |
+| 🟡 Refer & Earn nav + CTA subtle "breathing" animations | ~1 hr | Claude | **Daniel-locked direction Jun 1: calm/breathing, always idle-animate.** Two surfaces, shared 3–4s rhythm so they feel coherent. **Nav button (sidebar):** soft pulse on the existing gold accent — opacity 0.6 ↔ 1.0 over 3–4 seconds — plus hover intensify (gold expands/brightens). Lives in `web/app/dashboard/layout.tsx`. **CTA button ("Get my referral link" on the Refer & Earn page):** gentle teal `box-shadow` halo pulse (4–8px, 2–3s cycle), plus hover lift (`translateY(-2px)` + glow intensify), plus click tactile feedback (0.97 scale snap on mouse-down, snap back on release). Lives in `web/app/dashboard/refer-and-earn/page.tsx`. **Composition story:** the shared rhythm connects sidebar to page so the whole referral surface feels alive but calm. No shimmer sweeps, no notification dots, no arrow nudges — those were considered and rejected as too salesy / wrong job-to-be-done framing. Tailwind config gets two new `@keyframes` (one for opacity-pulse, one for shadow-halo); reuse a `motion-safe:` modifier so users with `prefers-reduced-motion` get static states. |
 
 ---
 
@@ -85,8 +88,6 @@ Pro is no longer "Coming Soon" — every new agent gets it for 30 days under the
 
 | Item | Effort | Notes |
 |---|---|---|
-| 🟢 BunnyStream video integration for mobile lead-home (intro + FAQs + case studies) | Multi-day | **In flight — parallel session May 31.** Replaces / supplements `agentProfile.leadContent` with BunnyStream as the video CDN. Mobile lead-home rendering + upload + manifest endpoints. |
-| 🟡 **MIA lead extraction (handwritten Mail-In OCR)** ⬆️ *bumped per Daniel May 26* | 1–2 days | Claude vision for handwritten Mail-In Application PDFs → structured fields. Rob's call action item #2. |
 | 🟡 **Performance page MVP (call scoring + AI coaching)** | 3–5 days | Paste call transcript → Claude scores against ideal script → coaching feedback. **Gating per May 30 lock: Growth gets 4 scores/month, Pro unlimited.** |
 | 🟡 **SME / FIF tracking** | 2–3 days | Appointment + APV-split tagging for mortgage-protection → IUL specialist referrals. CONTEXT backlog. |
 | 🟡 Virtual-number dialing from the lead queue (investigation) | TBD scoping | Today's `tel:` URL only dials from primary cell; Funnel supports virtual numbers. See PR #61 for the full scoping notes. |
@@ -132,6 +133,8 @@ Strategic items captured so they don't get lost — pull into a tier section abo
 | 🟡 Reach out to Jeff (Intelra) | Rob's call action item #11 — non-engineering |
 | 🟡 Configurable production-month boundary for Activity APV lifecycle | Pro-tier follow-on. Symmetry runs 28th → 28th, not calendar month. Agent-level `productionMonthStartDay` setting + IMO presets. Triggered when an agent complains their numbers don't match their commission statement. |
 | 🟡 Mobile client onboarding redesign: split Activate screen + add notification pre-prompt | Multi-day mobile EAS. X-app pattern with pulsating-blue-ring Allow → separate Activate screen with compliance verbatim consent copy. Bundles with Compliance Part 1 ship (both touch the Activate screen). |
+| 🟡 Ken Fearer integration: link + possibly his animated video in the AFL app | Non-engineering decision + small ship. Daniel Jun 1 captured this as a future to-do. Add a link to `https://ken-fearer.debtactionplan.com/` somewhere in the AFL app, possibly embed the animated video. Decide placement (client app? agent dashboard? marketing site?) before scoping. |
+| 🟡 Ken Fearer integration: link + possibly his animated video in the AFL app | Non-engineering decision + small ship. Daniel Jun 1 captured this as a future to-do. Add a link to `https://ken-fearer.debtactionplan.com/` somewhere in the AFL app, possibly embed the animated video. Decide placement (client app? agent dashboard? marketing site?) before scoping. |
 
 ---
 
@@ -141,6 +144,13 @@ When a backlog item ships, move it here with its PR # and date. Older items get 
 
 | Item | PR | Shipped |
 |---|---|---|
+| MIA (Mail-In Application) handwritten lead extraction — escalate to Opus on shaky first pass | #82 | Jun 1 |
+| Mobile v1.6.6 release (iOS build 44, Android versionCode 32) — includes Bunny.net Stream + Activate verbatim consent copy + Activate-reply fix | #81 | Jun 1 |
+| Bunny.net Stream + native HLS for lead-home videos (+ 1 GB upload cap) | #79, #80 | May 31 – Jun 1 |
+| Refer & Earn polish: gold nav accent + enrolled-state success card | #77 | Jun 1 |
+| CONTEXT: flag affiliate program live end-to-end | #78 | Jun 1 |
+| Favicon: replace default Next favicon with AFL brand icon | #83 | Jun 1 |
+| Agent send flow: phone pairing + one-tap iMessage booking confirmation | #66 | May 31 |
 | AFL compliance layer Part 1: opt-out suppression + STOP/HELP/START + consent ledger + Activate verbatim consent copy | #70 | May 31 |
 | Activate-reply fix: decouple vCard MMS, add diagnostic logs | #69 | May 31 |
 | FirstPromoter affiliate plumbing + Refer & Earn dashboard page | #58, #71, #72 | May 28–31 |

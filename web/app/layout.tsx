@@ -17,13 +17,8 @@ export const metadata: Metadata = {
   authors: [{ name: "AgentForLife" }],
   creator: "AgentForLife",
   publisher: "AgentForLife",
-  icons: {
-    icon: [
-      { url: "/logo.png", type: "image/png" },
-    ],
-    shortcut: "/logo.png",
-    apple: "/logo.png",
-  },
+  // Icons are generated from app/favicon.ico + app/apple-icon.png via
+  // Next's file conventions; no manual icons map needed.
   // Phase 1 Track B — PWA manifest. The agent dashboard is installable
   // on iOS 16.4+, Android, and desktop Chrome/Edge so the
   // "Send from my phone" welcome flow has a fast home-screen launcher

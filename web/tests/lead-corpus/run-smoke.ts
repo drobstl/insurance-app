@@ -3,16 +3,35 @@
  * Verifies the fingerprint classifies correctly and that key fields
  * (name, phone) come back populated for each.
  *
- * Run: `cd web && node --import tsx ./tests/lead-corpus/run-smoke.ts`
+ * Run: `cd web && npm run smoke:leads`
  *
- * Expects ANTHROPIC_API_KEY in the environment (the dev server's
- * `.env.local` works — `dotenv -e .env.local -- node ...`).
+ * Reads ANTHROPIC_API_KEY from web/.env.local (loaded below). The
+ * `--require ./scripts/server-only-shim.cjs` in the npm script stubs the
+ * `server-only` import so lib/* can run outside Next.
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { parseEnv } from 'node:util';
 import { extractLeadFromPdf } from '../../lib/lead-form-extractor';
 import { deriveLeadCode } from '../../lib/lead-code-derive';
+
+// Load env the way Next.js does (.env.local then .env), but fill in any
+// var that's missing OR empty in the current environment. The empty
+// case matters: some shells (e.g. Claude Code's) export ANTHROPIC_API_KEY
+// as an empty string, and neither `--env-file` nor `process.loadEnvFile`
+// will replace an already-set var — even an empty one — so the real key
+// in .env.local would be shadowed. The extractor reads the key lazily at
+// call time, so loading here (before main runs) makes the script
+// self-sufficient regardless of how it's launched.
+for (const envFile of ['.env.local', '.env']) {
+  const envPath = join(__dirname, '..', '..', envFile);
+  if (!existsSync(envPath)) continue;
+  const parsed = parseEnv(readFileSync(envPath, 'utf8'));
+  for (const [k, v] of Object.entries(parsed)) {
+    if (!process.env[k]) process.env[k] = v as string;
+  }
+}
 
 interface FixtureCase {
   filename: string;
