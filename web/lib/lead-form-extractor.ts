@@ -232,6 +232,18 @@ NEVER fabricate values. If a field is not visible or you can't read it, return n
 const MAX_TOKENS = 2048;
 const MAX_RETRIES = 3;
 
+// Two-pass model strategy. The primary pass uses the fast model; we
+// re-run with the stronger model only on hard inputs (see
+// needsEscalation). Handwritten Mail-In forms are where the fast model
+// misreads legible digits (DOB / area code); the stronger model fixes
+// those. Typed Call-In/Digital forms score 97-99% on the primary model
+// and never escalate, so the cost/latency hit is paid only when it buys
+// accuracy.
+const PRIMARY_MODEL = 'claude-sonnet-4-6';
+const ESCALATION_MODEL = 'claude-opus-4-7';
+const ESCALATION_CONFIDENCE_THRESHOLD = 0.85;
+const CRITICAL_FIELD_FLAG = /name|phone|dob|date_of_birth|birth/i;
+
 let cachedClient: Anthropic | null = null;
 function getAnthropic(): Anthropic {
   if (cachedClient) return cachedClient;
@@ -242,21 +254,20 @@ function getAnthropic(): Anthropic {
 }
 
 /**
- * Extract structured lead fields from a base64-encoded PDF.
- *
- * Throws on unrecoverable failure. Caller should catch and surface a
- * user-friendly error to the agent's upload UI; ideally also store the
- * raw PDF so the agent can fall back to manual entry if the extractor
- * misclassifies the template.
+ * Run one extraction pass against `model`, with exponential-backoff
+ * retry on transient errors. Returns normalized fields or throws.
  */
-export async function extractLeadFromPdf(pdfBase64: string): Promise<ExtractedLeadFields> {
-  const anthropic = getAnthropic();
+async function runExtractionPass(
+  anthropic: Anthropic,
+  pdfBase64: string,
+  model: string,
+): Promise<ExtractedLeadFields> {
   let lastError: unknown;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
       const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
+        model,
         max_tokens: MAX_TOKENS,
         system: SYSTEM_PROMPT,
         output_config: {
@@ -303,7 +314,7 @@ export async function extractLeadFromPdf(pdfBase64: string): Promise<ExtractedLe
       return normalize(parsed);
     } catch (err) {
       lastError = err;
-      console.error(`[lead-form-extractor] Attempt ${attempt + 1}/${MAX_RETRIES} failed:`, err);
+      console.error(`[lead-form-extractor] ${model} attempt ${attempt + 1}/${MAX_RETRIES} failed:`, err);
       if (!isRetryableExtractionError(err) || attempt === MAX_RETRIES - 1) break;
       const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
       await new Promise((r) => setTimeout(r, delay));
@@ -313,6 +324,54 @@ export async function extractLeadFromPdf(pdfBase64: string): Promise<ExtractedLe
   throw lastError instanceof Error
     ? lastError
     : new Error('Lead extraction failed after retries.');
+}
+
+/**
+ * Whether a primary-pass result is shaky enough to warrant a second
+ * pass with the stronger model. Handwritten Mail-In (and unrecognized)
+ * templates always escalate — that's where the fast model misreads
+ * legible digits. Typed forms only escalate when the primary pass is
+ * low-confidence, dropped a critical field, or flagged one as uncertain.
+ */
+function needsEscalation(r: ExtractedLeadFields): boolean {
+  if (r.formType === 'Mail-In' || r.formType === 'Unknown') return true;
+  if (r.extractionConfidence < ESCALATION_CONFIDENCE_THRESHOLD) return true;
+  if (!r.name || !r.phone) return true;
+  return r.extractionFlags.some((f) => CRITICAL_FIELD_FLAG.test(f));
+}
+
+/**
+ * Extract structured lead fields from a base64-encoded PDF.
+ *
+ * Runs a fast primary pass; on hard inputs (see `needsEscalation`) it
+ * re-runs with the stronger model and trusts that result. Pass
+ * `{ escalate: false }` to skip the second pass — the multi-page bulk
+ * path does this to stay inside its serverless time budget.
+ *
+ * Throws on unrecoverable failure. Caller should catch and surface a
+ * user-friendly error to the agent's upload UI; ideally also store the
+ * raw PDF so the agent can fall back to manual entry if the extractor
+ * misclassifies the template.
+ */
+export async function extractLeadFromPdf(
+  pdfBase64: string,
+  opts: { escalate?: boolean } = {},
+): Promise<ExtractedLeadFields> {
+  const anthropic = getAnthropic();
+  const primary = await runExtractionPass(anthropic, pdfBase64, PRIMARY_MODEL);
+
+  if (opts.escalate === false || !needsEscalation(primary)) {
+    return primary;
+  }
+
+  try {
+    return await runExtractionPass(anthropic, pdfBase64, ESCALATION_MODEL);
+  } catch (escalationErr) {
+    // Stronger-model pass failed (transient/API). The primary result is
+    // still usable, so return it rather than failing the whole upload.
+    console.error('[lead-form-extractor] escalation pass failed; using primary result:', escalationErr);
+    return primary;
+  }
 }
 
 /**
