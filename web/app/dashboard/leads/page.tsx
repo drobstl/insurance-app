@@ -23,6 +23,7 @@ import {
   getAppointmentOutcomeChip,
   isAppointmentOutcomeChipStatus,
 } from '../../../lib/appointment-outcome-chip';
+import { parseLeadFile } from '../../../lib/lead-csv-parse';
 
 interface Lead {
   id: string;
@@ -170,6 +171,10 @@ function LeadsPageInner() {
   // Shown as a separate banner so the single-lead derived-code messaging
   // stays clean.
   const [bulkUpload, setBulkUpload] = useState<{
+    // 'pdf' → each unit is a PDF page; 'csv' → each unit is a spreadsheet
+    // row. Drives page/row wording in the summary banner. Defaults to
+    // 'pdf' when absent so the existing PDF flows render unchanged.
+    source?: 'pdf' | 'csv';
     pageCount: number;
     leads: Array<{ leadId: string; leadCode: string; name: string; codeKind: 'derived' | 'fallback'; page: number }>;
     duplicates: Array<{ page: number; phone: string; name: string; existingLeadId: string; existingLeadCode: string; existingLeadName?: string }>;
@@ -435,6 +440,80 @@ function LeadsPageInner() {
       setUploading(false);
     }
   }, [user]);
+
+  // ── CSV / Excel lead-list import ──
+  // Parses the file in the browser (lib/lead-csv-parse), then POSTs rows
+  // to /api/leads/import-batch in chunks of 50, merging the per-chunk
+  // results into the shared bulk-upload banner. Row numbers are offset
+  // back to the file-global row for display.
+  const handleCsvImport = useCallback(async (file: File) => {
+    if (!user) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const parsed = await parseLeadFile(file);
+      if (parsed.error) {
+        setUploadError(parsed.error);
+        return;
+      }
+      if (parsed.rows.length === 0) {
+        setUploadError('No leads found — every row was missing a name. Make sure the file has a Name (or First/Last Name) column.');
+        return;
+      }
+
+      const token = await user.getIdToken();
+      const CHUNK = 50;
+      const leads: Array<{ leadId: string; leadCode: string; name: string; codeKind: 'derived' | 'fallback'; page: number }> = [];
+      const duplicates: Array<{ page: number; phone: string; name: string; existingLeadId: string; existingLeadCode: string; existingLeadName?: string }> = [];
+      const failed: Array<{ page: number; reason: string }> = [];
+
+      for (let start = 0; start < parsed.rows.length; start += CHUNK) {
+        const chunk = parsed.rows.slice(start, start + CHUNK);
+        const res = await fetch('/api/leads/import-batch', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ rows: chunk }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setUploadError(data?.error || `Import failed (${res.status})`);
+          return;
+        }
+        for (const c of (data.created || [])) {
+          leads.push({ leadId: c.leadId, leadCode: c.leadCode, name: c.name, codeKind: c.codeKind || 'fallback', page: start + c.row });
+        }
+        for (const d of (data.duplicates || [])) {
+          duplicates.push({ page: start + d.row, phone: d.phone || '', name: d.name || '', existingLeadId: d.existingLeadId, existingLeadCode: d.existingLeadCode, existingLeadName: d.existingLeadName });
+        }
+        for (const f of (data.failed || [])) {
+          failed.push({ page: start + f.row, reason: f.reason || 'could not import' });
+        }
+      }
+
+      setBulkUpload({ source: 'csv', pageCount: parsed.rows.length, leads, duplicates, failed });
+      setJustCreated(null);
+    } catch (err) {
+      console.error('csv import error:', err);
+      setUploadError('Network error — please try again');
+    } finally {
+      setUploading(false);
+    }
+  }, [user]);
+
+  // Dispatch a dropped/selected file to the PDF extractor or the CSV/Excel
+  // importer based on type.
+  const handleLeadFileSelect = useCallback((file: File) => {
+    const name = file.name.toLowerCase();
+    const isPdf = file.type === 'application/pdf' || name.endsWith('.pdf');
+    if (isPdf) {
+      void handleUpload(file);
+    } else {
+      void handleCsvImport(file);
+    }
+  }, [handleUpload, handleCsvImport]);
 
   const copyToClipboard = useCallback(async (code: string) => {
     try {
@@ -917,13 +996,13 @@ function LeadsPageInner() {
               <label className={`px-4 py-2.5 bg-white text-[#0D4D4D] font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors hover:bg-[#f8f8f8] flex items-center gap-2 text-sm cursor-pointer ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
                 <input
                   type="file"
-                  accept="application/pdf,.pdf"
+                  accept="application/pdf,.pdf,.csv,.tsv,.xlsx,.xls,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                   className="hidden"
                   disabled={uploading}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                      void handleUpload(file);
+                      handleLeadFileSelect(file);
                       e.target.value = '';
                     }
                   }}
@@ -931,7 +1010,7 @@ function LeadsPageInner() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
-                {uploading ? 'Reading…' : 'Upload Lead Form'}
+                {uploading ? 'Reading…' : 'Upload Leads'}
               </label>
             </div>
           </div>
@@ -1008,7 +1087,7 @@ function LeadsPageInner() {
               e.preventDefault();
               setDragActive(false);
               const file = e.dataTransfer.files?.[0];
-              if (file) void handleUpload(file);
+              if (file) handleLeadFileSelect(file);
             }}
             className={`mb-4 rounded-[5px] border-2 border-dashed px-5 py-4 transition-all ${
               dragActive
@@ -1022,10 +1101,12 @@ function LeadsPageInner() {
               </svg>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-[#005851]">
-                  {uploading ? 'Reading the form…' : 'Drop a Mail-In, Call-In, or Digital lead form PDF here'}
+                  {uploading ? 'Reading…' : 'Drop a lead form PDF, or a CSV / Excel lead list here'}
                 </p>
                 <p className="text-xs text-[#005851]/70 mt-0.5">
-                  Name, phone, address, mortgage details, and more get pulled out automatically.
+                  PDFs get read automatically. For a spreadsheet, each row becomes one
+                  lead — we pull name, phone, email, date of birth, and address; other
+                  columns are ignored.
                 </p>
               </div>
             </div>
@@ -1096,7 +1177,8 @@ function LeadsPageInner() {
             </div>
           )}
 
-          {/* Bulk-upload summary — N leads created from a multi-page PDF. */}
+          {/* Bulk-upload summary — N leads created from a multi-page PDF
+              or a CSV/Excel list. `source` drives page-vs-row wording. */}
           {bulkUpload && (
             <div className="mb-6 bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5">
               <div className="flex items-start justify-between gap-4 mb-3">
@@ -1106,19 +1188,24 @@ function LeadsPageInner() {
                       {bulkUpload.leads.length} {bulkUpload.leads.length === 1 ? 'lead' : 'leads'} created
                     </span>
                     <span className="text-[10px] text-[#707070] font-normal">
-                      · {bulkUpload.pageCount} {bulkUpload.pageCount === 1 ? 'page' : 'pages'}
+                      · {bulkUpload.pageCount}{' '}
+                      {bulkUpload.source === 'csv'
+                        ? (bulkUpload.pageCount === 1 ? 'row' : 'rows')
+                        : (bulkUpload.pageCount === 1 ? 'page' : 'pages')}
                       {bulkUpload.duplicates.length > 0 && (
                         <> · {bulkUpload.duplicates.length} already imported</>
                       )}
                       {bulkUpload.failed.length > 0 && (
-                        <> · {bulkUpload.failed.length} couldn&apos;t be read</>
+                        <> · {bulkUpload.failed.length} couldn&apos;t be {bulkUpload.source === 'csv' ? 'imported' : 'read'}</>
                       )}
                     </span>
                   </div>
                   <p className="text-sm text-[#444] leading-relaxed">
                     {bulkUpload.leads.length === 0 && bulkUpload.duplicates.length > 0 && bulkUpload.failed.length === 0
                       ? 'No new leads created — the phone(s) already exist for you. Open below to pick up where you left off.'
-                      : 'Each page in the PDF was treated as one lead form. Open any to verify the extracted info.'}
+                      : bulkUpload.source === 'csv'
+                        ? 'Each row in the file became one lead. Open any to verify the imported info.'
+                        : 'Each page in the PDF was treated as one lead form. Open any to verify the extracted info.'}
                   </p>
                 </div>
                 <button
@@ -1136,7 +1223,7 @@ function LeadsPageInner() {
                   {bulkUpload.leads.map((l) => (
                     <li key={l.leadId} className="flex items-center justify-between gap-3 text-sm">
                       <span className="text-[#374151]">
-                        <span className="text-[10px] text-[#9CA3AF] mr-2">p{l.page}</span>
+                        <span className="text-[10px] text-[#9CA3AF] mr-2">{bulkUpload.source === 'csv' ? 'r' : 'p'}{l.page}</span>
                         <strong className="text-[#000000]">{l.name}</strong>
                         <span className="ml-2 font-mono text-xs text-[#005851]">{l.leadCode}</span>
                         {l.codeKind === 'fallback' && (
@@ -1162,7 +1249,7 @@ function LeadsPageInner() {
                     {bulkUpload.duplicates.map((d) => (
                       <li key={`${d.page}-${d.existingLeadId}`} className="flex items-center justify-between gap-3 text-sm">
                         <span className="text-[#92400E]">
-                          <span className="text-[10px] text-[#92400E]/60 mr-2">p{d.page}</span>
+                          <span className="text-[10px] text-[#92400E]/60 mr-2">{bulkUpload.source === 'csv' ? 'r' : 'p'}{d.page}</span>
                           <strong className="text-[#92400E]">{d.name || '(no name)'}</strong>
                           <span className="ml-2 text-[11px] text-[#92400E]/80">→ {d.existingLeadName || 'existing lead'}</span>
                           <span className="ml-2 font-mono text-xs text-[#92400E]">{d.existingLeadCode}</span>
@@ -1182,11 +1269,13 @@ function LeadsPageInner() {
               {bulkUpload.failed.length > 0 && (
                 <div className="rounded-[5px] bg-amber-50 border border-amber-300/60 px-3 py-2">
                   <p className="text-[11px] font-semibold text-amber-900 mb-1">
-                    Couldn&apos;t read these pages — use <em>+ Add Lead</em> to enter manually:
+                    {bulkUpload.source === 'csv'
+                      ? <>Couldn&apos;t import these rows — use <em>+ Add Lead</em> to enter manually:</>
+                      : <>Couldn&apos;t read these pages — use <em>+ Add Lead</em> to enter manually:</>}
                   </p>
                   <ul className="text-[11px] text-amber-900/90 space-y-0.5">
                     {bulkUpload.failed.map((f) => (
-                      <li key={f.page}>Page {f.page} — {f.reason}</li>
+                      <li key={f.page}>{bulkUpload.source === 'csv' ? 'Row' : 'Page'} {f.page} — {f.reason}</li>
                     ))}
                   </ul>
                 </div>
