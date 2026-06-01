@@ -18,8 +18,9 @@
 
 | Item | Effort | Owner | Notes |
 |---|---|---|---|
-| 🟢 Activate-message reply not firing OR not being received by clients | TBD diagnosis | Claude | **In flight — PR #69 open.** Spawned via FleetView chip May 31. Load-bearing close-of-sale ritual broken. Diagnosis pyramid: handler → webhook routing → linq send → carrier delivery → client-side visibility. Affects every new client activation while broken. |
 | 🟡 Smoke-test live Growth signup end-to-end | ~30 min | Daniel (Stripe Checkout needs hands) | Test card 4242 → walk full flow → verify Firestore + welcome email arrives. Real card live test after. |
+| 🟡 Verify Activate-reply fix (PR #69) on a real device | 5 min | Daniel | Trigger a fresh client activation → confirm welcome text + action item auto-completes. New diagnostic logs in `welcome-activation-handler.ts` will pinpoint any residual issue. |
+| 🟡 Verify Compliance Part 1 (PR #70) on the live Linq line | 5 min | Daniel | Text "STOP" to the AFL line → expect confirmation reply + `suppressed_numbers/{phoneE164}` doc + `consent_events` ledger entry. Then text "START" to verify resubscribe. |
 
 ---
 
@@ -73,8 +74,7 @@ Per the May 30 lock: ~50K-agent network, Rob actively driving signups, highest-l
 
 | Item | Effort | Notes |
 |---|---|---|
-| 🟢 **Compliance layer Part 1** (suppression gate + STOP/natural-language detection + minimal consent log) | ~1 day | **In flight — PR #70 open.** Spawned via FleetView chip May 31. Audit complete: outbound is 100% consolidated through `web/lib/linq.ts`. Decisions locked: typed-reason override modal, verbatim consent copy. See `docs/afl-compliance-layer-whatwhy.md`. |
-| 🟡 Compliance Part 2 (full consent log: welcome opt-in capture + conservation contact-basis log) | ~1 day | After Part 1 ships |
+| 🟡 Compliance Part 2 (full consent log: welcome opt-in capture + conservation contact-basis log) | ~1 day | Part 1 shipped May 31 (PR #70). Part 2 adds the missing opt-in capture moments — currently only resubscribe/help paths write `opt_in` events; the welcome-activation handler is unchanged. |
 | 🟡 Compliance Part 3 (richer-channel detection, FL-specific edge cases) | TBD | Optional refinement |
 
 ---
@@ -141,6 +141,8 @@ When a backlog item ships, move it here with its PR # and date. Older items get 
 
 | Item | PR | Shipped |
 |---|---|---|
+| AFL compliance layer Part 1: opt-out suppression + STOP/HELP/START + consent ledger + Activate verbatim consent copy | #70 | May 31 |
+| Activate-reply fix: decouple vCard MMS, add diagnostic logs | #69 | May 31 |
 | FirstPromoter affiliate plumbing + Refer & Earn dashboard page | #58, #71, #72 | May 28–31 |
 | Growth + Distribution Lock doc landed on main | #74 | May 31 |
 | CONTEXT.md: compliance audit findings + dropped stale row | #67 | May 31 |
