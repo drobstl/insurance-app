@@ -1,9 +1,13 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { User } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { QRCodeSVG } from 'qrcode.react';
 import { composeMessage } from '../lib/booking-confirmation';
+import { useDashboard } from '../app/dashboard/DashboardContext';
+import { db } from '../firebase';
 
 /**
  * Booking-confirmation drawer (Chunk 4e).
@@ -151,6 +155,103 @@ export default function SendConfirmationDrawer({
   onSent,
   onCancel,
 }: Props) {
+  // Pair-phone callout: shown above the message editor when the agent
+  // hasn't paired their phone yet. Quiet but persistent — the moment
+  // right after booking is the highest-conversion spot for this prompt.
+  const router = useRouter();
+  const { agentProfile } = useDashboard();
+  const phonePaired = Boolean(agentProfile.phonePaired);
+
+  // Resend-push state for paired agents who didn't catch the auto-push.
+  const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent' | 'no_token' | 'failed'>('idle');
+  const [resendReason, setResendReason] = useState<string>('');
+
+  // Live "sent from phone" detection.
+  //
+  // When the agent taps the push notification on their paired phone
+  // and either sends or cancels the iMessage composer, the phone-side
+  // calls /api/appointments/[id]/confirmation-sent (or reminder-sent)
+  // which stamps a timestamp on the appointment doc. By subscribing
+  // to the appointment doc here, the dashboard sees that update the
+  // moment it lands — and we can show the agent visible confirmation
+  // ("Sent from your phone ✓") and auto-close the drawer.
+  //
+  // Capture the initial timestamp at mount so a reschedule of a
+  // previously-sent appointment doesn't immediately trigger the
+  // success state. We only fire success when the timestamp CHANGES
+  // from whatever it was when this drawer opened.
+  const [sentFromPhone, setSentFromPhone] = useState(false);
+  const initialStampRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!user || !appointmentId) return;
+    const apptRef = doc(db, 'agents', user.uid, 'appointments', appointmentId);
+    const stampField = kind === 'reminder' ? 'sentReminderAt' : 'sentConfirmationAt';
+    const unsub = onSnapshot(apptRef, (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const raw = data?.[stampField];
+      // Firestore Timestamps have toMillis(); seconds-based shapes
+      // expose seconds + nanoseconds. Either way we want a comparable
+      // number; null/undefined means "no stamp yet".
+      const ms =
+        raw && typeof raw.toMillis === 'function' ? raw.toMillis() :
+        raw && typeof raw === 'object' && typeof raw.seconds === 'number' ? raw.seconds * 1000 :
+        null;
+      if (initialStampRef.current === null) {
+        initialStampRef.current = ms ?? 0;
+        return;
+      }
+      if (ms !== null && ms > (initialStampRef.current ?? 0)) {
+        setSentFromPhone(true);
+      }
+    });
+    return () => unsub();
+  }, [user, appointmentId, kind]);
+
+  // Once the phone-side stamp lands, give the agent a beat to see the
+  // success overlay, then fire onSent which closes the drawer.
+  useEffect(() => {
+    if (!sentFromPhone) return;
+    const t = window.setTimeout(() => {
+      onSent();
+    }, 1800);
+    return () => window.clearTimeout(t);
+  }, [sentFromPhone, onSent]);
+  const handleResendPush = useCallback(async () => {
+    if (!user) return;
+    setResendStatus('sending');
+    setResendReason('');
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/appointments/${appointmentId}/resend-push`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ kind }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setResendStatus('failed');
+        setResendReason(`http ${res.status}: ${data?.error || 'unknown'}`);
+        return;
+      }
+      if (data.outcome === 'ok') setResendStatus('sent');
+      else if (data.outcome === 'no_token' || data.outcome === 'ineligible') {
+        setResendStatus('no_token');
+        setResendReason(data.reason || data.outcome);
+      } else {
+        setResendStatus('failed');
+        setResendReason(data.reason || data.outcome || 'unknown');
+      }
+    } catch (err) {
+      console.warn('resend push failed:', err);
+      setResendStatus('failed');
+      setResendReason(err instanceof Error ? err.message : String(err));
+    }
+  }, [user, appointmentId, kind]);
+
   // Has the agent's business card already been sent to this lead?
   const businessCardAlreadySent = Boolean(attachmentsSent?.businessCardAt);
   // Has the matched-state license already been sent to this lead?
@@ -380,8 +481,27 @@ export default function SendConfirmationDrawer({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={() => !busy && onCancel()} />
+      <div className="absolute inset-0 bg-black/40" onClick={() => !busy && !sentFromPhone && onCancel()} />
       <div className="relative w-full max-w-lg bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+        {sentFromPhone && (
+          <div className="absolute inset-0 z-10 bg-white flex flex-col items-center justify-center px-6 animate-in fade-in duration-300">
+            <div className="w-20 h-20 rounded-full bg-[#3DD6C3] flex items-center justify-center mb-4">
+              <svg
+                className="w-12 h-12 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                strokeWidth={3}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <p className="text-xl font-bold text-[#0D4D4D]">Sent from your phone</p>
+            <p className="text-sm text-[#555] mt-2 text-center">
+              {leadName.split(/\s+/)[0] || 'Your lead'} has the confirmation.
+            </p>
+          </div>
+        )}
         <div className="flex items-start justify-between p-5 border-b border-[#ececec] shrink-0">
           <div>
             <h3 className="text-xl font-bold text-[#000000]">
@@ -414,6 +534,71 @@ export default function SendConfirmationDrawer({
         </div>
 
         <div className="overflow-y-auto p-5 space-y-4 flex-1">
+          {/* Pair-phone callout — shown only when the agent hasn't paired
+              their phone yet. This is the highest-signal moment to nudge
+              them: they're about to send a confirmation manually, and the
+              alternative is "next time tap your phone twice and you're done." */}
+          {!phonePaired && (
+            <button
+              type="button"
+              onClick={() => router.push('/dashboard/pair-phone')}
+              className="w-full text-left flex items-start gap-3 p-3 bg-[#f4f9f9] border border-[#d4e8e6] rounded-lg hover:bg-[#eaf3f2] transition-colors"
+            >
+              <div className="w-8 h-8 rounded-full bg-[#0D4D4D]/10 flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-[#0D4D4D]">
+                  Send these in two taps from your phone next time
+                </p>
+                <p className="text-xs text-[#555] mt-0.5">
+                  Pair your phone once — bookings will pop up there automatically.
+                </p>
+              </div>
+              <svg className="w-4 h-4 text-[#0D4D4D] flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
+
+          {/* Resend-to-phone callout — shown for paired agents. The
+              server already fired a push when the appointment was
+              created; this gives the agent a recovery path if their
+              phone missed it (off, dead battery, weak signal). */}
+          {phonePaired && (
+            <div className="flex items-start gap-3 p-3 bg-[#f4f9f9] border border-[#d4e8e6] rounded-lg">
+              <div className="w-8 h-8 rounded-full bg-[#0D4D4D]/10 flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-[#0D4D4D]">
+                  Already sent to your phone
+                </p>
+                <p className="text-xs text-[#555] mt-0.5">
+                  {resendStatus === 'sent'
+                    ? 'Another notification is on its way.'
+                    : resendStatus === 'no_token'
+                    ? `Notifications look off on your paired phone. ${resendReason ? `(${resendReason})` : ''}`
+                    : resendStatus === 'failed'
+                    ? `Couldn’t resend. ${resendReason ? `(${resendReason})` : 'Try again or send below.'}`
+                    : 'Didn’t get it? Resend the notification.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleResendPush}
+                disabled={resendStatus === 'sending' || resendStatus === 'sent'}
+                className="text-xs font-semibold text-[#0D4D4D] underline hover:text-[#072f2f] disabled:opacity-50 flex-shrink-0 mt-1"
+              >
+                {resendStatus === 'sending' ? 'Sending…' : resendStatus === 'sent' ? 'Sent' : 'Resend'}
+              </button>
+            </div>
+          )}
+
           {/* Message */}
           <div>
             <label className="block text-sm font-medium text-[#000000] mb-1">

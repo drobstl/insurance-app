@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import { isAdminEmail } from '../../lib/admin';
 import { identifyAgent, resetPostHog, captureEvent } from '../../lib/posthog';
@@ -175,6 +175,16 @@ export interface AgentProfile {
    */
   dialPersistence?: 1 | 2 | 3;
   /**
+   * Derived: whether this agent has paired their phone with the AFL
+   * mobile app and push is active. True iff a `pushToken` is stored on
+   * the agent doc AND `pushPermissionRevokedAt` is unset (lifecycle
+   * rule per push-permission-lifecycle.ts).
+   *
+   * Used by the pair-phone prompts (dashboard banner, confirmation
+   * drawer callout, profile-dropdown badge) to know whether to nudge.
+   */
+  phonePaired?: boolean;
+  /**
    * FirstPromoter affiliate enrollment, populated when the agent
    * clicks "Get my link" on /dashboard/refer-and-earn. Written by
    * `/api/affiliate/create` after creating (or recovering) a promoter
@@ -312,6 +322,11 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           dialPersistence: (data.dialPersistence === 2 || data.dialPersistence === 3)
             ? data.dialPersistence
             : 1,
+          phonePaired: Boolean(
+            typeof data.pushToken === 'string' &&
+            data.pushToken &&
+            !data.pushPermissionRevokedAt,
+          ),
           affiliate: data.affiliate && typeof data.affiliate === 'object' ? data.affiliate : undefined,
         });
       } else {
@@ -328,6 +343,41 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
+
+  // Live-subscribe to the agent doc so fields like `phonePaired`
+  // update across the dashboard the moment the underlying Firestore
+  // doc changes — e.g., the moment the mobile app calls
+  // /api/agent-push-token/register after a fresh QR pair. Without
+  // this, the agent has to refresh the page to see "Set up my phone"
+  // flip from "Setup needed" to "paired" + the booking-drawer
+  // callout switch from "pair next time" to "already sent to your
+  // phone — resend".
+  useEffect(() => {
+    if (!user) return;
+    const unsub = onSnapshot(
+      doc(db, 'agents', user.uid),
+      (snap) => {
+        if (!snap.exists()) return;
+        const data = snap.data();
+        // Only patch the fields that can change asynchronously without
+        // a dashboard-initiated write. Everything else stays under
+        // fetchProfile's control to avoid clobbering optimistic
+        // updates from the settings UI.
+        setAgentProfile((prev) => ({
+          ...prev,
+          phonePaired: Boolean(
+            typeof data.pushToken === 'string' &&
+            data.pushToken &&
+            !data.pushPermissionRevokedAt,
+          ),
+        }));
+      },
+      (err) => {
+        console.warn('agent doc snapshot listener failed:', err);
+      },
+    );
+    return () => unsub();
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;

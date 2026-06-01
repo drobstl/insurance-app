@@ -2,7 +2,7 @@
   "expo": {
     "name": "AgentForLife",
     "slug": "agentforlife",
-    "version": "1.6.1",
+    "version": "1.6.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "agentforlife",
@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.danielroberts.agentforlife",
-      "buildNumber": "37",
+      "buildNumber": "42",
       "googleServicesFile": "./GoogleService-Info.plist",
       "entitlements": {
         "aps-environment": "production"
@@ -28,7 +28,7 @@
         "NSCameraUsageDescription": "This app does not use the camera.",
         "NSContactsUsageDescription": "This app needs access to your contacts to send referrals to friends and family.",
         "NSPhotoLibraryUsageDescription": "This app does not access your photos.",
-        "NSUserNotificationsUsageDescription": "Your insurance agent may send you important updates about your policies, birthday greetings, and holiday messages.",
+        "NSUserNotificationsUsageDescription": "Stay on top of new bookings, upcoming appointments, and important updates that need your attention.",
         "ITSAppUsesNonExemptEncryption": false,
         "UIDeviceFamily": [
           1,
@@ -77,19 +77,27 @@
               "intent": [
                 {
                   "action": "android.intent.action.VIEW",
-                  "data": { "scheme": "sms" }
+                  "data": {
+                    "scheme": "sms"
+                  }
                 },
                 {
                   "action": "android.intent.action.VIEW",
-                  "data": { "scheme": "smsto" }
+                  "data": {
+                    "scheme": "smsto"
+                  }
                 },
                 {
                   "action": "android.intent.action.SENDTO",
-                  "data": { "scheme": "sms" }
+                  "data": {
+                    "scheme": "sms"
+                  }
                 },
                 {
                   "action": "android.intent.action.SENDTO",
-                  "data": { "scheme": "smsto" }
+                  "data": {
+                    "scheme": "smsto"
+                  }
                 }
               ]
             }

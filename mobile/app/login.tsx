@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { router } from 'expo-router';
 import {
   InvalidCodeError,
   lookupClientCode,
@@ -37,6 +38,12 @@ export default function LoginScreen() {
   const [clientCode, setClientCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // After a "not found" error we surface an agent-specific hint so an
+  // agent who installed the app and tried entering their phone number
+  // here (instead of pairing from the dashboard) has a clear next step.
+  // We don't try to detect agents server-side at this entry point —
+  // the canonical agent sign-in is the QR pair flow.
+  const [showAgentHint, setShowAgentHint] = useState(false);
 
   const handleLogin = async () => {
     if (!clientCode.trim()) {
@@ -45,6 +52,7 @@ export default function LoginScreen() {
     }
 
     setError('');
+    setShowAgentHint(false);
     setLoading(true);
 
     try {
@@ -68,6 +76,7 @@ export default function LoginScreen() {
     } catch (err) {
       if (err instanceof InvalidCodeError) {
         setError('We couldn\'t find that. Check the number/code and try again.');
+        setShowAgentHint(true);
       } else {
         console.error('Login error:', err);
         setError('Something went wrong. Please try again.');
@@ -96,6 +105,22 @@ export default function LoginScreen() {
         >
           <SafeAreaView style={styles.formSafeArea}>
             <View style={styles.formContainer}>
+              {/* Notification pre-warning — primes the user (and the
+                  agent verbally walking them through this) so the
+                  iOS popup that fires on the next screen lands at
+                  a moment when they're expecting it and ready to
+                  tap Allow. Daniel's call: notifications are
+                  load-bearing for the close-of-sale ritual, so the
+                  copy needs to set the expectation up front. */}
+              <View style={styles.notifyBanner}>
+                <Text style={styles.notifyBannerEmoji}>🔔</Text>
+                <Text style={styles.notifyBannerText}>
+                  We send a notification when your agent has updates about your
+                  policies. Tap <Text style={styles.notifyBannerBold}>Allow</Text>{' '}
+                  on the next screen.
+                </Text>
+              </View>
+
               <Text style={styles.label}>Phone Number or Code</Text>
               <TextInput
                 style={styles.input}
@@ -103,6 +128,7 @@ export default function LoginScreen() {
                 onChangeText={(text) => {
                   setClientCode(text.toUpperCase());
                   setError('');
+                  setShowAgentHint(false);
                 }}
                 placeholder="(555) 123-4567 or AB12CD3"
                 placeholderTextColor="#9CA3AF"
@@ -134,6 +160,22 @@ export default function LoginScreen() {
                 Use your phone number, or the code your insurance
                 agent sent you. Contact your agent if you need help.
               </Text>
+
+              {/* Agent fallback — only shown after a "not found"
+                  error. An agent who installed the app and tried to
+                  sign in here (instead of pairing via the dashboard
+                  QR) gets a clear route to the right path. */}
+              {showAgentHint && (
+                <TouchableOpacity
+                  style={styles.agentHint}
+                  onPress={() => router.replace('/agent-welcome' as never)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.agentHintText}>
+                    Setting up your phone as an agent? →
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </SafeAreaView>
         </KeyboardAvoidingView>
@@ -266,5 +308,41 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  notifyBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#f0f9f8',
+    borderWidth: 1,
+    borderColor: '#cce5e1',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 24,
+    gap: 10,
+  },
+  notifyBannerEmoji: {
+    fontSize: 20,
+    lineHeight: 22,
+  },
+  notifyBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#374151',
+    lineHeight: 18,
+  },
+  notifyBannerBold: {
+    fontWeight: '700',
+    color: '#0D4D4D',
+  },
+  agentHint: {
+    marginTop: 24,
+    paddingVertical: 8,
+    alignSelf: 'center',
+  },
+  agentHintText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    fontWeight: '500',
+    textDecorationLine: 'underline',
   },
 });

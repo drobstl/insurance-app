@@ -8,6 +8,7 @@ import {
   readValidPushToken,
   sendExpoPush,
 } from '../../../../lib/push-permission-lifecycle';
+import { pushAgentForConfirmation } from '../../../../lib/agent-push';
 
 /**
  * GET /api/cron/appointment-push-reminders
@@ -184,6 +185,41 @@ export async function GET(req: NextRequest) {
             status: outcome.status,
             errorCode: 'errorCode' in outcome ? outcome.errorCode : null,
           });
+        }
+
+        // ── Agent-side 1hr reminder push ──
+        // Independent of the lead-side reminder above. We push the AGENT
+        // so they can hand-send a "see you in an hour" text to the lead
+        // (different surface from the lead's auto-reminder; both can
+        // coexist per the original cron's design notes).
+        //
+        // Stamped via `agentReminderPushSentAt` on the appt so we don't
+        // re-push if the cron sweeps the same window twice.
+        if (!appt.agentReminderPushSentAt) {
+          const leadName = typeof appt.leadName === 'string' ? appt.leadName : '';
+          const agentRes = await pushAgentForConfirmation({
+            db,
+            agentId,
+            apptId: apptDoc.id,
+            leadName,
+            kind: 'reminder',
+          });
+          if (agentRes.outcome === 'ok') {
+            await apptDoc.ref.update({ agentReminderPushSentAt: Timestamp.now() }).catch((err) => {
+              console.error('[appointment-push-reminders] agent stamp failed', {
+                agentId,
+                apptId: apptDoc.id,
+                err,
+              });
+            });
+          } else if (agentRes.outcome !== 'no_token' && agentRes.outcome !== 'ineligible') {
+            console.warn('[appointment-push-reminders] agent push failed', {
+              agentId,
+              apptId: apptDoc.id,
+              outcome: agentRes.outcome,
+              reason: agentRes.reason,
+            });
+          }
         }
       }
     }
