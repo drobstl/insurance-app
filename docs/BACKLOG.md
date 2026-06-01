@@ -54,7 +54,6 @@ Per the May 30 lock: ~50K-agent network, Rob actively driving signups, highest-l
 | 🟡 One-page pitch script for the next national call | 1–2 hr | Daniel + Claude | Marketing copy. Daniel drafts the pitch, Claude polishes. |
 | 🟡 30/60/90-day FFL signup targets | 30 min | Daniel + Claude | Decision-only — sets the joint review cadence. |
 | 🟡 Onboard 5–10 additional high-reach affiliates | Ongoing | Daniel | Each gets their own FirstPromoter link + a simple promo kit (copy, screenshots, calculator angle). |
-| 🟢 Refer & Earn dashboard nav + page cosmetic polish | ~1 hr | Parallel session | **In flight — May 31.** Cosmetic follow-up on top of the shipped Refer & Earn page (PR #72). |
 
 ---
 
@@ -85,8 +84,6 @@ Pro is no longer "Coming Soon" — every new agent gets it for 30 days under the
 
 | Item | Effort | Notes |
 |---|---|---|
-| 🟢 BunnyStream video integration for mobile lead-home (intro + FAQs + case studies) | Multi-day | **In flight — parallel session May 31.** Replaces / supplements `agentProfile.leadContent` with BunnyStream as the video CDN. Mobile lead-home rendering + upload + manifest endpoints. |
-| 🟡 **MIA lead extraction (handwritten Mail-In OCR)** ⬆️ *bumped per Daniel May 26* | 1–2 days | Claude vision for handwritten Mail-In Application PDFs → structured fields. Rob's call action item #2. |
 | 🟡 **Performance page MVP (call scoring + AI coaching)** | 3–5 days | Paste call transcript → Claude scores against ideal script → coaching feedback. **Gating per May 30 lock: Growth gets 4 scores/month, Pro unlimited.** |
 | 🟡 **SME / FIF tracking** | 2–3 days | Appointment + APV-split tagging for mortgage-protection → IUL specialist referrals. CONTEXT backlog. |
 | 🟡 Virtual-number dialing from the lead queue (investigation) | TBD scoping | Today's `tel:` URL only dials from primary cell; Funnel supports virtual numbers. See PR #61 for the full scoping notes. |
@@ -141,6 +138,13 @@ When a backlog item ships, move it here with its PR # and date. Older items get 
 
 | Item | PR | Shipped |
 |---|---|---|
+| MIA (Mail-In Application) handwritten lead extraction — escalate to Opus on shaky first pass | #82 | Jun 1 |
+| Mobile v1.6.6 release (iOS build 44, Android versionCode 32) — includes Bunny.net Stream + Activate verbatim consent copy + Activate-reply fix | #81 | Jun 1 |
+| Bunny.net Stream + native HLS for lead-home videos (+ 1 GB upload cap) | #79, #80 | May 31 – Jun 1 |
+| Refer & Earn polish: gold nav accent + enrolled-state success card | #77 | Jun 1 |
+| CONTEXT: flag affiliate program live end-to-end | #78 | Jun 1 |
+| Favicon: replace default Next favicon with AFL brand icon | #83 | Jun 1 |
+| Agent send flow: phone pairing + one-tap iMessage booking confirmation | #66 | May 31 |
 | AFL compliance layer Part 1: opt-out suppression + STOP/HELP/START + consent ledger + Activate verbatim consent copy | #70 | May 31 |
 | Activate-reply fix: decouple vCard MMS, add diagnostic logs | #69 | May 31 |
 | FirstPromoter affiliate plumbing + Refer & Earn dashboard page | #58, #71, #72 | May 28–31 |
