@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '../../../../lib/stripe';
-import { getAdminAuth } from '../../../../lib/firebase-admin';
+import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
 import {
   PRICING_TIERS,
   isStripeBillableTier,
@@ -142,6 +142,27 @@ export async function POST(request: NextRequest) {
 
     const trialDays = PRICING_TIERS[tier].trialDays;
 
+    // Forward a stored FirstPromoter tracking id (Entry-mechanism
+    // cutover, Phase 1). No-card trial signups capture `affiliateTid` on
+    // the agent doc but can't credit the affiliate at signup — there's no
+    // payment yet. When the trial agent converts here, forward it as
+    // `fp_tid` into the Checkout metadata (same key + both locations the
+    // card-at-signup flow uses) so FirstPromoter's Stripe listener can
+    // credit the referrer even after the original click cookie expired.
+    // Non-fatal: a read failure just means no tid is forwarded. No
+    // double-credit risk — card-signup users are credited at signup and
+    // never carry `affiliateTid`; only no-card trial users do.
+    let affiliateTid: string | null = null;
+    try {
+      const agentSnap = await getAdminFirestore().collection('agents').doc(userId).get();
+      const storedTid = agentSnap.data()?.affiliateTid;
+      if (typeof storedTid === 'string' && storedTid.trim().length > 0) {
+        affiliateTid = storedTid.trim();
+      }
+    } catch (err) {
+      console.warn('[stripe-checkout] affiliateTid lookup failed (non-fatal)', err);
+    }
+
     const session = await stripe.checkout.sessions.create({
       customer: customer.id,
       payment_method_types: ['card'],
@@ -153,12 +174,14 @@ export async function POST(request: NextRequest) {
         firebaseUserId: userId,
         tier,
         ...(referralCode ? { referralCode } : {}),
+        ...(affiliateTid ? { fp_tid: affiliateTid } : {}),
       },
       subscription_data: {
         metadata: {
           firebaseUserId: userId,
           tier,
           ...(referralCode ? { referralCode } : {}),
+          ...(affiliateTid ? { fp_tid: affiliateTid } : {}),
         },
         ...(trialDays > 0 ? { trial_period_days: trialDays } : {}),
       },

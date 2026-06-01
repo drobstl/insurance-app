@@ -39,6 +39,7 @@ export type MembershipTier =
   | 'pro'
   | 'agency'
   | 'founding'
+  | 'trial'
   | 'unknown'
   // Permit string here so callers can pass `agentProfile.membershipTier`
   // (typed string | undefined) without casting; the helpers below narrow
@@ -56,6 +57,41 @@ export type MaybeTier = MembershipTier | null | undefined;
  */
 export function isProOrAbove(tier: MaybeTier): boolean {
   return tier === 'pro' || tier === 'agency';
+}
+
+/**
+ * True when the agent is on an active no-card trial (Entry-mechanism
+ * cutover, Phase 1). A trial grants Pro-equivalent access, but only
+ * until `trialEndsAt` passes. The caller passes the trial expiry as
+ * epoch millis (DashboardContext normalizes the Firestore Timestamp).
+ *
+ * Both conditions must hold: the tier is literally `'trial'` AND the
+ * expiry is a real future timestamp. A paid agent whose `trialEndsAt`
+ * is set from a prior Stripe-native trial never trips this branch
+ * because their `membershipTier` is `'pro'`/`'growth'`, not `'trial'`.
+ */
+export function isTrialActive(
+  tier: MaybeTier,
+  trialEndsAtMs?: number | null,
+): boolean {
+  return (
+    tier === 'trial' &&
+    typeof trialEndsAtMs === 'number' &&
+    trialEndsAtMs > Date.now()
+  );
+}
+
+/**
+ * True when the agent should get Pro-level features — either a paid
+ * Pro/Agency tier, or an active no-card trial. This is the gate the
+ * pre-sale surfaces (Leads, Activity, individual Performance) should
+ * use so trial agents get the full Pro experience during their 14 days.
+ */
+export function hasProAccess(
+  tier: MaybeTier,
+  trialEndsAtMs?: number | null,
+): boolean {
+  return isProOrAbove(tier) || isTrialActive(tier, trialEndsAtMs);
 }
 
 /**
@@ -83,10 +119,11 @@ export function isAgency(tier: MaybeTier): boolean {
 export function canAccessLeads(
   tier: MaybeTier,
   email: string | null | undefined,
+  trialEndsAtMs?: number | null,
 ): boolean {
   if (!isLeadModeVisibleForEmail(email)) return false;
   if (isAdminEmail(email)) return true;
-  return isProOrAbove(tier);
+  return hasProAccess(tier, trialEndsAtMs);
 }
 
 /**
@@ -98,10 +135,11 @@ export function canAccessLeads(
 export function canAccessActivity(
   tier: MaybeTier,
   email: string | null | undefined,
+  trialEndsAtMs?: number | null,
 ): boolean {
   if (!ACTIVITY_ENABLED) return false;
   if (isAdminEmail(email)) return true;
-  return isProOrAbove(tier);
+  return hasProAccess(tier, trialEndsAtMs);
 }
 
 /**
@@ -115,9 +153,10 @@ export function canAccessActivity(
 export function canAccessIndividualPerformance(
   tier: MaybeTier,
   email: string | null | undefined,
+  trialEndsAtMs?: number | null,
 ): boolean {
   if (isAdminEmail(email)) return true;
-  return isProOrAbove(tier);
+  return hasProAccess(tier, trialEndsAtMs);
 }
 
 /**
@@ -148,18 +187,20 @@ export type AccessGateReason = 'accessible' | 'env_off' | 'tier_locked';
 export function leadsAccessReason(
   tier: MaybeTier,
   email: string | null | undefined,
+  trialEndsAtMs?: number | null,
 ): AccessGateReason {
   if (!LEAD_MODE_ENABLED) return 'env_off';
   if (!isLeadModeVisibleForEmail(email)) return 'env_off';
   if (isAdminEmail(email)) return 'accessible';
-  return isProOrAbove(tier) ? 'accessible' : 'tier_locked';
+  return hasProAccess(tier, trialEndsAtMs) ? 'accessible' : 'tier_locked';
 }
 
 export function activityAccessReason(
   tier: MaybeTier,
   email: string | null | undefined,
+  trialEndsAtMs?: number | null,
 ): AccessGateReason {
   if (!ACTIVITY_ENABLED) return 'env_off';
   if (isAdminEmail(email)) return 'accessible';
-  return isProOrAbove(tier) ? 'accessible' : 'tier_locked';
+  return hasProAccess(tier, trialEndsAtMs) ? 'accessible' : 'tier_locked';
 }

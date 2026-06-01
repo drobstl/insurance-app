@@ -486,7 +486,7 @@ export default function ActivityPage() {
   //   tier_locked → render UpgradeToProCard
   // Bookmark / typed-URL defense — sidebar already hides this row for
   // tier-locked users via the same helper in dashboard/layout.tsx.
-  const reason = activityAccessReason(agentProfile.membershipTier, user?.email);
+  const reason = activityAccessReason(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt);
   useEffect(() => {
     if (!user) return;
     if (profileLoading) return;
