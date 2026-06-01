@@ -65,6 +65,14 @@ interface LeadVideoItem {
   updatedAt?: string;
 }
 
+// Sanity cap on lead-home video uploads. Bunny.net Stream accepts much
+// bigger files, but anything above this for an intro / FAQ / case-study
+// video is almost certainly the wrong file picked by accident (a
+// vacation movie, a screen recording). Catch it in the browser before
+// the agent burns half an hour uploading it; the server endpoint
+// re-checks the size the browser advertised as defense in depth.
+const MAX_LEAD_VIDEO_BYTES = 1024 * 1024 * 1024; // 1 GB
+
 /**
  * Reusable upload list for FAQ + case-study video slots. Renders one
  * row per existing item with a title input + preview/remove, plus a
@@ -577,6 +585,13 @@ export default function SettingsPage() {
     title?: string;
   }) => {
     if (!user) return;
+    if (params.file.size > MAX_LEAD_VIDEO_BYTES) {
+      const sizeMb = (params.file.size / 1024 / 1024).toFixed(0);
+      const msg = `That video is ${sizeMb} MB — max is 1 GB per video. Pick a smaller file.`;
+      setLeadVideoError(msg);
+      setSaveMessage({ type: 'error', text: msg });
+      return;
+    }
     const busyKey = params.slot === 'intro' ? 'intro' : `${params.slot}:${params.slotId}`;
     setLeadVideoBusy(busyKey);
     setLeadVideoProgress((prev) => ({ ...prev, [busyKey]: 0 }));
@@ -585,11 +600,14 @@ export default function SettingsPage() {
       const token = await user.getIdToken();
       const title = params.title || 'Intro';
 
-      // Step 1: provision Bunny.net upload endpoint.
+      // Step 1: provision Bunny.net upload endpoint. Sending the file size
+      // lets the server reject oversized files before minting the upload
+      // URL (the browser already capped above, but a malicious client
+      // could skip the browser cap).
       const provRes = await fetch('/api/lead-content/upload-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ slot: params.slot, slotId: params.slotId, title }),
+        body: JSON.stringify({ slot: params.slot, slotId: params.slotId, title, size: params.file.size }),
       });
       const provData = await provRes.json().catch(() => ({}));
       if (!provRes.ok) throw new Error(provData?.error || `Could not start upload (${provRes.status})`);
@@ -2127,7 +2145,7 @@ export default function SettingsPage() {
               <p className="text-xs text-red-600 mt-3">{leadVideoError}</p>
             )}
             <p className="text-[10px] text-[#707070] mt-3">
-              .mp4, .mov, or .webm. Uploads stream directly to Bunny.net — large files work, and Bunny transcodes for smooth playback on the lead-home screen.
+              .mp4, .mov, or .webm. Up to 1 GB per video. Uploads stream directly to Bunny.net for transcoding and smooth playback on the lead-home screen.
             </p>
           </div>
           </>}
