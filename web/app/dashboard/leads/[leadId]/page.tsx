@@ -39,7 +39,7 @@ export default function LeadDetailPage() {
   // Waits until both `user` and the profile resolve before deciding so
   // admins / Pro agents mid-load aren't bounced and don't see a
   // momentary upgrade-card flash.
-  const reason = leadsAccessReason(agentProfile.membershipTier, user?.email);
+  const reason = leadsAccessReason(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt);
   useEffect(() => {
     if (!user) return;
     if (profileLoading) return;

@@ -12,7 +12,7 @@ import DashboardTicker from '../../components/DashboardTicker';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
 import { ANALYTICS_EVENTS } from '../../lib/analytics-events';
 import { captureEvent } from '../../lib/posthog';
-import { leadsAccessReason, activityAccessReason } from '../../lib/tier-gating';
+import { leadsAccessReason, activityAccessReason, isTrialActive } from '../../lib/tier-gating';
 
 const FOUNDING_ACTIVATION_TIMEOUT_MS = 12000;
 // Hard ceiling for the activation spinner: if `activatingFounding` is still true
@@ -30,6 +30,14 @@ const GATE_HARD_TIMEOUT_MESSAGE = 'Account access is taking longer than expected
 function SubscriptionGate({ children }: { children: React.ReactNode }) {
   const { user, loading, profileLoading, agentProfile, handleLogout, refreshProfile } = useDashboard();
   const router = useRouter();
+  // Access is granted by an active paid subscription OR an active no-card
+  // trial (Entry-mechanism cutover, Phase 1). Trial users have no
+  // subscription, so a `subscriptionStatus === 'active'` check alone would
+  // wall them out of the dashboard. Computed once and used for the
+  // founding-activation skip, the resolution telemetry, and the gate render.
+  const hasAccess =
+    agentProfile.subscriptionStatus === 'active' ||
+    isTrialActive(agentProfile.membershipTier, agentProfile.trialEndsAt);
   const [activatingFounding, setActivatingFounding] = useState(false);
   const [activationError, setActivationError] = useState<string | null>(null);
   const [activationRetryNonce, setActivationRetryNonce] = useState(0);
@@ -58,7 +66,11 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user || loading || profileLoading) return;
     const status = agentProfile.subscriptionStatus;
-    if (status === 'active') {
+    // Active sub OR active trial → already has access; clear any prior
+    // activation error and skip the founding-member auto-attempt. A trial
+    // user has no `subscriptionStatus`, so without this they'd fall through
+    // to the founding-activation fetch below.
+    if (hasAccess) {
       setActivationError(null);
       return;
     }
@@ -167,7 +179,7 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
     // Hang protection is provided by the activation hard-timeout effect below
     // (keyed on `activatingFounding`) and the gate ceiling effect, both of
     // which have lifetimes independent of this effect's deps.
-  }, [user, loading, profileLoading, agentProfile.subscriptionStatus, refreshProfile, activationRetryNonce]);
+  }, [user, loading, profileLoading, hasAccess, agentProfile.subscriptionStatus, refreshProfile, activationRetryNonce]);
 
   // Activation hard timeout — keyed solely on `activatingFounding` so its
   // lifetime is tied to the spinner being shown, not to the activation
@@ -249,7 +261,7 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
       });
       return;
     }
-    if (agentProfile.subscriptionStatus === 'active') {
+    if (hasAccess) {
       resolutionEmittedRef.current = true;
       captureEvent(ANALYTICS_EVENTS.DASHBOARD_AUTH_GATE_RESOLVED, {
         outcome: 'authenticated',
@@ -262,7 +274,7 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
     profileLoading,
     activatingFounding,
     activationError,
-    agentProfile.subscriptionStatus,
+    hasAccess,
   ]);
 
   const handleRetryActivation = useCallback(() => {
@@ -334,7 +346,7 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (agentProfile.subscriptionStatus !== 'active') {
+  if (!hasAccess) {
     return (
       <div className="min-h-screen bg-[#e4e4e4]">
         <nav className="bg-[#005851]">
@@ -623,8 +635,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   // Compute once per render so sidebar / mobile-nav / placeholder
   // logic can't drift. Admin override still applies via the
   // helpers themselves.
-  const leadsReason = leadsAccessReason(agentProfile.membershipTier, user?.email);
-  const activityReason = activityAccessReason(agentProfile.membershipTier, user?.email);
+  const leadsReason = leadsAccessReason(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt);
+  const activityReason = activityAccessReason(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt);
   // 6 items on mobile bottom bar. Leads replaces the previous Settings
   // slot — settings is already reachable via the gear in the top-right
   // header, so duplicating it down here wastes a tap target. Mobile

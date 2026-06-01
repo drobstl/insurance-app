@@ -1701,33 +1701,54 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                    agentProfile.subscriptionStatus === 'active'
+                  {(() => {
+                    // Status chip. A no-card trial agent (Entry-mechanism
+                    // cutover) has no `subscriptionStatus`, so without a
+                    // trial branch they'd show an amber "Unknown". Instead
+                    // show a teal "Trial · N days left" — the countdown is
+                    // folded in here so the no-card trial only renders one
+                    // chip (the separate countdown below skips trial tier).
+                    const isActive = agentProfile.subscriptionStatus === 'active';
+                    const isTrial = !isActive && agentProfile.membershipTier === 'trial';
+                    const trialEndMs = agentProfile.trialEndsAt;
+                    const trialDaysLeft =
+                      isTrial && typeof trialEndMs === 'number'
+                        ? Math.ceil((trialEndMs - Date.now()) / (1000 * 60 * 60 * 24))
+                        : null;
+                    const cls = isActive
                       ? 'bg-green-100 text-green-700'
-                      : 'bg-amber-100 text-amber-700'
-                  }`}>
-                    {agentProfile.subscriptionStatus === 'active' ? 'Active' : agentProfile.subscriptionStatus || 'Unknown'}
-                  </span>
+                      : isTrial
+                        ? 'bg-[#daf3f0] text-[#005851]'
+                        : 'bg-amber-100 text-amber-700';
+                    let label: string;
+                    if (isActive) label = 'Active';
+                    else if (isTrial) {
+                      label =
+                        trialDaysLeft && trialDaysLeft > 0
+                          ? `Trial · ${trialDaysLeft === 1 ? '1 day left' : `${trialDaysLeft} days left`}`
+                          : 'Trial';
+                    } else label = agentProfile.subscriptionStatus || 'Unknown';
+                    return (
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${cls}`}>
+                        {label}
+                      </span>
+                    );
+                  })()}
                   {agentProfile.isFoundingMember && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm bg-gradient-to-b from-[#f5d976] via-[#e2b93b] to-[#c99a2e] text-[#5c3a0a] text-[10px] font-extrabold uppercase tracking-wider border border-[#c99a2e]">
                       Founding Member
                     </span>
                   )}
                   {(() => {
-                    // Trial chip — surfaces the trial-end countdown so users
-                    // know when their first real charge will hit. The
-                    // webhook writes `trialEndsAt` from Stripe's
-                    // subscription.trial_end on every subscription create/
-                    // update, then nulls it out when the trial ends.
-                    const rawTrialEnd = (agentProfile as Record<string, unknown>).trialEndsAt;
-                    let trialEndMs: number | null = null;
-                    if (rawTrialEnd instanceof Date) {
-                      trialEndMs = rawTrialEnd.getTime();
-                    } else if (rawTrialEnd && typeof rawTrialEnd === 'object' && 'seconds' in (rawTrialEnd as Record<string, unknown>)) {
-                      const seconds = (rawTrialEnd as { seconds: unknown }).seconds;
-                      if (typeof seconds === 'number') trialEndMs = seconds * 1000;
-                    }
-                    if (trialEndMs === null) return null;
+                    // Stripe-native trial countdown (e.g. Growth's 14-day
+                    // trial on a paid SKU). `trialEndsAt` is normalized to
+                    // epoch millis in DashboardContext. The no-card trial
+                    // folds its countdown into the status chip above, so
+                    // skip here for `membershipTier === 'trial'` to avoid a
+                    // duplicate "Trial" chip.
+                    if (agentProfile.membershipTier === 'trial') return null;
+                    const trialEndMs = agentProfile.trialEndsAt;
+                    if (typeof trialEndMs !== 'number') return null;
                     const daysLeft = Math.ceil((trialEndMs - Date.now()) / (1000 * 60 * 60 * 24));
                     if (daysLeft <= 0) return null;
                     return (
@@ -1963,7 +1984,7 @@ export default function SettingsPage() {
               web/lib/tier-gating.ts. Hides entirely from Settings
               otherwise; reappears the moment any axis of the gate
               opens (env flip, admin grant, tier upgrade). */}
-          {canAccessLeads(agentProfile.membershipTier, user?.email) && <>
+          {canAccessLeads(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt) && <>
           {/* Dial script — shown as an overlay on the lead detail page
               during a live call. Supports tokens like {agentfirstname},
               {leadname}, {leadage}, {tobaccouse}, {mortgageamount}. */}

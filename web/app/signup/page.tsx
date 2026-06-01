@@ -3,26 +3,31 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 import { auth } from '../../firebase';
 import { isStripeBillableTier, PRICING_TIERS } from '../../lib/pricing';
 
 /**
- * /signup — deferred-account entry (May 25, 2026).
- *
- * No Firebase Auth user is created here. The form posts email/name/
- * tier to /api/signup/start-checkout which creates a Stripe Checkout
- * session and writes a pendingSignups doc. The webhook creates the
- * Firebase user only after payment succeeds. See start-checkout
- * route for the full rationale.
+ * /signup — two coexisting entry paths (Entry-mechanism cutover,
+ * Phase 1 — June 2026).
  *
  * Routing rules:
- *   - No tier in URL → redirect to /pricing (preserving ?ref=).
- *     Closes the bare-/signup hole that let Pryor Hovis sign up
- *     without ever reaching Stripe.
  *   - Already-authed user → forward to /dashboard (the
  *     SubscriptionGate handles inactive subs).
- *   - Tier present + not authed → show the email/name form.
+ *   - Coming-soon tier in URL → redirect to /pricing (back-door close
+ *     for tiers not yet purchasable), preserving ?ref=.
+ *   - Billable `?tier=X` → CARD form. Posts email/name/tier to
+ *     /api/signup/start-checkout, which creates a Stripe Checkout
+ *     session + a pendingSignups doc; the webhook creates the Firebase
+ *     user only after payment succeeds. Untouched from PR #38.
+ *   - Bare /signup (no tier) → NO-CARD TRIAL form. Posts
+ *     email/name/phone to /api/signup/trial, which creates the
+ *     Firebase user + a Stripe customer (no subscription) + an
+ *     agents/{uid} doc with a 14-day trial, then signs the user in
+ *     with a custom token and lands them on /dashboard.
+ *
+ * Both paths forward the FirstPromoter tid + refCode so affiliate /
+ * referral attribution into either door is captured.
  */
 
 /**
@@ -70,6 +75,7 @@ function SignupPageInner() {
   const searchParams = useSearchParams();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [error, setError] = useState<React.ReactNode>('');
   const [loading, setLoading] = useState(false);
 
@@ -85,16 +91,20 @@ function SignupPageInner() {
   // /api/signup/start-checkout. Bounce to /pricing with a notice
   // query param the pricing page can surface as a banner if desired.
   const tierComingSoon = !!selectedTierInfo?.comingSoon;
+  // Billable tier → card form (PR #38). No tier → no-card trial form.
+  // Coming-soon tier → redirected to /pricing below (never renders a form).
+  const showCardForm = !!selectedTier && !tierComingSoon;
 
-  // No-tier path (or coming-soon tier): route to /pricing so the user
-  // can see the tier card with the Coming-soon badge + notify-me CTA.
-  // Carry the ref code through so the referral credit isn't lost.
+  // Coming-soon tiers can't be purchased yet — bounce them to /pricing
+  // (back-door close), carrying ?ref= so the referral isn't lost. No-tier
+  // visitors now stay here for the no-card trial form, so they no longer
+  // redirect.
   useEffect(() => {
-    if (selectedTier && !tierComingSoon) return;
+    if (!tierComingSoon) return;
     const ref = searchParams.get('ref');
     const params = new URLSearchParams();
     if (ref) params.set('ref', ref);
-    if (tierComingSoon && selectedTier) params.set('notice', `${selectedTier}-coming-soon`);
+    if (selectedTier) params.set('notice', `${selectedTier}-coming-soon`);
     const qs = params.toString();
     router.replace(`/pricing${qs ? `?${qs}` : ''}`);
   }, [selectedTier, tierComingSoon, searchParams, router]);
@@ -207,9 +217,65 @@ function SignupPageInner() {
     }
   };
 
-  // While the no-tier or coming-soon redirect resolves, hold a spinner
-  // so the form never flashes on the way to /pricing.
-  if (!selectedTier || tierComingSoon || !authChecked) {
+  // No-card trial submit (bare /signup). Creates the account server-side,
+  // signs in with the returned custom token, and lands on /dashboard.
+  const handleTrialSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      const fpTid = resolveFpTid();
+
+      const res = await fetch('/api/signup/trial', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          name: name.trim(),
+          phoneNumber: phoneNumber.trim(),
+          refCode,
+          fp_tid: fpTid,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.customToken) {
+        await signInWithCustomToken(auth, data.customToken);
+        router.replace('/dashboard');
+        return;
+      }
+
+      if (res.status === 409 && data.error === 'email_in_use') {
+        setError(
+          <>
+            That email already has an account.{' '}
+            <Link href="/login" className="font-semibold underline">
+              Log in instead
+            </Link>
+            .
+          </>,
+        );
+      } else if (data.error === 'invalid_email') {
+        setError('Please enter a valid email address.');
+      } else if (data.error === 'invalid_name') {
+        setError('Please enter your full name.');
+      } else if (data.error === 'invalid_phone') {
+        setError('Please enter your phone number.');
+      } else {
+        setError('Could not create your account. Please try again.');
+      }
+    } catch (err) {
+      console.error('[signup] trial signup error', err);
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Hold a spinner only while auth resolves or a coming-soon redirect is
+  // in flight, so neither form flashes on the way out.
+  if (tierComingSoon || !authChecked) {
     return (
       <div className="min-h-screen bg-[#e4e4e4] flex items-center justify-center">
         <svg className="animate-spin w-8 h-8 text-[#44bbaa]" fill="none" viewBox="0 0 24 24">
@@ -242,8 +308,14 @@ function SignupPageInner() {
         <div className="w-full max-w-md">
           <div className="bg-white rounded-[5px] shadow-xl border border-[#d0d0d0] p-8">
             <div className="text-center mb-8">
-              <h1 className="text-2xl font-bold text-[#005851]">Create Your Account</h1>
-              <p className="text-[#707070] mt-2">Add your card on the next step. Set your password right after.</p>
+              <h1 className="text-2xl font-bold text-[#005851]">
+                {showCardForm ? 'Create Your Account' : 'Start Your Free Trial'}
+              </h1>
+              <p className="text-[#707070] mt-2">
+                {showCardForm
+                  ? 'Add your card on the next step. Set your password right after.'
+                  : 'Full Pro access for 14 days. No card required.'}
+              </p>
             </div>
 
             {referrerName && (
@@ -257,7 +329,7 @@ function SignupPageInner() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={showCardForm ? handleSubmit : handleTrialSubmit} className="space-y-5">
               {error && (
                 <div className="bg-red-50 border border-[#f95951] rounded-[5px] p-4 flex items-start gap-3">
                   <svg className="w-5 h-5 text-[#f95951] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -299,6 +371,24 @@ function SignupPageInner() {
                 />
               </div>
 
+              {!showCardForm && (
+                <div>
+                  <label htmlFor="phone" className="block text-sm font-medium text-[#000000] mb-2">
+                    Phone Number
+                  </label>
+                  <input
+                    id="phone"
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    required
+                    autoComplete="tel"
+                    className="w-full px-4 py-3 bg-[#f8f8f8] border border-[#a4a4a4bf] rounded-[5px] text-[#000000] placeholder-[#707070] focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa] transition-all duration-200"
+                    placeholder="(555) 123-4567"
+                  />
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={loading}
@@ -310,10 +400,12 @@ function SignupPageInner() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    Redirecting to payment...
+                    {showCardForm ? 'Redirecting to payment...' : 'Creating your account...'}
                   </>
-                ) : (
+                ) : showCardForm ? (
                   'Continue to Payment'
+                ) : (
+                  'Start Free Trial'
                 )}
               </button>
             </form>
@@ -328,7 +420,7 @@ function SignupPageInner() {
                     ? selectedTierInfo.trialDays > 0
                       ? `${selectedTierInfo.name} · ${selectedTierInfo.trialDays}-day free trial · $${selectedTierInfo.priceMonthly}/mo after`
                       : `${selectedTierInfo.name} · $${selectedTierInfo.priceMonthly}/mo`
-                    : ''}
+                    : '14-day free trial · No credit card required'}
                 </span>
               </div>
             </div>

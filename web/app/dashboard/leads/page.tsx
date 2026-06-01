@@ -106,7 +106,7 @@ const SURFACE_HEADER = 'sticky top-0 z-10 flex items-center justify-between p-5 
 export default function LeadsPage() {
   const router = useRouter();
   const { user, agentProfile, profileLoading } = useDashboard();
-  const reason = leadsAccessReason(agentProfile.membershipTier, user?.email);
+  const reason = leadsAccessReason(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt);
 
   useEffect(() => {
     if (!user) return;

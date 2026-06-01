@@ -34,6 +34,31 @@ export type OnboardingMilestoneKey = keyof OnboardingMilestones;
 
 const PROFILE_FETCH_TIMEOUT_MS = 12000;
 
+/**
+ * Normalize a Firestore timestamp-ish value to epoch millis. Handles
+ * the four shapes a date field can arrive in across the SDK + our
+ * writers: a Firestore `Timestamp` (`.toMillis()`), a JS `Date`, a
+ * plain `{ seconds }` object (a serialized Timestamp, e.g. after a
+ * round-trip), and a raw number. Returns undefined for anything else.
+ */
+function tsToMillis(v: unknown): number | undefined {
+  if (v == null) return undefined;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === 'object') {
+    const obj = v as { toMillis?: () => number; seconds?: number };
+    if (typeof obj.toMillis === 'function') {
+      try {
+        return obj.toMillis();
+      } catch {
+        return undefined;
+      }
+    }
+    if (typeof obj.seconds === 'number') return obj.seconds * 1000;
+  }
+  return undefined;
+}
+
 function normalizeOnboardingState(raw: unknown): OnboardingState {
   const source = typeof raw === 'object' && raw ? (raw as Record<string, unknown>) : {};
   const milestonesRaw =
@@ -78,6 +103,15 @@ export interface AgentProfile {
    * purposes.
    */
   membershipTier?: string;
+  /**
+   * No-card trial window (Entry-mechanism cutover, Phase 1). Both are
+   * epoch millis, normalized from the Firestore Timestamp at fetch time
+   * via `tsToMillis`. `trialEndsAt` drives the trial branch of the
+   * tier-gating helpers (`isTrialActive` / `hasProAccess`) and the
+   * SubscriptionGate. Set only for `membershipTier === 'trial'` agents.
+   */
+  trialEndsAt?: number;
+  trialStartedAt?: number;
   agencyName?: string;
   agencyLogoBase64?: string;
   businessCardBase64?: string;
@@ -290,6 +324,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           stripeCustomerId: data.stripeCustomerId,
           subscriptionId: data.subscriptionId,
           membershipTier: typeof data.membershipTier === 'string' ? data.membershipTier : undefined,
+          trialEndsAt: tsToMillis(data.trialEndsAt),
+          trialStartedAt: tsToMillis(data.trialStartedAt),
           agencyName: data.agencyName,
           agencyLogoBase64: data.agencyLogoBase64,
           businessCardBase64: data.businessCardBase64,
