@@ -34,25 +34,27 @@ Tier prices are unchanged from the May 26 relock. What changes here is the **ent
 
 ---
 
-## 2. Entry Mechanism — No Card, 30-Day Free Pro
+## 2. Entry Mechanism — No Card, 14-Day Free Pro *(amended Jun 1, 2026)*
+
+> **Jun 1, 2026 amendment:** trial duration shortened from 30 days to **14 days**, plan-choice moment moved to **day 12**, and a **strong full-screen forcing function** added on day 12 instead of a soft email. Rationale: 30 days dilutes urgency and lets agents drift into Free without seriously evaluating; 14 days is the SaaS sweet spot and is enough for the welcome-ritual aha to land (any working agent will close at least one sale in two weeks). 7 days was considered too short — risks missing the welcome-ritual moment for any agent who didn't close that week. No-card-at-signup decision unchanged.
 
 **No card required at signup.** Agents enter email + name + phone. No payment information collected at the front door.
 
-**30 days of full Pro access on entry.** Every new agent gets the complete Pro experience for their first 30 days — unlimited contacts, full automated cadences, Activity Policy Ledger, bulk import, pre-sale features, Performance scoring unrestricted, branded client app, close-of-sale ritual.
+**14 days of full Pro access on entry.** Every new agent gets the complete Pro experience for their first 14 days — unlimited contacts, full automated cadences, Activity Policy Ledger, bulk import, pre-sale features, Performance scoring unrestricted, branded client app, close-of-sale ritual.
 
-**Day 25: explicit plan-choice email.** "Pick your plan in 5 days — Pro $99, Growth $49, or stay Free with limits."
+**Day 12: strong in-dashboard "pick your plan" forcing function.** A full-screen, non-dismissable surface on the dashboard that anchors the agent to a real decision. Personalized with their actual trial usage: *"In your trial you added N clients, tracked $X APV, watched Y clients activate the app. On Free you'll keep 25 of those clients and lose the Activity dashboard. Pick Growth ($49) to keep your whole book + automated retention. Pick Pro ($99) to add the Leads pipeline + AI call coaching. Or stay Free with limits."* Three buttons: **Growth $49**, **Pro $99**, **Stay Free**. Cannot dismiss without picking one. Same UX continues to render every login through day 14.
 
-**Day 30 default: Free tier.** If the agent has not selected a paid plan by day 30, they are **automatically moved to the Free tier**. No charge. No surprise. No interruption — they keep using the product, just constrained by the Free tier limits in §3.
+**Day 14 default: Free tier.** If the agent has not selected a paid plan by day 14, they are **automatically moved to the Free tier**. No charge. No surprise. No interruption — they keep using the product, just constrained by the Free tier limits in §3.
 
 **No auto-charge, ever, without an explicit paid-plan selection.** This is a hard product rule. The trial does not convert to billing on its own.
 
-**No money-back guarantee on paid tiers.** The 30-day free Pro window is the trial. Layering a second refund window adds operational cost without trust gain.
+**No money-back guarantee on paid tiers.** The 14-day free Pro window is the trial. Layering a second refund window adds operational cost without trust gain.
 
 ---
 
 ## 3. Free Tier — Permanent, Capped
 
-The Free tier exists to keep agents on the platform after their 30-day Pro period if they don't select a paid plan, and to lower the entry friction for IMO-led distribution.
+The Free tier exists to keep agents on the platform after their 14-day Pro trial if they don't select a paid plan, and to lower the entry friction for IMO-led distribution.
 
 **Included on Free:**
 - Up to **25 contacts** (hard cap)
@@ -129,7 +131,7 @@ The Starter $29/mo tier was killed for new signups on May 26. The existing Start
 
 **For Rob/FFL-scale partners:** pay 20% of the standard $588 (Growth) or $1,188 (Pro) regardless of any future entry promos. Cleaner headline number in the pitch. Cost to AFL is bounded.
 
-**Free-tier signups do not pay affiliate commission** (no revenue to share). Affiliates earn when the agent picks a paid plan during or after their 30-day free Pro window.
+**Free-tier signups do not pay affiliate commission** (no revenue to share). Affiliates earn when the agent picks a paid plan during or after their 14-day free Pro window.
 
 ---
 
@@ -189,6 +191,6 @@ This document **does not modify**:
 ## Open Questions (Not Blocking)
 
 1. **Free-tier conversion rate.** Unknown until 60-90 days of Free-tier data is collected. Will inform whether the 25-contact cap and 5-PDF/month limits are tuned correctly.
-2. **Spam / fake signup volume.** No-card entry creates exposure. Mitigation if it becomes a problem: light verification (phone, IMO affiliation) before unlocking the 30-day Pro window.
+2. **Spam / fake signup volume.** No-card entry creates exposure. Mitigation if it becomes a problem: light verification (phone, IMO affiliation) before unlocking the 14-day Pro window.
 3. **Day-30 plan-choice conversion rate.** Will reveal whether the explicit choice email design is working or whether the default-to-Free is too easy a soft landing.
 4. **Performance feature compute cost.** If it is materially cheaper than expected, reconsider whether 4/month on Growth is the right cap or whether full-blown on Growth is fine and Pro needs a different differentiator.
