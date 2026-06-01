@@ -17,6 +17,8 @@ import { getSession, registerAndSavePushToken } from './index';
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
@@ -100,8 +102,8 @@ const CustomTheme = {
 
 export default function RootLayout() {
   const pathname = usePathname();
-  const notificationListener = useRef<Notifications.EventSubscription>();
-  const responseListener = useRef<Notifications.EventSubscription>();
+  const notificationListener = useRef<Notifications.EventSubscription | undefined>(undefined);
+  const responseListener = useRef<Notifications.EventSubscription | undefined>(undefined);
 
   // Log screen views to Firebase Analytics on navigation
   useEffect(() => {
