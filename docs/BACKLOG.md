@@ -24,22 +24,25 @@
 
 ---
 
-## 🚀 Entry-mechanism cutover — the May 30 strategy shift
+## 🚀 Entry-mechanism cutover — the May 30 strategy shift *(amended Jun 1: 14-day trial, not 30)*
 
-The biggest net-new work area. Per `docs/AFL_Growth_Distribution_Lock_2026-05-30.md`: new agents sign up with **no card**, get **30 days of full Pro**, then default to a **permanent Free tier** unless they pick a paid plan. This replaces the card-at-signup flow (PR #38) as the front door. Multi-week build broken into stages — DO NOT touch `/pricing` or marketing CTAs until the cutover ships as one coordinated change.
+> **⚠️ Jun 1, 2026 amendment** to `docs/AFL_Growth_Distribution_Lock_2026-05-30.md`:
+> Trial duration is now **14 days, not 30**. Plan-choice moment moves to **day 12**, and the soft email is replaced with a **strong full-screen in-dashboard forcing function** (non-dismissable until the agent picks Growth / Pro / Stay Free). Personalized with the agent's actual trial usage numbers. **Heads-up to the spawned Phase 1 session:** update your `trialEndsAt = now + 14 days` (was 30). No other Phase 1 changes — same architecture, same tier-gating, same data shape. No-card-at-signup decision unchanged.
+
+The biggest net-new work area. Per the amended `docs/AFL_Growth_Distribution_Lock_2026-05-30.md`: new agents sign up with **no card**, get **14 days of full Pro**, then default to a **permanent Free tier** unless they pick a paid plan. This replaces the card-at-signup flow (PR #38) as the front door. Multi-week build broken into stages — DO NOT touch `/pricing` or marketing CTAs until the cutover ships as one coordinated change.
 
 | Item | Effort | Notes |
 |---|---|---|
-| 🟡 **No-card signup flow** (email + name + phone, no payment) | 2–3 days | New `/signup` surface that creates the Firebase user + Stripe customer (no subscription) + `agents/{uid}` doc with `tier: 'trial'`, `trialStartedAt`, `trialEndsAt` (30 days out). |
-| 🟡 **30-day Pro feature unlock** during trial window | 1–2 days | Tier-gating helpers check `tier === 'trial' && trialEndsAt > now` → grant Pro-equivalent access. Existing `canAccessLeads` / `canAccessActivity` etc. get a trial branch. |
-| 🟡 **Day-25 plan-choice email** | ~half day | Cron at day-25 of trial → email: *"Pick your plan in 5 days — Pro $99, Growth $49, or stay Free with limits"* with explicit picker links. Stripe Checkout starts from those links. |
-| 🟡 **Day-30 default-to-Free auto-transition** | ~half day | Cron at day-30 → if agent hasn't selected a paid plan, set `tier: 'free'`, `subscriptionStatus: 'free'`. No charge, no interruption, just feature gating tightens. |
+| 🟢 **No-card signup flow** (email + name + phone, no payment) | 2–3 days | **In flight — session spawned Jun 1 on branch `entry-mechanism-phase-1`, worktree at `insurance-app-entry-mechanism-phase-1/`. Phase 1 scope.** New `/signup` surface that creates the Firebase user + Stripe customer (no subscription) + `agents/{uid}` doc with `tier: 'trial'`, `trialStartedAt`, `trialEndsAt` (**14 days out — amended Jun 1**, was 30). |
+| 🟢 **14-day Pro feature unlock** during trial window | 1–2 days | **In flight — same session (Phase 1 scope).** Tier-gating helpers check `tier === 'trial' && trialEndsAt > now` → grant Pro-equivalent access. Existing `canAccessLeads` / `canAccessActivity` etc. get a trial branch. |
+| 🟡 **Day-12 strong in-dashboard "pick your plan" forcing function** *(new, replaces the soft day-25 email)* | 1–2 days | Full-screen, non-dismissable surface that renders on every dashboard route from day 12 onward. Personalized with the agent's actual trial usage: *"You added N clients, tracked $X APV, watched Y clients activate the app. On Free you'll keep 25 of those clients and lose the Activity dashboard."* Three buttons: Growth $49 / Pro $99 / Stay Free. Each picks a plan and dismisses the surface (Stripe Checkout starts for paid picks; "Stay Free" sets `tier: 'free'` immediately). Same surface keeps appearing every login through day 14 if they keep dismissing → but it cannot be dismissed without picking. **This is the load-bearing conversion mechanism — invest hard here.** |
+| 🟡 **Day-14 default-to-Free auto-transition** | ~half day | Cron at day-14 → if agent hasn't selected a paid plan, set `tier: 'free'`, `subscriptionStatus: 'free'`. No charge, no interruption, just feature gating tightens. Lower priority than the day-12 surface since most conversions should happen via that. |
 | 🟡 **Free tier feature gating + caps** | 1–2 days | 25-contact hard cap on `clients` collection writes, 5-PDF/month cap on the upload pipeline, cadences ENABLED on those 25 (touch the conservation/anniversary/holiday cron eligibility), Activity Policy Ledger / bulk-import / pre-sale features hidden. Upgrade prompts explain which tier resolves each cap. |
 | 🟡 **Starter $29 → Growth feature migration** | ~half day | Existing 11 Starter customers: keep $29/mo price (grandfather), unlock Growth feature set in code (tier-gating helpers treat `tier === 'starter'` as Growth-equivalent). One-time announcement email. |
 | 🟡 **Performance feature metering on Growth** | 1 day | Growth gets 4 Performance scores/month (Free: 0, Pro+: unlimited). New per-month counter on `agents/{uid}.performance.usedThisMonth`. Resets on billing-cycle anchor. UI shows remaining count. |
 | 🟡 **Pricing-page cutover** (4 tiers including Free, signup-first CTAs, remove Coming Soon pills) | ~half day | Tear out the `comingSoon: true` flags. Pricing page becomes informational comparison (not transactional). Marketing CTAs point at the new `/signup` surface. Ships as one coordinated change when the no-card flow is built and tested. |
 | 🟡 **IMO leader free-seat mechanic** | 1 day | When an IMO leader's referred-agent count crosses 10, auto-grant them a free Growth-equivalent seat. Tracked via `agents/{leaderUid}.imoLeader.activeDownlineCount`. |
-| 🟡 **Decide:** PR #38 (pre-pay signup) — keep as the explicit-paid-pick path, or rewrite? | Decision-only | Talk through how the no-card entry coexists with PR #38's card-at-signup flow. Probably: PR #38 stays as the path when an agent explicitly picks paid mid-trial or at day-30; the no-card flow is the default front door. |
+| 🟡 **Decide:** PR #38 (pre-pay signup) — keep as the explicit-paid-pick path, or rewrite? | Decision-only | Talk through how the no-card entry coexists with PR #38's card-at-signup flow. Probably: PR #38 stays as the path when an agent explicitly picks paid mid-trial or at day-14; the no-card flow is the default front door. |
 
 ---
 
@@ -132,6 +135,8 @@ Strategic items captured so they don't get lost — pull into a tier section abo
 | 🟡 Reach out to Jeff (Intelra) | Rob's call action item #11 — non-engineering |
 | 🟡 Configurable production-month boundary for Activity APV lifecycle | Pro-tier follow-on. Symmetry runs 28th → 28th, not calendar month. Agent-level `productionMonthStartDay` setting + IMO presets. Triggered when an agent complains their numbers don't match their commission statement. |
 | 🟡 Mobile client onboarding redesign: split Activate screen + add notification pre-prompt | Multi-day mobile EAS. X-app pattern with pulsating-blue-ring Allow → separate Activate screen with compliance verbatim consent copy. Bundles with Compliance Part 1 ship (both touch the Activate screen). |
+| 🟡 Ken Fearer integration: link + possibly his animated video in the AFL app | Non-engineering decision + small ship. Daniel Jun 1 captured this as a future to-do. Add a link to `https://ken-fearer.debtactionplan.com/` somewhere in the AFL app, possibly embed the animated video. Decide placement (client app? agent dashboard? marketing site?) before scoping. |
+| 🟡 Ken Fearer integration: link + possibly his animated video in the AFL app | Non-engineering decision + small ship. Daniel Jun 1 captured this as a future to-do. Add a link to `https://ken-fearer.debtactionplan.com/` somewhere in the AFL app, possibly embed the animated video. Decide placement (client app? agent dashboard? marketing site?) before scoping. |
 
 ---
 
