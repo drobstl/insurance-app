@@ -700,25 +700,43 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             if (item.key === 'leads') return leadsReason === 'accessible';
             if (item.key === 'activity') return activityReason === 'accessible';
             return true;
-          }).map((item) => (
-            <button
-              key={item.key}
-              data-onboarding-target={item.key === 'clients' ? 'nav-clients' : undefined}
-              onClick={() => router.push(item.path)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
-                activeKey === item.key
-                  ? 'bg-[#daf3f0] text-[#005851]'
-                  : 'text-white/80 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              <div className="relative shrink-0">
-                {item.icon}
-              </div>
-              <span className="whitespace-nowrap overflow-hidden text-sm font-semibold opacity-100 w-auto">
-                {item.label}
-              </span>
-            </button>
-          ))}
+          }).map((item) => {
+            // Refer & Earn gets a permanent gold accent — it's the one
+            // nav item where the agent can EARN money, so it deserves
+            // to stand out from daily-workflow tools. Treatment stays
+            // visible whether or not the agent has enrolled yet (the
+            // page itself handles enrolled vs not-enrolled states).
+            const isReferEarn = item.key === 'refer-and-earn';
+            return (
+              <button
+                key={item.key}
+                data-onboarding-target={item.key === 'clients' ? 'nav-clients' : undefined}
+                onClick={() => router.push(item.path)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
+                  activeKey === item.key
+                    ? 'bg-[#daf3f0] text-[#005851]'
+                    : isReferEarn
+                      ? 'text-[#f5c542] hover:bg-[#f5c542]/10 hover:text-[#ffd860]'
+                      : 'text-white/80 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <div className="relative shrink-0">
+                  {item.icon}
+                </div>
+                <span className="whitespace-nowrap overflow-hidden text-sm font-semibold opacity-100 w-auto">
+                  {item.label}
+                </span>
+                {isReferEarn && activeKey !== item.key && (
+                  <span
+                    aria-hidden="true"
+                    className="ml-auto text-[10px] font-bold text-[#f5c542]/90 tracking-widest"
+                  >
+                    $
+                  </span>
+                )}
+              </button>
+            );
+          })}
 
           {/* Gated-off groupings — both pushed below the live items but
               above Admin / Settings. Items group by gating reason so

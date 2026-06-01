@@ -176,8 +176,21 @@ export default function ReferAndEarnPage() {
         </section>
 
         {isEnrolled ? (
-          <section className="bg-white rounded-lg shadow-sm border border-[#e0e0e0] p-6">
-            <h2 className="text-xl font-semibold text-[#005851] mb-4">Your referral link</h2>
+          <section className="bg-white rounded-lg shadow-md border-2 border-[#45bcaa] p-6 relative overflow-hidden">
+            {/* Subtle "you're in" tint stripe down the side */}
+            <div className="absolute top-0 left-0 bottom-0 w-1 bg-[#45bcaa]" aria-hidden="true" />
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-[#daf3f0] flex items-center justify-center">
+                <svg className="w-6 h-6 text-[#0d8a7a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-[#005851]">You&apos;re enrolled</h2>
+                <p className="text-sm text-[#0d8a7a] font-medium">Share your link and start earning.</p>
+              </div>
+            </div>
+            <div className="text-sm font-semibold text-[#005851] mb-2">Your referral link</div>
             <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="text"
@@ -191,7 +204,7 @@ export default function ReferAndEarnPage() {
                 onClick={handleCopyLink}
                 className="px-4 py-2 bg-[#45bcaa] text-white font-semibold rounded-md hover:bg-[#3aab9a] transition-colors"
               >
-                {copyState === 'copied' ? 'Copied!' : 'Copy'}
+                {copyState === 'copied' ? '✓ Copied!' : 'Copy'}
               </button>
             </div>
             <p className="text-xs text-[#666] mt-2">
