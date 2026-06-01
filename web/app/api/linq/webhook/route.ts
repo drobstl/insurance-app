@@ -58,6 +58,7 @@ import {
   isTransientWebhookError,
   recordPermanentWebhookError,
 } from '../../../../lib/webhook-error-handling';
+import { dispatchComplianceIntent } from '../../../../lib/compliance-intent-handler';
 
 const DEFAULT_WEBHOOK_AI_REPLY_COOLDOWN_MS = 45_000;
 const DEFAULT_WEBHOOK_AI_SIMILARITY_THRESHOLD = 0.9;
@@ -178,8 +179,35 @@ export async function POST(req: NextRequest) {
 async function handleGroupMessage(data: LinqWebhookMessageData) {
   const chatId = data.chat.id;
   const senderHandle = normalizePhone(data.sender_handle.handle);
+  const inboundText = extractTextFromParts(data.parts);
 
   const db = getAdminFirestore();
+
+  // AFL compliance precheck — runs BEFORE referral matching / agent
+  // resolution / AI invocation. A STOP from any participant suppresses
+  // their number globally; the canonical confirmation reply is sent
+  // 1:1 to the sender's own phone rather than into the group chat so
+  // other participants don't see the ack. See
+  // `docs/afl-compliance-layer-whatwhy.md` Feature 2.
+  if (inboundText) {
+    const compliance = await dispatchComplianceIntent({
+      db,
+      text: inboundText,
+      phoneE164: senderHandle,
+      chatId,
+      rawMessage: inboundText,
+      isGroup: true,
+      agentId: null,
+    });
+    if (compliance.handled) {
+      console.log('[compliance] group_inbound_handled', {
+        chatId,
+        phoneE164: senderHandle,
+        reason: compliance.reason,
+      });
+      return;
+    }
+  }
 
   // Check if we already have a referral linked to this group chat
   const existingSnap = await db
@@ -399,6 +427,34 @@ async function handleDirectMessage(data: LinqWebhookMessageData) {
   // unset at this hook point — we record at the universal entry
   // before lane-specific routing decides how to handle the message.
   void recordLinqInbound({ db }).catch(() => {});
+
+  // AFL compliance precheck — `docs/afl-compliance-layer-whatwhy.md`
+  // Feature 2. Runs BEFORE every other branch (self-reply, welcome
+  // activation, beneficiary, thread routing, lane handlers, lead
+  // inbox). On a STOP / natural-language opt-out the sender is
+  // suppressed and a single confirmation reply is sent; on
+  // START/UNSTOP/RESUME the suppression is cleared and an opt-in
+  // event is recorded; HELP gets the canonical identity reply. For an
+  // already-suppressed sender whose inbound carries no compliance
+  // intent, lane routing is skipped — Phase 4 surfaces it as a
+  // re-engagement action item.
+  const compliance = await dispatchComplianceIntent({
+    db,
+    text,
+    phoneE164: senderHandle,
+    chatId,
+    rawMessage: text,
+    isGroup: false,
+    agentId: null,
+  });
+  if (compliance.handled) {
+    console.log('[compliance] direct_inbound_handled', {
+      chatId,
+      phoneE164: senderHandle,
+      reason: compliance.reason,
+    });
+    return;
+  }
 
   // Loop guard: if the sender is an agent's own personal cell, this is
   // an agent replying to a forwarded inbound notification. Drop silently
