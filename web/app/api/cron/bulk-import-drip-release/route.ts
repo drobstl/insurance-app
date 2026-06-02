@@ -2,6 +2,7 @@ import 'server-only';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
+import { isFreeTier } from '../../../../lib/tier-gating';
 import { releaseDripForAgent } from '../../../../lib/bulk-import-drip';
 
 /**
@@ -51,6 +52,9 @@ export async function GET(req: NextRequest) {
     for (const agentDoc of agentsSnap.docs) {
       agentsScanned++;
       const agentId = agentDoc.id;
+
+      // Free tier is engine-paused: skip client-facing automated outreach.
+      if (isFreeTier(agentDoc.data().membershipTier as string | undefined)) continue;
 
       const outcome = await releaseDripForAgent({ db, agentId });
 
