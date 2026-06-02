@@ -40,6 +40,7 @@ export type MembershipTier =
   | 'agency'
   | 'founding'
   | 'trial'
+  | 'free'
   | 'unknown'
   // Permit string here so callers can pass `agentProfile.membershipTier`
   // (typed string | undefined) without casting; the helpers below narrow
@@ -101,6 +102,24 @@ export function hasProAccess(
  */
 export function isAgency(tier: MaybeTier): boolean {
   return tier === 'agency';
+}
+
+/**
+ * True when the agent is on the post-trial Free tier (Entry-mechanism
+ * cutover, Phase 2 — the day-14 default per the May 30 Growth +
+ * Distribution Lock §2). Free is data-preserved + engine-paused: the
+ * agent keeps their whole book and gets NO pre-sale tools —
+ * `hasProAccess` already returns false for it, so Leads / Activity /
+ * Performance stay locked with no extra check. There are no
+ * quantitative caps; the "pause" (outbound crons skip Free, new uploads
+ * gated at the UI) is enforced separately, not on this flag.
+ *
+ * This helper exists so the dashboard SubscriptionGate can ADMIT Free
+ * agents (they have no `subscriptionStatus: 'active'`, but they are not
+ * walled out either — their data stays fully viewable / exportable).
+ */
+export function isFreeTier(tier: MaybeTier): boolean {
+  return tier === 'free';
 }
 
 /**

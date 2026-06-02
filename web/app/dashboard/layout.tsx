@@ -5,6 +5,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { doc, collection, onSnapshot, query, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { DashboardProvider, useDashboard } from './DashboardContext';
+import PlanPickerGate from './PlanPickerGate';
 import PWAInstaller from '../../components/PWAInstaller';
 import MaintenanceBanner from '../../components/MaintenanceBanner';
 import DashboardAssistant from '../../components/DashboardAssistant';
@@ -12,7 +13,7 @@ import DashboardTicker from '../../components/DashboardTicker';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
 import { ANALYTICS_EVENTS } from '../../lib/analytics-events';
 import { captureEvent } from '../../lib/posthog';
-import { leadsAccessReason, activityAccessReason, isTrialActive, isProOrAbove } from '../../lib/tier-gating';
+import { leadsAccessReason, activityAccessReason, isTrialActive, isProOrAbove, isFreeTier } from '../../lib/tier-gating';
 
 const FOUNDING_ACTIVATION_TIMEOUT_MS = 12000;
 // Hard ceiling for the activation spinner: if `activatingFounding` is still true
@@ -37,7 +38,17 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
   // founding-activation skip, the resolution telemetry, and the gate render.
   const hasAccess =
     agentProfile.subscriptionStatus === 'active' ||
-    isTrialActive(agentProfile.membershipTier, agentProfile.trialEndsAt);
+    isTrialActive(agentProfile.membershipTier, agentProfile.trialEndsAt) ||
+    // Entry-mechanism cutover, Phase 2: the post-trial Free tier is a
+    // real (unpaid) membership, not a locked-out state. It's
+    // data-preserved — the agent's whole book stays viewable and
+    // exportable — so admit it, letting an expired trial land on the
+    // dashboard instead of the "Subscription Required" wall. Free's
+    // limits are enforced downstream, never by walling the dashboard:
+    // pre-sale tools stay locked via hasProAccess, and the active engine
+    // (automated outreach + new application parsing) is paused by
+    // outbound crons skipping Free + upload gating at the UI.
+    isFreeTier(agentProfile.membershipTier);
   const [activatingFounding, setActivatingFounding] = useState(false);
   const [activationError, setActivationError] = useState<string | null>(null);
   const [activationRetryNonce, setActivationRetryNonce] = useState(0);
@@ -412,7 +423,16 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      {/* Day-12 plan-picker "back wall" (Entry-mechanism cutover, Phase 2).
+          Self-gating: renders null unless the agent is on an ACTIVE trial
+          whose end is within the picker window, so it only surfaces for
+          trial agents in their final stretch — never for paid or Free. */}
+      <PlanPickerGate />
+    </>
+  );
 }
 
 const NAV_ITEMS = [

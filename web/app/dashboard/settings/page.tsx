@@ -1708,8 +1708,12 @@ export default function SettingsPage() {
                     // show a teal "Trial · N days left" — the countdown is
                     // folded in here so the no-card trial only renders one
                     // chip (the separate countdown below skips trial tier).
+                    // The post-trial Free tier (Phase 2 day-14 default) is
+                    // likewise not a subscription, so it gets its own neutral
+                    // "Free" chip rather than the amber "Unknown" fallback.
                     const isActive = agentProfile.subscriptionStatus === 'active';
                     const isTrial = !isActive && agentProfile.membershipTier === 'trial';
+                    const isFree = !isActive && !isTrial && agentProfile.membershipTier === 'free';
                     const trialEndMs = agentProfile.trialEndsAt;
                     const trialDaysLeft =
                       isTrial && typeof trialEndMs === 'number'
@@ -1719,7 +1723,9 @@ export default function SettingsPage() {
                       ? 'bg-green-100 text-green-700'
                       : isTrial
                         ? 'bg-[#daf3f0] text-[#005851]'
-                        : 'bg-amber-100 text-amber-700';
+                        : isFree
+                          ? 'bg-gray-100 text-gray-600'
+                          : 'bg-amber-100 text-amber-700';
                     let label: string;
                     if (isActive) label = 'Active';
                     else if (isTrial) {
@@ -1727,7 +1733,8 @@ export default function SettingsPage() {
                         trialDaysLeft && trialDaysLeft > 0
                           ? `Trial · ${trialDaysLeft === 1 ? '1 day left' : `${trialDaysLeft} days left`}`
                           : 'Trial';
-                    } else label = agentProfile.subscriptionStatus || 'Unknown';
+                    } else if (isFree) label = 'Free';
+                    else label = agentProfile.subscriptionStatus || 'Unknown';
                     return (
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${cls}`}>
                         {label}
