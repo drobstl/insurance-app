@@ -5,18 +5,24 @@
  *
  * The hook used to fetch live spot counts from `/api/spots-remaining`
  * and rotate CTA copy across the legacy founding/charter/inner_circle
- * tier ladder. With v3 pricing, that ladder is gone — every visitor
- * sees the same `/pricing` surface and picks a tier there. The hook
- * is preserved as a thin shim so the existing landing pages
- * (`/v5`, `/m`) don't need wholesale rewrites just to change CTA
- * targets; their tier-aware UI elements (banner, ticker, filled-tier
- * list) get static copy now and the "tiers" array is empty.
+ * tier ladder. With v3 pricing, that ladder is gone. The hook is
+ * preserved as a thin shim so the existing landing pages (`/v5`, `/m`)
+ * don't need wholesale rewrites just to change CTA targets; their
+ * tier-aware UI elements (banner, ticker, filled-tier list) get static
+ * copy now and the "tiers" array is empty.
+ *
+ * Front door (Entry-mechanism cutover, June 2026): the primary CTAs
+ * point at the NO-CARD trial (`/signup`, bare — no `?tier=`), not at
+ * `/pricing`. Bare `/signup` renders the no-card trial form (full
+ * access for 14 days, no credit card), which is what the landing-page
+ * copy promises. `/pricing` is still reachable from the homepage's own
+ * pricing section + nav anchor for visitors who want to compare plans
+ * before starting; it no longer needs to be the CTA destination.
  *
  * The full marketing rebuild is a separate next-up project; that's
- * where the landing pages will be reworked end-to-end with new copy
- * and the new pricing page as the single CTA destination. Until then
- * this shim keeps everything compiling without ripping the existing
- * page hierarchy apart.
+ * where the landing pages will be reworked end-to-end. Until then this
+ * shim keeps everything compiling without ripping the existing page
+ * hierarchy apart.
  */
 
 export interface TierInfo {
@@ -58,16 +64,16 @@ const STATIC_CTA: TierCTAData = {
   isFoundingOpen: false,
   loaded: true,
 
-  ctaHref: '/pricing',
-  ctaMobileHref: '/pricing',
-  ctaText: 'See Pricing',
-  ctaSubtext: '14-day free trial · Cancel anytime',
+  ctaHref: '/signup',
+  ctaMobileHref: '/signup',
+  ctaText: 'Start Free Trial',
+  ctaSubtext: 'No credit card · 14-day free trial',
   bannerText: 'Built to 3x your book',
   tickerText:
-    '🚀 NEW PRICING IS LIVE • 14-DAY FREE TRIAL • SEE PRICING • '
-    + '🚀 NEW PRICING IS LIVE • 14-DAY FREE TRIAL • SEE PRICING • ',
+    '🚀 14-DAY FREE TRIAL • NO CREDIT CARD • FULL ACCESS • '
+    + '🚀 14-DAY FREE TRIAL • NO CREDIT CARD • FULL ACCESS • ',
   tierName: 'AgentForLife',
-  tierPrice: 'from $29/mo',
+  tierPrice: 'from $49/mo',
 };
 
 export function useTierCTA(): TierCTAData {
