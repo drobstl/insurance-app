@@ -4,12 +4,14 @@ import { useState, useEffect, useCallback, useMemo, useRef, type CSSProperties }
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   collection,
+  doc,
   onSnapshot,
   query,
   orderBy,
   where,
   Timestamp,
 } from 'firebase/firestore';
+import { PDFDocument } from 'pdf-lib';
 import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
 import AppointmentPicker from '../../../components/AppointmentPicker';
@@ -59,6 +61,63 @@ interface Lead {
 type LeadView = 'all' | 'queue';
 type LeadSortKey = 'name' | 'createdAt' | 'source';
 type SortDir = 'asc' | 'desc';
+
+// Multi-page lead-form bundles route to the off-Vercel batch engine
+// (leads-batch-processor GCF) instead of the synchronous /api/leads/upload
+// path that 504'd on a 49-page bundle. A single-page PDF still takes the
+// instant sync path (the close-of-sale ritual). Cap mirrors the
+// create-batch route + the GCF's authoritative re-check.
+const MAX_BATCH_PAGES = 100;
+
+type LeadBatchLiveStatus =
+  | 'splitting'
+  | 'processing'
+  | 'completed'
+  | 'partial'
+  | 'failed'
+  | 'cancelled';
+
+// Shape the batch doc's `pages` map collapses into for the shared
+// bulk-upload summary banner. Each page entry the GCF writes is
+// { page, status, leadId?, leadCode?, name?, error? }.
+interface LeadBatchPageDoc {
+  page?: number;
+  status?: 'pending' | 'succeeded' | 'failed' | 'duplicate';
+  leadId?: string;
+  leadCode?: string;
+  name?: string;
+  error?: string;
+}
+
+// Collapse the batch doc's per-page map into the {leads, duplicates,
+// failed} shape the existing bulk-upload banner renders. The GCF doesn't
+// store codeKind per page, so a created lead defaults to 'derived' (the
+// "(random code)" hint just doesn't show for bulk pages — a minor loss).
+function collapseBatchPages(pages: Record<string, LeadBatchPageDoc>): {
+  leads: Array<{ leadId: string; leadCode: string; name: string; codeKind: 'derived' | 'fallback'; page: number }>;
+  duplicates: Array<{ page: number; phone: string; name: string; existingLeadId: string; existingLeadCode: string; existingLeadName?: string }>;
+  failed: Array<{ page: number; reason: string }>;
+} {
+  const leads: Array<{ leadId: string; leadCode: string; name: string; codeKind: 'derived' | 'fallback'; page: number }> = [];
+  const duplicates: Array<{ page: number; phone: string; name: string; existingLeadId: string; existingLeadCode: string; existingLeadName?: string }> = [];
+  const failed: Array<{ page: number; reason: string }> = [];
+
+  for (const [key, entry] of Object.entries(pages || {})) {
+    const page = typeof entry.page === 'number' ? entry.page : Number(key) || 0;
+    if (entry.status === 'succeeded') {
+      leads.push({ leadId: entry.leadId || '', leadCode: entry.leadCode || '', name: entry.name || '(no name)', codeKind: 'derived', page });
+    } else if (entry.status === 'duplicate') {
+      duplicates.push({ page, phone: '', name: entry.name || '', existingLeadId: entry.leadId || '', existingLeadCode: entry.leadCode || '' });
+    } else if (entry.status === 'failed') {
+      failed.push({ page, reason: entry.error || 'could not be read' });
+    }
+  }
+
+  leads.sort((a, b) => a.page - b.page);
+  duplicates.sort((a, b) => a.page - b.page);
+  failed.sort((a, b) => a.page - b.page);
+  return { leads, duplicates, failed };
+}
 
 // ── Slide-flow geometry. Mirrors the Add Client flow on the Clients
 // page (web/app/dashboard/clients/page.tsx ~L4231) so the "open the
@@ -190,6 +249,22 @@ function LeadsPageInner() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
 
+  // Multi-page batch import (off-Vercel via the leads-batch-processor GCF).
+  // `watchedBatchId` drives the live onSnapshot subscription below;
+  // `batchProgress` holds the live counters for the in-flight banner. On a
+  // terminal status the snapshot handler collapses the batch into the same
+  // `bulkUpload` summary the synchronous + CSV paths use.
+  const [watchedBatchId, setWatchedBatchId] = useState<string | null>(null);
+  const [batchProgress, setBatchProgress] = useState<{
+    status: LeadBatchLiveStatus;
+    fileName: string;
+    totalPages: number;
+    completedPages: number;
+    failedPages: number;
+    duplicatePages: number;
+  } | null>(null);
+  const [cancellingBatch, setCancellingBatch] = useState(false);
+
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   // ── Live list of leads ──
@@ -210,6 +285,68 @@ function LeadsPageInner() {
     });
     return () => unsub();
   }, [user]);
+
+  // ── Live multi-page batch progress ──
+  // While a multi-page bundle is processing in the GCF, watch its tracking
+  // doc for live counters. On a terminal status, collapse the per-page
+  // results into the shared bulk-upload summary banner (or surface an
+  // error when the whole batch failed before any page committed), then
+  // stop watching.
+  useEffect(() => {
+    if (!user || !watchedBatchId) return;
+    const ref = doc(db, 'agents', user.uid, 'leadBatches', watchedBatchId);
+    const unsub = onSnapshot(ref, (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data() as {
+        status?: LeadBatchLiveStatus;
+        fileName?: string;
+        totalPages?: number;
+        completedPages?: number;
+        failedPages?: number;
+        duplicatePages?: number;
+        error?: string;
+        pages?: Record<string, LeadBatchPageDoc>;
+      };
+      const status = data.status || 'processing';
+
+      setBatchProgress({
+        status,
+        fileName: data.fileName || 'lead-forms.pdf',
+        totalPages: data.totalPages || 0,
+        completedPages: data.completedPages || 0,
+        failedPages: data.failedPages || 0,
+        duplicatePages: data.duplicatePages || 0,
+      });
+
+      const terminal = status === 'completed' || status === 'partial' || status === 'failed' || status === 'cancelled';
+      if (!terminal) return;
+
+      const pages = data.pages || {};
+      const hasPages = Object.keys(pages).length > 0;
+      if (status === 'failed' && !hasPages) {
+        // Whole-batch failure before any page committed (bad PDF, download
+        // error, over the page cap) — show the reason, no summary.
+        setUploadError(data.error || 'Import failed — please try again.');
+      } else {
+        const { leads, duplicates, failed } = collapseBatchPages(pages);
+        setBulkUpload({
+          source: 'pdf',
+          pageCount: data.totalPages || leads.length + duplicates.length + failed.length,
+          leads,
+          duplicates,
+          failed,
+        });
+        setJustCreated(null);
+      }
+
+      setBatchProgress(null);
+      setCancellingBatch(false);
+      setWatchedBatchId(null); // cleanup unsub fires via effect teardown
+    }, (err) => {
+      console.error('leadBatch onSnapshot error:', err);
+    });
+    return () => unsub();
+  }, [user, watchedBatchId]);
 
   // ── Upcoming-appointment map (leadId → next appointment) ──
   // Powers the "Booked Wed May 21 · 2pm" chip on each lead row so the
@@ -376,8 +513,11 @@ function LeadsPageInner() {
     }
   }, [user, createName, createPhone]);
 
-  // ── PDF upload (Mail-In / Call-In / Digital) ──
-  const handleUpload = useCallback(async (file: File) => {
+  // ── Single-page PDF upload (close-of-sale ritual) ──
+  // The instant synchronous path: one Mail-In / Call-In / Digital form →
+  // extract + commit inline → derived-code banner. Unchanged from before;
+  // only the multi-page case was split out to the batch engine below.
+  const uploadSinglePdf = useCallback(async (file: File) => {
     if (!user) return;
     setUploading(true);
     setUploadError(null);
@@ -396,7 +536,9 @@ function LeadsPageInner() {
         return;
       }
       if (data.multi) {
-        // Multi-page PDF — one lead per page. Show the summary banner.
+        // Defensive: a PDF we read as single-page locally but the server
+        // split into several (e.g. our client parse undercounted). Show
+        // the summary banner just like the batch path's final state.
         setBulkUpload({
           pageCount: data.pageCount,
           leads: data.leads || [],
@@ -440,6 +582,124 @@ function LeadsPageInner() {
       setUploading(false);
     }
   }, [user]);
+
+  // ── Multi-page bundle → off-Vercel batch engine ──
+  // Uploads the (potentially 40MB+) PDF straight to GCS via a signed URL —
+  // keeping the bytes off the Vercel function — then creates the tracking
+  // doc, which fires the leads-batch-processor GCF. We hand control to the
+  // live progress banner (onSnapshot) and don't block on extraction.
+  const uploadLeadBatch = useCallback(async (file: File, pageCount: number) => {
+    if (!user) return;
+    if (pageCount > MAX_BATCH_PAGES) {
+      setUploadError(`This bundle has ${pageCount} pages. Please split it into uploads of ${MAX_BATCH_PAGES} pages or fewer.`);
+      return;
+    }
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const token = await user.getIdToken();
+      const contentType = file.type || 'application/pdf';
+
+      const urlRes = await fetch('/api/leads/batch/upload-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ fileName: file.name, contentType, fileSize: file.size }),
+      });
+      const urlData = await urlRes.json().catch(() => ({}));
+      if (!urlRes.ok || !urlData.uploadUrl) {
+        setUploadError(urlData?.error || `Upload failed (${urlRes.status})`);
+        return;
+      }
+
+      const putRes = await fetch(urlData.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': contentType },
+        body: file,
+      });
+      if (!putRes.ok) {
+        setUploadError(`Upload to storage failed (${putRes.status}) — please try again.`);
+        return;
+      }
+
+      const createRes = await fetch('/api/leads/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ gcsPath: urlData.gcsPath, fileName: file.name, pageCount }),
+      });
+      const createData = await createRes.json().catch(() => ({}));
+      if (!createRes.ok || !createData.batchId) {
+        setUploadError(createData?.error || `Import failed (${createRes.status})`);
+        return;
+      }
+
+      // Hand off to the live progress banner. The heavy extraction runs in
+      // the GCF; the agent can keep working while pages stream in.
+      setBulkUpload(null);
+      setJustCreated(null);
+      setBatchProgress({
+        status: 'splitting',
+        fileName: file.name,
+        totalPages: pageCount,
+        completedPages: 0,
+        failedPages: 0,
+        duplicatePages: 0,
+      });
+      setWatchedBatchId(createData.batchId);
+    } catch (err) {
+      console.error('batch upload error:', err);
+      setUploadError('Network error — please try again');
+    } finally {
+      setUploading(false);
+    }
+  }, [user]);
+
+  // ── PDF upload router (Mail-In / Call-In / Digital) ──
+  // Counts pages locally (pdf-lib, no render) to pick the path: a single
+  // page stays on the instant synchronous route; 2+ pages route to the
+  // batch engine so a big onboarding bundle never blocks (or 504s) a
+  // request. An unreadable file falls through to the sync route, which
+  // returns a clean validation error.
+  const handleUpload = useCallback(async (file: File) => {
+    if (!user) return;
+    // Flip to the busy state immediately so the drop zone doesn't flash
+    // idle during the local page-count parse of a large bundle.
+    setUploading(true);
+    setUploadError(null);
+    let pageCount = 1;
+    try {
+      const bytes = await file.arrayBuffer();
+      const pdf = await PDFDocument.load(bytes);
+      pageCount = pdf.getPageCount();
+    } catch {
+      pageCount = 1;
+    }
+    if (pageCount <= 1) {
+      await uploadSinglePdf(file);
+    } else {
+      await uploadLeadBatch(file, pageCount);
+    }
+  }, [user, uploadSinglePdf, uploadLeadBatch]);
+
+  // ── Cancel an in-flight batch ──
+  // Pages already committed stay as leads; the GCF stops before the next
+  // chunk once it sees the cancel. The onSnapshot handler collapses the
+  // partial results into the summary banner when the doc goes terminal.
+  const cancelBatch = useCallback(async () => {
+    if (!user || !watchedBatchId) return;
+    setCancellingBatch(true);
+    try {
+      const token = await user.getIdToken();
+      await fetch(`/api/leads/batch/${watchedBatchId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      // Don't tear down the watcher here — let the snapshot deliver the
+      // terminal 'cancelled' state so committed pages still surface.
+    } catch (err) {
+      console.error('cancel batch error:', err);
+      setCancellingBatch(false);
+    }
+  }, [user, watchedBatchId]);
 
   // ── CSV / Excel lead-list import ──
   // Parses the file in the browser (lib/lead-csv-parse), then POSTs rows
@@ -1176,6 +1436,53 @@ function LeadsPageInner() {
               </div>
             </div>
           )}
+
+          {/* Live multi-page batch progress — shown while the GCF splits
+              + extracts. Collapses into the bulk-upload summary below the
+              moment the batch doc goes terminal (onSnapshot handler). */}
+          {batchProgress && (() => {
+            const { totalPages, completedPages, failedPages, duplicatePages, status, fileName } = batchProgress;
+            const processed = completedPages + failedPages + duplicatePages;
+            const pct = totalPages > 0 ? Math.min(100, Math.round((processed / totalPages) * 100)) : 0;
+            const heading = status === 'splitting' ? 'Preparing your bundle…' : 'Importing leads…';
+            return (
+              <div className="mb-6 bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5">
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <svg className="animate-spin w-4 h-4 text-[#45bcaa] shrink-0" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      <span className="text-sm font-bold text-[#005851]">{heading}</span>
+                    </div>
+                    <p className="text-xs text-[#707070] truncate">
+                      {fileName} · {totalPages > 0 ? `${processed} of ${totalPages} pages` : 'reading pages…'}
+                      {completedPages > 0 && <> · {completedPages} created</>}
+                      {duplicatePages > 0 && <> · {duplicatePages} already imported</>}
+                      {failedPages > 0 && <> · {failedPages} couldn&apos;t be read</>}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => void cancelBatch()}
+                    disabled={cancellingBatch}
+                    className="px-3 py-1.5 text-xs font-semibold text-[#0D4D4D] bg-white rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] hover:bg-[#f8f8f8] transition-colors disabled:opacity-50 shrink-0"
+                  >
+                    {cancellingBatch ? 'Cancelling…' : 'Cancel'}
+                  </button>
+                </div>
+                <div className="h-2 w-full rounded-full bg-[#eef2f2] overflow-hidden">
+                  <div
+                    className="h-full bg-[#44bbaa] transition-[width] duration-500 ease-out"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <p className="text-[11px] text-[#9CA3AF] mt-2">
+                  You can keep working — leads appear in the list as each page finishes.
+                </p>
+              </div>
+            );
+          })()}
 
           {/* Bulk-upload summary — N leads created from a multi-page PDF
               or a CSV/Excel list. `source` drives page-vs-row wording. */}
