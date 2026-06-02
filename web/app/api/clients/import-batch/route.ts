@@ -6,6 +6,7 @@ import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin'
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { resolveClientLanguage } from '../../../../lib/client-language';
 import { releaseDripForAgent } from '../../../../lib/bulk-import-drip';
+import { isFreeTier } from '../../../../lib/tier-gating';
 
 export const maxDuration = 60;
 
@@ -445,13 +446,20 @@ export async function POST(request: NextRequest) {
     let dripPendingAfter = 0;
     let dripSameDayCapReached = false;
     try {
-      const dripOutcome = await releaseDripForAgent({
-        db,
-        agentId: uid,
-      });
-      dripReleased = dripOutcome.released;
-      dripPendingAfter = dripOutcome.pendingAfter;
-      dripSameDayCapReached = dripOutcome.sameDayCapReached;
+      // Free tier is engine-paused: the import above still persists the
+      // agent's clients/policies, but skip the immediate drip release so
+      // no client-facing outreach is queued. Mirrors the cron guards;
+      // the daily bulk-import-drip-release cron also skips Free agents.
+      const agentSnap = await db.collection('agents').doc(uid).get();
+      if (!isFreeTier(agentSnap.data()?.membershipTier as string | undefined)) {
+        const dripOutcome = await releaseDripForAgent({
+          db,
+          agentId: uid,
+        });
+        dripReleased = dripOutcome.released;
+        dripPendingAfter = dripOutcome.pendingAfter;
+        dripSameDayCapReached = dripOutcome.sameDayCapReached;
+      }
     } catch (err) {
       console.error('[import-batch] immediate drip release failed (non-blocking)', {
         agentId: uid,
