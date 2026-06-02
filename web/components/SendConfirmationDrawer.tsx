@@ -6,8 +6,15 @@ import { useRouter } from 'next/navigation';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { QRCodeSVG } from 'qrcode.react';
 import { composeMessage } from '../lib/booking-confirmation';
+import { deriveLeadCode } from '../lib/lead-code-derive';
+import { canAccessLeads } from '../lib/tier-gating';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import { db } from '../firebase';
+
+// Canonical app smart-download link (mirrors the bundle endpoint at
+// web/app/api/mobile/agent-confirmation/[apptId]/route.ts).
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://agentforlife.app').replace(/\/$/, '');
+const APP_DOWNLOAD_URL = `${APP_URL}/app`;
 
 /**
  * Booking-confirmation drawer (Chunk 4e).
@@ -55,6 +62,15 @@ interface Props {
   leadId: string;
   leadName: string;
   leadPhone: string;
+  /** Lead's email (`lead.email`). Required for the Email channel; when
+   *  empty the Email option is shown but blocked with a clear message. */
+  leadEmail?: string;
+  /**
+   * Lead's app login code. Authoritative `lead.leadCode` when present;
+   * the drawer falls back to deriving from the phone. Drives the
+   * app-access block in the message body (download link + this code).
+   */
+  leadCode?: string;
   /** Lead's state from PDF extraction (`address.state`). May be null/empty. */
   leadState?: string | null;
   scheduledAt: Date;
@@ -143,6 +159,8 @@ export default function SendConfirmationDrawer({
   leadId,
   leadName,
   leadPhone,
+  leadEmail,
+  leadCode,
   leadState,
   scheduledAt,
   scheduledAtTimeZone,
@@ -161,6 +179,43 @@ export default function SendConfirmationDrawer({
   const router = useRouter();
   const { agentProfile } = useDashboard();
   const phonePaired = Boolean(agentProfile.phonePaired);
+
+  // Delivery channel. Initialized from the agent's saved default; the
+  // segmented control below lets them override for THIS send only (we
+  // never write the override back to the profile).
+  const [channel, setChannel] = useState<'text' | 'email'>(
+    agentProfile.confirmationChannel === 'email' ? 'email' : 'text',
+  );
+  const leadHasEmail = Boolean(leadEmail && leadEmail.includes('@'));
+
+  // App-access hand-off block (download link + the lead's login code).
+  // Mirror the server gate in /api/mobile/agent-confirmation so the
+  // text and email bodies match: Pro+ access, opted in (undefined ⇒ ON;
+  // only an explicit false opts out), a real intro video recorded, and
+  // a resolvable login code. Confirmation-only — composeMessage skips
+  // the block on reminders.
+  const appAccess = useMemo(() => {
+    const proOk = canAccessLeads(
+      agentProfile.membershipTier,
+      agentProfile.email,
+      agentProfile.trialEndsAt,
+    );
+    const optedIn = agentProfile.includeAppAccessInConfirmations !== false;
+    const hasIntro = Boolean(agentProfile.leadContent?.intro?.url?.trim());
+    const code = (leadCode || '').trim() || deriveLeadCode(leadPhone) || '';
+    if (proOk && optedIn && hasIntro && code) {
+      return { downloadUrl: APP_DOWNLOAD_URL, code };
+    }
+    return null;
+  }, [
+    agentProfile.membershipTier,
+    agentProfile.email,
+    agentProfile.trialEndsAt,
+    agentProfile.includeAppAccessInConfirmations,
+    agentProfile.leadContent,
+    leadCode,
+    leadPhone,
+  ]);
 
   // Resend-push state for paired agents who didn't catch the auto-push.
   const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent' | 'no_token' | 'failed'>('idle');
@@ -266,7 +321,8 @@ export default function SendConfirmationDrawer({
     leadStateCode: leadState || undefined,
     meetingUrl: meetingUrl || undefined,
     kind,
-  }), [leadName, agentName, scheduledAt, scheduledAtTimeZone, leadState, meetingUrl, kind]);
+    appAccess,
+  }), [leadName, agentName, scheduledAt, scheduledAtTimeZone, leadState, meetingUrl, kind, appAccess]);
 
   const [message, setMessage] = useState(initialMessage);
 
@@ -472,6 +528,48 @@ export default function SendConfirmationDrawer({
     }
   }, [buildFiles, message, stampSent, attachedReport, onSent, buildSmsUrl, leadPhone]);
 
+  /** Email — server-side send via AFL's verified domain (Resend). The
+   *  endpoint composes attachments (business card + state license),
+   *  applies the same already-sent dedup, routes replies to the agent's
+   *  inbox, and stamps sentConfirmationAt/sentReminderAt itself — so
+   *  there's no client-side stampSent here. Works on every platform
+   *  (no phone hand-off needed). */
+  const handleSendEmail = useCallback(async () => {
+    if (!user) return;
+    setError(null);
+    if (!leadHasEmail) {
+      setError('This lead has no email on file. Switch to Text, or add an email to the lead first.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/appointments/${appointmentId}/send-confirmation-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ kind, message }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (data?.code === 'no_email') {
+          setError('This lead has no email on file. Switch to Text, or add an email to the lead first.');
+        } else {
+          setError(data?.error || `Email send failed (${res.status})`);
+        }
+        return;
+      }
+      onSent();
+    } catch (err) {
+      console.error('email send error:', err);
+      setError(err instanceof Error ? err.message : 'Email send failed');
+    } finally {
+      setBusy(false);
+    }
+  }, [user, leadHasEmail, appointmentId, kind, message, onSent]);
+
   /** "Send from phone" deep-link URL — agent scans QR with phone, the
    *  URL opens AFL in iPhone Safari deep-linked to this drawer. */
   const phoneHandoffUrl = useMemo(() => {
@@ -508,7 +606,7 @@ export default function SendConfirmationDrawer({
               {kind === 'reminder' ? 'Send reminder' : 'Send confirmation'}
             </h3>
             <p className="text-xs text-[#707070] mt-0.5">
-              Sends from your phone.
+              {channel === 'email' ? 'Emails from your account.' : 'Sends from your phone.'}
               {' '}
               {willAttachBusinessCard && willAttachLicense
                 ? 'Business card + license attached.'
@@ -534,11 +632,52 @@ export default function SendConfirmationDrawer({
         </div>
 
         <div className="overflow-y-auto p-5 space-y-4 flex-1">
+          {/* Channel: Text vs Email. Defaults to the agent's saved
+              preference (Settings → Booking confirmations); this control
+              overrides it for THIS send only. */}
+          <div>
+            <label className="block text-sm font-medium text-[#000000] mb-1">Send as</label>
+            <div className="inline-flex rounded-[5px] border border-[#d0d0d0] overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setChannel('text')}
+                disabled={busy}
+                className={`px-5 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
+                  channel === 'text' ? 'bg-[#44bbaa] text-white' : 'bg-white text-[#0D4D4D] hover:bg-[#f4f9f9]'
+                }`}
+              >
+                Text
+              </button>
+              <button
+                type="button"
+                onClick={() => setChannel('email')}
+                disabled={busy}
+                className={`px-5 py-2 text-sm font-semibold border-l border-[#d0d0d0] transition-colors disabled:opacity-50 ${
+                  channel === 'email' ? 'bg-[#44bbaa] text-white' : 'bg-white text-[#0D4D4D] hover:bg-[#f4f9f9]'
+                }`}
+              >
+                Email
+              </button>
+            </div>
+            {channel === 'email' && (
+              leadHasEmail ? (
+                <p className="text-[11px] text-[#707070] mt-1">
+                  Sends from AgentForLife with your name; replies come to your inbox.
+                </p>
+              ) : (
+                <p className="text-[11px] text-amber-700 mt-1">
+                  This lead has no email on file. Add one to the lead, or switch to Text.
+                </p>
+              )
+            )}
+          </div>
+
           {/* Pair-phone callout — shown only when the agent hasn't paired
               their phone yet. This is the highest-signal moment to nudge
               them: they're about to send a confirmation manually, and the
-              alternative is "next time tap your phone twice and you're done." */}
-          {!phonePaired && (
+              alternative is "next time tap your phone twice and you're done."
+              Text-channel only — irrelevant to an email send. */}
+          {channel === 'text' && !phonePaired && (
             <button
               type="button"
               onClick={() => router.push('/dashboard/pair-phone')}
@@ -566,8 +705,9 @@ export default function SendConfirmationDrawer({
           {/* Resend-to-phone callout — shown for paired agents. The
               server already fired a push when the appointment was
               created; this gives the agent a recovery path if their
-              phone missed it (off, dead battery, weak signal). */}
-          {phonePaired && (
+              phone missed it (off, dead battery, weak signal).
+              Text-channel only — irrelevant to an email send. */}
+          {channel === 'text' && phonePaired && (
             <div className="flex items-start gap-3 p-3 bg-[#f4f9f9] border border-[#d4e8e6] rounded-lg">
               <div className="w-8 h-8 rounded-full bg-[#0D4D4D]/10 flex items-center justify-center flex-shrink-0">
                 <svg className="w-4 h-4 text-[#0D4D4D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -611,7 +751,9 @@ export default function SendConfirmationDrawer({
               rows={6}
               className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm leading-relaxed font-mono focus:outline-none focus:border-[#45bcaa]"
             />
-            <p className="text-[11px] text-[#707070] mt-1">To: {leadPhone}</p>
+            <p className="text-[11px] text-[#707070] mt-1">
+              To: {channel === 'email' ? (leadEmail || 'no email on file') : leadPhone}
+            </p>
           </div>
 
           {/* State / license matching */}
@@ -698,15 +840,20 @@ export default function SendConfirmationDrawer({
             )}
           </div>
 
-          {/* Send method explanation, branched by platform tier. */}
+          {/* Send method explanation, branched by channel then platform. */}
           <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/30 p-3 text-xs text-[#0D4D4D] leading-relaxed">
-            {platform === 'mobile' && (
+            {channel === 'email' ? (
+              <>
+                <strong>Email:</strong> Tap Send → we email it from AgentForLife with
+                your name on it, your card + license attached. Replies land in your
+                inbox. No phone needed.
+              </>
+            ) : platform === 'mobile' ? (
               <>
                 <strong>On your phone:</strong> Tap Send → your share sheet opens with
                 files + message ready. Pick Messages → tap send. Done.
               </>
-            )}
-            {platform !== 'mobile' && (
+            ) : (
               <>
                 <strong>Desktop:</strong> Tap <strong>📱 Send from your phone</strong> →
                 a QR pops up → scan it with your phone&apos;s camera → AFL opens on
@@ -724,7 +871,7 @@ export default function SendConfirmationDrawer({
         </div>
 
         <div className="p-5 border-t border-[#ececec] bg-[#fafafa] shrink-0 space-y-2">
-          {platform === 'mobile' && (
+          {channel === 'text' && platform === 'mobile' && (
             <div className="rounded-[5px] bg-[#FEF3C7] border border-[#FCD34D] px-3 py-2 text-[11px] text-[#92400E] leading-relaxed">
               <strong>Heads up:</strong> iOS won&apos;t pre-fill the recipient. Tap Send —
               we&apos;ll copy
@@ -741,16 +888,27 @@ export default function SendConfirmationDrawer({
               Not now
             </button>
 
-            {/* Primary action diverges by platform:
-                - mobile: tap Web Share to Messages. Body + files
+            {/* Primary action diverges by channel, then platform:
+                - email: server-side send via Resend — one button, works
+                  everywhere, no phone hand-off.
+                - text + mobile: tap Web Share to Messages. Body + files
                   pre-filled; recipient is NOT pre-filled by the Web
                   Share spec — we copy the lead's phone to clipboard
                   in handleSendMobile so the agent can paste into the
                   To: field with one long-press.
-                - desktop (Mac or other): show the QR — agent scans
-                  with their phone, AFL opens on phone with the drawer
-                  mounted, they tap Send there. */}
-            {platform === 'mobile' ? (
+                - text + desktop (Mac or other): show the QR — agent
+                  scans with their phone, AFL opens on phone with the
+                  drawer mounted, they tap Send there. */}
+            {channel === 'email' ? (
+              <button
+                onClick={handleSendEmail}
+                disabled={busy || !leadHasEmail}
+                className="flex-1 py-2.5 px-4 text-sm font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-50"
+                title={!leadHasEmail ? 'This lead has no email on file' : undefined}
+              >
+                {busy ? 'Sending…' : 'Send email'}
+              </button>
+            ) : platform === 'mobile' ? (
               <button
                 onClick={handleSendMobile}
                 disabled={busy || licenseLoading}

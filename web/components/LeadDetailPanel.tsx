@@ -2211,6 +2211,8 @@ export default function LeadDetailPanel({
             leadId={lead.id}
             leadName={lead.name || ''}
             leadPhone={lead.phone || ''}
+            leadEmail={lead.email || email || undefined}
+            leadCode={lead.leadCode}
             leadState={lead.address?.state || null}
             scheduledAt={scheduledAt}
             scheduledAtTimeZone={appt?.scheduledAtTimeZone || null}
