@@ -2,181 +2,165 @@ import Link from 'next/link';
 import {
   AGENCY_SALES_EMAIL,
   PRICING_TIERS,
-  PRICING_TIER_ORDER,
   type PricingTier,
 } from '../../lib/pricing';
 
 /**
- * /pricing — Track C public pricing surface (May 10, 2026).
+ * /pricing — public pricing surface.
  *
- * SOURCE OF TRUTH: `web/lib/pricing.ts`. Renders the v3 tier
- * cards (Starter / Growth / Pro / Agency) with Stripe-billable
- * tiers routing through `/signup?tier=X` and Agency routing to
- * a `mailto:` sales contact. Trial copy reflects the locked
- * "CC at signup, 14 days free" pattern (Stripe-native).
+ * SOURCE OF TRUTH: `web/lib/pricing.ts`.
  *
- * The full marketing rebuild lives in a separate next-up project.
- * This page is intentionally minimal — clean tier cards, short
- * FAQ, link back to the existing landing pages. Conversion polish
- * (testimonials, comparison table, founding badge) is deferred.
+ * Model (Entry-mechanism cutover, June 2026):
+ *   - ONE front door: the no-card 14-day trial (`/signup`, bare — no
+ *     `?tier=`). Every primary CTA on this page points there. There is
+ *     no "card required at signup" path on the public page anymore;
+ *     paid conversion happens in-app (the day-12 PlanPickerGate +
+ *     dashboard settings → /api/stripe/create-checkout-session).
+ *   - Growth ($49) is the hero plan — the post-sale engine, "keep the
+ *     book you have." Free ($0) is the floor you land on if you don't
+ *     pick a paid plan (book preserved, engine paused).
+ *   - Pro ($99, comingSoon) and Agency (from $349, comingSoon) are the
+ *     "grow the book / run the team" expansion — surfaced via a
+ *     talk-to-us mailto and deliberately kept secondary so the Growth
+ *     story stays crisp.
+ *
+ * Lead with the business outcome (keep + grow the book), not the
+ * conversation-budget mechanic — that lives lower, in the FAQ. Starter
+ * is grandfathered + closed to new signups (May 26 lock), so it never
+ * appears here.
  */
 
 export const metadata = {
   title: 'Pricing — AgentForLife',
   description:
-    'Simple, conversation-based pricing for life insurance agents. 14-day free trial on Growth.',
+    'Keep the book you built and grow the one you want. Start with full access free for 14 days — no credit card.',
 };
 
 function formatPrice(amount: number): string {
   return `$${amount.toLocaleString('en-US')}`;
 }
 
-function ctaForTier(
-  tier: PricingTier,
-  refCode: string | null,
-): { href: string; label: string; isMailto: boolean } {
-  // Coming-soon tiers don't open Stripe Checkout. The CTA becomes a
-  // mailto so interested buyers self-build a waitlist (replies land in
-  // support@agentforlife.app). The signup chain (start-checkout +
-  // /signup?tier=X) also rejects these tiers as a back-door close so a
-  // bookmarked URL can't sneak through.
-  if (tier.comingSoon) {
-    return {
-      href: `mailto:${AGENCY_SALES_EMAIL}?subject=${encodeURIComponent(`Notify me when ${tier.name} is available`)}`,
-      label: 'Notify me when available',
-      isMailto: true,
-    };
-  }
-  if (!tier.isStripeBillable) {
-    return {
-      href: `mailto:${AGENCY_SALES_EMAIL}?subject=${encodeURIComponent('Agency tier inquiry')}`,
-      label: 'Contact Sales',
-      isMailto: true,
-    };
-  }
-  const refSuffix = refCode ? `&ref=${encodeURIComponent(refCode)}` : '';
-  if (tier.trialDays > 0) {
-    return {
-      href: `/signup?tier=${tier.id}${refSuffix}`,
-      label: `Start ${tier.trialDays}-day free trial`,
-      isMailto: false,
-    };
-  }
-  return {
-    href: `/signup?tier=${tier.id}${refSuffix}`,
-    label: `Get ${tier.name}`,
-    isMailto: false,
-  };
+function Bullets({ tier }: { tier: PricingTier }) {
+  return (
+    <ul className="mb-6 space-y-2 text-sm text-[#2D3748]">
+      {tier.bullets.map((bullet) => (
+        <li key={bullet} className="flex items-start gap-2">
+          <svg
+            className="mt-0.5 h-4 w-4 shrink-0 text-[#3DD6C3]"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={3}
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          <span className="leading-snug">{bullet}</span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
-function TierCard({ tier, refCode }: { tier: PricingTier; refCode: string | null }) {
-  const cta = ctaForTier(tier, refCode);
-  const isPopular = tier.emphasis === 'popular';
-  const isComingSoon = !!tier.comingSoon;
-
+/** Growth — the hero plan. The everyday post-sale engine and the only
+ *  paid plan bookable today. Its CTA is the shared no-card front door. */
+function GrowthCard({ signupHref }: { signupHref: string }) {
+  const tier = PRICING_TIERS.growth;
   return (
-    <article
-      className={`relative flex flex-col rounded-2xl border-2 bg-white p-6 transition-shadow ${
-        isPopular
-          ? 'border-[#3DD6C3] shadow-[0_4px_24px_rgba(61,214,195,0.18)]'
-          : 'border-[#E5E7EB] shadow-[0_2px_12px_rgba(0,0,0,0.05)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)]'
-      }`}
-    >
-      {isPopular ? (
-        <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#3DD6C3] px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-[#0D4D4D]">
-          Most Popular
-        </span>
-      ) : null}
-      {isComingSoon ? (
-        <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#0D4D4D] px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
-          Coming Soon
-        </span>
-      ) : null}
-
+    <article className="relative flex flex-col rounded-2xl border-2 border-[#3DD6C3] bg-white p-7 shadow-[0_4px_24px_rgba(61,214,195,0.18)]">
+      <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#3DD6C3] px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-[#0D4D4D]">
+        Most agents start here
+      </span>
       <header className="mb-4">
         <h3 className="text-xl font-bold text-[#0D4D4D]">{tier.name}</h3>
-        <p className="mt-1 text-xs font-medium text-[#6B7280]">{tier.tagline}</p>
+        <p className="mt-1 text-sm font-medium text-[#6B7280]">{tier.tagline}</p>
       </header>
-
       <div className="mb-5">
         <div className="flex items-baseline gap-1">
-          {tier.id === 'agency' && (
-            <span className="text-sm font-medium text-[#6B7280] mr-1">from</span>
-          )}
-          <span className="text-4xl font-extrabold text-[#0D4D4D]">
-            {formatPrice(tier.priceMonthly)}
-          </span>
+          <span className="text-4xl font-extrabold text-[#0D4D4D]">{formatPrice(tier.priceMonthly)}</span>
           <span className="text-sm font-medium text-[#6B7280]">/mo</span>
         </div>
-        {tier.id === 'starter' ? (
-          <p className="mt-2 text-xs text-[#6B7280]">
-            <span className="font-bold text-[#0D4D4D]">Light book</span>
-          </p>
-        ) : tier.id === 'growth' ? (
-          <p className="mt-2 text-xs text-[#6B7280]">
-            <span className="font-bold text-[#0D4D4D]">Active book</span>
-          </p>
-        ) : tier.id === 'pro' ? (
-          <p className="mt-2 text-xs text-[#6B7280]">
-            <span className="font-bold text-[#0D4D4D]">Full book</span>
-          </p>
-        ) : (
-          <p className="mt-2 text-xs text-[#6B7280]">
-            <span className="font-bold text-[#0D4D4D]">Team pool · band pricing</span>
-          </p>
-        )}
+        <p className="mt-2 text-xs text-[#6B7280]">after your 14-day free trial</p>
       </div>
-
-      <ul className="mb-6 space-y-2 text-sm text-[#2D3748]">
-        {tier.bullets.map((bullet) => (
-          <li key={bullet} className="flex items-start gap-2">
-            <svg
-              className="mt-0.5 h-4 w-4 shrink-0 text-[#3DD6C3]"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={3}
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-            <span className="leading-snug">{bullet}</span>
-          </li>
-        ))}
-      </ul>
-
+      <Bullets tier={tier} />
       <div className="mt-auto">
-        {cta.isMailto ? (
-          <a
-            href={cta.href}
-            className={`block w-full rounded-xl px-4 py-3 text-center text-sm font-bold transition-colors ${
-              isPopular
-                ? 'bg-[#0D4D4D] text-white hover:bg-[#0B3E3E]'
-                : 'border-2 border-[#0D4D4D] bg-white text-[#0D4D4D] hover:bg-gray-50'
-            }`}
-          >
-            {cta.label}
-          </a>
-        ) : (
-          <Link
-            href={cta.href}
-            className={`block w-full rounded-xl px-4 py-3 text-center text-sm font-bold transition-colors ${
-              isPopular
-                ? 'bg-[#3DD6C3] text-[#0D4D4D] hover:bg-[#32c4b2]'
-                : 'border-2 border-[#0D4D4D] bg-white text-[#0D4D4D] hover:bg-gray-50'
-            }`}
-          >
-            {cta.label}
-          </Link>
-        )}
-        {isComingSoon ? (
-          <p className="mt-2 text-center text-[11px] text-[#6B7280]">
-            We&apos;ll email you the moment it&apos;s ready.
-          </p>
-        ) : tier.trialDays > 0 && tier.isStripeBillable ? (
-          <p className="mt-2 text-center text-[11px] text-[#6B7280]">
-            Card required at signup · Not charged for {tier.trialDays} days
-          </p>
-        ) : null}
+        <Link
+          href={signupHref}
+          className="block w-full rounded-xl bg-[#3DD6C3] px-4 py-3 text-center text-sm font-bold text-[#0D4D4D] transition-colors hover:bg-[#32c4b2]"
+        >
+          Start 14-day free trial
+        </Link>
+        <p className="mt-2 text-center text-[11px] text-[#6B7280]">
+          Full access · No credit card · Cancel anytime
+        </p>
+      </div>
+    </article>
+  );
+}
+
+/** Free — the floor. Not a thing you buy; it's where you land if you
+ *  don't pick a paid plan. Shown so the trial never feels like a trap. */
+function FreeCard() {
+  const tier = PRICING_TIERS.free;
+  return (
+    <article className="relative flex flex-col rounded-2xl border-2 border-[#E5E7EB] bg-white p-7 shadow-[0_2px_12px_rgba(0,0,0,0.05)]">
+      <header className="mb-4">
+        <h3 className="text-xl font-bold text-[#0D4D4D]">{tier.name}</h3>
+        <p className="mt-1 text-sm font-medium text-[#6B7280]">{tier.tagline}</p>
+      </header>
+      <div className="mb-5">
+        <div className="flex items-baseline gap-1">
+          <span className="text-4xl font-extrabold text-[#0D4D4D]">{formatPrice(tier.priceMonthly)}</span>
+          <span className="text-sm font-medium text-[#6B7280]">/mo</span>
+        </div>
+        <p className="mt-2 text-xs text-[#6B7280]">no card, ever</p>
+      </div>
+      <Bullets tier={tier} />
+      <div className="mt-auto rounded-xl bg-[#F3F4F6] px-4 py-3 text-center text-[12px] leading-relaxed text-[#6B7280]">
+        Where you land if your trial ends and you haven&apos;t picked a paid plan. Your whole
+        book stays put — upgrade anytime to switch the engine back on.
+      </div>
+    </article>
+  );
+}
+
+/** Pro + Agency — the "grow / run the team" expansion. Not bookable
+ *  yet; the CTA opens a talk-to-us email so it's sold by hand and the
+ *  Growth story stays the headline. */
+function SoonCard({ tier }: { tier: PricingTier }) {
+  const mailto = `mailto:${AGENCY_SALES_EMAIL}?subject=${encodeURIComponent(`${tier.name} — tell me more`)}`;
+  const isAgency = tier.id === 'agency';
+  return (
+    <article className="relative flex flex-col rounded-2xl border-2 border-[#E5E7EB] bg-white p-6 shadow-[0_2px_12px_rgba(0,0,0,0.05)]">
+      <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#0D4D4D] px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+        Coming Soon
+      </span>
+      <header className="mb-4">
+        <h3 className="text-xl font-bold text-[#0D4D4D]">{tier.name}</h3>
+        <p className="mt-1 text-sm font-medium text-[#6B7280]">{tier.tagline}</p>
+      </header>
+      <div className="mb-5">
+        <div className="flex items-baseline gap-1">
+          {isAgency && <span className="mr-1 text-sm font-medium text-[#6B7280]">from</span>}
+          <span className="text-4xl font-extrabold text-[#0D4D4D]">{formatPrice(tier.priceMonthly)}</span>
+          <span className="text-sm font-medium text-[#6B7280]">/mo</span>
+        </div>
+        <p className="mt-2 text-xs text-[#6B7280]">
+          {isAgency ? 'team pool · band pricing' : 'adds the pre-sale system'}
+        </p>
+      </div>
+      <Bullets tier={tier} />
+      <div className="mt-auto">
+        <a
+          href={mailto}
+          className="block w-full rounded-xl border-2 border-[#0D4D4D] bg-white px-4 py-3 text-center text-sm font-bold text-[#0D4D4D] transition-colors hover:bg-gray-50"
+        >
+          Talk to us
+        </a>
+        <p className="mt-2 text-center text-[11px] text-[#6B7280]">
+          {isAgency
+            ? "Built for downlines — let's talk about your team."
+            : 'Rolling out to agents one at a time. Tell us about your pipeline.'}
+        </p>
       </div>
     </article>
   );
@@ -187,21 +171,16 @@ export default async function PricingPage({
 }: {
   searchParams: Promise<{ ref?: string | string[] }>;
 }) {
-  // Starter is grandfathered for legacy customers only — killed for
-  // general new signups per the May 26 pricing lock. Hide it from the
-  // public pricing page; the 11 legacy Starter agents already have
-  // their subscription, they don't need a card here. The Starter tier
-  // metadata stays in PRICING_TIERS so existing customers' membership
-  // tier still resolves and the Stripe webhook + tier-gating still
-  // know what 'starter' means.
-  const tiers = PRICING_TIER_ORDER
-    .filter((id) => id !== 'starter')
-    .map((id) => PRICING_TIERS[id]);
   const params = await searchParams;
   const rawRef = Array.isArray(params.ref) ? params.ref[0] : params.ref;
-  const refCode = typeof rawRef === 'string' && rawRef.trim().length > 0
-    ? rawRef.trim().toUpperCase()
-    : null;
+  const refCode =
+    typeof rawRef === 'string' && rawRef.trim().length > 0
+      ? rawRef.trim().toUpperCase()
+      : null;
+  // ONE front door: the bare no-card trial. refCode rides along as the
+  // first query param (the signup page reads ?ref=) so referral
+  // attribution survives the click.
+  const signupHref = refCode ? `/signup?ref=${encodeURIComponent(refCode)}` : '/signup';
 
   return (
     <div className="min-h-screen bg-[#FAFAFA]">
@@ -221,21 +200,46 @@ export default async function PricingPage({
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-12">
-        <section className="mb-10 text-center">
+        <section className="mb-12 text-center">
           <h1 className="text-3xl font-extrabold text-[#0D4D4D] sm:text-4xl">
-            Pricing built around conversations
+            Keep the book you built.{' '}
+            <span className="text-[#3DD6C3]">Grow the one you want.</span>
           </h1>
-          <p className="mx-auto mt-3 max-w-2xl text-base text-[#4B5563]">
-            One simple monthly fee. Unlimited push notifications, agent-phone one-tap, and
-            email — across every tier. AI conversations are budgeted per tier and sized to
-            match the book you're running.
+          <p className="mx-auto mt-4 max-w-2xl text-base text-[#4B5563]">
+            AgentForLife runs your post-sale book on autopilot — retention check-ins,
+            anniversary rewrite alerts, and referral asks that turn the clients you already
+            have into new business. Start with full access free for 14 days.
           </p>
+          <div className="mt-7 flex flex-col items-center gap-2">
+            <Link
+              href={signupHref}
+              className="inline-block rounded-xl bg-[#3DD6C3] px-8 py-4 text-base font-bold text-[#0D4D4D] shadow-lg shadow-[#3DD6C3]/20 transition-colors hover:bg-[#32c4b2]"
+            >
+              Start your 14-day free trial
+            </Link>
+            <p className="text-xs text-[#6B7280]">Full access · No credit card · No commitment</p>
+          </div>
         </section>
 
-        <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {tiers.map((tier) => (
-            <TierCard key={tier.id} tier={tier} refCode={refCode} />
-          ))}
+        {/* Available today: Growth (hero) + Free (the floor you land on). */}
+        <section className="mx-auto grid max-w-3xl grid-cols-1 gap-5 sm:grid-cols-2">
+          <GrowthCard signupHref={signupHref} />
+          <FreeCard />
+        </section>
+
+        {/* The expansion — deliberately secondary so Growth stays the headline. */}
+        <section className="mt-16">
+          <div className="mb-6 text-center">
+            <h2 className="text-xl font-bold text-[#0D4D4D]">When you&apos;re ready to grow</h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm text-[#6B7280]">
+              Growth keeps the book you have. These add the engine for winning new business —
+              rolling out now, one agent at a time.
+            </p>
+          </div>
+          <div className="mx-auto grid max-w-3xl grid-cols-1 gap-5 sm:grid-cols-2">
+            <SoonCard tier={PRICING_TIERS.pro} />
+            <SoonCard tier={PRICING_TIERS.agency} />
+          </div>
         </section>
 
         <section className="mt-16 mx-auto max-w-3xl">
@@ -245,66 +249,37 @@ export default async function PricingPage({
           <div className="space-y-4">
             <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
               <h3 className="text-sm font-bold text-[#0D4D4D]">
-                What counts as a “conversation”?
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">
-                A conversation is a unique outbound text thread on the AFL pooled SMS
-                line — typically a referral, a retention check-in, or a beneficiary
-                message. Push notifications, agent-phone one-tap texts, and email are
-                unlimited on every tier and don&apos;t count.
-              </p>
-            </div>
-            <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
-              <h3 className="text-sm font-bold text-[#0D4D4D]">
-                How many conversations does each tier include?
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">
-                Active book (Growth): 75 / month · Full book (Pro): 200 / month · Team
-                pool (Agency): pooled across your team, sized to your agency. Daily caps
-                apply on every tier to keep your line health clean.
-              </p>
-            </div>
-            <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
-              <h3 className="text-sm font-bold text-[#0D4D4D]">
-                What&apos;s the difference between Growth and Pro?
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">
-                Growth runs your post-sale book — retention, anniversaries, referrals,
-                bulk import. Pro adds the pre-sale tools on top: Leads management, the
-                Activity dashboard, the close-the-sale conveyor (lead → client → policy →
-                activation in one flow), plus the Performance page where you paste call
-                transcripts and get AI coaching scores. If you&apos;re actively running a
-                lead pipeline, Pro pays for itself.
-              </p>
-            </div>
-            <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
-              <h3 className="text-sm font-bold text-[#0D4D4D]">
-                What happens if I run out of conversations mid-month?
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">
-                Overage is $0.50 per additional conversation, or you can upgrade to the
-                next tier. Push, agent-phone, and email keep working. Most agents stay
-                well under their monthly budget.
-              </p>
-            </div>
-            <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
-              <h3 className="text-sm font-bold text-[#0D4D4D]">
                 How does the free trial work?
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">
-                Growth comes with a 14-day free trial. You add a card at signup so we
-                can keep your account active without interruption when the trial ends,
-                but you&apos;re not charged for the first 14 days. Cancel anytime during
-                the trial and you owe nothing.
+                Sign up in about two minutes — just your name, email, and phone number, no
+                credit card. You get full access for 14 days. Near the end of the trial you
+                choose how to keep going: stay on Growth at $49/mo, or move to Free. Either
+                way your whole book stays put, and nothing is ever charged unless you pick a
+                paid plan.
               </p>
             </div>
             <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
               <h3 className="text-sm font-bold text-[#0D4D4D]">
-                Can I switch tiers later?
+                What&apos;s the difference between Free, Growth, and Pro?
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">
-                Yes. Upgrades take effect immediately and are prorated. Downgrades take
-                effect at the end of your current billing period.
+                Free keeps your book safe with the automated engine paused — a place to land,
+                not a place to work from. Growth is the everyday plan: it runs your post-sale
+                book for you — retention, anniversaries, referrals, and rewrite alerts on the
+                clients you already have. Pro adds the full pre-sale system on top — a lead
+                pipeline, AI call coaching, and the close-the-sale flow — and is rolling out
+                to agents one at a time. If that&apos;s you, talk to us.
+              </p>
+            </div>
+            <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
+              <h3 className="text-sm font-bold text-[#0D4D4D]">
+                Can I switch plans later?
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">
+                Anytime. Upgrades take effect immediately and are prorated; downgrades take
+                effect at the end of your current billing period. You can also drop to Free
+                and keep your whole book.
               </p>
             </div>
             <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
@@ -312,8 +287,19 @@ export default async function PricingPage({
                 Do I need to set up any phone numbers or messaging accounts?
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">
-                No. AFL handles all the messaging infrastructure for you — including the
-                pooled SMS line used for AI-driven referral and retention conversations.
+                No. AgentForLife handles all of the messaging for you, including the line your
+                automated retention and referral texts go out on. Nothing to configure.
+              </p>
+            </div>
+            <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
+              <h3 className="text-sm font-bold text-[#0D4D4D]">
+                What&apos;s this about &ldquo;conversations&rdquo;?
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">
+                Your automated text outreach runs on a shared messaging line, and each plan
+                includes a monthly budget for it — 75 a month on Growth, 200 on Pro. Push
+                notifications, one-tap texts from your own phone, and email are unlimited and
+                never count. Most agents stay well under their budget.
               </p>
             </div>
           </div>
