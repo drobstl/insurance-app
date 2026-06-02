@@ -1,8 +1,9 @@
 /**
  * Client-safe builder for the Mode 1 welcome SMS body. Mirrors the
  * canonical copy in `web/lib/welcome-action-item-writer.ts`
- * (`buildPhase1WelcomeBody`, locked May 24, 2026) so the Close Sale
- * Card 2 can pre-fill the textarea without needing a server round trip.
+ * (`buildPhase1WelcomeBody`, rewritten Jun 2, 2026 — login code surfaced
+ * to step 2, steps reordered to match the actual app flow) so the Close
+ * Sale Card 2 can pre-fill the textarea without needing a server round trip.
  *
  * The server-side writer also queues the welcome action item with this
  * same body on its displayContext — so once the agent sends from
@@ -32,10 +33,11 @@ export function buildCloseSaleWelcomeBody(params: {
   const firstName = params.clientFirstName || 'there';
   const agentName = params.agentName || 'your agent';
   return (
-    `Hey ${firstName}! ${agentName} here. Quick setup:\n\n`
-    + `1. Download: ${APP_DOWNLOAD_URL}\n`
-    + '2. ALLOW notifications when prompted so I can reach you with important updates.\n'
-    + '3. Tap Activate, then tap Send and wait for the text back\n\n'
-    + `Done – head back to your personalized app and log in with code ${params.clientCode}`
+    `Hey ${firstName}! ${agentName} here — let's get you set up (takes a minute):\n\n`
+    + `1. Download the app: ${APP_DOWNLOAD_URL}\n`
+    + `2. Open it and enter your code: ${params.clientCode}\n`
+    + '3. Tap Allow on notifications so I can reach you with important updates\n'
+    + "4. Tap Activate, then Send — I'll text you right back\n\n"
+    + "That's it! Your app's already personalized for you. 👍"
   );
 }

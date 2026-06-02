@@ -81,14 +81,16 @@ export type WelcomeMode = 'mode_1' | 'mode_2';
 /**
  * Build the welcome SMS body the agent will send from their personal
  * phone via the `sms:` URL scheme. Contains app download link, login
- * code, and the numbered-step instruction copy locked May 7, 2026
- * (supersedes v3.1 §3.3's single-sentence form).
+ * code, and the numbered-step instruction copy. Rewritten Jun 2, 2026:
+ * the login code moved up to step 2 and the steps were reordered to
+ * match the actual app flow (download → enter code → allow
+ * notifications → Activate, then Send). Supersedes the May 7 form,
+ * which buried the code in the closing line.
  *
- * Spanish copy reuses `buildWelcomeMessage` from web/lib/client-language.ts.
- * Spanish has NOT been re-translated to the new numbered-step structure
- * yet — open spec item flagged in CONTEXT.md. Mode 2 also defers
- * Spanish to a follow-up; for now Spanish-preferring bulk-import
- * clients land on the Mode 1 Spanish copy.
+ * Spanish copy reuses `buildWelcomeMessage` from web/lib/client-language.ts,
+ * which was re-translated to the same numbered-step structure in the
+ * Jun 2 pass. Mode 2 Spanish still lands on the Mode 1 Spanish copy
+ * (no cold-context value-prop variant in Spanish yet).
  */
 export function buildPhase1WelcomeBody(params: {
   clientFirstName: string;
@@ -118,18 +120,20 @@ export function buildPhase1WelcomeBody(params: {
       `Hey ${firstName}, ${agentName} here. Setting up my clients on a new app `
       + 'so your policy details are always on your phone and you can reach me '
       + 'with one tap. Quick setup:\n\n'
-      + `1. Download: ${APP_DOWNLOAD_URL}\n`
-      + '2. ALLOW notifications when prompted so I can reach you with important updates.\n'
-      + '3. Tap Activate, then tap Send and wait for the text back\n\n'
-      + `Done – head back to your personalized app and log in with code ${params.clientCode}`
+      + `1. Download the app: ${APP_DOWNLOAD_URL}\n`
+      + `2. Open it and enter your code: ${params.clientCode}\n`
+      + '3. Tap Allow on notifications so I can reach you with important updates\n'
+      + "4. Tap Activate, then Send — I'll text you right back\n\n"
+      + "That's it! Your app's already personalized for you. 👍"
     );
   }
   return (
-    `Hey ${firstName}! ${agentName} here. Quick setup:\n\n`
-    + `1. Download: ${APP_DOWNLOAD_URL}\n`
-    + '2. ALLOW notifications when prompted so I can reach you with important updates.\n'
-    + '3. Tap Activate, then tap Send and wait for the text back\n\n'
-    + `Done – head back to your personalized app and log in with code ${params.clientCode}`
+    `Hey ${firstName}! ${agentName} here — let's get you set up (takes a minute):\n\n`
+    + `1. Download the app: ${APP_DOWNLOAD_URL}\n`
+    + `2. Open it and enter your code: ${params.clientCode}\n`
+    + '3. Tap Allow on notifications so I can reach you with important updates\n'
+    + "4. Tap Activate, then Send — I'll text you right back\n\n"
+    + "That's it! Your app's already personalized for you. 👍"
   );
 }
 
