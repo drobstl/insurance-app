@@ -147,16 +147,16 @@ export function navigateToProfile(
   const isUnactivatedClient = accessType === 'client' && !clientActivatedAt;
 
   // Push-token registration is deliberately scoped to ACTIVATED clients
-  // only. Unactivated clients land on `/activate` (below), which fires
-  // the iOS notification prompt and saves the token in one motion —
-  // calling `registerAndSavePushToken` here would double-prompt. Leads
-  // and beneficiaries don't participate in the push permission ritual
+  // only. Unactivated clients land on `/notify` (below), which fires the
+  // iOS notification prompt and saves the token in one motion — calling
+  // `registerAndSavePushToken` here would double-prompt. Leads and
+  // beneficiaries don't participate in the push permission ritual
   // (per the May 18 push-token narrowing: leads get a verbal close-of-
   // sale walkthrough; beneficiaries are invite-only and rely on the
   // policyholder's app). When a lead is converted to a client, the
   // lookup endpoint follows `convertedToClientId` and returns
   // `accessType: 'client'` + `!clientActivatedAt`, routing the prospect
-  // to /activate where the prompt fires fresh for the first time.
+  // to /notify where the prompt fires fresh for the first time.
   if (accessType === 'client' && clientActivatedAt) {
     registerAndSavePushToken(clientCode).catch((err) =>
       console.warn('Push token registration failed:', err),
@@ -191,16 +191,17 @@ export function navigateToProfile(
     return;
   }
 
-  // Unactivated clients land on /activate, where the iOS notification
-  // prompt fires and the activation SMS to the Linq line composes.
+  // Unactivated clients land on /notify (the branded push pre-prompt),
+  // which fires the OS notification dialog and then forwards to
+  // /activate, where the activation SMS to the Linq line composes.
   // This reverses the May 8 "activate-first / login-after" inversion:
-  // login is now the unauthenticated entry, and activate is gated
-  // BEHIND identification so leads bypass it cleanly. Activation
+  // login is now the unauthenticated entry, and the onboarding pair is
+  // gated BEHIND identification so leads bypass it cleanly. Activation
   // remains a hard gate for clients per
   // `feedback_no_client_activate_skip.md`.
   if (isUnactivatedClient) {
     router.replace({
-      pathname: '/activate',
+      pathname: '/notify',
       params: { ...sharedParams, linqLinePhone },
     });
     return;
@@ -224,7 +225,8 @@ export function navigateToProfile(
  *
  *   - With cached session → auto-login → `navigateToProfile` routes by
  *     `accessType` + `clientActivatedAt` (lead → /lead-home, unactivated
- *     client → /activate, activated client / beneficiary → /agent-profile).
+ *     client → /notify → /activate, activated client / beneficiary →
+ *     /agent-profile).
  *   - No cached session → `/login` (user enters phone or code; server
  *     resolves identity; navigateToProfile routes appropriately).
  *
@@ -348,7 +350,7 @@ export default function IndexScreen() {
         <View style={styles.logoIcon}>
           <Text style={styles.logoIconText}>✓</Text>
         </View>
-        <Text style={styles.loadingTitle}>My Insurance</Text>
+        <Text style={styles.loadingTitle}>AgentForLife</Text>
         {showRetry ? (
           <Text style={styles.retryHint}>
             Trouble connecting. Pull down to refresh, or restart the app.

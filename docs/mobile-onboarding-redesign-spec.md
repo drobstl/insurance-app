@@ -73,7 +73,7 @@ Mimics the iOS dialog look (white card on dim background). When the user taps th
 
 > **⚠️ Build note (platform policy — see §7b):** build Screen 1 as a **clearly branded AFL screen** (teal, infinity icon, our fonts, the pulsing ring) — **not** a pixel-perfect clone of the iOS system alert with system-style buttons. Cloning the system dialog to deceive trips Apple's deceptive-UI rules + Google's deceptive-behavior policy. Drop the original sketch's "mimics the iOS dialog / white card on dim backdrop" framing; the pulsing ring already signals it isn't a system dialog (Apple's never animate).
 
-**Ring animation:** React Native `Animated.loop` on a scaled-down/up View behind the Allow button with an opacity transition (ring grows + fades out, repeating). ~300ms cycle felt right in discussion; tune so it draws the eye without being seizure-inducing. Pure JS — no native dependency.
+**Ring animation:** React Native `Animated.loop` on a scaled-up View behind the Allow button with an opacity transition (ring grows + fades out, repeating). **As shipped:** a calm **~1.6s swell-and-fade sonar ring** — a single ring that grows (scale 1 → 1.45) and fades (opacity 0 → 0.45 → 0) once per cycle, drawing the eye without being seizure-inducing. (Slowed from the early "~300ms" idea, which at ~3 pulses/sec sat in the photosensitive flash range; a single grow-and-fade reads as calm and premium rather than a flash.) Pure JS — no native dependency.
 
 ---
 
@@ -171,7 +171,7 @@ These are the seven captured in the 05-31 session. **#1 and #7 are LOCKED by Dan
 | 3 | **Show Screen 1 only on first install?** | If the user has already granted (or hard-denied, `canAskAgain:false`) push, skip Screen 1 and go straight to Activate. **My read: yes — don't re-ask every login.** Mirror today's on-mount permission check to decide whether to render Screen 1. |
 | 4 | **Android handling** | Android 13+ fires a system prompt automatically the first time push is needed; the pre-prompt still helps. Show Screen 1 on Android too; "Allow" → call the Android request API. Older Android = auto-granted, skip Screen 1. *Today's code already handles the Android-13 `denied`+`canAskAgain:true` "not yet asked" quirk — reuse that logic.* **Treat iOS + Android as equals** (`[[feedback_dual_platform_first_class]]`). |
 | 5 | **Personalization on Screen 1** | Use agent first name if known, else "your agent" (the depersonalized-fallback lock). *By this point in the flow the client has logged in via code, so agent context should be present in route params (`agentName`).* |
-| 6 | **Pulsating ring animation** | `Animated.loop` on a scaled View + opacity transition behind the Allow button, ~300ms cycle. Cheap; time it to draw the eye without being seizure-inducing. |
+| 6 | **Pulsating ring animation** | `Animated.loop` on a scaled View + opacity transition behind the Allow button. **As shipped: a calm ~1.6s swell-and-fade sonar ring** (one ring grows + fades per cycle). Cheap; draws the eye without being seizure-inducing. (Slowed from the early "~300ms" idea — ~3 pulses/sec sits in the photosensitive range.) |
 | 7 | **Decline-button wording** | **🔒 LOCKED (Jun 1): "Maybe later."** Not "Don't Allow." On the pre-prompt the decline is genuinely a deferral (nothing is burned — see #1), and the real iOS dialog fires its *own* "Don't Allow" half a second later, so reusing that label would make our screen and Apple's indistinguishable. "Maybe later" keeps them distinct and keeps the door open. |
 
 ---
