@@ -81,6 +81,16 @@ service cloud.firestore {
         allow read: if request.auth != null && request.auth.uid == agentId;
         allow write: if false;
       }
+      // ─── LEAD BATCHES (multi-page lead-PDF import progress) ───
+      // One uploaded multi-page lead-form PDF → one tracking doc. The
+      // leads-batch-processor Cloud Function splits + extracts + commits
+      // each page and patches counters here via Admin SDK (bypasses
+      // rules). The thin Vercel create/cancel/status routes also write
+      // via Admin SDK. Dashboard reads via onSnapshot for live progress.
+      match /leadBatches/{batchId} {
+        allow read: if request.auth != null && request.auth.uid == agentId;
+        allow write: if false;
+      }
       // ─── LEADS (Phase 1 lead-mode) ───
       // Pre-clients the agent set an appointment with. Code-only auth on
       // the mobile side (lead users are not Firebase users) — reads from
