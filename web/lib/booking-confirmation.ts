@@ -46,6 +46,18 @@ export interface CompositionInput {
    * phone appointments.
    */
   meetingUrl?: string;
+  /**
+   * App-access hand-off for booked leads. When set (and kind is
+   * 'confirmation'), appends a short "download my app + log in with
+   * code" block so the lead lands on the agent's branded prep page
+   * before the meeting.
+   *
+   * Callers are responsible for the gate: only pass this when the
+   * agent is Pro+, has opted in (`includeAppAccessInConfirmations`),
+   * has a real intro video recorded, and a login code resolved for
+   * the lead. When null/omitted the body is unchanged.
+   */
+  appAccess?: { downloadUrl: string; code: string } | null;
 }
 
 /**
@@ -115,6 +127,17 @@ export function composeMessage(input: CompositionInput): string {
 
   const joinLine = input.meetingUrl ? `\n\nJoin here: ${input.meetingUrl}` : '';
 
+  // App-access block — confirmation only. Repeating the link on the
+  // 1hr reminder would just clutter, so the prep-page nudge rides the
+  // initial confirmation. The caller-side gate decides whether
+  // appAccess is populated at all.
+  const appBlock =
+    input.kind === 'confirmation' && input.appAccess
+      ? `\n\nWant a head start before we meet? Download my app: ${input.appAccess.downloadUrl} ` +
+        `and log in with code ${input.appAccess.code} — there's a short intro from me ` +
+        `plus a couple quick questions.`
+      : '';
+
   if (input.kind === 'reminder') {
     return (
       `Hi ${lead}, quick reminder of our appointment today at ${time} ` +
@@ -128,6 +151,7 @@ export function composeMessage(input: CompositionInput): string {
     `Hi ${lead}. Just a reminder of our appointment for ${day} at ${time} ` +
     `to discuss Mortgage Protection options.` +
     joinLine +
+    appBlock +
     `\n\nLooking forward to speaking with you. - ${agent}`
   );
 }

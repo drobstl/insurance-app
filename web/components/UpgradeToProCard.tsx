@@ -54,14 +54,14 @@ const SURFACE_COPY: Record<UpgradeSurface, SurfaceCopy> = {
     bullets: [
       'Drop in a lead form — AFL pulls every field automatically. No retyping.',
       'AFL tells you who to dial next, based on what happened on the last call.',
-      'Book the sit-down — AFL drafts the confirmation text with your business card and the state-matched license. You just hit send.',
+      'Book the sit-down — AFL drafts the confirmation (text or email) with your business card, the state-matched license, and a link to your prep page. You just hit send.',
       'Win the sale — and the lead becomes an Agent for Life client: monitored for lapses and cancellations, kept warm for referrals and rewrites, for life.',
     ],
     callout: BOOKED_LEAD_APP_AVAILABLE
       ? {
           title: 'Plus: Your booked leads show up ready',
           description:
-            'Every booked lead gets a branded prep page — your video, your testimonials, your intake assessment. They walk in warm, prepped, and halfway sold.',
+            'Your confirmation carries a one-tap link — text or email — to a branded prep page: your intro video, client stories, and a quick intake. They show up warm, prepped, and halfway sold.',
         }
       : undefined,
   },

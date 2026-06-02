@@ -2041,6 +2041,8 @@ function LeadsPageInner() {
             leadId={confirmingLead.lead.id}
             leadName={confirmingLead.lead.name}
             leadPhone={confirmingLead.lead.phone}
+            leadEmail={confirmingLead.lead.email}
+            leadCode={confirmingLead.lead.leadCode}
             leadState={null /* leads list doesn't denormalize state — agent picks in drawer */}
             scheduledAt={confirmingLead.scheduledAt}
             agentName={agentProfile.name || ''}

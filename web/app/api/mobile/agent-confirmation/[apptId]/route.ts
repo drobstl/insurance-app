@@ -9,6 +9,12 @@ import {
   type StateCode,
 } from '../../../../../lib/agent-licenses';
 import { composeMessage } from '../../../../../lib/booking-confirmation';
+import { deriveLeadCode } from '../../../../../lib/lead-code-derive';
+import { canAccessLeads } from '../../../../../lib/tier-gating';
+
+// Canonical app smart-download link (mirrors web/lib/welcome-sms-body.ts).
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://agentforlife.app').replace(/\/$/, '');
+const APP_DOWNLOAD_URL = `${APP_URL}/app`;
 
 /**
  * GET /api/mobile/agent-confirmation/[apptId]
@@ -117,6 +123,37 @@ export async function GET(
     const meetingUrl: string | null =
       typeof appt.meetingUrl === 'string' ? appt.meetingUrl : null;
 
+    // App-access hand-off gate. Only inject the download link + login
+    // code when the agent is Pro+ (lead-home is a Pro surface), has
+    // opted in, has actually recorded an intro video (so the prep page
+    // isn't empty), and we can resolve a login code for this lead.
+    const agentEmail =
+      typeof decoded.email === 'string' ? decoded.email :
+      typeof agent.email === 'string' ? agent.email : null;
+    const tier = typeof agent.membershipTier === 'string' ? agent.membershipTier : undefined;
+    const teRaw = agent.trialEndsAt;
+    const trialEndsAtMs: number | null =
+      teRaw instanceof Timestamp ? teRaw.toMillis() :
+      typeof teRaw === 'number' ? teRaw :
+      (teRaw && typeof teRaw.toMillis === 'function') ? teRaw.toMillis() :
+      (teRaw && typeof teRaw.seconds === 'number') ? teRaw.seconds * 1000 :
+      null;
+    const proOk = canAccessLeads(tier, agentEmail, trialEndsAtMs);
+    // Default ON per Daniel — only an explicit `false` opts out.
+    const optedInAppAccess = agent.includeAppAccessInConfirmations !== false;
+    const introUrl = typeof agent.leadContent?.intro?.url === 'string' ? agent.leadContent.intro.url : '';
+    const hasIntroVideo = introUrl.trim().length > 0;
+    // Authoritative login code is the stored leadCode (handles the
+    // random `L…` fallback); derive from phone only when absent.
+    const leadCode =
+      typeof lead.leadCode === 'string' && lead.leadCode.trim()
+        ? lead.leadCode.trim()
+        : deriveLeadCode(leadPhone) || '';
+    const appAccess =
+      proOk && optedInAppAccess && hasIntroVideo && leadCode
+        ? { downloadUrl: APP_DOWNLOAD_URL, code: leadCode }
+        : null;
+
     // Compose the SMS body server-side using the same template the
     // dashboard drawer uses. Phone receives the final string.
     const message = composeMessage({
@@ -127,6 +164,7 @@ export async function GET(
       leadStateCode: pickedState || undefined,
       meetingUrl: meetingUrl || undefined,
       kind: kindParam,
+      appAccess,
     });
 
     // ── Attachments ──
@@ -159,7 +197,10 @@ export async function GET(
       kind: kindParam,
       leadFirstName: leadName.split(/\s+/)[0] || '',
       leadPhone,
+      leadEmail: typeof lead.email === 'string' ? lead.email : '',
       leadStateCode: pickedState,
+      // Agent's saved delivery default; phone can override per-send.
+      channel: agent.confirmationChannel === 'email' ? 'email' : 'text',
       agentFirstName: agentName.split(/\s+/)[0] || '',
       scheduledAtMs,
       scheduledAtTimeZone,

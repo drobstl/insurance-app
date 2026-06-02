@@ -180,6 +180,24 @@ export interface AgentProfile {
    */
   reminderPushHoursBefore?: number;
   /**
+   * Default delivery channel for booking confirmations + reminders.
+   * 'text' (default) uses the agent's phone (Web Share / sms:); 'email'
+   * sends from AFL's verified domain with the agent's name and replies
+   * routed to the agent's inbox. Switchable per-send in the drawer.
+   * Persisted at `agents/{agentId}.confirmationChannel`.
+   */
+  confirmationChannel?: 'text' | 'email';
+  /**
+   * Whether to include the app-download link + the lead's login code in
+   * booking confirmations (so booked leads land on the agent's branded
+   * prep page). Pro+ surface, default ON — but the link is only actually
+   * injected when the agent has a real intro video recorded
+   * (`leadContent.intro.url`), so an agent who never records one never
+   * sends an empty prep page. Only an explicit `false` opts out.
+   * Persisted at `agents/{agentId}.includeAppAccessInConfirmations`.
+   */
+  includeAppAccessInConfirmations?: boolean;
+  /**
    * Per-agent video manifest for the mobile lead-home screen.
    * Videos live in Bunny.net Stream — uploaded via TUS direct-from-browser
    * (/api/lead-content/upload-url provisions, /api/lead-content/commit
@@ -355,6 +373,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           reminderPushHoursBefore: typeof data.reminderPushHoursBefore === 'number'
             ? data.reminderPushHoursBefore
             : 1,
+          confirmationChannel: data.confirmationChannel === 'email' ? 'email' : 'text',
+          // Undefined is treated as ON downstream (default ON for Pro+);
+          // preserve a literal `false` so an explicit opt-out survives.
+          includeAppAccessInConfirmations: data.includeAppAccessInConfirmations,
           leadContent: data.leadContent || undefined,
           dialScript: typeof data.dialScript === 'string' ? data.dialScript : undefined,
           dialPersistence: (data.dialPersistence === 2 || data.dialPersistence === 3)

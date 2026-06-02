@@ -100,6 +100,11 @@ export default function UpcomingAppointmentsCard({
     businessCardAt?: string;
     licensesByState?: Record<string, string>;
   } | undefined>(undefined);
+  // Lead email + login code, fetched on demand alongside attachmentsSent
+  // (same lead read — no extra cost). Email powers the reminder drawer's
+  // Email channel; code is carried for parity (unused on reminders since
+  // the app-access block is confirmation-only).
+  const [reminderLeadContact, setReminderLeadContact] = useState<{ email?: string; leadCode?: string }>({});
 
   useEffect(() => {
     if (!user) return;
@@ -192,17 +197,25 @@ export default function UpcomingAppointmentsCard({
                 onClick={async () => {
                   setReminderTarget(appt);
                   setReminderAttachmentsSent(undefined);
+                  setReminderLeadContact({});
                   // Fetch lead.attachmentsSent so the drawer dedupes
                   // attachments. Best-effort — drawer falls back to
-                  // "send everything" if this errors.
+                  // "send everything" if this errors. We grab email +
+                  // leadCode from the same read for the Email channel.
                   if (user) {
                     try {
                       const leadSnap = await getDoc(doc(db, 'agents', user.uid, 'leads', appt.leadId));
                       if (leadSnap.exists()) {
-                        setReminderAttachmentsSent(
-                          (leadSnap.data() as { attachmentsSent?: { businessCardAt?: string; licensesByState?: Record<string, string> } })
-                            .attachmentsSent || {},
-                        );
+                        const data = leadSnap.data() as {
+                          attachmentsSent?: { businessCardAt?: string; licensesByState?: Record<string, string> };
+                          email?: string;
+                          leadCode?: string;
+                        };
+                        setReminderAttachmentsSent(data.attachmentsSent || {});
+                        setReminderLeadContact({
+                          email: typeof data.email === 'string' ? data.email : undefined,
+                          leadCode: typeof data.leadCode === 'string' ? data.leadCode : undefined,
+                        });
                       }
                     } catch (err) {
                       console.warn('attachmentsSent fetch failed:', err);
@@ -227,6 +240,8 @@ export default function UpcomingAppointmentsCard({
           leadId={reminderTarget.leadId}
           leadName={reminderTarget.leadName}
           leadPhone={reminderTarget.leadPhone}
+          leadEmail={reminderLeadContact.email}
+          leadCode={reminderLeadContact.leadCode}
           leadState={reminderTarget.leadState}
           scheduledAt={reminderTarget.scheduledAt.toDate()}
           scheduledAtTimeZone={reminderTarget.scheduledAtTimeZone || null}
@@ -236,8 +251,8 @@ export default function UpcomingAppointmentsCard({
           licenses={licenses}
           attachmentsSent={reminderAttachmentsSent}
           kind="reminder"
-          onSent={() => { setReminderTarget(null); setReminderAttachmentsSent(undefined); }}
-          onCancel={() => { setReminderTarget(null); setReminderAttachmentsSent(undefined); }}
+          onSent={() => { setReminderTarget(null); setReminderAttachmentsSent(undefined); setReminderLeadContact({}); }}
+          onCancel={() => { setReminderTarget(null); setReminderAttachmentsSent(undefined); setReminderLeadContact({}); }}
         />
       )}
     </div>

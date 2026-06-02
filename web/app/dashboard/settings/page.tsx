@@ -338,6 +338,8 @@ export default function SettingsPage() {
     dialScript: agentProfile.dialScript || '',
     dialPersistence: agentProfile.dialPersistence ?? 1,
     forwardInboundSms: agentProfile.forwardInboundSms ?? true,
+    confirmationChannel: agentProfile.confirmationChannel === 'email' ? 'email' : 'text',
+    includeAppAccessInConfirmations: agentProfile.includeAppAccessInConfirmations ?? true,
   }), [
     agentProfile.name,
     agentProfile.phoneNumber,
@@ -364,6 +366,8 @@ export default function SettingsPage() {
     agentProfile.dialScript,
     agentProfile.dialPersistence,
     agentProfile.forwardInboundSms,
+    agentProfile.confirmationChannel,
+    agentProfile.includeAppAccessInConfirmations,
   ]);
 
   const loadGoogleDriveStatus = useCallback(async () => {
@@ -809,6 +813,11 @@ export default function SettingsPage() {
           return 1;
         })(),
         forwardInboundSms: agentProfile.forwardInboundSms ?? true,
+        confirmationChannel: agentProfile.confirmationChannel === 'email' ? 'email' : 'text',
+        // Default ON for Pro+; only the agent's explicit opt-out writes
+        // false. The app link is still gated on a real intro video at
+        // send time, so ON here never produces an empty prep page.
+        includeAppAccessInConfirmations: agentProfile.includeAppAccessInConfirmations ?? true,
       }, { merge: true });
 
       if (isFirstTimePhone) {
@@ -1924,6 +1933,39 @@ export default function SettingsPage() {
             </div>
 
             <div className="mb-4">
+              <label className="block text-xs font-semibold text-[#374151] mb-2">
+                Send booking confirmations by:
+              </label>
+              <div className="inline-flex rounded-[5px] border border-[#d0d0d0] overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => updateField('confirmationChannel', 'text')}
+                  className={`px-4 py-2 text-sm font-semibold transition-colors ${
+                    (agentProfile.confirmationChannel || 'text') === 'text'
+                      ? 'bg-[#005851] text-white'
+                      : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                  }`}
+                >
+                  Text
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateField('confirmationChannel', 'email')}
+                  className={`px-4 py-2 text-sm font-semibold transition-colors border-l border-[#d0d0d0] ${
+                    agentProfile.confirmationChannel === 'email'
+                      ? 'bg-[#005851] text-white'
+                      : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                  }`}
+                >
+                  Email
+                </button>
+              </div>
+              <p className="text-[11px] text-[#707070] mt-1.5">
+                Your default when you send a confirmation — switchable per send. Email goes out from AgentForLife with your name, and replies come back to your inbox.
+              </p>
+            </div>
+
+            <div className="mb-4">
               <label className="block text-xs font-semibold text-[#374151] mb-1">
                 Auto push-reminder timing
               </label>
@@ -2145,6 +2187,36 @@ export default function SettingsPage() {
                     : (agentProfile.leadContent?.intro?.url ? 'Replace' : 'Upload intro video')}
                 </span>
               </label>
+
+              {/* App-link toggle (gated on a real intro video). Default
+                  ON for Pro+, but locked until the agent records an intro
+                  so booked leads never land on an empty prep page. When
+                  on, booking confirmations carry the app-download link +
+                  the lead's login code. */}
+              {(() => {
+                const hasIntro = Boolean(agentProfile.leadContent?.intro?.url?.trim());
+                return (
+                  <div className="mt-4 pt-4 border-t border-[#ececec]">
+                    <label className={`flex items-start gap-2 ${hasIntro ? 'cursor-pointer' : 'cursor-default'}`}>
+                      <input
+                        type="checkbox"
+                        disabled={!hasIntro}
+                        checked={hasIntro && agentProfile.includeAppAccessInConfirmations !== false}
+                        onChange={(e) => updateField('includeAppAccessInConfirmations', e.target.checked)}
+                        className="mt-0.5 disabled:opacity-40"
+                      />
+                      <span className="text-sm text-[#374151] leading-snug">
+                        Include my app link + the lead&apos;s login code in booking confirmations
+                        <span className={`block text-[11px] mt-0.5 ${hasIntro ? 'text-[#707070]' : 'text-amber-700'}`}>
+                          {hasIntro
+                            ? 'Booked leads get a one-tap link to your branded prep page — your intro video plus a couple of quick questions — before you ever meet.'
+                            : 'Record your intro video first (above) so leads see a warm welcome, not an empty page. This unlocks the moment your intro is uploaded.'}
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* FAQs */}
