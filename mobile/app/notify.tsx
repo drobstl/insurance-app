@@ -317,9 +317,8 @@ export default function NotifyScreen() {
           <Image source={require('../assets/icon.png')} style={styles.icon} />
           <Text style={styles.title}>Stay in the loop with {agentFirstName}</Text>
           <Text style={styles.body}>
-            Turn on notifications and {agentFirstName} can keep you on top of policy
-            updates, annual reviews, and the birthdays and holidays worth
-            celebrating.
+            Push notifications keep you on top of policy updates, anniversary
+            reviews, and the birthdays and holidays your agent likes to mark.
           </Text>
 
           <View style={styles.spacer} />
