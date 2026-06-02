@@ -99,21 +99,21 @@ const BULK_ENCRYPTED_PDF_UNSUPPORTED_MESSAGE =
   'This PDF is encrypted/password-protected. Remove protection or upload one at a time with +Add Client one page back.';
 const BULK_IMPORT_FUN_STATES = ['Processing your import...', 'Preparing client records...', 'Finalizing import data...'] as const;
 
-// Welcome SMS copy — locked May 7, 2026 per Daniel's iteration on the
-// inline compose surface. Supersedes the prior single-sentence locked
-// v3.1 §3.3 copy. The numbered structure is intentional: it makes the
-// activation flow impossible to miss for new clients on a live phone
-// call. The closing line ties "important updates" to the actual
-// mechanism (notifications) so the client is primed to grant push
-// permission when the Activate screen prompts. Mode 2 (bulk import)
-// will get its own copy + ≥3 variants per v3.1 §7 when bulk import
-// re-enables in Phase 2 — see CONTEXT.md Open Questions.
+// Welcome SMS copy — rewritten Jun 2, 2026. The login code moved up to
+// step 2 (it's the first thing the client needs once the app opens) and
+// the steps were reordered to match the actual app flow: download →
+// enter code → allow notifications → Activate, then Send. The numbered
+// structure is intentional: it makes the activation flow impossible to
+// miss for new clients on a live phone call. Keep in sync with the
+// canonical builders in web/lib/welcome-sms-body.ts and
+// web/lib/welcome-action-item-writer.ts.
 const DEFAULT_WELCOME_SMS_TEMPLATE =
-  'Hey {{firstName}}! {{agentName}} here. Quick setup:\n\n'
-  + '1. Download: https://agentforlife.app/app\n'
-  + '2. ALLOW notifications when prompted so I can reach you with important updates.\n'
-  + '3. Tap Activate, then tap Send and wait for the text back\n\n'
-  + 'Done – head back to your personalized app and log in with code {{code}}';
+  "Hey {{firstName}}! {{agentName}} here — let's get you set up (takes a minute):\n\n"
+  + '1. Download the app: https://agentforlife.app/app\n'
+  + '2. Open it and enter your code: {{code}}\n'
+  + '3. Tap Allow on notifications so I can reach you with important updates\n'
+  + "4. Tap Activate, then Send — I'll text you right back\n\n"
+  + "That's it! Your app's already personalized for you. 👍";
 import { KNOWN_CARRIER_NAMES } from '../../../lib/carriers';
 
 const KNOWN_CARRIERS = KNOWN_CARRIER_NAMES;

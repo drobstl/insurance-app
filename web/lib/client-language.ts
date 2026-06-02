@@ -30,23 +30,31 @@ export function buildWelcomeMessage(params: {
   appUrl: string;
   language: SupportedLanguage;
 }): string {
-  // English copy locked May 7, 2026 — numbered-step structure
-  // supersedes the prior single-sentence v3.1 §3.3 default. Spanish
-  // copy has NOT been re-translated yet (open spec item — see
-  // CONTEXT.md Open Questions). Spanish callers continue to receive
-  // the v3.1 paragraph form until a Spanish version of the new
-  // structure is signed off.
+  // Welcome SMS copy, English + Spanish. Rewritten Jun 2, 2026: the
+  // login code moved up to step 2 and the steps were reordered to
+  // match the app flow (download → enter code → allow notifications →
+  // Activate, then Send). Spanish was re-translated to the same
+  // numbered-step structure in this pass (previously a single-sentence
+  // paragraph that buried the code).
   const firstName = params.firstName || 'there';
   const agentName = params.agentName || 'your agent';
   if (params.language === 'es') {
-    return `Hola ${firstName}. Soy ${agentName}. Descarga la app de AgentForLife, toca Activar y luego ingresa con el codigo ${params.code} para conectarte conmigo. ${params.appUrl}`;
+    return (
+      `Hola ${firstName}! Soy ${agentName}. Vamos a activarte (toma un minuto):\n\n`
+      + `1. Descarga la app: ${params.appUrl}\n`
+      + `2. Abrela e ingresa tu codigo: ${params.code}\n`
+      + '3. Toca Permitir en las notificaciones para que pueda avisarte de cosas importantes\n'
+      + '4. Toca Activar y luego Enviar — te respondo enseguida\n\n'
+      + 'Listo! Tu app ya esta personalizada para ti. 👍'
+    );
   }
   return (
-    `Hey ${firstName}! ${agentName} here. Quick setup:\n\n`
-    + `1. Download: ${params.appUrl}\n`
-    + '2. ALLOW notifications when prompted so I can reach you with important updates.\n'
-    + '3. Tap Activate, then tap Send and wait for the text back\n\n'
-    + `Done – head back to your personalized app and log in with code ${params.code}`
+    `Hey ${firstName}! ${agentName} here — let's get you set up (takes a minute):\n\n`
+    + `1. Download the app: ${params.appUrl}\n`
+    + `2. Open it and enter your code: ${params.code}\n`
+    + '3. Tap Allow on notifications so I can reach you with important updates\n'
+    + "4. Tap Activate, then Send — I'll text you right back\n\n"
+    + "That's it! Your app's already personalized for you. 👍"
   );
 }
 
