@@ -235,6 +235,7 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="index" />
+        <Stack.Screen name="notify" />
         <Stack.Screen name="activate" />
         <Stack.Screen name="login" />
         <Stack.Screen name="agent-profile" />

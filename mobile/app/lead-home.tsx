@@ -160,8 +160,9 @@ export default function LeadHomeScreen() {
         // Convert detected: accessType flipped from 'lead' to anything
         // else (typically 'client'). Update cached session + profile,
         // then hand off to navigateToProfile — for a new client without
-        // `clientActivatedAt`, that routes to /activate where the iOS
-        // notification prompt fires for the first time.
+        // `clientActivatedAt`, that routes to /notify (where the iOS
+        // notification prompt fires for the first time) and then on to
+        // /activate.
         if (result.accessType && result.accessType !== 'lead') {
           await saveSession({
             clientCode: session.clientCode,

@@ -1,0 +1,22 @@
+{
+  "name": "leads-batch-processor",
+  "private": true,
+  "version": "0.0.1",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.77.0",
+    "firebase-admin": "^12.5.0",
+    "firebase-functions": "^6.0.1",
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "typescript": "^5.8.3"
+  }
+}
