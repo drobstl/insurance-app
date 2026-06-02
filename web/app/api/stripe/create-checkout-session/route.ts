@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
-      success_url: `${appOrigin}${returnPath}?subscription=success`,
+      success_url: `${appOrigin}${returnPath}?subscription=success&tier=${tier}`,
       cancel_url: `${appOrigin}/pricing?canceled=true`,
       metadata: {
         firebaseUserId: userId,

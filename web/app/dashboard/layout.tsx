@@ -12,7 +12,7 @@ import DashboardTicker from '../../components/DashboardTicker';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
 import { ANALYTICS_EVENTS } from '../../lib/analytics-events';
 import { captureEvent } from '../../lib/posthog';
-import { leadsAccessReason, activityAccessReason, isTrialActive } from '../../lib/tier-gating';
+import { leadsAccessReason, activityAccessReason, isTrialActive, isProOrAbove } from '../../lib/tier-gating';
 
 const FOUNDING_ACTIVATION_TIMEOUT_MS = 12000;
 // Hard ceiling for the activation spinner: if `activatingFounding` is still true
@@ -541,6 +541,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const [showCancelWarning, setShowCancelWarning] = useState(false);
 
   const [showSubscriptionCelebration, setShowSubscriptionCelebration] = useState(false);
+  // Tier purchased in the just-completed checkout, captured from the
+  // `?tier=` param on the success redirect BEFORE we strip the query.
+  // Preferred over agentProfile.membershipTier for the celebration copy
+  // so a Pro buyer never briefly sees the growth variant while the Stripe
+  // webhook → Firestore tier write is still propagating.
+  const [celebrationTier, setCelebrationTier] = useState<string | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [adminOpen, setAdminOpen] = useState(() => pathname.startsWith('/dashboard/admin'));
 
@@ -570,6 +576,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return;
     if (searchParams.get('subscription') !== 'success') return;
+    // Capture the purchased tier from the URL before router.replace strips
+    // it. Both Stripe entry points (create-checkout-session + upgrade-tier)
+    // append `&tier=<purchased>` to the success redirect so the celebration
+    // copy is correct on first paint, even before the tier write lands.
+    const purchasedTier = searchParams.get('tier');
+    if (purchasedTier) setCelebrationTier(purchasedTier);
     setShowSubscriptionCelebration(true);
     router.replace('/dashboard');
   }, [searchParams, router, user]);
@@ -659,6 +671,28 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       });
     }
   };
+
+  // Tier-aware post-purchase celebration. Pro/Agency land on the pre-sale
+  // pipeline value (warmed-up leads, call queue, one-tap confirmations);
+  // everyone else gets the post-sale growth-engine framing. Prefer the
+  // tier captured from the checkout success URL over the live profile so
+  // the copy is right on first paint, before the tier write propagates.
+  const celebrationEffectiveTier = celebrationTier ?? agentProfile.membershipTier;
+  const celebrationCopy = isProOrAbove(celebrationEffectiveTier)
+    ? {
+        eyebrow: 'Welcome to Pro',
+        headline: "You're officially Pro.",
+        body: "Congratulations — you've unlocked the full Pro experience. Warmed-up leads before you dial, a queue that tells you who's next, one-tap appointment confirmations, and every dial and sale tracked for you. This is how the busiest agents book more and close more.",
+        chips: ['Warmed-up leads + call queue', '1-tap appointment confirmations', 'Activity + APV tracking'],
+        cta: "Let's Pro",
+      }
+    : {
+        eyebrow: 'Subscription Confirmed',
+        headline: "You're officially in.",
+        body: 'Purchase successful. Your AgentForLife subscription is active and your automated growth engine is now locked in for your business.',
+        chips: ['Client follow-up automation', 'Referral momentum tracking', 'Retention alerts + rewrites'],
+        cta: "Let's grow",
+      };
 
   return (
     <div className="min-h-screen bg-[#e4e4e4] flex">
@@ -1041,23 +1075,23 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           />
           <div className="relative w-full max-w-xl rounded-2xl border-2 border-[#1A1A1A] border-r-[6px] border-b-[6px] bg-white shadow-2xl overflow-hidden">
             <div className="px-6 py-5 bg-gradient-to-r from-[#005851] to-[#0D4D4D]">
-              <p className="text-xs font-bold tracking-[0.12em] text-[#3DD6C3] uppercase">Subscription Confirmed</p>
-              <h3 className="mt-1 text-2xl font-extrabold text-white">You&apos;re officially in.</h3>
+              <p className="text-xs font-bold tracking-[0.12em] text-[#3DD6C3] uppercase">{celebrationCopy.eyebrow}</p>
+              <h3 className="mt-1 text-2xl font-extrabold text-white">{celebrationCopy.headline}</h3>
             </div>
             <div className="px-6 py-5">
               <p className="text-sm text-[#1f2937] leading-relaxed">
-                Purchase successful. Your AgentForLife subscription is active and your automated growth engine is now locked in for your business.
+                {celebrationCopy.body}
               </p>
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <div className="rounded-lg border border-[#d0d0d0] bg-[#f8f8f8] px-3 py-2 text-xs font-semibold text-[#0D4D4D]">Client follow-up automation</div>
-                <div className="rounded-lg border border-[#d0d0d0] bg-[#f8f8f8] px-3 py-2 text-xs font-semibold text-[#0D4D4D]">Referral momentum tracking</div>
-                <div className="rounded-lg border border-[#d0d0d0] bg-[#f8f8f8] px-3 py-2 text-xs font-semibold text-[#0D4D4D]">Retention alerts + rewrites</div>
+                {celebrationCopy.chips.map((chip) => (
+                  <div key={chip} className="rounded-lg border border-[#d0d0d0] bg-[#f8f8f8] px-3 py-2 text-xs font-semibold text-[#0D4D4D]">{chip}</div>
+                ))}
               </div>
               <button
                 onClick={dismissSubscriptionCelebration}
                 className="mt-5 w-full rounded-lg bg-[#3DD6C3] hover:bg-[#32c4b2] text-[#0D4D4D] font-bold text-sm px-4 py-2.5 transition-colors"
               >
-                Let&apos;s grow
+                {celebrationCopy.cta}
               </button>
             </div>
           </div>
