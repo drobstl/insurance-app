@@ -3,6 +3,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { Timestamp } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
+import { isFreeTier } from '../../../../lib/tier-gating';
 import {
   isPushEligible,
   readValidPushToken,
@@ -89,6 +90,8 @@ export async function GET(req: NextRequest) {
       counts.agentsScanned++;
       const agentId = agentDoc.id;
       const agentData = agentDoc.data();
+      // Free tier is engine-paused: skip client-facing automated outreach.
+      if (isFreeTier(agentData.membershipTier as string | undefined)) continue;
       const hoursBefore = typeof agentData.reminderPushHoursBefore === 'number'
         ? agentData.reminderPushHoursBefore
         : DEFAULT_HOURS_BEFORE;

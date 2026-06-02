@@ -2,6 +2,7 @@ import 'server-only';
 
 import { NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
+import { isFreeTier } from '../../../../lib/tier-gating';
 import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
@@ -94,6 +95,8 @@ export async function GET() {
 
     for (const agentDoc of agentsSnap.docs) {
       const agentData = agentDoc.data();
+      // Free tier is engine-paused: skip client-facing automated outreach.
+      if (isFreeTier(agentData.membershipTier as string | undefined)) continue;
       const schedulingUrl = (agentData.schedulingUrl as string) || null;
 
       for (const status of DRIP_STATUSES) {

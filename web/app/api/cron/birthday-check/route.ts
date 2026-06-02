@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
+import { isFreeTier } from '../../../../lib/tier-gating';
 import { buildBirthdayPush, resolveClientLanguage } from '../../../../lib/client-language';
 import {
   getPushPermissionStatus,
@@ -60,6 +61,8 @@ export async function GET(req: NextRequest) {
 
     for (const agentDoc of agentsSnap.docs) {
       const agentData = agentDoc.data();
+      // Free tier is engine-paused: skip client-facing automated outreach.
+      if (isFreeTier(agentData.membershipTier as string | undefined)) continue;
       const agentName = (agentData.name as string) || 'Your Agent';
       const agentEmail = agentData.email as string | undefined;
       const agencyName = (agentData.agencyName as string) || '';

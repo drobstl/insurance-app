@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
+import { isFreeTier } from '../../../../lib/tier-gating';
 import { generateInitialOutreach, type PolicyReviewOutreachContext } from '../../../../lib/policy-review-ai';
 import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
@@ -114,6 +115,8 @@ export async function GET(req: NextRequest) {
 
     for (const agentDoc of agentsSnap.docs) {
       const agentData = agentDoc.data();
+      // Free tier is engine-paused: skip client-facing automated outreach.
+      if (isFreeTier(agentData.membershipTier as string | undefined)) continue;
       const agentEmail = agentData.email as string | undefined;
       const agentName = (agentData.name as string) || 'Agent';
       const agentFirstName = agentName.split(' ')[0];

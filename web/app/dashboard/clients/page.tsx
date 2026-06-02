@@ -39,6 +39,7 @@ import {
 import { isTimeoutError, withTimeout } from '../../../lib/timeout';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
+import { isFreeTier } from '../../../lib/tier-gating';
 import {
   OnboardingWalkthroughModal,
   OnboardingWalkthroughPoster,
@@ -2695,6 +2696,14 @@ export default function ClientsPage() {
     onProgress?: (state: ParseProgressState) => void,
     options?: ParseApplicationOptions,
   ): Promise<ParseApplicationResult> => {
+    // Free tier is engine-paused (data-preserved): parsing NEW applications
+    // is a paid feature. Block at this single client-side chokepoint — both
+    // extract handlers call it — and surface an upgrade prompt via err.message.
+    if (isFreeTier(agentProfile.membershipTier)) {
+      throw new Error(
+        'Parsing new applications is paused on the free plan. Pick a plan to turn it back on — your clients and policies stay right where they are.',
+      );
+    }
     const signal = options?.signal;
     const carrierFormType = options?.carrierFormType ?? DEFAULT_APPLICATION_TYPE;
     const applicationTypeLabel = APPLICATION_TYPE_OPTIONS.find((option) => option.value === carrierFormType)?.label || 'Selected carrier';
@@ -2957,7 +2966,7 @@ export default function ClientsPage() {
       }
       return runDirectParseFallback();
     }
-  }, [user]);
+  }, [user, agentProfile.membershipTier]);
 
   // File-pick handler: STAGES the file only. Extraction waits for the
   // agent to click Upload on the staging UI, after they've had a

@@ -75,6 +75,10 @@
     {
       "path": "/api/cron/merged-duplicates-reaper",
       "schedule": "30 17 * * *"
+    },
+    {
+      "path": "/api/cron/trial-lifecycle",
+      "schedule": "0 17 * * *"
     }
   ]
 }

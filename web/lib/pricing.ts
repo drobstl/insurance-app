@@ -47,9 +47,10 @@
  * the amounts they bill changed.
  */
 
-export type PricingTierId = 'starter' | 'growth' | 'pro' | 'agency';
+export type PricingTierId = 'free' | 'starter' | 'growth' | 'pro' | 'agency';
 
-export type StripeBillableTierId = Exclude<PricingTierId, 'agency'>;
+// Free is not Stripe-billable (no card, $0), same as Agency (sales-led).
+export type StripeBillableTierId = Exclude<PricingTierId, 'agency' | 'free'>;
 
 export interface PricingTier {
   id: PricingTierId;
@@ -88,6 +89,32 @@ export interface PricingTier {
 }
 
 export const PRICING_TIERS: Readonly<Record<PricingTierId, PricingTier>> = {
+  free: {
+    id: 'free',
+    name: 'Free',
+    priceMonthly: 0,
+    // Entry-mechanism cutover, Phase 2: the day-14 default landing spot.
+    // NOT a functional tier — it's data-preserved + engine-paused. The
+    // agent keeps their WHOLE book and can log in to view / export it, but
+    // the active engine (automated outreach + new application parsing)
+    // pauses until they pick a paid plan. No quantitative caps: hiding a
+    // Free agent's own clients would contradict "your data is preserved."
+    // The pause itself is enforced separately (outbound crons skip Free;
+    // new uploads gated at the UI) — not modeled on this record.
+    tagline: 'Your book stays — the engine pauses',
+    conversationsPerMonth: 0,
+    dailyConversationCap: 0,
+    trialDays: 0,
+    bullets: [
+      'Your whole book stays — clients, policies, history, notes',
+      'Log in anytime to view or export everything',
+      'Automatic texts, retention nudges & new app parsing pause',
+      'Upgrade anytime to switch the engine back on',
+    ],
+    bestFor: 'Agents between active stretches who want their book kept safe without paying — and the engine back on the moment they upgrade',
+    isStripeBillable: false,
+    stripePriceIdEnvVar: '',
+  },
   starter: {
     id: 'starter',
     name: 'Starter',
@@ -194,7 +221,13 @@ export function isStripeBillableTier(id: string): id is StripeBillableTierId {
 
 /** Type guard: is this string a known pricing tier id? */
 export function isPricingTierId(id: string): id is PricingTierId {
-  return id === 'starter' || id === 'growth' || id === 'pro' || id === 'agency';
+  return (
+    id === 'free' ||
+    id === 'starter' ||
+    id === 'growth' ||
+    id === 'pro' ||
+    id === 'agency'
+  );
 }
 
 /** Resolve the Stripe price ID for a billable tier from the
