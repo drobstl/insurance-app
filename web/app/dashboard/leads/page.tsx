@@ -1441,10 +1441,12 @@ function LeadsPageInner() {
                 </p>
                 <div className="space-y-4 mb-6">
                   <div>
-                    <p className="font-semibold text-[#000000] mb-1">Two ways to add a lead.</p>
+                    <p className="font-semibold text-[#000000] mb-1">Three ways to add a lead.</p>
                     <p className="text-[#444] text-sm leading-relaxed">
                       <strong>Drop a lead form PDF</strong> (Mail-In, Call-In, or Digital) into the box above —
                       AFL pulls out name, phone, address, DOB, mortgage details, and more.
+                      <strong> Drop a CSV or Excel list</strong> in the same box to add a whole batch at once —
+                      each row becomes a lead (name, phone, email, DOB, address).
                       Or click <strong>Add Lead</strong> for a one-off manual entry on the call.
                     </p>
                   </div>
@@ -1454,6 +1456,14 @@ function LeadsPageInner() {
                       No random code to read out. You say
                       &ldquo;your code is your phone number&rdquo; on the call,
                       and they type the 10 digits into AFL on the spot.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-[#000000] mb-1">Book the sit-down, confirm it in one tap.</p>
+                    <p className="text-[#444] text-sm leading-relaxed">
+                      The moment a lead books, AFL drafts the confirmation text for you —
+                      with your business card and the license that matches their state attached.
+                      It lands on your paired phone; you just hit send, so it comes from your number.
                     </p>
                   </div>
                 </div>
