@@ -15,9 +15,6 @@ import {
   Easing,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import * as Notifications from 'expo-notifications';
-import { registerForPushNotificationsAsync } from './_layout';
-import { getSession, registerAndSavePushToken } from './index';
 
 /**
  * Phase 1 Track B — in-app Activate screen.
@@ -26,19 +23,14 @@ import { getSession, registerAndSavePushToken } from './index';
  * (welcome flow Step 2) + CONTEXT.md > Channel Rules > The two-step
  * welcome flow.
  *
- * Renders ONCE per client between successful login and the agent
- * profile screen. Two responsibilities:
+ * Renders ONCE per client between the notification pre-prompt
+ * (`/notify`) and the agent profile screen. The push-permission step
+ * used to live on this screen too; it now has its own branded
+ * pre-prompt screen (`/notify`) that runs immediately before this one
+ * (decoupled in the mobile onboarding redesign). This screen now has a
+ * single responsibility:
  *
- * 1. Pre-prompt push notification permission so retention,
- *    anniversary, holiday, and birthday lanes can reach this client.
- *    The client app's push token is registered to the client doc by
- *    registerAndSavePushToken (called from index.tsx on login). Push
- *    permission denial is NOT a hard block on activation — they can
- *    proceed to Activate without push, but the channel matrix
- *    (CONTEXT.md > Channel Rules) makes it clear that anniversary /
- *    holiday / birthday cards will silently end for them.
- *
- * 2. The Activate button uses the `sms:` URL scheme to compose a
+ *    The Activate button uses the `sms:` URL scheme to compose a
  *    pre-filled outbound FROM the client TO the Linq line, with the
  *    body locked by v3.1 §3.3:
  *      "Hi [Agent], it's [Client] — I'm set up on the app!"
@@ -178,85 +170,11 @@ export default function ActivateScreen() {
   const PLATFORM_LINQ_PHONE = '+14046453010';
   const linqLinePhone = getParamValue(params.linqLinePhone).trim() || PLATFORM_LINQ_PHONE;
 
-  const [pushStatus, setPushStatus] = useState<'unknown' | 'requesting' | 'enabled' | 'denied'>('unknown');
   const [activating, setActivating] = useState(false);
   const [activationStarted, setActivationStarted] = useState(false);
   const advancedRef = useRef(false);
   const forwardRef = useRef<() => void>(() => {});
   const pulseAnim = useRef(new Animated.Value(1)).current;
-
-  // On mount: check current notification permission state. If it's not
-  // yet decided, auto-trigger the iOS permission dialog so the user
-  // always lands here with the dialog up (our numbered "Tap Allow"
-  // instructions on this screen point at the dialog and are useless
-  // if it isn't there).
-  //
-  // CRITICAL: the iOS permission grant and the Expo push token fetch
-  // are TWO separate concerns. `registerForPushNotificationsAsync`
-  // returns null in multiple cases — including when permission IS
-  // granted but the token fetch failed (network blip, project ID
-  // misconfig, simulator). Using its return value to derive permission
-  // status conflates the two and falsely shows "Notifications are off"
-  // when the user actually granted. The OS permission state is the
-  // source of truth — re-check it directly after the prompt regardless
-  // of what the token fetch did.
-  useEffect(() => {
-    (async () => {
-      try {
-        const { status, canAskAgain } = await Notifications.getPermissionsAsync();
-        if (status === 'granted') {
-          setPushStatus('enabled');
-          return;
-        }
-        // On Android 13+ the initial pre-prompt state is reported as
-        // 'denied' with canAskAgain:true (Android has no 'undetermined'
-        // equivalent — pre-ask and explicit-deny share the same status).
-        // Treat that as "we haven't asked yet" and trigger the OS dialog.
-        // Only stop at 'denied' when canAskAgain is false (the user has
-        // actually said no, or hit "don't ask again").
-        if (status === 'denied' && !canAskAgain) {
-          setPushStatus('denied');
-          return;
-        }
-        // Either 'undetermined' (iOS first run) or 'denied'+canAskAgain
-        // (Android first run) — auto-prompt so the dialog appears now.
-        setPushStatus('requesting');
-        try {
-          await registerForPushNotificationsAsync();
-        } catch (err) {
-          // Token fetch failure is NOT permission denial — see comment
-          // above. Log + fall through to the post-prompt re-check.
-          console.warn('[activate] push token fetch failed', err);
-        }
-        // Re-check the OS permission state after the prompt completes.
-        try {
-          const { status: postStatus } = await Notifications.getPermissionsAsync();
-          if (postStatus === 'granted') {
-            setPushStatus('enabled');
-            // Best-effort token save now that we know permission is
-            // granted. If the token registered above this is a no-op;
-            // if it didn't, this gives it a second chance.
-            try {
-              const session = await getSession();
-              if (session?.clientCode) {
-                registerAndSavePushToken(session.clientCode).catch(() => {});
-              }
-            } catch {
-              // Session lookup failed — non-blocking.
-            }
-          } else {
-            setPushStatus('denied');
-          }
-        } catch {
-          // getPermissionsAsync threw post-prompt — unusual but treat
-          // as denied so the UI fails closed.
-          setPushStatus('denied');
-        }
-      } catch {
-        // Simulator or unsupported — leave as 'unknown'.
-      }
-    })();
-  }, []);
 
   // Subtle pulse on the Activate button to draw the eye to the primary
   // action. Stops once the user actually taps it (or has navigated away
@@ -375,12 +293,6 @@ export default function ActivateScreen() {
   // that case anyway, so the body copy never reaches a real client).
   const linqLineDisplay = linqLinePhone ? formatPhoneForDisplay(linqLinePhone) : '';
 
-  // Numbered-step instructions guide the user through the iOS dialog
-  // (which is a centered system modal we can't move) and on to the
-  // Activate button below it. Step 1 only when notification permission
-  // is still being decided; otherwise just step 2 (Activate).
-  const showStepOne = pushStatus === 'unknown' || pushStatus === 'requesting';
-
   return (
     <View style={styles.outerContainer}>
       <SafeAreaView style={styles.topSafeArea} />
@@ -403,54 +315,16 @@ export default function ActivateScreen() {
         <View style={styles.contentSection}>
           <SafeAreaView style={styles.formSafeArea}>
             <View style={styles.layoutColumn}>
-              {/* Single short body line at the top of white area. */}
               <Text style={styles.topLine}>
                 Tap Activate to text {agentFirstName}
                 {linqLineDisplay ? ` at ${linqLineDisplay}` : '’s office line'}.
               </Text>
 
-              {/* Flex spacer absorbs the middle zone where the iOS
-                  permission dialog appears. The steps + Activate
-                  button below sit in the lower portion of the white
-                  area, BELOW where the dialog ends. */}
+              {/* Flex spacer pushes the action group toward the lower
+                  half of the white area. */}
               <View style={styles.flexSpacer} />
 
-              <View style={styles.stepsBlock}>
-                {showStepOne ? (
-                  <View style={styles.stepRow}>
-                    <Text style={styles.stepNumber}>1.</Text>
-                    <Text style={styles.stepText}>
-                      Tap <Text style={styles.stepEmphasis}>&ldquo;Allow&rdquo;</Text>
-                    </Text>
-                    <Text style={styles.stepArrowUp}>⤴</Text>
-                  </View>
-                ) : pushStatus === 'denied' ? (
-                  <View style={styles.deniedRow}>
-                    <Text style={styles.deniedText}>
-                      Notifications are off. You can enable them later in your phone&apos;s Settings.
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.deniedSettingsLink}
-                      onPress={() => Linking.openSettings().catch(() => {})}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.deniedSettingsLinkText}>Open Settings</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View style={styles.enabledRow}>
-                    <Text style={styles.enabledText}>Notifications are on ✓</Text>
-                  </View>
-                )}
-
-                <View style={styles.stepRow}>
-                  <Text style={styles.stepNumber}>{showStepOne ? '2.' : '1.'}</Text>
-                  <Text style={styles.stepText}>
-                    Then tap <Text style={styles.stepEmphasis}>Activate</Text>
-                  </Text>
-                  <Text style={styles.stepArrowDown}>⤵</Text>
-                </View>
-
+              <View style={styles.actionBlock}>
                 <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
                   <TouchableOpacity
                     style={[styles.activateButton, activating && styles.buttonDisabled]}
@@ -604,74 +478,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 80,
   },
-  stepsBlock: {
-    // Anchored to the bottom of layoutColumn via the flexSpacer above.
-    // Steps + Activate button + hint sit as a tight group below where
-    // the iOS permission dialog ends.
-  },
-  stepRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-  stepNumber: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#0D4D4D',
-    marginRight: 12,
-    minWidth: 26,
-  },
-  stepText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#0D4D4D',
-  },
-  stepEmphasis: {
-    fontWeight: '800',
-    color: '#0D4D4D',
-  },
-  stepArrowUp: {
-    fontSize: 38,
-    fontWeight: '900',
-    color: '#B45309',
-    marginLeft: 8,
-    lineHeight: 44,
-  },
-  stepArrowDown: {
-    fontSize: 38,
-    fontWeight: '900',
-    color: '#0D4D4D',
-    marginLeft: 8,
-    lineHeight: 44,
-  },
-  enabledRow: {
-    marginTop: 14,
-    paddingHorizontal: 4,
-  },
-  enabledText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#065F46',
-  },
-  deniedRow: {
-    marginTop: 14,
-    paddingHorizontal: 4,
-  },
-  deniedText: {
-    fontSize: 13,
-    color: '#92400E',
-    lineHeight: 18,
-  },
-  deniedSettingsLink: {
-    marginTop: 4,
-    alignSelf: 'flex-start',
-  },
-  deniedSettingsLinkText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0D4D4D',
-    textDecorationLine: 'underline',
+  actionBlock: {
+    // Anchored to the bottom of layoutColumn via the flexSpacer above —
+    // Activate button + hint + consent sit as a tight group.
   },
   activateButton: {
     backgroundColor: '#0D4D4D',
