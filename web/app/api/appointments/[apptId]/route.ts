@@ -10,6 +10,7 @@ import {
   patchCalendarEvent,
   resolveGoogleCalendarAccessToken,
 } from '../../../../lib/google-calendar';
+import { buildGoogleCallbackUrl, GOOGLE_CALENDAR_CALLBACK_PATH } from '../../../../lib/oauth-redirect';
 import { pushAgentForConfirmation } from '../../../../lib/agent-push';
 
 /**
@@ -103,8 +104,7 @@ export async function PATCH(
     const priorEventId = typeof prior.googleEventId === 'string' ? prior.googleEventId : null;
     if (priorEventId) {
       try {
-        const origin = new URL(req.url).origin;
-        const callbackUrl = `${origin}/api/integrations/google-calendar/callback`;
+        const callbackUrl = buildGoogleCallbackUrl(req.url, GOOGLE_CALENDAR_CALLBACK_PATH);
         const { accessToken, calendarId } = await resolveGoogleCalendarAccessToken(agentId, callbackUrl);
 
         const nextStatus = (updates.status as AppointmentStatus | undefined) ?? (prior.status as AppointmentStatus | undefined);
@@ -249,8 +249,7 @@ export async function DELETE(
 
     if (priorEventId) {
       try {
-        const origin = new URL(req.url).origin;
-        const callbackUrl = `${origin}/api/integrations/google-calendar/callback`;
+        const callbackUrl = buildGoogleCallbackUrl(req.url, GOOGLE_CALENDAR_CALLBACK_PATH);
         const { accessToken, calendarId } = await resolveGoogleCalendarAccessToken(decoded.uid, callbackUrl);
         await deleteCalendarEvent({ accessToken, calendarId, eventId: priorEventId });
       } catch (err) {

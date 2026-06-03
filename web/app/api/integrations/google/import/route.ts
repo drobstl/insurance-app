@@ -12,6 +12,7 @@ import {
   isGoogleInvalidGrantError,
   refreshGoogleAccessToken,
 } from '../../../../../lib/google-oauth';
+import { buildGoogleCallbackUrl, GOOGLE_DRIVE_CALLBACK_PATH } from '../../../../../lib/oauth-redirect';
 import {
   checkBatchCompletion,
   createBatchJob,
@@ -117,11 +118,6 @@ function isStructuredMime(mimeType: string): boolean {
 
 // ─── Auth Helpers ─────────────────────────────────────────
 
-function getCallbackUrl(req: NextRequest): string {
-  const url = new URL(req.url);
-  return `${url.origin}/api/integrations/google/callback`;
-}
-
 function sanitizeFileName(fileName: string): string {
   return fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
 }
@@ -178,7 +174,7 @@ async function resolveGoogleAccessToken(req: NextRequest, agentId: string): Prom
   try {
     refreshed = await refreshGoogleAccessToken({
       refreshToken: integration.refreshToken,
-      redirectUri: getCallbackUrl(req),
+      redirectUri: buildGoogleCallbackUrl(req.url, GOOGLE_DRIVE_CALLBACK_PATH),
     });
   } catch (refreshErr) {
     if (isGoogleInvalidGrantError(refreshErr)) {

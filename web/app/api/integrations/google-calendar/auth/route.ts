@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth } from '../../../../../lib/firebase-admin';
 import { buildGoogleConsentUrl, GOOGLE_CALENDAR_SCOPE } from '../../../../../lib/google-oauth';
 import { buildGoogleOAuthState, createGoogleOAuthState } from '../../../../../lib/google-drive-store';
+import { buildGoogleCallbackUrl, GOOGLE_CALENDAR_CALLBACK_PATH } from '../../../../../lib/oauth-redirect';
 
 interface AuthRouteResponse {
   success: boolean;
@@ -12,11 +13,6 @@ interface AuthRouteResponse {
 
 interface AuthRequestBody {
   returnTo?: string;
-}
-
-function getCallbackUrl(req: NextRequest): string {
-  const url = new URL(req.url);
-  return `${url.origin}/api/integrations/google-calendar/callback`;
 }
 
 async function requireAgentId(req: NextRequest): Promise<string> {
@@ -51,7 +47,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<AuthRouteResp
 
     const state = buildGoogleOAuthState(agentId, stateId);
     const authUrl = buildGoogleConsentUrl({
-      redirectUri: getCallbackUrl(req),
+      redirectUri: buildGoogleCallbackUrl(req.url, GOOGLE_CALENDAR_CALLBACK_PATH),
       state,
       scopes: [GOOGLE_CALENDAR_SCOPE],
     });
