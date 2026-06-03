@@ -52,22 +52,30 @@ export async function resolveLeadCodeOrDuplicate(args: {
     if (existing.exists) {
       const data = existing.data() as { agentId?: string; leadId?: string } | undefined;
       if (data?.agentId === agentId && data.leadId) {
-        // Same-agent duplicate. Pull the existing lead's name + createdAt
-        // so the caller can render a useful "already exists" message.
+        // Same-agent code match. Confirm the lead it points at still exists
+        // before calling it a duplicate — a stale index left behind by an
+        // older delete (or a phone edit) would otherwise block the number
+        // forever. Pull the lead's name + createdAt for the "already exists"
+        // message at the same time.
         const leadSnap = await db
           .collection('agents').doc(agentId)
           .collection('leads').doc(data.leadId)
           .get();
-        const leadData = leadSnap.data() as
-          | { name?: string; createdAt?: Timestamp | null }
-          | undefined;
-        return {
-          duplicate: true,
-          existingLeadId: data.leadId,
-          existingLeadCode: derived,
-          existingLeadName: leadData?.name,
-          existingLeadCreatedAt: leadData?.createdAt ?? null,
-        };
+        if (leadSnap.exists) {
+          const leadData = leadSnap.data() as
+            | { name?: string; createdAt?: Timestamp | null }
+            | undefined;
+          return {
+            duplicate: true,
+            existingLeadId: data.leadId,
+            existingLeadCode: derived,
+            existingLeadName: leadData?.name,
+            existingLeadCreatedAt: leadData?.createdAt ?? null,
+          };
+        }
+        // Orphaned index (lead was deleted) — self-heal: drop the stale entry
+        // and fall through to re-claim the code for the new lead.
+        await db.collection('leadCodes').doc(derived).delete().catch(() => {});
       }
       // Cross-agent collision — fall through to random fallback below.
     }
