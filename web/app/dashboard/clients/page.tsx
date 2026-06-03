@@ -4573,13 +4573,22 @@ export default function ClientsPage() {
           <h1 className="text-2xl font-bold text-[#000000]">Clients</h1>
           <p className="text-[#707070] text-sm mt-1">Manage your clients, policies, and applications.</p>
         </div>
-        <Link
-          href="/dashboard/clients/duplicates"
-          className="text-sm font-semibold text-[#005851] hover:underline shrink-0 whitespace-nowrap pt-1"
-          title="Scan your client list for duplicates and merge them"
-        >
-          Find duplicates →
-        </Link>
+        <div className="flex items-center gap-4 shrink-0 pt-1">
+          <Link
+            href="/dashboard/clients/import-review"
+            className="text-sm font-semibold text-[#005851] hover:underline whitespace-nowrap"
+            title="Review the clients from your bulk import"
+          >
+            Review imported clients →
+          </Link>
+          <Link
+            href="/dashboard/clients/duplicates"
+            className="text-sm font-semibold text-[#005851] hover:underline whitespace-nowrap"
+            title="Scan your client list for duplicates and merge them"
+          >
+            Find duplicates →
+          </Link>
+        </div>
       </div>
 
       {addFlowToast?.celebrate && addFlowToast.body && (
