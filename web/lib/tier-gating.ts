@@ -123,6 +123,29 @@ export function isFreeTier(tier: MaybeTier): boolean {
 }
 
 /**
+ * True when automated, client-facing outreach must NOT fire for this
+ * agent right now. Two reasons today:
+ *   • Free tier — engine-paused (data-preserved, no outbound).
+ *   • Outreach hold — an explicit `automatedOutreachHold: true` flag on
+ *     the agent doc. Set, for example, right after a bulk import so a
+ *     freshly-imported, un-reviewed book can't auto-message its duplicate
+ *     or denied-application records before the agent has cleaned it up.
+ *     Toggled via POST /api/clients/outreach-hold.
+ *
+ * The whole-book care crons (birthday, holiday, beneficiary,
+ * policy-review, policy-review-drip, conservation-outreach) call this in
+ * place of the bare `isFreeTier` check. Pass the agent doc data; never
+ * throws on an unexpected shape.
+ */
+export function isClientOutreachPaused(
+  agentData: Record<string, unknown> | null | undefined,
+): boolean {
+  if (!agentData) return false;
+  if (isFreeTier(agentData.membershipTier as MaybeTier)) return true;
+  return agentData.automatedOutreachHold === true;
+}
+
+/**
  * Resolves whether an agent can access the Leads surface.
  *
  * Three gates stacked:

@@ -3,7 +3,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
-import { isFreeTier } from '../../../../lib/tier-gating';
+import { isClientOutreachPaused } from '../../../../lib/tier-gating';
 import { sendOrCreateChat } from '../../../../lib/linq';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { Resend } from 'resend';
@@ -304,8 +304,9 @@ export async function GET(req: NextRequest) {
 
     for (const agentDoc of agentsSnap.docs) {
       const agentData = agentDoc.data();
-      // Free tier is engine-paused: skip client-facing automated outreach.
-      if (isFreeTier(agentData.membershipTier as string | undefined)) continue;
+      // Skip when automated outreach is paused for this agent — Free tier,
+      // or an explicit hold (e.g. a freshly-imported, un-reviewed book).
+      if (isClientOutreachPaused(agentData)) continue;
       const agentName = (agentData.name as string) || 'Your Agent';
       const agentFirstName = agentName.split(' ')[0];
       const schedulingUrl = (agentData.schedulingUrl as string) || null;
