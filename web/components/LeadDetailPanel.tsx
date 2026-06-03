@@ -24,6 +24,7 @@ import {
 } from '../lib/appointment-outcome-chip';
 import { DIMENSION_MAX, type LeadScore } from '../lib/lead-assessment';
 import { LeadTempLine } from './LeadTempChip';
+import { isDerivedLeadCode } from '../lib/lead-code-derive';
 
 interface LeadPhone {
   number: string;
@@ -1158,7 +1159,7 @@ export default function LeadDetailPanel({
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-4 mb-6">
+      <div className="mb-6">
         <div>
           <h1 className="text-2xl font-bold text-[#000000]">{lead.name || 'Unnamed lead'}</h1>
           <p className="text-sm text-[#707070] mt-1">
@@ -1176,6 +1177,11 @@ export default function LeadDetailPanel({
             {mostRecentPastOutcomeChip && (
               <span className={`ml-2 inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${mostRecentPastOutcomeChip.classes}`}>
                 {mostRecentPastOutcomeChip.label}
+              </span>
+            )}
+            {lead.leadCode && (
+              <span className="ml-2 text-xs text-[#9CA3AF]">
+                · {isDerivedLeadCode(lead.leadCode) ? 'code = phone' : `code ${lead.leadCode}`}
               </span>
             )}
           </p>
@@ -1242,11 +1248,11 @@ export default function LeadDetailPanel({
                 <button
                   type="button"
                   onClick={() => setShowConvertConfirm(true)}
+                  title="Paper app or async e-app — upload the PDF later from the new client's profile"
                   className="text-[#005851] font-semibold underline decoration-dotted underline-offset-2 hover:text-[#004440]"
                 >
                   Convert without PDF →
-                </button>{' '}
-                <span className="text-[#9CA3AF]">(paper app or async e-app — upload the PDF later from the new client&apos;s profile)</span>
+                </button>
               </p>
             </div>
           )}
@@ -1256,14 +1262,7 @@ export default function LeadDetailPanel({
             </div>
           )}
         </div>
-        <div className="text-right">
-          <div className="font-mono text-lg tracking-[0.25em] font-bold text-[#005851] bg-[#daf3f0]/50 px-3 py-1.5 rounded-[5px] border border-[#45bcaa]/40">
-            {lead.leadCode}
-          </div>
-          <p className="text-[10px] uppercase tracking-wider text-[#707070] mt-1 font-semibold">Lead code</p>
-        </div>
       </div>
-
 
       {/* Outcome prompt — appears when the agent has tapped Call.
           Stays open until the agent picks an outcome (no auto-dismiss
