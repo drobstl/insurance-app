@@ -10,6 +10,7 @@ import {
   isGoogleInvalidGrantError,
   refreshGoogleAccessToken,
 } from '../../../../../lib/google-oauth';
+import { buildGoogleCallbackUrl, GOOGLE_DRIVE_CALLBACK_PATH } from '../../../../../lib/oauth-redirect';
 
 interface TokenRouteResponse {
   success: boolean;
@@ -19,11 +20,6 @@ interface TokenRouteResponse {
 }
 
 const ACCESS_TOKEN_SAFETY_WINDOW_MS = 60_000;
-
-function getCallbackUrl(req: NextRequest): string {
-  const url = new URL(req.url);
-  return `${url.origin}/api/integrations/google/callback`;
-}
 
 async function requireAgentId(req: NextRequest): Promise<string> {
   const authHeader = req.headers.get('Authorization');
@@ -71,7 +67,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<TokenRouteResp
     try {
       refreshed = await refreshGoogleAccessToken({
         refreshToken: integration.refreshToken,
-        redirectUri: getCallbackUrl(req),
+        redirectUri: buildGoogleCallbackUrl(req.url, GOOGLE_DRIVE_CALLBACK_PATH),
       });
     } catch (refreshErr) {
       if (isGoogleInvalidGrantError(refreshErr)) {
