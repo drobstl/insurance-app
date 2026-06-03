@@ -23,3 +23,23 @@ export function LeadTempChip({
     </span>
   );
 }
+
+/**
+ * The connected temperature unit for the profile header: a colored accent
+ * bar + the chip + the one-line summary, so it reads as one thought
+ * ("Hot — and here's why") instead of a chip and a stray sentence.
+ */
+export function LeadTempLine({
+  temperature,
+  summary,
+}: {
+  temperature: LeadTemperature;
+  summary: string;
+}) {
+  return (
+    <div className={`mt-2 flex items-center gap-2 border-l-[3px] pl-2.5 py-0.5 ${TEMPERATURE_UI[temperature].bar}`}>
+      <LeadTempChip temperature={temperature} />
+      <span className="text-[13px] text-[#374151] leading-snug">{summary}</span>
+    </div>
+  );
+}

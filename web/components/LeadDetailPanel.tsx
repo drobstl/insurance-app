@@ -23,7 +23,7 @@ import {
   isAppointmentOutcomeChipStatus,
 } from '../lib/appointment-outcome-chip';
 import { DIMENSION_MAX, type LeadScore } from '../lib/lead-assessment';
-import { LeadTempChip } from './LeadTempChip';
+import { LeadTempLine } from './LeadTempChip';
 
 interface LeadPhone {
   number: string;
@@ -1160,10 +1160,7 @@ export default function LeadDetailPanel({
     <div>
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-2xl font-bold text-[#000000]">{lead.name || 'Unnamed lead'}</h1>
-            {lead.leadScore && <LeadTempChip temperature={lead.leadScore.temperature} />}
-          </div>
+          <h1 className="text-2xl font-bold text-[#000000]">{lead.name || 'Unnamed lead'}</h1>
           <p className="text-sm text-[#707070] mt-1">
             {lead.phone}
             {lead.formType && lead.formType !== 'Manual' && (
@@ -1183,7 +1180,7 @@ export default function LeadDetailPanel({
             )}
           </p>
           {lead.leadScore && (
-            <p className="text-[13px] text-[#374151] mt-1.5 leading-snug">{lead.leadScore.summary}</p>
+            <LeadTempLine temperature={lead.leadScore.temperature} summary={lead.leadScore.summary} />
           )}
           {/* Phones list — one row per number with its own Call button,
               dial-count badge, last-outcome chip, and a label dropdown.
