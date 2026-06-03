@@ -6,6 +6,12 @@ import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { checkRateLimit, getClientIp } from '../../../../lib/rate-limit';
 import { findLeadByCode } from '../../../../lib/lead-code-lookup';
 import { isLeadCode } from '../../../../lib/lead-code-derive';
+import {
+  DEFAULT_ASSESSMENT,
+  scoreAssessment,
+  TEMPERATURE_LABELS,
+  type AssessmentQuestion,
+} from '../../../../lib/lead-assessment';
 
 const MAX_ATTEMPTS = 20;
 const WINDOW_MS = 60_000;
@@ -20,7 +26,8 @@ const WINDOW_MS = 60_000;
  * Body: { leadCode: string, answers: Record<questionId, choiceId> }
  *
  * Side effects:
- *   1. Writes `assessmentAnswers` + `assessmentCompletedAt` to the lead doc.
+ *   1. Writes `assessmentAnswers` + `assessmentCompletedAt` + the derived
+ *      `leadScore` (temperature / dimension breakdown / summary) to the lead doc.
  *   2. Pushes a `lead_assessment_completed` event into the agent's
  *      activity feed so the agent sees it before the appointment. (Phase 1
  *      doesn't write to the action-feed action-items system because that's
@@ -75,16 +82,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Answers payload was empty after sanitization' }, { status: 400 });
     }
 
+    const db = getAdminFirestore();
+
+    // Resolve the questions actually shown to this lead — per-agent override
+    // (Phase 2) falls back to the platform default — so scoring matches the
+    // assessment they saw. Computed once here and stored structured on the
+    // lead (temperature + per-dimension breakdown + summary) so the dashboard
+    // and a future leads-query layer read fields, not raw answers.
+    let questions: AssessmentQuestion[] = DEFAULT_ASSESSMENT;
+    try {
+      const agentSnap = await db.collection('agents').doc(match.agentId).get();
+      const override = agentSnap.data()?.leadContent?.assessment;
+      if (Array.isArray(override) && override.length > 0) {
+        questions = override as AssessmentQuestion[];
+      }
+    } catch {
+      // Fall back to the default question set on any read error.
+    }
+
+    const leadScore = scoreAssessment(questions, cleanAnswers);
+
     await match.leadRef.update({
       assessmentAnswers: cleanAnswers,
       assessmentCompletedAt: FieldValue.serverTimestamp(),
+      leadScore,
     });
 
     // Activity-feed entry on the agent's `leadActivity` subcollection. The
     // dashboard lead-detail page reads this to render an "answered the
     // assessment" timeline. Separate from the action-feed (which is for
     // clients only).
-    const db = getAdminFirestore();
     await db
       .collection('agents')
       .doc(match.agentId)
@@ -93,7 +120,8 @@ export async function POST(req: NextRequest) {
         leadId: match.leadId,
         kind: 'lead_assessment_completed',
         at: FieldValue.serverTimestamp(),
-        summary: 'Lead completed the pre-appointment assessment',
+        summary: `Lead completed the assessment — ${TEMPERATURE_LABELS[leadScore.temperature]} lead`,
+        temperature: leadScore.temperature,
       })
       .catch(() => {
         // Activity-log failure shouldn't fail the user-visible save.
