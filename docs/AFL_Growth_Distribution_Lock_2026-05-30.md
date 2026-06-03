@@ -52,7 +52,21 @@ Tier prices are unchanged from the May 26 relock. What changes here is the **ent
 
 ---
 
-## 3. Free Tier — Permanent, Capped
+## 3. Free Tier — Permanent *(amended Jun 2, 2026 — engine-pause, not hard caps)*
+
+> **Jun 2, 2026 amendment:** the **hard-cap model described below is superseded** by what actually shipped (#94 post-trial back wall, #96 engine pause, #97 import guard). The Free tier is now **data-preserved + engine-paused + paid features UI-gated**, NOT capped:
+> - **No contact cap.** A Free agent keeps their *entire* book — every client, policy, and note they built during the trial stays put. (The "Up to 25 contacts (hard cap)" line below is dropped.)
+> - **The outreach engine pauses.** Every client-facing cadence cron (birthday, anniversary, holiday, conservation, policy-review, referral-drip) skips Free agents via `isFreeTier` in `web/lib/tier-gating.ts`. (This also drops the "Automated cadences enabled on those 25" line — Free agents get NO client-facing automation.)
+> - **Parsing new application PDFs is blocked** at `parseApplicationFile` (the locked extraction pipeline itself is untouched); bulk-import immediate drips are suppressed. (The "5 PDF uploads per month" meter below is dropped in favor of a hard pause — revisit only if real Free-tier LLM cost ever warrants a meter.)
+> - **Paid surfaces are UI-gated** (Activity Ledger, bulk import, pre-sale, Performance) behind the existing `UpgradeToProCard` upgrade prompts — not write-blocking.
+>
+> **Why this model instead of hard caps (Daniel-confirmed Jun 2 — recorded so future pricing/packaging decisions inherit the reasoning):**
+> 1. **Preserve, don't punish.** After a 14-day full-Pro trial, locking or deleting the 26th-plus contact reads as bait-and-switch. Keeping the whole book intact makes upgrading just "flip the engine back on" — reversible, no data loss, no resentment.
+> 2. **Engine-off is cheaper *and* safer than cadences-on.** The original "cadences enabled on 25" would keep spending Linq SMS + Claude on $0-revenue accounts *and* carry opt-out / line-health / compliance exposure on the shared line for non-paying users. Pausing outreach removes both the cost and the risk.
+> 3. **Cleaner conversion story.** "Your book is safe; the engine is just paused — pick a plan to switch it back on" converts better, and is more honest, than "you've hit your 25-contact limit."
+> 4. **Far less code, matched to the data.** Reuses the tier-gating helpers — no per-collection write-count enforcement, no monthly PDF meter with reset logic, no edge cases — for a Free cohort that is currently **empty** (zero Free users today). Build a meter later *only* if real behavior shows runaway cost.
+>
+> Net: the "Included / Excluded / Upgrade triggers" lists below remain a useful feature map, but read every "25-contact cap" / "5-PDF/month cap" reference as **superseded** by engine-pause + UI-gating. Performance gating in §4 is unchanged (Free = not included).
 
 The Free tier exists to keep agents on the platform after their 14-day Pro trial if they don't select a paid plan, and to lower the entry friction for IMO-led distribution.
 
