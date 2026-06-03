@@ -251,6 +251,10 @@ function LeadsPageInner() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  // Import consent gate: the agent must confirm they have the right to use the
+  // data they're uploading before any bulk import runs. Reinforces the "your
+  // book / your data" posture and the rights representation (see /trust).
+  const [importConsent, setImportConsent] = useState(false);
 
   // Multi-page batch import (off-Vercel via the leads-batch-processor GCF).
   // `watchedBatchId` drives the live onSnapshot subscription below;
@@ -1265,6 +1269,11 @@ function LeadsPageInner() {
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
+                      if (!importConsent) {
+                        setUploadError('Please confirm you have the right to use this data before uploading.');
+                        e.target.value = '';
+                        return;
+                      }
                       handleLeadFileSelect(file);
                       e.target.value = '';
                     }
@@ -1350,7 +1359,13 @@ function LeadsPageInner() {
               e.preventDefault();
               setDragActive(false);
               const file = e.dataTransfer.files?.[0];
-              if (file) handleLeadFileSelect(file);
+              if (file) {
+                if (!importConsent) {
+                  setUploadError('Please confirm you have the right to use this data before uploading.');
+                  return;
+                }
+                handleLeadFileSelect(file);
+              }
             }}
             className={`mb-4 rounded-[5px] border-2 border-dashed px-5 py-4 transition-all ${
               dragActive
@@ -1373,6 +1388,15 @@ function LeadsPageInner() {
                 </p>
               </div>
             </div>
+            <label className="mt-3 flex items-start gap-2 text-xs text-[#005851] cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={importConsent}
+                onChange={(e) => { setImportConsent(e.target.checked); if (e.target.checked) setUploadError(null); }}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#005851]"
+              />
+              <span>I confirm I have the right to upload and use this data.</span>
+            </label>
             {uploadError && (
               <div className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-[5px] px-3 py-2">
                 {uploadError}
