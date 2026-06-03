@@ -23,6 +23,7 @@ import {
   isAppointmentOutcomeChipStatus,
 } from '../lib/appointment-outcome-chip';
 import { DIMENSION_MAX, type LeadScore } from '../lib/lead-assessment';
+import { TEMPERATURE_UI, TEMPERATURE_ORDER } from '../lib/lead-temperature-ui';
 
 interface LeadPhone {
   number: string;
@@ -386,61 +387,35 @@ const ANSWER_LABELS: Record<string, string> = {
   not_sure: 'Not sure',
 };
 
-const TEMPERATURE_STYLES: Record<LeadScore['temperature'], { label: string; chip: string }> = {
-  hot: { label: 'Hot', chip: 'bg-[#FEE2E2] text-[#B91C1C]' },
-  warm: { label: 'Warm', chip: 'bg-[#FEF3C7] text-[#92400E]' },
-  cool: { label: 'Cool', chip: 'bg-[#E0F2FE] text-[#075985]' },
-};
-
 const DIMENSION_LABELS: Array<{ key: keyof typeof DIMENSION_MAX; label: string }> = [
   { key: 'urgency', label: 'Urgency' },
   { key: 'need', label: 'Need' },
   { key: 'intent', label: 'Intent' },
 ];
 
-const MAX_TOTAL = DIMENSION_MAX.urgency + DIMENSION_MAX.need + DIMENSION_MAX.intent;
-
 /**
- * Semicircular "temperature" gauge. The needle points to the lead's total
- * score across Cool / Warm / Hot zones (score 0 → left, max → right).
- * Cosmetic — the authoritative number lives in leadScore.
+ * Horizontal Cool · Warm · Hot meter. The lead's zone lights up in its
+ * color; the others stay muted — a glanceable left-to-right read with no
+ * abstract gauge to decode. Shares the TEMPERATURE_UI palette with the
+ * leads-queue dot so the two never drift apart.
  */
-function TemperatureDial({ total, max }: { total: number; max: number }) {
-  const cx = 90;
-  const cy = 90;
-  const r = 72;
-  const needleLen = 56;
-  const polar = (deg: number, radius: number) => {
-    const rad = (deg * Math.PI) / 180;
-    return { x: cx + radius * Math.cos(rad), y: cy - radius * Math.sin(rad) };
-  };
-  const degFor = (score: number) => 180 * (1 - Math.min(1, Math.max(0, max ? score / max : 0)));
-  const arc = (degStart: number, degEnd: number) => {
-    const a = polar(degStart, r);
-    const b = polar(degEnd, r);
-    return `M ${a.x.toFixed(1)} ${a.y.toFixed(1)} A ${r} ${r} 0 0 0 ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
-  };
-  const coolEnd = degFor(3.5); // Cool ≤ 3
-  const warmEnd = degFor(6.5); // Warm 4–6 · Hot ≥ 7
-  const tip = polar(degFor(total), needleLen);
+function TemperatureMeter({ temperature }: { temperature: LeadScore['temperature'] }) {
   return (
-    <svg viewBox="0 0 180 112" width="156" height="97" role="img" aria-label={`Lead temperature ${total} of ${max}`}>
-      <path d={arc(180, coolEnd)} fill="none" stroke="#0EA5E9" strokeWidth="13" strokeLinecap="round" />
-      <path d={arc(coolEnd, warmEnd)} fill="none" stroke="#F59E0B" strokeWidth="13" />
-      <path d={arc(warmEnd, 0)} fill="none" stroke="#EF4444" strokeWidth="13" strokeLinecap="round" />
-      <line
-        x1={cx}
-        y1={cy}
-        x2={Number(tip.x.toFixed(1))}
-        y2={Number(tip.y.toFixed(1))}
-        stroke="#1F2937"
-        strokeWidth="3.5"
-        strokeLinecap="round"
-      />
-      <circle cx={cx} cy={cy} r="6.5" fill="#1F2937" />
-      <text x="16" y="107" fontSize="11" fill="#9CA3AF" fontWeight="700">Cool</text>
-      <text x="164" y="107" fontSize="11" fill="#9CA3AF" fontWeight="700" textAnchor="end">Hot</text>
-    </svg>
+    <div className="flex gap-1.5 w-full max-w-[280px]">
+      {TEMPERATURE_ORDER.map((zone) => {
+        const active = zone === temperature;
+        return (
+          <div
+            key={zone}
+            className={`flex-1 h-8 rounded-md flex items-center justify-center text-[11px] font-extrabold uppercase tracking-wide ${
+              active ? TEMPERATURE_UI[zone].segment : 'bg-[#F3F4F6] text-[#9CA3AF]'
+            }`}
+          >
+            {TEMPERATURE_UI[zone].label}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -1312,27 +1287,14 @@ export default function LeadDetailPanel({
         </div>
       </div>
 
-      {/* Lead temperature — glanceable dial at the top of the profile.
-          Headline only (gauge + label + one-line summary); the per-dimension
-          breakdown bars live in the "Score breakdown" card lower down. */}
+      {/* Lead temperature — glanceable meter at the top of the profile. The
+          lit Cool/Warm/Hot zone is the headline; the per-dimension breakdown
+          bars live in the "Score breakdown" card lower down. */}
       {lead.leadScore && (
         <div className="mb-6 bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5">
-          <div className="flex items-center gap-5">
-            <div className="shrink-0">
-              <TemperatureDial total={lead.leadScore.total} max={MAX_TOTAL} />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                <h3 className="text-xs font-bold text-[#005851] uppercase tracking-wider">Lead temperature</h3>
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold ${TEMPERATURE_STYLES[lead.leadScore.temperature].chip}`}
-                >
-                  {TEMPERATURE_STYLES[lead.leadScore.temperature].label}
-                </span>
-              </div>
-              <p className="text-[15px] text-[#374151] leading-snug">{lead.leadScore.summary}</p>
-            </div>
-          </div>
+          <h3 className="text-xs font-bold text-[#005851] uppercase tracking-wider mb-2">Lead temperature</h3>
+          <TemperatureMeter temperature={lead.leadScore.temperature} />
+          <p className="text-[15px] text-[#374151] leading-snug mt-3">{lead.leadScore.summary}</p>
         </div>
       )}
 
