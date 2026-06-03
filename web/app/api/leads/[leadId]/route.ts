@@ -2,12 +2,15 @@ import 'server-only';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
+import { deriveLeadCode } from '../../../../lib/lead-code-derive';
 
 /**
  * DELETE /api/leads/[leadId]
  *
- * Delete a lead doc + its `leadCodes` index entry + any `leadActivity`
- * entries pointing at it. Auth: Bearer ID token, agent must own the lead
+ * Delete a lead doc + its `leadCodes` index entries (cleared under both the
+ * stored code and the code derived from the current phone, so the number
+ * frees up for re-import) + any `leadActivity` entries pointing at it. Auth:
+ * Bearer ID token, agent must own the lead
  * (the leadId is namespaced under their uid in Firestore so attempts to
  * delete someone else's lead naturally 404 here).
  *
@@ -46,12 +49,23 @@ export async function DELETE(
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
     const data = snap.data() ?? {};
-    const leadCode = typeof data.leadCode === 'string' ? data.leadCode : '';
 
-    // Delete in parallel: lead doc + index entry + any leadActivity entries
-    // for this lead. Activity-entry cleanup uses a query because there's no
-    // composite index needed (we filter by leadId on the agent's own
-    // subcollection, which is small per-agent).
+    // Every leadCodes index key that could point at THIS lead. Two can
+    // diverge and orphan the live entry: the stored `leadCode` (frozen at
+    // creation) and the code derived from the *current* phone (what the
+    // import dedup actually looks up). If the phone was edited after creation
+    // — or `leadCode` was never written — clearing only the stored code
+    // leaves the number stuck. Clear both.
+    const codesToClear = new Set<string>();
+    if (typeof data.leadCode === 'string' && data.leadCode) {
+      codesToClear.add(data.leadCode);
+    }
+    const derivedFromPhone =
+      typeof data.phone === 'string' ? deriveLeadCode(data.phone) : null;
+    if (derivedFromPhone) codesToClear.add(derivedFromPhone);
+
+    // Activity entries for this lead (query the agent's own small
+    // subcollection — no composite index needed).
     const activitySnap = await db
       .collection('agents')
       .doc(agentId)
@@ -60,8 +74,19 @@ export async function DELETE(
       .get();
 
     const ops: Promise<unknown>[] = [leadRef.delete()];
-    if (leadCode) {
-      ops.push(db.collection('leadCodes').doc(leadCode).delete().catch(() => {}));
+    for (const code of codesToClear) {
+      // Only delete an index doc that actually points at THIS lead, so we
+      // never free a code that resolved to a different agent/lead.
+      ops.push(
+        (async () => {
+          const ref = db.collection('leadCodes').doc(code);
+          const idx = await ref.get();
+          const d = idx.data() as { agentId?: string; leadId?: string } | undefined;
+          if (idx.exists && d?.agentId === agentId && d?.leadId === leadId) {
+            await ref.delete();
+          }
+        })().catch(() => {}),
+      );
     }
     activitySnap.docs.forEach((d) => {
       ops.push(d.ref.delete().catch(() => {}));
