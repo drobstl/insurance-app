@@ -3,36 +3,13 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { checkRateLimit, getClientIp } from '../../../../lib/rate-limit';
+import { DEFAULT_ASSESSMENT, type AssessmentQuestion } from '../../../../lib/lead-assessment';
 
 const MAX_ATTEMPTS = 30;
 const WINDOW_MS = 60_000;
 
-/**
- * Default 10-question assessment ("gap-revealing" — most natural answers
- * are "No"). Source-of-truth lives here so the mobile app doesn't need to
- * ship a copy; per-agent override happens by writing
- * `agents/{agentId}.leadContent.assessment` (Phase 2).
- */
-const DEFAULT_ASSESSMENT = [
-  { id: 'q1', prompt: 'Do you already have enough life insurance in place to fully protect your family?' },
-  { id: 'q2', prompt: 'Would your family be financially secure without your income tomorrow?' },
-  { id: 'q3', prompt: 'Have you already paid off all your major debts, including your mortgage?' },
-  { id: 'q4', prompt: 'Would your loved ones have plenty of money set aside for final expenses?' },
-  { id: 'q5', prompt: 'Do you already have coverage that would replace your income for several years?' },
-  { id: 'q6', prompt: 'Have you already reviewed how much life insurance your family actually needs?' },
-  { id: 'q7', prompt: 'Is protecting your family with additional coverage not a priority right now?' },
-  { id: 'q8', prompt: 'Would leaving your family with no financial burden be unnecessary because everything is already covered?' },
-  { id: 'q9', prompt: 'Do you already have a policy that fits your budget and gives you peace of mind?' },
-  { id: 'q10', prompt: 'Is there nothing about your current situation that would make life insurance worth reviewing?' },
-].map((q) => ({
-  ...q,
-  // Same three choices for every question. Yes / No / Not sure.
-  choices: [
-    { id: 'yes', label: 'Yes' },
-    { id: 'no', label: 'No' },
-    { id: 'not_sure', label: 'Not sure' },
-  ],
-}));
+// The 7-question default assessment + its scoring metadata live in
+// `web/lib/lead-assessment.ts` (shared with the submit handler + dashboard).
 
 /**
  * Platform-default video manifest. Empty URLs render an "agent hasn't
@@ -80,7 +57,7 @@ export async function GET(req: NextRequest) {
       intro?: { url?: string; durationSec?: number; title?: string };
       faqs?: Array<{ id: string; title?: string; url?: string; durationSec?: number }>;
       caseStudies?: Array<{ id: string; title?: string; url?: string; durationSec?: number }>;
-      assessment?: typeof DEFAULT_ASSESSMENT;
+      assessment?: AssessmentQuestion[];
     } = {};
 
     if (agentId) {
@@ -100,7 +77,13 @@ export async function GET(req: NextRequest) {
       caseStudies: (agentOverrides.caseStudies && agentOverrides.caseStudies.length > 0)
         ? agentOverrides.caseStudies
         : PLATFORM_DEFAULTS.caseStudies,
-      assessment: agentOverrides.assessment || DEFAULT_ASSESSMENT,
+      // Strip scoring metadata (dimension/points) — the lead's app only needs
+      // prompts + choice labels; scoring stays server-side.
+      assessment: (agentOverrides.assessment || DEFAULT_ASSESSMENT).map((q) => ({
+        id: q.id,
+        prompt: q.prompt,
+        choices: (q.choices || []).map((c) => ({ id: c.id, label: c.label })),
+      })),
     });
   } catch (error) {
     console.error('lead-content error:', error);

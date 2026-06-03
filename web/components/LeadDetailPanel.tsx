@@ -22,6 +22,7 @@ import {
   getAppointmentOutcomeChip,
   isAppointmentOutcomeChipStatus,
 } from '../lib/appointment-outcome-chip';
+import { DIMENSION_MAX, type LeadScore } from '../lib/lead-assessment';
 
 interface LeadPhone {
   number: string;
@@ -44,6 +45,7 @@ interface Lead {
   appDownloadedAt?: string | null;
   assessmentAnswers?: Record<string, string>;
   assessmentCompletedAt?: Timestamp | null;
+  leadScore?: LeadScore | null;
   convertedToClientId?: string | null;
   // Extracted-from-PDF fields (Chunk 2). Also agent-editable on the
   // detail page when missing — e.g. for manual leads, or to correct
@@ -369,16 +371,13 @@ interface AppointmentEntry {
 // `web/app/api/mobile/lead-content/route.ts`. If/when per-agent
 // assessment overrides ship, swap this for a fetch.
 const DEFAULT_ASSESSMENT_PROMPTS: Record<string, string> = {
-  q1: 'Do you already have enough life insurance in place to fully protect your family?',
-  q2: 'Would your family be financially secure without your income tomorrow?',
-  q3: 'Have you already paid off all your major debts, including your mortgage?',
-  q4: 'Would your loved ones have plenty of money set aside for final expenses?',
-  q5: 'Do you already have coverage that would replace your income for several years?',
-  q6: 'Have you already reviewed how much life insurance your family actually needs?',
-  q7: 'Is protecting your family with additional coverage not a priority right now?',
-  q8: 'Would leaving your family with no financial burden be unnecessary because everything is already covered?',
-  q9: 'Do you already have a policy that fits your budget and gives you peace of mind?',
-  q10: 'Is there nothing about your current situation that would make life insurance worth reviewing?',
+  q1: "Would you say you're the kind of person who plans ahead for things most people don't want to think about?",
+  q2: 'Has something recently changed that got you looking into this now?',
+  q3: "If you weren't here tomorrow, would your family be able to keep the home without you?",
+  q4: "Have you ever sat down and really thought through what your family's financial life looks like without you?",
+  q5: 'If you had to write down today what your family would actually receive financially if something happened to you, could you do it without looking?',
+  q6: 'Are you confident your current setup still fits where your family is today?',
+  q7: 'Are you willing to walk away from our conversation with a clear plan you commit to follow?',
 };
 
 const ANSWER_LABELS: Record<string, string> = {
@@ -386,6 +385,18 @@ const ANSWER_LABELS: Record<string, string> = {
   no: 'No',
   not_sure: 'Not sure',
 };
+
+const TEMPERATURE_STYLES: Record<LeadScore['temperature'], { label: string; chip: string }> = {
+  hot: { label: 'Hot', chip: 'bg-[#FEE2E2] text-[#B91C1C]' },
+  warm: { label: 'Warm', chip: 'bg-[#FEF3C7] text-[#92400E]' },
+  cool: { label: 'Cool', chip: 'bg-[#E0F2FE] text-[#075985]' },
+};
+
+const DIMENSION_LABELS: Array<{ key: keyof typeof DIMENSION_MAX; label: string }> = [
+  { key: 'urgency', label: 'Urgency' },
+  { key: 'need', label: 'Need' },
+  { key: 'intent', label: 'Intent' },
+];
 
 const AUTOSAVE_DEBOUNCE_MS = 600;
 
@@ -1772,6 +1783,39 @@ export default function LeadDetailPanel({
       </div>
 
       {/* Assessment answers */}
+      {lead.leadScore && (
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5 mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider">
+              Lead temperature
+            </h3>
+            <span
+              className={`px-3 py-1 rounded-full text-sm font-extrabold ${TEMPERATURE_STYLES[lead.leadScore.temperature].chip}`}
+            >
+              {TEMPERATURE_STYLES[lead.leadScore.temperature].label}
+            </span>
+          </div>
+          <p className="text-sm text-[#374151] mb-4">{lead.leadScore.summary}</p>
+          <div className="space-y-2">
+            {DIMENSION_LABELS.map(({ key, label }) => {
+              const val = lead.leadScore!.dimensions[key] ?? 0;
+              const max = DIMENSION_MAX[key];
+              const pct = max ? Math.round((val / max) * 100) : 0;
+              return (
+                <div key={key} className="flex items-center gap-3">
+                  <span className="w-16 text-xs font-semibold text-[#707070]">{label}</span>
+                  <div className="flex-1 h-2 bg-[#E5E7EB] rounded-full overflow-hidden">
+                    <div className="h-2 bg-[#3DD6C3] rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="w-9 text-right text-xs font-bold text-[#374151]">
+                    {val}/{max}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {lead.assessmentAnswers && Object.keys(lead.assessmentAnswers).length > 0 && (
         <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5 mb-6">
           <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider mb-3">
@@ -1786,14 +1830,17 @@ export default function LeadDetailPanel({
             {Object.entries(lead.assessmentAnswers).map(([qid, ans]) => {
               const prompt = DEFAULT_ASSESSMENT_PROMPTS[qid] || qid;
               const label = ANSWER_LABELS[ans] || ans;
-              const gap = ans === 'no' || ans === 'not_sure';
+              // Highlight "No"/"Not sure" as worth raising on the call. (The
+              // reframed questions are mixed-polarity, so this is an
+              // attention cue, not a literal coverage-gap claim.)
+              const flag = ans === 'no' || ans === 'not_sure';
               return (
                 <li key={qid} className="text-sm">
                   <span className="text-[#374151]">{prompt}</span>
                   <div className={`ml-4 mt-1 inline-block px-2 py-0.5 text-xs font-bold rounded ${
-                    gap ? 'bg-[#FEF3C7] text-[#92400E]' : 'bg-[#daf3f0] text-[#005851]'
+                    flag ? 'bg-[#FEF3C7] text-[#92400E]' : 'bg-[#daf3f0] text-[#005851]'
                   }`}>
-                    {label}{gap && ' — gap'}
+                    {label}{flag && ' — follow up'}
                   </div>
                 </li>
               );
