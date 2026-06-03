@@ -41,6 +41,11 @@ export default function PairPhonePage() {
   const [expiresAtMs, setExpiresAtMs] = useState<number | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number>(0);
 
+  // Test-buzz state. 'sent' = Expo accepted the push (now ask the agent
+  // whether it actually buzzed — their phone is the real receipt).
+  // 'unreachable' = no usable token or Expo rejected it → route to re-pair.
+  const [testState, setTestState] = useState<'idle' | 'sending' | 'sent' | 'unreachable'>('idle');
+
   // If the agent's already paired, this whole page is unnecessary —
   // show a success state instead of asking them to re-pair.
   const alreadyPaired = Boolean(agentProfile.phonePaired);
@@ -92,6 +97,33 @@ export default function PairPhonePage() {
     }
   }, [user]);
 
+  const sendTestPush = useCallback(async () => {
+    if (!user) {
+      setError('You need to be signed in.');
+      return;
+    }
+    setTestState('sending');
+    setError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/agent-push-token/test', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      // Only a clean 'sent' means Expo accepted the push. No usable token
+      // or a rejected send both mean we couldn't reach the phone — surface
+      // re-pair either way.
+      setTestState(res.ok && data?.outcome === 'sent' ? 'sent' : 'unreachable');
+    } catch (err) {
+      console.error('test push error:', err);
+      setTestState('unreachable');
+    }
+  }, [user]);
+
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const qrUrl = code ? `${origin}/pair/${code}` : '';
   const expired = code !== null && secondsLeft === 0;
@@ -115,11 +147,66 @@ export default function PairPhonePage() {
               </p>
             </div>
           </div>
+          {/* Test buzz — the honest check. "Paired" above only means we
+              hold a push token we haven't been told is dead; a real push
+              with the agent's phone as the receipt is the only way to
+              confirm notifications actually land. */}
+          <div className="mt-5">
+            <button
+              type="button"
+              onClick={sendTestPush}
+              disabled={testState === 'sending'}
+              className="bg-[#0D4D4D] text-white px-5 py-2.5 rounded-md text-sm font-semibold disabled:opacity-50"
+            >
+              {testState === 'sending' ? 'Sending…' : 'Send a test notification to my phone'}
+            </button>
+
+            {testState === 'sent' && (
+              <div className="mt-3 text-sm">
+                <p className="text-[#0D4D4D] font-semibold">Sent. Did your phone buzz?</p>
+                <p className="mt-0.5 text-[#555]">
+                  If nothing came through after a few seconds, your phone may have
+                  dropped off.{' '}
+                  <button
+                    type="button"
+                    onClick={requestCode}
+                    disabled={busy}
+                    className="text-[#0D4D4D] underline font-medium disabled:opacity-50"
+                  >
+                    {busy ? 'Working…' : 'Re-pair your phone'}
+                  </button>
+                  .
+                </p>
+              </div>
+            )}
+
+            {testState === 'unreachable' && (
+              <div className="mt-3 text-sm">
+                <p className="text-[#b45309] font-semibold">We couldn’t reach your phone.</p>
+                <p className="mt-0.5 text-[#555]">
+                  The connection looks stale. Re-pair to reconnect it.{' '}
+                  <button
+                    type="button"
+                    onClick={requestCode}
+                    disabled={busy}
+                    className="text-[#0D4D4D] underline font-medium disabled:opacity-50"
+                  >
+                    {busy ? 'Working…' : 'Re-pair your phone'}
+                  </button>
+                  .
+                </p>
+              </div>
+            )}
+          </div>
+
+          {error && <p className="mt-3 text-red-600 text-sm">{error}</p>}
+
+          {/* Escape hatch: connect a different device entirely. */}
           <button
             type="button"
             onClick={requestCode}
             disabled={busy}
-            className="mt-5 text-[#0D4D4D] text-sm underline disabled:opacity-50"
+            className="mt-4 block text-[#0D4D4D] text-sm underline disabled:opacity-50"
           >
             {busy ? 'Working…' : 'Pair a different phone'}
           </button>
