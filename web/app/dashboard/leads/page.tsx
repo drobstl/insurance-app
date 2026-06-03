@@ -26,7 +26,7 @@ import {
   isAppointmentOutcomeChipStatus,
 } from '../../../lib/appointment-outcome-chip';
 import type { LeadScore } from '../../../lib/lead-assessment';
-import { TEMPERATURE_UI } from '../../../lib/lead-temperature-ui';
+import { LeadTempChip } from '../../../components/LeadTempChip';
 import { parseLeadFile } from '../../../lib/lead-csv-parse';
 
 interface Lead {
@@ -1651,10 +1651,7 @@ function LeadsPageInner() {
                                 );
                               })()}
                               {lead.leadScore && (
-                                <span className={`inline-flex items-center gap-1 shrink-0 text-[10px] font-bold uppercase tracking-wider ${TEMPERATURE_UI[lead.leadScore.temperature].text}`}>
-                                  <span className={`w-2 h-2 rounded-full ${TEMPERATURE_UI[lead.leadScore.temperature].dot}`} />
-                                  {TEMPERATURE_UI[lead.leadScore.temperature].label}
-                                </span>
+                                <LeadTempChip temperature={lead.leadScore.temperature} />
                               )}
                             </div>
                             <div className="text-xs text-[#707070] mt-0.5 flex items-center gap-2 flex-wrap">
@@ -1895,6 +1892,9 @@ function LeadsPageInner() {
                                 </span>
                               );
                             })()}
+                            {lead.leadScore && (
+                              <LeadTempChip temperature={lead.leadScore.temperature} />
+                            )}
                           </div>
                         </td>
                         <td className="px-5 py-3.5 text-sm text-[#444] whitespace-nowrap">{lead.phone}</td>

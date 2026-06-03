@@ -23,7 +23,7 @@ import {
   isAppointmentOutcomeChipStatus,
 } from '../lib/appointment-outcome-chip';
 import { DIMENSION_MAX, type LeadScore } from '../lib/lead-assessment';
-import { TEMPERATURE_UI, TEMPERATURE_ORDER } from '../lib/lead-temperature-ui';
+import { LeadTempChip } from './LeadTempChip';
 
 interface LeadPhone {
   number: string;
@@ -392,32 +392,6 @@ const DIMENSION_LABELS: Array<{ key: keyof typeof DIMENSION_MAX; label: string }
   { key: 'need', label: 'Need' },
   { key: 'intent', label: 'Intent' },
 ];
-
-/**
- * Horizontal Cool · Warm · Hot meter. The lead's zone lights up in its
- * color; the others stay muted — a glanceable left-to-right read with no
- * abstract gauge to decode. Shares the TEMPERATURE_UI palette with the
- * leads-queue dot so the two never drift apart.
- */
-function TemperatureMeter({ temperature }: { temperature: LeadScore['temperature'] }) {
-  return (
-    <div className="flex gap-1.5 w-full max-w-[280px]">
-      {TEMPERATURE_ORDER.map((zone) => {
-        const active = zone === temperature;
-        return (
-          <div
-            key={zone}
-            className={`flex-1 h-8 rounded-md flex items-center justify-center text-[11px] font-extrabold uppercase tracking-wide ${
-              active ? TEMPERATURE_UI[zone].segment : 'bg-[#F3F4F6] text-[#9CA3AF]'
-            }`}
-          >
-            {TEMPERATURE_UI[zone].label}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 const AUTOSAVE_DEBOUNCE_MS = 600;
 
@@ -1186,7 +1160,10 @@ export default function LeadDetailPanel({
     <div>
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-[#000000]">{lead.name || 'Unnamed lead'}</h1>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-2xl font-bold text-[#000000]">{lead.name || 'Unnamed lead'}</h1>
+            {lead.leadScore && <LeadTempChip temperature={lead.leadScore.temperature} />}
+          </div>
           <p className="text-sm text-[#707070] mt-1">
             {lead.phone}
             {lead.formType && lead.formType !== 'Manual' && (
@@ -1205,6 +1182,9 @@ export default function LeadDetailPanel({
               </span>
             )}
           </p>
+          {lead.leadScore && (
+            <p className="text-[13px] text-[#374151] mt-1.5 leading-snug">{lead.leadScore.summary}</p>
+          )}
           {/* Phones list — one row per number with its own Call button,
               dial-count badge, last-outcome chip, and a label dropdown.
               Falls back to the legacy single `phone` field when phones[]
@@ -1287,16 +1267,6 @@ export default function LeadDetailPanel({
         </div>
       </div>
 
-      {/* Lead temperature — glanceable meter at the top of the profile. The
-          lit Cool/Warm/Hot zone is the headline; the per-dimension breakdown
-          bars live in the "Score breakdown" card lower down. */}
-      {lead.leadScore && (
-        <div className="mb-6 bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5">
-          <h3 className="text-xs font-bold text-[#005851] uppercase tracking-wider mb-2">Lead temperature</h3>
-          <TemperatureMeter temperature={lead.leadScore.temperature} />
-          <p className="text-[15px] text-[#374151] leading-snug mt-3">{lead.leadScore.summary}</p>
-        </div>
-      )}
 
       {/* Outcome prompt — appears when the agent has tapped Call.
           Stays open until the agent picks an outcome (no auto-dismiss
@@ -1397,22 +1367,29 @@ export default function LeadDetailPanel({
         );
       })()}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
-        <StatusCard
-          label="Downloaded app"
-          ok={Boolean(lead.appDownloadedAt)}
-          detail={lead.appDownloadedAt ? new Date(lead.appDownloadedAt).toLocaleDateString() : 'Not yet'}
-        />
-        <StatusCard
-          label="Completed assessment"
-          ok={Boolean(lead.assessmentCompletedAt)}
-          detail={lead.assessmentCompletedAt ? lead.assessmentCompletedAt.toDate().toLocaleDateString() : 'Not yet'}
-        />
-        <StatusCard
-          label="Created"
-          ok
-          detail={lead.createdAt ? lead.createdAt.toDate().toLocaleDateString() : '—'}
-        />
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-6 text-xs text-[#707070]">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="font-semibold uppercase tracking-wider text-[10px] text-[#9CA3AF]">App</span>
+          {lead.appDownloadedAt ? (
+            <span className="text-[#005851] font-semibold">✓ {new Date(lead.appDownloadedAt).toLocaleDateString()}</span>
+          ) : (
+            <span>Not yet</span>
+          )}
+        </span>
+        <span className="text-[#d0d0d0]">·</span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="font-semibold uppercase tracking-wider text-[10px] text-[#9CA3AF]">Assessment</span>
+          {lead.assessmentCompletedAt ? (
+            <span className="text-[#005851] font-semibold">✓ {lead.assessmentCompletedAt.toDate().toLocaleDateString()}</span>
+          ) : (
+            <span>Not yet</span>
+          )}
+        </span>
+        <span className="text-[#d0d0d0]">·</span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="font-semibold uppercase tracking-wider text-[10px] text-[#9CA3AF]">Created</span>
+          <span className="text-[#374151] font-semibold">{lead.createdAt ? lead.createdAt.toDate().toLocaleDateString() : '—'}</span>
+        </span>
       </div>
 
       {/* Extracted-from-PDF fields. Renders the union of everything any
@@ -2575,11 +2552,4 @@ export default function LeadDetailPanel({
   );
 }
 
-function StatusCard({ label, ok, detail }: { label: string; ok: boolean; detail: string }) {
-  return (
-    <div className={`rounded-[5px] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] px-4 py-3 ${ok ? 'bg-[#daf3f0]/40' : 'bg-white'}`}>
-      <p className="text-[10px] font-bold uppercase tracking-wider text-[#707070]">{label}</p>
-      <p className={`text-sm font-semibold mt-1 ${ok ? 'text-[#005851]' : 'text-[#9CA3AF]'}`}>{detail}</p>
-    </div>
-  );
-}
+// (StatusCard removed — the lead detail screen now uses a slim inline status strip)
