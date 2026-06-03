@@ -1,21 +1,22 @@
 import type { LeadTemperature } from './lead-assessment';
 
 /**
- * Shared visual language for lead temperature. Used by both the profile
- * meter (LeadDetailPanel) and the leads-queue dot (dashboard/leads) so the
- * colors + labels are defined once and never drift apart.
+ * Shared visual language for lead temperature. Drives the single LeadTempChip
+ * token used across the profile header, the leads list, and the call queue,
+ * so the colors + labels are defined once and never drift apart.
  *
- *   dot     — background for the small queue dot / fill
+ *   dot     — colored dot inside the chip
  *   text    — text color in the temperature's hue
- *   segment — active meter-segment background + text (profile meter)
+ *   chipBg  — light pill background for the chip
+ *   segment — active segment bg (reserved; legacy meter)
  */
 export const TEMPERATURE_UI: Record<
   LeadTemperature,
-  { label: string; dot: string; text: string; segment: string }
+  { label: string; dot: string; text: string; chipBg: string; segment: string }
 > = {
-  hot: { label: 'Hot', dot: 'bg-[#EF4444]', text: 'text-[#B91C1C]', segment: 'bg-[#EF4444] text-white' },
-  warm: { label: 'Warm', dot: 'bg-[#F59E0B]', text: 'text-[#92400E]', segment: 'bg-[#F59E0B] text-white' },
-  cool: { label: 'Cool', dot: 'bg-[#0EA5E9]', text: 'text-[#075985]', segment: 'bg-[#0EA5E9] text-white' },
+  hot: { label: 'Hot', dot: 'bg-[#EF4444]', text: 'text-[#B91C1C]', chipBg: 'bg-[#FEE2E2]', segment: 'bg-[#EF4444] text-white' },
+  warm: { label: 'Warm', dot: 'bg-[#F59E0B]', text: 'text-[#92400E]', chipBg: 'bg-[#FEF3C7]', segment: 'bg-[#F59E0B] text-white' },
+  cool: { label: 'Cool', dot: 'bg-[#0EA5E9]', text: 'text-[#075985]', chipBg: 'bg-[#E0F2FE]', segment: 'bg-[#0EA5E9] text-white' },
 };
 
 /** Left-to-right order for the meter (coolest → hottest). */
