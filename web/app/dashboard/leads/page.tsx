@@ -1684,6 +1684,11 @@ function LeadsPageInner() {
                                 <>
                                   <span>·</span>
                                   <span>
+                                    {(lead.dialLog?.length ?? 0) > 0 && (
+                                      <span className="font-semibold text-[#374151]">
+                                        {lead.dialLog!.length} dial{lead.dialLog!.length === 1 ? '' : 's'} ·{' '}
+                                      </span>
+                                    )}
                                     Last: {DIAL_OUTCOME_LABELS[lead.lastDialOutcome] || lead.lastDialOutcome}
                                     {lead.lastDialAt && (
                                       <span className="text-[#9CA3AF] ml-1">{formatRelativeFromNow(lead.lastDialAt)}</span>
