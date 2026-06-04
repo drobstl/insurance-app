@@ -130,7 +130,7 @@ export default function DoNotContactToggle({
     return (
       <div className="inline-flex items-center gap-2">
         <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#b42318]">
-          <span aria-hidden="true">⛔</span> Do not contact
+          <span aria-hidden="true">⛔</span> DNC
         </span>
         <button
           type="button"
@@ -154,7 +154,7 @@ export default function DoNotContactToggle({
         className={`${btn} border border-[#d0d0d0] text-[#b42318] hover:bg-[#fde6e6] disabled:opacity-50`}
         title="Add this number to the global do-not-contact list (blocks all automated and manual outreach)"
       >
-        {busy ? '…' : '⛔ Mark do not contact'}
+        {busy ? '…' : '⛔ Mark DNC'}
       </button>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </div>
