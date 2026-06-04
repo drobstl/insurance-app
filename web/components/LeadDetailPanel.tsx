@@ -16,6 +16,7 @@ import {
 import { db } from '../firebase';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import AppointmentPicker from './AppointmentPicker';
+import DoNotContactToggle from './DoNotContactToggle';
 import { DEFAULT_DIAL_SCRIPT, renderDialScript } from '../lib/dial-script';
 import SendConfirmationDrawer from './SendConfirmationDrawer';
 import {
@@ -1185,6 +1186,11 @@ export default function LeadDetailPanel({
               </span>
             )}
           </p>
+          {lead.phone && (
+            <div className="mt-2">
+              <DoNotContactToggle phoneE164={lead.phone} user={user} size="sm" />
+            </div>
+          )}
           {lead.leadScore && (
             <LeadTempLine temperature={lead.leadScore.temperature} summary={lead.leadScore.summary} />
           )}
