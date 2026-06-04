@@ -126,7 +126,7 @@ export default function PrivacyPolicyPage() {
                 <li><strong>Stripe:</strong> Payment processing for subscriptions.</li>
                 <li><strong>Vercel:</strong> Application hosting and serverless infrastructure.</li>
                 <li><strong>Resend:</strong> Transactional email delivery.</li>
-                <li><strong>Anthropic and OpenAI:</strong> AI-powered features including document parsing and policy analysis. When you use these features, relevant data may be sent to these providers for processing. These providers do not retain your data for training purposes.</li>
+                <li><strong>Anthropic:</strong> AI-powered features including document parsing and policy analysis. When you use these features, relevant data may be sent to Anthropic for processing. Anthropic does not retain your data for training purposes.</li>
                 <li><strong>Upstash:</strong> Caching infrastructure for non-sensitive application settings.</li>
               </ul>
             </section>
