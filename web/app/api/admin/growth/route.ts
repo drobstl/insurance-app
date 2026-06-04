@@ -33,6 +33,29 @@ function toMillis(v: unknown): number {
   return v && typeof (v as Timestamp).toMillis === 'function' ? (v as Timestamp).toMillis() : 0;
 }
 
+/**
+ * Map of uid -> last-active epoch ms, from Firebase Auth sign-in metadata.
+ * `lastSignInTime` is the canonical "last logged in"; `lastRefreshTime`
+ * (token refresh, present on newer SDKs) is a finer signal when available.
+ */
+async function buildLastActiveMap(): Promise<Map<string, number>> {
+  const auth = getAdminAuth();
+  const map = new Map<string, number>();
+  let pageToken: string | undefined;
+  do {
+    const res = await auth.listUsers(1000, pageToken);
+    for (const u of res.users) {
+      const meta = u.metadata as { lastSignInTime?: string | null; lastRefreshTime?: string | null };
+      const signIn = meta.lastSignInTime ? Date.parse(meta.lastSignInTime) : 0;
+      const refresh = meta.lastRefreshTime ? Date.parse(meta.lastRefreshTime) : 0;
+      const last = Math.max(Number.isNaN(signIn) ? 0 : signIn, Number.isNaN(refresh) ? 0 : refresh);
+      if (last > 0) map.set(u.uid, last);
+    }
+    pageToken = res.pageToken;
+  } while (pageToken);
+  return map;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const uid = await requireAdminUid(req);
@@ -68,6 +91,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ unreadCount });
     }
 
+    const lastActiveByUid = await buildLastActiveMap();
     const agentsSnap = await db.collection('agents').get();
     const now = Date.now();
     const DAY = 24 * 60 * 60 * 1000;
@@ -78,7 +102,18 @@ export async function GET(req: NextRequest) {
     let onboarded = 0;
     let new7 = 0;
     let new30 = 0;
+    let active7 = 0;
+    let active30 = 0;
     const byTier: Record<string, number> = {};
+    const agents: Array<{
+      uid: string;
+      name: string | null;
+      email: string | null;
+      membershipTier: string;
+      subscriptionStatus: string | null;
+      createdAtMs: number;
+      lastActiveMs: number;
+    }> = [];
 
     for (const doc of agentsSnap.docs) {
       const a = doc.data();
@@ -94,12 +129,30 @@ export async function GET(req: NextRequest) {
         if (now - createdMs <= 7 * DAY) new7 += 1;
         if (now - createdMs <= 30 * DAY) new30 += 1;
       }
+      const lastActiveMs = lastActiveByUid.get(doc.id) ?? 0;
+      if (lastActiveMs > 0) {
+        if (now - lastActiveMs <= 7 * DAY) active7 += 1;
+        if (now - lastActiveMs <= 30 * DAY) active30 += 1;
+      }
+      agents.push({
+        uid: doc.id,
+        name: typeof a.name === 'string' ? a.name : null,
+        email: typeof a.email === 'string' ? a.email : null,
+        membershipTier: tier,
+        subscriptionStatus: typeof a.subscriptionStatus === 'string' ? a.subscriptionStatus : null,
+        createdAtMs: createdMs,
+        lastActiveMs,
+      });
     }
+
+    // Most-recently-active first; dormant / never-active fall to the bottom.
+    agents.sort((x, y) => y.lastActiveMs - x.lastActiveMs);
 
     return NextResponse.json({
       unreadCount,
-      totals: { total, paying, trial, founding, onboarded, new7, new30, byTier },
+      totals: { total, paying, trial, founding, onboarded, new7, new30, active7, active30, byTier },
       recentSignups: events.slice(0, 25),
+      agents: agents.slice(0, 200),
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);

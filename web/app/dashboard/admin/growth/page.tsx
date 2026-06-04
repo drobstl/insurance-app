@@ -16,6 +16,16 @@ interface RecentSignup {
   createdAtMs: number;
 }
 
+interface AgentRow {
+  uid: string;
+  name: string | null;
+  email: string | null;
+  membershipTier: string;
+  subscriptionStatus: string | null;
+  createdAtMs: number;
+  lastActiveMs: number;
+}
+
 interface GrowthData {
   totals: {
     total: number;
@@ -25,9 +35,12 @@ interface GrowthData {
     onboarded: number;
     new7: number;
     new30: number;
+    active7: number;
+    active30: number;
     byTier: Record<string, number>;
   };
   recentSignups: RecentSignup[];
+  agents: AgentRow[];
 }
 
 function timeAgo(ms: number): string {
@@ -106,6 +119,8 @@ export default function AdminGrowthPage() {
         { label: 'Total agents', value: t.total },
         { label: 'New (7 days)', value: t.new7 },
         { label: 'New (30 days)', value: t.new30 },
+        { label: 'Active (7 days)', value: t.active7 },
+        { label: 'Active (30 days)', value: t.active30 },
         { label: 'Paying', value: t.paying },
         { label: 'Trial', value: t.trial },
         { label: 'Founding', value: t.founding },
@@ -160,6 +175,45 @@ export default function AdminGrowthPage() {
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-[#707070]">
                   No signups recorded yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <h2 className="text-lg font-semibold text-[#0D4D4D] mt-8 mb-3">Agents &amp; activity</h2>
+      <div className="bg-white rounded-xl border border-[#e5e7eb] overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-[#F8F9FA] text-[#707070]">
+            <tr>
+              <th className="text-left px-4 py-2 font-semibold">Name</th>
+              <th className="text-left px-4 py-2 font-semibold">Tier</th>
+              <th className="text-left px-4 py-2 font-semibold">Signed up</th>
+              <th className="text-left px-4 py-2 font-semibold">Last active</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(data?.agents ?? []).map((a) => {
+              const dormant = !a.lastActiveMs || Date.now() - a.lastActiveMs > 30 * 24 * 60 * 60 * 1000;
+              return (
+                <tr key={a.uid} className="border-t border-[#f0f0f0]">
+                  <td className="px-4 py-2 text-[#2D3748]">{a.name || a.email || '—'}</td>
+                  <td className="px-4 py-2 text-[#2D3748]">{a.membershipTier}</td>
+                  <td className="px-4 py-2 text-[#707070] whitespace-nowrap">{timeAgo(a.createdAtMs)}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">
+                    <span className={dormant ? 'text-[#b42318]' : 'text-[#2D3748]'}>{timeAgo(a.lastActiveMs)}</span>
+                    {dormant ? (
+                      <span className="ml-1.5 text-[10px] text-[#b42318] bg-[#fde6e6] px-1.5 py-0.5 rounded">dormant</span>
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+            {(data?.agents ?? []).length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-4 py-6 text-center text-[#707070]">
+                  No agents yet.
                 </td>
               </tr>
             )}
