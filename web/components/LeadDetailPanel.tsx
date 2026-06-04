@@ -1186,17 +1186,17 @@ export default function LeadDetailPanel({
             {lead.leadScore && (
               <p className="text-[13px] text-[#374151] mt-1 leading-snug">{lead.leadScore.summary}</p>
             )}
-            {lead.phone && (
-              <div className="mt-1.5">
-                <DoNotContactToggle phoneE164={lead.phone} user={user} size="sm" />
-              </div>
-            )}
           </div>
           <div className="text-right shrink-0">
             <div className="font-mono text-base font-bold text-[#005851]">{lead.leadCode}</div>
             <div className="text-[10px] uppercase tracking-wider text-[#9CA3AF] font-semibold">
               {lead.leadCode && isDerivedLeadCode(lead.leadCode) ? 'code = phone' : 'lead code'}
             </div>
+            {lead.phone && (
+              <div className="mt-2 flex justify-end">
+                <DoNotContactToggle phoneE164={lead.phone} user={user} size="sm" />
+              </div>
+            )}
           </div>
         </div>
 
