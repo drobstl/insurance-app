@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   collection,
@@ -306,6 +306,11 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
     email?: string;
   }>({});
   const [isMobile, setIsMobile] = useState(false);
+  // Optimistic reschedule: apptId → new start (epoch ms) while the PATCH
+  // is in flight / until the Firestore snapshot catches up. Lets a dragged
+  // block jump to its new slot instantly, and roll back on failure.
+  const [optimistic, setOptimistic] = useState<Record<string, number>>({});
+  const [dragError, setDragError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
@@ -322,6 +327,31 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
     [appts],
   );
   const visibleBusy = useMemo(() => busy.filter((b) => !mirroredIds.has(b.id)), [busy, mirroredIds]);
+
+  // Clear an optimistic reschedule once the live snapshot reflects it.
+  useEffect(() => {
+    setOptimistic((prev) => {
+      if (Object.keys(prev).length === 0) return prev;
+      let changed = false;
+      const next = { ...prev };
+      for (const a of appts) {
+        if (next[a.id] != null && Math.abs(a.scheduledAt.getTime() - next[a.id]) < 60_000) {
+          delete next[a.id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [appts]);
+
+  // Appts with any in-flight optimistic reschedule applied, for rendering.
+  const displayAppts = useMemo(
+    () =>
+      appts.map((a) =>
+        optimistic[a.id] != null ? { ...a, scheduledAt: new Date(optimistic[a.id]) } : a,
+      ),
+    [appts, optimistic],
+  );
 
   // Week tally → the "production view" header.
   const tally = useMemo(() => {
@@ -341,6 +371,35 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
   const goToday = useCallback(() => setAnchor(new Date()), []);
   const goPrevWeek = useCallback(() => setAnchor((a) => addDays(startOfWeek(a), -7)), []);
   const goNextWeek = useCallback(() => setAnchor((a) => addDays(startOfWeek(a), 7)), []);
+
+  // Drag-to-reschedule → PATCH /api/appointments/[id] (re-syncs the Google
+  // event + notifies the lead, server-side). Optimistic move + rollback.
+  const handleReschedule = useCallback(
+    async (appt: CalAppt, newStart: Date) => {
+      if (!user) return;
+      if (Math.abs(newStart.getTime() - appt.scheduledAt.getTime()) < 60_000) return; // no real move
+      setOptimistic((prev) => ({ ...prev, [appt.id]: newStart.getTime() }));
+      setDragError(null);
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch(`/api/appointments/${appt.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ scheduledAt: newStart.toISOString() }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      } catch (err) {
+        console.warn('reschedule failed:', err);
+        setOptimistic((prev) => {
+          const next = { ...prev };
+          delete next[appt.id];
+          return next;
+        });
+        setDragError('Couldn’t move that appointment — putting it back. Try again.');
+      }
+    },
+    [user],
+  );
 
   const openReminder = useCallback(
     async (appt: CalAppt) => {
@@ -437,15 +496,21 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
         </div>
       )}
 
+      {dragError && (
+        <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          {dragError}
+        </div>
+      )}
+
       {isMobile ? (
-        <AgendaWeek days={days} appts={appts} onSelect={setSelected} />
+        <AgendaWeek days={days} appts={displayAppts} onSelect={setSelected} />
       ) : (
         <div className="flex gap-4 items-start">
           <div className="shrink-0 hidden lg:block">
             <MiniMonth anchor={anchor} onPick={setAnchor} apptDayKeys={apptDayKeys} weekStart={weekStart} />
             <Legend />
           </div>
-          <WeekGrid days={days} appts={appts} busy={visibleBusy} onSelect={setSelected} />
+          <WeekGrid days={days} appts={displayAppts} busy={visibleBusy} onSelect={setSelected} onReschedule={handleReschedule} />
         </div>
       )}
 
@@ -500,17 +565,24 @@ function WeekGrid({
   appts,
   busy,
   onSelect,
+  onReschedule,
 }: {
   days: Date[];
   appts: CalAppt[];
   busy: BusyBlock[];
   onSelect: (a: CalAppt) => void;
+  onReschedule: (appt: CalAppt, newStart: Date) => void;
 }) {
   const hours = useMemo(
     () => Array.from({ length: DAY_END_HOUR - DAY_START_HOUR + 1 }, (_, i) => DAY_START_HOUR + i),
     [],
   );
   const today = new Date();
+  // Drag-to-reschedule state: the dragged block lives in a ref (set on
+  // dragstart); a day column computes the drop time and calls onReschedule.
+  const draggingRef = useRef<CalAppt | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   return (
     <div className="flex-1 min-w-0 overflow-x-auto bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px]">
@@ -553,7 +625,7 @@ function WeekGrid({
           </div>
 
           {/* Day columns */}
-          {days.map((d) => (
+          {days.map((d, idx) => (
             <DayColumn
               key={d.toISOString()}
               day={d}
@@ -561,6 +633,26 @@ function WeekGrid({
               appts={appts.filter((a) => isSameDay(a.scheduledAt, d))}
               busy={busy.filter((b) => isSameDay(b.start, d))}
               onSelect={onSelect}
+              draggingId={draggingId}
+              isDragOver={dragOverIdx === idx}
+              onBlockDragStart={(a) => {
+                draggingRef.current = a;
+                setDraggingId(a.id);
+              }}
+              onBlockDragEnd={() => {
+                draggingRef.current = null;
+                setDraggingId(null);
+                setDragOverIdx(null);
+              }}
+              onDragOverDay={() => setDragOverIdx((cur) => (cur === idx ? cur : idx))}
+              onDropDay={(columnTop, clientY) => {
+                const appt = draggingRef.current;
+                draggingRef.current = null;
+                setDraggingId(null);
+                setDragOverIdx(null);
+                if (!appt) return;
+                onReschedule(appt, dateAtMinutes(d, dropMinutes(clientY, columnTop, appt.durationMinutes)));
+              }}
             />
           ))}
         </div>
@@ -577,18 +669,49 @@ function blockPosition(start: Date, durationMin: number): { top: number; height:
   return { top, height };
 }
 
+function snapMinutes(min: number): number {
+  return Math.round(min / 15) * 15;
+}
+
+/** Build a Date on `day` at the given minutes-into-day (local wall clock). */
+function dateAtMinutes(day: Date, minutes: number): Date {
+  const d = new Date(day);
+  d.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+  return d;
+}
+
+/** New start-minutes for a drop at clientY within a column whose top is columnTop. */
+function dropMinutes(clientY: number, columnTop: number, durationMin: number): number {
+  const y = clientY - columnTop;
+  const minutes = snapMinutes(DAY_START_HOUR * 60 + (y / HOUR_PX) * 60);
+  const maxStart = DAY_END_HOUR * 60 - Math.max(15, Math.round(durationMin));
+  return Math.max(DAY_START_HOUR * 60, Math.min(minutes, maxStart));
+}
+
 function DayColumn({
   day,
   hours,
   appts,
   busy,
   onSelect,
+  draggingId,
+  isDragOver,
+  onBlockDragStart,
+  onBlockDragEnd,
+  onDragOverDay,
+  onDropDay,
 }: {
   day: Date;
   hours: number[];
   appts: CalAppt[];
   busy: BusyBlock[];
   onSelect: (a: CalAppt) => void;
+  draggingId: string | null;
+  isDragOver: boolean;
+  onBlockDragStart: (a: CalAppt) => void;
+  onBlockDragEnd: () => void;
+  onDragOverDay: () => void;
+  onDropDay: (columnTop: number, clientY: number) => void;
 }) {
   const now = new Date();
   const isToday = isSameDay(day, now);
@@ -597,7 +720,19 @@ function DayColumn({
   const localTz = browserTz();
 
   return (
-    <div className="relative border-l border-[#f0f0f0]" style={{ height: GRID_HEIGHT }}>
+    <div
+      className={`relative border-l border-[#f0f0f0] ${isDragOver ? 'bg-[#daf3f0]/40' : ''}`}
+      style={{ height: GRID_HEIGHT }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        onDragOverDay();
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        onDropDay(e.currentTarget.getBoundingClientRect().top, e.clientY);
+      }}
+    >
       {/* Hour lines */}
       {hours.map((h) => (
         <div
@@ -641,10 +776,17 @@ function DayColumn({
         return (
           <button
             key={a.id}
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = 'move';
+              try { e.dataTransfer.setData('text/plain', a.id); } catch { /* Firefox-only guard */ }
+              onBlockDragStart(a);
+            }}
+            onDragEnd={onBlockDragEnd}
             onClick={() => onSelect(a)}
-            className={`absolute left-0.5 right-0.5 rounded-md border-l-[3px] border px-1.5 py-1 text-left overflow-hidden hover:shadow-md transition-shadow ${meta.block}`}
+            className={`absolute left-0.5 right-0.5 rounded-md border-l-[3px] border px-1.5 py-1 text-left overflow-hidden hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing ${meta.block} ${draggingId === a.id ? 'opacity-40' : ''}`}
             style={{ top, height, zIndex: 5 }}
-            title={`${a.leadName} · ${fmtTime(a.scheduledAt)} · ${meta.label}`}
+            title={`${a.leadName} · ${fmtTime(a.scheduledAt)} · ${meta.label} — drag to reschedule`}
           >
             <div className="text-[11px] font-bold leading-tight truncate">{a.leadName}</div>
             <div className="text-[10px] leading-tight truncate opacity-80">
