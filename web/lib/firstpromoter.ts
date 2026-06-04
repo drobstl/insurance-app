@@ -196,6 +196,136 @@ export async function getFirstPromoterPromoterByEmail(
   return (parsed as FirstPromoterPromoter) || null;
 }
 
+export interface FirstPromoterCommission {
+  id?: number;
+  amount?: number;
+  status?: 'pending' | 'approved' | 'denied' | string;
+  is_paid?: boolean;
+  unit?:
+    | 'cash'
+    | 'credits'
+    | 'points'
+    | 'free_months'
+    | 'mon_discount'
+    | 'discount_per'
+    | string;
+}
+
+export interface PromoterEarningsSummary {
+  /** Approved AND already paid out. */
+  paidCents: number;
+  /** Approved but not yet paid — the money the agent is owed. */
+  owedCents: number;
+  /** Not yet approved (signed up, still in the hold window). */
+  pendingCents: number;
+  /** paidCents + owedCents — lifetime approved earnings. */
+  earnedCents: number;
+  /** Count of cash commissions summed (not distinct referrals). */
+  commissionsCount: number;
+  /** True if the page cap was hit and totals are a lower bound. */
+  truncated: boolean;
+}
+
+/**
+ * Sum a single promoter's cash commissions into a small earnings
+ * summary for in-app display. Pages through the admin commissions
+ * endpoint filtered to one promoter. Non-cash rewards
+ * (credits/points/discounts) are skipped — we only surface dollars.
+ *
+ * Robustness notes:
+ *  - Commissions are de-duped by `id` across pages, so the totals stay
+ *    correct even if FP ignores our pagination params and re-serves the
+ *    same page (we stop as soon as a page adds nothing new).
+ *  - FP returns `amount` as an integer; the v2 docs don't state the unit
+ *    explicitly. We treat it as CENTS. Confirm against a live promoter
+ *    before trusting the figures (see scripts/firstpromoter-smoke).
+ */
+export async function getPromoterEarningsSummary(
+  promoterId: number,
+): Promise<PromoterEarningsSummary> {
+  if (!isFirstPromoterConfigured()) {
+    throw new FirstPromoterApiError(
+      'FirstPromoter API key + Account-ID are not configured.',
+      503,
+      'not_configured',
+    );
+  }
+  const PER_PAGE = 100;
+  const MAX_PAGES = 25; // safety backstop (~2,500 commissions)
+  const seen = new Set<number>();
+  let paidCents = 0;
+  let owedCents = 0;
+  let pendingCents = 0;
+  let truncated = false;
+
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const url = new URL(`${API_BASE}/company/commissions`);
+    url.searchParams.set('filters[promoter_id]', String(promoterId));
+    url.searchParams.set('per_page', String(PER_PAGE));
+    url.searchParams.set('page', String(page));
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: authHeaders(),
+    });
+    const text = await response.text();
+    let parsed: unknown = null;
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch {
+      // non-JSON body
+    }
+    if (!response.ok) {
+      const message =
+        (parsed as { error?: string } | null)?.error ||
+        `FirstPromoter commissions fetch failed (HTTP ${response.status})`;
+      throw new FirstPromoterApiError(
+        message,
+        response.status,
+        inferErrorCode(response.status, message),
+        parsed,
+      );
+    }
+    const list: FirstPromoterCommission[] = Array.isArray(parsed)
+      ? (parsed as FirstPromoterCommission[])
+      : Array.isArray((parsed as { data?: unknown[] } | null)?.data)
+        ? (parsed as { data: FirstPromoterCommission[] }).data
+        : [];
+
+    let addedThisPage = 0;
+    for (const c of list) {
+      // De-dupe by id so a non-advancing paginator can't double-count.
+      if (typeof c.id === 'number') {
+        if (seen.has(c.id)) continue;
+        seen.add(c.id);
+      }
+      addedThisPage += 1;
+      // Only count monetary commissions. `unit` absent → treat as cash.
+      if (c.unit && c.unit !== 'cash') continue;
+      const amount = typeof c.amount === 'number' ? c.amount : 0;
+      if (c.status === 'approved') {
+        if (c.is_paid) paidCents += amount;
+        else owedCents += amount;
+      } else if (c.status === 'pending') {
+        pendingCents += amount;
+      }
+      // `denied` → ignored
+    }
+
+    if (list.length < PER_PAGE) break; // reached the last page
+    if (addedThisPage === 0) break; // paginator not advancing — stop
+    if (page === MAX_PAGES) truncated = true;
+  }
+
+  return {
+    paidCents,
+    owedCents,
+    pendingCents,
+    earnedCents: paidCents + owedCents,
+    commissionsCount: seen.size,
+    truncated,
+  };
+}
+
 function inferErrorCode(status: number, message: string): string {
   const lower = message.toLowerCase();
   if (status === 401 || status === 403) return 'unauthorized';
