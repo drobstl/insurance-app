@@ -7,6 +7,7 @@ import { db } from '../../firebase';
 import { DashboardProvider, useDashboard } from './DashboardContext';
 import PlanPickerGate from './PlanPickerGate';
 import PWAInstaller from '../../components/PWAInstaller';
+import AdminGrowthBadge from '../../components/AdminGrowthBadge';
 import MaintenanceBanner from '../../components/MaintenanceBanner';
 import DashboardAssistant from '../../components/DashboardAssistant';
 import DashboardTicker from '../../components/DashboardTicker';
@@ -516,6 +517,11 @@ const NAV_ITEMS = [
 ];
 
 const ADMIN_NAV_ITEMS = [
+  { key: 'admin-growth', path: '/dashboard/admin/growth', label: 'Growth', icon: (
+    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+    </svg>
+  )},
   { key: 'admin-analytics', path: '/dashboard/admin/feedback', label: 'Analytics', icon: (
     <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -893,6 +899,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                   <span className="whitespace-nowrap overflow-hidden text-sm font-semibold flex-1 text-left opacity-100 w-auto">
                     Admin
                   </span>
+                  <AdminGrowthBadge user={user} />
                   <svg className={`w-4 h-4 shrink-0 transition-transform duration-200 ${adminOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
@@ -916,6 +923,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                         >
                           {item.icon}
                           <span className="text-xs font-semibold whitespace-nowrap">{item.label}</span>
+                          {item.key === 'admin-growth' && <AdminGrowthBadge user={user} />}
                         </button>
                       ))}
                     </div>
