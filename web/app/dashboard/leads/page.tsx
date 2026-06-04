@@ -18,6 +18,7 @@ import AppointmentPicker from '../../../components/AppointmentPicker';
 import SendConfirmationDrawer from '../../../components/SendConfirmationDrawer';
 import LeadDetailPanel from '../../../components/LeadDetailPanel';
 import { CloseSaleRitual } from '../../../components/CloseSaleRitual';
+import LeadsCalendar from '../../../components/LeadsCalendar';
 import { leadsAccessReason } from '../../../lib/tier-gating';
 import UpgradeToProCard from '../../../components/UpgradeToProCard';
 import {
@@ -61,7 +62,7 @@ interface Lead {
   };
 }
 
-type LeadView = 'all' | 'queue';
+type LeadView = 'all' | 'queue' | 'calendar';
 type LeadSortKey = 'name' | 'createdAt' | 'source';
 type SortDir = 'asc' | 'desc';
 
@@ -191,7 +192,7 @@ export default function LeadsPage() {
 function LeadsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, agentProfile } = useDashboard();
+  const { user, agentProfile, isAdmin } = useDashboard();
 
   // Right-pane selection (desktop call-queue view only). The URL param
   // is the source of truth so refresh + back/forward + shareable links
@@ -203,6 +204,9 @@ function LeadsPageInner() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<LeadView>('all');
+  // Calendar tab ships dark: admins always see it (so we can verify on
+  // prod before GA); everyone else only when NEXT_PUBLIC_LEADS_CALENDAR=on.
+  const calendarEnabled = isAdmin || process.env.NEXT_PUBLIC_LEADS_CALENDAR === 'on';
 
   // ── Search + sort (All view only) ──
   // Queue has its own priority sort that we don't override. Search +
@@ -1292,32 +1296,43 @@ function LeadsPageInner() {
               with outcome-specific cooldowns. Designed for sit-down
               dialing sessions: open queue, dial top of list, log
               outcome, queue auto-resorts. */}
-          <div className="mb-4 flex items-end justify-between gap-3 border-b border-[#d0d0d0]">
-            <div className="flex items-center gap-1">
+          <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+            {/* Segmented control — reads as "switch your view" far more
+                clearly than underline tabs, and makes Calendar easy to spot. */}
+            <div className="inline-flex items-center gap-1 p-1 bg-[#EFEFEF] rounded-xl border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px]">
               <button
                 onClick={() => setView('all')}
-                className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
-                  view === 'all'
-                    ? 'border-[#44bbaa] text-[#005851]'
-                    : 'border-transparent text-[#707070] hover:text-[#005851]'
+                className={`px-3.5 py-1.5 text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+                  view === 'all' ? 'bg-[#44bbaa] text-white' : 'text-[#707070] hover:text-[#005851]'
                 }`}
               >
                 All leads
-                <span className="ml-1.5 text-xs text-[#9CA3AF] font-normal">
+                <span className={`text-xs font-normal ${view === 'all' ? 'text-white/80' : 'text-[#9CA3AF]'}`}>
                   {view === 'all' && searchQuery.trim() ? `${filteredLeads.length} / ${leads.length}` : leads.length}
                 </span>
               </button>
               <button
                 onClick={() => setView('queue')}
-                className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
-                  view === 'queue'
-                    ? 'border-[#44bbaa] text-[#005851]'
-                    : 'border-transparent text-[#707070] hover:text-[#005851]'
+                className={`px-3.5 py-1.5 text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+                  view === 'queue' ? 'bg-[#44bbaa] text-white' : 'text-[#707070] hover:text-[#005851]'
                 }`}
               >
                 Call queue
-                <span className="ml-1.5 text-xs text-[#9CA3AF] font-normal">{queueLeads.length}</span>
+                <span className={`text-xs font-normal ${view === 'queue' ? 'text-white/80' : 'text-[#9CA3AF]'}`}>{queueLeads.length}</span>
               </button>
+              {calendarEnabled && (
+                <button
+                  onClick={() => setView('calendar')}
+                  className={`px-3.5 py-1.5 text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+                    view === 'calendar' ? 'bg-[#44bbaa] text-white' : 'text-[#707070] hover:text-[#005851]'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Calendar
+                </button>
+              )}
             </div>
 
             {/* Search — only filters the All view. Hidden in Queue view
@@ -1352,6 +1367,7 @@ function LeadsPageInner() {
           </div>
 
           {/* PDF drop-zone */}
+          {view !== 'calendar' && (
           <div
             onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
             onDragLeave={() => setDragActive(false)}
@@ -1403,6 +1419,7 @@ function LeadsPageInner() {
               </div>
             )}
           </div>
+          )}
 
           {/* Just-created banner */}
           {justCreated && (
@@ -1623,6 +1640,9 @@ function LeadsPageInner() {
               the full lead profile while dialing. Mobile keeps the
               single-column layout with the inline outcome chip flow
               under each row. */}
+          {calendarEnabled && view === 'calendar' ? (
+            <LeadsCalendar onGoToQueue={() => setView('queue')} />
+          ) : (
           <div className={view === 'queue' && !loading && queueLeads.length > 0 ? 'md:flex md:gap-4 md:items-start' : ''}>
           {/* List rail. Desktop two-pane: sticky to the top of the
               scrollable main so the agent never loses the queue while
@@ -2053,6 +2073,7 @@ function LeadsPageInner() {
             </div>
           )}
           </div>
+          )}
         </div>
 
         {/* Appointment picker for queue-side bookings (Chunk 4c).
