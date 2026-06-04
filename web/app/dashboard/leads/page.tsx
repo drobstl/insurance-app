@@ -2076,7 +2076,7 @@ function LeadsPageInner() {
             leadPhone={confirmingLead.lead.phone}
             leadEmail={confirmingLead.lead.email}
             leadCode={confirmingLead.lead.leadCode}
-            leadState={null /* leads list doesn't denormalize state — agent picks in drawer */}
+            leadState={confirmingLead.lead.address?.state || null /* live lead state — mirrors LeadDetailPanel + the phone push path so the license auto-attaches */}
             scheduledAt={confirmingLead.scheduledAt}
             agentName={agentProfile.name || ''}
             agentBusinessCardBase64={agentProfile.businessCardBase64}
