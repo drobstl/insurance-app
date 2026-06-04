@@ -24,7 +24,7 @@ import {
   isAppointmentOutcomeChipStatus,
 } from '../lib/appointment-outcome-chip';
 import { DIMENSION_MAX, type LeadScore } from '../lib/lead-assessment';
-import { LeadTempLine } from './LeadTempChip';
+import { LeadTempChip } from './LeadTempChip';
 import { isDerivedLeadCode } from '../lib/lead-code-derive';
 
 interface LeadPhone {
@@ -1160,40 +1160,48 @@ export default function LeadDetailPanel({
 
   return (
     <div>
-      <div className="mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-[#000000]">{lead.name || 'Unnamed lead'}</h1>
-          <p className="text-sm text-[#707070] mt-1">
-            {lead.phone}
-            {lead.formType && lead.formType !== 'Manual' && (
-              <span className="ml-2 inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
-                {lead.formType}
-              </span>
-            )}
-            {lead.convertedToClientId && (
-              <span className="ml-2 inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
-                Converted to client
-              </span>
-            )}
-            {mostRecentPastOutcomeChip && (
-              <span className={`ml-2 inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${mostRecentPastOutcomeChip.classes}`}>
-                {mostRecentPastOutcomeChip.label}
-              </span>
-            )}
-            {lead.leadCode && (
-              <span className="ml-2 text-xs text-[#9CA3AF]">
-                · {isDerivedLeadCode(lead.leadCode) ? 'code = phone' : `code ${lead.leadCode}`}
-              </span>
-            )}
-          </p>
-          {lead.phone && (
-            <div className="mt-2">
-              <DoNotContactToggle phoneE164={lead.phone} user={user} size="sm" />
+      <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden mb-6">
+        {/* Identity band — name + temperature + lead code */}
+        <div className="px-5 py-4 border-b-2 border-[#1A1A1A] flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-2xl font-bold text-[#000000]">{lead.name || 'Unnamed lead'}</h1>
+              {lead.leadScore && <LeadTempChip temperature={lead.leadScore.temperature} />}
+              {lead.formType && lead.formType !== 'Manual' && (
+                <span className="inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
+                  {lead.formType}
+                </span>
+              )}
+              {lead.convertedToClientId && (
+                <span className="inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
+                  Converted to client
+                </span>
+              )}
+              {mostRecentPastOutcomeChip && (
+                <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${mostRecentPastOutcomeChip.classes}`}>
+                  {mostRecentPastOutcomeChip.label}
+                </span>
+              )}
             </div>
-          )}
-          {lead.leadScore && (
-            <LeadTempLine temperature={lead.leadScore.temperature} summary={lead.leadScore.summary} />
-          )}
+            {lead.leadScore && (
+              <p className="text-[13px] text-[#374151] mt-1 leading-snug">{lead.leadScore.summary}</p>
+            )}
+            {lead.phone && (
+              <div className="mt-1.5">
+                <DoNotContactToggle phoneE164={lead.phone} user={user} size="sm" />
+              </div>
+            )}
+          </div>
+          <div className="text-right shrink-0">
+            <div className="font-mono text-base font-bold text-[#005851]">{lead.leadCode}</div>
+            <div className="text-[10px] uppercase tracking-wider text-[#9CA3AF] font-semibold">
+              {lead.leadCode && isDerivedLeadCode(lead.leadCode) ? 'code = phone' : 'lead code'}
+            </div>
+          </div>
+        </div>
+
+        {/* Action toolbar — call panel (carries dial count + last outcome), then book / close */}
+        <div className="px-5 pt-4 pb-3 space-y-3">
           {/* Phones list — one row per number with its own Call button,
               dial-count badge, last-outcome chip, and a label dropdown.
               Falls back to the legacy single `phone` field when phones[]
@@ -1267,6 +1275,32 @@ export default function LeadDetailPanel({
               ✓ Converted to client. <a href="/dashboard/clients" className="font-semibold underline">View clients</a>
             </div>
           )}
+        </div>
+
+        {/* Status footer — lifecycle facts at a glance */}
+        <div className="px-5 py-2.5 bg-[#f8faf9] border-t border-[#e5e7eb] flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#707070]">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="font-semibold uppercase tracking-wider text-[10px] text-[#9CA3AF]">App</span>
+            {lead.appDownloadedAt ? (
+              <span className="text-[#005851] font-semibold">✓ {new Date(lead.appDownloadedAt).toLocaleDateString()}</span>
+            ) : (
+              <span>Not yet</span>
+            )}
+          </span>
+          <span className="text-[#d0d0d0]">·</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="font-semibold uppercase tracking-wider text-[10px] text-[#9CA3AF]">Assessment</span>
+            {lead.assessmentCompletedAt ? (
+              <span className="text-[#005851] font-semibold">✓ {lead.assessmentCompletedAt.toDate().toLocaleDateString()}</span>
+            ) : (
+              <span>Not yet</span>
+            )}
+          </span>
+          <span className="text-[#d0d0d0]">·</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="font-semibold uppercase tracking-wider text-[10px] text-[#9CA3AF]">Created</span>
+            <span className="text-[#374151] font-semibold">{lead.createdAt ? lead.createdAt.toDate().toLocaleDateString() : '—'}</span>
+          </span>
         </div>
       </div>
 
@@ -1369,30 +1403,6 @@ export default function LeadDetailPanel({
         );
       })()}
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-6 text-xs text-[#707070]">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="font-semibold uppercase tracking-wider text-[10px] text-[#9CA3AF]">App</span>
-          {lead.appDownloadedAt ? (
-            <span className="text-[#005851] font-semibold">✓ {new Date(lead.appDownloadedAt).toLocaleDateString()}</span>
-          ) : (
-            <span>Not yet</span>
-          )}
-        </span>
-        <span className="text-[#d0d0d0]">·</span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="font-semibold uppercase tracking-wider text-[10px] text-[#9CA3AF]">Assessment</span>
-          {lead.assessmentCompletedAt ? (
-            <span className="text-[#005851] font-semibold">✓ {lead.assessmentCompletedAt.toDate().toLocaleDateString()}</span>
-          ) : (
-            <span>Not yet</span>
-          )}
-        </span>
-        <span className="text-[#d0d0d0]">·</span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="font-semibold uppercase tracking-wider text-[10px] text-[#9CA3AF]">Created</span>
-          <span className="text-[#374151] font-semibold">{lead.createdAt ? lead.createdAt.toDate().toLocaleDateString() : '—'}</span>
-        </span>
-      </div>
 
       {/* Extracted-from-PDF fields. Renders the union of everything any
           of the three lead-form templates can supply. Sections collapse
