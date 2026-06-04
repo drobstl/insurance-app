@@ -32,3 +32,12 @@ Daniel runs several sessions at once in sibling worktrees
 a worktree you don't own, and don't commit another session's in-progress
 work. Per-folder Claude memory is NOT shared between worktrees — durable,
 repo-wide rules belong in this file, not in session memory.
+
+**Do code work in a dedicated worktree, and commit early — never leave
+uncommitted changes in the shared `insurance-app` checkout.** A parallel
+session's git ops (reset/checkout/clean) can silently wipe uncommitted
+work there with no warning; this destroyed a full feature's worth of WIP
+on Jun 4, 2026 (recoverable only because it happened to be replayable
+from the chat transcript). Create or enter your own worktree *before* the
+first edit, and get changes onto your branch in a commit as soon as you
+have anything worth keeping.
