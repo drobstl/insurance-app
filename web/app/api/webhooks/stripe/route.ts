@@ -3,6 +3,7 @@ import { Resend } from 'resend';
 import { FieldValue } from 'firebase-admin/firestore';
 import { stripe } from '../../../../lib/stripe';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
+import { notifyFounderOfSignup } from '../../../../lib/founder-signup-alert';
 import { tierIdFromStripePriceId } from '../../../../lib/pricing';
 import {
   isTransientWebhookError,
@@ -220,6 +221,20 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     },
     { merge: true }
   );
+
+  // Founder alert — brand-new paid signups only (not renewals/resubscribes).
+  // Fire-and-forget; must never block or fail webhook fulfillment or a charge.
+  if (fulfilledFromPending?.createdNewUser) {
+    const seed = preActivationAgentDoc.data() || {};
+    void notifyFounderOfSignup({
+      uid: userId,
+      name: typeof seed.name === 'string' ? seed.name : null,
+      email: typeof seed.email === 'string' ? seed.email : null,
+      membershipTier,
+      referredByAgent: typeof seed.referredByAgent === 'string' ? seed.referredByAgent : null,
+      source: 'paid',
+    }).catch(() => {});
+  }
 
   // Check if this user is an approved founding member (handles the case where
   // they signed up after being approved, so the approval route couldn't find them)

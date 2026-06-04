@@ -5,6 +5,7 @@ import { Resend } from 'resend';
 import { FieldValue } from 'firebase-admin/firestore';
 import { stripe } from '../../../../lib/stripe';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
+import { notifyFounderOfSignup } from '../../../../lib/founder-signup-alert';
 
 /**
  * POST /api/signup/trial
@@ -153,6 +154,16 @@ export async function POST(request: NextRequest) {
     if (fpTid) profile.affiliateTid = fpTid;
 
     await db.collection('agents').doc(uid).set(profile, { merge: true });
+
+    // Founder alert — fire-and-forget; never blocks the signup.
+    void notifyFounderOfSignup({
+      uid,
+      name,
+      email,
+      membershipTier: 'trial',
+      referredByAgent: referrerId ?? null,
+      source: 'trial',
+    }).catch(() => {});
 
     // Welcome email — no-card trial users have no password yet, so the
     // primary CTA is a one-click password-set link. Non-fatal.

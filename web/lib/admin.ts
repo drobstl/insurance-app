@@ -24,3 +24,11 @@ export function isAdminEmail(
   if (!email) return false;
   return ADMIN_EMAILS.includes(email.toLowerCase());
 }
+
+/**
+ * Returns the configured admin emails (lowercased). Used for
+ * admin-targeted notifications such as new-signup alerts.
+ */
+export function getAdminEmails(): string[] {
+  return [...ADMIN_EMAILS];
+}
