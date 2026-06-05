@@ -68,6 +68,61 @@ export const TRAINING_SESSION_DURATION_MINUTES = 60;
  *  Join button stays prominent for early-arrivers. */
 export const TRAINING_SESSION_LIVE_WINDOW_PRE_MINUTES = 10;
 
+/**
+ * How many days `nextOccurrence` scans forward for the next non-blacked-out
+ * instance of a slot. Two weeks covers the normal cadence; the extra margin
+ * lets a multi-week blackout (host travel) resolve to a later week instead
+ * of falling through to the defensive fallback.
+ */
+const SCAN_HORIZON_DAYS = 21;
+
+/**
+ * A stretch of time during which no sessions run — host travel, holidays,
+ * etc. A session whose start lands inside `[startAt, endAt)` is skipped by
+ * `getNextTrainingSession`, and the card shows `note` in place of the Join
+ * button while `now` is inside the window. Each entry is self-expiring:
+ * once `now` passes `endAt` the schedule returns to normal with no code
+ * change needed.
+ */
+export interface TrainingBlackout {
+  /** Inclusive start instant of the pause. */
+  startAt: Date;
+  /** Exclusive end instant — the first session at/after this still runs. */
+  endAt: Date;
+  /** Short reason shown on the card while the pause is active. */
+  note: string;
+}
+
+export const TRAINING_BLACKOUTS: readonly TrainingBlackout[] = [
+  {
+    // Daniel is traveling — no host for the week. The window opens right
+    // as Thu Jun 4's 7pm CT session ends (so tonight still runs) and
+    // closes at midnight before Tue Jun 16, skipping Tue Jun 9 + Thu Jun
+    // 11 and resuming on the 16th. June is CDT (UTC-5).
+    startAt: new Date('2026-06-04T20:00:00-05:00'),
+    endAt: new Date('2026-06-16T00:00:00-05:00'),
+    note: "Sessions are paused while I'm traveling. Add the 16th to your calendar so you don't miss the return.",
+  },
+];
+
+/** True iff `instant` falls inside any scheduled blackout window. */
+function isInstantBlackedOut(instant: Date): boolean {
+  const t = instant.getTime();
+  return TRAINING_BLACKOUTS.some((b) => t >= b.startAt.getTime() && t < b.endAt.getTime());
+}
+
+/**
+ * The blackout in effect at `now`, or null when sessions are running
+ * normally. The card uses this to swap the Join button for a "back on
+ * <date>" note.
+ */
+export function getActiveTrainingBlackout(now: Date = new Date()): TrainingBlackout | null {
+  const t = now.getTime();
+  return (
+    TRAINING_BLACKOUTS.find((b) => t >= b.startAt.getTime() && t < b.endAt.getTime()) ?? null
+  );
+}
+
 export interface TrainingSession {
   /** The slot this session is an instance of. */
   slot: TrainingSlot;
@@ -122,10 +177,10 @@ function timezoneOffsetMinutesAt(instant: Date, timeZoneIana: string): number {
  * offset lookup happens at the candidate instant, not at `now`.
  */
 function nextOccurrence(slot: TrainingSlot, now: Date): Date {
-  // We scan up to 14 days forward — enough to find one occurrence of
-  // any weekday no matter what `now` is, with margin for the live
-  // window check below.
-  for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
+  // Scan forward for the next instance of this slot's weekday. The
+  // horizon gives enough room to skip past a multi-week blackout without
+  // hitting the defensive fallback below.
+  for (let dayOffset = 0; dayOffset < SCAN_HORIZON_DAYS; dayOffset++) {
     const candidateRoughly = new Date(now.getTime() + dayOffset * 24 * 60 * 60 * 1000);
 
     // What weekday is `candidateRoughly` in the slot's timezone? We
@@ -162,6 +217,13 @@ function nextOccurrence(slot: TrainingSlot, now: Date): Date {
     // wall-clock IN that zone equals slot.hour:slot.minute on that date.
     const offsetMinutes = timezoneOffsetMinutesAt(asIfUtcInstant, slot.timeZoneIana);
     const actualInstant = new Date(asIfUtcInstant.getTime() - offsetMinutes * 60 * 1000);
+
+    // Skip any instance that lands inside a blackout (host travel, etc.).
+    // The card surfaces the pause separately; the schedule just advances
+    // to the next session that will actually happen.
+    if (isInstantBlackedOut(actualInstant)) {
+      continue;
+    }
 
     // Only return if the session start (minus the live-window pre)
     // is still in the future. A session that started 5 minutes ago
@@ -216,6 +278,24 @@ export function isSessionLive(session: TrainingSession, now: Date = new Date()):
   const liveEndMs = session.endAt.getTime();
   const nowMs = now.getTime();
   return nowMs >= liveStartMs && nowMs <= liveEndMs;
+}
+
+/** True once `now` is at or past the session's real start instant — i.e.
+ *  the session is genuinely in progress, not merely inside the pre-start
+ *  warm-up window. */
+export function hasSessionStarted(session: TrainingSession, now: Date = new Date()): boolean {
+  return now.getTime() >= session.startAt.getTime();
+}
+
+/** "Tuesday, June 16" in the session's own timezone — used for the resume
+ *  headline when a blackout is active. */
+export function formatSessionDateLabel(session: TrainingSession): string {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: session.slot.timeZoneIana,
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  }).format(session.startAt);
 }
 
 /** Format an instant as a YYYYMMDDTHHmmssZ string (basic ISO no
@@ -304,15 +384,26 @@ export function buildIcsDataUrl(session: TrainingSession, meetingUrl: string): s
 }
 
 /**
- * Friendly "in X" relative phrasing for the card subtitle. Examples:
- *   "in 3 hours", "in 2 days", "live now — join the call".
+ * Friendly relative phrasing for the card subtitle. Examples:
+ *   "in 3 hours", "in 2 days", "starts in 6 min — hop on early",
+ *   "live now — join the call".
  */
 export function describeRelativeToNow(session: TrainingSession, now: Date = new Date()): string {
-  if (isSessionLive(session, now)) {
+  const startMs = session.startAt.getTime();
+  const nowMs = now.getTime();
+  // At or past the real start time. The card only ever shows an upcoming
+  // or in-progress session, so this is genuinely "live now".
+  if (nowMs >= startMs) {
     return 'live now — join the call';
   }
-  const diffMs = session.startAt.getTime() - now.getTime();
-  if (diffMs <= 0) return 'live now — join the call';
+  // Inside the pre-start window (isSessionLive is true) but the clock
+  // hasn't reached the start time yet — so don't claim "live now". Give an
+  // honest countdown that still invites an early join.
+  if (isSessionLive(session, now)) {
+    const mins = Math.max(1, Math.ceil((startMs - nowMs) / (60 * 1000)));
+    return `starts in ${mins} min — hop on early`;
+  }
+  const diffMs = startMs - nowMs;
   const minutes = Math.round(diffMs / (60 * 1000));
   if (minutes < 60) return `in ${minutes} minute${minutes === 1 ? '' : 's'}`;
   const hours = Math.round(diffMs / (60 * 60 * 1000));
