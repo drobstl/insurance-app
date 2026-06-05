@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { isFreeTier } from '../../../../lib/tier-gating';
 import { sendOrCreateChat } from '../../../../lib/linq';
+import { isWithinQuietHoursWindow } from '../../../../lib/quiet-hours';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { buildReferralDripMessage, resolveClientLanguage } from '../../../../lib/client-language';
@@ -136,6 +137,17 @@ export async function GET() {
             language: resolveClientLanguage(data.preferredLanguage),
           });
           if (!message || !isValidE164(referralPhone)) continue;
+
+          // TCPA quiet hours. Referral prospects carry no address, so this
+          // uses the conservative continental-US window — the drip only
+          // sends at an hour that's polite everywhere in the lower 48. Out
+          // of window → skip; the every-4h cron retries at the next allowed
+          // tick (nothing is advanced or lost).
+          const referralState =
+            (data.referralState as string | undefined) ??
+            (data.address as { state?: string } | undefined)?.state ??
+            null;
+          if (!isWithinQuietHoursWindow(referralState)) continue;
 
           const directChatId = (data.directChatId as string) || null;
           const idempotencyKey = `drip-${referralDoc.id}-${NEXT_STATUS[status]}`;
