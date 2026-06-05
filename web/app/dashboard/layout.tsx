@@ -760,7 +760,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const groupedNav = NAV_GROUPS
     .map((keys) =>
       keys
-        .filter((key) => key !== 'calendar' || calendarEnabled)
+        // Calendar shows only when it exists (calendarEnabled) AND the
+        // agent can reach Leads (Pro+) — it surfaces the pre-sale pipeline,
+        // so it follows the same tier gate as the Leads route.
+        .filter((key) => key !== 'calendar' || (calendarEnabled && leadsReason === 'accessible'))
         .filter(navItemAccessible)
         .map((key) => (key === 'calendar' ? CALENDAR_NAV_ITEM : NAV_ITEM_BY_KEY[key])),
     )

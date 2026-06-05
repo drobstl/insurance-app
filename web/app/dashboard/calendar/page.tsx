@@ -7,27 +7,43 @@
 // LeadsCalendar the Leads page renders (Firestore sits + Google busy);
 // here it just gets a route + page chrome.
 //
-// Gating: Calendar ships dark behind NEXT_PUBLIC_LEADS_CALENDAR (admins
-// always, so we can verify on prod before GA). When the flag is off and
-// the visitor isn't an admin, bounce to Leads rather than show an empty
-// surface. The sidebar only links here when calendarEnabled && iaEnabled,
-// but a direct visit still resolves correctly via this guard.
+// Gating mirrors the Leads page, because the calendar surfaces the
+// pre-sale pipeline's booked sits — Pro-tier value:
+//   1. calendarEnabled (isAdmin || NEXT_PUBLIC_LEADS_CALENDAR==='on') —
+//      whether the Calendar exists on this deploy at all (dark-launch).
+//   2. leadsAccessReason — the SAME Pro+ tier gate Leads uses, so a
+//      non-Pro agent gets the upgrade card here too instead of an empty
+//      calendar. When Calendar was a Leads tab this came for free; the
+//      promotion to a standalone route has to re-assert it so the two
+//      surfaces can't drift.
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDashboard } from '../DashboardContext';
+import { leadsAccessReason } from '../../../lib/tier-gating';
 import LeadsCalendar from '../../../components/LeadsCalendar';
+import UpgradeToProCard from '../../../components/UpgradeToProCard';
 
 export default function CalendarPage() {
   const router = useRouter();
-  const { isAdmin } = useDashboard();
+  const { user, agentProfile, profileLoading, isAdmin } = useDashboard();
   const calendarEnabled = isAdmin || process.env.NEXT_PUBLIC_LEADS_CALENDAR === 'on';
+  const reason = leadsAccessReason(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt);
 
   useEffect(() => {
-    if (!calendarEnabled) router.replace('/dashboard/leads');
-  }, [calendarEnabled, router]);
+    // Wait for the profile so an admin / Pro agent mid-load isn't bounced.
+    if (!user || profileLoading) return;
+    // Calendar dark-launched off for this agent, OR lead mode globally
+    // disabled → no surface to show; send them home.
+    if (!calendarEnabled || reason === 'env_off') router.replace('/dashboard');
+  }, [user, profileLoading, calendarEnabled, reason, router]);
 
-  if (!calendarEnabled) return null;
+  if (!user || profileLoading) return null;
+  if (!calendarEnabled || reason === 'env_off') return null;
+  // Pro+ gate — identical to the Leads page so Calendar can't outrun it.
+  if (reason === 'tier_locked') {
+    return <UpgradeToProCard surface="leads" />;
+  }
 
   return (
     <div className="max-w-6xl mx-auto">
