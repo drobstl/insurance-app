@@ -3,8 +3,15 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  getMultiFactorResolver,
+  type MultiFactorError,
+  type MultiFactorResolver,
+} from 'firebase/auth';
 import { auth } from '../../firebase';
+import MfaChallenge from '../../components/MfaChallenge';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,6 +21,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   const [sessionMessage, setSessionMessage] = useState('');
+  const [mfaResolver, setMfaResolver] = useState<MultiFactorResolver | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -45,6 +53,10 @@ export default function LoginPage() {
       await signInWithEmailAndPassword(auth, email, password);
       router.push('/dashboard');
     } catch (err: unknown) {
+      if ((err as { code?: string })?.code === 'auth/multi-factor-auth-required') {
+        setMfaResolver(getMultiFactorResolver(auth, err as MultiFactorError));
+        return;
+      }
       if (err instanceof Error) {
         const errorMessage = err.message;
         if (errorMessage.includes('user-not-found')) {
@@ -101,6 +113,14 @@ export default function LoginPage() {
         {/* Login Form Card */}
         <div className="w-full max-w-md">
           <div className="bg-white rounded-[5px] shadow-xl border border-[#d0d0d0] p-8">
+            {mfaResolver ? (
+              <MfaChallenge
+                resolver={mfaResolver}
+                onResolved={() => router.replace('/dashboard')}
+                onCancel={() => setMfaResolver(null)}
+              />
+            ) : (
+            <>
             <div className="text-center mb-8">
               <h1 className="text-2xl font-bold text-[#005851]">Welcome Back</h1>
               <p className="text-[#707070] mt-2">Sign in to manage your clients</p>
@@ -182,6 +202,8 @@ export default function LoginPage() {
                 </Link>
               </p>
             </div>
+            </>
+            )}
           </div>
 
           {/* Back to Home Link */}

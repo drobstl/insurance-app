@@ -17,6 +17,7 @@ import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 import { PRICING_TIERS, type PricingTierId } from '../../../lib/pricing';
 import StateLicensesSection from '../../../components/StateLicensesSection';
+import MfaEnrollmentCard from '../../../components/MfaEnrollmentCard';
 import { DEFAULT_DIAL_SCRIPT, SCRIPT_TOKEN_HINTS } from '../../../lib/dial-script';
 import { canAccessLeads } from '../../../lib/tier-gating';
 
@@ -1703,6 +1704,11 @@ export default function SettingsPage() {
         <div className="space-y-5">
           {/* Invite Agents */}
           <InviteAgentsCard />
+
+          {/* Two-step verification (SMS MFA) — flag-gated (NEXT_PUBLIC_MFA_ENABLED) */}
+          {process.env.NEXT_PUBLIC_MFA_ENABLED === 'true' && user && (
+            <MfaEnrollmentCard user={user} />
+          )}
 
           {/* Subscription */}
           <div className="bg-white rounded-[5px] border border-gray-200 p-5">
