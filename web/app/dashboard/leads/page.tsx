@@ -204,9 +204,6 @@ function LeadsPageInner() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<LeadView>('all');
-  // Calendar tab ships dark: admins always see it (so we can verify on
-  // prod before GA); everyone else only when NEXT_PUBLIC_LEADS_CALENDAR=on.
-  const calendarEnabled = isAdmin || process.env.NEXT_PUBLIC_LEADS_CALENDAR === 'on';
   // IA v2 (dark-launch): admins always; everyone else when
   // NEXT_PUBLIC_IA_V2=on. Folds Call queue into a "Call mode" button here
   // and (in the dashboard sidebar) promotes Calendar + regroups nav.
@@ -1413,7 +1410,7 @@ function LeadsPageInner() {
                   {/* Calendar (mobile only — sidebar hosts it on desktop) +
                       Start calling (enter the prioritized dialer). */}
                   <div className="flex items-center gap-2">
-                    {calendarEnabled && (
+                    {iaEnabled && (
                       <button
                         onClick={() => setView('calendar')}
                         className="md:hidden inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg bg-[#EFEFEF] text-[#005851] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px]"
@@ -1465,7 +1462,7 @@ function LeadsPageInner() {
                 Call queue
                 <span className={`text-xs font-normal ${view === 'queue' ? 'text-white/80' : 'text-[#9CA3AF]'}`}>{queueLeads.length}</span>
               </button>
-              {calendarEnabled && (
+              {iaEnabled && (
                 <button
                   onClick={() => setView('calendar')}
                   className={`px-3.5 py-1.5 text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
@@ -1786,7 +1783,7 @@ function LeadsPageInner() {
               the full lead profile while dialing. Mobile keeps the
               single-column layout with the inline outcome chip flow
               under each row. */}
-          {calendarEnabled && view === 'calendar' ? (
+          {iaEnabled && view === 'calendar' ? (
             <LeadsCalendar onGoToQueue={() => setView('queue')} />
           ) : (
           <div className={view === 'queue' && !loading && queueLeads.length > 0 ? 'md:flex md:gap-4 md:items-start' : ''}>

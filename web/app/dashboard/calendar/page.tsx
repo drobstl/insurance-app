@@ -9,8 +9,8 @@
 //
 // Gating mirrors the Leads page, because the calendar surfaces the
 // pre-sale pipeline's booked sits — Pro-tier value:
-//   1. calendarEnabled (isAdmin || NEXT_PUBLIC_LEADS_CALENDAR==='on') —
-//      whether the Calendar exists on this deploy at all (dark-launch).
+//   1. iaEnabled (isAdmin || NEXT_PUBLIC_IA_V2==='on') — the single
+//      dark-launch switch for all of IA v2; off → admins only.
 //   2. leadsAccessReason — the SAME Pro+ tier gate Leads uses, so a
 //      non-Pro agent gets the upgrade card here too instead of an empty
 //      calendar. When Calendar was a Leads tab this came for free; the
@@ -27,7 +27,7 @@ import UpgradeToProCard from '../../../components/UpgradeToProCard';
 export default function CalendarPage() {
   const router = useRouter();
   const { user, agentProfile, profileLoading, isAdmin } = useDashboard();
-  const calendarEnabled = isAdmin || process.env.NEXT_PUBLIC_LEADS_CALENDAR === 'on';
+  const iaEnabled = isAdmin || process.env.NEXT_PUBLIC_IA_V2 === 'on';
   const reason = leadsAccessReason(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt);
 
   useEffect(() => {
@@ -35,11 +35,11 @@ export default function CalendarPage() {
     if (!user || profileLoading) return;
     // Calendar dark-launched off for this agent, OR lead mode globally
     // disabled → no surface to show; send them home.
-    if (!calendarEnabled || reason === 'env_off') router.replace('/dashboard');
-  }, [user, profileLoading, calendarEnabled, reason, router]);
+    if (!iaEnabled || reason === 'env_off') router.replace('/dashboard');
+  }, [user, profileLoading, iaEnabled, reason, router]);
 
   if (!user || profileLoading) return null;
-  if (!calendarEnabled || reason === 'env_off') return null;
+  if (!iaEnabled || reason === 'env_off') return null;
   // Pro+ gate — identical to the Leads page so Calendar can't outrun it.
   if (reason === 'tier_locked') {
     return <UpgradeToProCard surface="leads" />;

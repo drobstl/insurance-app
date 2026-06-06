@@ -519,7 +519,7 @@ const NAV_ITEMS = [
 // IA v2 — Calendar is promoted to its own top-level nav item (route at
 // /dashboard/calendar). Kept OUT of NAV_ITEMS so the flat (flag-off)
 // sidebar and the mobile bottom bar stay unchanged; it's spliced into the
-// Pipeline group below only when calendarEnabled.
+// Pipeline group below, and only for Pro+ agents (same gate as Leads).
 const CALENDAR_NAV_ITEM = { key: 'calendar', path: '/dashboard/calendar', label: 'Calendar', icon: (
   <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -699,11 +699,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const leadsReason = leadsAccessReason(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt);
   const activityReason = activityAccessReason(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt);
   // IA v2 (dark-launch): admins always; everyone else when
-  // NEXT_PUBLIC_IA_V2=on. Gates the sidebar regroup + Calendar promotion.
-  // calendarEnabled gates whether Calendar exists at all. Both mirror the
-  // flags the Leads page reads so the two surfaces stay in lockstep.
+  // NEXT_PUBLIC_IA_V2=on. The single switch — gates the sidebar regroup,
+  // the Calendar promotion, and the Leads Call-mode fold. Mirrors the flag
+  // the Leads page reads so the two surfaces stay in lockstep.
   const iaEnabled = isAdmin || process.env.NEXT_PUBLIC_IA_V2 === 'on';
-  const calendarEnabled = isAdmin || process.env.NEXT_PUBLIC_LEADS_CALENDAR === 'on';
   // 6 items on mobile bottom bar. Leads replaces the previous Settings
   // slot — settings is already reachable via the gear in the top-right
   // header, so duplicating it down here wastes a tap target. Mobile
@@ -760,10 +759,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const groupedNav = NAV_GROUPS
     .map((keys) =>
       keys
-        // Calendar shows only when it exists (calendarEnabled) AND the
-        // agent can reach Leads (Pro+) — it surfaces the pre-sale pipeline,
-        // so it follows the same tier gate as the Leads route.
-        .filter((key) => key !== 'calendar' || (calendarEnabled && leadsReason === 'accessible'))
+        // Calendar follows the SAME Pro+ tier gate as Leads (it surfaces
+        // the pre-sale pipeline). Visibility otherwise rides iaEnabled,
+        // which already wraps this whole grouped render.
+        .filter((key) => key !== 'calendar' || leadsReason === 'accessible')
         .filter(navItemAccessible)
         .map((key) => (key === 'calendar' ? CALENDAR_NAV_ITEM : NAV_ITEM_BY_KEY[key])),
     )
