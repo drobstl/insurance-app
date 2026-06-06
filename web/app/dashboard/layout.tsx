@@ -516,6 +516,28 @@ const NAV_ITEMS = [
   )},
 ];
 
+// IA v2 — Calendar is promoted to its own top-level nav item (route at
+// /dashboard/calendar). Kept OUT of NAV_ITEMS so the flat (flag-off)
+// sidebar and the mobile bottom bar stay unchanged; it's spliced into the
+// Pipeline group below, and only for Pro+ agents (same gate as Leads).
+const CALENDAR_NAV_ITEM = { key: 'calendar', path: '/dashboard/calendar', label: 'Calendar', icon: (
+  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+  </svg>
+)};
+
+// Workflow clusters for the IA-v2 sidebar — rendered divider-separated,
+// no section labels. Keys resolve against NAV_ITEMS (+ Calendar) at
+// render; per-item gating (leads/activity accessibility) still applies.
+const NAV_GROUPS: string[][] = [
+  ['home', 'clients', 'leads', 'calendar', 'activity', 'action-items'],
+  ['conservation', 'policy-reviews', 'referrals', 'refer-and-earn'],
+  ['resources', 'feedback'],
+];
+const NAV_ITEM_BY_KEY = Object.fromEntries(
+  NAV_ITEMS.map((item) => [item.key, item] as [string, (typeof NAV_ITEMS)[number]]),
+);
+
 const ADMIN_NAV_ITEMS = [
   { key: 'admin-growth', path: '/dashboard/admin/growth', label: 'Growth', icon: (
     <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -648,6 +670,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     if (pathname === '/dashboard') return 'home';
     if (pathname.startsWith('/dashboard/clients')) return 'clients';
     if (pathname.startsWith('/dashboard/leads')) return 'leads';
+    if (pathname.startsWith('/dashboard/calendar')) return 'calendar';
     if (pathname.startsWith('/dashboard/activity')) return 'activity';
     if (pathname.startsWith('/dashboard/action-items')) return 'action-items';
     if (pathname.startsWith('/dashboard/referrals')) return 'referrals';
@@ -675,6 +698,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   // helpers themselves.
   const leadsReason = leadsAccessReason(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt);
   const activityReason = activityAccessReason(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt);
+  // IA v2 (dark-launch): admins always; everyone else when
+  // NEXT_PUBLIC_IA_V2=on. The single switch — gates the sidebar regroup,
+  // the Calendar promotion, and the Leads Call-mode fold. Mirrors the flag
+  // the Leads page reads so the two surfaces stay in lockstep.
+  const iaEnabled = isAdmin || process.env.NEXT_PUBLIC_IA_V2 === 'on';
   // 6 items on mobile bottom bar. Leads replaces the previous Settings
   // slot — settings is already reachable via the gear in the top-right
   // header, so duplicating it down here wastes a tap target. Mobile
@@ -685,6 +713,60 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     if (item.key === 'leads' && leadsReason !== 'accessible') return false;
     return ['home', 'clients', 'leads', 'action-items', 'referrals', 'conservation'].includes(item.key);
   });
+
+  // Single sidebar nav button — shared by the flat (flag-off) list and the
+  // IA-v2 workflow groups so both render pixel-identical.
+  const renderNavItem = (item: (typeof NAV_ITEMS)[number] | typeof CALENDAR_NAV_ITEM) => {
+    // Refer & Earn gets a permanent gold accent — it's the one nav item
+    // where the agent can EARN money, so it stands out from daily tools.
+    const isReferEarn = item.key === 'refer-and-earn';
+    return (
+      <button
+        key={item.key}
+        data-onboarding-target={item.key === 'clients' ? 'nav-clients' : undefined}
+        onClick={() => router.push(item.path)}
+        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
+          activeKey === item.key
+            ? 'bg-[#daf3f0] text-[#005851]'
+            : isReferEarn
+              ? 'text-[#f5c542] hover:bg-[#f5c542]/10 hover:text-[#ffd860]'
+              : 'text-white/80 hover:bg-white/10 hover:text-white'
+        }`}
+      >
+        <div className="relative shrink-0">
+          {item.icon}
+        </div>
+        <span className="whitespace-nowrap overflow-hidden text-sm font-semibold opacity-100 w-auto">
+          {item.label}
+        </span>
+        {isReferEarn && activeKey !== item.key && (
+          <span
+            aria-hidden="true"
+            className="ml-auto text-[10px] font-bold text-[#f5c542]/90 tracking-widest"
+          >
+            $
+          </span>
+        )}
+      </button>
+    );
+  };
+  const navItemAccessible = (key: string) =>
+    key === 'leads' ? leadsReason === 'accessible'
+    : key === 'activity' ? activityReason === 'accessible'
+    : true;
+  // IA-v2 workflow clusters resolved to their accessible items; empty
+  // groups dropped so a divider never leads a section that rendered nothing.
+  const groupedNav = NAV_GROUPS
+    .map((keys) =>
+      keys
+        // Calendar follows the SAME Pro+ tier gate as Leads (it surfaces
+        // the pre-sale pipeline). Visibility otherwise rides iaEnabled,
+        // which already wraps this whole grouped render.
+        .filter((key) => key !== 'calendar' || leadsReason === 'accessible')
+        .filter(navItemAccessible)
+        .map((key) => (key === 'calendar' ? CALENDAR_NAV_ITEM : NAV_ITEM_BY_KEY[key])),
+    )
+    .filter((items) => items.length > 0);
   const dismissSubscriptionCelebration = () => {
     setShowSubscriptionCelebration(false);
     if (user) {
@@ -768,47 +850,14 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 - tier_locked → "Unlock with Pro" group below, clickable
               Daily-workflow tools stay in the prime real estate at the
               top regardless of which mode the gated items are in. */}
-          {NAV_ITEMS.filter((item) => {
-            if (item.key === 'leads') return leadsReason === 'accessible';
-            if (item.key === 'activity') return activityReason === 'accessible';
-            return true;
-          }).map((item) => {
-            // Refer & Earn gets a permanent gold accent — it's the one
-            // nav item where the agent can EARN money, so it deserves
-            // to stand out from daily-workflow tools. Treatment stays
-            // visible whether or not the agent has enrolled yet (the
-            // page itself handles enrolled vs not-enrolled states).
-            const isReferEarn = item.key === 'refer-and-earn';
-            return (
-              <button
-                key={item.key}
-                data-onboarding-target={item.key === 'clients' ? 'nav-clients' : undefined}
-                onClick={() => router.push(item.path)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
-                  activeKey === item.key
-                    ? 'bg-[#daf3f0] text-[#005851]'
-                    : isReferEarn
-                      ? 'text-[#f5c542] hover:bg-[#f5c542]/10 hover:text-[#ffd860]'
-                      : 'text-white/80 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                <div className="relative shrink-0">
-                  {item.icon}
-                </div>
-                <span className="whitespace-nowrap overflow-hidden text-sm font-semibold opacity-100 w-auto">
-                  {item.label}
-                </span>
-                {isReferEarn && activeKey !== item.key && (
-                  <span
-                    aria-hidden="true"
-                    className="ml-auto text-[10px] font-bold text-[#f5c542]/90 tracking-widest"
-                  >
-                    $
-                  </span>
-                )}
-              </button>
-            );
-          })}
+          {iaEnabled
+            ? groupedNav.flatMap((items, gi) => [
+                ...(gi > 0
+                  ? [<div key={`nav-div-${gi}`} className="my-2 mx-1 border-t border-white/10" />]
+                  : []),
+                ...items.map(renderNavItem),
+              ])
+            : NAV_ITEMS.filter((item) => navItemAccessible(item.key)).map(renderNavItem)}
 
           {/* Gated-off groupings — both pushed below the live items but
               above Admin / Settings. Items group by gating reason so
