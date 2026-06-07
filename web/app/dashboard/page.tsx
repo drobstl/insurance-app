@@ -13,6 +13,7 @@ import { computeBookHealthBreakdown } from '../../lib/book-health';
 import { getMostRecentBadge, computeBadges, type EarnedBadge } from '../../lib/badges';
 import SectionTipCard from '../../components/SectionTipCard';
 import NextTrainingSessionCard from '../../components/NextTrainingSessionCard';
+import HomeCalendarTease from '../../components/HomeCalendarTease';
 import PremiumBadge from '../../components/PremiumBadge';
 import BadgeShelf from '../../components/BadgeShelf';
 import BookHealthPopover from '../../components/BookHealthPopover';
@@ -366,6 +367,8 @@ export default function DashboardHomePage() {
           preview envs). See web/lib/training-sessions.ts and
           CONTEXT.md > Backlog > Weekly training session infrastructure. */}
       <NextTrainingSessionCard />
+
+      <HomeCalendarTease />
 
       {/* ── Three Metric Cards ─────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
