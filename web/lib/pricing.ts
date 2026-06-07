@@ -164,7 +164,7 @@ export const PRICING_TIERS: Readonly<Record<PricingTierId, PricingTier>> = {
     bullets: [
       'Full book — adds pre-sale tools to the post-sale engine',
       'Everything in Growth',
-      'Lead management + Activity dashboard',
+      'Lead management, Calendar + Activity dashboard',
       'Close-the-sale ritual: lead → client → policy → activation',
       'Performance page: paste call transcripts, get AI coaching scores',
       'SME / FIF tracking for advanced-market referrals',

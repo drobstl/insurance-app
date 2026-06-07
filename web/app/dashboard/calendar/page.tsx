@@ -42,7 +42,7 @@ export default function CalendarPage() {
   if (!iaEnabled || reason === 'env_off') return null;
   // Pro+ gate — identical to the Leads page so Calendar can't outrun it.
   if (reason === 'tier_locked') {
-    return <UpgradeToProCard surface="leads" />;
+    return <UpgradeToProCard surface="calendar" />;
   }
 
   return (

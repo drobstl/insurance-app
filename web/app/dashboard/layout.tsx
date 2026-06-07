@@ -791,7 +791,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         eyebrow: 'Welcome to Pro',
         headline: "You're officially Pro.",
         body: "Congratulations — you've unlocked the full Pro experience. Warmed-up leads before you dial, a queue that tells you who's next, one-tap appointment confirmations, and every dial and sale tracked for you. This is how the busiest agents book more and close more.",
-        chips: ['Warmed-up leads + call queue', '1-tap appointment confirmations', 'Activity + APV tracking'],
+        chips: ['Warmed-up leads + call queue', 'Your whole week on one calendar', '1-tap appointment confirmations', 'Activity + APV tracking'],
         cta: "Let's Pro",
       }
     : {
@@ -897,10 +897,17 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           })()}
 
           {(() => {
-            const tierLocked = NAV_ITEMS.filter((item) =>
-              (item.key === 'leads' && leadsReason === 'tier_locked') ||
-              (item.key === 'activity' && activityReason === 'tier_locked')
-            );
+            // Leads, Calendar, and Activity are all Pro surfaces. When the
+            // agent's tier locks them, surface them here as upsells — Calendar
+            // rides the same Pro gate as Leads. Order mirrors the Pipeline
+            // group: Leads → Calendar → Activity.
+            const tierLocked: Array<(typeof NAV_ITEMS)[number] | typeof CALENDAR_NAV_ITEM> = [];
+            if (leadsReason === 'tier_locked') {
+              tierLocked.push(NAV_ITEM_BY_KEY['leads'], CALENDAR_NAV_ITEM);
+            }
+            if (activityReason === 'tier_locked') {
+              tierLocked.push(NAV_ITEM_BY_KEY['activity']);
+            }
             if (tierLocked.length === 0) return null;
             return (
               <>
