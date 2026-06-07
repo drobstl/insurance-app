@@ -33,7 +33,8 @@ import {
   type PolicyReviewMessage,
   type PolicyReviewConversationContext,
 } from '../../../../lib/policy-review-ai';
-import { normalizePhone } from '../../../../lib/phone';
+import { normalizePhone, isValidE164 } from '../../../../lib/phone';
+import { recordConsentEvent } from '../../../../lib/suppression';
 import { FieldValue } from 'firebase-admin/firestore';
 import { resolveClientLanguage } from '../../../../lib/client-language';
 import {
@@ -757,11 +758,10 @@ async function handleReferralReply(
     updatedAt: FieldValue.serverTimestamp(),
   };
 
-  if (
-    ['pending', 'outreach-sent', 'drip-1', 'drip-2'].includes(
-      referralData.status as string,
-    )
-  ) {
+  const becameActive = ['pending', 'outreach-sent', 'drip-1', 'drip-2'].includes(
+    referralData.status as string,
+  );
+  if (becameActive) {
     incomingUpdate.status = 'active';
   }
 
@@ -770,6 +770,39 @@ async function handleReferralReply(
   }
 
   await referralRef.update(incomingUpdate);
+
+  // R3 — affirmative consent record. A referral is a cold prospect with no
+  // prior relationship, so their FIRST reply is the opt-in. Fire once, on the
+  // transition into 'active' (later replies keep status 'active', so they
+  // don't re-log). Best-effort: a ledger failure logs but never breaks the
+  // reply flow.
+  if (becameActive) {
+    const referralPhone = normalizePhone(
+      (referralData.referralPhone as string) || senderHandle || '',
+    );
+    if (isValidE164(referralPhone)) {
+      try {
+        await recordConsentEvent({
+          type: 'opt_in',
+          phoneE164: referralPhone,
+          agentId: referralResult.agentId,
+          lane: 'referral',
+          raw: text,
+          meta: {
+            source: 'referral_first_reply',
+            referralId,
+            chatId,
+            priorStatus: (referralData.status as string) || null,
+          },
+        });
+      } catch (consentErr) {
+        console.error('[referral] consent ledger write failed (non-blocking)', {
+          referralId,
+          error: consentErr instanceof Error ? consentErr.message : String(consentErr),
+        });
+      }
+    }
+  }
 
   if (referralData.aiEnabled === false) return;
 
