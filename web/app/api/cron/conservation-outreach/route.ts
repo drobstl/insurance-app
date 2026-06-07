@@ -6,6 +6,7 @@ import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { isClientOutreachPaused } from '../../../../lib/tier-gating';
 import { sendOrCreateChat } from '../../../../lib/linq';
 import { isWithinQuietHoursWindow } from '../../../../lib/quiet-hours';
+import { recordConsentEvent } from '../../../../lib/suppression';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { Resend } from 'resend';
 import {
@@ -511,6 +512,36 @@ export async function GET(req: NextRequest) {
         };
         if (newChatId) update.chatId = newChatId;
         await alertDoc.ref.update(update);
+
+        // R3 — contact-basis record. The conservation/retention lane has no
+        // opt-in: its lawful basis is the existing agent-client business
+        // relationship. Record that basis at the first cold touch so the
+        // "why this contact was lawful" trail exists for the lane that gets
+        // the most scrutiny. Best-effort; a ledger failure must not break
+        // the cron run.
+        try {
+          await recordConsentEvent({
+            type: 'contact_basis',
+            phoneE164: getChannelAvailability(clientData).normalizedPhone,
+            agentId: agentDoc.id,
+            lane: 'conservation',
+            meta: {
+              source: 'conservation_first_touch',
+              basis: 'established_business_relationship',
+              clientId,
+              alertId: alertDoc.id,
+              reason: (alertData.reason as string) || null,
+              policyType: (alertData.policyType as string) || null,
+              carrier: (alertData.carrier as string) || null,
+            },
+          });
+        } catch (basisErr) {
+          console.warn('[conservation-cron] contact-basis ledger write failed (non-blocking)', {
+            agentId: agentDoc.id,
+            alertId: alertDoc.id,
+            error: basisErr instanceof Error ? basisErr.message : String(basisErr),
+          });
+        }
 
         if (newChatId) {
           await upsertThreadFromOutbound({

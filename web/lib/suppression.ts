@@ -65,7 +65,12 @@ export type ConsentEventType =
   | 'opt_in'
   | 'resubscribe'
   | 'override'
-  | 'suppressed_skip';
+  | 'suppressed_skip'
+  // The lawful basis for a cold lane that has no opt-in (today: the
+  // conservation/retention lane, whose basis is the existing agent-client
+  // business relationship). Recorded at the first cold touch so the
+  // "why this contact was lawful" trail exists even absent consent.
+  | 'contact_basis';
 
 /**
  * Lane that originated the event. Reuses the conversation-thread lane
@@ -79,6 +84,7 @@ export type ConsentLane =
   | 'conservation'
   | 'policy_review'
   | 'welcome_activation'
+  | 'beneficiary'
   | 'manual'
   | 'system';
 
