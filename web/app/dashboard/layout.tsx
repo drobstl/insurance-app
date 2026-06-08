@@ -14,7 +14,7 @@ import DashboardTicker from '../../components/DashboardTicker';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
 import { ANALYTICS_EVENTS } from '../../lib/analytics-events';
 import { captureEvent } from '../../lib/posthog';
-import { leadsAccessReason, activityAccessReason, isTrialActive, isProOrAbove, isFreeTier } from '../../lib/tier-gating';
+import { leadsAccessReason, activityAccessReason, isTrialActive, isProOrAbove, isFreeTier, performanceAccess } from '../../lib/tier-gating';
 
 const FOUNDING_ACTIVATION_TIMEOUT_MS = 12000;
 // Hard ceiling for the activation spinner: if `activatingFounding` is still true
@@ -526,13 +526,27 @@ const CALENDAR_NAV_ITEM = { key: 'calendar', path: '/dashboard/calendar', label:
   </svg>
 )};
 
-// Workflow clusters for the IA-v2 sidebar — rendered divider-separated,
-// no section labels. Keys resolve against NAV_ITEMS (+ Calendar) at
-// render; per-item gating (leads/activity accessibility) still applies.
-const NAV_GROUPS: string[][] = [
-  ['home', 'clients', 'leads', 'calendar', 'activity', 'action-items'],
-  ['conservation', 'policy-reviews', 'referrals', 'refer-and-earn'],
-  ['resources', 'feedback'],
+// Coaching (the individual Performance page) — like Calendar, kept OUT of
+// NAV_ITEMS so the flat / mobile nav stay unchanged; spliced into the
+// Performance group below. Visible to everyone except locked (Free) tiers
+// — metered on Growth, unlimited on Pro+; the Free upsell renders under
+// "Unlock with Pro" like Leads / Activity.
+const COACHING_NAV_ITEM = { key: 'coaching', path: '/dashboard/coaching', label: 'Coaching', icon: (
+  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+  </svg>
+)};
+
+// Workflow clusters for the IA-v2 sidebar — divider-separated with quiet
+// section labels so a ~10-item rail reads as a few scannable zones. Keys
+// resolve against NAV_ITEMS (+ Calendar / Coaching) at render; per-item
+// gating (leads / activity / coaching accessibility) still applies.
+// Resources + Feedback intentionally live in the avatar menu, not here.
+const NAV_GROUPS: Array<{ label?: string; keys: string[] }> = [
+  { label: 'Workspace', keys: ['home', 'leads', 'calendar', 'action-items'] },
+  { label: 'Book', keys: ['clients', 'conservation', 'policy-reviews', 'referrals'] },
+  { label: 'Performance', keys: ['activity', 'coaching'] },
+  { keys: ['refer-and-earn'] },
 ];
 const NAV_ITEM_BY_KEY = Object.fromEntries(
   NAV_ITEMS.map((item) => [item.key, item] as [string, (typeof NAV_ITEMS)[number]]),
@@ -672,6 +686,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     if (pathname.startsWith('/dashboard/leads')) return 'leads';
     if (pathname.startsWith('/dashboard/calendar')) return 'calendar';
     if (pathname.startsWith('/dashboard/activity')) return 'activity';
+    if (pathname.startsWith('/dashboard/coaching')) return 'coaching';
     if (pathname.startsWith('/dashboard/action-items')) return 'action-items';
     if (pathname.startsWith('/dashboard/referrals')) return 'referrals';
     if (pathname.startsWith('/dashboard/conservation')) return 'conservation';
@@ -698,6 +713,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   // helpers themselves.
   const leadsReason = leadsAccessReason(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt);
   const activityReason = activityAccessReason(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt);
+  // Coaching (individual Performance) — 'locked' for Free, else accessible
+  // (metered on Growth, unlimited on Pro+). See performanceAccess().
+  const coachingAccessLevel = performanceAccess(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt).level;
   // IA v2 (dark-launch): admins always; everyone else when
   // NEXT_PUBLIC_IA_V2=on. The single switch — gates the sidebar regroup,
   // the Calendar promotion, and the Leads Call-mode fold. Mirrors the flag
@@ -716,7 +734,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   // Single sidebar nav button — shared by the flat (flag-off) list and the
   // IA-v2 workflow groups so both render pixel-identical.
-  const renderNavItem = (item: (typeof NAV_ITEMS)[number] | typeof CALENDAR_NAV_ITEM) => {
+  const renderNavItem = (item: (typeof NAV_ITEMS)[number] | typeof CALENDAR_NAV_ITEM | typeof COACHING_NAV_ITEM) => {
     // Refer & Earn gets a permanent gold accent — it's the one nav item
     // where the agent can EARN money, so it stands out from daily tools.
     const isReferEarn = item.key === 'refer-and-earn';
@@ -753,20 +771,25 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const navItemAccessible = (key: string) =>
     key === 'leads' ? leadsReason === 'accessible'
     : key === 'activity' ? activityReason === 'accessible'
+    : key === 'coaching' ? coachingAccessLevel !== 'locked'
     : true;
   // IA-v2 workflow clusters resolved to their accessible items; empty
   // groups dropped so a divider never leads a section that rendered nothing.
   const groupedNav = NAV_GROUPS
-    .map((keys) =>
-      keys
+    .map((group) => ({
+      label: group.label,
+      items: group.keys
         // Calendar follows the SAME Pro+ tier gate as Leads (it surfaces
         // the pre-sale pipeline). Visibility otherwise rides iaEnabled,
         // which already wraps this whole grouped render.
         .filter((key) => key !== 'calendar' || leadsReason === 'accessible')
         .filter(navItemAccessible)
-        .map((key) => (key === 'calendar' ? CALENDAR_NAV_ITEM : NAV_ITEM_BY_KEY[key])),
-    )
-    .filter((items) => items.length > 0);
+        .map((key) =>
+          key === 'calendar' ? CALENDAR_NAV_ITEM
+          : key === 'coaching' ? COACHING_NAV_ITEM
+          : NAV_ITEM_BY_KEY[key]),
+    }))
+    .filter((group) => group.items.length > 0);
   const dismissSubscriptionCelebration = () => {
     setShowSubscriptionCelebration(false);
     if (user) {
@@ -851,11 +874,14 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               Daily-workflow tools stay in the prime real estate at the
               top regardless of which mode the gated items are in. */}
           {iaEnabled
-            ? groupedNav.flatMap((items, gi) => [
+            ? groupedNav.flatMap((group, gi) => [
                 ...(gi > 0
                   ? [<div key={`nav-div-${gi}`} className="my-2 mx-1 border-t border-white/10" />]
                   : []),
-                ...items.map(renderNavItem),
+                ...(group.label
+                  ? [<p key={`nav-lbl-${gi}`} className="px-3 pt-1 pb-1 text-[9px] font-bold uppercase tracking-wider text-white/30 select-none">{group.label}</p>]
+                  : []),
+                ...group.items.map(renderNavItem),
               ])
             : NAV_ITEMS.filter((item) => navItemAccessible(item.key)).map(renderNavItem)}
 
@@ -901,12 +927,15 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             // agent's tier locks them, surface them here as upsells — Calendar
             // rides the same Pro gate as Leads. Order mirrors the Pipeline
             // group: Leads → Calendar → Activity.
-            const tierLocked: Array<(typeof NAV_ITEMS)[number] | typeof CALENDAR_NAV_ITEM> = [];
+            const tierLocked: Array<(typeof NAV_ITEMS)[number] | typeof CALENDAR_NAV_ITEM | typeof COACHING_NAV_ITEM> = [];
             if (leadsReason === 'tier_locked') {
               tierLocked.push(NAV_ITEM_BY_KEY['leads'], CALENDAR_NAV_ITEM);
             }
             if (activityReason === 'tier_locked') {
               tierLocked.push(NAV_ITEM_BY_KEY['activity']);
+            }
+            if (coachingAccessLevel === 'locked') {
+              tierLocked.push(COACHING_NAV_ITEM);
             }
             if (tierLocked.length === 0) return null;
             return (
@@ -1104,6 +1133,25 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                         <span className="text-sm font-medium">Subscription</span>
                       </button>
                     )}
+                    <div className="border-t border-[#d0d0d0] my-1" />
+                    <button
+                      onClick={() => { router.push('/dashboard/resources'); setShowProfileDropdown(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#000000] hover:bg-[#f1f1f1] transition-colors"
+                    >
+                      <svg className="w-5 h-5 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                      </svg>
+                      <span className="text-sm font-medium">Resources</span>
+                    </button>
+                    <button
+                      onClick={() => { router.push('/dashboard/feedback'); setShowProfileDropdown(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#000000] hover:bg-[#f1f1f1] transition-colors"
+                    >
+                      <svg className="w-5 h-5 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                      <span className="text-sm font-medium">Feedback</span>
+                    </button>
                     <div className="border-t border-[#d0d0d0] my-2" />
                     <button
                       onClick={() => { handleLogout(); setShowProfileDropdown(false); }}
