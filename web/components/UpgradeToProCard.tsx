@@ -98,11 +98,11 @@ const SURFACE_COPY: Record<UpgradeSurface, SurfaceCopy> = {
   },
   coaching: {
     headline: 'Turn every call into your next better one.',
-    sub: 'Paste a call and AFL scores it the way a sales coach would — what landed, where the deal slipped, and the exact line to use next time. Get sharper every week, not every quarter.',
+    sub: 'Paste a call and AFL scores it the way a sales coach would — on the R.E.A.L. framework, against your own script — what landed, where the deal slipped, and the exact line to use next time.',
     bullets: [
-      'A clear score on your opening, discovery, and the close — so you see where deals leak.',
-      'Specific fixes pulled from your actual words, not generic advice.',
-      'One better line to say next time, ready for your next dial.',
+      'Scored on Rapport, Emotion, Assumption, and Lock It Down — so you see exactly where deals leak.',
+      'Checked against your own sales script, with specific fixes pulled from your actual words.',
+      'Your top 3 things to work on next, ranked by impact on close rate.',
       "Score every call while it's still fresh — unlimited on Pro.",
     ],
   },
