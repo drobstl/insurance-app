@@ -16,9 +16,10 @@
  *   No pre-sale tools (Leads / Activity / Close-the-sale) at this
  *   tier — those move up to Pro.
  * - Pro $119 → **$99**. Now carries the pre-sale unlock (Leads,
- *   Activity, Close-the-sale conveyor, SME/FIF) + individual
- *   Performance page. Tangible feature unlock, not just "more
- *   conversations."
+ *   Activity, Close-the-sale conveyor, SME/FIF) + UNLIMITED individual
+ *   Performance / Coaching (metered on Growth at 4/mo per the May 30
+ *   Growth Lock §4 — coaching is a metered feature, not a pre-sale
+ *   tool). Tangible feature unlock, not just "more conversations."
  * - Agency $199 + $39/seat → **$349+ band pricing**. Per-seat is OUT.
  *   Band specifics deferred to the "Pricing band parking lot" in
  *   CONTEXT. Still sales-led via the mailto CTA.
@@ -147,6 +148,7 @@ export const PRICING_TIERS: Readonly<Record<PricingTierId, PricingTier>> = {
       'Retention + anniversary + referral AI',
       'Bulk import onboarding ceremony',
       'Anniversary rewrite alerts',
+      'AI call coaching — 4 scored calls a month (R.E.A.L. framework)',
     ],
     bestFor: 'Established producer focused on retaining + monetizing the book they already have',
     isStripeBillable: true,
@@ -166,10 +168,10 @@ export const PRICING_TIERS: Readonly<Record<PricingTierId, PricingTier>> = {
       'Everything in Growth',
       'Lead management, Calendar + Activity dashboard',
       'Close-the-sale ritual: lead → client → policy → activation',
-      'Performance page: paste call transcripts, get AI coaching scores',
+      'AI call coaching — unlimited (Growth includes 4 scored calls a month)',
       'SME / FIF tracking for advanced-market referrals',
     ],
-    bestFor: 'Producer actively running a lead pipeline who wants AI coaching on their calls',
+    bestFor: 'Producer running a lead pipeline who wants unlimited AI coaching on their calls',
     isStripeBillable: true,
     stripePriceIdEnvVar: 'STRIPE_PRICE_ID_PRO_MONTHLY',
     comingSoon: true,

@@ -266,10 +266,10 @@ export default async function PricingPage({
               <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">
                 Free keeps your book safe with the automated engine paused — a place to land,
                 not a place to work from. Growth is the everyday plan: it runs your post-sale
-                book for you — retention, anniversaries, referrals, and rewrite alerts on the
-                clients you already have. Pro adds the full pre-sale system on top — a lead
-                pipeline, AI call coaching, and the close-the-sale flow — and is rolling out
-                to agents one at a time. If that&apos;s you, talk to us.
+                book for you — retention, anniversaries, referrals, rewrite alerts, and a few
+                AI-scored call coachings a month. Pro adds the full pre-sale system on top — a
+                lead pipeline, the close-the-sale flow, and unlimited AI call coaching — and is
+                rolling out to agents one at a time. If that&apos;s you, talk to us.
               </p>
             </div>
             <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
