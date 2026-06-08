@@ -2,7 +2,7 @@
 # CONTEXT.md — AgentForLife (AFL)
 
 > Drop this in the repo root. Read it before any strategic or architectural decision.
-> Last updated: June 2, 2026 — **entry-mechanism cutover is LIVE end-to-end: no-card 14-day Pro trial front door (#89) + post-trial Free tier with enforced engine-pause (#94/#96/#97)** — see the June 1–2 batch in Current Status. Prior milestone (May 31): **affiliate program operationally live end-to-end** (PRs #71/#72/#77 shipped + Vercel FIRSTPROMOTER_API_KEY/ACCOUNT_ID set in production + FirstPromoter Test Referral Tracking verified green + self-enrollment via `/dashboard/refer-and-earn` confirmed creating real promoters). Compliance layer Part 1 audit complete (outbound 100% consolidated through `web/lib/linq.ts`; PR #70 merged). May 30 growth + distribution lock in `docs/AFL_Growth_Distribution_Lock_2026-05-30.md`: no-card entry with 14-day free Pro (amended Jun 1, commit `d49d2cd`; was 30), permanent Free tier with caps, Performance feature gating, Starter $29 grandfather migration, FirstPromoter affiliate at 20% year-1, IMO leader free-seat threshold at 10 agents, FFL/Rob as priority distribution channel. May 28 relock context retained: pricing relock SHIPPED across the May 26–28 burst (PRs #43/44/45/47/48/49). **See `docs/BACKLOG.md`** for the daily working short-list.
+> Last updated: June 8, 2026 — **STRATEGIC PIVOT: Closr AI is sunset. AFL is the one and only go-forward product** — the best Closr ideas are being folded into AFL (first: the R.E.A.L. call-coaching engine → new standalone Coaching page, PR #137). **This REVERSES the "AFL as a post-sale module within Closr" framing that older sections below were written under** — see "Closr AI — sunset" and "Business Model". Prior milestone (Jun 1–2): **entry-mechanism cutover LIVE end-to-end** — no-card 14-day Pro trial front door (#89) + post-trial Free tier with enforced engine-pause (#94/#96/#97); affiliate program live (#71/#72/#77); compliance layer Part 1 complete (#70). Pricing relock (May 26–28) + May 30 growth/distribution lock (`docs/AFL_Growth_Distribution_Lock_2026-05-30.md`) remain in force. **See `docs/BACKLOG.md`** for the daily working short-list.
 
 ## Source-of-Truth Documents
 
@@ -32,7 +32,7 @@ Candidate ideas (filed for future revisitation, not committed):
 
 AgentForLife (AFL) is an AI-powered client lifecycle platform for independent life insurance agents. It manages retention, referrals, client relationships, and automated touchpoints — with a branded mobile app that clients use directly.
 
-**Strategic context:** AFL is becoming the post-sale module within the Closr AI platform (see "Closr AI Integration" below). It will continue to function as a standalone product but its primary distribution will be as a paid add-on for agents using Closr AI's agency dashboard.
+**Strategic context (updated June 8, 2026):** AFL is the company's **one and only go-forward product** — a standalone, all-in-one platform for independent life agents spanning the pre-sale pipeline through post-sale retention. **Closr AI is being sunset** as a separate product; its strongest ideas are being folded directly into AFL (first: the R.E.A.L. call-coaching engine). AFL has no runtime dependency on Closr — it owns its features outright. *(This supersedes the earlier framing, now recast under "Closr AI — sunset" below, that positioned AFL as a post-sale module distributed inside Closr.)*
 
 ## Who It's For
 
@@ -85,26 +85,11 @@ Independent life insurance agents selling mortgage protection, final expense, an
 - Badges for milestones
 - **APV lifecycle + policy ledger** (Activity page, shipped May 29, 2026 — individual-agent version). Mirrors the agent's Issue Paid Tracker spreadsheet in-app: **Submitted → Gross Issued → −Chargebacks = Net Placed** (+ Net Placed %). Two manual per-policy dates (`issuePaidDate`, `chargebackDate`) editable on the policy in Clients AND inline in a spreadsheet-style ledger table (Insured, Carrier, Product, Premium, Face, APV, Issue Paid, Chargeback, Status). Period attribution is date-driven and **never back-dated**: a first-year cancel counts in the month it cancels (its `chargebackDate`), not the month written/issued — so Net Placed can dip negative in a chargeback-heavy month. Mark Lost in Retention auto-stamps `chargebackDate = today` on chargeback-risk policies. Recent Wins show carrier · product (carrier names normalized via `web/lib/carriers.ts`). Costa Rica aggregate from the sheet is intentionally NOT pulled in.
 
-## Closr AI Integration (Critical — In Development)
+## Closr AI — sunset; best features folding into AFL (decided June 8, 2026)
 
-AFL is being integrated as the post-sale module of Closr AI, an agency intelligence dashboard that captures call data automatically.
+**Closr AI is not going forward as a separate product.** AFL is the one and only go-forward product. The plan is to mine Closr's strongest pieces and fold them directly into AFL — starting with the **R.E.A.L. call-scoring / coaching engine**, ported into AFL's new standalone **Coaching** page (PR #137: paste a call transcript → R.E.A.L. scores + coaching against the agent's own script). The Closr repo (`~/Developer/Closr-AI`) is now a **source to mine for features, not a live integration target.** AFL owns these features outright — no "call Closr as a service," no shared-auth / account bridging, no Closr Stripe or Clerk dependency.
 
-**The call-to-client pipeline:**
-1. Agent closes a sale on a Closr AI-tracked call
-2. AI has already extracted: client name, DOB, phone, health details, coverage, carrier, premium from the transcript
-3. Agent confirms pre-populated data (10-second review)
-4. AFL receives structured data via API → client record + policy record auto-created
-5. Client app code generated, welcome SMS queued
-6. Retention monitoring, referral eligibility, and touchpoint scheduling activate automatically
-
-**This solves AFL's biggest adoption friction:** getting initial client data into the system. With the Closr AI pipeline, the data is there before the agent hangs up.
-
-**Integration architecture:**
-- Closr AI POSTs structured JSON to AFL's client creation endpoint
-- Auth will unify under Clerk org model (Closr AI already uses Clerk)
-- AFL subscription becomes a toggle within Closr AI's Stripe billing
-- AFL retains standalone functionality for agents not using Closr AI
-- **Pricing for the Closr AI bundle is deferred** until Closr AI exits MVP. AFL standalone pricing (see `Business Model`) launches independently.
+**SUPERSEDED (historical, pre-June 8 — kept for provenance):** AFL was previously planned as the *post-sale module within Closr AI*, fed by a "call-to-client pipeline": Closr would capture the sale on an AI-tracked call, auto-extract client/policy data from the transcript, and POST it to AFL so a client record existed before the agent hung up; auth would unify under Clerk and AFL would become a toggle in Closr's Stripe billing. **That direction is dropped.** The real need it addressed — getting client data in with near-zero friction — is served by AFL's own close-of-sale PDF upload + live-guided activation ritual (see `Channel Rules > The two-step welcome flow`). The call-to-client auto-capture idea remains a good one AFL may build natively later (e.g., off a future "log a sale" trigger), but not via Closr.
 
 ## Channel Rules
 
@@ -388,7 +373,7 @@ The original Phase 3 framing ("Concierge launch + pricing rollout completion") i
   4. Stripe metered SKU at $0.50/conv; usage records reported per overage; billed on next invoice — ~2–3 days.
   5. Cap-aware send logic in outbound code — ~1 day. **Policy locked May 26, 2026: auto-prompt upgrade starting at 80% + auto-bill overage at $0.50/conv as the safety net.** Rationale: never silently break a live retention/referral conversation (rules out hard pause); bill clearly when the cap is exceeded (rules out silent overage); surface upgrade aggressively at 80% so the agent has agency before getting charged. Mixed model — agent sees the upgrade prompt, chooses whether to upgrade, and if they ignore it the overage bills land predictably.
 
-**What's deferred to Phase 4 or Backlog:** Mentor calendar, SME calendar / FIF tracking, Performance page (Closr AI scoring), book-size-aware multi-line for Pro. All depend on Phase 3 prereqs being in place. See `Backlog (not yet phased)` below.
+**What's deferred to Phase 4 or Backlog:** Mentor calendar, SME calendar / FIF tracking, book-size-aware multi-line for Pro. (The Performance / Coaching page shipped June 8 — PR #137 — see Backlog below.) All depend on Phase 3 prereqs being in place. See `Backlog (not yet phased)` below.
 
 ### Phase 4 — Provider abstraction, multi-line, contingencies (months 7–12)
 - Provider abstraction layer (`MessagingProvider` interface, `LinqProvider` adapter). **Deferred from v3.1's Phase 1** per strategy §3.
@@ -400,11 +385,11 @@ The original Phase 3 framing ("Concierge launch + pricing rollout completion") i
 
 ### Backlog (not yet phased)
 
-Items with rough design but no scheduled phase. Mostly Agency-tier follow-ons or strategic features that depend on Phase 3 + Closr AI integration. Captured here so they don't get lost.
+Items with rough design but no scheduled phase. Mostly Agency-tier follow-ons or strategic features that depend on Phase 3. Captured here so they don't get lost.
 
 - **Mentor calendar (Agency tier only).** Senior producer in an agency (e.g., Rob with his downlines) publishes availability; downline newer agents book the mentor onto their own client appointments. Both attend; senior runs the call, newer agent learns and gets an early win. APV credit split via `mentorAgentId` tagging on the resulting client doc — half the APV populates the mentor's dashboard. **Cash commission flows through the carrier exactly as today — AFL only splits production credit on the dashboard, not cash.** Calendar primitive can reuse the existing `AppointmentPicker` infrastructure.
 - **SME calendar + FIF tracking (Pro + Agency).** FIF = Financial Information Form. Mortgage protection agents refer clients to advanced-market SMEs (debt-free life, IUL, retirement, infinite banking) for an "FIF Reset" appointment. SME runs the relationship from the first call onward; referring agent does the warm intro and sits back. Same calendar primitive as Mentor; same APV split via `referringAgentId` tagging. Engineering scope is small (~2 weeks) because no separate commission engine is needed — APV split through agent tagging covers it.
-- **Performance page (Pro + Agency).** Agents/agency owners paste a sales call transcript; AFL scores it against ideal script + ideal strategy and returns coaching feedback. Scoring engine pulled from Closr AI — integration approach (call as a service vs. port logic) deferred until access to that repo is granted. Likely lives as a third tab on Activity or its own top-level nav item — decision deferred.
+- **Performance / Coaching page — SHIPPED June 8, 2026 (PR #137).** Standalone `/dashboard/coaching`: paste a sales-call transcript → scored on the **R.E.A.L. framework** (Rapport / Emotion / Assumption / Lock It Down) against the agent's **own** playbook, with script checkpoints, a one-line verdict, and Top-3 coaching priorities. The scoring engine was **ported from Closr** (not called as a service — Closr is sunset; AFL owns it). Metered per Growth Lock §4: Free locked, Growth 4/mo, Pro+ unlimited. IA resolved — it's its **own top-level nav item** (in a "Performance" group with Activity), not a tab on Activity. Team/agency-aggregation Performance (leaderboards + coaching priorities) remains a later Agency-tier add-on.
 - **OCR for handwritten mail-in forms.** Not yet discussed in depth. **Volume question first** — if total handwritten mail-ins are <20/week across the entire book, a VA + Claude vision approach beats a built pipeline. Defer architectural decisions until volume is known.
 - **Agency Rocket partnership (#3 from Rob's May 24 call).** Customer-facing financial-planning tools (IUL comparisons, debt-free life, infinite banking). Possible integration / affiliate model. Strategic / non-engineering — decide via discovery call before any product work.
 **Recently shipped (moved out of backlog):**
@@ -453,8 +438,8 @@ Carrier-level overlays (when per-carrier metrics are available): STOP rate > 1% 
 
 ## Business Model
 
-### As Closr AI add-on (primary distribution, deferred)
-Pricing for the Closr AI bundle is **deferred until Closr AI is post-MVP**. The historical $29/agent/month assumption is no longer authoritative.
+### Distribution: AFL standalone (Closr add-on plan dropped June 8, 2026)
+AFL is sold directly as a standalone product — that is the model. *(Superseded: AFL was previously planned to distribute primarily as a paid add-on inside Closr AI's agency dashboard, with bundle pricing deferred until Closr exited MVP. Closr is now sunset — there is no bundle, and the historical $29/agent/month add-on assumption is void.)*
 
 ### As standalone (AFL pricing — locked May 26, 2026)
 
@@ -590,7 +575,7 @@ Overage GM (~66%) is acceptable as overflow protection, not a profit center. Agg
 | AI | Claude (referral conversations, conservation outreach, entity extraction, self-learning) |
 | Messaging | Linq (iMessage/SMS delivery) |
 | Billing | Stripe |
-| Auth | Currently Firebase Auth — migrating to Clerk for Closr AI unification |
+| Auth | Firebase Auth. (A Clerk migration was planned only for Closr unification — that driver is gone as of June 8, 2026; staying on Firebase Auth unless an independent need arises.) |
 | Analytics | Firebase Analytics + PostHog (web dashboard product analytics/session replay/heatmaps) |
 | Agent tooling | PWA-first (mobile-optimized agent dashboard with `sms:` URL-scheme one-tap and Web Push). Native deferred to Phase 4 pending usage data. |
 
@@ -606,7 +591,7 @@ Overage GM (~66%) is acceptable as overflow protection, not a profit center. Agg
 
 **Live:** iOS App Store, Google Play. Agent dashboard functional. Referral pipeline, conservation, anniversary rewrites, touchpoints all operational.
 
-**Known Challenge:** Low activation among signups. Agents who signed up are not consistently using the platform. Root cause unknown — likely onboarding friction and/or the effort required to get client data into the system (which the Closr AI integration solves).
+**Known Challenge:** Low activation among signups. Agents who signed up are not consistently using the platform. Root cause unknown — likely onboarding friction and/or the effort required to get client data into the system (addressed by AFL's own close-of-sale PDF upload + live-guided activation ritual — the previously-planned Closr AI integration is dropped, June 8, 2026).
 
 **Recent fixes (March 2026, founding member feedback):**
 - Added (March 25, 2026): Cloud Tasks and v3 pipeline production deployment.
@@ -965,7 +950,7 @@ Overage GM (~66%) is acceptable as overflow protection, not a profit center. Agg
   - **Order corrected:** the activation step order in copy is now `download → allow notifications → tap Activate` (per Daniel — allowing notifications first locks in push permission before Activate fires the welcome thumbs-up to the Linq line).
   - **Infrastructure preserved:** `markOnboardingMilestone` + `OnboardingMilestoneKey` + all `data-onboarding-target` DOM hooks stay — milestones are useful telemetry independent of UI. Removed from `DashboardContext`: `setOnboardingCurrentStep`, `completeOnboarding`, `areAllOnboardingMilestonesComplete` (overlay-only consumers). Removed from `analytics-events.ts`: `ONBOARDING_STEP_VIEWED`, `ONBOARDING_STEP_COMPLETED`, `ONBOARDING_STEP_BLOCKED`, `ONBOARDING_RESUMED`, `ONBOARDING_COMPLETED`, `ONBOARDING_PATCH_PROMPT_SENT` (overlay-only). Added: `ONBOARDING_EMPTY_STATE_CTA_CLICKED` (`target: 'add_client' | 'watch_walkthrough'`). `ONBOARDING_MANUAL_CORRECTION_USED` kept (still consumed in `clients/page.tsx`).
   - **Stripe webhook sweep — shared helpers + transient/permanent split** addresses the May 11 carry-forward (4) from above. Extracted `isTransientWebhookError` + `recordPermanentWebhookError` out of the Linq webhook into `web/lib/webhook-error-handling.ts` (shared module). Linq route now imports them. Stripe route wraps each `handleXxx` dispatch with the same transient (5xx, Stripe retries) vs permanent (200 + `webhookErrors` collection write) split. The four silent `console.error('Could not find Firebase user ID...'); return;` paths in the Stripe handlers (`handleCheckoutSessionCompleted`, `handleSubscriptionUpdated`, `handleSubscriptionDeleted`, `handleInvoicePaymentFailed`) now also write to `webhookErrors` so missing-customer-mapping cases stop being invisible — same class of silent failure that hid the missing-index bug for 3 days.
-  - **Project memory:** `memory/project_close_of_sale_upload_anchor.md` documents the live-guided activation ritual as the load-bearing product moment. All onboarding surfaces (empty state, Loom, Patch, future in-product nudge) train this same ritual. The in-product nudge (when AFL gets signal that a sale just closed — Closr AI tie-in, policy-review flow, future "log a sale" trigger) is Phase 2/3 roadmap.
+  - **Project memory:** `memory/project_close_of_sale_upload_anchor.md` documents the live-guided activation ritual as the load-bearing product moment. All onboarding surfaces (empty state, Loom, Patch, future in-product nudge) train this same ritual. The in-product nudge (when AFL gets signal that a sale just closed — policy-review flow, future "log a sale" trigger; the former Closr AI tie-in is dropped) is Phase 2/3 roadmap.
 
 - Shipped (May 12–18, 2026): **Pre-application lead management ("lead mode") — Phase 1 surface built end-to-end on `claude/charming-satoshi-3be4cc`.** ~30 commits across one week building the entire pre-application surface. _(Note May 25: branch since merged to main; the basic feature flag landed May 24 and the admin-only second axis + prod flip landed May 25 — see the dedicated entries below.)_ Highlights, in roughly chronological order:
   - **Lead doc model + extraction pipeline.** Three carrier-agnostic lead form templates (Mail-In / Call-In / Digital) extract through the existing v3 pipeline. Lead docs at `agents/{agentId}/leads/{leadId}` mirror client field shapes for forward-compat with Convert-to-Client. Phone-derived `L`-prefix codes; `clientCodes` registry resolves both client and lead codes via a single mobile lookup endpoint.
@@ -1037,13 +1022,13 @@ Overage GM (~66%) is acceptable as overflow protection, not a profit center. Agg
 ## Key Decisions Made
 
 ### Strategic
-- AFL will become a Closr AI add-on module (not merged/rebranded — retains its identity).
-- The call-to-client pipeline is the integration priority.
-- Auth migration from Firebase to Clerk is required for unification.
-- Standalone access remains available for agents not on Closr AI.
-- NEPQ methodology is the foundation for all AI-generated messaging.
+- **AFL is the one and only go-forward product** (decided June 8, 2026). Closr AI is sunset; its best features fold into AFL (R.E.A.L. coaching first, PR #137). *Supersedes the prior "AFL becomes a Closr AI add-on module" decision and the Closr-integration bullets that follow.*
+- ~~The call-to-client pipeline is the integration priority.~~ *(Superseded June 8 — no Closr integration; AFL's own close-of-sale PDF upload serves the low-friction data-entry goal. Native auto-capture is a possible future build.)*
+- ~~Auth migration from Firebase to Clerk is required for unification.~~ *(That migration was driven by Closr unification — driver gone June 8. AFL stays on Firebase Auth unless an independent need arises.)*
+- ~~Standalone access remains available for agents not on Closr AI.~~ *(Moot — AFL is standalone by default.)*
+- NEPQ methodology is the foundation for all AI-generated messaging. *(But the term "NEPQ" must never appear in user-facing output — describe the technique in plain language.)*
 - Linq handles iMessage/SMS (migrated from SendBlue).
-- Closr AI bundle pricing is **deferred** until Closr AI is post-MVP. AFL standalone pricing launches independently.
+- ~~Closr AI bundle pricing is deferred until Closr AI is post-MVP.~~ *(Void — Closr sunset; AFL standalone pricing is the pricing.)*
 
 ### Channel architecture (per v3.1 §14.1 + strategy §1, §2)
 - **Push is the universal first-choice channel** for every lane that supports push delivery (anniversary, retention, holiday/birthday, beneficiary). App dormancy is **not** a disqualifier — permission is.
@@ -1164,11 +1149,8 @@ Open questions:
 ## Open Questions
 
 ### Product / strategy
-- Is the mobile app essential at launch of the Closr AI integration, or can client lifecycle features work via SMS/email/web first?
-- How do founding members transition into the Closr AI module distribution (their AFL standalone status is preserved under the new pricing v3 — but the Closr AI bundle implications are still TBD)?
-- Should the referral pipeline be accessible from the Closr AI dashboard directly, or only through AFL?
+- ~~Mobile-app-at-launch for the Closr integration / founding-member transition into the Closr module / referral pipeline inside the Closr dashboard / Closr bundle pricing~~ — **all moot as of June 8, 2026 (Closr sunset; see "Closr AI — sunset" above).**
 - What drove low activation? Onboarding friction? Data entry burden? Unclear value prop? Need agent interviews. (Phase 2 milestone-driven onboarding revamp is the current intervention.)
-- Closr AI bundle pricing: deferred until Closr AI is post-MVP.
 
 ### Phase 1 product questions still open (gates Track B / Track C kickoff)
 Source: `docs/AFL_Phase_1_Planning_Notes_2026-05-04.md` Q1–Q10. The §1–§3 decisions in that doc are locked. The Q1–Q10 questions are partially answered ad-hoc in agent sessions; the unresolved subset below should be answered before the corresponding Track agent designs against them.
@@ -1190,7 +1172,7 @@ Source: `docs/AFL_Phase_1_Planning_Notes_2026-05-04.md` Q1–Q10. The §1–§3 
 - Q3 (Activate screen layout) — mostly answered in v3.1 §3.3; remaining details are implementation choices the Track B agent can resolve and surface for confirmation.
 - Q4 (Linq line first response copy) — copy template in v3.1 §3.3 is a starting point; treat as locked unless explicit reason to test variants.
 - Q5 (vCard regeneration timing) — v3.1 §9.7 answers: "regenerated when name or photo changes." Trigger location is implementation detail (Cloud Function on agent doc write or inline at first-response send time with caching).
-- Q8 (Closr AI bundle pricing) — deferred per strategy doc; confirmed above.
+- ~~Q8 (Closr AI bundle pricing) — deferred per strategy doc.~~ *(Moot — Closr sunset, June 8, 2026.)*
 - Q10 (Phase 1 sub-task priority order) — Track A complete; current sequencing is Track B + Track C in parallel via worktrees.
 
 ### Open Linq questions (still pending Linq response, from v3.1 §13.2)
@@ -1291,7 +1273,7 @@ The canonical working repo is `/Users/danielroberts/Developer/insurance-app`. Th
 - "0 pages" metadata bug in extraction summary.
 - Bulk import intelligence notes are concatenated into an unreadable wall of text (needs per-file collapsible notes).
 - Single-file Upload Application modal does not support multi-select.
-- PostHog instrumentation files for Closr AI are still uncommitted.
+- ~~PostHog instrumentation files for Closr AI are still uncommitted.~~ *(Moot — Closr sunset, June 8, 2026.)*
 - **Web E2E has been failing on every main run since at least May 25.** Same 3 specs every time: `bulk-import-authenticated.spec.ts:11`, `single-file-add-client-authenticated.spec.ts:16`, `single-file-add-client-authenticated.spec.ts:35`. Looks like UI copy / locator drift (specs expect `'Upload an application or expand manual entry.'` and heading `'Review & Confirm'` that aren't matching the current DOM). PRs are getting merged around the failure — confirm the cause and either update the specs or fix the regression so the e2e gate becomes meaningful again. Spawned-task chip queued for this. **Jun 2 update:** #95 + #96 both touched `web/app/dashboard/clients/page.tsx` again (welcome-SMS reorder + the `parseApplicationFile` Free-tier guard), so the upload DOM these specs target has shifted further — reconcile the specs against the *current* page before assuming a regression. #89 also added `web/e2e/signup-trial-smoke.spec.ts`; fold it into the same pass so the suite reflects the no-card flow.
 - **Call queue right-pane: list rail is not sticky.** When the right pane is long (full lead profile + appointments + dial history) the narrow list rail scrolls out from under the agent's finger. Next-session fix; design and trade-offs in `docs/handoffs/HANDOFF_2026-05-18_evening_to_queue_polish.md`.
 - **EAS dev rebuild deferred.** The May 18 mobile notification deferral can't be verified on-device until Daniel triggers a rebuild. Not blocking prod (no native code changed; runtime behavior change only).
@@ -1325,4 +1307,4 @@ Ranked from `docs/BACKLOG.md` + today's momentum + source-of-truth docs (`docs/A
 
 ## Company Context
 
-Brainstorm Labs LLC, founded by Daniel (CEO). Based in St. Louis. Daniel is also an active independent insurance agent under Symmetry Financial Group / Crosswinds Financial Group. He holds a JD from SLU. ARCH Grants 2026 application is active — AFL and Closr AI are the core of the pitch.
+Brainstorm Labs LLC, founded by Daniel (CEO). Based in St. Louis. Daniel is also an active independent insurance agent under Symmetry Financial Group / Crosswinds Financial Group. He holds a JD from SLU. ARCH Grants 2026 application is active — **AFL is the core of the pitch** (Closr AI was part of the original framing; AFL is now the sole product — June 8, 2026).
