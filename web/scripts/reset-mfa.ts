@@ -16,9 +16,12 @@
  *   --email=<email>   Look the user up by email.
  *   --uid=<uid>       Look the user up by uid.
  *
- * Run (from web/):
- *   npx tsx scripts/reset-mfa.ts --email=daniel@crosswindsfg.com
- *   npx tsx scripts/reset-mfa.ts --email=daniel@crosswindsfg.com --apply
+ * Run (from web/, in a checkout whose .env.local has the admin creds):
+ *   npm run reset-mfa -- --email=you@example.com           # dry run (reads only)
+ *   npm run reset-mfa -- --email=you@example.com --apply   # actually clear factors
+ *
+ * (Imports lib/firebase-admin, which pulls in `server-only`, so it must run via
+ * the npm script above — that wires the server-only-shim. A bare `tsx` will throw.)
  */
 import * as fs from 'fs';
 import * as path from 'path';
