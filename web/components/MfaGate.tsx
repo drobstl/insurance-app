@@ -12,6 +12,34 @@ import { useDashboard } from '../app/dashboard/DashboardContext';
 
 const MFA_ENABLED = process.env.NEXT_PUBLIC_MFA_ENABLED === 'true';
 
+// Enforcement go-live. Before this instant the gate only shows a heads-up
+// banner; on/after it, enrollment is required. 9:00am ET, Jun 15 2026 — a
+// daytime activation so it's monitorable, not a midnight surprise. The env
+// flag above is the master switch (and kill switch); this only schedules when
+// enforcement begins once the flag is on.
+const MFA_GO_LIVE = Date.parse('2026-06-15T13:00:00Z');
+
+function HeadsUpBanner() {
+  const [hidden, setHidden] = useState(false);
+  if (hidden) return null;
+  return (
+    <div className="bg-[#FEF3C7] text-[#92400E] border-b border-[#FCD34D] px-4 py-2.5 flex items-center justify-center gap-3 text-sm">
+      <span className="text-center">
+        <span className="font-semibold">🔒 Heads up:</span> two-step verification becomes required on{' '}
+        <span className="font-semibold">June 15</span>. You&apos;ll add your mobile number once, then
+        confirm a texted code at sign-in — we&apos;ll walk you through it. Nothing to do right now.
+      </span>
+      <button
+        onClick={() => setHidden(true)}
+        aria-label="Dismiss"
+        className="shrink-0 text-[#92400E]/60 hover:text-[#92400E] text-lg leading-none"
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
 function formatPhone(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 10);
   if (digits.length === 0) return '';
@@ -32,9 +60,11 @@ function toE164(value: string): string | null {
  *
  * Rendered inside the authenticated, paid dashboard chokepoint
  * (SubscriptionGate → MfaGate → DashboardShell). When NEXT_PUBLIC_MFA_ENABLED
- * is on and the signed-in agent has no enrolled second factor, it BLOCKS the
- * dashboard until they enroll an SMS factor — there is no skip and no opt-in
- * setting. This is the "required at sign-in" model: an agent who isn't yet
+ * is on, it runs in two phases around MFA_GO_LIVE: BEFORE go-live it only shows
+ * a dismissible heads-up banner (no enforcement); ON/AFTER go-live, an agent
+ * with no enrolled second factor is BLOCKED until they enroll an SMS factor —
+ * there is no skip and no opt-in setting. This is the "required at sign-in"
+ * model: an agent who isn't yet
  * enrolled lands here on their next dashboard load; once enrolled, every future
  * sign-in challenges them for an SMS code (handled by MfaChallenge on /login).
  *
@@ -128,11 +158,27 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
     }
   }, [user, code, resetRecaptcha]);
 
-  const needsEnrollment =
-    MFA_ENABLED && !!user && !done && multiFactor(user).enrolledFactors.length === 0;
+  const enrolled = !!user && (done || multiFactor(user).enrolledFactors.length > 0);
 
-  if (!needsEnrollment) return <>{children}</>;
+  // Flag off / no user / already enrolled → pass straight through. (Enrolled
+  // users are challenged for their SMS code by MfaChallenge at sign-in.)
+  if (!MFA_ENABLED || !user || enrolled) return <>{children}</>;
 
+  // Heads-up window (before go-live): announce, don't enforce. Reads the clock
+  // in render (intentionally impure) to decide which side of the fixed go-live
+  // instant we're on — safe because the boundary is constant and the gate
+  // re-evaluates on every mount/navigation, so there's no stale-state hazard.
+  // eslint-disable-next-line react-hooks/purity
+  if (Date.now() < MFA_GO_LIVE) {
+    return (
+      <>
+        <HeadsUpBanner />
+        {children}
+      </>
+    );
+  }
+
+  // Go-live onward: hard gate until an SMS factor is enrolled.
   const onPhone = phase === 'phone' || phase === 'sending';
 
   return (
