@@ -38,7 +38,7 @@ import UpgradeConfirmModal, { type UpgradePreview } from './UpgradeConfirmModal'
  * better handled on /pricing + Stripe Checkout.
  */
 
-type UpgradeSurface = 'leads' | 'activity';
+type UpgradeSurface = 'leads' | 'activity' | 'calendar' | 'coaching';
 
 interface SurfaceCopy {
   headline: string;
@@ -55,6 +55,7 @@ const SURFACE_COPY: Record<UpgradeSurface, SurfaceCopy> = {
       'Drop in a lead form — AFL pulls every field automatically. No retyping.',
       'AFL tells you who to dial next, based on what happened on the last call.',
       'Book the sit-down — AFL drafts the confirmation (text or email) with your business card, the state-matched license, and a link to your prep page. You just hit send.',
+      'See every sit on a week calendar — drag to reschedule, your Google calendar shaded in behind it.',
       'Win the sale — and the lead becomes an Agent for Life client: monitored for lapses and cancellations, kept warm for referrals and rewrites, for life.',
     ],
     callout: BOOKED_LEAD_APP_AVAILABLE
@@ -79,6 +80,31 @@ const SURFACE_COPY: Record<UpgradeSurface, SurfaceCopy> = {
       description:
         "Paste an appointment recording. Get back exactly where you lost the deal — and what to say next time.",
     },
+  },
+  calendar: {
+    headline: 'Your whole week, one screen.',
+    sub: 'Every booked sit on a week grid — your Google calendar shaded in behind it, your call queue one tap away. Book around your real life, and never double-book again.',
+    bullets: [
+      'See every booked sit laid out across the week — no flipping between tools.',
+      'Drag a sit to a new time or day — it reschedules instantly and re-confirms the client.',
+      "Your Google Calendar shows through behind your sits, so you book around what's already there.",
+      'Jump from an open slot straight into your call queue to go fill it.',
+    ],
+    callout: {
+      title: 'Plus: it grows with your book',
+      description:
+        "Today it's your pre-sale sit-downs. Next: client reviews, retention check-ins, and birthdays — your whole year on one calendar.",
+    },
+  },
+  coaching: {
+    headline: 'Turn every call into your next better one.',
+    sub: 'Paste a call and AFL scores it the way a sales coach would — on the R.E.A.L. framework, against your own script — what landed, where the deal slipped, and the exact line to use next time.',
+    bullets: [
+      'Scored on Rapport, Emotion, Assumption, and Lock It Down — so you see exactly where deals leak.',
+      'Checked against your own sales script, with specific fixes pulled from your actual words.',
+      'Your top 3 things to work on next, ranked by impact on close rate.',
+      "Score every call while it's still fresh — unlimited on Pro.",
+    ],
   },
 };
 
@@ -228,7 +254,7 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
         className="absolute inset-0 pointer-events-none select-none"
         style={{ filter: 'blur(1.5px) saturate(0.95)', opacity: 0.9 }}
       >
-        {surface === 'leads' ? <FauxLeadsBackdrop /> : <FauxActivityBackdrop />}
+        {surface === 'leads' ? <FauxLeadsBackdrop /> : surface === 'calendar' ? <FauxCalendarBackdrop /> : <FauxActivityBackdrop />}
       </div>
 
       {/* Soft radial fade — keeps the dashboard edges legible but
@@ -256,10 +282,12 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                   <path d="M12 2 9.2 8.6 2 9.3l5.5 4.8L5.8 21 12 17.3 18.2 21l-1.7-6.9L22 9.3l-7.2-.7L12 2z" />
                 </svg>
-                Pro
+                {surface === 'coaching' ? 'Growth' : 'Pro'}
               </span>
               <span className="text-[11px] text-[#707070] font-semibold">
-                Available on Pro · {displayPrice} · Includes Leads + Activity
+                {surface === 'coaching'
+                  ? 'On Growth ($49/mo · 4 scored calls a month) — unlimited on Pro ($99/mo)'
+                  : `Available on Pro · ${displayPrice} · Includes Leads + Calendar + Activity`}
               </span>
             </div>
 
@@ -333,6 +361,18 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
                 Click → Stripe Checkout via /api/stripe/create-
                 checkout-session. Loading state prevents double-click
                 during the API round-trip. */}
+            {/* Coaching unlocks on Growth (4/mo) AND Pro (unlimited), so we
+                don't force a Pro checkout here — send the agent to /pricing to
+                pick. Every other surface is genuinely Pro-only. */}
+            {surface === 'coaching' ? (
+              <Link
+                href="/pricing"
+                className="flex items-center justify-between w-full bg-[#005851] hover:bg-[#0d4d4d] text-white font-bold text-[15px] px-4 py-3.5 rounded-lg transition-colors"
+              >
+                <span>Choose your plan</span>
+                <span className="opacity-85 text-sm">Growth or Pro →</span>
+              </Link>
+            ) : (
             <button
               type="button"
               onClick={handleUpgrade}
@@ -373,6 +413,7 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
                 </>
               )}
             </button>
+            )}
 
             {checkoutError && (
               <p role="alert" className="mt-2 text-[12px] text-red-700 leading-snug">
@@ -572,6 +613,75 @@ function FauxActivityBackdrop() {
           </p>
           <p className="text-3xl font-bold text-[#92400E] tabular-nums leading-none mt-1.5">$····</p>
           <p className="text-[11px] text-[#92400E]/80 mt-1.5">·· saves this period</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FauxCalendarBackdrop() {
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  // Faux booked-sit blocks: [day index, top %, height %]. Teal = a sit;
+  // grey shades = "your Google calendar behind it". Geometry only.
+  const sits: Array<[number, string, string]> = [
+    [0, '14%', '11%'],
+    [1, '30%', '13%'],
+    [1, '60%', '10%'],
+    [2, '22%', '14%'],
+    [3, '44%', '11%'],
+    [4, '16%', '12%'],
+    [4, '62%', '10%'],
+    [6, '36%', '13%'],
+  ];
+  return (
+    <div className="px-7 py-6">
+      <div className="flex justify-between items-center mb-3.5">
+        <h2 className="text-[22px] font-bold text-black">Calendar</h2>
+        <div className="flex gap-2">
+          <div className="bg-white border border-[#d0d0d0] rounded-md px-3.5 py-2 text-xs">This week</div>
+          <div className="bg-white border border-[#d0d0d0] rounded-md px-3 py-2 text-xs">‹ ›</div>
+        </div>
+      </div>
+      <div className="bg-white border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] rounded-xl overflow-hidden">
+        <div className="grid grid-cols-7">
+          {days.map((d) => (
+            <div
+              key={d}
+              className="px-2 py-2 text-center text-[10px] uppercase tracking-[0.08em] text-[#707070] font-bold border-l border-[#f1f1f1] first:border-l-0"
+            >
+              {d}
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 border-t border-[#f1f1f1]" style={{ height: 340 }}>
+          {days.map((d, i) => (
+            <div key={d} className="relative border-l border-[#f1f1f1] first:border-l-0">
+              {[1, 2, 3, 4, 5].map((h) => (
+                <div
+                  key={h}
+                  className="absolute inset-x-0 border-t border-[#f6f7f8]"
+                  style={{ top: `${(h / 6) * 100}%` }}
+                />
+              ))}
+              {(i === 2 || i === 5) && (
+                <div
+                  className="absolute inset-x-1 rounded bg-[#f1f1f1]"
+                  style={{ top: '72%', height: '16%' }}
+                />
+              )}
+              {sits
+                .filter(([day]) => day === i)
+                .map(([, top, height], j) => (
+                  <div
+                    key={j}
+                    className="absolute inset-x-1 rounded-md bg-[#daf3f0] border border-[#44bbaa]/50 px-1.5 py-1"
+                    style={{ top, height }}
+                  >
+                    <span className="block h-1.5 w-3/4 rounded-sm bg-[#44bbaa]/60" />
+                  </div>
+                ))}
+            </div>
+          ))}
         </div>
       </div>
     </div>

@@ -8,6 +8,7 @@ import {
   ReactivationFenceError,
 } from './linq';
 import { isValidE164 } from './phone';
+import { recordConsentEvent } from './suppression';
 import { upsertThreadFromOutbound } from './conversation-thread-registry';
 import { ensureAgentVCardAttachment } from './agent-vcard-store';
 
@@ -281,6 +282,34 @@ export async function handleBeneficiaryActivationInbound(params: {
 
   if (!claimResult.claimed) {
     return { ok: true, outcome: 'duplicate_skip' };
+  }
+
+  // R3 — affirmative consent record. This inbound won the atomic claim, so
+  // it's the genuine first activation (never a replay). The beneficiary
+  // affirmatively activated, so write the opt-in to the append-only consent
+  // ledger. Best-effort: a ledger failure logs but never rolls back the
+  // activation. (Mirrors the welcome-activation opt-in.)
+  try {
+    await recordConsentEvent({
+      type: 'opt_in',
+      phoneE164: ctx.beneficiaryPhoneE164,
+      agentId: ctx.agentId,
+      lane: 'beneficiary',
+      meta: {
+        source: 'beneficiary_activation',
+        clientId: ctx.clientId,
+        policyId: ctx.policyId,
+        beneficiaryIndex: ctx.beneficiaryIndex,
+        chatId: params.realLinqChatId,
+      },
+    });
+  } catch (consentErr) {
+    console.error('[beneficiary-activation] consent ledger write failed (non-blocking)', {
+      agentId: ctx.agentId,
+      clientId: ctx.clientId,
+      policyId: ctx.policyId,
+      error: consentErr instanceof Error ? consentErr.message : String(consentErr),
+    });
   }
 
   const beneficiaryFirstName =

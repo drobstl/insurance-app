@@ -63,7 +63,7 @@ interface Lead {
 }
 
 type LeadView = 'all' | 'queue' | 'calendar';
-type LeadSortKey = 'name' | 'createdAt' | 'source';
+type LeadSortKey = 'name' | 'createdAt' | 'source' | 'priority';
 type SortDir = 'asc' | 'desc';
 
 // Multi-page lead-form bundles route to the off-Vercel batch engine
@@ -204,9 +204,24 @@ function LeadsPageInner() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<LeadView>('all');
-  // Calendar tab ships dark: admins always see it (so we can verify on
-  // prod before GA); everyone else only when NEXT_PUBLIC_LEADS_CALENDAR=on.
-  const calendarEnabled = isAdmin || process.env.NEXT_PUBLIC_LEADS_CALENDAR === 'on';
+  // IA v2 (dark-launch): admins always; everyone else when
+  // NEXT_PUBLIC_IA_V2=on. Folds Call queue into a "Call mode" button here
+  // and (in the dashboard sidebar) promotes Calendar + regroups nav.
+  // Off → today's segmented control + flat sidebar render unchanged.
+  const iaEnabled = isAdmin || process.env.NEXT_PUBLIC_IA_V2 === 'on';
+
+  // Deep link: /dashboard/leads?call=1 drops straight into Call mode —
+  // used by the Calendar route's "Go to call queue" action. Consume the
+  // param after applying so it can't re-trigger on later URL changes
+  // (e.g. the `?leadId=` updates the dialer makes while advancing).
+  useEffect(() => {
+    if (searchParams?.get('call') !== '1') return;
+    setView('queue');
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('call');
+    const qs = params.toString();
+    router.replace(qs ? `/dashboard/leads?${qs}` : '/dashboard/leads', { scroll: false });
+  }, [searchParams, router]);
 
   // ── Search + sort (All view only) ──
   // Queue has its own priority sort that we don't override. Search +
@@ -955,6 +970,21 @@ function LeadsPageInner() {
       .map(({ lead }) => lead);
   }, [leads, agentProfile.dialPersistence]);
 
+  // "Call next" sort for the All list reuses the exact queue priority
+  // order, so the list previews who Start-calling will dial first.
+  // Declared AFTER queueLeads to dodge the temporal-dead-zone trap the
+  // dialAttemptsForLeadRef note above warns about. Leads not in the queue
+  // (converted / booked / not-interested / wrong-number / DNC) sink last.
+  const displayLeads = useMemo<Lead[]>(() => {
+    if (sortKey !== 'priority') return filteredLeads;
+    const order = new Map(queueLeads.map((l, i) => [l.id, i] as const));
+    return [...filteredLeads].sort(
+      (a, b) =>
+        (order.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+        (order.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+    );
+  }, [filteredLeads, queueLeads, sortKey]);
+
   // Tap-to-call — used on the queue rows. US-only — raw digits, the
   // OS dialer handles country-code interpretation. Sets the
   // pending-outcome target so the inline chip group appears under
@@ -1296,6 +1326,118 @@ function LeadsPageInner() {
               with outcome-specific cooldowns. Designed for sit-down
               dialing sessions: open queue, dial top of list, log
               outcome, queue auto-resorts. */}
+          {iaEnabled ? (
+            /* IA v2 — Leads is ONE list. "Call queue" becomes a Call mode
+               you enter with the Start-calling button; Calendar lives in
+               the sidebar (kept here only as a mobile button since phones
+               have no sidebar). The two-pane dialer below is unchanged. */
+            <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+              {view === 'queue' ? (
+                <>
+                  <button
+                    onClick={() => setView('all')}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold rounded-lg bg-[#EFEFEF] text-[#005851] hover:bg-[#e3e3e3] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Done
+                  </button>
+                  <span className="text-sm font-semibold text-[#005851]">
+                    Calling · <span className="text-[#44bbaa]">{queueLeads.length}</span> in queue
+                  </span>
+                </>
+              ) : view === 'calendar' ? (
+                <button
+                  onClick={() => setView('all')}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold rounded-lg bg-[#EFEFEF] text-[#005851] hover:bg-[#e3e3e3] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back to leads
+                </button>
+              ) : (
+                <>
+                  {/* Search + Call-next sort */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="relative w-full max-w-xs">
+                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <input
+                        type="text"
+                        placeholder="Search leads…"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-9 pr-8 py-1.5 bg-white rounded-[5px] border border-[#d0d0d0] text-sm text-[#000000] placeholder-[#707070] focus:outline-none focus:border-[#45bcaa]"
+                      />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full text-[#707070] hover:bg-gray-100 flex items-center justify-center"
+                          aria-label="Clear search"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                    {/* Call-next sort — reuses the exact priority order that
+                        Start-calling dials. Desktop only; the table it
+                        reorders is itself md-only. Toggles back to Created. */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (sortKey === 'priority') { setSortKey('createdAt'); setSortDir('desc'); }
+                        else { setSortKey('priority'); setSortDir('asc'); }
+                      }}
+                      className={`hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg border transition-colors ${
+                        sortKey === 'priority'
+                          ? 'bg-[#daf3f0] border-[#44bbaa] text-[#005851]'
+                          : 'bg-white border-[#d0d0d0] text-[#707070] hover:text-[#005851]'
+                      }`}
+                      title="Sort by who to call next"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4-2l4 4-4 4" />
+                      </svg>
+                      Call next
+                    </button>
+                  </div>
+                  {/* Calendar (mobile only — sidebar hosts it on desktop) +
+                      Start calling (enter the prioritized dialer). */}
+                  <div className="flex items-center gap-2">
+                    {iaEnabled && (
+                      <button
+                        onClick={() => setView('calendar')}
+                        className="md:hidden inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg bg-[#EFEFEF] text-[#005851] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px]"
+                        aria-label="Open calendar"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Calendar
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setView('queue')}
+                      disabled={queueLeads.length === 0}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg bg-[#44bbaa] text-white hover:bg-[#3aa996] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                      Start calling
+                      <span className="text-xs font-semibold text-white/80">{queueLeads.length}</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
           <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
             {/* Segmented control — reads as "switch your view" far more
                 clearly than underline tabs, and makes Calendar easy to spot. */}
@@ -1320,7 +1462,7 @@ function LeadsPageInner() {
                 Call queue
                 <span className={`text-xs font-normal ${view === 'queue' ? 'text-white/80' : 'text-[#9CA3AF]'}`}>{queueLeads.length}</span>
               </button>
-              {calendarEnabled && (
+              {iaEnabled && (
                 <button
                   onClick={() => setView('calendar')}
                   className={`px-3.5 py-1.5 text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
@@ -1365,6 +1507,7 @@ function LeadsPageInner() {
               </div>
             )}
           </div>
+          )}
 
           {/* PDF drop-zone */}
           {view !== 'calendar' && (
@@ -1640,7 +1783,7 @@ function LeadsPageInner() {
               the full lead profile while dialing. Mobile keeps the
               single-column layout with the inline outcome chip flow
               under each row. */}
-          {calendarEnabled && view === 'calendar' ? (
+          {iaEnabled && view === 'calendar' ? (
             <LeadsCalendar onGoToQueue={() => setView('queue')} />
           ) : (
           <div className={view === 'queue' && !loading && queueLeads.length > 0 ? 'md:flex md:gap-4 md:items-start' : ''}>
@@ -1914,7 +2057,7 @@ function LeadsPageInner() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredLeads.map((lead) => (
+                    {displayLeads.map((lead) => (
                       <tr
                         key={lead.id}
                         className="border-b border-[#f1f1f1] hover:bg-[#f8f8f8] cursor-pointer transition-colors"
