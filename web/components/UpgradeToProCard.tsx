@@ -282,10 +282,12 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                   <path d="M12 2 9.2 8.6 2 9.3l5.5 4.8L5.8 21 12 17.3 18.2 21l-1.7-6.9L22 9.3l-7.2-.7L12 2z" />
                 </svg>
-                Pro
+                {surface === 'coaching' ? 'Growth' : 'Pro'}
               </span>
               <span className="text-[11px] text-[#707070] font-semibold">
-                Available on Pro · {displayPrice} · Includes Leads + Calendar + Activity
+                {surface === 'coaching'
+                  ? 'On Growth ($49/mo · 4 scored calls a month) — unlimited on Pro ($99/mo)'
+                  : `Available on Pro · ${displayPrice} · Includes Leads + Calendar + Activity`}
               </span>
             </div>
 
@@ -359,6 +361,18 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
                 Click → Stripe Checkout via /api/stripe/create-
                 checkout-session. Loading state prevents double-click
                 during the API round-trip. */}
+            {/* Coaching unlocks on Growth (4/mo) AND Pro (unlimited), so we
+                don't force a Pro checkout here — send the agent to /pricing to
+                pick. Every other surface is genuinely Pro-only. */}
+            {surface === 'coaching' ? (
+              <Link
+                href="/pricing"
+                className="flex items-center justify-between w-full bg-[#005851] hover:bg-[#0d4d4d] text-white font-bold text-[15px] px-4 py-3.5 rounded-lg transition-colors"
+              >
+                <span>Choose your plan</span>
+                <span className="opacity-85 text-sm">Growth or Pro →</span>
+              </Link>
+            ) : (
             <button
               type="button"
               onClick={handleUpgrade}
@@ -399,6 +413,7 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
                 </>
               )}
             </button>
+            )}
 
             {checkoutError && (
               <p role="alert" className="mt-2 text-[12px] text-red-700 leading-snug">

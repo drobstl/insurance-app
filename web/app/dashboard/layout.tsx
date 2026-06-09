@@ -941,7 +941,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             return (
               <>
                 <div className="my-2 mx-1 border-t border-white/10" />
-                <p className="px-3 pt-1 pb-0.5 text-[9px] font-bold uppercase tracking-wider text-white/30">Unlock with Pro</p>
+                <p className="px-3 pt-1 pb-0.5 text-[9px] font-bold uppercase tracking-wider text-white/30">Upgrade to unlock</p>
                 {tierLocked.map((item) => (
                   <button
                     key={item.key}
@@ -955,7 +955,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                       {item.label}
                     </span>
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#44bbaa]/20 text-[#daf3f0] group-hover/locked:bg-[#44bbaa]/30">
-                      Pro
+                      {item.key === 'coaching' ? 'Growth' : 'Pro'}
                     </span>
                   </button>
                 ))}
