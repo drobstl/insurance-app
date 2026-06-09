@@ -6,6 +6,11 @@ import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin'
 import { performanceAccess, type PerformanceAccess } from '../../../../lib/tier-gating';
 import { REAL_CATEGORIES, DEFAULT_COACHING_PLAYBOOK } from '../../../../lib/coaching-playbook';
 
+// A full transcript scores in ~40-60s (one non-streaming Sonnet call), so this
+// function needs a long ceiling — Vercel's default (10-15s) would time out.
+// Matches the app's other heavy AI routes (referral / ingestion use 90-120).
+export const maxDuration = 120;
+
 // Match Closr's call-scoring engine (apps/api/app/services/call_scorer.py)
 // so AFL produces the same R.E.A.L. scores Closr does.
 const MODEL = 'claude-sonnet-4-6';

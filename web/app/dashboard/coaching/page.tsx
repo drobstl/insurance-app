@@ -262,6 +262,7 @@ export default function CoachingPage() {
               {scoring ? 'Scoring…' : 'Score this call'}
             </button>
           </div>
+          {scoring && <p className="mt-2 text-xs text-[#9CA3AF]">Reading the whole call and scoring it against your script — this usually takes 30–60 seconds.</p>}
           {error === 'too_short' && <p className="mt-2 text-xs text-amber-700">That&apos;s a bit short to score — paste a little more of the call.</p>}
           {error === 'failed' && <p className="mt-2 text-xs text-red-600">Something went wrong scoring that call. Give it another try.</p>}
           {error === 'limit_reached' && (
