@@ -833,16 +833,16 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* Sidebar */}
       <aside
-        className="hidden md:block fixed left-0 top-0 h-full bg-[#005851] z-50 w-56"
+        className="hidden md:flex md:flex-col fixed left-0 top-0 h-full bg-[#005851] z-50 w-56"
       >
-        <div className="h-14 flex items-center px-4 border-b border-white/10">
+        <div className="h-14 flex items-center px-4 border-b border-white/10 shrink-0">
           <img src="/logo.png" alt="AgentForLife™" className="w-11 h-7 object-contain" />
           <span className="ml-3 text-white text-lg whitespace-nowrap overflow-hidden brand-title opacity-100 w-auto">
             AgentForLife™
           </span>
         </div>
 
-        <nav className="mt-4 px-2 space-y-1">
+        <nav className="flex-1 min-h-0 overflow-y-auto mt-4 px-2 pb-4 space-y-1">
           {/* Tier-gated surfaces render in one of three states (see
               `leadsAccessReason` / `activityAccessReason`):
                 - accessible  → in the main nav, clickable
