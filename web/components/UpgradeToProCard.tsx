@@ -38,7 +38,7 @@ import UpgradeConfirmModal, { type UpgradePreview } from './UpgradeConfirmModal'
  * better handled on /pricing + Stripe Checkout.
  */
 
-type UpgradeSurface = 'leads' | 'activity' | 'calendar';
+type UpgradeSurface = 'leads' | 'activity' | 'calendar' | 'coaching';
 
 interface SurfaceCopy {
   headline: string;
@@ -95,6 +95,16 @@ const SURFACE_COPY: Record<UpgradeSurface, SurfaceCopy> = {
       description:
         "Today it's your pre-sale sit-downs. Next: client reviews, retention check-ins, and birthdays — your whole year on one calendar.",
     },
+  },
+  coaching: {
+    headline: 'Turn every call into your next better one.',
+    sub: 'Paste a call and AFL scores it the way a sales coach would — on the R.E.A.L. framework, against your own script — what landed, where the deal slipped, and the exact line to use next time.',
+    bullets: [
+      'Scored on Rapport, Emotion, Assumption, and Lock It Down — so you see exactly where deals leak.',
+      'Checked against your own sales script, with specific fixes pulled from your actual words.',
+      'Your top 3 things to work on next, ranked by impact on close rate.',
+      "Score every call while it's still fresh — unlimited on Pro.",
+    ],
   },
 };
 
