@@ -11,7 +11,7 @@ import AdminGrowthBadge from '../../components/AdminGrowthBadge';
 import MaintenanceBanner from '../../components/MaintenanceBanner';
 import DashboardAssistant from '../../components/DashboardAssistant';
 import DashboardTicker from '../../components/DashboardTicker';
-import MfaGate from '../../components/MfaGate';
+import MfaGate, { MfaHeadsUpBanner } from '../../components/MfaGate';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
 import { ANALYTICS_EVENTS } from '../../lib/analytics-events';
 import { captureEvent } from '../../lib/posthog';
@@ -1041,6 +1041,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* Main Content Area */}
       <div className="flex-1 md:ml-56 flex flex-col min-h-screen overflow-hidden pt-14 md:pt-0 pb-20 md:pb-0">
+        {/* Mandatory-MFA heads-up (pre-go-live); self-renders null otherwise. */}
+        <MfaHeadsUpBanner />
         {/* Header */}
         <header className="hidden md:flex h-14 bg-white border-b border-[#d0d0d0] sticky top-0 z-40 items-center justify-between px-6">
           <div className="flex items-center gap-2">
