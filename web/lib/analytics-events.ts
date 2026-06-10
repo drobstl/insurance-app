@@ -16,6 +16,10 @@ export const ANALYTICS_EVENTS = {
   PATCH_CONVERSATION_STARTED: 'patch_conversation_started',
   PATCH_MESSAGE_SENT: 'patch_message_sent',
   POSTHOG_CLIENT_BOOT: 'posthog_client_boot',
+  // Emitted server-side by app/api/posthog/heartbeat/route.ts (never via
+  // captureEvent). Same-origin backstop for posthog_client_boot: a gap
+  // between the two volumes = browser-side tracking being suppressed.
+  POSTHOG_SERVER_HEARTBEAT: 'posthog_server_heartbeat',
   DASHBOARD_LOAD_SLOW: 'dashboard_load_slow',
   API_REQUEST_FAILED: 'api_request_failed',
   EMPTY_STATE_SEEN: 'empty_state_seen',
@@ -148,6 +152,10 @@ export type AnalyticsEventPropertiesMap = {
   } & GenericEventProperties;
   posthog_client_boot: {
     path?: string;
+  } & GenericEventProperties;
+  posthog_server_heartbeat: {
+    path?: string;
+    source?: string;
   } & GenericEventProperties;
   dashboard_load_slow: {
     path?: string;
