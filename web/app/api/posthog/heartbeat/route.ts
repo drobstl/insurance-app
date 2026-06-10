@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { ANALYTICS_EVENTS } from '../../../../lib/analytics-events';
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,7 +14,13 @@ export async function POST(req: NextRequest) {
     const distinctId =
       typeof body?.distinct_id === 'string' && body.distinct_id.trim().length > 0
         ? body.distinct_id.trim()
-        : `anon-${crypto.randomUUID()}`;
+        : null;
+    // No minted fallback id — a random distinct_id becomes an orphan person
+    // in PostHog that never merges with the agent. The client always sends
+    // its posthog-js distinct_id.
+    if (!distinctId) {
+      return NextResponse.json({ ok: false, reason: 'missing_distinct_id' }, { status: 200 });
+    }
     const path =
       typeof body?.path === 'string' && body.path.startsWith('/')
         ? body.path
@@ -24,7 +31,7 @@ export async function POST(req: NextRequest) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         api_key: apiKey,
-        event: 'posthog_client_boot',
+        event: ANALYTICS_EVENTS.POSTHOG_SERVER_HEARTBEAT,
         distinct_id: distinctId,
         properties: {
           source: 'agentforlife_web',

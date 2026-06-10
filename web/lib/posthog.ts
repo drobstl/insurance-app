@@ -66,15 +66,17 @@ export function initPostHog(): void {
       ? '/ingest'
       : configuredHost;
 
-  const config = {
+  // No "enable_recording" key: it's not a real posthog-js option — session
+  // replay is turned on by the PostHog project setting (and can only be
+  // suppressed client-side via disable_session_recording).
+  const config: Parameters<typeof posthog.init>[1] = {
     api_host: resolvedApiHost,
     autocapture: true,
     capture_pageview: false,
     capture_pageleave: true,
     capture_dead_clicks: true,
-    enable_recording: true,
-    enable_heatmaps: true,
-  } as unknown as Parameters<typeof posthog.init>[1];
+    capture_heatmaps: true,
+  };
 
   posthog.init(apiKey, config);
 

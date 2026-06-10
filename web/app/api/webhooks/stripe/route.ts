@@ -9,6 +9,8 @@ import {
   isTransientWebhookError,
   recordPermanentWebhookError,
 } from '../../../../lib/webhook-error-handling';
+import { captureServerEvent } from '../../../../lib/posthog-server';
+import { ANALYTICS_EVENTS } from '../../../../lib/analytics-events';
 import Stripe from 'stripe';
 
 // Disable body parsing, need raw body for webhook signature verification
@@ -154,7 +156,7 @@ async function fulfillPendingSignup(
   return { userId, createdNewUser };
 }
 
-async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
+async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session, stripeEventId: string) {
   // Deferred-signup path: create the Firebase user from the pending
   // signup doc before falling through to the standard activation
   // logic. For legacy/resubscribe flows, fulfilledFromPending is null
@@ -218,9 +220,26 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         ? new Date(subscription.current_period_end * 1000)
         : new Date(),
       trialEndsAt,
+      // Raw Stripe status (vs the normalized subscriptionStatus above).
+      // Seeded here and refreshed by handleSubscriptionUpdated so the
+      // trialing→active transition (= trial_converted) is detectable.
+      stripeSubscriptionStatus: (subscription.status as string) ?? null,
     },
     { merge: true }
   );
+
+  // Revenue funnel — after the write commits so a retried delivery that
+  // failed before this point can't double-emit. distinct_id = agent uid.
+  await captureServerEvent(userId, ANALYTICS_EVENTS.SUBSCRIPTION_ACTIVATED, {
+    tier: membershipTier,
+    on_trial: !!trialEndsAt,
+    trial_days: trialEndsAt
+      ? Math.max(0, Math.round((trialEndsAt.getTime() - Date.now()) / 86_400_000))
+      : null,
+    new_account: !!fulfilledFromPending?.createdNewUser,
+    first_activation: !wasAlreadyActive,
+    stripe_event_id: stripeEventId,
+  });
 
   // Founder alert — brand-new paid signups only (not renewals/resubscribes).
   // Fire-and-forget; must never block or fail webhook fulfillment or a charge.
@@ -349,7 +368,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleSubscriptionUpdated(subscriptionData: any) {
+async function handleSubscriptionUpdated(subscriptionData: any, stripeEventId: string) {
   const userId = subscriptionData.metadata?.firebaseUserId ||
     await getFirebaseUserIdFromCustomer(subscriptionData.customer as string);
 
@@ -371,6 +390,7 @@ async function handleSubscriptionUpdated(subscriptionData: any) {
     return;
   }
 
+  const rawStatus = subscriptionData.status as string;
   const status = subscriptionData.status === 'active' || subscriptionData.status === 'trialing'
     ? 'active'
     : subscriptionData.status;
@@ -381,8 +401,20 @@ async function handleSubscriptionUpdated(subscriptionData: any) {
   const trialEndsAt = subscriptionData.trial_end
     ? new Date(subscriptionData.trial_end * 1000)
     : null;
+  const cancelScheduled = subscriptionData.cancel_at_period_end === true;
 
+  // Pre-read for the revenue events below: subscription.updated fires on
+  // every invoice/period rollover, so we only emit when something the
+  // founder cares about actually CHANGED (raw status, cancel intent).
   const db = getAdminFirestore();
+  const prevDoc = await db.collection('agents').doc(userId).get();
+  const prevData = prevDoc.data() ?? {};
+  const prevRawStatus = typeof prevData.stripeSubscriptionStatus === 'string'
+    ? prevData.stripeSubscriptionStatus
+    : null;
+  const prevCancelScheduled = prevData.cancelAtPeriodEnd === true;
+  const tier = typeof prevData.membershipTier === 'string' ? prevData.membershipTier : 'unknown';
+
   await db.collection('agents').doc(userId).set(
     {
       subscriptionStatus: status,
@@ -392,15 +424,44 @@ async function handleSubscriptionUpdated(subscriptionData: any) {
       stripeCustomerId: subscriptionData.customer,
       subscriptionId: subscriptionData.id,
       trialEndsAt,
+      stripeSubscriptionStatus: rawStatus ?? null,
+      cancelAtPeriodEnd: cancelScheduled,
     },
     { merge: true }
   );
+
+  // ── Revenue funnel (after the write commits) ──
+  // from/to are RAW Stripe statuses. prevRawStatus is null until the
+  // first post-deploy event seeds it — suppressed then, not guessed.
+  if (prevRawStatus && rawStatus && prevRawStatus !== rawStatus) {
+    await captureServerEvent(userId, ANALYTICS_EVENTS.SUBSCRIPTION_STATUS_CHANGED, {
+      from_status: prevRawStatus,
+      to_status: rawStatus,
+      cancel_scheduled: cancelScheduled,
+      stripe_event_id: stripeEventId,
+    });
+  }
+  if (prevRawStatus === 'trialing' && rawStatus === 'active') {
+    await captureServerEvent(userId, ANALYTICS_EVENTS.TRIAL_CONVERTED, {
+      tier,
+      stripe_event_id: stripeEventId,
+    });
+  }
+  if (!prevCancelScheduled && cancelScheduled) {
+    await captureServerEvent(userId, ANALYTICS_EVENTS.SUBSCRIPTION_CANCEL_SCHEDULED, {
+      tier,
+      days_until_period_end: subscriptionData.current_period_end
+        ? Math.max(0, Math.round((subscriptionData.current_period_end * 1000 - Date.now()) / 86_400_000))
+        : null,
+      stripe_event_id: stripeEventId,
+    });
+  }
 
   console.log(`Subscription updated for user ${userId}: ${status}`);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleSubscriptionDeleted(subscriptionData: any) {
+async function handleSubscriptionDeleted(subscriptionData: any, stripeEventId: string) {
   const userId = subscriptionData.metadata?.firebaseUserId ||
     await getFirebaseUserIdFromCustomer(subscriptionData.customer as string);
 
@@ -423,21 +484,36 @@ async function handleSubscriptionDeleted(subscriptionData: any) {
   }
 
   const db = getAdminFirestore();
+  // Pre-read for tier + tenure on the churn event below.
+  const prevDoc = await db.collection('agents').doc(userId).get();
+  const prevData = prevDoc.data() ?? {};
   await db.collection('agents').doc(userId).set(
     {
       subscriptionStatus: 'canceled',
       subscriptionCanceledAt: new Date(),
       stripeCustomerId: subscriptionData.customer,
       subscriptionId: subscriptionData.id,
+      stripeSubscriptionStatus: 'canceled',
     },
     { merge: true }
   );
+
+  const startDate = prevData.subscriptionStartDate;
+  const startMs =
+    startDate && typeof startDate.toMillis === 'function' ? startDate.toMillis() :
+    startDate instanceof Date ? startDate.getTime() :
+    null;
+  await captureServerEvent(userId, ANALYTICS_EVENTS.SUBSCRIPTION_CANCELLED, {
+    tier: typeof prevData.membershipTier === 'string' ? prevData.membershipTier : 'unknown',
+    days_since_start: startMs ? Math.max(0, Math.round((Date.now() - startMs) / 86_400_000)) : null,
+    stripe_event_id: stripeEventId,
+  });
 
   console.log(`Subscription canceled for user ${userId}`);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleInvoicePaymentFailed(invoice: any) {
+async function handleInvoicePaymentFailed(invoice: any, stripeEventId: string) {
   const customerId = invoice.customer as string;
   const userId = await getFirebaseUserIdFromCustomer(customerId);
 
@@ -474,6 +550,15 @@ async function handleInvoicePaymentFailed(invoice: any) {
     },
     { merge: true }
   );
+
+  // Dunning entry — attempt_count rises on each Stripe retry, so the
+  // first-failure vs about-to-churn distinction is queryable.
+  await captureServerEvent(userId, ANALYTICS_EVENTS.SUBSCRIPTION_PAYMENT_FAILED, {
+    attempt_count: typeof invoice.attempt_count === 'number' ? invoice.attempt_count : undefined,
+    amount_due_cents: typeof invoice.amount_due === 'number' ? invoice.amount_due : undefined,
+    billing_reason: typeof invoice.billing_reason === 'string' ? invoice.billing_reason : undefined,
+    stripe_event_id: stripeEventId,
+  });
 
   console.log(`Payment failed for user ${userId}`);
 }
@@ -514,19 +599,19 @@ export async function POST(request: NextRequest) {
     try {
       switch (event.type) {
         case 'checkout.session.completed':
-          await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
+          await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session, event.id);
           break;
 
         case 'customer.subscription.updated':
-          await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
+          await handleSubscriptionUpdated(event.data.object as Stripe.Subscription, event.id);
           break;
 
         case 'customer.subscription.deleted':
-          await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+          await handleSubscriptionDeleted(event.data.object as Stripe.Subscription, event.id);
           break;
 
         case 'invoice.payment_failed':
-          await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
+          await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice, event.id);
           break;
 
         default:

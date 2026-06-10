@@ -1,11 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { BOOKED_LEAD_APP_AVAILABLE } from '../lib/feature-flags';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import UpgradeConfirmModal, { type UpgradePreview } from './UpgradeConfirmModal';
+import { captureEvent } from '../lib/posthog';
+import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 
 /**
  * Renders an in-page upgrade prompt for agents whose current tier
@@ -118,6 +120,14 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
   const pathname = usePathname();
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  // Upgrade-intent funnel: one impression per mount. Paired with
+  // upsell_card_clicked below; the outcome lands server-side as
+  // subscription_tier_changed (in-app) or subscription_activated
+  // (Checkout), so viewed → clicked → paid is one PostHog funnel.
+  useEffect(() => {
+    captureEvent(ANALYTICS_EVENTS.UPSELL_CARD_VIEWED, { surface });
+  }, [surface]);
   // In-app upgrade flow state: when the server returns mode='in_app',
   // we stash the preview here and render <UpgradeConfirmModal>. On
   // confirm, the modal POSTs back with confirm=true.
@@ -143,6 +153,7 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
   // Firestore is written directly, redirect back with unlocked tier.
   const handleUpgrade = useCallback(async () => {
     if (!user || checkoutLoading) return;
+    captureEvent(ANALYTICS_EVENTS.UPSELL_CARD_CLICKED, { surface, cta: 'upgrade_to_pro' });
     setCheckoutError(null);
     setConfirmError(null);
     setCheckoutLoading(true);
@@ -192,7 +203,7 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
       setCheckoutError('Network error. Try Compare all plans below.');
       setCheckoutLoading(false);
     }
-  }, [user, pathname, checkoutLoading]);
+  }, [user, pathname, checkoutLoading, surface]);
 
   // Modal Confirm → POST upgrade-tier with confirm=true. Server runs
   // the actual subscription update + writes Firestore. We hard-
@@ -367,6 +378,7 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
             {surface === 'coaching' ? (
               <Link
                 href="/pricing"
+                onClick={() => captureEvent(ANALYTICS_EVENTS.UPSELL_CARD_CLICKED, { surface, cta: 'choose_plan' })}
                 className="flex items-center justify-between w-full bg-[#005851] hover:bg-[#0d4d4d] text-white font-bold text-[15px] px-4 py-3.5 rounded-lg transition-colors"
               >
                 <span>Choose your plan</span>
@@ -422,7 +434,11 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
             )}
 
             <div className="flex items-center justify-between mt-3 px-1 text-[11.5px] text-[#707070]">
-              <Link href="/pricing" className="text-[#005851] font-semibold hover:underline">
+              <Link
+                href="/pricing"
+                onClick={() => captureEvent(ANALYTICS_EVENTS.UPSELL_CARD_CLICKED, { surface, cta: 'compare_plans' })}
+                className="text-[#005851] font-semibold hover:underline"
+              >
                 Compare all plans
               </Link>
               <span>Cancel anytime · No setup</span>

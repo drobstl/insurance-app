@@ -9,6 +9,10 @@ import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 
 const DASHBOARD_LOAD_SLOW_THRESHOLD_MS = 4000;
 
+// Boot signal fires once per page load, not once per effect mount — React
+// StrictMode double-mounts effects in dev.
+let bootSignalSent = false;
+
 type InstrumentedWindow = Window & {
   __aflFetchWrapped?: boolean;
   __aflOriginalFetch?: typeof window.fetch;
@@ -148,26 +152,40 @@ export default function PostHogProvider({ children }: { children: React.ReactNod
     window.addEventListener('pagehide', maybeCaptureExitRisk);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    let distinctId = window.localStorage.getItem('afl_posthog_distinct_id');
-    if (!distinctId) {
-      distinctId = `afl-${crypto.randomUUID()}`;
-      window.localStorage.setItem('afl_posthog_distinct_id', distinctId);
-    }
+    if (!bootSignalSent) {
+      bootSignalSent = true;
 
-    captureEvent(ANALYTICS_EVENTS.POSTHOG_CLIENT_BOOT, {
-      path: window.location.pathname,
-    });
+      // Legacy key from when the heartbeat minted its own random id and
+      // orphaned a person per browser in PostHog.
+      window.localStorage.removeItem('afl_posthog_distinct_id');
 
-    // Backend heartbeat ensures we still record usage even if browser-side tracking
-    // gets suppressed by extension/privacy/network behavior.
-    void fetch('/api/posthog/heartbeat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        distinct_id: distinctId,
+      captureEvent(ANALYTICS_EVENTS.POSTHOG_CLIENT_BOOT, {
         path: window.location.pathname,
-      }),
-    }).catch(() => {});
+      });
+
+      // Backend heartbeat ensures we still record usage even if browser-side
+      // tracking gets suppressed by extension/privacy/network behavior. It
+      // reuses the posthog-js distinct_id so the server event lands on the
+      // same person as the client events (and merges into the agent's
+      // Firebase uid when identify() runs).
+      let posthogDistinctId: string | undefined;
+      try {
+        posthogDistinctId = posthog.get_distinct_id();
+      } catch {
+        // posthog-js didn't initialize (missing key) — the heartbeat route
+        // reads the same env var, so a request would be dropped anyway.
+      }
+      if (posthogDistinctId) {
+        void fetch('/api/posthog/heartbeat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            distinct_id: posthogDistinctId,
+            path: window.location.pathname,
+          }),
+        }).catch(() => {});
+      }
+    }
 
     return () => {
       window.removeEventListener('pagehide', maybeCaptureExitRisk);

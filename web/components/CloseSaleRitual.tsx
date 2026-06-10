@@ -58,6 +58,8 @@ import { mapExtractedApplicationToPolicyFormData } from '../lib/extracted-to-pol
 import { runApplicationExtractionV3 } from '../lib/run-application-extraction-v3';
 import { buildCloseSaleWelcomeBody } from '../lib/welcome-sms-body';
 import { ClientActivationStatusRow } from './ClientActivationStatusRow';
+import { captureEvent } from '../lib/posthog';
+import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 
 const MAX_PDF_BYTES = 25 * 1024 * 1024;
 
@@ -148,6 +150,13 @@ export function CloseSaleRitual({
   const [clientCode, setClientCode] = useState<string | null>(null);
   const [welcomeBody, setWelcomeBody] = useState('');
   const isMac = useMemo(() => detectMac(), []);
+
+  // Funnel: the terminal stretch of the pre-sale funnel starts here —
+  // one event per ritual open (the state reset below covers close).
+  useEffect(() => {
+    if (!open) return;
+    captureEvent(ANALYTICS_EVENTS.CLOSE_SALE_STARTED, { lead_id: lead.id });
+  }, [open, lead.id]);
 
   // Reset all transient state when the modal closes so a fresh open
   // doesn't show a stale staged file / error / progress.
@@ -276,6 +285,13 @@ export function CloseSaleRitual({
         agentName,
         clientCode: newClientCode,
       }));
+      // Funnel: THE revenue moment — the lead became a client.
+      captureEvent(ANALYTICS_EVENTS.LEAD_CONVERTED, {
+        lead_id: lead.id,
+        client_id: newClientId,
+        method: 'close_sale_ritual',
+        policy_created: policyRes.ok,
+      });
       onConverted(newClientId);
       setStage('welcome');
     } catch (err) {
@@ -351,6 +367,13 @@ export function CloseSaleRitual({
     if (typeof window !== 'undefined') {
       window.location.href = url;
     }
+    // Same event the action-item welcome surfaces fire — this surface
+    // value marks the on-call ritual send (no _completed counterpart
+    // here; activation on Card 3 is the delivery confirmation).
+    captureEvent(ANALYTICS_EVENTS.WELCOME_SEND_INITIATED, {
+      surface: 'close_sale_ritual',
+      channel: 'agent_phone_sms',
+    });
     // Advance immediately — we have no signal-back from the OS handler,
     // and the agent has the activation listener on Card 3 to confirm
     // delivery via the client opening the app.
