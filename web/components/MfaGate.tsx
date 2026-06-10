@@ -3,9 +3,11 @@
 import { useCallback, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
+  EmailAuthProvider,
   multiFactor,
   PhoneAuthProvider,
   PhoneMultiFactorGenerator,
+  reauthenticateWithCredential,
   RecaptchaVerifier,
 } from 'firebase/auth';
 import { auth } from '../firebase';
@@ -97,6 +99,8 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
   const [code, setCode] = useState('');
   const [phase, setPhase] = useState<'phone' | 'sending' | 'code' | 'verifying'>('phone');
   const [error, setError] = useState<string | null>(null);
+  const [needsReauth, setNeedsReauth] = useState(false);
+  const [password, setPassword] = useState('');
   const verificationIdRef = useRef<string | null>(null);
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -150,6 +154,14 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
     } catch (e) {
       resetRecaptcha();
       setPhase('phone');
+      // Enrolling a second factor is security-sensitive: Firebase rejects it
+      // when the sign-in is stale (common — sessions persist for days). Fall
+      // back to an inline password re-auth, then retry automatically.
+      if ((e as { code?: string })?.code === 'auth/requires-recent-login') {
+        setNeedsReauth(true);
+        setError('For your security, confirm your password to turn on two-step verification.');
+        return;
+      }
       setError(e instanceof Error ? e.message : 'Could not send the code. Please try again.');
     }
   }, [user, phone, ensureEmailVerified, resetRecaptcha]);
@@ -172,6 +184,37 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
       setError(e instanceof Error ? e.message : 'That code didn’t work — try again.');
     }
   }, [user, code, resetRecaptcha]);
+
+  // Stale-session recovery: re-authenticate with the password, then resume the
+  // code send. Firebase requires a recent sign-in before it will enroll MFA.
+  const reauthAndRetry = useCallback(async () => {
+    if (!user?.email) {
+      setError('Please sign out and sign back in to continue.');
+      return;
+    }
+    if (!password) {
+      setError('Enter your password.');
+      return;
+    }
+    setPhase('sending');
+    setError(null);
+    try {
+      await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password));
+      setNeedsReauth(false);
+      setPassword('');
+      await sendCode();
+    } catch (e) {
+      setPhase('phone');
+      const errCode = (e as { code?: string })?.code;
+      setError(
+        errCode === 'auth/wrong-password' || errCode === 'auth/invalid-credential'
+          ? 'That password didn’t match — try again.'
+          : e instanceof Error
+            ? e.message
+            : 'Could not confirm your password. Try again.',
+      );
+    }
+  }, [user, password, sendCode]);
 
   const enrolled = !!user && (done || multiFactor(user).enrolledFactors.length > 0);
 
@@ -244,7 +287,29 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
           )}
 
           <div className="mt-5">
-            {onPhone ? (
+            {needsReauth ? (
+              <>
+                <label className="block text-sm font-medium text-[#000000] mb-2">Confirm your password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Your AgentForLife password"
+                  autoComplete="current-password"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void reauthAndRetry();
+                  }}
+                  className="w-full px-4 py-3 bg-[#f8f8f8] border border-[#a4a4a4bf] rounded-[5px] text-[#000000] placeholder-[#707070] focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa]"
+                />
+                <button
+                  onClick={() => void reauthAndRetry()}
+                  disabled={phase === 'sending'}
+                  className="w-full mt-3 py-3 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-[#a1c3be] text-white font-semibold rounded-[5px] transition-colors"
+                >
+                  {phase === 'sending' ? 'Confirming…' : 'Confirm & continue'}
+                </button>
+              </>
+            ) : onPhone ? (
               <>
                 <label className="block text-sm font-medium text-[#000000] mb-2">Mobile number</label>
                 <input
