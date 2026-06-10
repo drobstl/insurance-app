@@ -1222,6 +1222,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           clientCount={tickerClientCount}
           atRiskCount={tickerAtRiskCount}
           appointmentsToday={tickerApptsToday}
+          agentFirstName={(agentProfile.name || '').trim().split(/\s+/)[0] || undefined}
         />
 
         {/* Page Content */}

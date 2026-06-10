@@ -27,7 +27,7 @@ const QUOTE_ROTATE_MS = 14000;
 // Visual emphasis per segment kind. The bar is teal (#005851); urgent prompts
 // read amber, pride/progress reads gold (matches the Refer & Earn accent),
 // everything else stays white.
-type SegmentTone = 'default' | 'urgent' | 'gold';
+type SegmentTone = 'default' | 'urgent' | 'gold' | 'context';
 
 interface TickerSegment {
   id: string;
@@ -45,6 +45,72 @@ interface DashboardTickerProps {
   atRiskCount?: number;
   /** Appointments scheduled for today. */
   appointmentsToday?: number;
+  /** Agent's first name, for the time-of-day greeting. */
+  agentFirstName?: string;
+}
+
+// One time-aware "moment" that opens the strip — a greeting plus a clause that
+// shifts by hour, weekday, and where we are in the month. Most-specific wins;
+// the month-end line folds in real badge-gap progress when there's an APV badge
+// in reach. Recomputed on a minute tick so it stays current while the tab's open.
+function buildContextSegment(
+  now: Date,
+  stats: AgentAggregates | null,
+  agentFirstName?: string,
+): TickerSegment {
+  const hour = now.getHours();
+  const weekday = now.getDay(); // 0 Sun … 6 Sat
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysLeft = daysInMonth - now.getDate(); // 0 on the last day of the month
+
+  let greeting: string;
+  let emoji: string;
+  if (hour >= 5 && hour < 12) {
+    greeting = 'Good morning';
+    emoji = '☀️';
+  } else if (hour >= 12 && hour < 17) {
+    greeting = 'Good afternoon';
+    emoji = '☀️';
+  } else if (hour >= 17 && hour < 22) {
+    greeting = 'Good evening';
+    emoji = '🌙';
+  } else {
+    greeting = 'Working late';
+    emoji = '🌙';
+  }
+  const who = agentFirstName ? `${greeting}, ${agentFirstName}` : greeting;
+
+  const nextBadge = stats ? getNextBadgeToChase(stats) : null;
+  const apvGap =
+    stats && nextBadge && nextBadge.progressLabel === 'APV'
+      ? Math.max(0, nextBadge.target - nextBadge.current(stats))
+      : 0;
+
+  let tail: string;
+  if (daysLeft <= 3 && apvGap > 0 && nextBadge) {
+    const when = daysLeft === 0 ? 'last day' : `${daysLeft}d left`;
+    tail = `${when} — ${formatCurrency(apvGap)} from ${nextBadge.name}`;
+  } else if (daysLeft <= 3) {
+    tail = `${daysLeft === 0 ? 'last day' : `${daysLeft} days left`} — finish the month strong`;
+  } else if (weekday === 5 && hour >= 12) {
+    tail = 'strong week — lock in one referral before you log off';
+  } else if (weekday === 1 && hour < 12) {
+    tail = 'new week — set the pace early';
+  } else if (weekday === 0 || weekday === 6) {
+    tail = 'a quick weekend check-in keeps clients close';
+  } else if (hour >= 5 && hour < 11) {
+    tail = "your next $10K month starts with today's first call";
+  } else if (hour >= 11 && hour < 14) {
+    tail = 'midday — who still needs a callback?';
+  } else if (hour >= 14 && hour < 17) {
+    tail = 'afternoon push — one more dial';
+  } else if (hour >= 17 && hour < 22) {
+    tail = "wrap up — confirm tomorrow's appointments";
+  } else {
+    tail = 'the warm list is ready when you are';
+  }
+
+  return { id: 'context', emoji, label: `${who} · ${tail}`, tone: 'context' };
 }
 
 export default function DashboardTicker({
@@ -52,6 +118,7 @@ export default function DashboardTicker({
   clientCount,
   atRiskCount = 0,
   appointmentsToday = 0,
+  agentFirstName,
 }: DashboardTickerProps) {
   const router = useRouter();
 
@@ -67,8 +134,20 @@ export default function DashboardTicker({
     return () => clearInterval(id);
   }, []);
 
+  // Re-read the clock each minute so the time-of-day greeting refreshes while
+  // the tab stays open (e.g. morning → afternoon, or rolling into the month's
+  // final days).
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(id);
+  }, []);
+
   const segments = useMemo<TickerSegment[]>(() => {
     const out: TickerSegment[] = [];
+
+    // ── Moment — a time-of-day greeting opens the strip. ──
+    out.push(buildContextSegment(now, stats, agentFirstName));
 
     // ── Prompts — time-sensitive, money-on-the-line, clickable. Lead the
     //    stream so the first thing scrolling by is something to act on. ──
@@ -140,7 +219,7 @@ export default function DashboardTicker({
     });
 
     return out;
-  }, [stats, clientCount, atRiskCount, appointmentsToday, quoteIndex]);
+  }, [stats, clientCount, atRiskCount, appointmentsToday, agentFirstName, quoteIndex, now]);
 
   // Fixed-duration CSS scroll means a longer stream scrolls faster. Scale the
   // duration with segment count so the reading speed stays roughly constant
@@ -154,7 +233,9 @@ export default function DashboardTicker({
           ? 'text-[#FFD37E]'
           : seg.tone === 'gold'
             ? 'text-[#F5C542]'
-            : 'text-white';
+            : seg.tone === 'context'
+              ? 'text-[#E1F5EE]'
+              : 'text-white';
       const inner = (
         <span className={`text-xs ${seg.tone ? 'font-semibold' : 'font-medium'} ${toneClass}`}>
           {seg.emoji && <span className="mr-1">{seg.emoji}</span>}
