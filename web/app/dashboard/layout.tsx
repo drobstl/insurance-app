@@ -586,6 +586,20 @@ const ADMIN_NAV_ITEMS = [
   )},
 ];
 
+// Conservation alert statuses that count as an open at-risk policy for the
+// dashboard ticker — active retention campaigns plus the two pre-campaign
+// states a fresh flag sits in before its first touch fires. Mirrors
+// ACTIVE_RETENTION_STATUSES in lib/conservation-types.ts; inlined because that
+// module imports firebase-admin and can't be pulled into this client bundle.
+const TICKER_ACTIVE_ALERT_STATUSES = new Set<string>([
+  'new',
+  'outreach_scheduled',
+  'outreach_sent',
+  'drip_1',
+  'drip_2',
+  'drip_3',
+]);
+
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -615,6 +629,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const [tickerStats, setTickerStats] = useState<AgentAggregates | null>(null);
   const [tickerClientCount, setTickerClientCount] = useState(0);
+  const [tickerAtRiskCount, setTickerAtRiskCount] = useState(0);
+  const [tickerApptsToday, setTickerApptsToday] = useState(0);
 
 
   useEffect(() => {
@@ -629,7 +645,37 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       setTickerClientCount(snap.size);
     }, () => {});
 
-    return () => { unsubStats(); unsubClients(); };
+    // Open at-risk policies — counted client-side from the alert status so the
+    // ticker's "N at risk" matches what the Retention page treats as live.
+    const alertsQ = query(collection(db, 'agents', user.uid, 'conservationAlerts'));
+    const unsubAlerts = onSnapshot(alertsQ, (snap) => {
+      let count = 0;
+      snap.forEach((d) => {
+        const status = (d.data().status as string) ?? '';
+        if (TICKER_ACTIVE_ALERT_STATUSES.has(status)) count += 1;
+      });
+      setTickerAtRiskCount(count);
+    }, () => {});
+
+    // Today's scheduled appointments. The [start, end) window is captured per
+    // snapshot in the agent's local day — fine for an at-a-glance count.
+    const apptsQ = query(collection(db, 'agents', user.uid, 'appointments'));
+    const unsubAppts = onSnapshot(apptsQ, (snap) => {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const end = start + 24 * 60 * 60 * 1000;
+      let count = 0;
+      snap.forEach((d) => {
+        const data = d.data();
+        if (data.status !== 'scheduled') return;
+        const ts = data.scheduledAt;
+        const ms = ts && typeof ts.toMillis === 'function' ? ts.toMillis() : null;
+        if (ms !== null && ms >= start && ms < end) count += 1;
+      });
+      setTickerApptsToday(count);
+    }, () => {});
+
+    return () => { unsubStats(); unsubClients(); unsubAlerts(); unsubAppts(); };
   }, [user]);
 
   useEffect(() => {
@@ -1171,7 +1217,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Ticker */}
-        <DashboardTicker stats={tickerStats} clientCount={tickerClientCount} />
+        <DashboardTicker
+          stats={tickerStats}
+          clientCount={tickerClientCount}
+          atRiskCount={tickerAtRiskCount}
+          appointmentsToday={tickerApptsToday}
+        />
 
         {/* Page Content */}
         <main className="flex-1 p-4 md:p-6 overflow-auto">
