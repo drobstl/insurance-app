@@ -83,6 +83,18 @@ export const ANALYTICS_EVENTS = {
   CALL_OUTCOME_RECORDED: 'call_outcome_recorded',
   APPOINTMENT_BOOKED: 'appointment_booked',
   BOOKING_CONFIRMATION_SENT: 'booking_confirmation_sent',
+  // Subscription / revenue lifecycle — emitted SERVER-side only (via
+  // lib/posthog-server.ts) from the Stripe webhook + upgrade-tier
+  // routes, with the agent's Firebase uid as distinct_id (same id the
+  // client identifies with, so person profiles line up). Money truth
+  // lives here: trial → paid, plan moves, cancel intent, dunning.
+  SUBSCRIPTION_ACTIVATED: 'subscription_activated',
+  TRIAL_CONVERTED: 'trial_converted',
+  SUBSCRIPTION_STATUS_CHANGED: 'subscription_status_changed',
+  SUBSCRIPTION_CANCEL_SCHEDULED: 'subscription_cancel_scheduled',
+  SUBSCRIPTION_CANCELLED: 'subscription_cancelled',
+  SUBSCRIPTION_PAYMENT_FAILED: 'subscription_payment_failed',
+  SUBSCRIPTION_TIER_CHANGED: 'subscription_tier_changed',
 } as const;
 
 export type AnalyticsEventName =
@@ -403,6 +415,56 @@ export type AnalyticsEventPropertiesMap = {
     // sms: fallback without attachments; 'email' = server-side send.
     channel?: 'phone_push' | 'share_sheet' | 'sms_url' | 'email';
     kind?: 'confirmation' | 'reminder';
+  } & GenericEventProperties;
+  // ─── Subscription / revenue lifecycle (server-side) ─────────────────
+  // tier values come from lib/pricing.ts PricingTierId; status values
+  // are RAW Stripe subscription statuses (trialing / active / past_due /
+  // canceled / incomplete / unpaid), not the normalized Firestore field.
+  // stripe_event_id is the webhook delivery id — for tracing dupes.
+  subscription_activated: {
+    tier?: string;
+    on_trial?: boolean;
+    trial_days?: number | null;
+    // Account was created by this checkout (deferred pre-pay signup)
+    new_account?: boolean;
+    // false = a resubscribe/repeat checkout on an already-active agent
+    first_activation?: boolean;
+    stripe_event_id?: string;
+  } & GenericEventProperties;
+  trial_converted: {
+    tier?: string;
+    stripe_event_id?: string;
+  } & GenericEventProperties;
+  subscription_status_changed: {
+    from_status?: string | null;
+    to_status?: string;
+    cancel_scheduled?: boolean;
+    stripe_event_id?: string;
+  } & GenericEventProperties;
+  subscription_cancel_scheduled: {
+    tier?: string;
+    days_until_period_end?: number | null;
+    stripe_event_id?: string;
+  } & GenericEventProperties;
+  subscription_cancelled: {
+    tier?: string;
+    days_since_start?: number | null;
+    stripe_event_id?: string;
+  } & GenericEventProperties;
+  subscription_payment_failed: {
+    attempt_count?: number;
+    amount_due_cents?: number;
+    billing_reason?: string;
+    stripe_event_id?: string;
+  } & GenericEventProperties;
+  subscription_tier_changed: {
+    from_tier?: string | null;
+    to_tier?: string;
+    direction?: 'upgrade' | 'downgrade' | 'unchanged';
+    is_founding?: boolean;
+    // false = agent had a card on file but no live subscription, so the
+    // "change" created a fresh subscription rather than swapping a price
+    had_active_subscription?: boolean;
   } & GenericEventProperties;
 };
 
