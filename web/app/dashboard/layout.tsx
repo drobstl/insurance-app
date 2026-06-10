@@ -11,6 +11,7 @@ import AdminGrowthBadge from '../../components/AdminGrowthBadge';
 import MaintenanceBanner from '../../components/MaintenanceBanner';
 import DashboardAssistant from '../../components/DashboardAssistant';
 import DashboardTicker from '../../components/DashboardTicker';
+import MfaGate from '../../components/MfaGate';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
 import { ANALYTICS_EVENTS } from '../../lib/analytics-events';
 import { captureEvent } from '../../lib/posthog';
@@ -1289,7 +1290,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <DashboardProvider>
       <SubscriptionGate>
-        <DashboardShell>{children}</DashboardShell>
+        <MfaGate>
+          <DashboardShell>{children}</DashboardShell>
+        </MfaGate>
       </SubscriptionGate>
     </DashboardProvider>
   );
