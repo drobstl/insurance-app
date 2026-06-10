@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   multiFactor,
   PhoneAuthProvider,
@@ -76,6 +77,7 @@ function toE164(value: string): string | null {
  */
 export default function MfaGate({ children }: { children: React.ReactNode }) {
   const { user, handleLogout } = useDashboard();
+  const searchParams = useSearchParams();
 
   const [done, setDone] = useState(false);
   const [phone, setPhone] = useState('');
@@ -164,12 +166,17 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
   // users are challenged for their SMS code by MfaChallenge at sign-in.)
   if (!MFA_ENABLED || !user || enrolled) return <>{children}</>;
 
+  // `?mfa=setup` forces the enrollment gate before go-live so the flow can be
+  // dry-run on prod/preview ahead of the 15th. An agent who stumbles onto it
+  // just enrolls early — the intended end state — so it's harmless.
+  const forceSetup = searchParams.get('mfa') === 'setup';
+
   // Heads-up window (before go-live): announce, don't enforce. Reads the clock
   // in render (intentionally impure) to decide which side of the fixed go-live
   // instant we're on — safe because the boundary is constant and the gate
   // re-evaluates on every mount/navigation, so there's no stale-state hazard.
   // eslint-disable-next-line react-hooks/purity
-  if (Date.now() < MFA_GO_LIVE) {
+  if (Date.now() < MFA_GO_LIVE && !forceSetup) {
     return (
       <>
         <HeadsUpBanner />
