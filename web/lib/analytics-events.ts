@@ -95,6 +95,18 @@ export const ANALYTICS_EVENTS = {
   SUBSCRIPTION_CANCELLED: 'subscription_cancelled',
   SUBSCRIPTION_PAYMENT_FAILED: 'subscription_payment_failed',
   SUBSCRIPTION_TIER_CHANGED: 'subscription_tier_changed',
+  // Upgrade-intent surface: the tier-gate paywall card (UpgradeToProCard)
+  // shown when a non-Pro agent opens a gated surface. viewed→clicked here,
+  // then the outcome arrives server-side as subscription_tier_changed
+  // (in-app commit) or subscription_activated (Checkout).
+  UPSELL_CARD_VIEWED: 'upsell_card_viewed',
+  UPSELL_CARD_CLICKED: 'upsell_card_clicked',
+  // The sale itself — terminal step of the pre-sale leads funnel.
+  // close_sale_started = the Close Sale ritual surface opened;
+  // lead_converted = POST /api/leads/[id]/convert succeeded, from any
+  // entry (ritual Card 1, manual convert, duplicate-match link/force).
+  CLOSE_SALE_STARTED: 'close_sale_started',
+  LEAD_CONVERTED: 'lead_converted',
 } as const;
 
 export type AnalyticsEventName =
@@ -321,7 +333,10 @@ export type AnalyticsEventPropertiesMap = {
       | 'dashboard_inline'
       | 'mobile_pwa_action_items'
       | 'mobile_pwa_inline'
-      | 'desktop_action_items_readonly';
+      | 'desktop_action_items_readonly'
+      // Card 2 of the Close Sale ritual — welcome text fired while the
+      // client is still on the line (the load-bearing activation moment).
+      | 'close_sale_ritual';
     channel?: 'agent_phone_sms';
   } & GenericEventProperties;
   welcome_send_completed: {
@@ -465,6 +480,31 @@ export type AnalyticsEventPropertiesMap = {
     // false = agent had a card on file but no live subscription, so the
     // "change" created a fresh subscription rather than swapping a price
     had_active_subscription?: boolean;
+  } & GenericEventProperties;
+  // ─── Upgrade-intent (tier-gate paywall card) ─────────────────────────
+  upsell_card_viewed: {
+    surface?: 'leads' | 'activity' | 'calendar' | 'coaching';
+  } & GenericEventProperties;
+  upsell_card_clicked: {
+    surface?: 'leads' | 'activity' | 'calendar' | 'coaching';
+    // 'upgrade_to_pro' = the primary CTA (in-app modal or Checkout);
+    // 'choose_plan' = coaching's Growth-or-Pro link to /pricing;
+    // 'compare_plans' = the footer link to /pricing.
+    cta?: 'upgrade_to_pro' | 'choose_plan' | 'compare_plans';
+  } & GenericEventProperties;
+  // ─── The close (terminal step of the pre-sale funnel) ───────────────
+  close_sale_started: {
+    lead_id?: string;
+  } & GenericEventProperties;
+  lead_converted: {
+    lead_id?: string;
+    client_id?: string;
+    // 'close_sale_ritual' = Card 1 atomic convert+policy; 'manual_convert'
+    // = the panel's plain Convert-to-client confirm; 'link_to_existing' /
+    // 'force_new_after_match' = the duplicate-match prompt's two paths.
+    method?: 'close_sale_ritual' | 'manual_convert' | 'link_to_existing' | 'force_new_after_match';
+    // Ritual only: whether the policy create passed the quality gate.
+    policy_created?: boolean;
   } & GenericEventProperties;
 };
 
