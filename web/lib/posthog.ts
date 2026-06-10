@@ -54,9 +54,13 @@ function markSessionRiskSignal(eventName: AnalyticsEventName): void {
 export function initPostHog(): void {
   if (typeof window === 'undefined' || hasInitialized) return;
 
-  const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+  // .trim() is load-bearing: the value pasted into Vercel can carry a
+  // trailing newline, which bakes into the bundle and makes PostHog
+  // silently drop every event (capture returns 200 even for unknown
+  // tokens). Bit us in prod Mar 23 – Jun 10, 2026.
+  const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim();
   if (!apiKey) return;
-  const configuredHost = process.env.NEXT_PUBLIC_POSTHOG_HOST;
+  const configuredHost = process.env.NEXT_PUBLIC_POSTHOG_HOST?.trim();
   const resolvedApiHost =
     !configuredHost || configuredHost.includes('posthog.com')
       ? '/ingest'
