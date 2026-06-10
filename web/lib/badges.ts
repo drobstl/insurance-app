@@ -258,6 +258,30 @@ export function getNextUnearned(
   return null;
 }
 
+/**
+ * The next badge worth chasing — the unearned badge the agent is closest to
+ * earning (highest progress ratio). Powers the dashboard ticker's
+ * "Next badge: X · N to go" nudge.
+ *
+ * Skips Founding Member: it isn't earnable through activity, so it would
+ * otherwise always surface first for non-founders (it leads BADGE_DEFINITIONS,
+ * so getNextUnearned returns it). Ties resolve to the earlier definition.
+ */
+export function getNextBadgeToChase(
+  stats: AgentAggregates,
+): BadgeDefinition | null {
+  let best: { def: BadgeDefinition; ratio: number } | null = null;
+  for (const def of BADGE_DEFINITIONS) {
+    if (def.id === 'founding-member') continue;
+    if (def.check(stats)) continue;
+    const ratio = def.target > 0 ? def.current(stats) / def.target : 0;
+    if (best === null || ratio > best.ratio) {
+      best = { def, ratio };
+    }
+  }
+  return best ? best.def : null;
+}
+
 export function getTotalBadgeCount(): number {
   return BADGE_DEFINITIONS.length;
 }
