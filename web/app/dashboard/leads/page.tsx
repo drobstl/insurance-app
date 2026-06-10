@@ -29,6 +29,8 @@ import {
 import type { LeadScore } from '../../../lib/lead-assessment';
 import { LeadTempChip } from '../../../components/LeadTempChip';
 import { parseLeadFile } from '../../../lib/lead-csv-parse';
+import { captureEvent } from '../../../lib/posthog';
+import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 
 interface Lead {
   id: string;
@@ -217,6 +219,9 @@ function LeadsPageInner() {
   useEffect(() => {
     if (searchParams?.get('call') !== '1') return;
     setView('queue');
+    // queue_count omitted — leads are usually still loading when the
+    // deep link is consumed, so a count here would read as 0.
+    captureEvent(ANALYTICS_EVENTS.CALL_MODE_STARTED, { entry: 'deep_link' });
     const params = new URLSearchParams(searchParams.toString());
     params.delete('call');
     const qs = params.toString();
@@ -985,6 +990,22 @@ function LeadsPageInner() {
     );
   }, [filteredLeads, queueLeads, sortKey]);
 
+  // ── Funnel: list viewed ──
+  // Once per visit, after the first snapshot lands so the counts are
+  // real. capture_pageview is off in lib/posthog.ts, so this is the
+  // funnel's entry event, not a duplicate of an autocaptured pageview.
+  // Declared below queueLeads — the deps array reads it during render
+  // (same TDZ trap the dialAttemptsForLeadRef note above warns about).
+  const trackedListViewRef = useRef(false);
+  useEffect(() => {
+    if (loading || trackedListViewRef.current) return;
+    trackedListViewRef.current = true;
+    captureEvent(ANALYTICS_EVENTS.LEAD_LIST_VIEWED, {
+      lead_count: leads.length,
+      queue_count: queueLeads.length,
+    });
+  }, [loading, leads.length, queueLeads.length]);
+
   // Tap-to-call — used on the queue rows. US-only — raw digits, the
   // OS dialer handles country-code interpretation. Sets the
   // pending-outcome target so the inline chip group appears under
@@ -1041,6 +1062,7 @@ function LeadsPageInner() {
   // fall through to the standalone detail route the way the lead list
   // has worked all along.
   const handleRowSelect = useCallback((leadId: string) => {
+    captureEvent(ANALYTICS_EVENTS.LEAD_OPENED, { lead_id: leadId, source: 'call_mode_list' });
     const isDesktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches;
     if (isDesktop) {
       setSelectedLeadIdInUrl(leadId);
@@ -1065,6 +1087,14 @@ function LeadsPageInner() {
     const target = phoneOverride || pickQueueDialNumber(lead);
     const digits = target.replace(/\D/g, '');
     if (digits.length < 7) return;
+    // Funnel: one event per dial fired from a queue row. Desktop hands
+    // the actual tel: off to LeadDetailPanel (pendingDial) — that path
+    // is counted HERE, not in the panel, to avoid double-counting.
+    captureEvent(ANALYTICS_EVENTS.LEAD_CALL_INITIATED, {
+      lead_id: lead.id,
+      source: 'queue_row',
+      dial_count_before: lead.dialLog?.length ?? 0,
+    });
     const isDesktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches;
     if (isDesktop) {
       // Desktop two-pane: hand off the dial to LeadDetailPanel — it
@@ -1114,7 +1144,10 @@ function LeadsPageInner() {
   } | null>(null);
   const advanceAfterCloseSale = useRef(false);
 
-  const handleQueueLogOutcome = useCallback(async (leadId: string, outcome: string) => {
+  // `outcome` is the literal union (not string) so the funnel event
+  // below typechecks against call_outcome_recorded's outcome enum —
+  // the early 'booked' return narrows it to the six POSTable values.
+  const handleQueueLogOutcome = useCallback(async (leadId: string, outcome: NonNullable<Lead['lastDialOutcome']>) => {
     if (!user) return;
     if (outcome === 'booked') {
       const lead = leads.find((l) => l.id === leadId);
@@ -1146,6 +1179,11 @@ function LeadsPageInner() {
       }
       setPendingOutcomeLeadId(null);
       setPendingOutcomePhone(null);
+      captureEvent(ANALYTICS_EVENTS.CALL_OUTCOME_RECORDED, {
+        lead_id: leadId,
+        outcome,
+        source: 'queue_inline',
+      });
       // Live snapshot picks up the new lastDialAt/lastDialOutcome
       // and the queue useMemo re-sorts on the next render. Booked /
       // not-interested / wrong-number leads drop off the queue
@@ -1423,7 +1461,13 @@ function LeadsPageInner() {
                       </button>
                     )}
                     <button
-                      onClick={() => setView('queue')}
+                      onClick={() => {
+                        captureEvent(ANALYTICS_EVENTS.CALL_MODE_STARTED, {
+                          entry: 'start_calling',
+                          queue_count: queueLeads.length,
+                        });
+                        setView('queue');
+                      }}
                       disabled={queueLeads.length === 0}
                       className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg bg-[#44bbaa] text-white hover:bg-[#3aa996] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
@@ -1454,7 +1498,16 @@ function LeadsPageInner() {
                 </span>
               </button>
               <button
-                onClick={() => setView('queue')}
+                onClick={() => {
+                  // Guard: re-clicking the active segment isn't an entry.
+                  if (view !== 'queue') {
+                    captureEvent(ANALYTICS_EVENTS.CALL_MODE_STARTED, {
+                      entry: 'call_queue_tab',
+                      queue_count: queueLeads.length,
+                    });
+                  }
+                  setView('queue');
+                }}
                 className={`px-3.5 py-1.5 text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
                   view === 'queue' ? 'bg-[#44bbaa] text-white' : 'text-[#707070] hover:text-[#005851]'
                 }`}
@@ -1784,7 +1837,15 @@ function LeadsPageInner() {
               single-column layout with the inline outcome chip flow
               under each row. */}
           {iaEnabled && view === 'calendar' ? (
-            <LeadsCalendar onGoToQueue={() => setView('queue')} />
+            <LeadsCalendar
+              onGoToQueue={() => {
+                captureEvent(ANALYTICS_EVENTS.CALL_MODE_STARTED, {
+                  entry: 'calendar',
+                  queue_count: queueLeads.length,
+                });
+                setView('queue');
+              }}
+            />
           ) : (
           <div className={view === 'queue' && !loading && queueLeads.length > 0 ? 'md:flex md:gap-4 md:items-start' : ''}>
           {/* List rail. Desktop two-pane: sticky to the top of the
@@ -2061,7 +2122,10 @@ function LeadsPageInner() {
                       <tr
                         key={lead.id}
                         className="border-b border-[#f1f1f1] hover:bg-[#f8f8f8] cursor-pointer transition-colors"
-                        onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                        onClick={() => {
+                          captureEvent(ANALYTICS_EVENTS.LEAD_OPENED, { lead_id: lead.id, source: 'all_list' });
+                          router.push(`/dashboard/leads/${lead.id}`);
+                        }}
                       >
                         <td className="px-5 py-3.5 text-sm font-semibold text-[#000000]">
                           <div className="flex items-center gap-2 flex-wrap">
