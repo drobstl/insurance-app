@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+    // .trim() matches web/lib/posthog.ts — a trailing newline in the
+    // Vercel env value made PostHog 200-and-drop everything (Mar–Jun 2026).
+    const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim();
     if (!apiKey) {
       return NextResponse.json({ ok: false, reason: 'missing_api_key' }, { status: 200 });
     }
