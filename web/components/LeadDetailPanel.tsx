@@ -16,12 +16,16 @@ import {
 import { db } from '../firebase';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import AppointmentPicker from './AppointmentPicker';
+import DoNotContactToggle from './DoNotContactToggle';
 import { DEFAULT_DIAL_SCRIPT, renderDialScript } from '../lib/dial-script';
 import SendConfirmationDrawer from './SendConfirmationDrawer';
 import {
   getAppointmentOutcomeChip,
   isAppointmentOutcomeChipStatus,
 } from '../lib/appointment-outcome-chip';
+import { DIMENSION_MAX, type LeadScore } from '../lib/lead-assessment';
+import { LeadTempChip } from './LeadTempChip';
+import { isDerivedLeadCode } from '../lib/lead-code-derive';
 
 interface LeadPhone {
   number: string;
@@ -44,6 +48,7 @@ interface Lead {
   appDownloadedAt?: string | null;
   assessmentAnswers?: Record<string, string>;
   assessmentCompletedAt?: Timestamp | null;
+  leadScore?: LeadScore | null;
   convertedToClientId?: string | null;
   // Extracted-from-PDF fields (Chunk 2). Also agent-editable on the
   // detail page when missing — e.g. for manual leads, or to correct
@@ -369,16 +374,13 @@ interface AppointmentEntry {
 // `web/app/api/mobile/lead-content/route.ts`. If/when per-agent
 // assessment overrides ship, swap this for a fetch.
 const DEFAULT_ASSESSMENT_PROMPTS: Record<string, string> = {
-  q1: 'Do you already have enough life insurance in place to fully protect your family?',
-  q2: 'Would your family be financially secure without your income tomorrow?',
-  q3: 'Have you already paid off all your major debts, including your mortgage?',
-  q4: 'Would your loved ones have plenty of money set aside for final expenses?',
-  q5: 'Do you already have coverage that would replace your income for several years?',
-  q6: 'Have you already reviewed how much life insurance your family actually needs?',
-  q7: 'Is protecting your family with additional coverage not a priority right now?',
-  q8: 'Would leaving your family with no financial burden be unnecessary because everything is already covered?',
-  q9: 'Do you already have a policy that fits your budget and gives you peace of mind?',
-  q10: 'Is there nothing about your current situation that would make life insurance worth reviewing?',
+  q1: "Would you say you're the kind of person who plans ahead for things most people don't want to think about?",
+  q2: 'Has something recently changed that got you looking into this now?',
+  q3: "If you weren't here tomorrow, would your family be able to keep the home without you?",
+  q4: "Have you ever sat down and really thought through what your family's financial life looks like without you?",
+  q5: 'If you had to write down today what your family would actually receive financially if something happened to you, could you do it without looking?',
+  q6: 'Are you confident your current setup still fits where your family is today?',
+  q7: 'Are you willing to walk away from our conversation with a clear plan you commit to follow?',
 };
 
 const ANSWER_LABELS: Record<string, string> = {
@@ -386,6 +388,12 @@ const ANSWER_LABELS: Record<string, string> = {
   no: 'No',
   not_sure: 'Not sure',
 };
+
+const DIMENSION_LABELS: Array<{ key: keyof typeof DIMENSION_MAX; label: string }> = [
+  { key: 'urgency', label: 'Urgency' },
+  { key: 'need', label: 'Need' },
+  { key: 'intent', label: 'Intent' },
+];
 
 const AUTOSAVE_DEBOUNCE_MS = 600;
 
@@ -1152,27 +1160,48 @@ export default function LeadDetailPanel({
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-[#000000]">{lead.name || 'Unnamed lead'}</h1>
-          <p className="text-sm text-[#707070] mt-1">
-            {lead.phone}
-            {lead.formType && lead.formType !== 'Manual' && (
-              <span className="ml-2 inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
-                {lead.formType}
-              </span>
+      <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] overflow-hidden mb-6">
+        {/* Identity band — name + temperature + lead code */}
+        <div className="px-5 py-4 border-b-2 border-[#1A1A1A] flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-2xl font-bold text-[#000000]">{lead.name || 'Unnamed lead'}</h1>
+              {lead.leadScore && <LeadTempChip temperature={lead.leadScore.temperature} />}
+              {lead.formType && lead.formType !== 'Manual' && (
+                <span className="inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
+                  {lead.formType}
+                </span>
+              )}
+              {lead.convertedToClientId && (
+                <span className="inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
+                  Converted to client
+                </span>
+              )}
+              {mostRecentPastOutcomeChip && (
+                <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${mostRecentPastOutcomeChip.classes}`}>
+                  {mostRecentPastOutcomeChip.label}
+                </span>
+              )}
+            </div>
+            {lead.leadScore && (
+              <p className="text-[13px] text-[#374151] mt-1 leading-snug">{lead.leadScore.summary}</p>
             )}
-            {lead.convertedToClientId && (
-              <span className="ml-2 inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
-                Converted to client
-              </span>
+          </div>
+          <div className="text-right shrink-0">
+            <div className="font-mono text-base font-bold text-[#005851]">{lead.leadCode}</div>
+            <div className="text-[10px] uppercase tracking-wider text-[#9CA3AF] font-semibold">
+              {lead.leadCode && isDerivedLeadCode(lead.leadCode) ? 'code = phone' : 'lead code'}
+            </div>
+            {lead.phone && (
+              <div className="mt-2 flex justify-end">
+                <DoNotContactToggle phoneE164={lead.phone} user={user} size="sm" />
+              </div>
             )}
-            {mostRecentPastOutcomeChip && (
-              <span className={`ml-2 inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${mostRecentPastOutcomeChip.classes}`}>
-                {mostRecentPastOutcomeChip.label}
-              </span>
-            )}
-          </p>
+          </div>
+        </div>
+
+        {/* Action toolbar — call panel (carries dial count + last outcome), then book / close */}
+        <div className="px-5 pt-4 pb-3 space-y-3">
           {/* Phones list — one row per number with its own Call button,
               dial-count badge, last-outcome chip, and a label dropdown.
               Falls back to the legacy single `phone` field when phones[]
@@ -1233,11 +1262,11 @@ export default function LeadDetailPanel({
                 <button
                   type="button"
                   onClick={() => setShowConvertConfirm(true)}
+                  title="Paper app or async e-app — upload the PDF later from the new client's profile"
                   className="text-[#005851] font-semibold underline decoration-dotted underline-offset-2 hover:text-[#004440]"
                 >
                   Convert without PDF →
-                </button>{' '}
-                <span className="text-[#9CA3AF]">(paper app or async e-app — upload the PDF later from the new client&apos;s profile)</span>
+                </button>
               </p>
             </div>
           )}
@@ -1247,11 +1276,31 @@ export default function LeadDetailPanel({
             </div>
           )}
         </div>
-        <div className="text-right">
-          <div className="font-mono text-lg tracking-[0.25em] font-bold text-[#005851] bg-[#daf3f0]/50 px-3 py-1.5 rounded-[5px] border border-[#45bcaa]/40">
-            {lead.leadCode}
-          </div>
-          <p className="text-[10px] uppercase tracking-wider text-[#707070] mt-1 font-semibold">Lead code</p>
+
+        {/* Status footer — lifecycle facts at a glance */}
+        <div className="px-5 py-2.5 bg-[#f8faf9] border-t border-[#e5e7eb] flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#707070]">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="font-semibold uppercase tracking-wider text-[10px] text-[#9CA3AF]">App</span>
+            {lead.appDownloadedAt ? (
+              <span className="text-[#005851] font-semibold">✓ {new Date(lead.appDownloadedAt).toLocaleDateString()}</span>
+            ) : (
+              <span>Not yet</span>
+            )}
+          </span>
+          <span className="text-[#d0d0d0]">·</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="font-semibold uppercase tracking-wider text-[10px] text-[#9CA3AF]">Assessment</span>
+            {lead.assessmentCompletedAt ? (
+              <span className="text-[#005851] font-semibold">✓ {lead.assessmentCompletedAt.toDate().toLocaleDateString()}</span>
+            ) : (
+              <span>Not yet</span>
+            )}
+          </span>
+          <span className="text-[#d0d0d0]">·</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="font-semibold uppercase tracking-wider text-[10px] text-[#9CA3AF]">Created</span>
+            <span className="text-[#374151] font-semibold">{lead.createdAt ? lead.createdAt.toDate().toLocaleDateString() : '—'}</span>
+          </span>
         </div>
       </div>
 
@@ -1354,23 +1403,6 @@ export default function LeadDetailPanel({
         );
       })()}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
-        <StatusCard
-          label="Downloaded app"
-          ok={Boolean(lead.appDownloadedAt)}
-          detail={lead.appDownloadedAt ? new Date(lead.appDownloadedAt).toLocaleDateString() : 'Not yet'}
-        />
-        <StatusCard
-          label="Completed assessment"
-          ok={Boolean(lead.assessmentCompletedAt)}
-          detail={lead.assessmentCompletedAt ? lead.assessmentCompletedAt.toDate().toLocaleDateString() : 'Not yet'}
-        />
-        <StatusCard
-          label="Created"
-          ok
-          detail={lead.createdAt ? lead.createdAt.toDate().toLocaleDateString() : '—'}
-        />
-      </div>
 
       {/* Extracted-from-PDF fields. Renders the union of everything any
           of the three lead-form templates can supply. Sections collapse
@@ -1771,7 +1803,33 @@ export default function LeadDetailPanel({
         </div>
       </div>
 
-      {/* Assessment answers */}
+      {/* Temperature score breakdown — per-dimension detail. The glanceable
+          headline + dial live at the top of the profile. */}
+      {lead.leadScore && (
+        <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5 mb-6">
+          <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider mb-3">
+            Score breakdown
+          </h3>
+          <div className="space-y-2">
+            {DIMENSION_LABELS.map(({ key, label }) => {
+              const val = lead.leadScore!.dimensions[key] ?? 0;
+              const max = DIMENSION_MAX[key];
+              const pct = max ? Math.round((val / max) * 100) : 0;
+              return (
+                <div key={key} className="flex items-center gap-3">
+                  <span className="w-16 text-xs font-semibold text-[#707070]">{label}</span>
+                  <div className="flex-1 h-2 bg-[#E5E7EB] rounded-full overflow-hidden">
+                    <div className="h-2 bg-[#3DD6C3] rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="w-9 text-right text-xs font-bold text-[#374151]">
+                    {val}/{max}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {lead.assessmentAnswers && Object.keys(lead.assessmentAnswers).length > 0 && (
         <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5 mb-6">
           <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider mb-3">
@@ -1786,14 +1844,17 @@ export default function LeadDetailPanel({
             {Object.entries(lead.assessmentAnswers).map(([qid, ans]) => {
               const prompt = DEFAULT_ASSESSMENT_PROMPTS[qid] || qid;
               const label = ANSWER_LABELS[ans] || ans;
-              const gap = ans === 'no' || ans === 'not_sure';
+              // Highlight "No"/"Not sure" as worth raising on the call. (The
+              // reframed questions are mixed-polarity, so this is an
+              // attention cue, not a literal coverage-gap claim.)
+              const flag = ans === 'no' || ans === 'not_sure';
               return (
                 <li key={qid} className="text-sm">
                   <span className="text-[#374151]">{prompt}</span>
                   <div className={`ml-4 mt-1 inline-block px-2 py-0.5 text-xs font-bold rounded ${
-                    gap ? 'bg-[#FEF3C7] text-[#92400E]' : 'bg-[#daf3f0] text-[#005851]'
+                    flag ? 'bg-[#FEF3C7] text-[#92400E]' : 'bg-[#daf3f0] text-[#005851]'
                   }`}>
-                    {label}{gap && ' — gap'}
+                    {label}{flag && ' — follow up'}
                   </div>
                 </li>
               );
@@ -2503,11 +2564,4 @@ export default function LeadDetailPanel({
   );
 }
 
-function StatusCard({ label, ok, detail }: { label: string; ok: boolean; detail: string }) {
-  return (
-    <div className={`rounded-[5px] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] px-4 py-3 ${ok ? 'bg-[#daf3f0]/40' : 'bg-white'}`}>
-      <p className="text-[10px] font-bold uppercase tracking-wider text-[#707070]">{label}</p>
-      <p className={`text-sm font-semibold mt-1 ${ok ? 'text-[#005851]' : 'text-[#9CA3AF]'}`}>{detail}</p>
-    </div>
-  );
-}
+// (StatusCard removed — the lead detail screen now uses a slim inline status strip)

@@ -3,7 +3,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
-import { isFreeTier } from '../../../../lib/tier-gating';
+import { isClientOutreachPaused } from '../../../../lib/tier-gating';
 import { buildHolidayCardMessage, resolveClientLanguage, type HolidayCardKey } from '../../../../lib/client-language';
 import {
   getPushPermissionStatus,
@@ -115,8 +115,9 @@ export async function GET(req: NextRequest) {
     for (const agentDoc of agentsSnap.docs) {
       const agentData = agentDoc.data();
 
-      // Free tier is engine-paused: skip client-facing automated outreach.
-      if (isFreeTier(agentData.membershipTier as string | undefined)) continue;
+      // Skip when automated outreach is paused for this agent — Free tier,
+      // or an explicit hold (e.g. a freshly-imported, un-reviewed book).
+      if (isClientOutreachPaused(agentData)) continue;
 
       // Skip agents who have opted out of automated holiday cards.
       // Default is opted-in (field absent or true).

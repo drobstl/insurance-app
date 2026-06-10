@@ -1,19 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { consumeGoogleOAuthState, getGoogleDriveIntegration, upsertGoogleDriveTokens } from '../../../../../lib/google-drive-store';
 import { exchangeGoogleCodeForTokens } from '../../../../../lib/google-oauth';
+import {
+  buildGoogleCallbackUrl,
+  GOOGLE_DRIVE_CALLBACK_PATH,
+  resolveCanonicalOrigin,
+} from '../../../../../lib/oauth-redirect';
 
 function callbackRedirect(req: NextRequest, returnTo: string | undefined, params: Record<string, string>): URL {
-  const base = new URL(req.url);
-  const target = new URL(returnTo || '/dashboard', base.origin);
+  const target = new URL(returnTo || '/dashboard', resolveCanonicalOrigin(req.url));
   for (const [k, v] of Object.entries(params)) {
     target.searchParams.set(k, v);
   }
   return target;
-}
-
-function getCallbackUrl(req: NextRequest): string {
-  const url = new URL(req.url);
-  return `${url.origin}/api/integrations/google/callback`;
 }
 
 function readGoogleEmailFromIdToken(idToken?: string): string | undefined {
@@ -66,7 +65,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const prior = await getGoogleDriveIntegration(consumed.agentId);
     const exchanged = await exchangeGoogleCodeForTokens({
       code,
-      redirectUri: getCallbackUrl(req),
+      redirectUri: buildGoogleCallbackUrl(req.url, GOOGLE_DRIVE_CALLBACK_PATH),
     });
     const googleEmail = readGoogleEmailFromIdToken(exchanged.idToken);
 

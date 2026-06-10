@@ -8,34 +8,40 @@ import { getAdminFirestore, getAdminStorage } from '../../../../lib/firebase-adm
 /**
  * GET /api/cron/lead-pdf-archive
  *
- * Daily cron — for compliance posture. Lead PDFs hold PII (name, DOB,
- * address, mortgage details, sometimes SSN). Holding them indefinitely
- * for leads that have gone cold isn't great hygiene. After 21 days of
- * inactivity we delete the raw PDF from Storage and stamp the lead doc;
- * the extracted fields stay so the agent never loses what they need to
- * work the lead.
+ * Frequent cron — sensitive-data hygiene. Uploaded application PDFs can
+ * contain SSNs, bank-draft (routing/account) info, and health answers.
+ * Agents keep their own copy of every application locally, so AFL has no
+ * reason to hold the raw file beyond the moment extraction needs it. We
+ * delete the raw PDF from Storage shortly after upload and stamp the lead
+ * doc; the EXTRACTED fields stay so the agent never loses what they need
+ * to work the lead.
  *
- * "Inactivity" = none of the following in the trailing 21 days:
- *   - lead.lastDialAt
- *   - lead.notesUpdatedAt
- *   - lead.monthlyMortgageAmountUpdatedAt
- *   - any appointment (any status) created/touched on the lead
+ * Deletion rule: delete the raw PDF once the lead is older than
+ * MIN_AGE_MINUTES. That age is purely a safety margin so multi-page /
+ * async (off-Vercel) extraction has fully finished using the file before
+ * we touch it — extraction itself takes minutes, so 30 is generous. A
+ * lead doc only exists once its OWN extraction produced it, so this never
+ * races a single lead's extraction; the margin guards the shared PDF
+ * object behind a multi-page batch whose pages become leads over a short
+ * window.
  *
- * Hard-skip cases:
- *   - lead.convertedToClientId set — converted leads keep their PDF
- *     indefinitely as a historical record.
- *   - lead has a future appointment scheduled — actively working.
- *   - lead.sourceFileStoragePath missing — legacy lead pre-2026-05-16;
- *     keep PDF until backfilled.
+ * Skip cases:
+ *   - lead.sourceFileUrl missing — already deleted or never had a PDF.
+ *   - lead.sourceFileStoragePath missing — legacy lead; can't reach the object.
+ *   - lead.createdAt missing or younger than MIN_AGE_MINUTES — too soon.
  *
- * Auth: CRON_SECRET bearer (matches the welcome-action-item-expiry
- * pattern). Pass `?dryRun=1` to log what would archive without
- * actually deleting — safe to run any time.
+ * This does NOT touch the extraction engine (extractors, page-map,
+ * prompts, schema, or the off-Vercel processor). It only deletes the
+ * stored file afterward.
  *
- * Schedule (vercel.json): daily at 08:00 UTC.
+ * Auth: CRON_SECRET bearer. Pass `?dryRun=1` to log what WOULD delete
+ * without deleting — run it first after deploy to confirm the targets.
+ *
+ * Schedule (vercel.json): every 30 min. With a 30-min age floor that's a
+ * max raw-PDF exposure window of ~1 hour.
  */
-const INACTIVITY_DAYS = 21;
-const INACTIVITY_MS = INACTIVITY_DAYS * 24 * 60 * 60 * 1000;
+const MIN_AGE_MINUTES = 30;
+const MIN_AGE_MS = MIN_AGE_MINUTES * 60 * 1000;
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
@@ -45,18 +51,14 @@ export async function GET(req: NextRequest) {
   }
 
   // Defense in depth — when lead mode is disabled the dashboard isn't
-  // creating new lead docs and the existing leads are unreachable from
-  // the UI, so the cron has nothing useful to do. Skip cleanly with a
-  // structured response rather than scanning every agent's leads
-  // subcollection for a wasted no-op.
+  // creating new lead docs, so there's nothing to clean up.
   if (process.env.NEXT_PUBLIC_LEAD_MODE_ENABLED !== 'true') {
     return NextResponse.json({ skipped: true, reason: 'lead_mode_disabled' });
   }
 
   const dryRun = req.nextUrl.searchParams.get('dryRun') === '1';
   const startedAt = Date.now();
-  const now = Date.now();
-  const cutoffMs = now - INACTIVITY_MS;
+  const cutoffMs = Date.now() - MIN_AGE_MS;
 
   try {
     const db = getAdminFirestore();
@@ -65,143 +67,64 @@ export async function GET(req: NextRequest) {
 
     let agentsScanned = 0;
     let leadsScanned = 0;
-    let pdfsArchived = 0;
-    let skippedConverted = 0;
-    let skippedFutureAppt = 0;
-    let skippedActive = 0;
+    let pdfsDeleted = 0;
+    let skippedTooYoung = 0;
     let skippedNoStoragePath = 0;
+    let skippedNoCreatedAt = 0;
     let storageDeleteFailures = 0;
 
     for (const agentDoc of agentsSnap.docs) {
       const agentId = agentDoc.id;
       agentsScanned += 1;
 
-      // ── Pull future appointments once per agent so we don't query
-      //    Firestore per lead. status filter intentionally omitted —
-      //    a "scheduled in the future" check is conservative enough; a
-      //    cancelled future appt also implies recent agent activity.
-      let futureApptLeadIds: Set<string> = new Set();
-      try {
-        const apptSnap = await db
-          .collection('agents').doc(agentId)
-          .collection('appointments')
-          .where('scheduledAt', '>', Timestamp.fromMillis(now))
-          .get();
-        futureApptLeadIds = new Set(
-          apptSnap.docs
-            .map((d) => (d.data() as { leadId?: string }).leadId)
-            .filter((x): x is string => typeof x === 'string'),
-        );
-      } catch (apptErr) {
-        console.error('[lead-pdf-archive] future-appt query failed', {
-          agentId,
-          error: apptErr instanceof Error ? apptErr.message : String(apptErr),
-        });
-        // Fail-safe: if we can't tell whether the lead has a future
-        // appointment, don't archive any of this agent's leads on this
-        // run. Cron will retry tomorrow.
-        continue;
-      }
-
-      // ── Build map of latest appointment touch per lead (any status,
-      //    any time) so we treat reschedule/cancel as recent activity.
-      const latestApptTouchByLead = new Map<string, number>();
-      try {
-        const allApptSnap = await db
-          .collection('agents').doc(agentId)
-          .collection('appointments')
-          .get();
-        for (const d of allApptSnap.docs) {
-          const data = d.data() as {
-            leadId?: string;
-            createdAt?: Timestamp;
-            scheduledAt?: Timestamp;
-          };
-          if (!data.leadId) continue;
-          const t = Math.max(
-            data.createdAt?.toMillis() ?? 0,
-            data.scheduledAt?.toMillis() ?? 0,
-          );
-          const prev = latestApptTouchByLead.get(data.leadId) ?? 0;
-          if (t > prev) latestApptTouchByLead.set(data.leadId, t);
-        }
-      } catch (allApptErr) {
-        console.error('[lead-pdf-archive] all-appt query failed', {
-          agentId,
-          error: allApptErr instanceof Error ? allApptErr.message : String(allApptErr),
-        });
-        continue;
-      }
-
-      // ── Walk leads.
       const leadsSnap = await db.collection('agents').doc(agentId).collection('leads').get();
       for (const leadDoc of leadsSnap.docs) {
         leadsScanned += 1;
         const lead = leadDoc.data() as {
           sourceFileUrl?: string;
           sourceFileStoragePath?: string;
-          convertedToClientId?: string | null;
-          lastDialAt?: Timestamp;
-          notesUpdatedAt?: Timestamp;
-          monthlyMortgageAmountUpdatedAt?: Timestamp;
           createdAt?: Timestamp;
         };
 
-        // Already archived or never had a PDF.
+        // Already deleted or never had a PDF.
         if (!lead.sourceFileUrl) continue;
-        // Converted leads keep their PDF.
-        if (lead.convertedToClientId) {
-          skippedConverted += 1;
-          continue;
-        }
-        // Active — future appointment.
-        if (futureApptLeadIds.has(leadDoc.id)) {
-          skippedFutureAppt += 1;
-          continue;
-        }
-        // Legacy lead without storage path; can't reach the object.
+        // Legacy lead without a storage path; can't reach the object.
         if (!lead.sourceFileStoragePath) {
           skippedNoStoragePath += 1;
           continue;
         }
-
-        const activityMs = Math.max(
-          lead.lastDialAt?.toMillis() ?? 0,
-          lead.notesUpdatedAt?.toMillis() ?? 0,
-          lead.monthlyMortgageAmountUpdatedAt?.toMillis() ?? 0,
-          lead.createdAt?.toMillis() ?? 0,
-          latestApptTouchByLead.get(leadDoc.id) ?? 0,
-        );
-        if (activityMs === 0) {
-          // No timestamps at all — can't safely compute inactivity.
-          // Treat as active out of caution.
-          skippedActive += 1;
+        // No createdAt — can't verify age; keep it (safer than deleting a
+        // possibly-fresh file before extraction has finished).
+        const createdMs = lead.createdAt?.toMillis() ?? 0;
+        if (createdMs === 0) {
+          skippedNoCreatedAt += 1;
           continue;
         }
-        if (activityMs > cutoffMs) {
-          skippedActive += 1;
+        // Too soon — leave it until extraction has safely finished.
+        if (createdMs > cutoffMs) {
+          skippedTooYoung += 1;
           continue;
         }
 
-        const daysInactive = Math.floor((now - activityMs) / (24 * 60 * 60 * 1000));
+        const ageMinutes = Math.floor((Date.now() - createdMs) / 60000);
 
         if (dryRun) {
-          console.log('[lead-pdf-archive] would archive', {
+          console.log('[lead-pdf-archive] would delete', {
             agentId,
             leadId: leadDoc.id,
-            daysInactive,
+            ageMinutes,
             storagePath: lead.sourceFileStoragePath,
           });
-          pdfsArchived += 1;
+          pdfsDeleted += 1;
           continue;
         }
 
-        // ── Delete storage object (best-effort; cron is idempotent on retry).
+        // ── Delete the storage object (best-effort; idempotent on retry).
         try {
           await bucket.file(lead.sourceFileStoragePath).delete();
         } catch (delErr) {
           const msg = delErr instanceof Error ? delErr.message : String(delErr);
-          // 404 is fine — object already gone. Anything else logged.
+          // 404 is fine — object already gone. Anything else: log + retry next run.
           if (!/404|No such object/i.test(msg)) {
             storageDeleteFailures += 1;
             console.error('[lead-pdf-archive] storage delete failed', {
@@ -210,13 +133,13 @@ export async function GET(req: NextRequest) {
               storagePath: lead.sourceFileStoragePath,
               error: msg,
             });
-            // Skip the doc update so we retry next run — don't want a
+            // Don't stamp the doc — retry next run rather than leave a
             // dangling archivedAt without the object actually gone.
             continue;
           }
         }
 
-        // ── Stamp the lead doc.
+        // ── Stamp the lead doc (drop the URL, record the deletion time).
         try {
           await leadDoc.ref.update({
             sourceFileUrl: FieldValue.delete(),
@@ -230,12 +153,8 @@ export async function GET(req: NextRequest) {
           });
           continue;
         }
-        pdfsArchived += 1;
-        console.log('[lead-pdf-archive] archived', {
-          agentId,
-          leadId: leadDoc.id,
-          daysInactive,
-        });
+        pdfsDeleted += 1;
+        console.log('[lead-pdf-archive] deleted', { agentId, leadId: leadDoc.id, ageMinutes });
       }
     }
 
@@ -244,11 +163,10 @@ export async function GET(req: NextRequest) {
       dryRun,
       agentsScanned,
       leadsScanned,
-      pdfsArchived,
-      skippedConverted,
-      skippedFutureAppt,
-      skippedActive,
+      pdfsDeleted,
+      skippedTooYoung,
       skippedNoStoragePath,
+      skippedNoCreatedAt,
       storageDeleteFailures,
       elapsedMs: Date.now() - startedAt,
     });

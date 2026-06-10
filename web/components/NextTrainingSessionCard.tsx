@@ -6,7 +6,10 @@ import {
   buildGoogleCalendarAddUrl,
   buildIcsDataUrl,
   describeRelativeToNow,
+  formatSessionDateLabel,
+  getActiveTrainingBlackout,
   getNextTrainingSession,
+  hasSessionStarted,
   isSessionLive,
   TRAINING_PITCH_LINE,
 } from '../lib/training-sessions';
@@ -44,7 +47,9 @@ export default function NextTrainingSessionCard() {
   }, []);
 
   const session = useMemo(() => getNextTrainingSession(now), [now]);
+  const blackout = useMemo(() => getActiveTrainingBlackout(now), [now]);
   const live = isSessionLive(session, now);
+  const started = hasSessionStarted(session, now);
   const relative = describeRelativeToNow(session, now);
 
   const googleUrl = useMemo(
@@ -60,9 +65,19 @@ export default function NextTrainingSessionCard() {
 
   if (!meetingUrl) return null;
 
-  const dayLabel = session.slot.dayLabel;
   const timeLabel = session.slot.timeLabel;
   const tzShort = session.slot.timeZoneShort;
+
+  // Three states drive the copy:
+  //   - blackout active   → "Training on pause" + resume date, no Join
+  //   - live, started     → "LIVE NOW"
+  //   - live, not started → "STARTING SOON" (inside the 10-min pre-window)
+  const statusSuffix = live ? (started ? ' · LIVE NOW' : ' · STARTING SOON') : '';
+  const eyebrow = blackout ? 'Training on pause' : `Next training session${statusSuffix}`;
+  const headline = blackout
+    ? `Back live ${formatSessionDateLabel(session)} at ${timeLabel} ${tzShort}`
+    : `${session.slot.dayLabel} at ${timeLabel} ${tzShort}`;
+  const subNote = blackout ? blackout.note : TRAINING_PITCH_LINE;
 
   return (
     <div className="mb-8 rounded-xl border-2 border-[#44bbaa] bg-gradient-to-br from-white to-[#f0fbf9] p-5 shadow-[0_2px_12px_rgba(68,187,170,0.18)]">
@@ -75,34 +90,36 @@ export default function NextTrainingSessionCard() {
               </svg>
             </span>
             <p className="text-[10px] uppercase tracking-wider font-bold text-[#005851]">
-              Next training session {live ? '· LIVE NOW' : ''}
+              {eyebrow}
             </p>
           </div>
           <p className="text-xl font-bold text-[#0D4D4D]">
-            {dayLabel} at {timeLabel} {tzShort}
+            {headline}
             <span className="ml-2 text-sm font-medium text-[#5f5f5f]">· {relative}</span>
           </p>
           <p className="mt-1 text-sm text-[#4f4f4f] italic">
-            {TRAINING_PITCH_LINE}
+            {subNote}
           </p>
         </div>
 
         <div className="flex flex-col gap-2 shrink-0 md:items-end">
-          <a
-            href={meetingUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-[5px] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] text-sm font-bold transition-colors ${
-              live
-                ? 'bg-[#005851] text-white hover:bg-[#003e3a]'
-                : 'bg-[#44bbaa] text-white hover:bg-[#3aa092]'
-            }`}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-            {live ? 'Join now' : 'Join when live'}
-          </a>
+          {!blackout && (
+            <a
+              href={meetingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-[5px] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] text-sm font-bold transition-colors ${
+                live
+                  ? 'bg-[#005851] text-white hover:bg-[#003e3a]'
+                  : 'bg-[#44bbaa] text-white hover:bg-[#3aa092]'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              {live ? 'Join now' : 'Join when live'}
+            </a>
+          )}
 
           <div className="relative">
             <button

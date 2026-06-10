@@ -3,8 +3,10 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
-import { isFreeTier } from '../../../../lib/tier-gating';
+import { isClientOutreachPaused } from '../../../../lib/tier-gating';
 import { sendOrCreateChat } from '../../../../lib/linq';
+import { isWithinQuietHoursWindow } from '../../../../lib/quiet-hours';
+import { recordConsentEvent } from '../../../../lib/suppression';
 import { normalizePhone, isValidE164 } from '../../../../lib/phone';
 import { Resend } from 'resend';
 import {
@@ -73,6 +75,18 @@ function getResend() {
   const key = process.env.RESEND_API_KEY;
   if (!key) throw new Error('RESEND_API_KEY is not configured');
   return new Resend(key);
+}
+
+/**
+ * Recipient USPS state for the TCPA quiet-hours gate. Clients created from
+ * leads/imports carry `address.state` (2-letter code). Returns null when
+ * absent — the quiet-hours check then falls back to a conservative
+ * continental-US window.
+ */
+function clientStateCode(clientData: FirebaseFirestore.DocumentData): string | null {
+  const addr = clientData.address as { state?: string | null } | undefined;
+  const s = typeof addr?.state === 'string' ? addr.state.trim() : '';
+  return s || null;
 }
 
 // ---------------------------------------------------------------------------
@@ -304,8 +318,9 @@ export async function GET(req: NextRequest) {
 
     for (const agentDoc of agentsSnap.docs) {
       const agentData = agentDoc.data();
-      // Free tier is engine-paused: skip client-facing automated outreach.
-      if (isFreeTier(agentData.membershipTier as string | undefined)) continue;
+      // Skip when automated outreach is paused for this agent — Free tier,
+      // or an explicit hold (e.g. a freshly-imported, un-reviewed book).
+      if (isClientOutreachPaused(agentData)) continue;
       const agentName = (agentData.name as string) || 'Your Agent';
       const agentFirstName = agentName.split(' ')[0];
       const schedulingUrl = (agentData.schedulingUrl as string) || null;
@@ -419,6 +434,16 @@ export async function GET(req: NextRequest) {
         const pushEligible = isPushEligible(clientData);
         const stage1: TouchStage = pickInitialRetentionStage(pushEligible);
 
+        // TCPA quiet hours: an automated first-touch SMS must not land in
+        // the client's night. Push is exempt (not a telephone
+        // solicitation). If the SMS path would fire outside 8am-9pm local,
+        // release the lock and defer — the every-30-min cron retries and it
+        // goes out at the next polite hour. Nothing is lost or advanced.
+        if (stage1 === 'stage_sms' && !isWithinQuietHoursWindow(clientStateCode(clientData))) {
+          await alertDoc.ref.update({ initialSendLockAt: FieldValue.delete() });
+          continue;
+        }
+
         const bookingUrl = await buildBookingUrl(stageCtx, alertData, 'initial');
         const messageWithBooking = enforceOutreachBookingCta({
           message,
@@ -487,6 +512,36 @@ export async function GET(req: NextRequest) {
         };
         if (newChatId) update.chatId = newChatId;
         await alertDoc.ref.update(update);
+
+        // R3 — contact-basis record. The conservation/retention lane has no
+        // opt-in: its lawful basis is the existing agent-client business
+        // relationship. Record that basis at the first cold touch so the
+        // "why this contact was lawful" trail exists for the lane that gets
+        // the most scrutiny. Best-effort; a ledger failure must not break
+        // the cron run.
+        try {
+          await recordConsentEvent({
+            type: 'contact_basis',
+            phoneE164: getChannelAvailability(clientData).normalizedPhone,
+            agentId: agentDoc.id,
+            lane: 'conservation',
+            meta: {
+              source: 'conservation_first_touch',
+              basis: 'established_business_relationship',
+              clientId,
+              alertId: alertDoc.id,
+              reason: (alertData.reason as string) || null,
+              policyType: (alertData.policyType as string) || null,
+              carrier: (alertData.carrier as string) || null,
+            },
+          });
+        } catch (basisErr) {
+          console.warn('[conservation-cron] contact-basis ledger write failed (non-blocking)', {
+            agentId: agentDoc.id,
+            alertId: alertDoc.id,
+            error: basisErr instanceof Error ? basisErr.message : String(basisErr),
+          });
+        }
 
         if (newChatId) {
           await upsertThreadFromOutbound({
@@ -557,6 +612,15 @@ export async function GET(req: NextRequest) {
             .get();
           if (!clientDoc.exists) continue;
           const clientData = clientDoc.data()!;
+
+          // TCPA quiet hours: defer the single permitted stage_sms outbound
+          // if it would land outside 8am-9pm in the client's local time.
+          // Skip without expiring the prior item or advancing the stage —
+          // the every-30-min cron retries at the next polite hour. Other
+          // next-stages (call/text action items, email) are unaffected.
+          if (nextStage === 'stage_sms' && !isWithinQuietHoursWindow(clientStateCode(clientData))) {
+            continue;
+          }
 
           // Expire the prior stage's action item if one is open.
           // Only stage_call and stage_text leave a pending item; the

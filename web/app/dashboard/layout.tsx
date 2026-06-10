@@ -7,13 +7,14 @@ import { db } from '../../firebase';
 import { DashboardProvider, useDashboard } from './DashboardContext';
 import PlanPickerGate from './PlanPickerGate';
 import PWAInstaller from '../../components/PWAInstaller';
+import AdminGrowthBadge from '../../components/AdminGrowthBadge';
 import MaintenanceBanner from '../../components/MaintenanceBanner';
 import DashboardAssistant from '../../components/DashboardAssistant';
 import DashboardTicker from '../../components/DashboardTicker';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
 import { ANALYTICS_EVENTS } from '../../lib/analytics-events';
 import { captureEvent } from '../../lib/posthog';
-import { leadsAccessReason, activityAccessReason, isTrialActive, isProOrAbove, isFreeTier } from '../../lib/tier-gating';
+import { leadsAccessReason, activityAccessReason, isTrialActive, isProOrAbove, isFreeTier, performanceAccess } from '../../lib/tier-gating';
 
 const FOUNDING_ACTIVATION_TIMEOUT_MS = 12000;
 // Hard ceiling for the activation spinner: if `activatingFounding` is still true
@@ -515,7 +516,48 @@ const NAV_ITEMS = [
   )},
 ];
 
+// IA v2 — Calendar is promoted to its own top-level nav item (route at
+// /dashboard/calendar). Kept OUT of NAV_ITEMS so the flat (flag-off)
+// sidebar and the mobile bottom bar stay unchanged; it's spliced into the
+// Pipeline group below, and only for Pro+ agents (same gate as Leads).
+const CALENDAR_NAV_ITEM = { key: 'calendar', path: '/dashboard/calendar', label: 'Calendar', icon: (
+  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+  </svg>
+)};
+
+// Coaching (the individual Performance page) — like Calendar, kept OUT of
+// NAV_ITEMS so the flat / mobile nav stay unchanged; spliced into the
+// Performance group below. Visible to everyone except locked (Free) tiers
+// — metered on Growth, unlimited on Pro+; the Free upsell renders under
+// "Unlock with Pro" like Leads / Activity.
+const COACHING_NAV_ITEM = { key: 'coaching', path: '/dashboard/coaching', label: 'Coaching', icon: (
+  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+  </svg>
+)};
+
+// Workflow clusters for the IA-v2 sidebar — divider-separated with quiet
+// section labels so a ~10-item rail reads as a few scannable zones. Keys
+// resolve against NAV_ITEMS (+ Calendar / Coaching) at render; per-item
+// gating (leads / activity / coaching accessibility) still applies.
+// Resources + Feedback intentionally live in the avatar menu, not here.
+const NAV_GROUPS: Array<{ label?: string; keys: string[] }> = [
+  { label: 'Workspace', keys: ['home', 'leads', 'calendar', 'action-items'] },
+  { label: 'Book', keys: ['clients', 'conservation', 'policy-reviews', 'referrals'] },
+  { label: 'Performance', keys: ['activity', 'coaching'] },
+  { keys: ['refer-and-earn'] },
+];
+const NAV_ITEM_BY_KEY = Object.fromEntries(
+  NAV_ITEMS.map((item) => [item.key, item] as [string, (typeof NAV_ITEMS)[number]]),
+);
+
 const ADMIN_NAV_ITEMS = [
+  { key: 'admin-growth', path: '/dashboard/admin/growth', label: 'Growth', icon: (
+    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+    </svg>
+  )},
   { key: 'admin-analytics', path: '/dashboard/admin/feedback', label: 'Analytics', icon: (
     <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -642,7 +684,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     if (pathname === '/dashboard') return 'home';
     if (pathname.startsWith('/dashboard/clients')) return 'clients';
     if (pathname.startsWith('/dashboard/leads')) return 'leads';
+    if (pathname.startsWith('/dashboard/calendar')) return 'calendar';
     if (pathname.startsWith('/dashboard/activity')) return 'activity';
+    if (pathname.startsWith('/dashboard/coaching')) return 'coaching';
     if (pathname.startsWith('/dashboard/action-items')) return 'action-items';
     if (pathname.startsWith('/dashboard/referrals')) return 'referrals';
     if (pathname.startsWith('/dashboard/conservation')) return 'conservation';
@@ -669,6 +713,14 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   // helpers themselves.
   const leadsReason = leadsAccessReason(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt);
   const activityReason = activityAccessReason(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt);
+  // Coaching (individual Performance) — 'locked' for Free, else accessible
+  // (metered on Growth, unlimited on Pro+). See performanceAccess().
+  const coachingAccessLevel = performanceAccess(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt).level;
+  // IA v2 (dark-launch): admins always; everyone else when
+  // NEXT_PUBLIC_IA_V2=on. The single switch — gates the sidebar regroup,
+  // the Calendar promotion, and the Leads Call-mode fold. Mirrors the flag
+  // the Leads page reads so the two surfaces stay in lockstep.
+  const iaEnabled = isAdmin || process.env.NEXT_PUBLIC_IA_V2 === 'on';
   // 6 items on mobile bottom bar. Leads replaces the previous Settings
   // slot — settings is already reachable via the gear in the top-right
   // header, so duplicating it down here wastes a tap target. Mobile
@@ -679,6 +731,65 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     if (item.key === 'leads' && leadsReason !== 'accessible') return false;
     return ['home', 'clients', 'leads', 'action-items', 'referrals', 'conservation'].includes(item.key);
   });
+
+  // Single sidebar nav button — shared by the flat (flag-off) list and the
+  // IA-v2 workflow groups so both render pixel-identical.
+  const renderNavItem = (item: (typeof NAV_ITEMS)[number] | typeof CALENDAR_NAV_ITEM | typeof COACHING_NAV_ITEM) => {
+    // Refer & Earn gets a permanent gold accent — it's the one nav item
+    // where the agent can EARN money, so it stands out from daily tools.
+    const isReferEarn = item.key === 'refer-and-earn';
+    return (
+      <button
+        key={item.key}
+        data-onboarding-target={item.key === 'clients' ? 'nav-clients' : undefined}
+        onClick={() => router.push(item.path)}
+        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
+          activeKey === item.key
+            ? 'bg-[#daf3f0] text-[#005851]'
+            : isReferEarn
+              ? 'text-[#f5c542] hover:bg-[#f5c542]/10 hover:text-[#ffd860]'
+              : 'text-white/80 hover:bg-white/10 hover:text-white'
+        }`}
+      >
+        <div className="relative shrink-0">
+          {item.icon}
+        </div>
+        <span className="whitespace-nowrap overflow-hidden text-sm font-semibold opacity-100 w-auto">
+          {item.label}
+        </span>
+        {isReferEarn && activeKey !== item.key && (
+          <span
+            aria-hidden="true"
+            className="ml-auto text-[10px] font-bold text-[#f5c542]/90 tracking-widest"
+          >
+            $
+          </span>
+        )}
+      </button>
+    );
+  };
+  const navItemAccessible = (key: string) =>
+    key === 'leads' ? leadsReason === 'accessible'
+    : key === 'activity' ? activityReason === 'accessible'
+    : key === 'coaching' ? coachingAccessLevel !== 'locked'
+    : true;
+  // IA-v2 workflow clusters resolved to their accessible items; empty
+  // groups dropped so a divider never leads a section that rendered nothing.
+  const groupedNav = NAV_GROUPS
+    .map((group) => ({
+      label: group.label,
+      items: group.keys
+        // Calendar follows the SAME Pro+ tier gate as Leads (it surfaces
+        // the pre-sale pipeline). Visibility otherwise rides iaEnabled,
+        // which already wraps this whole grouped render.
+        .filter((key) => key !== 'calendar' || leadsReason === 'accessible')
+        .filter(navItemAccessible)
+        .map((key) =>
+          key === 'calendar' ? CALENDAR_NAV_ITEM
+          : key === 'coaching' ? COACHING_NAV_ITEM
+          : NAV_ITEM_BY_KEY[key]),
+    }))
+    .filter((group) => group.items.length > 0);
   const dismissSubscriptionCelebration = () => {
     setShowSubscriptionCelebration(false);
     if (user) {
@@ -703,7 +814,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         eyebrow: 'Welcome to Pro',
         headline: "You're officially Pro.",
         body: "Congratulations — you've unlocked the full Pro experience. Warmed-up leads before you dial, a queue that tells you who's next, one-tap appointment confirmations, and every dial and sale tracked for you. This is how the busiest agents book more and close more.",
-        chips: ['Warmed-up leads + call queue', '1-tap appointment confirmations', 'Activity + APV tracking'],
+        chips: ['Warmed-up leads + call queue', 'Your whole week on one calendar', '1-tap appointment confirmations', 'Activity + APV tracking'],
         cta: "Let's Pro",
       }
     : {
@@ -745,16 +856,16 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* Sidebar */}
       <aside
-        className="hidden md:block fixed left-0 top-0 h-full bg-[#005851] z-50 w-56"
+        className="hidden md:flex md:flex-col fixed left-0 top-0 h-full bg-[#005851] z-50 w-56"
       >
-        <div className="h-14 flex items-center px-4 border-b border-white/10">
+        <div className="h-14 flex items-center px-4 border-b border-white/10 shrink-0">
           <img src="/logo.png" alt="AgentForLife™" className="w-11 h-7 object-contain" />
           <span className="ml-3 text-white text-lg whitespace-nowrap overflow-hidden brand-title opacity-100 w-auto">
             AgentForLife™
           </span>
         </div>
 
-        <nav className="mt-4 px-2 space-y-1">
+        <nav className="flex-1 min-h-0 overflow-y-auto mt-4 px-2 pb-4 space-y-1">
           {/* Tier-gated surfaces render in one of three states (see
               `leadsAccessReason` / `activityAccessReason`):
                 - accessible  → in the main nav, clickable
@@ -762,47 +873,17 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 - tier_locked → "Unlock with Pro" group below, clickable
               Daily-workflow tools stay in the prime real estate at the
               top regardless of which mode the gated items are in. */}
-          {NAV_ITEMS.filter((item) => {
-            if (item.key === 'leads') return leadsReason === 'accessible';
-            if (item.key === 'activity') return activityReason === 'accessible';
-            return true;
-          }).map((item) => {
-            // Refer & Earn gets a permanent gold accent — it's the one
-            // nav item where the agent can EARN money, so it deserves
-            // to stand out from daily-workflow tools. Treatment stays
-            // visible whether or not the agent has enrolled yet (the
-            // page itself handles enrolled vs not-enrolled states).
-            const isReferEarn = item.key === 'refer-and-earn';
-            return (
-              <button
-                key={item.key}
-                data-onboarding-target={item.key === 'clients' ? 'nav-clients' : undefined}
-                onClick={() => router.push(item.path)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
-                  activeKey === item.key
-                    ? 'bg-[#daf3f0] text-[#005851]'
-                    : isReferEarn
-                      ? 'text-[#f5c542] hover:bg-[#f5c542]/10 hover:text-[#ffd860]'
-                      : 'text-white/80 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                <div className="relative shrink-0">
-                  {item.icon}
-                </div>
-                <span className="whitespace-nowrap overflow-hidden text-sm font-semibold opacity-100 w-auto">
-                  {item.label}
-                </span>
-                {isReferEarn && activeKey !== item.key && (
-                  <span
-                    aria-hidden="true"
-                    className="ml-auto text-[10px] font-bold text-[#f5c542]/90 tracking-widest"
-                  >
-                    $
-                  </span>
-                )}
-              </button>
-            );
-          })}
+          {iaEnabled
+            ? groupedNav.flatMap((group, gi) => [
+                ...(gi > 0
+                  ? [<div key={`nav-div-${gi}`} className="my-2 mx-1 border-t border-white/10" />]
+                  : []),
+                ...(group.label
+                  ? [<p key={`nav-lbl-${gi}`} className="px-3 pt-1 pb-1 text-[9px] font-bold uppercase tracking-wider text-white/30 select-none">{group.label}</p>]
+                  : []),
+                ...group.items.map(renderNavItem),
+              ])
+            : NAV_ITEMS.filter((item) => navItemAccessible(item.key)).map(renderNavItem)}
 
           {/* Gated-off groupings — both pushed below the live items but
               above Admin / Settings. Items group by gating reason so
@@ -842,15 +923,25 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           })()}
 
           {(() => {
-            const tierLocked = NAV_ITEMS.filter((item) =>
-              (item.key === 'leads' && leadsReason === 'tier_locked') ||
-              (item.key === 'activity' && activityReason === 'tier_locked')
-            );
+            // Leads, Calendar, and Activity are all Pro surfaces. When the
+            // agent's tier locks them, surface them here as upsells — Calendar
+            // rides the same Pro gate as Leads. Order mirrors the Pipeline
+            // group: Leads → Calendar → Activity.
+            const tierLocked: Array<(typeof NAV_ITEMS)[number] | typeof CALENDAR_NAV_ITEM | typeof COACHING_NAV_ITEM> = [];
+            if (leadsReason === 'tier_locked') {
+              tierLocked.push(NAV_ITEM_BY_KEY['leads'], CALENDAR_NAV_ITEM);
+            }
+            if (activityReason === 'tier_locked') {
+              tierLocked.push(NAV_ITEM_BY_KEY['activity']);
+            }
+            if (coachingAccessLevel === 'locked') {
+              tierLocked.push(COACHING_NAV_ITEM);
+            }
             if (tierLocked.length === 0) return null;
             return (
               <>
                 <div className="my-2 mx-1 border-t border-white/10" />
-                <p className="px-3 pt-1 pb-0.5 text-[9px] font-bold uppercase tracking-wider text-white/30">Unlock with Pro</p>
+                <p className="px-3 pt-1 pb-0.5 text-[9px] font-bold uppercase tracking-wider text-white/30">Upgrade to unlock</p>
                 {tierLocked.map((item) => (
                   <button
                     key={item.key}
@@ -864,7 +955,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                       {item.label}
                     </span>
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#44bbaa]/20 text-[#daf3f0] group-hover/locked:bg-[#44bbaa]/30">
-                      Pro
+                      {item.key === 'coaching' ? 'Growth' : 'Pro'}
                     </span>
                   </button>
                 ))}
@@ -893,6 +984,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                   <span className="whitespace-nowrap overflow-hidden text-sm font-semibold flex-1 text-left opacity-100 w-auto">
                     Admin
                   </span>
+                  <AdminGrowthBadge user={user} />
                   <svg className={`w-4 h-4 shrink-0 transition-transform duration-200 ${adminOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
@@ -916,6 +1008,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                         >
                           {item.icon}
                           <span className="text-xs font-semibold whitespace-nowrap">{item.label}</span>
+                          {item.key === 'admin-growth' && <AdminGrowthBadge user={user} />}
                         </button>
                       ))}
                     </div>
@@ -1040,6 +1133,25 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                         <span className="text-sm font-medium">Subscription</span>
                       </button>
                     )}
+                    <div className="border-t border-[#d0d0d0] my-1" />
+                    <button
+                      onClick={() => { router.push('/dashboard/resources'); setShowProfileDropdown(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#000000] hover:bg-[#f1f1f1] transition-colors"
+                    >
+                      <svg className="w-5 h-5 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                      </svg>
+                      <span className="text-sm font-medium">Resources</span>
+                    </button>
+                    <button
+                      onClick={() => { router.push('/dashboard/feedback'); setShowProfileDropdown(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[#000000] hover:bg-[#f1f1f1] transition-colors"
+                    >
+                      <svg className="w-5 h-5 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                      <span className="text-sm font-medium">Feedback</span>
+                    </button>
                     <div className="border-t border-[#d0d0d0] my-2" />
                     <button
                       onClick={() => { handleLogout(); setShowProfileDropdown(false); }}

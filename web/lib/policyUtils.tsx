@@ -171,6 +171,10 @@ export const getStatusColor = (status: string) => {
       return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
     case 'Lapsed':
       return 'bg-red-500/20 text-red-400 border-red-500/30';
+    case 'Declined':
+      // Denied / withdrawn application — kept as history, excluded from
+      // the book. Muted grey so it reads as "not in force".
+      return 'bg-gray-200/70 text-gray-600 border-gray-400/40';
     default:
       return 'bg-gray-200/50 text-gray-500 border-gray-300/50';
   }

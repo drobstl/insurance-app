@@ -12,11 +12,37 @@ import { extractFirstName } from './name-utils';
 import { upsertThreadFromOutbound } from './conversation-thread-registry';
 import { createChat, sendMessage, LinqOutboundDisabledError } from './linq';
 import { isValidE164 } from './phone';
+import { recordConsentEvent } from './suppression';
 import { ReactivationFenceError } from './reactivation-fence';
 import {
   isWelcomeActivationPlaceholderThreadId,
   welcomeActivationPlaceholderThreadId,
 } from './welcome-action-item-writer';
+
+/**
+ * R3 (TCPA consent record). The consent disclosure shown on the mobile
+ * Activate screen — source: `docs/afl-compliance-layer-whatwhy.md`,
+ * "Activate consent copy". When a client taps Activate and texts the line,
+ * we record this exact wording into the append-only consent ledger as the
+ * affirmative opt-in they agreed to. This is the strongest consent artifact
+ * AFL has, and the thing that makes "we have consent" provable from our own
+ * data rather than the messaging platform's chat history.
+ *
+ * KEEP IN SYNC with the mobile app's Activate screen copy. Bump the version
+ * string whenever that copy changes so each ledger entry can be correlated
+ * to the wording in force when the client consented.
+ */
+const WELCOME_ACTIVATION_CONSENT_TEXT_VERSION = 'activate-disclosure-v1';
+
+function welcomeActivationConsentDisclosure(agentName: string): string {
+  const who = agentName || 'your agent';
+  return (
+    `By tapping Activate, you agree to receive account, policy, and service ` +
+    `text messages — including automated messages — from ${who} at this number. ` +
+    `Msg & data rates may apply. Message frequency varies. Reply STOP to opt out, ` +
+    `HELP for help. See Terms & Privacy.`
+  );
+}
 
 /**
  * Welcome-activation lane handler for the Linq inbound webhook.
@@ -318,6 +344,38 @@ export async function handleWelcomeActivationInbound(params: {
       reason: claimResult.reason,
     });
     return { ok: true, outcome: 'duplicate_skip' };
+  }
+
+  // R3 — affirmative consent record. This delivery won the activation claim,
+  // so it's the genuine first activation (never replayed). The client sent
+  // their OWN activation message in reply to the Activate-screen disclosure,
+  // which is the strongest opt-in artifact we can capture. Write it to the
+  // append-only consent ledger with the exact wording they agreed to.
+  // Best-effort: a ledger failure logs but must never roll back activation.
+  try {
+    const consentAgentName =
+      typeof ctx.agentData.name === 'string' ? ctx.agentData.name : '';
+    await recordConsentEvent({
+      type: 'opt_in',
+      phoneE164: ctx.clientPhoneE164,
+      agentId: ctx.agentId,
+      lane: 'welcome_activation',
+      raw: params.inboundBody,
+      meta: {
+        source: 'welcome_activation',
+        clientId: ctx.clientId,
+        chatId: params.realLinqChatId,
+        matchedByCodeInBody: ctx.matchedByCodeInBody,
+        consentTextVersion: WELCOME_ACTIVATION_CONSENT_TEXT_VERSION,
+        consentText: welcomeActivationConsentDisclosure(consentAgentName),
+      },
+    });
+  } catch (consentErr) {
+    console.error('[welcome-activation] consent ledger write failed (non-blocking)', {
+      agentId: ctx.agentId,
+      clientId: ctx.clientId,
+      error: consentErr instanceof Error ? consentErr.message : String(consentErr),
+    });
   }
 
   const language: SupportedLanguage = resolveClientLanguage(ctx.clientData.preferredLanguage);

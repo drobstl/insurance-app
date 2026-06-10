@@ -6,6 +6,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, doc, getDoc, getDocs, limit, orderBy, query } from 'firebase/firestore';
 import { auth, db } from '../../../../firebase';
 import { isAdminEmail } from '../../../../lib/admin';
+import AdminSystemPerformance from '../../../../components/AdminSystemPerformance';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -511,11 +512,15 @@ export default function AdminStatsPage() {
           )}
         </div>
 
-        {/* Header */}
+        {/* Company-wide production rollup (all agents) + live recent-wins feed. */}
+        {user && <AdminSystemPerformance user={user} />}
+
+        {/* Header — the signed-in agent's OWN book (everything below here). */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-[#000000]">Performance Stats</h1>
+            <h1 className="text-2xl font-bold text-[#000000]">Your Stats</h1>
             <p className="text-sm text-[#707070] mt-1">
+              Your personal book.{' '}
               {stats?.updatedAt
                 ? `Last updated: ${formatDate(stats.updatedAt)}`
                 : 'Stats have not been computed yet'}

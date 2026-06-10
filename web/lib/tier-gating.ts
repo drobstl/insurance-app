@@ -123,6 +123,29 @@ export function isFreeTier(tier: MaybeTier): boolean {
 }
 
 /**
+ * True when automated, client-facing outreach must NOT fire for this
+ * agent right now. Two reasons today:
+ *   • Free tier — engine-paused (data-preserved, no outbound).
+ *   • Outreach hold — an explicit `automatedOutreachHold: true` flag on
+ *     the agent doc. Set, for example, right after a bulk import so a
+ *     freshly-imported, un-reviewed book can't auto-message its duplicate
+ *     or denied-application records before the agent has cleaned it up.
+ *     Toggled via POST /api/clients/outreach-hold.
+ *
+ * The whole-book care crons (birthday, holiday, beneficiary,
+ * policy-review, policy-review-drip, conservation-outreach) call this in
+ * place of the bare `isFreeTier` check. Pass the agent doc data; never
+ * throws on an unexpected shape.
+ */
+export function isClientOutreachPaused(
+  agentData: Record<string, unknown> | null | undefined,
+): boolean {
+  if (!agentData) return false;
+  if (isFreeTier(agentData.membershipTier as MaybeTier)) return true;
+  return agentData.automatedOutreachHold === true;
+}
+
+/**
  * Resolves whether an agent can access the Leads surface.
  *
  * Three gates stacked:
@@ -162,20 +185,51 @@ export function canAccessActivity(
 }
 
 /**
- * Performance page — individual scoring. Pro+ surface (same gating
- * shape as Leads/Activity minus the env flag — Performance page itself
- * doesn't have an env kill-switch today).
+ * Individual Performance / Coaching page access — gated by VOLUME, not as
+ * a binary Pro-only unlock. Per the Growth + Distribution Lock §4
+ * (May 30, 2026):
  *
- * Not yet wired into a route — included here so the Performance page
- * implementation PR can use it from day one.
+ *   Free / unknown                      → locked    (0 scores → UpgradeToProCard)
+ *   Growth / Starter / Founding         → metered   (4 scores per calendar month)
+ *   Pro / Agency / active trial / admin → unlimited
+ *
+ * This SUPERSEDES the older CONTEXT.md tier-table reading that listed the
+ * Performance page as Pro-only. When the two conflict on Performance
+ * gating, the Growth + Distribution Lock wins — it is precedence #1 and is
+ * explicitly authoritative for "Performance feature gating across tiers."
+ */
+export const PERFORMANCE_MONTHLY_LIMIT_METERED = 4;
+
+export type PerformanceAccess =
+  | { level: 'unlimited' }
+  | { level: 'metered'; monthlyLimit: number }
+  | { level: 'locked' };
+
+export function performanceAccess(
+  tier: MaybeTier,
+  email: string | null | undefined,
+  trialEndsAtMs?: number | null,
+): PerformanceAccess {
+  if (isAdminEmail(email)) return { level: 'unlimited' };
+  if (hasProAccess(tier, trialEndsAtMs)) return { level: 'unlimited' };
+  if (tier === 'growth' || tier === 'starter' || tier === 'founding') {
+    return { level: 'metered', monthlyLimit: PERFORMANCE_MONTHLY_LIMIT_METERED };
+  }
+  return { level: 'locked' };
+}
+
+/**
+ * True when the agent gets ANY access (metered or unlimited) to the
+ * individual Performance / Coaching page. The richer `performanceAccess`
+ * helper above is the source of truth for the page + scoring route; this
+ * binary form is kept for nav-visibility checks.
  */
 export function canAccessIndividualPerformance(
   tier: MaybeTier,
   email: string | null | undefined,
   trialEndsAtMs?: number | null,
 ): boolean {
-  if (isAdminEmail(email)) return true;
-  return hasProAccess(tier, trialEndsAtMs);
+  return performanceAccess(tier, email, trialEndsAtMs).level !== 'locked';
 }
 
 /**

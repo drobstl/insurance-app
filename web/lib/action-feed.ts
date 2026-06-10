@@ -47,7 +47,7 @@ export interface ActionPolicy {
   coverageAmount: number;
   premiumAmount: number;
   effectiveDate?: string;
-  status: 'Active' | 'Pending' | 'Lapsed';
+  status: 'Active' | 'Pending' | 'Lapsed' | 'Declined';
   createdAt: Timestamp;
 }
 

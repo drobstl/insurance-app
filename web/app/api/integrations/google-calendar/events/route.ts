@@ -4,6 +4,7 @@ import {
   GoogleCalendarNotConnectedError,
   resolveGoogleCalendarAccessToken,
 } from '../../../../../lib/google-calendar';
+import { buildGoogleCallbackUrl, GOOGLE_CALENDAR_CALLBACK_PATH } from '../../../../../lib/oauth-redirect';
 
 /**
  * GET /api/integrations/google-calendar/events?date=YYYY-MM-DD&tz=America/Chicago
@@ -110,7 +111,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<EventsResponse
     let accessToken: string;
     let calendarId: string;
     try {
-      const callbackUrl = `${url.origin}/api/integrations/google-calendar/callback`;
+      const callbackUrl = buildGoogleCallbackUrl(req.url, GOOGLE_CALENDAR_CALLBACK_PATH);
       const resolved = await resolveGoogleCalendarAccessToken(agentId, callbackUrl);
       accessToken = resolved.accessToken;
       calendarId = resolved.calendarId;

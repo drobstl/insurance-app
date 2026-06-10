@@ -18,6 +18,7 @@ import AppointmentPicker from '../../../components/AppointmentPicker';
 import SendConfirmationDrawer from '../../../components/SendConfirmationDrawer';
 import LeadDetailPanel from '../../../components/LeadDetailPanel';
 import { CloseSaleRitual } from '../../../components/CloseSaleRitual';
+import LeadsCalendar from '../../../components/LeadsCalendar';
 import { leadsAccessReason } from '../../../lib/tier-gating';
 import UpgradeToProCard from '../../../components/UpgradeToProCard';
 import {
@@ -25,6 +26,8 @@ import {
   getAppointmentOutcomeChip,
   isAppointmentOutcomeChipStatus,
 } from '../../../lib/appointment-outcome-chip';
+import type { LeadScore } from '../../../lib/lead-assessment';
+import { LeadTempChip } from '../../../components/LeadTempChip';
 import { parseLeadFile } from '../../../lib/lead-csv-parse';
 
 interface Lead {
@@ -42,6 +45,7 @@ interface Lead {
   createdAt?: Timestamp | null;
   appDownloadedAt?: string | null;
   assessmentCompletedAt?: Timestamp | null;
+  leadScore?: LeadScore | null;
   convertedToClientId?: string | null;
   monthlyMortgageAmount?: number;
   notes?: string;
@@ -58,8 +62,8 @@ interface Lead {
   };
 }
 
-type LeadView = 'all' | 'queue';
-type LeadSortKey = 'name' | 'createdAt' | 'source';
+type LeadView = 'all' | 'queue' | 'calendar';
+type LeadSortKey = 'name' | 'createdAt' | 'source' | 'priority';
 type SortDir = 'asc' | 'desc';
 
 // Multi-page lead-form bundles route to the off-Vercel batch engine
@@ -188,7 +192,7 @@ export default function LeadsPage() {
 function LeadsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, agentProfile } = useDashboard();
+  const { user, agentProfile, isAdmin } = useDashboard();
 
   // Right-pane selection (desktop call-queue view only). The URL param
   // is the source of truth so refresh + back/forward + shareable links
@@ -200,6 +204,24 @@ function LeadsPageInner() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<LeadView>('all');
+  // IA v2 (dark-launch): admins always; everyone else when
+  // NEXT_PUBLIC_IA_V2=on. Folds Call queue into a "Call mode" button here
+  // and (in the dashboard sidebar) promotes Calendar + regroups nav.
+  // Off → today's segmented control + flat sidebar render unchanged.
+  const iaEnabled = isAdmin || process.env.NEXT_PUBLIC_IA_V2 === 'on';
+
+  // Deep link: /dashboard/leads?call=1 drops straight into Call mode —
+  // used by the Calendar route's "Go to call queue" action. Consume the
+  // param after applying so it can't re-trigger on later URL changes
+  // (e.g. the `?leadId=` updates the dialer makes while advancing).
+  useEffect(() => {
+    if (searchParams?.get('call') !== '1') return;
+    setView('queue');
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('call');
+    const qs = params.toString();
+    router.replace(qs ? `/dashboard/leads?${qs}` : '/dashboard/leads', { scroll: false });
+  }, [searchParams, router]);
 
   // ── Search + sort (All view only) ──
   // Queue has its own priority sort that we don't override. Search +
@@ -248,6 +270,10 @@ function LeadsPageInner() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  // Import consent gate: the agent must confirm they have the right to use the
+  // data they're uploading before any bulk import runs. Reinforces the "your
+  // book / your data" posture and the rights representation (see /trust).
+  const [importConsent, setImportConsent] = useState(false);
 
   // Multi-page batch import (off-Vercel via the leads-batch-processor GCF).
   // `watchedBatchId` drives the live onSnapshot subscription below;
@@ -944,6 +970,21 @@ function LeadsPageInner() {
       .map(({ lead }) => lead);
   }, [leads, agentProfile.dialPersistence]);
 
+  // "Call next" sort for the All list reuses the exact queue priority
+  // order, so the list previews who Start-calling will dial first.
+  // Declared AFTER queueLeads to dodge the temporal-dead-zone trap the
+  // dialAttemptsForLeadRef note above warns about. Leads not in the queue
+  // (converted / booked / not-interested / wrong-number / DNC) sink last.
+  const displayLeads = useMemo<Lead[]>(() => {
+    if (sortKey !== 'priority') return filteredLeads;
+    const order = new Map(queueLeads.map((l, i) => [l.id, i] as const));
+    return [...filteredLeads].sort(
+      (a, b) =>
+        (order.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+        (order.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+    );
+  }, [filteredLeads, queueLeads, sortKey]);
+
   // Tap-to-call — used on the queue rows. US-only — raw digits, the
   // OS dialer handles country-code interpretation. Sets the
   // pending-outcome target so the inline chip group appears under
@@ -1262,6 +1303,11 @@ function LeadsPageInner() {
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
+                      if (!importConsent) {
+                        setUploadError('Please confirm you have the right to use this data before uploading.');
+                        e.target.value = '';
+                        return;
+                      }
                       handleLeadFileSelect(file);
                       e.target.value = '';
                     }
@@ -1280,32 +1326,155 @@ function LeadsPageInner() {
               with outcome-specific cooldowns. Designed for sit-down
               dialing sessions: open queue, dial top of list, log
               outcome, queue auto-resorts. */}
-          <div className="mb-4 flex items-end justify-between gap-3 border-b border-[#d0d0d0]">
-            <div className="flex items-center gap-1">
+          {iaEnabled ? (
+            /* IA v2 — Leads is ONE list. "Call queue" becomes a Call mode
+               you enter with the Start-calling button; Calendar lives in
+               the sidebar (kept here only as a mobile button since phones
+               have no sidebar). The two-pane dialer below is unchanged. */
+            <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+              {view === 'queue' ? (
+                <>
+                  <button
+                    onClick={() => setView('all')}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold rounded-lg bg-[#EFEFEF] text-[#005851] hover:bg-[#e3e3e3] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Done
+                  </button>
+                  <span className="text-sm font-semibold text-[#005851]">
+                    Calling · <span className="text-[#44bbaa]">{queueLeads.length}</span> in queue
+                  </span>
+                </>
+              ) : view === 'calendar' ? (
+                <button
+                  onClick={() => setView('all')}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold rounded-lg bg-[#EFEFEF] text-[#005851] hover:bg-[#e3e3e3] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back to leads
+                </button>
+              ) : (
+                <>
+                  {/* Search + Call-next sort */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="relative w-full max-w-xs">
+                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <input
+                        type="text"
+                        placeholder="Search leads…"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-9 pr-8 py-1.5 bg-white rounded-[5px] border border-[#d0d0d0] text-sm text-[#000000] placeholder-[#707070] focus:outline-none focus:border-[#45bcaa]"
+                      />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full text-[#707070] hover:bg-gray-100 flex items-center justify-center"
+                          aria-label="Clear search"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                    {/* Call-next sort — reuses the exact priority order that
+                        Start-calling dials. Desktop only; the table it
+                        reorders is itself md-only. Toggles back to Created. */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (sortKey === 'priority') { setSortKey('createdAt'); setSortDir('desc'); }
+                        else { setSortKey('priority'); setSortDir('asc'); }
+                      }}
+                      className={`hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg border transition-colors ${
+                        sortKey === 'priority'
+                          ? 'bg-[#daf3f0] border-[#44bbaa] text-[#005851]'
+                          : 'bg-white border-[#d0d0d0] text-[#707070] hover:text-[#005851]'
+                      }`}
+                      title="Sort by who to call next"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4-2l4 4-4 4" />
+                      </svg>
+                      Call next
+                    </button>
+                  </div>
+                  {/* Calendar (mobile only — sidebar hosts it on desktop) +
+                      Start calling (enter the prioritized dialer). */}
+                  <div className="flex items-center gap-2">
+                    {iaEnabled && (
+                      <button
+                        onClick={() => setView('calendar')}
+                        className="md:hidden inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg bg-[#EFEFEF] text-[#005851] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px]"
+                        aria-label="Open calendar"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Calendar
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setView('queue')}
+                      disabled={queueLeads.length === 0}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg bg-[#44bbaa] text-white hover:bg-[#3aa996] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                      Start calling
+                      <span className="text-xs font-semibold text-white/80">{queueLeads.length}</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+          <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+            {/* Segmented control — reads as "switch your view" far more
+                clearly than underline tabs, and makes Calendar easy to spot. */}
+            <div className="inline-flex items-center gap-1 p-1 bg-[#EFEFEF] rounded-xl border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px]">
               <button
                 onClick={() => setView('all')}
-                className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
-                  view === 'all'
-                    ? 'border-[#44bbaa] text-[#005851]'
-                    : 'border-transparent text-[#707070] hover:text-[#005851]'
+                className={`px-3.5 py-1.5 text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+                  view === 'all' ? 'bg-[#44bbaa] text-white' : 'text-[#707070] hover:text-[#005851]'
                 }`}
               >
                 All leads
-                <span className="ml-1.5 text-xs text-[#9CA3AF] font-normal">
+                <span className={`text-xs font-normal ${view === 'all' ? 'text-white/80' : 'text-[#9CA3AF]'}`}>
                   {view === 'all' && searchQuery.trim() ? `${filteredLeads.length} / ${leads.length}` : leads.length}
                 </span>
               </button>
               <button
                 onClick={() => setView('queue')}
-                className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
-                  view === 'queue'
-                    ? 'border-[#44bbaa] text-[#005851]'
-                    : 'border-transparent text-[#707070] hover:text-[#005851]'
+                className={`px-3.5 py-1.5 text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+                  view === 'queue' ? 'bg-[#44bbaa] text-white' : 'text-[#707070] hover:text-[#005851]'
                 }`}
               >
                 Call queue
-                <span className="ml-1.5 text-xs text-[#9CA3AF] font-normal">{queueLeads.length}</span>
+                <span className={`text-xs font-normal ${view === 'queue' ? 'text-white/80' : 'text-[#9CA3AF]'}`}>{queueLeads.length}</span>
               </button>
+              {iaEnabled && (
+                <button
+                  onClick={() => setView('calendar')}
+                  className={`px-3.5 py-1.5 text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+                    view === 'calendar' ? 'bg-[#44bbaa] text-white' : 'text-[#707070] hover:text-[#005851]'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Calendar
+                </button>
+              )}
             </div>
 
             {/* Search — only filters the All view. Hidden in Queue view
@@ -1338,8 +1507,10 @@ function LeadsPageInner() {
               </div>
             )}
           </div>
+          )}
 
           {/* PDF drop-zone */}
+          {view !== 'calendar' && (
           <div
             onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
             onDragLeave={() => setDragActive(false)}
@@ -1347,7 +1518,13 @@ function LeadsPageInner() {
               e.preventDefault();
               setDragActive(false);
               const file = e.dataTransfer.files?.[0];
-              if (file) handleLeadFileSelect(file);
+              if (file) {
+                if (!importConsent) {
+                  setUploadError('Please confirm you have the right to use this data before uploading.');
+                  return;
+                }
+                handleLeadFileSelect(file);
+              }
             }}
             className={`mb-4 rounded-[5px] border-2 border-dashed px-5 py-4 transition-all ${
               dragActive
@@ -1370,12 +1547,22 @@ function LeadsPageInner() {
                 </p>
               </div>
             </div>
+            <label className="mt-3 flex items-start gap-2 text-xs text-[#005851] cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={importConsent}
+                onChange={(e) => { setImportConsent(e.target.checked); if (e.target.checked) setUploadError(null); }}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#005851]"
+              />
+              <span>I confirm I have the right to upload and use this data.</span>
+            </label>
             {uploadError && (
               <div className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-[5px] px-3 py-2">
                 {uploadError}
               </div>
             )}
           </div>
+          )}
 
           {/* Just-created banner */}
           {justCreated && (
@@ -1596,6 +1783,9 @@ function LeadsPageInner() {
               the full lead profile while dialing. Mobile keeps the
               single-column layout with the inline outcome chip flow
               under each row. */}
+          {iaEnabled && view === 'calendar' ? (
+            <LeadsCalendar onGoToQueue={() => setView('queue')} />
+          ) : (
           <div className={view === 'queue' && !loading && queueLeads.length > 0 ? 'md:flex md:gap-4 md:items-start' : ''}>
           {/* List rail. Desktop two-pane: sticky to the top of the
               scrollable main so the agent never loses the queue while
@@ -1647,6 +1837,9 @@ function LeadsPageInner() {
                                   </span>
                                 );
                               })()}
+                              {lead.leadScore && (
+                                <LeadTempChip temperature={lead.leadScore.temperature} />
+                              )}
                             </div>
                             <div className="text-xs text-[#707070] mt-0.5 flex items-center gap-2 flex-wrap">
                               <span>{lead.phone}</span>
@@ -1654,6 +1847,11 @@ function LeadsPageInner() {
                                 <>
                                   <span>·</span>
                                   <span>
+                                    {(lead.dialLog?.length ?? 0) > 0 && (
+                                      <span className="font-semibold text-[#374151]">
+                                        {lead.dialLog!.length} dial{lead.dialLog!.length === 1 ? '' : 's'} ·{' '}
+                                      </span>
+                                    )}
                                     Last: {DIAL_OUTCOME_LABELS[lead.lastDialOutcome] || lead.lastDialOutcome}
                                     {lead.lastDialAt && (
                                       <span className="text-[#9CA3AF] ml-1">{formatRelativeFromNow(lead.lastDialAt)}</span>
@@ -1859,7 +2057,7 @@ function LeadsPageInner() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredLeads.map((lead) => (
+                    {displayLeads.map((lead) => (
                       <tr
                         key={lead.id}
                         className="border-b border-[#f1f1f1] hover:bg-[#f8f8f8] cursor-pointer transition-colors"
@@ -1886,6 +2084,9 @@ function LeadsPageInner() {
                                 </span>
                               );
                             })()}
+                            {lead.leadScore && (
+                              <LeadTempChip temperature={lead.leadScore.temperature} />
+                            )}
                           </div>
                         </td>
                         <td className="px-5 py-3.5 text-sm text-[#444] whitespace-nowrap">{lead.phone}</td>
@@ -2015,6 +2216,7 @@ function LeadsPageInner() {
             </div>
           )}
           </div>
+          )}
         </div>
 
         {/* Appointment picker for queue-side bookings (Chunk 4c).
@@ -2043,7 +2245,7 @@ function LeadsPageInner() {
             leadPhone={confirmingLead.lead.phone}
             leadEmail={confirmingLead.lead.email}
             leadCode={confirmingLead.lead.leadCode}
-            leadState={null /* leads list doesn't denormalize state — agent picks in drawer */}
+            leadState={confirmingLead.lead.address?.state || null /* live lead state — mirrors LeadDetailPanel + the phone push path so the license auto-attaches */}
             scheduledAt={confirmingLead.scheduledAt}
             agentName={agentProfile.name || ''}
             agentBusinessCardBase64={agentProfile.businessCardBase64}

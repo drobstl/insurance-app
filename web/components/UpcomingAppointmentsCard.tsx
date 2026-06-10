@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import Link from 'next/link';
 import {
   collection,
   doc,
@@ -153,9 +154,20 @@ export default function UpcomingAppointmentsCard({
             Send a quick reminder ~1 hour before. Same template + business card + license as your booking confirmation.
           </p>
         </div>
-        <span className="px-2 py-1 text-xs font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
-          {upcoming.length}
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* IA v2 only: jump to the full week view (the calendar route). */}
+          {process.env.NEXT_PUBLIC_IA_V2 === 'on' && (
+            <Link
+              href="/dashboard/calendar"
+              className="text-xs font-semibold text-[#005851] hover:underline whitespace-nowrap"
+            >
+              View week →
+            </Link>
+          )}
+          <span className="px-2 py-1 text-xs font-bold uppercase tracking-wider bg-[#daf3f0] text-[#005851] rounded">
+            {upcoming.length}
+          </span>
+        </div>
       </div>
 
       <ul className="space-y-2">
