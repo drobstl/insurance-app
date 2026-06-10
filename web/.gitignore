@@ -46,3 +46,6 @@ firebase-admin-key.json
 keys/
 COPY_THIS_TO_VERCEL.txt
 .env*.local
+
+# Local data dumps / one-off script backups (may contain real client PII — NEVER commit)
+scripts/backups/

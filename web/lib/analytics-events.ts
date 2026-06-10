@@ -64,6 +64,21 @@ export const ANALYTICS_EVENTS = {
   WEB_PUSH_PERMISSION_DENIED: 'web_push_permission_denied',
   WEB_PUSH_SUBSCRIPTION_REGISTERED: 'web_push_subscription_registered',
   WEB_PUSH_SUBSCRIPTION_INVALIDATED: 'web_push_subscription_invalidated',
+  // Pre-sale leads funnel (Leads one-list + Call mode + booking ritual,
+  // PRs #129/#134):
+  //   lead_list_viewed → call_mode_started → lead_call_initiated →
+  //   call_outcome_recorded / appointment_booked →
+  //   booking_confirmation_sent
+  // NO client/lead PII in properties — Firestore doc ids, counts,
+  // outcome enums, and durations only. The sanitizer in lib/posthog.ts
+  // is a backstop, not the contract.
+  LEAD_LIST_VIEWED: 'lead_list_viewed',
+  LEAD_OPENED: 'lead_opened',
+  CALL_MODE_STARTED: 'call_mode_started',
+  LEAD_CALL_INITIATED: 'lead_call_initiated',
+  CALL_OUTCOME_RECORDED: 'call_outcome_recorded',
+  APPOINTMENT_BOOKED: 'appointment_booked',
+  BOOKING_CONFIRMATION_SENT: 'booking_confirmation_sent',
 } as const;
 
 export type AnalyticsEventName =
@@ -325,6 +340,61 @@ export type AnalyticsEventPropertiesMap = {
   web_push_subscription_registered: GenericEventProperties;
   web_push_subscription_invalidated: {
     reason?: 'gone_410' | 'not_found_404' | 'forbidden_403' | 'unknown';
+  } & GenericEventProperties;
+  // ─── Pre-sale leads funnel ──────────────────────────────────────────
+  // lead_id / appointment_id are Firestore doc ids (safe to log); lead
+  // names / phones / emails are NEVER event properties.
+  lead_list_viewed: {
+    lead_count?: number;
+    queue_count?: number;
+  } & GenericEventProperties;
+  lead_opened: {
+    lead_id?: string;
+    source?: 'all_list' | 'call_mode_list';
+  } & GenericEventProperties;
+  call_mode_started: {
+    // 'deep_link' = /dashboard/leads?call=1, used by the standalone
+    // Calendar route's "Go to call queue"; 'calendar' = the in-page
+    // calendar view's same button; 'call_queue_tab' = the pre-IA-v2
+    // segmented control (admins / flag-off only).
+    entry?: 'start_calling' | 'call_queue_tab' | 'calendar' | 'deep_link';
+    queue_count?: number;
+  } & GenericEventProperties;
+  lead_call_initiated: {
+    lead_id?: string;
+    source?: 'queue_row' | 'detail_panel';
+    dial_count_before?: number;
+  } & GenericEventProperties;
+  call_outcome_recorded: {
+    lead_id?: string;
+    // 'booked' is absent on purpose: picking the Booked chip routes
+    // through the appointment picker and surfaces as appointment_booked
+    // (the booking endpoint logs the dial outcome atomically).
+    outcome?:
+      | 'no_answer'
+      | 'left_vm'
+      | 'wrong_number'
+      | 'not_interested'
+      | 'callback_requested'
+      | 'do_not_call';
+    source?: 'queue_inline' | 'detail_panel';
+  } & GenericEventProperties;
+  appointment_booked: {
+    lead_id?: string;
+    appointment_id?: string;
+    is_reschedule?: boolean;
+    mode?: 'phone' | 'video';
+    duration_minutes?: number;
+    hours_until_appointment?: number;
+  } & GenericEventProperties;
+  booking_confirmation_sent: {
+    lead_id?: string;
+    appointment_id?: string;
+    // 'phone_push' = sent from the paired phone (Firestore stamp);
+    // 'share_sheet' = navigator.share with attachments; 'sms_url' =
+    // sms: fallback without attachments; 'email' = server-side send.
+    channel?: 'phone_push' | 'share_sheet' | 'sms_url' | 'email';
+    kind?: 'confirmation' | 'reminder';
   } & GenericEventProperties;
 };
 
