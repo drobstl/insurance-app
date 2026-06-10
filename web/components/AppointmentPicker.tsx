@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { User } from 'firebase/auth';
+import { captureEvent } from '../lib/posthog';
+import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 
 interface DayEvent {
   id: string;
@@ -298,7 +300,18 @@ export default function AppointmentPicker({
         setError(data?.error || `Failed to ${isReschedule ? 'reschedule' : 'book'} (${res.status})`);
         return;
       }
-      onBooked(isReschedule ? existingAppointment!.id : data.appointmentId, local);
+      const appointmentId: string = isReschedule ? existingAppointment!.id : data.appointmentId;
+      // Funnel: every saved booking lands here — queue 'Booked' chip,
+      // the panel's Book-appointment button, and reschedules alike.
+      captureEvent(ANALYTICS_EVENTS.APPOINTMENT_BOOKED, {
+        lead_id: leadId,
+        appointment_id: appointmentId,
+        is_reschedule: isReschedule,
+        mode,
+        duration_minutes: duration,
+        hours_until_appointment: Math.max(0, Math.round((local.getTime() - Date.now()) / 3_600_000)),
+      });
+      onBooked(appointmentId, local);
     } catch (err) {
       console.error('book appointment error:', err);
       setError('Network error — please try again');
