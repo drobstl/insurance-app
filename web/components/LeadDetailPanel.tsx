@@ -2396,6 +2396,11 @@ export default function LeadDetailPanel({
                       return;
                     }
                     setShowConvertConfirm(false);
+                    captureEvent(ANALYTICS_EVENTS.LEAD_CONVERTED, {
+                      lead_id: lead.id,
+                      client_id: data?.clientId,
+                      method: 'manual_convert',
+                    });
                     // The live lead snapshot picks up convertedToClientId and
                     // flips the header banner. Parent decides what to do next:
                     // the standalone route page navigates to /dashboard/clients
@@ -2489,6 +2494,11 @@ export default function LeadDetailPanel({
                       return;
                     }
                     setConvertDuplicateMatch(null);
+                    captureEvent(ANALYTICS_EVENTS.LEAD_CONVERTED, {
+                      lead_id: lead.id,
+                      client_id: convertDuplicateMatch.existingClientId,
+                      method: 'link_to_existing',
+                    });
                     onConverted?.();
                   } catch (err) {
                     console.error('link to existing error:', err);
@@ -2520,6 +2530,11 @@ export default function LeadDetailPanel({
                       return;
                     }
                     setConvertDuplicateMatch(null);
+                    captureEvent(ANALYTICS_EVENTS.LEAD_CONVERTED, {
+                      lead_id: lead.id,
+                      client_id: data?.clientId,
+                      method: 'force_new_after_match',
+                    });
                     onConverted?.();
                   } catch (err) {
                     console.error('force convert error:', err);
