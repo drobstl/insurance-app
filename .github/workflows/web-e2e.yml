@@ -41,6 +41,18 @@ jobs:
         env:
           AFL_E2E_EMAIL: ${{ secrets.AFL_E2E_EMAIL }}
           AFL_E2E_PASSWORD: ${{ secrets.AFL_E2E_PASSWORD }}
+          # Firebase *test* phone number + fixed code for the two-step flows
+          # (no real SMS). Empty until the secrets exist; the login helper
+          # falls back to plain password sign-in when unset.
+          AFL_E2E_MFA_PHONE: ${{ secrets.AFL_E2E_MFA_PHONE }}
+          AFL_E2E_MFA_CODE: ${{ secrets.AFL_E2E_MFA_CODE }}
+          # Run the app the way prod runs after the Jun 15 go-live: two-step
+          # code paths on. Unused (harmless) on branches without MfaGate.
+          NEXT_PUBLIC_MFA_ENABLED: 'true'
+          # CI-only: lets Firebase test phone numbers work headlessly (skips
+          # reCAPTCHA). Guarded to localhost in web/firebase.ts — never set
+          # this in Vercel.
+          NEXT_PUBLIC_E2E_AUTH_TEST_MODE: 'true'
         run: npm run test:e2e
 
       - name: Upload Playwright report
