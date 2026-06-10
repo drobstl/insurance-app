@@ -47,10 +47,13 @@ export async function loginToDashboard(page: Page) {
   }
 
   // Dashboard reached without a challenge → the account has no second factor.
-  // From the Jun 15 go-live, MfaGate blocks the dashboard until enrollment, so
-  // enroll with the test number (self-healing after an MFA reset; pre-go-live
-  // the gate is just a banner and the probe times out harmlessly).
+  // Enroll it with the test number. After the Jun 15 go-live MfaGate forces
+  // this by itself; before go-live, #148's ?mfa=setup override surfaces the
+  // same gate, so CI rehearses the real enroll flow ahead of the cutover.
+  // (Self-healing after an MFA reset; if the gate doesn't render — e.g. a
+  // flag-off build — the probe times out and login is already complete.)
   if (mfaPhone) {
+    await page.goto('/dashboard?mfa=setup');
     const gateHeading = page.getByRole('heading', { name: 'Securing your account' });
     const gateShown = await gateHeading
       .waitFor({ state: 'visible', timeout: 4000 })
@@ -63,6 +66,7 @@ export async function loginToDashboard(page: Page) {
       await page.getByRole('button', { name: 'Verify & finish' }).click();
       await gateHeading.waitFor({ state: 'detached' });
     }
+    await page.goto('/dashboard');
   }
 
   await expect(page).toHaveURL(DASHBOARD_URL);
