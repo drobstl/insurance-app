@@ -16,6 +16,10 @@ export const ANALYTICS_EVENTS = {
   PATCH_CONVERSATION_STARTED: 'patch_conversation_started',
   PATCH_MESSAGE_SENT: 'patch_message_sent',
   POSTHOG_CLIENT_BOOT: 'posthog_client_boot',
+  // Emitted server-side by app/api/posthog/heartbeat/route.ts (never via
+  // captureEvent). Same-origin backstop for posthog_client_boot: a gap
+  // between the two volumes = browser-side tracking being suppressed.
+  POSTHOG_SERVER_HEARTBEAT: 'posthog_server_heartbeat',
   DASHBOARD_LOAD_SLOW: 'dashboard_load_slow',
   API_REQUEST_FAILED: 'api_request_failed',
   EMPTY_STATE_SEEN: 'empty_state_seen',
@@ -79,6 +83,30 @@ export const ANALYTICS_EVENTS = {
   CALL_OUTCOME_RECORDED: 'call_outcome_recorded',
   APPOINTMENT_BOOKED: 'appointment_booked',
   BOOKING_CONFIRMATION_SENT: 'booking_confirmation_sent',
+  // Subscription / revenue lifecycle — emitted SERVER-side only (via
+  // lib/posthog-server.ts) from the Stripe webhook + upgrade-tier
+  // routes, with the agent's Firebase uid as distinct_id (same id the
+  // client identifies with, so person profiles line up). Money truth
+  // lives here: trial → paid, plan moves, cancel intent, dunning.
+  SUBSCRIPTION_ACTIVATED: 'subscription_activated',
+  TRIAL_CONVERTED: 'trial_converted',
+  SUBSCRIPTION_STATUS_CHANGED: 'subscription_status_changed',
+  SUBSCRIPTION_CANCEL_SCHEDULED: 'subscription_cancel_scheduled',
+  SUBSCRIPTION_CANCELLED: 'subscription_cancelled',
+  SUBSCRIPTION_PAYMENT_FAILED: 'subscription_payment_failed',
+  SUBSCRIPTION_TIER_CHANGED: 'subscription_tier_changed',
+  // Upgrade-intent surface: the tier-gate paywall card (UpgradeToProCard)
+  // shown when a non-Pro agent opens a gated surface. viewed→clicked here,
+  // then the outcome arrives server-side as subscription_tier_changed
+  // (in-app commit) or subscription_activated (Checkout).
+  UPSELL_CARD_VIEWED: 'upsell_card_viewed',
+  UPSELL_CARD_CLICKED: 'upsell_card_clicked',
+  // The sale itself — terminal step of the pre-sale leads funnel.
+  // close_sale_started = the Close Sale ritual surface opened;
+  // lead_converted = POST /api/leads/[id]/convert succeeded, from any
+  // entry (ritual Card 1, manual convert, duplicate-match link/force).
+  CLOSE_SALE_STARTED: 'close_sale_started',
+  LEAD_CONVERTED: 'lead_converted',
 } as const;
 
 export type AnalyticsEventName =
@@ -148,6 +176,10 @@ export type AnalyticsEventPropertiesMap = {
   } & GenericEventProperties;
   posthog_client_boot: {
     path?: string;
+  } & GenericEventProperties;
+  posthog_server_heartbeat: {
+    path?: string;
+    source?: string;
   } & GenericEventProperties;
   dashboard_load_slow: {
     path?: string;
@@ -301,7 +333,10 @@ export type AnalyticsEventPropertiesMap = {
       | 'dashboard_inline'
       | 'mobile_pwa_action_items'
       | 'mobile_pwa_inline'
-      | 'desktop_action_items_readonly';
+      | 'desktop_action_items_readonly'
+      // Card 2 of the Close Sale ritual — welcome text fired while the
+      // client is still on the line (the load-bearing activation moment).
+      | 'close_sale_ritual';
     channel?: 'agent_phone_sms';
   } & GenericEventProperties;
   welcome_send_completed: {
@@ -395,6 +430,81 @@ export type AnalyticsEventPropertiesMap = {
     // sms: fallback without attachments; 'email' = server-side send.
     channel?: 'phone_push' | 'share_sheet' | 'sms_url' | 'email';
     kind?: 'confirmation' | 'reminder';
+  } & GenericEventProperties;
+  // ─── Subscription / revenue lifecycle (server-side) ─────────────────
+  // tier values come from lib/pricing.ts PricingTierId; status values
+  // are RAW Stripe subscription statuses (trialing / active / past_due /
+  // canceled / incomplete / unpaid), not the normalized Firestore field.
+  // stripe_event_id is the webhook delivery id — for tracing dupes.
+  subscription_activated: {
+    tier?: string;
+    on_trial?: boolean;
+    trial_days?: number | null;
+    // Account was created by this checkout (deferred pre-pay signup)
+    new_account?: boolean;
+    // false = a resubscribe/repeat checkout on an already-active agent
+    first_activation?: boolean;
+    stripe_event_id?: string;
+  } & GenericEventProperties;
+  trial_converted: {
+    tier?: string;
+    stripe_event_id?: string;
+  } & GenericEventProperties;
+  subscription_status_changed: {
+    from_status?: string | null;
+    to_status?: string;
+    cancel_scheduled?: boolean;
+    stripe_event_id?: string;
+  } & GenericEventProperties;
+  subscription_cancel_scheduled: {
+    tier?: string;
+    days_until_period_end?: number | null;
+    stripe_event_id?: string;
+  } & GenericEventProperties;
+  subscription_cancelled: {
+    tier?: string;
+    days_since_start?: number | null;
+    stripe_event_id?: string;
+  } & GenericEventProperties;
+  subscription_payment_failed: {
+    attempt_count?: number;
+    amount_due_cents?: number;
+    billing_reason?: string;
+    stripe_event_id?: string;
+  } & GenericEventProperties;
+  subscription_tier_changed: {
+    from_tier?: string | null;
+    to_tier?: string;
+    direction?: 'upgrade' | 'downgrade' | 'unchanged';
+    is_founding?: boolean;
+    // false = agent had a card on file but no live subscription, so the
+    // "change" created a fresh subscription rather than swapping a price
+    had_active_subscription?: boolean;
+  } & GenericEventProperties;
+  // ─── Upgrade-intent (tier-gate paywall card) ─────────────────────────
+  upsell_card_viewed: {
+    surface?: 'leads' | 'activity' | 'calendar' | 'coaching';
+  } & GenericEventProperties;
+  upsell_card_clicked: {
+    surface?: 'leads' | 'activity' | 'calendar' | 'coaching';
+    // 'upgrade_to_pro' = the primary CTA (in-app modal or Checkout);
+    // 'choose_plan' = coaching's Growth-or-Pro link to /pricing;
+    // 'compare_plans' = the footer link to /pricing.
+    cta?: 'upgrade_to_pro' | 'choose_plan' | 'compare_plans';
+  } & GenericEventProperties;
+  // ─── The close (terminal step of the pre-sale funnel) ───────────────
+  close_sale_started: {
+    lead_id?: string;
+  } & GenericEventProperties;
+  lead_converted: {
+    lead_id?: string;
+    client_id?: string;
+    // 'close_sale_ritual' = Card 1 atomic convert+policy; 'manual_convert'
+    // = the panel's plain Convert-to-client confirm; 'link_to_existing' /
+    // 'force_new_after_match' = the duplicate-match prompt's two paths.
+    method?: 'close_sale_ritual' | 'manual_convert' | 'link_to_existing' | 'force_new_after_match';
+    // Ritual only: whether the policy create passed the quality gate.
+    policy_created?: boolean;
   } & GenericEventProperties;
 };
 

@@ -3,9 +3,13 @@ import { stripe } from '../../../../lib/stripe';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
 import {
   PRICING_TIERS,
+  PRICING_TIER_ORDER,
   isStripeBillableTier,
   resolveStripePriceId,
+  type PricingTierId,
 } from '../../../../lib/pricing';
+import { captureServerEvent } from '../../../../lib/posthog-server';
+import { ANALYTICS_EVENTS } from '../../../../lib/analytics-events';
 
 /**
  * POST /api/stripe/upgrade-tier
@@ -300,6 +304,24 @@ export async function POST(request: NextRequest) {
         },
         { merge: true },
       );
+
+      // Revenue funnel — in-app plan moves never pass through Checkout,
+      // and the webhook's subscription.updated can't see the prior tier,
+      // so this is the ONE place an upgrade/downgrade is observable.
+      const prevTier = typeof agentData.membershipTier === 'string'
+        ? agentData.membershipTier
+        : null;
+      const fromIdx = prevTier ? PRICING_TIER_ORDER.indexOf(prevTier as PricingTierId) : -1;
+      const toIdx = PRICING_TIER_ORDER.indexOf(tier as PricingTierId);
+      await captureServerEvent(userId, ANALYTICS_EVENTS.SUBSCRIPTION_TIER_CHANGED, {
+        from_tier: prevTier,
+        to_tier: tier,
+        direction: fromIdx < 0 || toIdx < 0
+          ? undefined
+          : toIdx > fromIdx ? 'upgrade' : toIdx < fromIdx ? 'downgrade' : 'unchanged',
+        is_founding: isFounding,
+        had_active_subscription: Boolean(activeSubscription),
+      });
 
       return NextResponse.json({
         success: true,

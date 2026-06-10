@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   multiFactor,
   PhoneAuthProvider,
@@ -19,9 +20,22 @@ const MFA_ENABLED = process.env.NEXT_PUBLIC_MFA_ENABLED === 'true';
 // enforcement begins once the flag is on.
 const MFA_GO_LIVE = Date.parse('2026-06-15T13:00:00Z');
 
-function HeadsUpBanner() {
+/**
+ * Dismissible heads-up banner for the pre-go-live window. Rendered by the
+ * dashboard shell INSIDE the content column (not by MfaGate as a sibling), so
+ * it clears the fixed sidebar and the mobile top bar instead of being
+ * underlapped by them. Self-gating: null unless the flag is on, the agent is
+ * signed in, unenrolled, and we're before MFA_GO_LIVE.
+ */
+export function MfaHeadsUpBanner() {
+  const { user } = useDashboard();
   const [hidden, setHidden] = useState(false);
-  if (hidden) return null;
+
+  if (!MFA_ENABLED || hidden || !user) return null;
+  if (multiFactor(user).enrolledFactors.length > 0) return null;
+  // eslint-disable-next-line react-hooks/purity
+  if (Date.now() >= MFA_GO_LIVE) return null;
+
   return (
     <div className="bg-[#FEF3C7] text-[#92400E] border-b border-[#FCD34D] px-4 py-2.5 flex items-center justify-center gap-3 text-sm">
       <span className="text-center">
@@ -76,6 +90,7 @@ function toE164(value: string): string | null {
  */
 export default function MfaGate({ children }: { children: React.ReactNode }) {
   const { user, handleLogout } = useDashboard();
+  const searchParams = useSearchParams();
 
   const [done, setDone] = useState(false);
   const [phone, setPhone] = useState('');
@@ -164,19 +179,18 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
   // users are challenged for their SMS code by MfaChallenge at sign-in.)
   if (!MFA_ENABLED || !user || enrolled) return <>{children}</>;
 
-  // Heads-up window (before go-live): announce, don't enforce. Reads the clock
-  // in render (intentionally impure) to decide which side of the fixed go-live
-  // instant we're on — safe because the boundary is constant and the gate
-  // re-evaluates on every mount/navigation, so there's no stale-state hazard.
+  // `?mfa=setup` forces the enrollment gate before go-live so the flow can be
+  // dry-run on prod/preview ahead of the 15th. An agent who stumbles onto it
+  // just enrolls early — the intended end state — so it's harmless.
+  const forceSetup = searchParams.get('mfa') === 'setup';
+
+  // Before go-live (and not forcing setup): pass through. The heads-up banner
+  // is rendered by <MfaHeadsUpBanner/> inside the dashboard shell so it clears
+  // the fixed sidebar + mobile top bar. Reads the clock in render (intentionally
+  // impure); safe because the boundary is constant and the gate re-evaluates on
+  // every mount/navigation.
   // eslint-disable-next-line react-hooks/purity
-  if (Date.now() < MFA_GO_LIVE) {
-    return (
-      <>
-        <HeadsUpBanner />
-        {children}
-      </>
-    );
-  }
+  if (!forceSetup && Date.now() < MFA_GO_LIVE) return <>{children}</>;
 
   // Go-live onward: hard gate until an SMS factor is enrolled.
   const onPhone = phase === 'phone' || phase === 'sending';
