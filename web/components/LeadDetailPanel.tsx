@@ -26,6 +26,8 @@ import {
 import { DIMENSION_MAX, type LeadScore } from '../lib/lead-assessment';
 import { LeadTempChip } from './LeadTempChip';
 import { isDerivedLeadCode } from '../lib/lead-code-derive';
+import { captureEvent } from '../lib/posthog';
+import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 
 interface LeadPhone {
   number: string;
@@ -1005,6 +1007,16 @@ export default function LeadDetailPanel({
     setOutcomeError(null);
     setActiveDialPhone(target);
     setOutcomePrompt(true);
+    // Funnel: dials fired from inside the panel (Call button /
+    // multi-phone re-dial). Queue-row dials arrive via pendingDial and
+    // are captured by the parent's handleQueueCall — the pendingDial
+    // effect below deliberately captures nothing, same reason it
+    // doesn't fire onCallFired.
+    captureEvent(ANALYTICS_EVENTS.LEAD_CALL_INITIATED, {
+      lead_id: leadId,
+      source: 'detail_panel',
+      dial_count_before: lead?.dialLog?.length ?? 0,
+    });
     // Tell the parent we just fired a dial so the queue's
     // dial-persistence counter advances. Queue-row initial dials are
     // already counted in the parent's handleQueueCall before pendingDial
@@ -1014,7 +1026,7 @@ export default function LeadDetailPanel({
     // US-only — `tel:` with raw digits lets the OS dialer handle
     // country-code interpretation per the device locale.
     window.location.href = `tel:${digits}`;
-  }, [lead?.phone, onCallFired]);
+  }, [lead?.phone, lead?.dialLog, leadId, onCallFired]);
 
   const handleLogOutcome = useCallback(async (outcome: DialOutcome) => {
     if (!user || !leadId) return;
@@ -1048,6 +1060,13 @@ export default function LeadDetailPanel({
       }
       setOutcomePrompt(false);
       setActiveDialPhone(null);
+      // Funnel: the early 'booked' return above narrows `outcome` to
+      // the six POSTable values — booked surfaces as appointment_booked.
+      captureEvent(ANALYTICS_EVENTS.CALL_OUTCOME_RECORDED, {
+        lead_id: leadId,
+        outcome,
+        source: 'detail_panel',
+      });
       onOutcomeLogged?.(outcome);
     } catch (err) {
       console.error('log outcome error:', err);

@@ -10,6 +10,8 @@ import { deriveLeadCode } from '../lib/lead-code-derive';
 import { canAccessLeads } from '../lib/tier-gating';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import { db } from '../firebase';
+import { captureEvent } from '../lib/posthog';
+import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 
 // Canonical app smart-download link (mirrors the bundle endpoint at
 // web/app/api/mobile/agent-confirmation/[apptId]/route.ts).
@@ -237,6 +239,26 @@ export default function SendConfirmationDrawer({
   // from whatever it was when this drawer opened.
   const [sentFromPhone, setSentFromPhone] = useState(false);
   const initialStampRef = useRef<number | null>(null);
+
+  // Funnel: at most ONE booking_confirmation_sent per drawer open,
+  // whichever channel lands first — the phone-push stamp snapshot can
+  // re-deliver and the agent can hammer a send button; the ref guard
+  // absorbs both.
+  const confirmationTrackedRef = useRef(false);
+  const trackConfirmationSent = useCallback(
+    (sentVia: 'phone_push' | 'share_sheet' | 'sms_url' | 'email') => {
+      if (confirmationTrackedRef.current) return;
+      confirmationTrackedRef.current = true;
+      captureEvent(ANALYTICS_EVENTS.BOOKING_CONFIRMATION_SENT, {
+        lead_id: leadId,
+        appointment_id: appointmentId,
+        channel: sentVia,
+        kind,
+      });
+    },
+    [leadId, appointmentId, kind],
+  );
+
   useEffect(() => {
     if (!user || !appointmentId) return;
     const apptRef = doc(db, 'agents', user.uid, 'appointments', appointmentId);
@@ -257,11 +279,12 @@ export default function SendConfirmationDrawer({
         return;
       }
       if (ms !== null && ms > (initialStampRef.current ?? 0)) {
+        trackConfirmationSent('phone_push');
         setSentFromPhone(true);
       }
     });
     return () => unsub();
-  }, [user, appointmentId, kind]);
+  }, [user, appointmentId, kind, trackConfirmationSent]);
 
   // Once the phone-side stamp lands, give the agent a beat to see the
   // success overlay, then fire onSent which closes the drawer.
@@ -506,6 +529,7 @@ export default function SendConfirmationDrawer({
         navigator.canShare({ files, text: message })
       ) {
         await navigator.share({ files, text: message });
+        trackConfirmationSent('share_sheet');
         await stampSent(attachedReport);
         onSent();
         return;
@@ -514,6 +538,7 @@ export default function SendConfirmationDrawer({
       // sms: which on iOS opens Messages with phone + body filled.
       const url = buildSmsUrl();
       if (url) window.location.href = url;
+      trackConfirmationSent('sms_url');
       await stampSent(attachedReport);
       onSent();
     } catch (err) {
@@ -526,7 +551,7 @@ export default function SendConfirmationDrawer({
     } finally {
       setBusy(false);
     }
-  }, [buildFiles, message, stampSent, attachedReport, onSent, buildSmsUrl, leadPhone]);
+  }, [buildFiles, message, stampSent, attachedReport, onSent, buildSmsUrl, leadPhone, trackConfirmationSent]);
 
   /** Email — server-side send via AFL's verified domain (Resend). The
    *  endpoint composes attachments (business card + state license),
@@ -561,6 +586,7 @@ export default function SendConfirmationDrawer({
         }
         return;
       }
+      trackConfirmationSent('email');
       onSent();
     } catch (err) {
       console.error('email send error:', err);
@@ -568,7 +594,7 @@ export default function SendConfirmationDrawer({
     } finally {
       setBusy(false);
     }
-  }, [user, leadHasEmail, appointmentId, kind, message, onSent]);
+  }, [user, leadHasEmail, appointmentId, kind, message, onSent, trackConfirmationSent]);
 
   /** "Send from phone" deep-link URL — agent scans QR with phone, the
    *  URL opens AFL in iPhone Safari deep-linked to this drawer. */
