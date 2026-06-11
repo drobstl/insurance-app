@@ -16,11 +16,25 @@ import { useDashboard } from '../app/dashboard/DashboardContext';
 const MFA_ENABLED = process.env.NEXT_PUBLIC_MFA_ENABLED === 'true';
 
 // Enforcement go-live. Before this instant the gate only shows a heads-up
-// banner; on/after it, enrollment is required. 9:00am ET, Jun 15 2026 — a
-// daytime activation so it's monitorable, not a midnight surprise. The env
-// flag above is the master switch (and kill switch); this only schedules when
-// enforcement begins once the flag is on.
-const MFA_GO_LIVE = Date.parse('2026-06-15T13:00:00Z');
+// banner; on/after it, enrollment is required. Midnight ET (EDT, UTC-4) on
+// Jun 15 2026 — required the moment June 15 begins. The env flag above is the
+// master switch (and kill switch); this only schedules when enforcement starts.
+const MFA_GO_LIVE = Date.parse('2026-06-15T00:00:00-04:00');
+
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 10);
+  if (digits.length === 0) return '';
+  if (digits.length <= 3) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+function toE164(value: string): string | null {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  return null;
+}
 
 /**
  * Dismissible heads-up banner for the pre-go-live window. Rendered by the
@@ -56,51 +70,34 @@ export function MfaHeadsUpBanner() {
   );
 }
 
-function formatPhone(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 10);
-  if (digits.length === 0) return '';
-  if (digits.length <= 3) return `(${digits}`;
-  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
-  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-}
-
-function toE164(value: string): string | null {
-  const digits = value.replace(/\D/g, '');
-  if (digits.length === 10) return `+1${digits}`;
-  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
-  return null;
-}
-
 /**
  * Mandatory two-step verification (SMS MFA) gate.
  *
  * Rendered inside the authenticated, paid dashboard chokepoint
  * (SubscriptionGate → MfaGate → DashboardShell). When NEXT_PUBLIC_MFA_ENABLED
- * is on, it runs in two phases around MFA_GO_LIVE: BEFORE go-live it only shows
- * a dismissible heads-up banner (no enforcement); ON/AFTER go-live, an agent
- * with no enrolled second factor is BLOCKED until they enroll an SMS factor —
- * there is no skip and no opt-in setting. This is the "required at sign-in"
- * model: an agent who isn't yet
- * enrolled lands here on their next dashboard load; once enrolled, every future
- * sign-in challenges them for an SMS code (handled by MfaChallenge on /login).
+ * is on, it runs in two phases around MFA_GO_LIVE: BEFORE go-live only the
+ * heads-up banner shows (no enforcement); ON/AFTER go-live, an agent with no
+ * enrolled second factor is BLOCKED until they enroll. No skip, no opt-in.
  *
- * Firebase phone MFA requires a verified email; we satisfy that invisibly via
- * /api/auth/ensure-email-verified just before enrollment, so the agent only
- * ever sees: number → code → done. Lost-phone recovery is admin-side
- * (/api/admin/reset-mfa). When the flag is off, this renders children verbatim
- * (zero production behavior change until the flag is flipped + rebuilt).
+ * Enrollment is a linear flow: confirm password → mobile number → SMS code →
+ * done. We re-authenticate up front (Firebase requires a recent sign-in for the
+ * security-sensitive enroll, and persisted sessions are stale), so the actual
+ * enroll never trips `auth/requires-recent-login`. Firebase's verified-email
+ * prerequisite is satisfied invisibly via /api/auth/ensure-email-verified.
+ * Lost-phone recovery is admin-side (npm run reset-mfa). When the flag is off,
+ * this renders children verbatim — zero production change until the flag flips.
  */
 export default function MfaGate({ children }: { children: React.ReactNode }) {
   const { user, handleLogout } = useDashboard();
   const searchParams = useSearchParams();
 
-  const [done, setDone] = useState(false);
+  const [step, setStep] = useState<'password' | 'phone' | 'code'>('password');
+  const [busy, setBusy] = useState(false);
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
-  const [phase, setPhase] = useState<'phone' | 'sending' | 'code' | 'verifying'>('phone');
-  const [error, setError] = useState<string | null>(null);
-  const [needsReauth, setNeedsReauth] = useState(false);
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
   const verificationIdRef = useRef<string | null>(null);
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
@@ -115,9 +112,39 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
     recaptchaRef.current = null;
   }, []);
 
-  // Satisfy Firebase's verified-email prerequisite for phone MFA without an
-  // inbox round-trip. The user is already authenticated; the server verifies
-  // only the caller's own email. No-op if already verified.
+  // Step 1 — confirm the password. Re-authenticates so the upcoming enroll has a
+  // fresh sign-in (avoids requires-recent-login on stale/persisted sessions).
+  const confirmPassword = useCallback(async () => {
+    if (!user?.email) {
+      setError('Please sign out and sign back in to continue.');
+      return;
+    }
+    if (!password) {
+      setError('Enter your password.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password));
+      setPassword('');
+      setStep('phone');
+    } catch (e) {
+      const errCode = (e as { code?: string })?.code;
+      setError(
+        errCode === 'auth/wrong-password' || errCode === 'auth/invalid-credential'
+          ? 'That password didn’t match — try again.'
+          : e instanceof Error
+            ? e.message
+            : 'Could not confirm your password. Try again.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [user, password]);
+
+  // Satisfy Firebase's verified-email prerequisite without an inbox round-trip.
+  // The user is authenticated; the server verifies only the caller's own email.
   const ensureEmailVerified = useCallback(async () => {
     if (!user || user.emailVerified) return;
     const token = await user.getIdToken();
@@ -130,6 +157,7 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
     await user.getIdToken(true);
   }, [user]);
 
+  // Step 2 — text a code to the number.
   const sendCode = useCallback(async () => {
     if (!user) return;
     const e164 = toE164(phone);
@@ -137,7 +165,7 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
       setError('Enter a valid 10-digit US mobile number.');
       return;
     }
-    setPhase('sending');
+    setBusy(true);
     setError(null);
     try {
       await ensureEmailVerified();
@@ -151,28 +179,29 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
         recaptchaRef.current!,
       );
       verificationIdRef.current = verificationId;
-      setPhase('code');
+      setStep('code');
     } catch (e) {
       resetRecaptcha();
-      setPhase('phone');
-      // Enrolling a second factor is security-sensitive: Firebase rejects it
-      // when the sign-in is stale (common — sessions persist for days). Fall
-      // back to an inline password re-auth, then retry automatically.
+      // We re-auth in step 1, so this is rare — but if the session aged out
+      // between steps, send them back to confirm their password again.
       if ((e as { code?: string })?.code === 'auth/requires-recent-login') {
-        setNeedsReauth(true);
-        setError('For your security, confirm your password to turn on two-step verification.');
-        return;
+        setStep('password');
+        setError('Please confirm your password again to continue.');
+      } else {
+        setError(e instanceof Error ? e.message : 'Could not send the code. Please try again.');
       }
-      setError(e instanceof Error ? e.message : 'Could not send the code. Please try again.');
+    } finally {
+      setBusy(false);
     }
   }, [user, phone, ensureEmailVerified, resetRecaptcha]);
 
+  // Step 3 — verify the code and enroll.
   const verifyCode = useCallback(async () => {
     if (!user || !verificationIdRef.current || code.trim().length < 6) {
       setError('Enter the 6-digit code we texted you.');
       return;
     }
-    setPhase('verifying');
+    setBusy(true);
     setError(null);
     try {
       const cred = PhoneAuthProvider.credential(verificationIdRef.current, code.trim());
@@ -181,7 +210,6 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
       resetRecaptcha();
       setDone(true);
     } catch (e) {
-      setPhase('code');
       const errCode = (e as { code?: string })?.code;
       setError(
         errCode === 'auth/network-request-failed'
@@ -194,46 +222,15 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
                 ? e.message
                 : 'That code didn’t work — try again.',
       );
+    } finally {
+      setBusy(false);
     }
   }, [user, code, resetRecaptcha]);
-
-  // Stale-session recovery: re-authenticate with the password, then resume the
-  // code send. Firebase requires a recent sign-in before it will enroll MFA.
-  const reauthAndRetry = useCallback(async () => {
-    if (!user?.email) {
-      setError('Please sign out and sign back in to continue.');
-      return;
-    }
-    if (!password) {
-      setError('Enter your password.');
-      return;
-    }
-    setPhase('sending');
-    setError(null);
-    try {
-      await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password));
-      setNeedsReauth(false);
-      setPassword('');
-      await sendCode();
-    } catch (e) {
-      setPhase('phone');
-      const errCode = (e as { code?: string })?.code;
-      setError(
-        errCode === 'auth/wrong-password' || errCode === 'auth/invalid-credential'
-          ? 'That password didn’t match — try again.'
-          : e instanceof Error
-            ? e.message
-            : 'Could not confirm your password. Try again.',
-      );
-    }
-  }, [user, password, sendCode]);
 
   // Flag off / no user → pass straight through.
   if (!MFA_ENABLED || !user) return <>{children}</>;
 
   // Just enrolled in THIS session → confirm success once, then continue.
-  // Without this the gate simply vanishes, leaving no signal it worked — which
-  // is exactly what made the first dry-run feel ambiguous.
   if (done) {
     if (acknowledged) return <>{children}</>;
     return (
@@ -283,17 +280,13 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
   // just enrolls early — the intended end state — so it's harmless.
   const forceSetup = searchParams.get('mfa') === 'setup';
 
-  // Before go-live (and not forcing setup): pass through. The heads-up banner
-  // is rendered by <MfaHeadsUpBanner/> inside the dashboard shell so it clears
-  // the fixed sidebar + mobile top bar. Reads the clock in render (intentionally
-  // impure); safe because the boundary is constant and the gate re-evaluates on
-  // every mount/navigation.
-  // eslint-disable-next-line react-hooks/purity
+  // Before go-live (and not forcing setup): pass through. The heads-up banner is
+  // rendered by <MfaHeadsUpBanner/> inside the dashboard shell. Reads the clock
+  // in render (intentionally impure); safe because the boundary is constant and
+  // the gate re-evaluates on every mount/navigation.
   if (!forceSetup && Date.now() < MFA_GO_LIVE) return <>{children}</>;
 
-  // Go-live onward: hard gate until an SMS factor is enrolled.
-  const onPhone = phase === 'phone' || phase === 'sending';
-
+  // Go-live onward: hard gate. Linear flow — confirm password → number → code.
   return (
     <div className="min-h-screen bg-[#e4e4e4] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -331,8 +324,8 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
               reach your book of business.
             </p>
             <p>
-              Thank you for being an AgentForLife early adopter. Setup takes about 30 seconds — just
-              confirm the mobile number where you&apos;d like to receive your codes.
+              Thank you for being an AgentForLife early adopter. It takes about 30 seconds — confirm
+              your password, add your mobile number, and you&apos;re done.
             </p>
           </div>
 
@@ -343,9 +336,12 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
           )}
 
           <div className="mt-5">
-            {needsReauth ? (
+            {step === 'password' ? (
               <>
-                <label className="block text-sm font-medium text-[#000000] mb-2">Confirm your password</label>
+                <label className="block text-sm font-medium text-[#000000] mb-1">
+                  Confirm your password
+                </label>
+                <p className="text-xs text-[#707070] mb-2">A quick security check before we turn this on.</p>
                 <input
                   type="password"
                   value={password}
@@ -353,19 +349,19 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
                   placeholder="Your AgentForLife password"
                   autoComplete="current-password"
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') void reauthAndRetry();
+                    if (e.key === 'Enter') void confirmPassword();
                   }}
                   className="w-full px-4 py-3 bg-[#f8f8f8] border border-[#a4a4a4bf] rounded-[5px] text-[#000000] placeholder-[#707070] focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa]"
                 />
                 <button
-                  onClick={() => void reauthAndRetry()}
-                  disabled={phase === 'sending'}
+                  onClick={() => void confirmPassword()}
+                  disabled={busy}
                   className="w-full mt-3 py-3 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-[#a1c3be] text-white font-semibold rounded-[5px] transition-colors"
                 >
-                  {phase === 'sending' ? 'Confirming…' : 'Confirm & continue'}
+                  {busy ? 'Confirming…' : 'Continue'}
                 </button>
               </>
-            ) : onPhone ? (
+            ) : step === 'phone' ? (
               <>
                 <label className="block text-sm font-medium text-[#000000] mb-2">Mobile number</label>
                 <input
@@ -373,14 +369,17 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
                   value={formatPhone(phone)}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="(555) 123-4567"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void sendCode();
+                  }}
                   className="w-full px-4 py-3 bg-[#f8f8f8] border border-[#a4a4a4bf] rounded-[5px] text-[#000000] placeholder-[#707070] focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa]"
                 />
                 <button
                   onClick={() => void sendCode()}
-                  disabled={phase === 'sending'}
+                  disabled={busy}
                   className="w-full mt-3 py-3 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-[#a1c3be] text-white font-semibold rounded-[5px] transition-colors"
                 >
-                  {phase === 'sending' ? 'Sending code…' : 'Send my code'}
+                  {busy ? 'Sending code…' : 'Send my code'}
                 </button>
               </>
             ) : (
@@ -393,18 +392,21 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
                   value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   placeholder="6-digit code"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void verifyCode();
+                  }}
                   className="w-full px-4 py-3 bg-[#f8f8f8] border border-[#a4a4a4bf] rounded-[5px] text-center tracking-widest text-[#000000] placeholder-[#707070] focus:outline-none focus:ring-2 focus:ring-[#45bcaa]/50 focus:border-[#45bcaa]"
                 />
                 <button
                   onClick={() => void verifyCode()}
-                  disabled={phase === 'verifying'}
+                  disabled={busy}
                   className="w-full mt-3 py-3 px-4 bg-[#44bbaa] hover:bg-[#005751] disabled:bg-[#a1c3be] text-white font-semibold rounded-[5px] transition-colors"
                 >
-                  {phase === 'verifying' ? 'Verifying…' : 'Verify & finish'}
+                  {busy ? 'Verifying…' : 'Verify & finish'}
                 </button>
                 <button
                   onClick={() => {
-                    setPhase('phone');
+                    setStep('phone');
                     setCode('');
                     setError(null);
                     resetRecaptcha();
