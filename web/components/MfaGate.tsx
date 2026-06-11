@@ -101,6 +101,7 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [needsReauth, setNeedsReauth] = useState(false);
   const [password, setPassword] = useState('');
+  const [acknowledged, setAcknowledged] = useState(false);
   const verificationIdRef = useRef<string | null>(null);
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -181,7 +182,18 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
       setDone(true);
     } catch (e) {
       setPhase('code');
-      setError(e instanceof Error ? e.message : 'That code didn’t work — try again.');
+      const errCode = (e as { code?: string })?.code;
+      setError(
+        errCode === 'auth/network-request-failed'
+          ? 'Network hiccup — tap “Verify & finish” again.'
+          : errCode === 'auth/invalid-verification-code'
+            ? 'That code wasn’t right — double-check the text and re-enter it.'
+            : errCode === 'auth/code-expired'
+              ? 'That code expired — tap “Use a different number” to send a fresh one.'
+              : e instanceof Error
+                ? e.message
+                : 'That code didn’t work — try again.',
+      );
     }
   }, [user, code, resetRecaptcha]);
 
@@ -216,11 +228,55 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
     }
   }, [user, password, sendCode]);
 
-  const enrolled = !!user && (done || multiFactor(user).enrolledFactors.length > 0);
+  // Flag off / no user → pass straight through.
+  if (!MFA_ENABLED || !user) return <>{children}</>;
 
-  // Flag off / no user / already enrolled → pass straight through. (Enrolled
-  // users are challenged for their SMS code by MfaChallenge at sign-in.)
-  if (!MFA_ENABLED || !user || enrolled) return <>{children}</>;
+  // Just enrolled in THIS session → confirm success once, then continue.
+  // Without this the gate simply vanishes, leaving no signal it worked — which
+  // is exactly what made the first dry-run feel ambiguous.
+  if (done) {
+    if (acknowledged) return <>{children}</>;
+    return (
+      <div className="min-h-screen bg-[#e4e4e4] flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-[5px] shadow-xl border border-[#d0d0d0] p-8 text-center">
+            <div className="w-14 h-14 bg-[#daf3f0] rounded-full flex items-center justify-center mx-auto mb-5">
+              <svg className="w-7 h-7 text-[#005851]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold text-[#005851]">You&apos;re all set</h1>
+            <p className="mt-3 text-sm text-[#4a5568] leading-relaxed">
+              Two-step verification is on
+              {phone ? (
+                <>
+                  {' '}
+                  for <span className="font-semibold">{formatPhone(phone)}</span>
+                </>
+              ) : null}
+              . Next time you sign in, we&apos;ll text you a one-time code right after your password —
+              that&apos;s the whole change.
+            </p>
+            <button
+              onClick={() => setAcknowledged(true)}
+              className="w-full mt-6 py-3 px-4 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-[5px] transition-colors"
+            >
+              Continue to dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Enrolled before this session → straight through. (Enrolled users are
+  // challenged for their SMS code by MfaChallenge at sign-in.)
+  if (multiFactor(user).enrolledFactors.length > 0) return <>{children}</>;
 
   // `?mfa=setup` forces the enrollment gate before go-live so the flow can be
   // dry-run on prod/preview ahead of the 15th. An agent who stumbles onto it
