@@ -9,7 +9,7 @@ import {
   GoogleCalendarNotConnectedError,
   resolveGoogleCalendarAccessToken,
 } from '../../../../../lib/google-calendar';
-import { buildGoogleCallbackUrl, GOOGLE_CALENDAR_CALLBACK_PATH } from '../../../../../lib/oauth-redirect';
+import { buildGoogleCallbackUrl, GOOGLE_CALENDAR_CALLBACK_PATH, resolveCanonicalOrigin } from '../../../../../lib/oauth-redirect';
 import { pushAgentForConfirmation } from '../../../../../lib/agent-push';
 
 /**
@@ -128,6 +128,7 @@ export async function POST(
     let resolvedMeetingUrl: string | null = rawMeetingUrl || null;
     try {
       const callbackUrl = buildGoogleCallbackUrl(req.url, GOOGLE_CALENDAR_CALLBACK_PATH);
+      const origin = resolveCanonicalOrigin(req.url);
       const { accessToken, calendarId } = await resolveGoogleCalendarAccessToken(agentId, callbackUrl);
 
       const startDate = scheduledAt.toDate();
