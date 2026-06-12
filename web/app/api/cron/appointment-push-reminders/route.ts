@@ -14,9 +14,13 @@ import { pushAgentForConfirmation } from '../../../../lib/agent-push';
 /**
  * GET /api/cron/appointment-push-reminders
  *
- * Chunk 4f-extension: scan every agent's upcoming appointments and
- * auto-push a reminder to the lead's mobile app (if they downloaded
- * it and granted push permission).
+ * Chunk 4f-extension: scan every agent's upcoming appointments and fire
+ * two independent pushes:
+ *   1. AGENT-side — wake the agent's phone with a "tap to send the
+ *      reminder text" notification (deep-links into the send screen).
+ *      This is the one agents actually rely on.
+ *   2. LEAD-side — auto-push a reminder to the lead's own mobile app, if
+ *      they happen to have it installed and granted push permission.
  *
  * Per-agent timing is controlled by `agents/{id}.reminderPushHoursBefore`
  * (default 1 hour; 0 disables).
@@ -26,18 +30,28 @@ import { pushAgentForConfirmation } from '../../../../lib/agent-push';
  * 1 hour from now" gets a reminder somewhere between 60 and 65 minutes
  * before — close enough.
  *
- * Channel separation:
- *   - sentReminderAt        → agent-sent SMS (Chunk 4f-MVP)
- *   - reminderPushSentAt    → this cron's auto-push (Chunk 4f-extension)
+ * Channel separation (all independent — each has its own stamp; none
+ * gates another):
+ *   - sentReminderAt           → agent hand-sent SMS (Chunk 4f-MVP)
+ *   - agentReminderPushSentAt  → agent-side push that tees up the
+ *                                reminder text (restored by this fix)
+ *   - reminderPushSentAt       → lead-side auto-push to the client's app
  *
- * The two are independent: an agent who hand-sends an SMS reminder isn't
- * prevented from getting an auto-push as well; same the other direction.
- * The handoff doc's design is "both surfaces coexist peacefully".
+ * IMPORTANT: the agent-side push must NOT be gated on the lead having the
+ * app — a pre-sale lead with an upcoming appointment never does. Keeping
+ * the agent push ahead of the lead-token check is the whole point of this
+ * ordering; an earlier version nested it below the lead-token `continue`,
+ * so it silently never ran.
  */
 
 interface RunCounts {
   agentsScanned: number;
   candidates: number;
+  // Agent-side 1hr reminder push (the load-bearing notification).
+  agentPushSent: number;
+  agentNoToken: number;
+  agentPushFailed: number;
+  // Lead-side auto-reminder (dormant: pre-sale leads have no token).
   pushSent: number;
   noToken: number;
   pushFailed: number;
@@ -72,6 +86,9 @@ export async function GET(req: NextRequest) {
   const counts: RunCounts = {
     agentsScanned: 0,
     candidates: 0,
+    agentPushSent: 0,
+    agentNoToken: 0,
+    agentPushFailed: 0,
     pushSent: 0,
     noToken: 0,
     pushFailed: 0,
@@ -119,6 +136,56 @@ export async function GET(req: NextRequest) {
       for (const apptDoc of apptSnap.docs) {
         counts.candidates++;
         const appt = apptDoc.data();
+
+        // ── Agent-side 1hr reminder push ──
+        // The load-bearing notification: wakes the AGENT's phone so they
+        // can hand-send a "see you in an hour" text to the lead. It is
+        // INDEPENDENT of the lead-side auto-reminder below and must never
+        // be gated on the lead having the app — a lead with an upcoming
+        // sales appointment is pre-sale and (per the May 18 push-token
+        // narrowing) has no app/token. This block used to live *after* the
+        // lead-token `continue` further down, so in practice it never ran:
+        // the lead had no token, we bailed the iteration, and the agent
+        // never got their reminder. Gate only on its own
+        // `agentReminderPushSentAt` stamp so repeated sweeps of the same
+        // window don't double-push.
+        if (!appt.agentReminderPushSentAt) {
+          const leadName = typeof appt.leadName === 'string' ? appt.leadName : '';
+          const agentRes = await pushAgentForConfirmation({
+            db,
+            agentId,
+            apptId: apptDoc.id,
+            leadName,
+            kind: 'reminder',
+          });
+          if (agentRes.outcome === 'ok') {
+            counts.agentPushSent++;
+            await apptDoc.ref.update({ agentReminderPushSentAt: Timestamp.now() }).catch((err) => {
+              console.error('[appointment-push-reminders] agent stamp failed', {
+                agentId,
+                apptId: apptDoc.id,
+                err,
+              });
+            });
+          } else if (agentRes.outcome === 'no_token' || agentRes.outcome === 'ineligible') {
+            counts.agentNoToken++;
+          } else {
+            counts.agentPushFailed++;
+            console.warn('[appointment-push-reminders] agent push failed', {
+              agentId,
+              apptId: apptDoc.id,
+              outcome: agentRes.outcome,
+              reason: agentRes.reason,
+            });
+          }
+        }
+
+        // ── Lead-side auto-reminder push ──
+        // Dormant in practice: pre-sale leads have no app/token, so
+        // `readValidPushToken` returns null and we skip below. Kept intact
+        // (not deleted) so the lane revives automatically if leads ever
+        // register tokens — that revival is a separate product decision
+        // from the May 18 narrowing, out of scope for this fix.
         if (appt.reminderPushSentAt) {
           counts.alreadySent++;
           continue;
@@ -188,41 +255,6 @@ export async function GET(req: NextRequest) {
             status: outcome.status,
             errorCode: 'errorCode' in outcome ? outcome.errorCode : null,
           });
-        }
-
-        // ── Agent-side 1hr reminder push ──
-        // Independent of the lead-side reminder above. We push the AGENT
-        // so they can hand-send a "see you in an hour" text to the lead
-        // (different surface from the lead's auto-reminder; both can
-        // coexist per the original cron's design notes).
-        //
-        // Stamped via `agentReminderPushSentAt` on the appt so we don't
-        // re-push if the cron sweeps the same window twice.
-        if (!appt.agentReminderPushSentAt) {
-          const leadName = typeof appt.leadName === 'string' ? appt.leadName : '';
-          const agentRes = await pushAgentForConfirmation({
-            db,
-            agentId,
-            apptId: apptDoc.id,
-            leadName,
-            kind: 'reminder',
-          });
-          if (agentRes.outcome === 'ok') {
-            await apptDoc.ref.update({ agentReminderPushSentAt: Timestamp.now() }).catch((err) => {
-              console.error('[appointment-push-reminders] agent stamp failed', {
-                agentId,
-                apptId: apptDoc.id,
-                err,
-              });
-            });
-          } else if (agentRes.outcome !== 'no_token' && agentRes.outcome !== 'ineligible') {
-            console.warn('[appointment-push-reminders] agent push failed', {
-              agentId,
-              apptId: apptDoc.id,
-              outcome: agentRes.outcome,
-              reason: agentRes.reason,
-            });
-          }
         }
       }
     }
