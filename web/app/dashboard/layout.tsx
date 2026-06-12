@@ -13,6 +13,7 @@ import DashboardAssistant from '../../components/DashboardAssistant';
 import DashboardTicker from '../../components/DashboardTicker';
 import MfaGate, { MfaHeadsUpBanner } from '../../components/MfaGate';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
+import { computeAPV } from '../../lib/apv';
 import { ANALYTICS_EVENTS } from '../../lib/analytics-events';
 import { captureEvent } from '../../lib/posthog';
 import { leadsAccessReason, activityAccessReason, isTrialActive, isProOrAbove, isFreeTier, performanceAccess } from '../../lib/tier-gating';
@@ -630,6 +631,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const [tickerStats, setTickerStats] = useState<AgentAggregates | null>(null);
   const [tickerClientCount, setTickerClientCount] = useState(0);
   const [tickerAtRiskCount, setTickerAtRiskCount] = useState(0);
+  const [tickerAtRiskApv, setTickerAtRiskApv] = useState(0);
   const [tickerApptsToday, setTickerApptsToday] = useState(0);
 
 
@@ -646,15 +648,22 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     }, () => {});
 
     // Open at-risk policies — counted client-side from the alert status so the
-    // ticker's "N at risk" matches what the Retention page treats as live.
+    // ticker's "N at risk" matches what the Retention page treats as live. APV
+    // sums computeAPV(premiumAmount) exactly the way Saved APV does in
+    // stats-aggregation, so a policy's at-risk dollars equal the dollars it
+    // contributes to Saved APV once it's retained (same field, same math).
     const alertsQ = query(collection(db, 'agents', user.uid, 'conservationAlerts'));
     const unsubAlerts = onSnapshot(alertsQ, (snap) => {
       let count = 0;
+      let apv = 0;
       snap.forEach((d) => {
-        const status = (d.data().status as string) ?? '';
-        if (TICKER_ACTIVE_ALERT_STATUSES.has(status)) count += 1;
+        const data = d.data();
+        if (!TICKER_ACTIVE_ALERT_STATUSES.has((data.status as string) ?? '')) return;
+        count += 1;
+        apv += computeAPV(data.premiumAmount as number | null);
       });
       setTickerAtRiskCount(count);
+      setTickerAtRiskApv(apv);
     }, () => {});
 
     // Today's scheduled appointments. The [start, end) window is captured per
@@ -1223,6 +1232,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           stats={tickerStats}
           clientCount={tickerClientCount}
           atRiskCount={tickerAtRiskCount}
+          atRiskApv={tickerAtRiskApv}
           appointmentsToday={tickerApptsToday}
           agentFirstName={(agentProfile.name || '').trim().split(/\s+/)[0] || undefined}
         />
