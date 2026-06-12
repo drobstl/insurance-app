@@ -65,6 +65,11 @@ interface Props {
     notes?: string;
     meetingUrl?: string;
   };
+  /**
+   * Create mode only: prefill the date/time to this slot (e.g. the agent
+   * clicked an empty spot on the calendar). Ignored when rescheduling.
+   */
+  initialScheduledAt?: Date;
   /** Lead email (snapshot). When present, "Invite lead by email" is offered. */
   leadEmail?: string;
   /** Agent defaults from settings — controls the phone/video mode + meeting-link prefill. */
@@ -132,6 +137,7 @@ export default function AppointmentPicker({
   leadId,
   leadName,
   existingAppointment,
+  initialScheduledAt,
   leadEmail,
   agentAppointmentMode,
   agentDefaultMeetingLink,
@@ -144,8 +150,10 @@ export default function AppointmentPicker({
   const defaults = useMemo(
     () => existingAppointment
       ? toDateTimeInputs(existingAppointment.scheduledAt)
-      : nextHalfHour(),
-    [existingAppointment],
+      : initialScheduledAt
+        ? toDateTimeInputs(initialScheduledAt)
+        : nextHalfHour(),
+    [existingAppointment, initialScheduledAt],
   );
   const [date, setDate] = useState(defaults.date);
   const [time, setTime] = useState(defaults.time);
