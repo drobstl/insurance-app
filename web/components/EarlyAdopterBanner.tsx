@@ -71,9 +71,10 @@ export default function EarlyAdopterBanner() {
           title: 'You’re a founding member.',
           body:
             'Locked in free for life — thank you for betting on AgentForLife before anyone else did. You’ll always be first in line for what we build next.',
-          frame: 'ring-1 ring-inset ring-[#fdcc02]/40',
+          frame: 'ring-1 ring-inset ring-[#fdcc02]/60',
           iconWrap: 'bg-[#fdcc02]/20',
           icon: 'text-[#fdcc02]',
+          titleColor: 'text-[#fdcc02]',
         }
       : {
           title: 'You’re on Growth now — still $29.',
@@ -82,6 +83,7 @@ export default function EarlyAdopterBanner() {
           frame: '',
           iconWrap: 'bg-[#3DD6C3]/20',
           icon: 'text-[#3DD6C3]',
+          titleColor: 'text-white',
         };
 
   return (
@@ -92,7 +94,7 @@ export default function EarlyAdopterBanner() {
         </svg>
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-white font-semibold text-sm">{config.title}</p>
+        <p className={`font-semibold text-sm ${config.titleColor}`}>{config.title}</p>
         <p className="text-white/75 text-xs mt-0.5">{config.body}</p>
       </div>
       <button
