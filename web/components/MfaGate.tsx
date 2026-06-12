@@ -11,6 +11,7 @@ import {
   RecaptchaVerifier,
 } from 'firebase/auth';
 import { auth } from '../firebase';
+import { withTimeout } from '../lib/timeout';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 
 const MFA_ENABLED = process.env.NEXT_PUBLIC_MFA_ENABLED === 'true';
@@ -20,6 +21,11 @@ const MFA_ENABLED = process.env.NEXT_PUBLIC_MFA_ENABLED === 'true';
 // Jun 15 2026 — required the moment June 15 begins. The env flag above is the
 // master switch (and kill switch); this only schedules when enforcement starts.
 const MFA_GO_LIVE = Date.parse('2026-06-15T00:00:00-04:00');
+
+// Failsafe for a hung send. If `verifyPhoneNumber` never settles (a stalled
+// reCAPTCHA or flaky network), the catch below never runs and `busy` stays true,
+// wedging "Send my code". Cap the wait so a stall rejects into the catch instead.
+const SEND_CODE_TIMEOUT_MS = 20_000;
 
 function formatPhone(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 10);
@@ -174,9 +180,10 @@ export default function MfaGate({ children }: { children: React.ReactNode }) {
       }
       const session = await multiFactor(user).getSession();
       const provider = new PhoneAuthProvider(auth);
-      const verificationId = await provider.verifyPhoneNumber(
-        { phoneNumber: e164, session },
-        recaptchaRef.current!,
+      const verificationId = await withTimeout(
+        provider.verifyPhoneNumber({ phoneNumber: e164, session }, recaptchaRef.current!),
+        SEND_CODE_TIMEOUT_MS,
+        'Couldn’t reach the verification service — check your connection and tap “Send my code” again.',
       );
       verificationIdRef.current = verificationId;
       setStep('code');
