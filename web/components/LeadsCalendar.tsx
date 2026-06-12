@@ -193,6 +193,10 @@ function useWeekAppointments(user: User | null, weekStart: Date): CalAppt[] {
           const v = d.data() as Record<string, unknown>;
           const ts = v.scheduledAt as Timestamp | undefined;
           if (!ts) return;
+          // Cancelled sits drop off the calendar: the slot is freed, so a
+          // crossed-out block would make a free slot look busy — and it would
+          // contradict the week tally, which already excludes cancelled.
+          if (v.status === 'cancelled') return;
           rows.push({
             id: d.id,
             leadId: typeof v.leadId === 'string' ? v.leadId : '',
