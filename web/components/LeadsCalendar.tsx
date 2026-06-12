@@ -6,6 +6,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -15,6 +16,7 @@ import {
 import type { User } from 'firebase/auth';
 import { db } from '../firebase';
 import { useDashboard } from '../app/dashboard/DashboardContext';
+import AppointmentPicker from './AppointmentPicker';
 import SendConfirmationDrawer from './SendConfirmationDrawer';
 import type { AppointmentStatus } from '../lib/appointments';
 
@@ -315,6 +317,13 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
   // block jump to its new slot instantly, and roll back on failure.
   const [optimistic, setOptimistic] = useState<Record<string, number>>({});
   const [dragError, setDragError] = useState<string | null>(null);
+  // Click-empty-slot-to-book: the chosen slot, the lead picker, and the
+  // chosen lead. With newApptAt + bookingLead set we render AppointmentPicker.
+  const [newApptAt, setNewApptAt] = useState<Date | null>(null);
+  const [bookingLead, setBookingLead] = useState<{ id: string; name: string; phone: string; email?: string } | null>(null);
+  const [pickerLeads, setPickerLeads] = useState<Array<{ id: string; name: string; phone: string; email?: string }>>([]);
+  const [leadsLoaded, setLeadsLoaded] = useState(false);
+  const [leadSearch, setLeadSearch] = useState('');
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
@@ -404,6 +413,52 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
     },
     [user],
   );
+
+  // Click-empty-slot-to-book: open the picker for the clicked time, and
+  // lazily load the agent's leads once for the in-picker search.
+  const openNewAppt = useCallback(
+    async (at: Date) => {
+      setBookingLead(null);
+      setLeadSearch('');
+      setNewApptAt(at);
+      if (leadsLoaded || !user) return;
+      try {
+        const snap = await getDocs(collection(db, 'agents', user.uid, 'leads'));
+        const rows = snap.docs
+          .map((d) => {
+            const v = d.data() as { name?: string; phone?: string; email?: string };
+            return {
+              id: d.id,
+              name: v.name || 'Lead',
+              phone: typeof v.phone === 'string' ? v.phone : '',
+              email: typeof v.email === 'string' ? v.email : undefined,
+            };
+          })
+          .sort((a, b) => a.name.localeCompare(b.name));
+        setPickerLeads(rows);
+        setLeadsLoaded(true);
+      } catch (err) {
+        console.warn('lead fetch for booking failed:', err);
+        setLeadsLoaded(true);
+      }
+    },
+    [leadsLoaded, user],
+  );
+  const closeNewAppt = useCallback(() => {
+    setNewApptAt(null);
+    setBookingLead(null);
+    setLeadSearch('');
+  }, []);
+  const filteredPickerLeads = useMemo(() => {
+    const q = leadSearch.trim().toLowerCase();
+    if (!q) return pickerLeads;
+    const digits = q.replace(/\D/g, '');
+    return pickerLeads.filter(
+      (l) =>
+        l.name.toLowerCase().includes(q) ||
+        (digits.length >= 2 && l.phone.replace(/\D/g, '').includes(digits)),
+    );
+  }, [pickerLeads, leadSearch]);
 
   const openReminder = useCallback(
     async (appt: CalAppt) => {
@@ -514,7 +569,7 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
             <MiniMonth anchor={anchor} onPick={setAnchor} apptDayKeys={apptDayKeys} weekStart={weekStart} />
             <Legend />
           </div>
-          <WeekGrid days={days} appts={displayAppts} busy={visibleBusy} onSelect={setSelected} onReschedule={handleReschedule} />
+          <WeekGrid days={days} appts={displayAppts} busy={visibleBusy} onSelect={setSelected} onReschedule={handleReschedule} onNewAppt={openNewAppt} />
         </div>
       )}
 
@@ -557,6 +612,73 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
           }}
         />
       )}
+
+      {/* ── New appointment, step 1: pick a lead for the clicked slot ── */}
+      {newApptAt && !bookingLead && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={closeNewAppt}>
+          <div className="absolute inset-0 bg-black/30" />
+          <div
+            className="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl border-2 border-[#1A1A1A] sm:border-r-[5px] sm:border-b-[5px] p-5 max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3">
+              <div className="text-lg font-bold text-[#000000]">New appointment</div>
+              <div className="text-sm text-[#005851]">
+                {newApptAt.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} · {fmtTime(newApptAt)}
+              </div>
+            </div>
+            <input
+              autoFocus
+              type="text"
+              placeholder="Search your leads by name or phone…"
+              value={leadSearch}
+              onChange={(e) => setLeadSearch(e.target.value)}
+              className="w-full px-3 py-2 mb-2 bg-white rounded-lg border border-[#d0d0d0] text-sm text-[#000000] placeholder-[#707070] focus:outline-none focus:border-[#45bcaa]"
+            />
+            <div className="flex-1 overflow-y-auto">
+              {!leadsLoaded ? (
+                <div className="text-sm text-[#9CA3AF] px-1 py-3">Loading your leads…</div>
+              ) : filteredPickerLeads.length === 0 ? (
+                <div className="text-sm text-[#9CA3AF] px-1 py-3">No matching leads.</div>
+              ) : (
+                <ul className="space-y-1">
+                  {filteredPickerLeads.slice(0, 50).map((l) => (
+                    <li key={l.id}>
+                      <button
+                        onClick={() => setBookingLead(l)}
+                        className="w-full text-left px-3 py-2 rounded-lg border border-transparent hover:bg-[#daf3f0]/40 hover:border-[#45bcaa]/40 transition-colors"
+                      >
+                        <div className="text-sm font-semibold text-[#000000] truncate">{l.name}</div>
+                        {l.phone && <div className="text-xs text-[#707070]">{l.phone}</div>}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <button onClick={closeNewAppt} className="mt-3 w-full text-center text-xs text-[#9CA3AF] hover:text-[#707070]">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── New appointment, step 2: full booking form, prefilled to the slot ── */}
+      {newApptAt && bookingLead && (
+        <AppointmentPicker
+          user={user}
+          leadId={bookingLead.id}
+          leadName={bookingLead.name}
+          leadEmail={bookingLead.email}
+          initialScheduledAt={newApptAt}
+          agentAppointmentMode={agentProfile.appointmentMode}
+          agentDefaultMeetingLink={agentProfile.defaultMeetingLink}
+          agentAutoCreateGoogleMeet={agentProfile.autoCreateGoogleMeet}
+          googleCalendarConnected={connected === true}
+          onBooked={closeNewAppt}
+          onCancel={closeNewAppt}
+        />
+      )}
     </div>
   );
 }
@@ -570,12 +692,14 @@ function WeekGrid({
   busy,
   onSelect,
   onReschedule,
+  onNewAppt,
 }: {
   days: Date[];
   appts: CalAppt[];
   busy: BusyBlock[];
   onSelect: (a: CalAppt) => void;
   onReschedule: (appt: CalAppt, newStart: Date) => void;
+  onNewAppt: (at: Date) => void;
 }) {
   const hours = useMemo(
     () => Array.from({ length: DAY_END_HOUR - DAY_START_HOUR + 1 }, (_, i) => DAY_START_HOUR + i),
@@ -657,6 +781,9 @@ function WeekGrid({
                 if (!appt) return;
                 onReschedule(appt, dateAtMinutes(d, dropMinutes(clientY, columnTop, appt.durationMinutes)));
               }}
+              onNewAppt={(columnTop, clientY) =>
+                onNewAppt(dateAtMinutes(d, dropMinutes(clientY, columnTop, 30)))
+              }
             />
           ))}
         </div>
@@ -704,6 +831,7 @@ function DayColumn({
   onBlockDragEnd,
   onDragOverDay,
   onDropDay,
+  onNewAppt,
 }: {
   day: Date;
   hours: number[];
@@ -716,6 +844,7 @@ function DayColumn({
   onBlockDragEnd: () => void;
   onDragOverDay: () => void;
   onDropDay: (columnTop: number, clientY: number) => void;
+  onNewAppt: (columnTop: number, clientY: number) => void;
 }) {
   const now = new Date();
   const isToday = isSameDay(day, now);
@@ -725,8 +854,10 @@ function DayColumn({
 
   return (
     <div
-      className={`relative border-l border-[#f0f0f0] ${isDragOver ? 'bg-[#daf3f0]/40' : ''}`}
+      className={`relative border-l border-[#f0f0f0] cursor-pointer ${isDragOver ? 'bg-[#daf3f0]/40' : 'hover:bg-[#fbfdfc]'}`}
       style={{ height: GRID_HEIGHT }}
+      title="Click an open spot to book"
+      onClick={(e) => onNewAppt(e.currentTarget.getBoundingClientRect().top, e.clientY)}
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
@@ -741,7 +872,7 @@ function DayColumn({
       {hours.map((h) => (
         <div
           key={h}
-          className="absolute left-0 right-0 border-t border-[#f4f4f4]"
+          className="absolute left-0 right-0 border-t border-[#f4f4f4] pointer-events-none"
           style={{ top: (h - DAY_START_HOUR) * HOUR_PX }}
         />
       ))}
@@ -752,7 +883,7 @@ function DayColumn({
           return (
             <div
               key={b.id}
-              className="absolute left-0.5 right-0.5 top-0 text-[9px] text-[#9CA3AF] bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_4px,#eceef1_4px,#eceef1_8px)] rounded px-1 py-0.5 truncate"
+              className="absolute left-0.5 right-0.5 top-0 text-[9px] text-[#9CA3AF] bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_4px,#eceef1_4px,#eceef1_8px)] rounded px-1 py-0.5 truncate pointer-events-none"
               title={b.title}
             >
               {b.title}
@@ -764,7 +895,7 @@ function DayColumn({
         return (
           <div
             key={b.id}
-            className="absolute left-0.5 right-0.5 rounded bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_5px,#e9ebee_5px,#e9ebee_10px)] border border-[#e5e7eb]"
+            className="absolute left-0.5 right-0.5 rounded bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_5px,#e9ebee_5px,#e9ebee_10px)] border border-[#e5e7eb] pointer-events-none"
             style={{ top, height }}
             title={`${b.title} · ${fmtTime(b.start)}–${fmtTime(b.end)}`}
           />
@@ -787,7 +918,7 @@ function DayColumn({
               onBlockDragStart(a);
             }}
             onDragEnd={onBlockDragEnd}
-            onClick={() => onSelect(a)}
+            onClick={(e) => { e.stopPropagation(); onSelect(a); }}
             className={`absolute left-0.5 right-0.5 rounded-md border-l-[3px] border px-1.5 py-1 text-left overflow-hidden hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing ${meta.block} ${draggingId === a.id ? 'opacity-40' : ''}`}
             style={{ top, height, zIndex: 5 }}
             title={`${a.leadName} · ${fmtTime(a.scheduledAt)} · ${meta.label} — drag to reschedule`}
