@@ -39,20 +39,25 @@ jobs:
 
       - name: Run Playwright tests
         env:
+          # E2E signs in as a DEDICATED bot account (deardanielroberts+e2e@…),
+          # not a human login. It is deliberately kept WITHOUT an enrolled
+          # second factor so sign-in is a clean password → dashboard, and the
+          # five functional specs (bulk/single-file import) test what they're
+          # about without auth friction.
           AFL_E2E_EMAIL: ${{ secrets.AFL_E2E_EMAIL }}
           AFL_E2E_PASSWORD: ${{ secrets.AFL_E2E_PASSWORD }}
-          # Firebase *test* phone number + fixed code for the two-step flows
-          # (no real SMS). Empty until the secrets exist; the login helper
-          # falls back to plain password sign-in when unset.
-          AFL_E2E_MFA_PHONE: ${{ secrets.AFL_E2E_MFA_PHONE }}
-          AFL_E2E_MFA_CODE: ${{ secrets.AFL_E2E_MFA_CODE }}
-          # Run the app the way prod runs after the Jun 15 go-live: two-step
-          # code paths on. Unused (harmless) on branches without MfaGate.
-          NEXT_PUBLIC_MFA_ENABLED: 'true'
-          # CI-only: lets Firebase test phone numbers work headlessly (skips
-          # reCAPTCHA). Guarded to localhost in web/firebase.ts — never set
-          # this in Vercel.
-          NEXT_PUBLIC_E2E_AUTH_TEST_MODE: 'true'
+          # NOTE: mandatory two-step (June 15) is intentionally NOT exercised
+          # here. The sign-in SMS challenge uses Firebase's invisible reCAPTCHA,
+          # which cannot complete in a headless CI browser (it hangs before any
+          # network call — verified in run 27310089989). Enrollment DOES work
+          # headlessly and was proven once in that run. Durably testing either
+          # per-run would require resetting the bot account's factors before
+          # each run, i.e. the Firebase admin key as a CI secret — a security
+          # tradeoff we chose not to take. Two-step is covered by real agents
+          # in prod (real reCAPTCHA) + the compliance session's prod rehearsal.
+          # The MFA-aware bits below stay dormant (helper falls back to plain
+          # password sign-in when AFL_E2E_MFA_* are unset); to turn full MFA
+          # coverage on later, see the opt-in note in web/e2e/helpers/auth.ts.
         run: npm run test:e2e
 
       - name: Upload Playwright report
