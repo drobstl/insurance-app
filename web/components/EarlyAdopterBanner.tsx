@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 
 /**
@@ -21,10 +22,11 @@ import { useDashboard } from '../app/dashboard/DashboardContext';
  * pattern as PairPhoneBanner. Defaults to dismissed=true so the banner
  * never flashes before the client knows the agent's tier.
  *
- * Stage 2 (parked until the FOUNDING34_PRO Stripe coupon exists): turn
- * the founding variant into a "your founding Pro trial is on" CTA so
- * founders get the same pre-sale taste new trial signups get, then roll
- * into the $49 founding Pro rate.
+ * The founding variant also carries a "See the new Pro tools" CTA that
+ * routes to the /dashboard/leads paywall (UpgradeToProCard), which
+ * already shows founders the $49 rate and applies the founding coupon
+ * server-side (STRIPE_COUPON_ID_FOUNDING = the FOUNDING50_PRO coupon).
+ * Starter stays recognition-only.
  */
 const STORAGE_KEY = 'early-adopter-banner-dismissed';
 
@@ -75,6 +77,7 @@ export default function EarlyAdopterBanner() {
           iconWrap: 'bg-[#fdcc02]/20',
           icon: 'text-[#fdcc02]',
           titleColor: 'text-[#fdcc02]',
+          cta: { href: '/dashboard/leads', label: 'See the new Pro tools' },
         }
       : {
           title: 'You’re on Growth now — still $29.',
@@ -84,6 +87,7 @@ export default function EarlyAdopterBanner() {
           iconWrap: 'bg-[#3DD6C3]/20',
           icon: 'text-[#3DD6C3]',
           titleColor: 'text-white',
+          cta: null,
         };
 
   return (
@@ -97,6 +101,14 @@ export default function EarlyAdopterBanner() {
         <p className={`font-semibold text-sm ${config.titleColor}`}>{config.title}</p>
         <p className="text-white/75 text-xs mt-0.5">{config.body}</p>
       </div>
+      {config.cta && (
+        <Link
+          href={config.cta.href}
+          className="bg-[#fdcc02] text-[#0D4D4D] px-4 py-2 rounded-md text-sm font-semibold whitespace-nowrap hover:bg-[#ffd633] transition-colors flex-shrink-0"
+        >
+          {config.cta.label} →
+        </Link>
+      )}
       <button
         type="button"
         onClick={handleDismiss}
