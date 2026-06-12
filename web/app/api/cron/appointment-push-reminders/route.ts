@@ -259,9 +259,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const durationMs = Date.now() - startedAt;
+    // Per-run summary so the agent-push lane is visible in logs even on a
+    // clean run — only failures were logged before, which is how a fully
+    // dead agent-reminder lane stayed invisible until an agent reported it.
+    // `agentPushSent` is the "is it firing?" number to watch.
+    console.log('[appointment-push-reminders] run complete', { durationMs, ...counts });
+
     return NextResponse.json({
       success: true,
-      durationMs: Date.now() - startedAt,
+      durationMs,
       ...counts,
     });
   } catch (error) {
