@@ -43,6 +43,8 @@ interface DashboardTickerProps {
   clientCount: number;
   /** Open at-risk policies (active retention campaigns + fresh flags). */
   atRiskCount?: number;
+  /** Annualized premium (APV) of those at-risk policies. */
+  atRiskApv?: number;
   /** Appointments scheduled for today. */
   appointmentsToday?: number;
   /** Agent's first name, for the time-of-day greeting. */
@@ -117,6 +119,7 @@ export default function DashboardTicker({
   stats,
   clientCount,
   atRiskCount = 0,
+  atRiskApv = 0,
   appointmentsToday = 0,
   agentFirstName,
 }: DashboardTickerProps) {
@@ -152,10 +155,12 @@ export default function DashboardTicker({
     // ── Prompts — time-sensitive, money-on-the-line, clickable. Lead the
     //    stream so the first thing scrolling by is something to act on. ──
     if (atRiskCount > 0) {
+      const noun = atRiskCount === 1 ? 'policy' : 'policies';
+      const apvSuffix = atRiskApv > 0 ? ` · ${formatCurrency(atRiskApv)} APV` : '';
       out.push({
         id: 'at-risk',
         emoji: '⚠️',
-        label: `${formatNum(atRiskCount)} ${atRiskCount === 1 ? 'policy' : 'policies'} at risk`,
+        label: `${formatNum(atRiskCount)} ${noun} at risk${apvSuffix}`,
         href: '/dashboard/conservation',
         tone: 'urgent',
       });
@@ -219,7 +224,7 @@ export default function DashboardTicker({
     });
 
     return out;
-  }, [stats, clientCount, atRiskCount, appointmentsToday, agentFirstName, quoteIndex, now]);
+  }, [stats, clientCount, atRiskCount, atRiskApv, appointmentsToday, agentFirstName, quoteIndex, now]);
 
   // Fixed-duration CSS scroll means a longer stream scrolls faster. Scale the
   // duration with segment count so the reading speed stays roughly constant
