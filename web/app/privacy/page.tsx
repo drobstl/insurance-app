@@ -132,7 +132,7 @@ export default function PrivacyPolicyPage() {
             </section>
 
             <section className="mb-8">
-              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">7. Google User Data (Google Drive Integration)</h2>
+              <h2 className="text-xl font-bold text-[#0D4D4D] mb-4">7. Google User Data (Google Drive &amp; Google Calendar)</h2>
               <p className="text-[#2D3748] leading-relaxed mb-4">
                 If you choose to connect Google Drive, AgentForLife requests file-level access to Google Drive files you explicitly select using the
                 <code className="mx-1">https://www.googleapis.com/auth/drive.file</code>
@@ -146,6 +146,20 @@ export default function PrivacyPolicyPage() {
                 <li><strong>Retention and deletion:</strong> We retain imported data only as long as needed to operate the Service and your account, subject to legal requirements. You can request deletion at any time by contacting support@agentforlife.app, and we will process deletion requests within 30 days as described in this policy.</li>
                 <li><strong>Revoking access:</strong> You can disconnect Google Drive from within AgentForLife settings and revoke access at any time in your Google account permissions.</li>
               </ul>
+
+              <p className="text-[#2D3748] leading-relaxed mb-4">
+                If you choose to connect Google Calendar, AgentForLife requests access to your calendar events using the
+                <code className="mx-1">https://www.googleapis.com/auth/calendar.events</code>
+                scope.
+              </p>
+              <ul className="list-disc list-inside text-[#2D3748] space-y-2 mb-4">
+                <li><strong>What we access:</strong> Calendar events tied to your AgentForLife appointments — the events we create when you book a sit, and your existing events on a selected day, which we read only to help you avoid double-booking.</li>
+                <li><strong>How we use it:</strong> To write the appointments you book in AgentForLife to your Google Calendar (with native reminders), keep them in sync when you reschedule or cancel, read your events for the day you are booking so we can flag conflicts, and create a video-meeting link for video appointments at your request.</li>
+                <li><strong>What we do not do:</strong> We do not read, modify, or delete calendar events unrelated to your AgentForLife appointments. We do not sell Google Calendar data, use it for advertising, or use it to train generalized AI models.</li>
+                <li><strong>Retention and deletion:</strong> Events we add remain on your Google Calendar until you delete them; we store only the references needed to keep them in sync, and remove our stored access when you disconnect.</li>
+                <li><strong>Revoking access:</strong> You can disconnect Google Calendar from within AgentForLife settings and revoke access at any time in your Google account permissions.</li>
+              </ul>
+
               <p className="text-[#2D3748] leading-relaxed">
                 AgentForLife&apos;s use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.
               </p>
