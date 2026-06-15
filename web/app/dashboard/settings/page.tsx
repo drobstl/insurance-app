@@ -2037,7 +2037,7 @@ export default function SettingsPage() {
           {/* Dial script — shown as an overlay on the lead detail page
               during a live call. Supports tokens like {agentfirstname},
               {leadname}, {leadage}, {tobaccouse}, {mortgageamount}. */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+          <div id="dial-script" className="scroll-mt-24 bg-white rounded-[5px] border border-gray-200 p-5">
             <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Dial script</h3>
             <p className="text-[11px] text-[#707070] mb-3">
               Shown on the lead page while you&apos;re on a call. Personalized per lead via tokens.
