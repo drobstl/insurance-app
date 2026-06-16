@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import {
   collection,
@@ -851,6 +852,11 @@ function DayColumn({
   const nowTop = ((minutesIntoDay(now) - DAY_START_HOUR * 60) / 60) * HOUR_PX;
   const nowInRange = nowTop >= 0 && nowTop <= GRID_HEIGHT;
   const localTz = browserTz();
+  // Hover card anchor (viewport coords of the hovered block's top-center).
+  // Replaces the per-block native `title`, which became unreliable once the
+  // column gained its own "click to book" title (#160) — a parent + child
+  // both carrying `title`, plus drag, is exactly when native tooltips flake.
+  const [hover, setHover] = useState<{ appt: CalAppt; x: number; y: number } | null>(null);
 
   return (
     <div
@@ -915,13 +921,22 @@ function DayColumn({
             onDragStart={(e) => {
               e.dataTransfer.effectAllowed = 'move';
               try { e.dataTransfer.setData('text/plain', a.id); } catch { /* Firefox-only guard */ }
+              setHover(null);
               onBlockDragStart(a);
             }}
             onDragEnd={onBlockDragEnd}
+            onMouseEnter={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              setHover({ appt: a, x: r.left + r.width / 2, y: r.top });
+            }}
+            onMouseLeave={() => setHover(null)}
             onClick={(e) => { e.stopPropagation(); onSelect(a); }}
             className={`absolute left-0.5 right-0.5 rounded-md border-l-[3px] border px-1.5 py-1 text-left overflow-hidden hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing ${meta.block} ${draggingId === a.id ? 'opacity-40' : ''}`}
             style={{ top, height, zIndex: 5 }}
-            title={`${a.leadName} · ${fmtTime(a.scheduledAt)} · ${meta.label} — drag to reschedule`}
+            // Empty (but present) title suppresses the parent column's native
+            // "Click an open spot to book" tooltip from bleeding through onto a
+            // block; the block's details come from the portal hover card below.
+            title=""
           >
             <div className="text-[11px] font-bold leading-tight truncate">{a.leadName}</div>
             <div className="text-[10px] leading-tight truncate opacity-80">
@@ -941,6 +956,40 @@ function DayColumn({
           <div className="absolute -left-1 -top-1 w-2 h-2 rounded-full bg-[#FF3B30]" />
         </div>
       )}
+
+      {/* Hover detail card — portalled to <body> so it escapes the week-grid's
+          overflow clipping and any ancestor stacking context. */}
+      {hover && typeof document !== 'undefined' &&
+        createPortal(<ApptHoverCard appt={hover.appt} x={hover.x} y={hover.y} />, document.body)}
+    </div>
+  );
+}
+
+// Floating detail card for a hovered appointment block (fixed-positioned at
+// the block's top-center). This is the reliable replacement for the native
+// `title` tooltip — it always renders, looks consistent, and survives drags.
+function ApptHoverCard({ appt, x, y }: { appt: CalAppt; x: number; y: number }) {
+  const meta = STATUS_META[appt.status];
+  const localTz = browserTz();
+  const showTheir = appt.scheduledAtTimeZone && localTz && appt.scheduledAtTimeZone !== localTz;
+  const end = new Date(appt.scheduledAt.getTime() + appt.durationMinutes * 60000);
+  return (
+    <div
+      className="pointer-events-none fixed z-[60] -translate-x-1/2 -translate-y-full"
+      style={{ left: x, top: y - 8 }}
+    >
+      <div className="bg-white rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] shadow-md px-2.5 py-1.5 max-w-[240px]">
+        <div className="text-xs font-bold text-[#000000] truncate">{appt.leadName}</div>
+        <div className="text-[11px] text-[#707070] whitespace-nowrap">
+          {fmtTime(appt.scheduledAt)}–{fmtTime(end)} · {meta.label}
+        </div>
+        {showTheir && appt.scheduledAtTimeZone && (
+          <div className="text-[10px] text-[#005851] whitespace-nowrap">
+            Their time: {fmtTime(appt.scheduledAt, appt.scheduledAtTimeZone)} {tzAbbrev(appt.scheduledAt, appt.scheduledAtTimeZone)}
+          </div>
+        )}
+        <div className="text-[10px] text-[#9CA3AF] whitespace-nowrap mt-0.5">Drag to reschedule · click for options</div>
+      </div>
     </div>
   );
 }
