@@ -17,7 +17,7 @@ import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 import { PRICING_TIERS, type PricingTierId } from '../../../lib/pricing';
 import StateLicensesSection from '../../../components/StateLicensesSection';
-import { DEFAULT_DIAL_SCRIPT, SCRIPT_TOKEN_HINTS } from '../../../lib/dial-script';
+import { DEFAULT_DIAL_SCRIPT, SCRIPT_TOKEN_HINTS, SCRIPT_CONDITION_HINTS } from '../../../lib/dial-script';
 import { canAccessLeads } from '../../../lib/tier-gating';
 
 type Tab = 'profile' | 'branding' | 'referral-ai' | 'account';
@@ -317,6 +317,7 @@ export default function SettingsPage() {
     phoneNumber: agentProfile.phoneNumber || '',
     schedulingUrl: agentProfile.schedulingUrl || '',
     agencyName: agentProfile.agencyName || '',
+    npn: agentProfile.npn || '',
     agencyLogoBase64: agentProfile.agencyLogoBase64 || null,
     businessCardBase64: agentProfile.businessCardBase64 || null,
     photoBase64: agentProfile.photoBase64 || null,
@@ -345,6 +346,7 @@ export default function SettingsPage() {
     agentProfile.phoneNumber,
     agentProfile.schedulingUrl,
     agentProfile.agencyName,
+    agentProfile.npn,
     agentProfile.agencyLogoBase64,
     agentProfile.businessCardBase64,
     agentProfile.photoBase64,
@@ -782,6 +784,7 @@ export default function SettingsPage() {
         phoneNumber: agentProfile.phoneNumber || '',
         schedulingUrl: agentProfile.schedulingUrl || '',
         agencyName: agentProfile.agencyName || '',
+        npn: (agentProfile.npn || '').trim(),
         agencyLogoBase64: agentProfile.agencyLogoBase64 || null,
         businessCardBase64: agentProfile.businessCardBase64 || null,
         photoBase64: agentProfile.photoBase64 || null,
@@ -1233,6 +1236,23 @@ export default function SettingsPage() {
               )}
               <p className="text-xs text-[#707070] mt-1.5">Supports Calendly, Cal.com, Acuity, and Google Calendar links.</p>
             </div>
+          </div>
+
+          {/* NPN — single national producer number, read aloud for ID
+              verification on calls. Feeds the {agentnpn} dial-script token. */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">NPN</h3>
+            <p className="text-[11px] text-[#707070] mb-3">
+              Your National Producer Number. Auto-fills your dial script ({'{agentnpn}'}) so leads can verify you at the Dept. of Insurance.
+            </p>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={agentProfile.npn || ''}
+              onChange={(e) => updateField('npn', e.target.value.replace(/[^0-9]/g, ''))}
+              placeholder="e.g. 20775142"
+              className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
+            />
           </div>
 
           {/* State Licenses (Chunk 4d) — multi-state PDFs that the
@@ -2058,6 +2078,20 @@ export default function SettingsPage() {
                   key={t.token}
                   title={t.description}
                   className="inline-block px-2 py-0.5 text-[10px] font-mono rounded bg-[#daf3f0]/60 text-[#005851] border border-[#45bcaa]/30 cursor-help"
+                >
+                  {t.token}
+                </span>
+              ))}
+            </div>
+            <p className="text-[11px] text-[#707070] mt-3 mb-1">
+              Auto-switching blocks — show/hide based on the lead and your settings:
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {SCRIPT_CONDITION_HINTS.map((t) => (
+                <span
+                  key={t.token}
+                  title={t.description}
+                  className="inline-block px-2 py-0.5 text-[10px] font-mono rounded bg-[#FEF3C7]/70 text-[#92400E] border border-[#FCD34D]/60 cursor-help"
                 >
                   {t.token}
                 </span>
