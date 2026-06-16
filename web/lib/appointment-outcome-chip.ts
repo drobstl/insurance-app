@@ -84,3 +84,22 @@ function formatShortDate(d: Date): string {
     return '';
   }
 }
+
+/**
+ * FIF reset chip — rendered ALONGSIDE the primary outcome chip, since a
+ * booked reset is orthogonal to the sale result (a lead can be both
+ * "thinking about it" AND booked for a reset). Deliberately emerald
+ * rather than the gold `sit_think_about_it` treatment so two high-value
+ * chips never blur together when they co-occur; emerald also reads as a
+ * forward-looking "booked" win. Shows the SME name when we captured one
+ * ("FIF reset · Jane"), otherwise bare ("FIF reset").
+ */
+export function getFifResetChip(
+  smeName?: string | null,
+): { label: string; classes: string } {
+  const who = (smeName ?? '').trim();
+  return {
+    label: who ? `FIF reset · ${who}` : 'FIF reset',
+    classes: 'bg-[#E7F7EF] text-[#0B7A4B] border border-[#12B76A]/40',
+  };
+}
