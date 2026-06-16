@@ -852,11 +852,19 @@ function DayColumn({
   const nowTop = ((minutesIntoDay(now) - DAY_START_HOUR * 60) / 60) * HOUR_PX;
   const nowInRange = nowTop >= 0 && nowTop <= GRID_HEIGHT;
   const localTz = browserTz();
-  // Hover card anchor (viewport coords of the hovered block's top-center).
-  // Replaces the per-block native `title`, which became unreliable once the
-  // column gained its own "click to book" title (#160) — a parent + child
-  // both carrying `title`, plus drag, is exactly when native tooltips flake.
-  const [hover, setHover] = useState<{ appt: CalAppt; x: number; y: number } | null>(null);
+  // Hover card content + anchor (viewport coords of the hovered block's
+  // top-center). Replaces the per-block native `title` for BOTH AFL sits and
+  // Google busy blocks: once the column gained its own "click to book" title
+  // and the busy blocks went `pointer-events-none` (#160), native tooltips
+  // stopped showing each block's own details. One card serves both kinds.
+  const [hover, setHover] = useState<{
+    x: number;
+    y: number;
+    title: string;
+    subtitle: string;
+    tzLine?: string;
+    hint?: string;
+  } | null>(null);
 
   return (
     <div
@@ -883,14 +891,21 @@ function DayColumn({
         />
       ))}
 
-      {/* Google busy backgrounds (non-interactive) */}
+      {/* Google busy blocks (context). Hover shows the event's own details;
+          a click still falls through to the column to book that slot (#160) —
+          they carry no onClick, so the click bubbles to the column handler. */}
       {busy.map((b) => {
         if (b.allDay) {
           return (
             <div
               key={b.id}
-              className="absolute left-0.5 right-0.5 top-0 text-[9px] text-[#9CA3AF] bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_4px,#eceef1_4px,#eceef1_8px)] rounded px-1 py-0.5 truncate pointer-events-none"
-              title={b.title}
+              className="absolute left-0.5 right-0.5 top-0 text-[9px] text-[#9CA3AF] bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_4px,#eceef1_4px,#eceef1_8px)] rounded px-1 py-0.5 truncate"
+              onMouseEnter={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                setHover({ x: r.left + r.width / 2, y: r.top, title: b.title, subtitle: 'All day · Google Calendar' });
+              }}
+              onMouseLeave={() => setHover(null)}
+              title=""
             >
               {b.title}
             </div>
@@ -901,9 +916,19 @@ function DayColumn({
         return (
           <div
             key={b.id}
-            className="absolute left-0.5 right-0.5 rounded bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_5px,#e9ebee_5px,#e9ebee_10px)] border border-[#e5e7eb] pointer-events-none"
+            className="absolute left-0.5 right-0.5 rounded bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_5px,#e9ebee_5px,#e9ebee_10px)] border border-[#e5e7eb]"
             style={{ top, height }}
-            title={`${b.title} · ${fmtTime(b.start)}–${fmtTime(b.end)}`}
+            onMouseEnter={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              setHover({
+                x: r.left + r.width / 2,
+                y: r.top,
+                title: b.title,
+                subtitle: `${fmtTime(b.start)}–${fmtTime(b.end)} · Google Calendar`,
+              });
+            }}
+            onMouseLeave={() => setHover(null)}
+            title=""
           />
         );
       })}
@@ -927,7 +952,18 @@ function DayColumn({
             onDragEnd={onBlockDragEnd}
             onMouseEnter={(e) => {
               const r = e.currentTarget.getBoundingClientRect();
-              setHover({ appt: a, x: r.left + r.width / 2, y: r.top });
+              const end = new Date(a.scheduledAt.getTime() + a.durationMinutes * 60000);
+              setHover({
+                x: r.left + r.width / 2,
+                y: r.top,
+                title: a.leadName,
+                subtitle: `${fmtTime(a.scheduledAt)}–${fmtTime(end)} · ${meta.label}`,
+                tzLine:
+                  showTheir && a.scheduledAtTimeZone
+                    ? `Their time: ${fmtTime(a.scheduledAt, a.scheduledAtTimeZone)} ${tzAbbrev(a.scheduledAt, a.scheduledAtTimeZone)}`
+                    : undefined,
+                hint: 'Drag to reschedule · click for options',
+              });
             }}
             onMouseLeave={() => setHover(null)}
             onClick={(e) => { e.stopPropagation(); onSelect(a); }}
@@ -960,35 +996,40 @@ function DayColumn({
       {/* Hover detail card — portalled to <body> so it escapes the week-grid's
           overflow clipping and any ancestor stacking context. */}
       {hover && typeof document !== 'undefined' &&
-        createPortal(<ApptHoverCard appt={hover.appt} x={hover.x} y={hover.y} />, document.body)}
+        createPortal(<HoverCard {...hover} />, document.body)}
     </div>
   );
 }
 
-// Floating detail card for a hovered appointment block (fixed-positioned at
-// the block's top-center). This is the reliable replacement for the native
-// `title` tooltip — it always renders, looks consistent, and survives drags.
-function ApptHoverCard({ appt, x, y }: { appt: CalAppt; x: number; y: number }) {
-  const meta = STATUS_META[appt.status];
-  const localTz = browserTz();
-  const showTheir = appt.scheduledAtTimeZone && localTz && appt.scheduledAtTimeZone !== localTz;
-  const end = new Date(appt.scheduledAt.getTime() + appt.durationMinutes * 60000);
+// Floating detail card for a hovered calendar block (fixed-positioned at the
+// block's top-center, portalled to <body>). The reliable replacement for the
+// native `title` tooltip — it always renders, looks consistent, survives
+// drags, and serves both AFL sits and Google busy blocks.
+function HoverCard({
+  x,
+  y,
+  title,
+  subtitle,
+  tzLine,
+  hint,
+}: {
+  x: number;
+  y: number;
+  title: string;
+  subtitle: string;
+  tzLine?: string;
+  hint?: string;
+}) {
   return (
     <div
       className="pointer-events-none fixed z-[60] -translate-x-1/2 -translate-y-full"
       style={{ left: x, top: y - 8 }}
     >
       <div className="bg-white rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] shadow-md px-2.5 py-1.5 max-w-[240px]">
-        <div className="text-xs font-bold text-[#000000] truncate">{appt.leadName}</div>
-        <div className="text-[11px] text-[#707070] whitespace-nowrap">
-          {fmtTime(appt.scheduledAt)}–{fmtTime(end)} · {meta.label}
-        </div>
-        {showTheir && appt.scheduledAtTimeZone && (
-          <div className="text-[10px] text-[#005851] whitespace-nowrap">
-            Their time: {fmtTime(appt.scheduledAt, appt.scheduledAtTimeZone)} {tzAbbrev(appt.scheduledAt, appt.scheduledAtTimeZone)}
-          </div>
-        )}
-        <div className="text-[10px] text-[#9CA3AF] whitespace-nowrap mt-0.5">Drag to reschedule · click for options</div>
+        <div className="text-xs font-bold text-[#000000] truncate">{title}</div>
+        <div className="text-[11px] text-[#707070] whitespace-nowrap">{subtitle}</div>
+        {tzLine && <div className="text-[10px] text-[#005851] whitespace-nowrap">{tzLine}</div>}
+        {hint && <div className="text-[10px] text-[#9CA3AF] whitespace-nowrap mt-0.5">{hint}</div>}
       </div>
     </div>
   );
