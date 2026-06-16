@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import type { User } from 'firebase/auth';
 import {
   doc,
@@ -2211,7 +2212,12 @@ export default function LeadDetailPanel({
               ...(appt.scheduledAtTimeZone ? { timeZone: appt.scheduledAtTimeZone } : {}),
             })
           : '(no time set)';
-        return (
+        // Portal to <body>: in Call mode this panel lives inside the
+        // slide-belt, whose CSS transform makes `position: fixed` resolve
+        // against the belt (not the viewport) and its overflow-hidden clips
+        // the modal. Portaling escapes that so fixed = viewport again.
+        if (typeof document === 'undefined') return null;
+        return createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div
               className="absolute inset-0 bg-black/40"
@@ -2269,7 +2275,8 @@ export default function LeadDetailPanel({
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body,
         );
       })()}
 
@@ -2329,8 +2336,9 @@ export default function LeadDetailPanel({
 
       {/* Convert-to-client confirmation. Calls POST /api/leads/[id]/convert
           which creates the client doc + mirrors + stamps the lead with
-          convertedToClientId in one batch. */}
-      {showConvertConfirm && lead && (
+          convertedToClientId in one batch. Portaled to <body> so Call mode's
+          transformed slide-belt ancestor can't clip this fixed overlay. */}
+      {showConvertConfirm && lead && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/40"
@@ -2421,14 +2429,16 @@ export default function LeadDetailPanel({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* Phase 4c: duplicate-match prompt — surfaced when the convert
           API's precheck found an existing client matching this lead.
           Three actions: link to the existing record (default), create
-          a new client anyway (override), or cancel. */}
-      {convertDuplicateMatch && lead && (
+          a new client anyway (override), or cancel. Portaled to <body> so
+          Call mode's transformed slide-belt ancestor can't clip it. */}
+      {convertDuplicateMatch && lead && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -2557,10 +2567,13 @@ export default function LeadDetailPanel({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {showDeleteConfirm && (
+      {/* Portaled to <body> so Call mode's transformed slide-belt ancestor
+          can't clip this fixed overlay. */}
+      {showDeleteConfirm && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => !deleting && setShowDeleteConfirm(false)} />
           <div className="relative bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] shadow-2xl max-w-md w-full overflow-hidden">
@@ -2592,7 +2605,8 @@ export default function LeadDetailPanel({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
