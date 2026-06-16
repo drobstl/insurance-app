@@ -16,6 +16,7 @@
     "test:quiet-hours": "node --import tsx ./tests/quiet-hours/run-smoke.ts",
     "test:oauth-redirect": "node --import tsx ./tests/oauth-redirect/run-smoke.ts",
     "test:client-dedup": "node --require ./scripts/server-only-shim.cjs --import tsx ./tests/client-dedup/run-smoke.ts",
+    "test:lead-dedup": "node --require ./scripts/server-only-shim.cjs --import tsx ./tests/lead-dedup/run-smoke.ts",
     "backfill:thread-registry": "node --import tsx ./scripts/backfill-conversation-thread-registry.ts",
     "audit:reactivation": "node --require ./scripts/server-only-shim.cjs --import tsx ./scripts/reactivation-audit.ts",
     "nuke:window-welcomes": "node --require ./scripts/server-only-shim.cjs --import tsx ./scripts/nuke-window-welcome-action-items.ts",
