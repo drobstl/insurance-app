@@ -113,6 +113,8 @@ export interface AgentProfile {
   trialEndsAt?: number;
   trialStartedAt?: number;
   agencyName?: string;
+  /** National Producer Number — read aloud for ID verification on calls. */
+  npn?: string;
   agencyLogoBase64?: string;
   businessCardBase64?: string;
   referralMessage?: string;
@@ -345,6 +347,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           trialEndsAt: tsToMillis(data.trialEndsAt),
           trialStartedAt: tsToMillis(data.trialStartedAt),
           agencyName: data.agencyName,
+          npn: typeof data.npn === 'string' ? data.npn : undefined,
           agencyLogoBase64: data.agencyLogoBase64,
           businessCardBase64: data.businessCardBase64,
           referralMessage: data.referralMessage,

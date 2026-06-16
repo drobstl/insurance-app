@@ -1469,8 +1469,14 @@ export default function LeadDetailPanel({
         const template = (agentProfile.dialScript && agentProfile.dialScript.trim())
           || DEFAULT_DIAL_SCRIPT;
         const computedAge = lead.ageYears ?? ageFromDob(lead.dateOfBirth);
+        const leadStateCode = (lead.address?.state || '').toUpperCase();
         const rendered = renderDialScript(template, {
           agentFirstName: agentProfile.name || '',
+          agentFullName: agentProfile.name || '',
+          agentPhone: agentProfile.phoneNumber || '',
+          agentNpn: agentProfile.npn || '',
+          agentLicense: (leadStateCode && agentProfile.licenses?.[leadStateCode]?.number) || '',
+          agencyName: agentProfile.agencyName || '',
           leadFirstName: lead.name || '',
           leadFullName: lead.name || '',
           leadAge: computedAge,
@@ -1482,6 +1488,9 @@ export default function LeadDetailPanel({
             ? lead.mortgageDetails.balance
             : null,
           spouseName: lead.spouseName || '',
+          coborrower: lead.coborrowerStatus === 'Y',
+          appointmentMode: agentProfile.appointmentMode,
+          includeApp: agentProfile.includeAppAccessInConfirmations !== false,
         });
         return (
           <div
