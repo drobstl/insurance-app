@@ -27,6 +27,15 @@ interface UseDraggablePanelResult {
   revalidate: () => void;
 }
 
+interface UseDraggablePanelOptions {
+  /**
+   * Where the panel sits before it's been dragged (and where "Dock"/reset
+   * returns it). Defaults to bottom-right. Pass e.g. `{ top: '1rem', right:
+   * '1rem' }` so the panel appears high and immediately visible.
+   */
+  defaultStyle?: CSSProperties;
+}
+
 // Matches the panel's docked inset (1rem) and is reused as the on-screen margin.
 const MARGIN = 16;
 // Fallback width when the panel hasn't been measured yet (matches the design width).
@@ -36,10 +45,10 @@ const FALLBACK_WIDTH = 380;
  * Makes a fixed-position floating panel draggable by a handle, persisting the
  * landing spot per-device in localStorage. Position is screen-specific, so we
  * deliberately keep it device-local rather than syncing it to the agent's
- * Firestore profile. The panel always starts docked bottom-right (the original
- * behavior) until the agent drags it.
+ * Firestore profile. The panel starts docked at `options.defaultStyle`
+ * (bottom-right by default) until the agent drags it.
  */
-export function useDraggablePanel(storageKey: string): UseDraggablePanelResult {
+export function useDraggablePanel(storageKey: string, options?: UseDraggablePanelOptions): UseDraggablePanelResult {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState<PanelPosition | null>(() => {
     if (typeof window === 'undefined') return null;
@@ -153,7 +162,7 @@ export function useDraggablePanel(storageKey: string): UseDraggablePanelResult {
 
   const positionStyle: CSSProperties = pos
     ? { left: pos.left, top: pos.top }
-    : { bottom: '1rem', right: '1rem' };
+    : (options?.defaultStyle ?? { bottom: '1rem', right: '1rem' });
 
   const dragHandleProps = {
     onPointerDown,
