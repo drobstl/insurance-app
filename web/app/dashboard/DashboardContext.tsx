@@ -127,8 +127,6 @@ export interface AgentProfile {
   anniversaryMessageCustomTitle?: string;
   policyReviewAIEnabled?: boolean;
   welcomeSmsTemplate?: string;
-  beneficiaryWelcomeTemplateEn?: string;
-  beneficiaryWelcomeTemplateEs?: string;
   skipWelcomeSmsConfirmation?: boolean;
   forwardInboundSms?: boolean;
   onboardingComplete?: boolean;
@@ -360,8 +358,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           anniversaryMessageCustomTitle: data.anniversaryMessageCustomTitle,
           policyReviewAIEnabled: data.policyReviewAIEnabled,
           welcomeSmsTemplate: data.welcomeSmsTemplate,
-          beneficiaryWelcomeTemplateEn: data.beneficiaryWelcomeTemplateEn,
-          beneficiaryWelcomeTemplateEs: data.beneficiaryWelcomeTemplateEs,
           skipWelcomeSmsConfirmation: data.skipWelcomeSmsConfirmation,
           forwardInboundSms: data.forwardInboundSms,
           onboardingComplete: data.onboardingComplete,

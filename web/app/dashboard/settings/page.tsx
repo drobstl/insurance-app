@@ -329,8 +329,6 @@ export default function SettingsPage() {
     anniversaryMessageCustomTitle: agentProfile.anniversaryMessageCustomTitle || '',
     policyReviewAIEnabled: agentProfile.policyReviewAIEnabled ?? true,
     welcomeSmsTemplate: agentProfile.welcomeSmsTemplate || '',
-    beneficiaryWelcomeTemplateEn: agentProfile.beneficiaryWelcomeTemplateEn || '',
-    beneficiaryWelcomeTemplateEs: agentProfile.beneficiaryWelcomeTemplateEs || '',
     skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
     appointmentMode: agentProfile.appointmentMode || 'phone',
     defaultMeetingLink: agentProfile.defaultMeetingLink || '',
@@ -358,8 +356,6 @@ export default function SettingsPage() {
     agentProfile.anniversaryMessageCustomTitle,
     agentProfile.policyReviewAIEnabled,
     agentProfile.welcomeSmsTemplate,
-    agentProfile.beneficiaryWelcomeTemplateEn,
-    agentProfile.beneficiaryWelcomeTemplateEs,
     agentProfile.skipWelcomeSmsConfirmation,
     agentProfile.appointmentMode,
     agentProfile.defaultMeetingLink,
@@ -796,8 +792,6 @@ export default function SettingsPage() {
         anniversaryMessageCustomTitle: agentProfile.anniversaryMessageCustomTitle || '',
         policyReviewAIEnabled: agentProfile.policyReviewAIEnabled ?? true,
         welcomeSmsTemplate: agentProfile.welcomeSmsTemplate || '',
-        beneficiaryWelcomeTemplateEn: agentProfile.beneficiaryWelcomeTemplateEn || '',
-        beneficiaryWelcomeTemplateEs: agentProfile.beneficiaryWelcomeTemplateEs || '',
         skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
         appointmentMode: agentProfile.appointmentMode === 'video' ? 'video' : 'phone',
         defaultMeetingLink: (agentProfile.defaultMeetingLink || '').trim(),
@@ -1502,46 +1496,6 @@ export default function SettingsPage() {
                     }`}
                   />
                 </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Beneficiary Welcome Message */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Beneficiary Welcome Message</h3>
-            <p className="text-xs text-[#707070] mb-3">
-              This template is used when sending a message to beneficiaries (not the insured client).
-            </p>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-[#000000] mb-1.5">English Template</label>
-                <textarea
-                  value={agentProfile.beneficiaryWelcomeTemplateEn || ''}
-                  onChange={(e) => updateField('beneficiaryWelcomeTemplateEn', e.target.value)}
-                  placeholder="Hi {{beneficiaryFirstName}}, this is {{agentName}}. You are listed as a beneficiary for {{insuredFirstName}}. Use code {{beneficiaryCode}} in AgentForLife: {{appUrl}}"
-                  rows={4}
-                  className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa] resize-y"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[#000000] mb-1.5">Spanish Template</label>
-                <textarea
-                  value={agentProfile.beneficiaryWelcomeTemplateEs || ''}
-                  onChange={(e) => updateField('beneficiaryWelcomeTemplateEs', e.target.value)}
-                  placeholder="Hola {{beneficiaryFirstName}}, soy {{agentName}}. Fuiste registrado(a) como beneficiario(a) de {{insuredFirstName}}. Usa el codigo {{beneficiaryCode}} en AgentForLife: {{appUrl}}"
-                  rows={4}
-                  className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa] resize-y"
-                />
-              </div>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {['{{beneficiaryFirstName}}', '{{insuredFirstName}}', '{{agentName}}', '{{beneficiaryCode}}', '{{appUrl}}'].map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center px-2 py-0.5 rounded bg-[#daf3f0] text-[#005851] text-xs font-medium"
-                  >
-                    {tag}
-                  </span>
-                ))}
               </div>
             </div>
           </div>
