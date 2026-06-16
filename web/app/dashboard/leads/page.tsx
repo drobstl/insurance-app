@@ -279,6 +279,11 @@ function LeadsPageInner() {
   // data they're uploading before any bulk import runs. Reinforces the "your
   // book / your data" posture and the rights representation (see /trust).
   const [importConsent, setImportConsent] = useState(false);
+  // Hold-the-file: if a file is dropped/picked before consent is given, we
+  // stash it here instead of throwing it away. Ticking the consent box then
+  // auto-starts this file, so the agent never has to re-select after
+  // confirming (the old behavior forced a full restart).
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   // Multi-page batch import (off-Vercel via the leads-batch-processor GCF).
   // `watchedBatchId` drives the live onSnapshot subscription below;
@@ -1342,7 +1347,9 @@ function LeadsPageInner() {
                     const file = e.target.files?.[0];
                     if (file) {
                       if (!importConsent) {
-                        setUploadError('Please confirm you have the right to use this data before uploading.');
+                        // Hold it — don't make them re-pick. Auto-runs on consent.
+                        setPendingFile(file);
+                        setUploadError(null);
                         e.target.value = '';
                         return;
                       }
@@ -1573,7 +1580,9 @@ function LeadsPageInner() {
               const file = e.dataTransfer.files?.[0];
               if (file) {
                 if (!importConsent) {
-                  setUploadError('Please confirm you have the right to use this data before uploading.');
+                  // Hold it — don't make them re-drop. Auto-runs on consent.
+                  setPendingFile(file);
+                  setUploadError(null);
                   return;
                 }
                 handleLeadFileSelect(file);
@@ -1600,14 +1609,39 @@ function LeadsPageInner() {
                 </p>
               </div>
             </div>
-            <label className="mt-3 flex items-start gap-2 text-xs text-[#005851] cursor-pointer select-none">
+            <label className={`mt-3 flex items-start gap-2 text-xs cursor-pointer select-none rounded-[5px] transition-colors ${
+              pendingFile
+                ? 'border border-[#f0c060] bg-[#fff7e6] px-3 py-2 text-[#7a5a00] font-semibold'
+                : 'text-[#005851]'
+            }`}>
               <input
                 type="checkbox"
                 checked={importConsent}
-                onChange={(e) => { setImportConsent(e.target.checked); if (e.target.checked) setUploadError(null); }}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setImportConsent(checked);
+                  if (checked) {
+                    setUploadError(null);
+                    // A file was waiting on this box — start it now, no re-pick.
+                    if (pendingFile) {
+                      handleLeadFileSelect(pendingFile);
+                      setPendingFile(null);
+                    }
+                  }
+                }}
                 className="mt-0.5 h-4 w-4 shrink-0 accent-[#005851]"
               />
-              <span>I confirm I have the right to upload and use this data.</span>
+              <span>
+                {pendingFile ? (
+                  <>
+                    One quick check and we&rsquo;ll start reading{' '}
+                    <span className="font-bold break-all">{pendingFile.name}</span>
+                    {' '}— confirm you have the right to upload and use this data.
+                  </>
+                ) : (
+                  'I confirm I have the right to upload and use this data.'
+                )}
+              </span>
             </label>
             {uploadError && (
               <div className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-[5px] px-3 py-2">
