@@ -552,7 +552,9 @@ export default function LeadDetailPanel({
 
   // Draggable dial-script popup. Position is per-device (localStorage), starts
   // docked bottom-right, and stays on-screen. See useDraggablePanel.
-  const dialScriptDrag = useDraggablePanel('afl:dialScriptPos');
+  const dialScriptDrag = useDraggablePanel('afl:dialScriptPos', {
+    defaultStyle: { top: '1rem', right: '1rem' },
+  });
   const nameHydratedRef = useRef(false);
 
   // Yes/No fields — saved immediately (no debounce needed for a button).
