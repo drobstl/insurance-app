@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import {
   collection,
@@ -851,6 +852,19 @@ function DayColumn({
   const nowTop = ((minutesIntoDay(now) - DAY_START_HOUR * 60) / 60) * HOUR_PX;
   const nowInRange = nowTop >= 0 && nowTop <= GRID_HEIGHT;
   const localTz = browserTz();
+  // Hover card content + anchor (viewport coords of the hovered block's
+  // top-center). Replaces the per-block native `title` for BOTH AFL sits and
+  // Google busy blocks: once the column gained its own "click to book" title
+  // and the busy blocks went `pointer-events-none` (#160), native tooltips
+  // stopped showing each block's own details. One card serves both kinds.
+  const [hover, setHover] = useState<{
+    x: number;
+    y: number;
+    title: string;
+    subtitle: string;
+    tzLine?: string;
+    hint?: string;
+  } | null>(null);
 
   return (
     <div
@@ -877,14 +891,21 @@ function DayColumn({
         />
       ))}
 
-      {/* Google busy backgrounds (non-interactive) */}
+      {/* Google busy blocks (context). Hover shows the event's own details;
+          a click still falls through to the column to book that slot (#160) —
+          they carry no onClick, so the click bubbles to the column handler. */}
       {busy.map((b) => {
         if (b.allDay) {
           return (
             <div
               key={b.id}
-              className="absolute left-0.5 right-0.5 top-0 text-[9px] text-[#9CA3AF] bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_4px,#eceef1_4px,#eceef1_8px)] rounded px-1 py-0.5 truncate pointer-events-none"
-              title={b.title}
+              className="absolute left-0.5 right-0.5 top-0 text-[9px] text-[#9CA3AF] bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_4px,#eceef1_4px,#eceef1_8px)] rounded px-1 py-0.5 truncate"
+              onMouseEnter={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                setHover({ x: r.left + r.width / 2, y: r.top, title: b.title, subtitle: 'All day · Google Calendar' });
+              }}
+              onMouseLeave={() => setHover(null)}
+              title=""
             >
               {b.title}
             </div>
@@ -895,9 +916,19 @@ function DayColumn({
         return (
           <div
             key={b.id}
-            className="absolute left-0.5 right-0.5 rounded bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_5px,#e9ebee_5px,#e9ebee_10px)] border border-[#e5e7eb] pointer-events-none"
+            className="absolute left-0.5 right-0.5 rounded bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_5px,#e9ebee_5px,#e9ebee_10px)] border border-[#e5e7eb]"
             style={{ top, height }}
-            title={`${b.title} · ${fmtTime(b.start)}–${fmtTime(b.end)}`}
+            onMouseEnter={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              setHover({
+                x: r.left + r.width / 2,
+                y: r.top,
+                title: b.title,
+                subtitle: `${fmtTime(b.start)}–${fmtTime(b.end)} · Google Calendar`,
+              });
+            }}
+            onMouseLeave={() => setHover(null)}
+            title=""
           />
         );
       })}
@@ -915,13 +946,33 @@ function DayColumn({
             onDragStart={(e) => {
               e.dataTransfer.effectAllowed = 'move';
               try { e.dataTransfer.setData('text/plain', a.id); } catch { /* Firefox-only guard */ }
+              setHover(null);
               onBlockDragStart(a);
             }}
             onDragEnd={onBlockDragEnd}
+            onMouseEnter={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              const end = new Date(a.scheduledAt.getTime() + a.durationMinutes * 60000);
+              setHover({
+                x: r.left + r.width / 2,
+                y: r.top,
+                title: a.leadName,
+                subtitle: `${fmtTime(a.scheduledAt)}–${fmtTime(end)} · ${meta.label}`,
+                tzLine:
+                  showTheir && a.scheduledAtTimeZone
+                    ? `Their time: ${fmtTime(a.scheduledAt, a.scheduledAtTimeZone)} ${tzAbbrev(a.scheduledAt, a.scheduledAtTimeZone)}`
+                    : undefined,
+                hint: 'Drag to reschedule · click for options',
+              });
+            }}
+            onMouseLeave={() => setHover(null)}
             onClick={(e) => { e.stopPropagation(); onSelect(a); }}
             className={`absolute left-0.5 right-0.5 rounded-md border-l-[3px] border px-1.5 py-1 text-left overflow-hidden hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing ${meta.block} ${draggingId === a.id ? 'opacity-40' : ''}`}
             style={{ top, height, zIndex: 5 }}
-            title={`${a.leadName} · ${fmtTime(a.scheduledAt)} · ${meta.label} — drag to reschedule`}
+            // Empty (but present) title suppresses the parent column's native
+            // "Click an open spot to book" tooltip from bleeding through onto a
+            // block; the block's details come from the portal hover card below.
+            title=""
           >
             <div className="text-[11px] font-bold leading-tight truncate">{a.leadName}</div>
             <div className="text-[10px] leading-tight truncate opacity-80">
@@ -941,6 +992,45 @@ function DayColumn({
           <div className="absolute -left-1 -top-1 w-2 h-2 rounded-full bg-[#FF3B30]" />
         </div>
       )}
+
+      {/* Hover detail card — portalled to <body> so it escapes the week-grid's
+          overflow clipping and any ancestor stacking context. */}
+      {hover && typeof document !== 'undefined' &&
+        createPortal(<HoverCard {...hover} />, document.body)}
+    </div>
+  );
+}
+
+// Floating detail card for a hovered calendar block (fixed-positioned at the
+// block's top-center, portalled to <body>). The reliable replacement for the
+// native `title` tooltip — it always renders, looks consistent, survives
+// drags, and serves both AFL sits and Google busy blocks.
+function HoverCard({
+  x,
+  y,
+  title,
+  subtitle,
+  tzLine,
+  hint,
+}: {
+  x: number;
+  y: number;
+  title: string;
+  subtitle: string;
+  tzLine?: string;
+  hint?: string;
+}) {
+  return (
+    <div
+      className="pointer-events-none fixed z-[60] -translate-x-1/2 -translate-y-full"
+      style={{ left: x, top: y - 8 }}
+    >
+      <div className="bg-white rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] shadow-md px-2.5 py-1.5 max-w-[240px]">
+        <div className="text-xs font-bold text-[#000000] truncate">{title}</div>
+        <div className="text-[11px] text-[#707070] whitespace-nowrap">{subtitle}</div>
+        {tzLine && <div className="text-[10px] text-[#005851] whitespace-nowrap">{tzLine}</div>}
+        {hint && <div className="text-[10px] text-[#9CA3AF] whitespace-nowrap mt-0.5">{hint}</div>}
+      </div>
     </div>
   );
 }

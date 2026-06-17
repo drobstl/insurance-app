@@ -17,7 +17,7 @@ import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 import { PRICING_TIERS, type PricingTierId } from '../../../lib/pricing';
 import StateLicensesSection from '../../../components/StateLicensesSection';
-import { DEFAULT_DIAL_SCRIPT, SCRIPT_TOKEN_HINTS } from '../../../lib/dial-script';
+import { DEFAULT_DIAL_SCRIPT, SCRIPT_TOKEN_HINTS, SCRIPT_CONDITION_HINTS } from '../../../lib/dial-script';
 import { canAccessLeads } from '../../../lib/tier-gating';
 
 type Tab = 'profile' | 'branding' | 'referral-ai' | 'account';
@@ -317,6 +317,7 @@ export default function SettingsPage() {
     phoneNumber: agentProfile.phoneNumber || '',
     schedulingUrl: agentProfile.schedulingUrl || '',
     agencyName: agentProfile.agencyName || '',
+    npn: agentProfile.npn || '',
     agencyLogoBase64: agentProfile.agencyLogoBase64 || null,
     businessCardBase64: agentProfile.businessCardBase64 || null,
     photoBase64: agentProfile.photoBase64 || null,
@@ -328,8 +329,6 @@ export default function SettingsPage() {
     anniversaryMessageCustomTitle: agentProfile.anniversaryMessageCustomTitle || '',
     policyReviewAIEnabled: agentProfile.policyReviewAIEnabled ?? true,
     welcomeSmsTemplate: agentProfile.welcomeSmsTemplate || '',
-    beneficiaryWelcomeTemplateEn: agentProfile.beneficiaryWelcomeTemplateEn || '',
-    beneficiaryWelcomeTemplateEs: agentProfile.beneficiaryWelcomeTemplateEs || '',
     skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
     appointmentMode: agentProfile.appointmentMode || 'phone',
     defaultMeetingLink: agentProfile.defaultMeetingLink || '',
@@ -345,6 +344,7 @@ export default function SettingsPage() {
     agentProfile.phoneNumber,
     agentProfile.schedulingUrl,
     agentProfile.agencyName,
+    agentProfile.npn,
     agentProfile.agencyLogoBase64,
     agentProfile.businessCardBase64,
     agentProfile.photoBase64,
@@ -356,8 +356,6 @@ export default function SettingsPage() {
     agentProfile.anniversaryMessageCustomTitle,
     agentProfile.policyReviewAIEnabled,
     agentProfile.welcomeSmsTemplate,
-    agentProfile.beneficiaryWelcomeTemplateEn,
-    agentProfile.beneficiaryWelcomeTemplateEs,
     agentProfile.skipWelcomeSmsConfirmation,
     agentProfile.appointmentMode,
     agentProfile.defaultMeetingLink,
@@ -782,6 +780,7 @@ export default function SettingsPage() {
         phoneNumber: agentProfile.phoneNumber || '',
         schedulingUrl: agentProfile.schedulingUrl || '',
         agencyName: agentProfile.agencyName || '',
+        npn: (agentProfile.npn || '').trim(),
         agencyLogoBase64: agentProfile.agencyLogoBase64 || null,
         businessCardBase64: agentProfile.businessCardBase64 || null,
         photoBase64: agentProfile.photoBase64 || null,
@@ -793,8 +792,6 @@ export default function SettingsPage() {
         anniversaryMessageCustomTitle: agentProfile.anniversaryMessageCustomTitle || '',
         policyReviewAIEnabled: agentProfile.policyReviewAIEnabled ?? true,
         welcomeSmsTemplate: agentProfile.welcomeSmsTemplate || '',
-        beneficiaryWelcomeTemplateEn: agentProfile.beneficiaryWelcomeTemplateEn || '',
-        beneficiaryWelcomeTemplateEs: agentProfile.beneficiaryWelcomeTemplateEs || '',
         skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
         appointmentMode: agentProfile.appointmentMode === 'video' ? 'video' : 'phone',
         defaultMeetingLink: (agentProfile.defaultMeetingLink || '').trim(),
@@ -1235,6 +1232,23 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* NPN — single national producer number, read aloud for ID
+              verification on calls. Feeds the {agentnpn} dial-script token. */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">NPN</h3>
+            <p className="text-[11px] text-[#707070] mb-3">
+              Your National Producer Number. Auto-fills your dial script ({'{agentnpn}'}) so leads can verify you at the Dept. of Insurance.
+            </p>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={agentProfile.npn || ''}
+              onChange={(e) => updateField('npn', e.target.value.replace(/[^0-9]/g, ''))}
+              placeholder="e.g. 20775142"
+              className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
+            />
+          </div>
+
           {/* State Licenses (Chunk 4d) — multi-state PDFs that the
               booking-confirmation flow attaches based on lead.state. */}
           <StateLicensesSection
@@ -1482,46 +1496,6 @@ export default function SettingsPage() {
                     }`}
                   />
                 </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Beneficiary Welcome Message */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Beneficiary Welcome Message</h3>
-            <p className="text-xs text-[#707070] mb-3">
-              This template is used when sending a message to beneficiaries (not the insured client).
-            </p>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-[#000000] mb-1.5">English Template</label>
-                <textarea
-                  value={agentProfile.beneficiaryWelcomeTemplateEn || ''}
-                  onChange={(e) => updateField('beneficiaryWelcomeTemplateEn', e.target.value)}
-                  placeholder="Hi {{beneficiaryFirstName}}, this is {{agentName}}. You are listed as a beneficiary for {{insuredFirstName}}. Use code {{beneficiaryCode}} in AgentForLife: {{appUrl}}"
-                  rows={4}
-                  className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa] resize-y"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[#000000] mb-1.5">Spanish Template</label>
-                <textarea
-                  value={agentProfile.beneficiaryWelcomeTemplateEs || ''}
-                  onChange={(e) => updateField('beneficiaryWelcomeTemplateEs', e.target.value)}
-                  placeholder="Hola {{beneficiaryFirstName}}, soy {{agentName}}. Fuiste registrado(a) como beneficiario(a) de {{insuredFirstName}}. Usa el codigo {{beneficiaryCode}} en AgentForLife: {{appUrl}}"
-                  rows={4}
-                  className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa] resize-y"
-                />
-              </div>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {['{{beneficiaryFirstName}}', '{{insuredFirstName}}', '{{agentName}}', '{{beneficiaryCode}}', '{{appUrl}}'].map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center px-2 py-0.5 rounded bg-[#daf3f0] text-[#005851] text-xs font-medium"
-                  >
-                    {tag}
-                  </span>
-                ))}
               </div>
             </div>
           </div>
@@ -2037,7 +2011,7 @@ export default function SettingsPage() {
           {/* Dial script — shown as an overlay on the lead detail page
               during a live call. Supports tokens like {agentfirstname},
               {leadname}, {leadage}, {tobaccouse}, {mortgageamount}. */}
-          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+          <div id="dial-script" className="scroll-mt-24 bg-white rounded-[5px] border border-gray-200 p-5">
             <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Dial script</h3>
             <p className="text-[11px] text-[#707070] mb-3">
               Shown on the lead page while you&apos;re on a call. Personalized per lead via tokens.
@@ -2058,6 +2032,20 @@ export default function SettingsPage() {
                   key={t.token}
                   title={t.description}
                   className="inline-block px-2 py-0.5 text-[10px] font-mono rounded bg-[#daf3f0]/60 text-[#005851] border border-[#45bcaa]/30 cursor-help"
+                >
+                  {t.token}
+                </span>
+              ))}
+            </div>
+            <p className="text-[11px] text-[#707070] mt-3 mb-1">
+              Auto-switching blocks — show/hide based on the lead and your settings:
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {SCRIPT_CONDITION_HINTS.map((t) => (
+                <span
+                  key={t.token}
+                  title={t.description}
+                  className="inline-block px-2 py-0.5 text-[10px] font-mono rounded bg-[#FEF3C7]/70 text-[#92400E] border border-[#FCD34D]/60 cursor-help"
                 >
                   {t.token}
                 </span>

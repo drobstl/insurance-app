@@ -6,6 +6,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
 import { isValidE164, normalizePhone } from '../../../../lib/phone';
 import { beneficiaryActivationPlaceholderThreadId } from '../../../../lib/beneficiary-activation-handler';
+import { resolveClientLanguage, type SupportedLanguage } from '../../../../lib/client-language';
 
 /**
  * POST /api/beneficiary/queue-invite
@@ -68,12 +69,33 @@ function generateBeneficiaryAccessCode(): string {
  * already in the beneficiary's contacts (family member), so we drop
  * the "I'm X here" intro that would feel awkward between people
  * who already know each other.
+ *
+ * Spanish twin added Jun 16, 2026 — same Copy A structure, selected
+ * off the policyholder's `preferredLanguage` (the only language
+ * signal we have; the beneficiary record carries none, and a
+ * Spanish-preferring policyholder's family member is the right
+ * proxy). Mirrors how holiday cards + follow-ups already localize.
+ * Accent-free to stay in GSM-7, matching the existing Spanish SMS
+ * copy in web/lib/client-language.ts.
  */
 function buildBeneficiaryInviteSmsBody(params: {
   beneficiaryFirstName: string;
   accessCode: string;
+  language: SupportedLanguage;
 }): string {
-  const first = params.beneficiaryFirstName?.trim() || 'there';
+  const firstRaw = params.beneficiaryFirstName?.trim() || '';
+  if (params.language === 'es') {
+    const greeting = firstRaw ? `Hola ${firstRaw}` : 'Hola';
+    return (
+      `${greeting}, te tengo como beneficiario(a) en una de mis polizas de seguro, `
+      + 'y quiero asegurarme de que tengas todo lo que necesitas si algo llega a pasar. '
+      + 'Configuracion rapida de la app:\n\n'
+      + `1. Descarga: ${APP_DOWNLOAD_URL}\n`
+      + '2. Toca Activar y luego Enviar\n'
+      + `3. Inicia sesion con el codigo ${params.accessCode}`
+    );
+  }
+  const first = firstRaw || 'there';
   return (
     `Hey ${first}, I have you listed as a beneficiary on one of my insurance policies, `
     + 'and I want to make sure you have everything you need if something ever happens. '
@@ -141,6 +163,18 @@ export async function POST(request: NextRequest) {
         { status: 500 },
       );
     }
+
+    // Resolve the policyholder's preferred language so the invite SMS
+    // goes out in Spanish when that's how they communicate. One extra
+    // read; mirrors the holiday-card cron which localizes off the
+    // insured client's `preferredLanguage`.
+    const clientSnap = await db
+      .collection('agents')
+      .doc(agentId)
+      .collection('clients')
+      .doc(clientId)
+      .get();
+    const language = resolveClientLanguage(clientSnap.data()?.preferredLanguage);
 
     // Find every policy under this agent+client where the
     // beneficiary phone matches. Coalescing — same person on
@@ -328,6 +362,7 @@ export async function POST(request: NextRequest) {
     const smsBody = buildBeneficiaryInviteSmsBody({
       beneficiaryFirstName,
       accessCode: primaryAccessCode,
+      language,
     });
 
     return NextResponse.json({

@@ -2,11 +2,6 @@ export type SupportedLanguage = 'en' | 'es';
 export type HolidayCardKey = 'newyear' | 'valentines' | 'july4th' | 'thanksgiving' | 'christmas';
 export type BeneficiaryRole = 'primary' | 'contingent';
 
-export const DEFAULT_BENEFICIARY_WELCOME_TEMPLATE_EN =
-  'Hi {{beneficiaryFirstName}}, this is {{agentName}}. You were listed as a beneficiary for {{insuredFirstName}}. You can access your beneficiary view in AgentForLife with code {{beneficiaryCode}}: {{appUrl}}';
-export const DEFAULT_BENEFICIARY_WELCOME_TEMPLATE_ES =
-  'Hola {{beneficiaryFirstName}}, soy {{agentName}}. Fuiste registrado(a) como beneficiario(a) de {{insuredFirstName}}. Puedes acceder a tu vista de beneficiario en AgentForLife con este codigo {{beneficiaryCode}}: {{appUrl}}';
-
 export function resolveClientLanguage(value: unknown): SupportedLanguage {
   if (typeof value !== 'string') return 'en';
   const normalized = value.trim().toLowerCase();
@@ -56,31 +51,6 @@ export function buildWelcomeMessage(params: {
     + "4. Tap Activate, then Send — I'll text you right back\n\n"
     + "That's it! Your app's already personalized for you. 👍"
   );
-}
-
-export function buildBeneficiaryWelcomeMessage(params: {
-  beneficiaryFirstName: string;
-  insuredFirstName: string;
-  agentName: string;
-  beneficiaryCode: string;
-  appUrl: string;
-  language: SupportedLanguage;
-  template?: string | null;
-}): string {
-  const fallbackTemplate = params.language === 'es'
-    ? DEFAULT_BENEFICIARY_WELCOME_TEMPLATE_ES
-    : DEFAULT_BENEFICIARY_WELCOME_TEMPLATE_EN;
-  const template = (params.template || '').trim() || fallbackTemplate;
-  const replacements: Record<string, string> = {
-    beneficiaryFirstName: params.beneficiaryFirstName || 'there',
-    insuredFirstName: params.insuredFirstName || 'your loved one',
-    agentName: params.agentName || 'your AFL agent',
-    beneficiaryCode: params.beneficiaryCode || '',
-    appUrl: params.appUrl || 'https://agentforlife.app/app',
-  };
-  return template.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => {
-    return replacements[key] ?? '';
-  }).trim();
 }
 
 export function buildBeneficiaryFollowupMessage(params: {

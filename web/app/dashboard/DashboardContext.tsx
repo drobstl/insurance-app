@@ -113,6 +113,8 @@ export interface AgentProfile {
   trialEndsAt?: number;
   trialStartedAt?: number;
   agencyName?: string;
+  /** National Producer Number — read aloud for ID verification on calls. */
+  npn?: string;
   agencyLogoBase64?: string;
   businessCardBase64?: string;
   referralMessage?: string;
@@ -125,8 +127,6 @@ export interface AgentProfile {
   anniversaryMessageCustomTitle?: string;
   policyReviewAIEnabled?: boolean;
   welcomeSmsTemplate?: string;
-  beneficiaryWelcomeTemplateEn?: string;
-  beneficiaryWelcomeTemplateEs?: string;
   skipWelcomeSmsConfirmation?: boolean;
   forwardInboundSms?: boolean;
   onboardingComplete?: boolean;
@@ -345,6 +345,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           trialEndsAt: tsToMillis(data.trialEndsAt),
           trialStartedAt: tsToMillis(data.trialStartedAt),
           agencyName: data.agencyName,
+          npn: typeof data.npn === 'string' ? data.npn : undefined,
           agencyLogoBase64: data.agencyLogoBase64,
           businessCardBase64: data.businessCardBase64,
           referralMessage: data.referralMessage,
@@ -357,8 +358,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           anniversaryMessageCustomTitle: data.anniversaryMessageCustomTitle,
           policyReviewAIEnabled: data.policyReviewAIEnabled,
           welcomeSmsTemplate: data.welcomeSmsTemplate,
-          beneficiaryWelcomeTemplateEn: data.beneficiaryWelcomeTemplateEn,
-          beneficiaryWelcomeTemplateEs: data.beneficiaryWelcomeTemplateEs,
           skipWelcomeSmsConfirmation: data.skipWelcomeSmsConfirmation,
           forwardInboundSms: data.forwardInboundSms,
           onboardingComplete: data.onboardingComplete,
