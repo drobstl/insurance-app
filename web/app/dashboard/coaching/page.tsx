@@ -46,6 +46,11 @@ interface Meter {
   used?: number;
   remaining?: number;
 }
+interface SavedScore {
+  id: string;
+  createdAtMs: number;
+  report: Report;
+}
 
 function scoreTone(s: number): string {
   if (s >= 8.5) return 'text-[#005851]';
@@ -66,6 +71,40 @@ const CHECKPOINT_STYLE: Record<Checkpoint['status'], { icon: string; cls: string
   missed: { icon: '✕', cls: 'text-[#9CA3AF]', label: 'Missed' },
 };
 
+function formatDate(ms: number): string {
+  if (!ms) return '';
+  try {
+    return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch {
+    return '';
+  }
+}
+
+// A label for a saved call: the client's name if the model inferred one,
+// else the call type, else a neutral fallback.
+function callLabel(r: Report): string {
+  return r.clientName || r.callType || 'Scored call';
+}
+
+// Lightweight inline sparkline of overall score (0–10) over time. Scales
+// uniformly to its container width; renders nothing with fewer than 2 points.
+function Sparkline({ values }: { values: number[] }) {
+  if (values.length < 2) return null;
+  const w = 240;
+  const h = 40;
+  const pad = 4;
+  const stepX = (w - pad * 2) / (values.length - 1);
+  const yOf = (v: number) => pad + (1 - Math.max(0, Math.min(10, v)) / 10) * (h - pad * 2);
+  const points = values.map((v, i) => `${(pad + i * stepX).toFixed(1)},${yOf(v).toFixed(1)}`).join(' ');
+  const lastX = pad + (values.length - 1) * stepX;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="block w-full" role="img" aria-label="Overall score over time">
+      <polyline points={points} fill="none" stroke="#005851" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={lastX.toFixed(1)} cy={yOf(values[values.length - 1]).toFixed(1)} r="3.5" fill="#005851" />
+    </svg>
+  );
+}
+
 export default function CoachingPage() {
   const { user, agentProfile, loading } = useDashboard();
   const access = performanceAccess(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt);
@@ -75,6 +114,12 @@ export default function CoachingPage() {
   const [scoring, setScoring] = useState(false);
   const [result, setResult] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Scored-call history + trend (loaded from the API, prepended on each score).
+  // `viewingSaved` distinguishes a re-opened past call from a fresh score so the
+  // back button reads correctly and we don't clear the transcript box.
+  const [history, setHistory] = useState<SavedScore[]>([]);
+  const [viewingSaved, setViewingSaved] = useState(false);
 
   // Per-agent playbook editor
   const [playbook, setPlaybook] = useState('');
@@ -90,7 +135,10 @@ export default function CoachingPage() {
         const res = await fetch('/api/coaching/score', { headers: { Authorization: `Bearer ${token}` } });
         if (res.ok) {
           const data = await res.json();
-          if (!cancelled) setMeter(data.meter ?? null);
+          if (!cancelled) {
+            setMeter(data.meter ?? null);
+            if (Array.isArray(data.scores)) setHistory(data.scores as SavedScore[]);
+          }
         }
       } catch {
         /* meter is a nicety */
@@ -139,7 +187,14 @@ export default function CoachingPage() {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setResult(data.result);
+        setViewingSaved(false);
         if (data.meter) setMeter(data.meter);
+        if (data.saved?.id) {
+          setHistory((h) => [
+            { id: data.saved.id, createdAtMs: data.saved.createdAtMs ?? Date.now(), report: data.result },
+            ...h,
+          ]);
+        }
       } else if (res.status === 402) {
         setMeter(data.meter ?? meter);
         setError('limit_reached');
@@ -155,8 +210,31 @@ export default function CoachingPage() {
     }
   }, [user, scoring, transcript, meter]);
 
+  // Re-open a past scored call. Reads from local state — no re-score, no
+  // network call, no metered credit spent.
+  const openSaved = useCallback((s: SavedScore) => {
+    setResult(s.report);
+    setViewingSaved(true);
+    setError(null);
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   if (loading) return <div className="px-4 py-10 text-center text-[#707070]">Loading…</div>;
   if (access.level === 'locked') return <UpgradeToProCard surface="coaching" />;
+
+  // Derived trend (history is newest-first from the API).
+  const chrono = [...history].reverse(); // oldest → newest for the trend line
+  const overallSeries = chrono.map((s) => s.report.overallScore);
+  const overallAvg = history.length
+    ? Math.round((history.reduce((a, s) => a + s.report.overallScore, 0) / history.length) * 10) / 10
+    : 0;
+  const dimAverages = (history[0]?.report.real ?? []).map((cat, idx) => {
+    const vals = history
+      .map((s) => s.report.real[idx]?.score)
+      .filter((v): v is number => typeof v === 'number');
+    const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    return { key: cat.key, letter: cat.letter, label: cat.label, avg: Math.round(avg * 10) / 10 };
+  });
 
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-8 max-w-3xl mx-auto">
@@ -273,6 +351,75 @@ export default function CoachingPage() {
         </div>
       )}
 
+      {/* Progress + history — your scored calls over time */}
+      {!result && history.length > 0 && (
+        <div className="mt-6 space-y-4">
+          {/* Trend */}
+          <div className="rounded-[10px] border border-[#d0d0d0] bg-white p-4 sm:p-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-[#005851]">Your progress</h2>
+              <span className="text-xs text-[#707070]">{history.length} {history.length === 1 ? 'call' : 'calls'} scored</span>
+            </div>
+            <div className="mt-3 flex items-end gap-4">
+              <div className="shrink-0">
+                <div className={`text-3xl font-bold tabular-nums leading-none ${scoreTone(overallAvg)}`}>{overallAvg}</div>
+                <div className="mt-0.5 text-[11px] text-[#707070]">avg overall</div>
+              </div>
+              {overallSeries.length >= 2 && (
+                <div className="flex-1 min-w-0">
+                  <Sparkline values={overallSeries} />
+                  <div className="mt-1 flex justify-between text-[10px] text-[#9CA3AF]">
+                    <span>oldest</span>
+                    <span>latest</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            {dimAverages.length > 0 && (
+              <div className="mt-4 grid sm:grid-cols-2 gap-x-6 gap-y-2.5">
+                {dimAverages.map((d) => (
+                  <div key={d.key} className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-[#daf3f0] text-[#005851] text-[11px] font-bold flex items-center justify-center shrink-0">{d.letter}</span>
+                    <span className="text-xs text-[#374151] w-24 shrink-0">{d.label}</span>
+                    <div className="flex-1 h-1.5 rounded-full bg-[#f1f1f1] overflow-hidden">
+                      <div className={`h-full ${barTone(d.avg)} rounded-full`} style={{ width: `${d.avg * 10}%` }} />
+                    </div>
+                    <span className={`text-xs font-bold tabular-nums w-7 text-right ${scoreTone(d.avg)}`}>{d.avg}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="mt-3 text-[11px] text-[#9CA3AF]">Averages across your scored calls. Your weakest letter is where coaching pays off fastest.</p>
+          </div>
+
+          {/* History list */}
+          <div className="rounded-[10px] border border-[#d0d0d0] bg-white p-4 sm:p-5">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[#005851]">Your calls</h2>
+            <ul className="mt-2 divide-y divide-[#f1f1f1]">
+              {history.map((s) => (
+                <li key={s.id}>
+                  <button
+                    onClick={() => openSaved(s)}
+                    className="w-full flex items-center gap-3 py-2.5 -mx-2 px-2 rounded text-left hover:bg-[#f7fbfa] transition-colors"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-[#1a1a1a] truncate">{callLabel(s.report)}</p>
+                      <p className="text-xs text-[#707070] truncate">
+                        {formatDate(s.createdAtMs)}
+                        {s.report.productLine ? ` · ${s.report.productLine}` : ''}
+                        {s.report.outcome ? ` · ${s.report.outcome}` : ''}
+                      </p>
+                    </div>
+                    <span className={`text-base font-bold tabular-nums shrink-0 ${scoreTone(s.report.overallScore)}`}>{s.report.overallScore}</span>
+                    <span className="text-[#cbd5e1] shrink-0" aria-hidden>›</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
       {/* Report */}
       {result && (
         <div className="mt-6 space-y-4">
@@ -358,10 +505,15 @@ export default function CoachingPage() {
           )}
 
           <button
-            onClick={() => { setResult(null); setTranscript(''); setError(null); }}
+            onClick={() => {
+              setResult(null);
+              if (!viewingSaved) setTranscript('');
+              setViewingSaved(false);
+              setError(null);
+            }}
             className="text-sm font-semibold text-[#005851] hover:text-[#0D4D4D]"
           >
-            ← Score another call
+            ← {viewingSaved ? 'Back to your calls' : 'Score another call'}
           </button>
         </div>
       )}
