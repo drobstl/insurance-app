@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { AgentAggregates } from '../lib/stats-aggregation';
 import {
   BADGE_DEFINITIONS,
@@ -11,6 +11,7 @@ import {
   type EarnedBadge,
 } from '../lib/badges';
 import PremiumBadge from './PremiumBadge';
+import BadgeSpotlight from './BadgeSpotlight';
 
 const TIERS: { key: BadgeTier; label: string }[] = [
   { key: 'starter', label: 'Starter' },
@@ -61,15 +62,6 @@ export default function BadgeProgressCard({ stats, onShareBadge }: Props) {
       total: defs.length,
     };
   });
-
-  useEffect(() => {
-    if (!spotlightId) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSpotlightId(null);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [spotlightId]);
 
   const heroProg = next ? progressFor(next, stats) : null;
 
@@ -171,68 +163,19 @@ export default function BadgeProgressCard({ stats, onShareBadge }: Props) {
         })}
       </div>
 
-      {/* full-screen spotlight */}
+      {/* full-screen spotlight — cinematic reveal + up-close inspection */}
       {spotlightDef && spotlightProg && (
-        <div
-          className="fixed inset-0 z-[80] flex items-center justify-center p-4"
-          onClick={() => setSpotlightId(null)}
-        >
-          <div className="absolute inset-0 bg-black/60" />
-          <div
-            className="relative bg-white rounded-2xl border-2 border-[#1A1A1A] border-r-[6px] border-b-[6px] w-full max-w-sm p-6 text-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setSpotlightId(null)}
-              aria-label="Close"
-              className="absolute top-3 right-3 text-[#9ca3af] hover:text-[#000000] transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-
-            <div className="flex justify-center mb-4">
-              <PremiumBadge badgeId={spotlightDef.id} size={200} shimmer={spotlightEarned} glow />
-            </div>
-            <h3 className="text-xl font-bold text-[#005851]">{spotlightDef.name}</h3>
-            <p className="text-xs text-[#9ca3af] capitalize mb-3">{spotlightDef.tier} badge</p>
-
-            {spotlightEarned ? (
-              <>
-                <div className="inline-flex items-center gap-1 text-sm font-semibold text-[#16a34a] mb-2">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                  Earned
-                </div>
-                <p className="text-sm text-[#4b5563]">{spotlightDef.description}.</p>
-                {onShareBadge && spotlightEarnedBadge && (
-                  <button
-                    onClick={() => {
-                      onShareBadge(spotlightEarnedBadge);
-                      setSpotlightId(null);
-                    }}
-                    className="mt-5 w-full py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-lg transition-colors"
-                  >
-                    Share this badge
-                  </button>
-                )}
-              </>
-            ) : (
-              <>
-                <p className="text-sm text-[#4b5563] mb-3">{spotlightDef.howToEarn}.</p>
-                <div className="h-2 bg-[#eef0f0] rounded-full overflow-hidden">
-                  <div className="h-full bg-[#005851] rounded-full" style={{ width: `${spotlightProg.pct}%` }} />
-                </div>
-                <div className="text-xs text-[#707070] mt-1.5">
-                  {spotlightProg.fmt(spotlightProg.cur)} / {spotlightProg.fmt(spotlightProg.tgt)}{spotlightProg.unit}
-                  <span className="text-[#0f766e] font-semibold"> · {spotlightProg.fmt(spotlightProg.remaining)} to go</span>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        <BadgeSpotlight
+          def={spotlightDef}
+          earned={spotlightEarned}
+          prog={spotlightProg}
+          onShare={
+            onShareBadge && spotlightEarnedBadge
+              ? () => onShareBadge(spotlightEarnedBadge)
+              : undefined
+          }
+          onClose={() => setSpotlightId(null)}
+        />
       )}
     </div>
   );
