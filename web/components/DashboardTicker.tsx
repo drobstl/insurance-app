@@ -47,6 +47,8 @@ interface DashboardTickerProps {
   atRiskApv?: number;
   /** Appointments scheduled for today. */
   appointmentsToday?: number;
+  /** Fresh leads (last 7 days) that have never been dialed. */
+  uncalledLeads?: number;
   /** Agent's first name, for the time-of-day greeting. */
   agentFirstName?: string;
 }
@@ -121,6 +123,7 @@ export default function DashboardTicker({
   atRiskCount = 0,
   atRiskApv = 0,
   appointmentsToday = 0,
+  uncalledLeads = 0,
   agentFirstName,
 }: DashboardTickerProps) {
   const router = useRouter();
@@ -174,6 +177,15 @@ export default function DashboardTicker({
         tone: 'urgent',
       });
     }
+    if (uncalledLeads > 0) {
+      out.push({
+        id: 'uncalled-leads',
+        emoji: '📞',
+        label: `${formatNum(uncalledLeads)} ${uncalledLeads === 1 ? 'lead' : 'leads'} to call`,
+        href: '/dashboard/leads?call=1',
+        tone: 'urgent',
+      });
+    }
 
     // ── Pride — progress toward the next badge + the most recent win. ──
     if (stats) {
@@ -224,7 +236,7 @@ export default function DashboardTicker({
     });
 
     return out;
-  }, [stats, clientCount, atRiskCount, atRiskApv, appointmentsToday, agentFirstName, quoteIndex, now]);
+  }, [stats, clientCount, atRiskCount, atRiskApv, appointmentsToday, uncalledLeads, agentFirstName, quoteIndex, now]);
 
   // Fixed-duration CSS scroll means a longer stream scrolls faster. Scale the
   // duration with segment count so the reading speed stays roughly constant
