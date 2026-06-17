@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { AgentAggregates } from '../lib/stats-aggregation';
 import TICKER_QUOTES from '../lib/ticker-quotes';
-import { getMostRecentBadge, getNextBadgeToChase } from '../lib/badges';
 
 function formatNum(n: number): string {
   return n.toLocaleString('en-US');
@@ -19,15 +18,9 @@ function formatPct(n: number): string {
   return `${(n * 100).toFixed(1)}%`;
 }
 
-// How long each motivational quote stays up before the next rotates in. The
-// prior ticker picked one quote per session and froze on it — this brings the
-// marquee's whole library back into rotation.
-const QUOTE_ROTATE_MS = 14000;
-
 // Visual emphasis per segment kind. The bar is teal (#005851); urgent prompts
-// read amber, pride/progress reads gold (matches the Refer & Earn accent),
-// everything else stays white.
-type SegmentTone = 'default' | 'urgent' | 'gold' | 'context';
+// read amber, the greeting a soft mint, everything else white.
+type SegmentTone = 'default' | 'urgent' | 'context';
 
 interface TickerSegment {
   id: string;
@@ -54,14 +47,8 @@ interface DashboardTickerProps {
 }
 
 // One time-aware "moment" that opens the strip — a greeting plus a clause that
-// shifts by hour, weekday, and where we are in the month. Most-specific wins;
-// the month-end line folds in real badge-gap progress when there's an APV badge
-// in reach. Recomputed on a minute tick so it stays current while the tab's open.
-function buildContextSegment(
-  now: Date,
-  stats: AgentAggregates | null,
-  agentFirstName?: string,
-): TickerSegment {
+// shifts by hour, weekday, and where we are in the month. Most-specific wins.
+function buildContextSegment(now: Date, agentFirstName?: string): TickerSegment {
   const hour = now.getHours();
   const weekday = now.getDay(); // 0 Sun … 6 Sat
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
@@ -84,17 +71,8 @@ function buildContextSegment(
   }
   const who = agentFirstName ? `${greeting}, ${agentFirstName}` : greeting;
 
-  const nextBadge = stats ? getNextBadgeToChase(stats) : null;
-  const apvGap =
-    stats && nextBadge && nextBadge.progressLabel === 'APV'
-      ? Math.max(0, nextBadge.target - nextBadge.current(stats))
-      : 0;
-
   let tail: string;
-  if (daysLeft <= 3 && apvGap > 0 && nextBadge) {
-    const when = daysLeft === 0 ? 'last day' : `${daysLeft}d left`;
-    tail = `${when} — ${formatCurrency(apvGap)} from ${nextBadge.name}`;
-  } else if (daysLeft <= 3) {
+  if (daysLeft <= 3) {
     tail = `${daysLeft === 0 ? 'last day' : `${daysLeft} days left`} — finish the month strong`;
   } else if (weekday === 5 && hour >= 12) {
     tail = 'strong week — lock in one referral before you log off';
@@ -128,35 +106,23 @@ export default function DashboardTicker({
 }: DashboardTickerProps) {
   const router = useRouter();
 
-  // Rotate the quote on an interval. Start at a random offset so two agents
-  // (or two tabs) don't march in lockstep.
+  // The quote advances ONLY when the marquee completes a loop (the
+  // onAnimationIteration handler below), never on a wall-clock timer. So it
+  // can't change while it's on screen mid-read, and the content width only
+  // ever changes at the off-screen wrap point — no mid-scroll stutter. Start
+  // at a random offset so two agents (or tabs) don't march in lockstep.
   const [quoteIndex, setQuoteIndex] = useState(() =>
     Math.floor(Math.random() * TICKER_QUOTES.length),
   );
-  useEffect(() => {
-    const id = setInterval(() => {
-      setQuoteIndex((i) => (i + 1) % TICKER_QUOTES.length);
-    }, QUOTE_ROTATE_MS);
-    return () => clearInterval(id);
-  }, []);
-
-  // Re-read the clock each minute so the time-of-day greeting refreshes while
-  // the tab stays open (e.g. morning → afternoon, or rolling into the month's
-  // final days).
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 60000);
-    return () => clearInterval(id);
-  }, []);
 
   const segments = useMemo<TickerSegment[]>(() => {
     const out: TickerSegment[] = [];
 
-    // ── Moment — a time-of-day greeting opens the strip. ──
-    out.push(buildContextSegment(now, stats, agentFirstName));
+    // ── Moment — a time-of-day greeting opens the strip. Rebuilt each loop
+    //    (when quoteIndex advances), so the clock stays current off-screen. ──
+    out.push(buildContextSegment(new Date(), agentFirstName));
 
-    // ── Prompts — time-sensitive, money-on-the-line, clickable. Lead the
-    //    stream so the first thing scrolling by is something to act on. ──
+    // ── Prompts — time-sensitive, money-on-the-line, clickable. ──
     if (atRiskCount > 0) {
       const noun = atRiskCount === 1 ? 'policy' : 'policies';
       const apvSuffix = atRiskApv > 0 ? ` · ${formatCurrency(atRiskApv)} APV` : '';
@@ -187,33 +153,6 @@ export default function DashboardTicker({
       });
     }
 
-    // ── Pride — progress toward the next badge + the most recent win. ──
-    if (stats) {
-      const next = getNextBadgeToChase(stats);
-      if (next) {
-        const remaining = Math.max(0, next.target - next.current(stats));
-        const toGo =
-          next.progressLabel === 'APV'
-            ? `${formatCurrency(remaining)} to go`
-            : `${formatNum(remaining)} to go`;
-        out.push({
-          id: 'next-badge',
-          emoji: '🎯',
-          label: `Next badge: ${next.name} · ${toGo}`,
-          tone: 'gold',
-        });
-      }
-      const recent = getMostRecentBadge(stats);
-      if (recent) {
-        out.push({
-          id: 'recent-badge',
-          emoji: '🏅',
-          label: `Latest badge: ${recent.name}`,
-          tone: 'gold',
-        });
-      }
-    }
-
     // ── Pulse — the book at a glance. ──
     out.push({ id: 'clients', label: `Total Clients: ${formatNum(clientCount)}` });
     if (stats) {
@@ -228,7 +167,7 @@ export default function DashboardTicker({
       out.push({ id: 'touchpoints', label: `Touchpoints Sent: ${formatNum(stats.touchpoints.total)}` });
     }
 
-    // ── Philosophy — always present, rotating. ──
+    // ── Philosophy — always present; rotates one quote per loop. ──
     const q = TICKER_QUOTES[quoteIndex % TICKER_QUOTES.length];
     out.push({
       id: 'quote',
@@ -236,11 +175,10 @@ export default function DashboardTicker({
     });
 
     return out;
-  }, [stats, clientCount, atRiskCount, atRiskApv, appointmentsToday, uncalledLeads, agentFirstName, quoteIndex, now]);
+  }, [stats, clientCount, atRiskCount, atRiskApv, appointmentsToday, uncalledLeads, agentFirstName, quoteIndex]);
 
-  // Fixed-duration CSS scroll means a longer stream scrolls faster. Scale the
-  // duration with segment count so the reading speed stays roughly constant
-  // however much is on the bar.
+  // Duration scales with segment count so the px/sec reading speed stays steady
+  // when a prompt appears or drops off the bar.
   const durationSec = Math.max(40, segments.length * 4.5);
 
   const renderStream = (interactive: boolean) =>
@@ -248,11 +186,9 @@ export default function DashboardTicker({
       const toneClass =
         seg.tone === 'urgent'
           ? 'text-[#FFD37E]'
-          : seg.tone === 'gold'
-            ? 'text-[#F5C542]'
-            : seg.tone === 'context'
-              ? 'text-[#E1F5EE]'
-              : 'text-white';
+          : seg.tone === 'context'
+            ? 'text-[#E1F5EE]'
+            : 'text-white';
       const inner = (
         <span className={`text-xs ${seg.tone ? 'font-semibold' : 'font-medium'} ${toneClass}`}>
           {seg.emoji && <span className="mr-1">{seg.emoji}</span>}
@@ -285,6 +221,7 @@ export default function DashboardTicker({
       <div
         className="ticker-scroll inline-flex group-hover:[animation-play-state:paused]"
         style={{ animationDuration: `${durationSec}s` }}
+        onAnimationIteration={() => setQuoteIndex((i) => (i + 1) % TICKER_QUOTES.length)}
       >
         <div className="inline-flex items-center px-4">{renderStream(true)}</div>
         <div className="inline-flex items-center px-4" aria-hidden>
