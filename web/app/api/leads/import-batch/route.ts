@@ -68,6 +68,14 @@ interface FailedRow {
   reason: string;
 }
 
+interface UpdatedLead {
+  row: number;
+  name: string;
+  existingLeadId: string;
+  existingLeadName?: string;
+  changed: boolean; // true if a blank field was filled, false if already complete
+}
+
 export async function POST(req: NextRequest) {
   try {
     // ── Auth ──
@@ -93,11 +101,46 @@ export async function POST(req: NextRequest) {
     if (rows.length > BATCH_SIZE) {
       return NextResponse.json({ error: `Maximum ${BATCH_SIZE} rows per batch` }, { status: 400 });
     }
+    // Opt-in "refresh" mode: a same-agent phone match updates the existing
+    // lead IN PLACE (gap-fill, keeping its id) instead of being skipped as a
+    // duplicate — so re-importing a vendor list never needs delete+recreate
+    // (which orphans appointments + wipes dial history). Default off keeps
+    // the existing skip-duplicates behavior.
+    const updateExisting = body?.updateExisting === true;
 
     const db = getAdminFirestore();
     const created: CreatedLead[] = [];
     const duplicates: DuplicateLead[] = [];
+    const updated: UpdatedLead[] = [];
     const failed: FailedRow[] = [];
+
+    // Update-in-place: gap-fill an existing lead's empty contact fields from
+    // the row, KEEPING its doc id so its appointments + dial history stay
+    // attached. Never overwrites a value the agent already curated, and never
+    // touches name or phone (the match key). Returns true if a field changed.
+    const gapFillExisting = async (existingLeadId: string, row: LeadImportRow): Promise<boolean> => {
+      const ref = db.collection('agents').doc(agentId).collection('leads').doc(existingLeadId);
+      const snap = await ref.get();
+      if (!snap.exists) return false;
+      const cur = snap.data() || {};
+      const update: Record<string, unknown> = {};
+      const email = (row.email || '').trim();
+      if (email && !cur.email) update.email = email;
+      const dob = (row.dateOfBirth || '').trim();
+      if (dob && !cur.dateOfBirth) update.dateOfBirth = dob;
+      const addr: NonNullable<LeadImportRow['address']> = row.address || {};
+      const curAddr = (cur.address && typeof cur.address === 'object' ? cur.address : {}) as Record<string, string>;
+      const nextAddr: Record<string, string> = { ...curAddr };
+      let addrChanged = false;
+      for (const k of ['street', 'city', 'state', 'zip'] as const) {
+        const v = (addr[k] || '').trim();
+        if (v && !curAddr[k]) { nextAddr[k] = v; addrChanged = true; }
+      }
+      if (addrChanged) update.address = nextAddr;
+      if (Object.keys(update).length === 0) return false;
+      await ref.update(update);
+      return true;
+    };
 
     // Phone-keyed map of the agent's EXISTING leads. The shared
     // `resolveLeadCodeOrDuplicate` dedup keys off the global
@@ -129,14 +172,19 @@ export async function POST(req: NextRequest) {
         if (derived) {
           const existing = phoneIndex.get(derived);
           if (existing) {
-            duplicates.push({
-              row: rowNum,
-              phone,
-              name,
-              existingLeadId: existing.leadId,
-              existingLeadCode: existing.leadCode,
-              existingLeadName: existing.name,
-            });
+            if (updateExisting) {
+              const changed = await gapFillExisting(existing.leadId, row);
+              updated.push({ row: rowNum, name, existingLeadId: existing.leadId, existingLeadName: existing.name, changed });
+            } else {
+              duplicates.push({
+                row: rowNum,
+                phone,
+                name,
+                existingLeadId: existing.leadId,
+                existingLeadCode: existing.leadCode,
+                existingLeadName: existing.name,
+              });
+            }
             continue;
           }
         }
@@ -149,14 +197,19 @@ export async function POST(req: NextRequest) {
           newLeadId: leadRef.id,
         });
         if (resolution.duplicate) {
-          duplicates.push({
-            row: rowNum,
-            phone,
-            name,
-            existingLeadId: resolution.existingLeadId,
-            existingLeadCode: resolution.existingLeadCode,
-            existingLeadName: resolution.existingLeadName,
-          });
+          if (updateExisting) {
+            const changed = await gapFillExisting(resolution.existingLeadId, row);
+            updated.push({ row: rowNum, name, existingLeadId: resolution.existingLeadId, existingLeadName: resolution.existingLeadName, changed });
+          } else {
+            duplicates.push({
+              row: rowNum,
+              phone,
+              name,
+              existingLeadId: resolution.existingLeadId,
+              existingLeadCode: resolution.existingLeadCode,
+              existingLeadName: resolution.existingLeadName,
+            });
+          }
           continue;
         }
 
@@ -205,7 +258,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ created, duplicates, failed });
+    return NextResponse.json({ created, updated, duplicates, failed });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error('leads/import-batch error:', msg);

@@ -265,6 +265,7 @@ function LeadsPageInner() {
     pageCount: number;
     leads: Array<{ leadId: string; leadCode: string; name: string; codeKind: 'derived' | 'fallback'; page: number }>;
     duplicates: Array<{ page: number; phone: string; name: string; existingLeadId: string; existingLeadCode: string; existingLeadName?: string }>;
+    updated?: Array<{ page: number; name: string; existingLeadId: string; existingLeadName?: string; changed: boolean }>;
     failed: Array<{ page: number; reason: string }>;
   } | null>(null);
 
@@ -280,6 +281,11 @@ function LeadsPageInner() {
   // data they're uploading before any bulk import runs. Reinforces the "your
   // book / your data" posture and the rights representation (see /trust).
   const [importConsent, setImportConsent] = useState(false);
+  // CSV-only "refresh" mode: when re-importing a spreadsheet, update leads we
+  // already have (matched by phone) in place instead of skipping them — keeps
+  // each lead's id, appointments, and dial history (no delete+recreate).
+  // Ignored by the PDF path.
+  const [csvUpdateExisting, setCsvUpdateExisting] = useState(false);
   // Hold-the-file: if a file is dropped/picked before consent is given, we
   // stash it here instead of throwing it away. Ticking the consent box then
   // auto-starts this file, so the agent never has to re-select after
@@ -779,6 +785,7 @@ function LeadsPageInner() {
       const CHUNK = 50;
       const leads: Array<{ leadId: string; leadCode: string; name: string; codeKind: 'derived' | 'fallback'; page: number }> = [];
       const duplicates: Array<{ page: number; phone: string; name: string; existingLeadId: string; existingLeadCode: string; existingLeadName?: string }> = [];
+      const updated: Array<{ page: number; name: string; existingLeadId: string; existingLeadName?: string; changed: boolean }> = [];
       const failed: Array<{ page: number; reason: string }> = [];
 
       for (let start = 0; start < parsed.rows.length; start += CHUNK) {
@@ -789,7 +796,7 @@ function LeadsPageInner() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ rows: chunk }),
+          body: JSON.stringify({ rows: chunk, updateExisting: csvUpdateExisting }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -802,12 +809,15 @@ function LeadsPageInner() {
         for (const d of (data.duplicates || [])) {
           duplicates.push({ page: start + d.row, phone: d.phone || '', name: d.name || '', existingLeadId: d.existingLeadId, existingLeadCode: d.existingLeadCode, existingLeadName: d.existingLeadName });
         }
+        for (const u of (data.updated || [])) {
+          updated.push({ page: start + u.row, name: u.name || '', existingLeadId: u.existingLeadId, existingLeadName: u.existingLeadName, changed: !!u.changed });
+        }
         for (const f of (data.failed || [])) {
           failed.push({ page: start + f.row, reason: f.reason || 'could not import' });
         }
       }
 
-      setBulkUpload({ source: 'csv', pageCount: parsed.rows.length, leads, duplicates, failed });
+      setBulkUpload({ source: 'csv', pageCount: parsed.rows.length, leads, duplicates, updated, failed });
       setJustCreated(null);
     } catch (err) {
       console.error('csv import error:', err);
@@ -815,7 +825,7 @@ function LeadsPageInner() {
     } finally {
       setUploading(false);
     }
-  }, [user]);
+  }, [user, csvUpdateExisting]);
 
   // Dispatch a dropped/selected file to the PDF extractor or the CSV/Excel
   // importer based on type.
@@ -1662,6 +1672,18 @@ function LeadsPageInner() {
                 )}
               </span>
             </label>
+            <label className="mt-2 flex items-start gap-2 text-xs cursor-pointer select-none text-[#005851]">
+              <input
+                type="checkbox"
+                checked={csvUpdateExisting}
+                onChange={(e) => setCsvUpdateExisting(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#005851]"
+              />
+              <span>
+                Re-importing a spreadsheet? Update leads I already have (matched by phone)
+                instead of skipping them — keeps their appointments and call history.
+              </span>
+            </label>
             {uploadError && (
               <div className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-[5px] px-3 py-2">
                 {uploadError}
@@ -1794,6 +1816,9 @@ function LeadsPageInner() {
                         : (bulkUpload.pageCount === 1 ? 'page' : 'pages')}
                       {bulkUpload.duplicates.length > 0 && (
                         <> · {bulkUpload.duplicates.length} already imported</>
+                      )}
+                      {(bulkUpload.updated?.length ?? 0) > 0 && (
+                        <> · {bulkUpload.updated!.length} refreshed</>
                       )}
                       {bulkUpload.failed.length > 0 && (
                         <> · {bulkUpload.failed.length} couldn&apos;t be {bulkUpload.source === 'csv' ? 'imported' : 'read'}</>
