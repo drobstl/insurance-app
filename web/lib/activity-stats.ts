@@ -443,8 +443,20 @@ export async function getActivityStats(
   // keying) had a sale in each window. Used downstream by the
   // appointment-reconciliation step to enforce "sale implies show"
   // and to bring sold-without-appt entities into the booked count.
+  //
+  // Two shapes for two jobs:
+  //   - The flat sets answer "did THIS appt-entity sell?" — either the
+  //     leadId or the clientId matching counts, so both go in.
+  //   - The per-client maps key each SALE by its clientId (stable, one
+  //     per client) and remember the originating leadId. The
+  //     "sold but no appointment doc" reconciliation iterates these so
+  //     it counts each sale ONCE. A converted lead carries BOTH a
+  //     leadId and a clientId; iterating the flat set there would count
+  //     its booking + sit twice (the bug this fixes).
   const soldEntitiesCurr = new Set<string>();
   const soldEntitiesPrev = new Set<string>();
+  const soldClientsCurr = new Map<string, { leadId: string | null }>();
+  const soldClientsPrev = new Map<string, { leadId: string | null }>();
 
   for (const clientDoc of clientsSnap.docs) {
     const clientData = clientDoc.data() as {
@@ -514,6 +526,7 @@ export async function getActivityStats(
         sourceBuckets[source].apv += apv;
         if (apptKeyA) soldEntitiesCurr.add(apptKeyA);
         soldEntitiesCurr.add(apptKeyB);
+        soldClientsCurr.set(apptKeyB, { leadId: apptKeyA || null });
         recentWins.push({
           at: new Date(saleMs).toISOString(),
           kind: 'sale',
@@ -527,6 +540,7 @@ export async function getActivityStats(
         salesCountPrev += 1;
         if (apptKeyA) soldEntitiesPrev.add(apptKeyA);
         soldEntitiesPrev.add(apptKeyB);
+        soldClientsPrev.set(apptKeyB, { leadId: apptKeyA || null });
       }
       // Ledger row for any policy touching this window via sale, issue,
       // or chargeback. Drives the spreadsheet-style table on Activity.
@@ -597,19 +611,25 @@ export async function getActivityStats(
       accountedPrev.add(entityId);
     }
   }
-  // Entities that sold-in-window with no appointment doc at all
-  // (informal close, no calendar booking). A sale implies the meeting
-  // happened, so count them as +1 booked and +1 showed.
-  for (const entityId of soldEntitiesCurr) {
-    if (!accountedCurr.has(entityId)) {
-      booked += 1;
-      showed += 1;
-    }
+  // Sales with no appointment doc accounted yet (informal close, no
+  // calendar booking). A sale implies the meeting happened, so count
+  // each such sale as +1 booked and +1 showed — ONCE per client.
+  // Iterate per-client (not the flat key set) and check BOTH the
+  // clientId and the originating leadId against the accounted set: the
+  // appointment, if any, was keyed by leadId and already counted in the
+  // loop above, while the sale is keyed by clientId. Without the
+  // dual-key check a converted lead double-counts (+1 booked / +1
+  // showed) every time it sells.
+  for (const [clientId, { leadId }] of soldClientsCurr) {
+    if (accountedCurr.has(clientId) || (leadId !== null && accountedCurr.has(leadId))) continue;
+    booked += 1;
+    showed += 1;
+    accountedCurr.add(clientId);
   }
-  for (const entityId of soldEntitiesPrev) {
-    if (!accountedPrev.has(entityId)) {
-      bookedPrev += 1;
-    }
+  for (const [clientId, { leadId }] of soldClientsPrev) {
+    if (accountedPrev.has(clientId) || (leadId !== null && accountedPrev.has(leadId))) continue;
+    bookedPrev += 1;
+    accountedPrev.add(clientId);
   }
   // Show rate denominator = resolved meetings only. Pending and
   // cancelled live outside the rate. "Did the people I sat with show
