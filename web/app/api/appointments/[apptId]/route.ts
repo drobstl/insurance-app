@@ -29,6 +29,8 @@ import { pushAgentForConfirmation } from '../../../../lib/agent-push';
  *   - durationMinutes: number
  *   - status: 'scheduled' | 'completed' | 'cancelled' | 'no_show'
  *   - notes: string
+ *   - fifResetBooked: boolean (+ fifResetSmeName, fifResetSmeCalendarUrl)
+ *     — orthogonal advanced-market "FIF reset" flag; see lib/appointments.ts.
  *
  * Auth: Bearer ID token; agent owns the appointment.
  */
@@ -86,6 +88,29 @@ export async function PATCH(
       const url = String(body.meetingUrl).trim().slice(0, 500);
       updates.meetingUrl = url || null;
     }
+    // ── FIF reset (orthogonal to status — see lib/appointments.ts). The
+    //    reset is booked on the SME's external calendar; we only record
+    //    that it was set, who with, and their scheduling URL. ──
+    if (body?.fifResetBooked !== undefined) {
+      const booked = body.fifResetBooked === true;
+      updates.fifResetBooked = booked;
+      if (booked) {
+        if (body?.fifResetSmeName !== undefined) {
+          const name = String(body.fifResetSmeName).trim().slice(0, 120);
+          updates.fifResetSmeName = name || null;
+        }
+        if (body?.fifResetSmeCalendarUrl !== undefined) {
+          const raw = String(body.fifResetSmeCalendarUrl).trim().slice(0, 500);
+          // Persist only http(s) URLs; otherwise clear (no javascript: etc.).
+          updates.fifResetSmeCalendarUrl = /^https?:\/\//i.test(raw) ? raw : null;
+        }
+      } else {
+        // Un-booked: clear the trio so no stale chip lingers.
+        updates.fifResetSmeName = null;
+        updates.fifResetSmeCalendarUrl = null;
+        updates.fifResetBookedAt = null;
+      }
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
@@ -98,6 +123,11 @@ export async function PATCH(
       return NextResponse.json({ error: 'Appointment not found' }, { status: 404 });
     }
     const prior = snap.data() ?? {};
+    // Stamp booked-at only on the false→true transition — a later edit of
+    // the SME name or link shouldn't move the original booking time.
+    if (updates.fifResetBooked === true && prior.fifResetBooked !== true) {
+      updates.fifResetBookedAt = Timestamp.now();
+    }
     await ref.update(updates);
 
     // Best-effort mirror to Google Calendar. Never fail the PATCH.

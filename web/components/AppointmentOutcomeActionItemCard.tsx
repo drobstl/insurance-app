@@ -9,6 +9,12 @@ import type {
   ActionItemDoc,
   ActionItemSuggestedAction,
 } from '../lib/action-item-types';
+import { useDashboard } from '../app/dashboard/DashboardContext';
+import FifResetCapture, {
+  EMPTY_FIF_RESET,
+  isHttpUrl,
+  type FifResetValue,
+} from './FifResetCapture';
 
 /**
  * Appointment-outcome action item card.
@@ -109,6 +115,7 @@ export default function AppointmentOutcomeActionItemCard({
   user,
   onCompleted,
 }: AppointmentOutcomeActionItemCardProps) {
+  const { agentProfile, rememberFifResetSme } = useDashboard();
   const ctx = item.displayContext;
   const subjectName = ctx.subjectName || ctx.subjectFirstName || 'this client';
   const subjectFirstName = ctx.subjectFirstName || ctx.subjectName?.split(/\s+/)[0] || 'this client';
@@ -126,6 +133,9 @@ export default function AppointmentOutcomeActionItemCard({
 
   const [busyChoice, setBusyChoice] = useState<OutcomeChoice['status'] | 'skip' | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Orthogonal FIF reset add-on — whatever the agent set here rides along
+  // with the outcome PATCH below, so a reset can stack on any outcome.
+  const [fifReset, setFifReset] = useState<FifResetValue>(EMPTY_FIF_RESET);
   const viewedRef = useRef(false);
 
   useEffect(() => {
@@ -159,13 +169,19 @@ export default function AppointmentOutcomeActionItemCard({
       const token = await user.getIdToken();
       // 1. PATCH the appointment doc with the chosen status. This is
       //    the source-of-truth update; activity-stats reads from here.
+      const patchBody: Record<string, unknown> = { status: choice.status };
+      if (fifReset.booked) {
+        patchBody.fifResetBooked = true;
+        patchBody.fifResetSmeName = fifReset.smeName.trim() || null;
+        patchBody.fifResetSmeCalendarUrl = fifReset.calendarUrl.trim() || null;
+      }
       const patchRes = await fetch(`/api/appointments/${apptId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ status: choice.status }),
+        body: JSON.stringify(patchBody),
       });
       if (!patchRes.ok) {
         const j = (await patchRes.json().catch(() => null)) as { error?: string } | null;
@@ -193,6 +209,25 @@ export default function AppointmentOutcomeActionItemCard({
         age_days: ageDays,
         view_count_at_completion: item.viewCount + 1,
       });
+      if (fifReset.booked) {
+        const smeName = fifReset.smeName.trim();
+        const calendarUrl = fifReset.calendarUrl.trim();
+        captureEvent(ANALYTICS_EVENTS.FIF_RESET_BOOKED, {
+          appointment_id: apptId,
+          primary_status: choice.status,
+          has_calendar_url: isHttpUrl(calendarUrl),
+          sme_is_repeat:
+            !!smeName &&
+            (agentProfile.fifResetSmes ?? []).some(
+              (s) => s.name.trim().toLowerCase() === smeName.toLowerCase(),
+            ),
+          surface: 'appointment_outcome_card',
+        });
+        // Remember the SME (name + link) for next time's prefill.
+        if (smeName) {
+          void rememberFifResetSme({ name: smeName, calendarUrl: calendarUrl || undefined });
+        }
+      }
       onCompleted?.();
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Could not record outcome.');
@@ -260,6 +295,15 @@ export default function AppointmentOutcomeActionItemCard({
             <span className="block mt-0.5 text-[10px] font-normal opacity-80">{choice.hint}</span>
           </button>
         ))}
+      </div>
+
+      <div className="mb-2 rounded-[5px] border border-[#ececec] bg-[#FAFAF7] px-3 py-2">
+        <FifResetCapture
+          value={fifReset}
+          onChange={setFifReset}
+          rememberedSmes={agentProfile.fifResetSmes ?? []}
+          disabled={busyChoice !== null}
+        />
       </div>
 
       <div className="flex items-center justify-between gap-2">

@@ -254,6 +254,14 @@ export interface AgentProfile {
     coupon?: string | null;
     createdAt?: unknown;
   };
+  /**
+   * SMEs (Subject Matter Experts in the agent's upline) the agent has
+   * booked FIF resets with — remembered so the reset-capture form
+   * prefills the name + their external calendar link instead of asking
+   * every time. Most-recent-first, capped at 10. Written by
+   * `rememberFifResetSme`; never touched by the settings page.
+   */
+  fifResetSmes?: Array<{ name: string; calendarUrl?: string }>;
 }
 
 interface DashboardContextValue {
@@ -267,6 +275,7 @@ interface DashboardContextValue {
   refreshProfile: () => Promise<void>;
   dismissTip: (sectionKey: string) => Promise<void>;
   markOnboardingMilestone: (milestone: OnboardingMilestoneKey) => Promise<void>;
+  rememberFifResetSme: (sme: { name: string; calendarUrl?: string }) => Promise<void>;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
@@ -387,6 +396,18 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             !data.pushPermissionRevokedAt,
           ),
           affiliate: data.affiliate && typeof data.affiliate === 'object' ? data.affiliate : undefined,
+          fifResetSmes: Array.isArray(data.fifResetSmes)
+            ? (data.fifResetSmes as Array<{ name?: unknown; calendarUrl?: unknown }>)
+                .filter((s) => s && typeof s.name === 'string' && s.name.trim())
+                .map((s) => {
+                  const name = String((s as { name: string }).name).trim();
+                  const url =
+                    typeof s.calendarUrl === 'string' && s.calendarUrl.trim()
+                      ? s.calendarUrl.trim()
+                      : undefined;
+                  return url ? { name, calendarUrl: url } : { name };
+                })
+            : [],
         });
       } else {
         setAgentProfile({});
@@ -516,6 +537,35 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }
   }, [user, agentProfile.onboarding]);
 
+  // Append/refresh an SME in the agent's remembered list when they book a
+  // FIF reset, so the capture form prefills next time. De-duped by
+  // case-insensitive name, most-recent-first, capped at 10. A repeat SME
+  // moves to the front; a freshly-pasted calendar link wins, otherwise the
+  // previously-remembered link is preserved. Direct Firestore merge +
+  // optimistic state, same pattern as dismissTip / markOnboardingMilestone.
+  const rememberFifResetSme = useCallback(async (sme: { name: string; calendarUrl?: string }) => {
+    if (!user) return;
+    const name = sme.name.trim();
+    if (!name) return;
+    const pastedUrl = sme.calendarUrl?.trim() || undefined;
+    const prevList = agentProfile.fifResetSmes ?? [];
+    const prior = prevList.find((s) => s.name.trim().toLowerCase() === name.toLowerCase());
+    const remaining = prevList.filter((s) => s.name.trim().toLowerCase() !== name.toLowerCase());
+    const resolvedUrl = pastedUrl ?? prior?.calendarUrl;
+    // Omit the key entirely when there's no URL — Firestore rejects an
+    // explicit `undefined` field value.
+    const entry: { name: string; calendarUrl?: string } = resolvedUrl
+      ? { name, calendarUrl: resolvedUrl }
+      : { name };
+    const nextList = [entry, ...remaining].slice(0, 10);
+    try {
+      await setDoc(doc(db, 'agents', user.uid), { fifResetSmes: nextList }, { merge: true });
+      setAgentProfile((prev) => ({ ...prev, fifResetSmes: nextList }));
+    } catch (error) {
+      console.error('Error remembering FIF reset SME:', error);
+    }
+  }, [user, agentProfile.fifResetSmes]);
+
   const isAdmin = isAdminEmail(user?.email);
 
   return (
@@ -531,6 +581,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         refreshProfile: fetchProfile,
         dismissTip,
         markOnboardingMilestone,
+        rememberFifResetSme,
       }}
     >
       {children}

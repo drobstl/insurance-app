@@ -24,6 +24,7 @@ import UpgradeToProCard from '../../../components/UpgradeToProCard';
 import {
   type AppointmentOutcomeChipStatus,
   getAppointmentOutcomeChip,
+  getFifResetChip,
   isAppointmentOutcomeChipStatus,
 } from '../../../lib/appointment-outcome-chip';
 import type { LeadScore } from '../../../lib/lead-assessment';
@@ -429,6 +430,10 @@ function LeadsPageInner() {
   const [pastOutcomeByLead, setPastOutcomeByLead] = useState<
     Map<string, { scheduledAt: Date; tz?: string; status: AppointmentOutcomeChipStatus }>
   >(new Map());
+  // FIF reset is orthogonal to the terminal-outcome chip above (it can
+  // ride on a sold/`completed` appt too), so it gets its own per-lead map
+  // derived from the same past-appointments snapshot.
+  const [fifResetByLead, setFifResetByLead] = useState<Map<string, { smeName?: string }>>(new Map());
   useEffect(() => {
     if (!user) return;
     const nowTs = Timestamp.fromMillis(Date.now());
@@ -441,9 +446,16 @@ function LeadsPageInner() {
     );
     const unsub = onSnapshot(q, (snap) => {
       const map = new Map<string, { scheduledAt: Date; tz?: string; status: AppointmentOutcomeChipStatus }>();
+      const fifMap = new Map<string, { smeName?: string }>();
       for (const d of snap.docs) {
-        const data = d.data() as { leadId?: string; scheduledAt?: Timestamp; scheduledAtTimeZone?: string; status?: string };
+        const data = d.data() as { leadId?: string; scheduledAt?: Timestamp; scheduledAtTimeZone?: string; status?: string; fifResetBooked?: boolean; fifResetSmeName?: string | null };
         if (!data.leadId || !data.scheduledAt) continue;
+        // FIF reset — checked before the outcome-status filter because it's
+        // orthogonal (can sit on a completed/sold appt). First hit wins
+        // (query is desc) = the lead's most recent reset.
+        if (data.fifResetBooked === true && !fifMap.has(data.leadId)) {
+          fifMap.set(data.leadId, { smeName: data.fifResetSmeName ?? undefined });
+        }
         if (!isAppointmentOutcomeChipStatus(data.status)) continue;
         // First hit wins because query is sorted descending — that's the
         // *most recent* past appointment for the lead.
@@ -456,6 +468,7 @@ function LeadsPageInner() {
         }
       }
       setPastOutcomeByLead(map);
+      setFifResetByLead(fifMap);
     }, (err) => {
       console.error('past-appointments onSnapshot error:', err);
     });
@@ -1932,6 +1945,14 @@ function LeadsPageInner() {
                                   </span>
                                 );
                               })()}
+                              {fifResetByLead.get(lead.id) && (() => {
+                                const chip = getFifResetChip(fifResetByLead.get(lead.id)!.smeName);
+                                return (
+                                  <span className={`inline-flex items-center shrink-0 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${chip.classes}`}>
+                                    {chip.label}
+                                  </span>
+                                );
+                              })()}
                               {lead.leadScore && (
                                 <LeadTempChip temperature={lead.leadScore.temperature} />
                               )}
@@ -2176,6 +2197,14 @@ function LeadsPageInner() {
                             ) : pastOutcomeByLead.get(lead.id) && (() => {
                               const past = pastOutcomeByLead.get(lead.id)!;
                               const chip = getAppointmentOutcomeChip(past.status, past.scheduledAt);
+                              return (
+                                <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${chip.classes}`}>
+                                  {chip.label}
+                                </span>
+                              );
+                            })()}
+                            {fifResetByLead.get(lead.id) && (() => {
+                              const chip = getFifResetChip(fifResetByLead.get(lead.id)!.smeName);
                               return (
                                 <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${chip.classes}`}>
                                   {chip.label}

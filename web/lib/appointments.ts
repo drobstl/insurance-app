@@ -80,6 +80,25 @@ export interface AppointmentDoc {
   inviteLeadByEmail?: boolean | null;
   /** Lead's email at booking time. Snapshotted for the Calendar attendee. */
   leadEmail?: string | null;
+  /**
+   * FIF reset (Financial Information Form reset) — the advanced-market
+   * second appointment booked off this sit: debt relief, tax/wealth
+   * protection, or retirement, run by a Subject Matter Expert (SME) in
+   * the agent's agency upline ("FIF reset" is Symmetry's term for it).
+   *
+   * ORTHOGONAL to `status`: a reset can be booked alongside ANY primary
+   * outcome (sold, no-sale, thinking-about-it…), so it lives in its own
+   * fields rather than as another value in the status union. The reset
+   * itself is booked on the SME's EXTERNAL calendar — AFL doesn't create
+   * that appointment, it only records that one was set and who it went to.
+   */
+  fifResetBooked?: boolean | null;
+  /** SME the reset was booked with (free text; remembered per-agent for prefill). */
+  fifResetSmeName?: string | null;
+  /** The SME's external scheduling URL, captured for one-tap re-open. */
+  fifResetSmeCalendarUrl?: string | null;
+  /** Server-stamped when fifResetBooked flips true. */
+  fifResetBookedAt?: FirebaseFirestore.Timestamp | null;
 }
 
 export const DEFAULT_DURATION_MINUTES = 30;

@@ -22,8 +22,11 @@ import Link from 'next/link';
 import { DEFAULT_DIAL_SCRIPT, renderDialScript } from '../lib/dial-script';
 import { useDraggablePanel } from '../lib/useDraggablePanel';
 import SendConfirmationDrawer from './SendConfirmationDrawer';
+import AppointmentFifResetControl from './AppointmentFifResetControl';
+import { isHttpUrl, type FifResetValue } from './FifResetCapture';
 import {
   getAppointmentOutcomeChip,
+  getFifResetChip,
   isAppointmentOutcomeChipStatus,
 } from '../lib/appointment-outcome-chip';
 import { DIMENSION_MAX, type LeadScore } from '../lib/lead-assessment';
@@ -386,6 +389,11 @@ interface AppointmentEntry {
     | 'no_show';
   sentConfirmationAt?: Timestamp | null;
   sentReminderAt?: Timestamp | null;
+  // FIF reset — orthogonal to status; see web/lib/appointments.ts.
+  fifResetBooked?: boolean | null;
+  fifResetSmeName?: string | null;
+  fifResetSmeCalendarUrl?: string | null;
+  fifResetBookedAt?: Timestamp | null;
 }
 
 // Default assessment question prompts so the dashboard can render the
@@ -490,7 +498,7 @@ export default function LeadDetailPanel({
   onBookingComplete,
   showNotFoundBackLink,
 }: LeadDetailPanelProps) {
-  const { user, agentProfile } = useDashboard();
+  const { user, agentProfile, rememberFifResetSme } = useDashboard();
   // Snapshot the initial deep-link prop so a parent re-render that flips
   // it to null after consumption doesn't break the auto-open path.
   const openConfirmationParam = initialOpenConfirmationApptId;
@@ -804,6 +812,17 @@ export default function LeadDetailPanel({
     return null;
   }, [appointments]);
 
+  // FIF reset chip — orthogonal to the outcome chip above, so it's derived
+  // independently and can co-show (a reset can ride on a sold/`completed`
+  // appt that the outcome chip ignores). `appointments` is desc-sorted, so
+  // the first one carrying a reset is the most recent.
+  const fifResetChip = useMemo(() => {
+    for (const a of appointments) {
+      if (a.fifResetBooked === true) return getFifResetChip(a.fifResetSmeName);
+    }
+    return null;
+  }, [appointments]);
+
   // ── Notes autosave ──
   const scheduleNotesSave = useCallback((value: string) => {
     if (!user || !leadId) return;
@@ -1039,6 +1058,60 @@ export default function LeadDetailPanel({
       setOutcomeUpdatingApptId(null);
     }
   }, [user]);
+
+  // Save a FIF reset on a past appointment from the panel marker.
+  // Orthogonal to the status buttons above — works on the sold/`completed`
+  // case too, which has no outcome button. Mirrors the day-after card's
+  // PATCH + analytics + remember-SME, with surface='lead_detail_panel'.
+  const handleSetFifReset = useCallback(async (
+    apptId: string,
+    value: FifResetValue,
+    primaryStatus: AppointmentEntry['status'],
+  ) => {
+    if (!user) return;
+    const smeName = value.smeName.trim();
+    const calendarUrl = value.calendarUrl.trim();
+    try {
+      const token = await user.getIdToken();
+      const body: Record<string, unknown> = value.booked
+        ? {
+            fifResetBooked: true,
+            fifResetSmeName: smeName || null,
+            fifResetSmeCalendarUrl: calendarUrl || null,
+          }
+        : { fifResetBooked: false };
+      const res = await fetch(`/api/appointments/${apptId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data?.error || `Couldn't save FIF reset (${res.status})`);
+        return;
+      }
+      if (value.booked) {
+        captureEvent(ANALYTICS_EVENTS.FIF_RESET_BOOKED, {
+          lead_id: leadId,
+          appointment_id: apptId,
+          primary_status: primaryStatus,
+          has_calendar_url: isHttpUrl(calendarUrl),
+          sme_is_repeat:
+            !!smeName &&
+            (agentProfile.fifResetSmes ?? []).some(
+              (s) => s.name.trim().toLowerCase() === smeName.toLowerCase(),
+            ),
+          surface: 'lead_detail_panel',
+        });
+        if (smeName) {
+          void rememberFifResetSme({ name: smeName, calendarUrl: calendarUrl || undefined });
+        }
+      }
+    } catch (err) {
+      console.error('fif reset save error:', err);
+      alert('Network error — please try again');
+    }
+  }, [user, leadId, agentProfile.fifResetSmes, rememberFifResetSme]);
 
   const handleStartCall = useCallback((phoneOverride?: string) => {
     const target = phoneOverride || lead?.phone || '';
@@ -1300,6 +1373,11 @@ export default function LeadDetailPanel({
               {mostRecentPastOutcomeChip && (
                 <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${mostRecentPastOutcomeChip.classes}`}>
                   {mostRecentPastOutcomeChip.label}
+                </span>
+              )}
+              {fifResetChip && (
+                <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${fifResetChip.classes}`}>
+                  {fifResetChip.label}
                 </span>
               )}
             </div>
@@ -2130,22 +2208,25 @@ export default function LeadDetailPanel({
                         const isNoShow = appt.status === 'no_show';
                         const isCancelled = appt.status === 'cancelled';
                         const isSold = appt.status === 'completed';
-                        if (isSold) {
-                          // Auto-completed via the sale path. Show a
-                          // read-only chip so the agent has confirmation
-                          // the row landed in the right place.
-                          return (
-                            <span className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-[#005851] text-white border border-[#005851]">
-                              ✓ Sold
-                            </span>
-                          );
-                        }
                         const baseIdle =
                           'text-[#0D4D4D] bg-white border-[#d0d0d0] hover:bg-[#f8f8f8]';
                         const showedIdle =
                           'text-[#0099FF] bg-white border-[#0099FF]/30 hover:bg-[#0099FF]/5';
+                        const fifInitial: FifResetValue = {
+                          booked: appt.fifResetBooked === true,
+                          smeName: appt.fifResetSmeName ?? '',
+                          calendarUrl: appt.fifResetSmeCalendarUrl ?? '',
+                        };
                         return (
-                          <div className="flex flex-wrap gap-1.5 justify-end max-w-[18rem]">
+                          <div className="flex w-full flex-col items-end gap-2">
+                            {isSold ? (
+                              // Auto-completed via the sale path — read-only
+                              // confirmation chip; a reset can still ride on it.
+                              <span className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-[#005851] text-white border border-[#005851]">
+                                ✓ Sold
+                              </span>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5 justify-end max-w-[18rem]">
                             <button
                               onClick={() => void handleSetAppointmentOutcome(appt.id, 'sit_no_sale')}
                               disabled={busy}
@@ -2192,6 +2273,13 @@ export default function LeadDetailPanel({
                             >
                               {isCancelled ? '✓ Cancelled' : 'Cancelled'}
                             </button>
+                              </div>
+                            )}
+                            <AppointmentFifResetControl
+                              initial={fifInitial}
+                              rememberedSmes={agentProfile.fifResetSmes ?? []}
+                              onSave={(v) => handleSetFifReset(appt.id, v, appt.status)}
+                            />
                           </div>
                         );
                       })()}

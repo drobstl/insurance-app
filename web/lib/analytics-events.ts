@@ -83,6 +83,12 @@ export const ANALYTICS_EVENTS = {
   CALL_OUTCOME_RECORDED: 'call_outcome_recorded',
   APPOINTMENT_BOOKED: 'appointment_booked',
   BOOKING_CONFIRMATION_SENT: 'booking_confirmation_sent',
+  // Post-sit advanced-market motion — the agent booked the client a
+  // "FIF reset" (Financial Information Form reset) with an upline SME
+  // for debt / tax-&-wealth / retirement. ORTHOGONAL to the sale outcome
+  // (stacks on sold OR no-sale OR thinking). The reset lands on the SME's
+  // external calendar; this event only records that one was set.
+  FIF_RESET_BOOKED: 'fif_reset_booked',
   // Subscription / revenue lifecycle — emitted SERVER-side only (via
   // lib/posthog-server.ts) from the Stripe webhook + upgrade-tier
   // routes, with the agent's Firebase uid as distinct_id (same id the
@@ -430,6 +436,25 @@ export type AnalyticsEventPropertiesMap = {
     // sms: fallback without attachments; 'email' = server-side send.
     channel?: 'phone_push' | 'share_sheet' | 'sms_url' | 'email';
     kind?: 'confirmation' | 'reminder';
+  } & GenericEventProperties;
+  fif_reset_booked: {
+    lead_id?: string;
+    appointment_id?: string;
+    // The co-occurring primary appointment status the reset stacked on.
+    primary_status?:
+      | 'completed'
+      | 'sit_no_sale'
+      | 'sit_think_about_it'
+      | 'no_show'
+      | 'cancelled'
+      | 'scheduled';
+    // Whether the agent attached the SME's calendar link.
+    has_calendar_url?: boolean;
+    // True when the SME was already in the agent's remembered list — a
+    // forming referral relationship vs. a brand-new SME. NO sme name:
+    // person names are never event properties (matches the funnel contract).
+    sme_is_repeat?: boolean;
+    surface?: 'appointment_outcome_card' | 'lead_detail_panel';
   } & GenericEventProperties;
   // ─── Subscription / revenue lifecycle (server-side) ─────────────────
   // tier values come from lib/pricing.ts PricingTierId; status values
