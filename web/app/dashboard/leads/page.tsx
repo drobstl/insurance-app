@@ -285,6 +285,11 @@ function LeadsPageInner() {
   // auto-starts this file, so the agent never has to re-select after
   // confirming (the old behavior forced a full restart).
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  // The consent box lives in the drop-zone card up top. The empty-state
+  // upload button sits far below it, so when a file is stashed from there we
+  // scroll this into view — otherwise the nudge appears off-screen and the
+  // upload looks like it silently did nothing.
+  const consentBoxRef = useRef<HTMLDivElement | null>(null);
 
   // Multi-page batch import (off-Vercel via the leads-batch-processor GCF).
   // `watchedBatchId` drives the live onSnapshot subscription below;
@@ -1585,6 +1590,7 @@ function LeadsPageInner() {
           {/* PDF drop-zone */}
           {view !== 'calendar' && (
           <div
+            ref={consentBoxRef}
             onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
             onDragLeave={() => setDragActive(false)}
             onDrop={(e) => {
@@ -2097,7 +2103,18 @@ function LeadsPageInner() {
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
-                          void handleUpload(file);
+                          if (!importConsent) {
+                            // Same hold-the-file gate as the action-bar and
+                            // drop-zone paths. The consent box is up top, so
+                            // stash the file, clear any error, and scroll the
+                            // box into view; ticking it auto-starts the upload.
+                            setPendingFile(file);
+                            setUploadError(null);
+                            e.target.value = '';
+                            consentBoxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            return;
+                          }
+                          handleLeadFileSelect(file);
                           e.target.value = '';
                         }
                       }}
