@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { doc, collection, onSnapshot, query, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, onSnapshot, query, where, Timestamp, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { DashboardProvider, useDashboard } from './DashboardContext';
 import PlanPickerGate from './PlanPickerGate';
@@ -633,6 +633,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const [tickerAtRiskCount, setTickerAtRiskCount] = useState(0);
   const [tickerAtRiskApv, setTickerAtRiskApv] = useState(0);
   const [tickerApptsToday, setTickerApptsToday] = useState(0);
+  const [tickerUncalledLeads, setTickerUncalledLeads] = useState(0);
 
 
   useEffect(() => {
@@ -684,7 +685,25 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       setTickerApptsToday(count);
     }, () => {});
 
-    return () => { unsubStats(); unsubClients(); unsubAlerts(); unsubAppts(); };
+    // Fresh, never-dialed leads — a speed-to-lead nudge. Bounded to leads
+    // created in the last 7 days (a createdAt range query, so we don't read the
+    // whole leads collection), then counted client-side by empty dialLog.
+    // Naturally empty for agents without leads (Starter/Growth), so it hides.
+    const sevenDaysAgo = Timestamp.fromMillis(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const leadsQ = query(
+      collection(db, 'agents', user.uid, 'leads'),
+      where('createdAt', '>=', sevenDaysAgo),
+    );
+    const unsubLeads = onSnapshot(leadsQ, (snap) => {
+      let count = 0;
+      snap.forEach((d) => {
+        const dialLog = d.data().dialLog;
+        if (!Array.isArray(dialLog) || dialLog.length === 0) count += 1;
+      });
+      setTickerUncalledLeads(count);
+    }, () => {});
+
+    return () => { unsubStats(); unsubClients(); unsubAlerts(); unsubAppts(); unsubLeads(); };
   }, [user]);
 
   useEffect(() => {
@@ -1234,6 +1253,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           atRiskCount={tickerAtRiskCount}
           atRiskApv={tickerAtRiskApv}
           appointmentsToday={tickerApptsToday}
+          uncalledLeads={tickerUncalledLeads}
           agentFirstName={(agentProfile.name || '').trim().split(/\s+/)[0] || undefined}
         />
 
