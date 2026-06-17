@@ -50,6 +50,32 @@ export async function DELETE(
     }
     const data = snap.data() ?? {};
 
+    // Guard against silently orphaning appointments. Appointments reference
+    // their lead by doc id; deleting the lead strands them with a dangling
+    // leadId (and a delete-then-reimport "refresh" also wipes the lead's
+    // dial history) — exactly the data loss that produced orphaned bookings
+    // on Jun 15, 2026. Refuse the delete when appointments exist UNLESS the
+    // caller passes ?force=true, which cascade-deletes the appointment docs
+    // so nothing is left dangling. (Cascaded appts' Google Calendar events
+    // are not cleaned here — use DELETE /api/appointments/[id] for that.)
+    const force = new URL(req.url).searchParams.get('force') === 'true';
+    const apptsSnap = await db
+      .collection('agents')
+      .doc(agentId)
+      .collection('appointments')
+      .where('leadId', '==', leadId)
+      .get();
+    if (!apptsSnap.empty && !force) {
+      return NextResponse.json(
+        {
+          error: `This lead has ${apptsSnap.size} appointment(s). Deleting it would orphan them — delete the appointment(s) first, or retry with force to remove both.`,
+          code: 'lead_has_appointments',
+          appointmentCount: apptsSnap.size,
+        },
+        { status: 409 },
+      );
+    }
+
     // Every leadCodes index key that could point at THIS lead. Two can
     // diverge and orphan the live entry: the stored `leadCode` (frozen at
     // creation) and the code derived from the *current* phone (what the
@@ -74,6 +100,9 @@ export async function DELETE(
       .get();
 
     const ops: Promise<unknown>[] = [leadRef.delete()];
+    // force === true here (the guard above 409s otherwise): cascade-delete
+    // the appointments so none are left pointing at the deleted lead.
+    apptsSnap.docs.forEach((d) => ops.push(d.ref.delete().catch(() => {})));
     for (const code of codesToClear) {
       // Only delete an index doc that actually points at THIS lead, so we
       // never free a code that resolved to a different agent/lead.
