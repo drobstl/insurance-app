@@ -10,12 +10,12 @@ import { getUpcomingAnniversaryIfEligible } from '../../lib/policyUtils';
 import type { AgentAggregates } from '../../lib/stats-aggregation';
 import { computeBookHealth } from '../../lib/book-health';
 import { computeBookHealthBreakdown } from '../../lib/book-health';
-import { getMostRecentBadge, computeBadges, type EarnedBadge } from '../../lib/badges';
+import { computeBadges, type EarnedBadge } from '../../lib/badges';
 import SectionTipCard from '../../components/SectionTipCard';
 import NextTrainingSessionCard from '../../components/NextTrainingSessionCard';
 import HomeCalendarTease from '../../components/HomeCalendarTease';
-import PremiumBadge from '../../components/PremiumBadge';
 import BadgeShelf from '../../components/BadgeShelf';
+import BadgeProgressCard from '../../components/BadgeProgressCard';
 import BookHealthPopover from '../../components/BookHealthPopover';
 import BadgeCelebration from '../../components/BadgeCelebration';
 import PairPhoneBanner from '../../components/PairPhoneBanner';
@@ -272,8 +272,6 @@ export default function DashboardHomePage() {
     return { ...stats, isFoundingMember: !!agentProfile.isFoundingMember };
   }, [stats, agentProfile.isFoundingMember]);
 
-  const badge = badgeStats ? getMostRecentBadge(badgeStats) : null;
-
   const [shelfOpen, setShelfOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
   const [celebrationBadge, setCelebrationBadge] = useState<EarnedBadge | null>(null);
@@ -310,57 +308,25 @@ export default function DashboardHomePage() {
           </p>
           <p className="text-sm text-[#707070] mt-1">total value created</p>
         </div>
-
-        {badge && (
-          <div className="flex items-center gap-4">
-            {/* bookHealth display hidden — re-enable by uncommenting below and restoring outer condition to (bookHealth !== null || badge)
-            {bookHealth !== null && (
-              <div className="relative" ref={healthContainerRef}>
-                <button
-                  onClick={() => setHealthOpen(!healthOpen)}
-                  className="text-right hover:opacity-80 transition-opacity"
-                >
-                  <div className="flex items-center justify-end gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#44bbaa]" />
-                    <span className="text-3xl font-extrabold text-[#005851]">{bookHealth}</span>
-                  </div>
-                  <p className="text-xs text-[#707070]">book health</p>
-                </button>
-                {bookHealthBreakdown && (
-                  <BookHealthPopover
-                    breakdown={bookHealthBreakdown}
-                    open={healthOpen}
-                    onClose={() => setHealthOpen(false)}
-                    containerRef={healthContainerRef}
-                  />
-                )}
-              </div>
-            )}
-            {badge && bookHealth !== null && (
-              <div className="w-px h-12 bg-[#d0d0d0]" />
-            )}
-            */}
-            {badge && badgeStats && (
-              <div className="relative" ref={shelfContainerRef}>
-                <button
-                  onClick={() => setShelfOpen(!shelfOpen)}
-                  className="flex flex-col items-center hover:opacity-80 transition-opacity"
-                >
-                  <PremiumBadge badgeId={badge.id} size={140} shimmer glow />
-                  <p className="text-xs text-[#707070] -mt-0.5">{badge.name}</p>
-                </button>
-                <BadgeShelf
-                  stats={badgeStats}
-                  open={shelfOpen}
-                  onClose={() => setShelfOpen(false)}
-                  onShareBadge={(b) => { setShelfOpen(false); setShareBadge(b); }}
-                  containerRef={shelfContainerRef}
-                />
-              </div>
-            )}
-          </div>
-        )}
       </div>
+
+      {/* ── Your badges ────────────────────────────────────────── */}
+      {/* Persistent trophy case — replaces the old click-to-open hero icon.
+          Always rendered (even at zero badges, where the hero shows the first
+          badge to chase), so the gamification isn't buried. "View all" opens
+          the existing BadgeShelf dropdown. */}
+      {badgeStats && (
+        <div className="relative mb-8 md:mb-10" ref={shelfContainerRef}>
+          <BadgeProgressCard stats={badgeStats} onViewAll={() => setShelfOpen((o) => !o)} />
+          <BadgeShelf
+            stats={badgeStats}
+            open={shelfOpen}
+            onClose={() => setShelfOpen(false)}
+            onShareBadge={(b) => { setShelfOpen(false); setShareBadge(b); }}
+            containerRef={shelfContainerRef}
+          />
+        </div>
+      )}
 
       {/* ── Next training session card ─────────────────────────── */}
       {/* Persistent reminder of the next weekly AFL training session
