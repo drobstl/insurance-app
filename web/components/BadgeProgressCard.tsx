@@ -1,12 +1,14 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { AgentAggregates } from '../lib/stats-aggregation';
 import {
   BADGE_DEFINITIONS,
   computeBadges,
   getNextBadgeToChase,
   type BadgeTier,
+  type BadgeDefinition,
+  type EarnedBadge,
 } from '../lib/badges';
 import PremiumBadge from './PremiumBadge';
 
@@ -22,23 +24,34 @@ function fmtApv(n: number): string {
   return `$${n.toLocaleString('en-US')}`;
 }
 
+function progressFor(def: BadgeDefinition, stats: AgentAggregates) {
+  const isApv = def.progressLabel === 'APV';
+  const cur = def.current(stats);
+  const tgt = def.target;
+  const pct = tgt > 0 ? Math.min(100, Math.round((cur / tgt) * 100)) : 0;
+  const remaining = Math.max(0, tgt - cur);
+  const fmt = (n: number) => (isApv ? fmtApv(n) : n.toLocaleString('en-US'));
+  const unit = isApv ? '' : ` ${def.progressLabel}`;
+  return { isApv, cur, tgt, pct, remaining, fmt, unit };
+}
+
 interface Props {
   stats: AgentAggregates;
-  /** Open the full BadgeShelf (all badges, locked + earned, share). */
-  onViewAll: () => void;
+  /** Fired when the agent shares an earned badge from the spotlight. */
+  onShareBadge?: (badge: EarnedBadge) => void;
 }
 
 /**
- * Persistent "Your badges" trophy case for the dashboard home. Leads with the
- * next badge to chase — name + plain how-to-earn line + a progress bar — so a
- * new agent always knows what a badge is and how to get it. Renders even at
- * zero badges (the hero becomes "your first badge"), which is exactly the case
- * the old click-to-open hero icon left blank.
+ * Persistent "Your badges" trophy case for the dashboard home. Shows the next
+ * badge to chase (with how-to-earn + progress) above the full collection — every
+ * badge in one row, earned in color, locked grayed out. Clicking any badge opens
+ * a full-screen close-up of the art + its details. No separate drawer.
  */
-export default function BadgeProgressCard({ stats, onViewAll }: Props) {
+export default function BadgeProgressCard({ stats, onShareBadge }: Props) {
   const earned = useMemo(() => computeBadges(stats), [stats]);
   const earnedIds = useMemo(() => new Set(earned.map((b) => b.id)), [earned]);
   const next = useMemo(() => getNextBadgeToChase(stats), [stats]);
+  const [spotlightId, setSpotlightId] = useState<string | null>(null);
 
   const tierCounts = TIERS.map((t) => {
     const defs = BADGE_DEFINITIONS.filter((d) => d.tier === t.key);
@@ -49,32 +62,34 @@ export default function BadgeProgressCard({ stats, onViewAll }: Props) {
     };
   });
 
-  const isApv = next?.progressLabel === 'APV';
-  const cur = next ? next.current(stats) : 0;
-  const tgt = next ? next.target : 0;
-  const pct = next && tgt > 0 ? Math.min(100, Math.round((cur / tgt) * 100)) : 0;
-  const remaining = Math.max(0, tgt - cur);
-  const fmt = (n: number) => (isApv ? fmtApv(n) : n.toLocaleString('en-US'));
+  useEffect(() => {
+    if (!spotlightId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSpotlightId(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [spotlightId]);
+
+  const heroProg = next ? progressFor(next, stats) : null;
+
+  const spotlightDef = spotlightId
+    ? BADGE_DEFINITIONS.find((d) => d.id === spotlightId) ?? null
+    : null;
+  const spotlightEarned = spotlightId ? earnedIds.has(spotlightId) : false;
+  const spotlightEarnedBadge = spotlightId
+    ? earned.find((b) => b.id === spotlightId) ?? null
+    : null;
+  const spotlightProg = spotlightDef ? progressFor(spotlightDef, stats) : null;
 
   return (
     <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5">
       {/* header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-baseline gap-2">
-          <h2 className="text-base font-bold text-[#005851]">Your badges</h2>
-          <span className="text-sm text-[#707070]">
-            {earned.length} of {BADGE_DEFINITIONS.length} earned
-          </span>
-        </div>
-        <button
-          onClick={onViewAll}
-          className="inline-flex items-center gap-1 text-sm font-semibold text-[#0f766e] hover:text-[#005851] transition-colors"
-        >
-          View all
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+      <div className="flex items-baseline gap-2 mb-4">
+        <h2 className="text-base font-bold text-[#005851]">Your badges</h2>
+        <span className="text-sm text-[#707070]">
+          {earned.length} of {BADGE_DEFINITIONS.length} earned
+        </span>
       </div>
 
       {/* tier progress chips */}
@@ -98,10 +113,10 @@ export default function BadgeProgressCard({ stats, onViewAll }: Props) {
         })}
       </div>
 
-      {/* next-badge hero */}
-      {next ? (
+      {/* next-badge hero (click → spotlight) */}
+      {next && heroProg ? (
         <button
-          onClick={onViewAll}
+          onClick={() => setSpotlightId(next.id)}
           className="w-full flex items-center gap-4 bg-[#f0faf8] border border-[#cdeae3] rounded-lg p-3.5 text-left hover:bg-[#e7f6f2] transition-colors"
         >
           <div className="relative shrink-0">
@@ -117,11 +132,11 @@ export default function BadgeProgressCard({ stats, onViewAll }: Props) {
             </div>
             <p className="text-[13px] text-[#4b5563] mt-0.5 mb-2">{next.howToEarn}.</p>
             <div className="h-1.5 bg-[#dbeae6] rounded-full overflow-hidden">
-              <div className="h-full bg-[#005851] rounded-full" style={{ width: `${pct}%` }} />
+              <div className="h-full bg-[#005851] rounded-full" style={{ width: `${heroProg.pct}%` }} />
             </div>
             <div className="text-[12px] text-[#707070] mt-1">
-              {fmt(cur)} / {fmt(tgt)}{!isApv && ` ${next.progressLabel}`}
-              <span className="text-[#0f766e] font-semibold"> · {fmt(remaining)} to go</span>
+              {heroProg.fmt(heroProg.cur)} / {heroProg.fmt(heroProg.tgt)}{heroProg.unit}
+              <span className="text-[#0f766e] font-semibold"> · {heroProg.fmt(heroProg.remaining)} to go</span>
             </div>
           </div>
         </button>
@@ -131,23 +146,94 @@ export default function BadgeProgressCard({ stats, onViewAll }: Props) {
         </div>
       )}
 
-      {/* earned row */}
-      <div className="mt-4">
-        {earned.length > 0 ? (
-          <div className="flex flex-wrap gap-3 items-start">
-            {earned.map((b) => (
-              <div key={b.id} className="flex flex-col items-center gap-1 w-[58px]">
-                <PremiumBadge badgeId={b.id} size={42} shimmer />
-                <span className="text-[10px] text-[#707070] text-center leading-tight">{b.name}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs text-[#9ca3af]">
-            Your trophy case is empty — the badge above is your first one to earn.
-          </p>
-        )}
+      {/* full collection — every badge, earned in color, locked grayed */}
+      <div className="mt-5 flex flex-wrap gap-x-3 gap-y-4">
+        {BADGE_DEFINITIONS.map((def) => {
+          const isEarned = earnedIds.has(def.id);
+          const isNext = next?.id === def.id;
+          return (
+            <button
+              key={def.id}
+              onClick={() => setSpotlightId(def.id)}
+              className="flex flex-col items-center gap-1 w-[56px] hover:-translate-y-0.5 transition-transform"
+              title={def.name}
+            >
+              <PremiumBadge badgeId={def.id} size={44} shimmer={isEarned} grayscale={!isEarned && !isNext} />
+              <span
+                className={`text-[10px] text-center leading-tight ${
+                  isEarned ? 'text-[#4b5563]' : isNext ? 'text-[#005851] font-semibold' : 'text-[#9ca3af]'
+                }`}
+              >
+                {def.name}
+              </span>
+            </button>
+          );
+        })}
       </div>
+
+      {/* full-screen spotlight */}
+      {spotlightDef && spotlightProg && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+          onClick={() => setSpotlightId(null)}
+        >
+          <div className="absolute inset-0 bg-black/60" />
+          <div
+            className="relative bg-white rounded-2xl border-2 border-[#1A1A1A] border-r-[6px] border-b-[6px] w-full max-w-sm p-6 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setSpotlightId(null)}
+              aria-label="Close"
+              className="absolute top-3 right-3 text-[#9ca3af] hover:text-[#000000] transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <div className="flex justify-center mb-4">
+              <PremiumBadge badgeId={spotlightDef.id} size={200} shimmer={spotlightEarned} glow />
+            </div>
+            <h3 className="text-xl font-bold text-[#005851]">{spotlightDef.name}</h3>
+            <p className="text-xs text-[#9ca3af] capitalize mb-3">{spotlightDef.tier} badge</p>
+
+            {spotlightEarned ? (
+              <>
+                <div className="inline-flex items-center gap-1 text-sm font-semibold text-[#16a34a] mb-2">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Earned
+                </div>
+                <p className="text-sm text-[#4b5563]">{spotlightDef.description}.</p>
+                {onShareBadge && spotlightEarnedBadge && (
+                  <button
+                    onClick={() => {
+                      onShareBadge(spotlightEarnedBadge);
+                      setSpotlightId(null);
+                    }}
+                    className="mt-5 w-full py-2.5 bg-[#44bbaa] hover:bg-[#005751] text-white font-semibold rounded-lg transition-colors"
+                  >
+                    Share this badge
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-[#4b5563] mb-3">{spotlightDef.howToEarn}.</p>
+                <div className="h-2 bg-[#eef0f0] rounded-full overflow-hidden">
+                  <div className="h-full bg-[#005851] rounded-full" style={{ width: `${spotlightProg.pct}%` }} />
+                </div>
+                <div className="text-xs text-[#707070] mt-1.5">
+                  {spotlightProg.fmt(spotlightProg.cur)} / {spotlightProg.fmt(spotlightProg.tgt)}{spotlightProg.unit}
+                  <span className="text-[#0f766e] font-semibold"> · {spotlightProg.fmt(spotlightProg.remaining)} to go</span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -14,7 +14,6 @@ import { computeBadges, type EarnedBadge } from '../../lib/badges';
 import SectionTipCard from '../../components/SectionTipCard';
 import NextTrainingSessionCard from '../../components/NextTrainingSessionCard';
 import HomeCalendarTease from '../../components/HomeCalendarTease';
-import BadgeShelf from '../../components/BadgeShelf';
 import BadgeProgressCard from '../../components/BadgeProgressCard';
 import BookHealthPopover from '../../components/BookHealthPopover';
 import BadgeCelebration from '../../components/BadgeCelebration';
@@ -272,11 +271,9 @@ export default function DashboardHomePage() {
     return { ...stats, isFoundingMember: !!agentProfile.isFoundingMember };
   }, [stats, agentProfile.isFoundingMember]);
 
-  const [shelfOpen, setShelfOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
   const [celebrationBadge, setCelebrationBadge] = useState<EarnedBadge | null>(null);
   const [shareBadge, setShareBadge] = useState<EarnedBadge | null>(null);
-  const shelfContainerRef = useRef<HTMLDivElement>(null);
   const healthContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -309,24 +306,6 @@ export default function DashboardHomePage() {
           <p className="text-sm text-[#707070] mt-1">total value created</p>
         </div>
       </div>
-
-      {/* ── Your badges ────────────────────────────────────────── */}
-      {/* Persistent trophy case — replaces the old click-to-open hero icon.
-          Always rendered (even at zero badges, where the hero shows the first
-          badge to chase), so the gamification isn't buried. "View all" opens
-          the existing BadgeShelf dropdown. */}
-      {badgeStats && (
-        <div className="relative mb-8 md:mb-10" ref={shelfContainerRef}>
-          <BadgeProgressCard stats={badgeStats} onViewAll={() => setShelfOpen((o) => !o)} />
-          <BadgeShelf
-            stats={badgeStats}
-            open={shelfOpen}
-            onClose={() => setShelfOpen(false)}
-            onShareBadge={(b) => { setShelfOpen(false); setShareBadge(b); }}
-            containerRef={shelfContainerRef}
-          />
-        </div>
-      )}
 
       {/* ── Next training session card ─────────────────────────── */}
       {/* Persistent reminder of the next weekly AFL training session
@@ -485,6 +464,13 @@ export default function DashboardHomePage() {
           >
             Add Your First Client
           </button>
+        </div>
+      )}
+
+      {/* ── Your badges (trophy case) — sits at the bottom of the home content. ── */}
+      {badgeStats && (
+        <div className="mt-6">
+          <BadgeProgressCard stats={badgeStats} onShareBadge={(b) => setShareBadge(b)} />
         </div>
       )}
 
