@@ -2,6 +2,7 @@ import 'server-only';
 
 import { NextRequest } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
 import { performanceAccess, type PerformanceAccess } from '../../../../lib/tier-gating';
 import { REAL_CATEGORIES, DEFAULT_COACHING_PLAYBOOK } from '../../../../lib/coaching-playbook';
@@ -92,6 +93,15 @@ function to10(score100: unknown): number {
   return Math.round(Math.max(0, Math.min(100, n)) / 10 * 10) / 10; // 1 decimal, 0–10
 }
 
+// Each successful score is archived to agents/{uid}/coachingScores so the
+// agent gets a running history + trend instead of a throwaway result. Only the
+// structured report is stored — never the transcript — so the page's "stays
+// private to you" promise holds literally. All access is server-side via the
+// Admin SDK (this route), so no Firestore rule is needed and the trust
+// boundary stays on the server for the later team-aggregation rollup.
+const COACHING_SCORES = 'coachingScores';
+const HISTORY_LIMIT = 50;
+
 async function authedUid(req: NextRequest): Promise<{ uid: string; email: string | null } | null> {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) return null;
@@ -116,6 +126,30 @@ async function readAgentContext(uid: string, email: string | null) {
     playbook: playbookRaw || DEFAULT_COACHING_PLAYBOOK,
     usingDefaultPlaybook: playbookRaw.length === 0,
   };
+}
+
+// Recent scored calls (newest first) for the history list + trend strip.
+// Returns each stored report plus an id and a millis timestamp the client can
+// render; never throws — an empty history just renders no trend.
+async function readRecentScores(
+  uid: string,
+): Promise<Array<{ id: string; createdAtMs: number; report: unknown }>> {
+  try {
+    const snap = await getAdminFirestore()
+      .collection('agents').doc(uid).collection(COACHING_SCORES)
+      .orderBy('createdAt', 'desc')
+      .limit(HISTORY_LIMIT)
+      .get();
+    return snap.docs
+      .map((d) => {
+        const data = d.data() as { report?: unknown; createdAt?: unknown };
+        return { id: d.id, createdAtMs: tsToMillis(data.createdAt) ?? 0, report: data.report ?? null };
+      })
+      .filter((s) => s.report !== null);
+  } catch (err) {
+    console.error('Coaching history read failed:', String(err));
+    return [];
+  }
 }
 
 function meterPayload(access: PerformanceAccess, used: number) {
@@ -182,8 +216,11 @@ export async function GET(req: NextRequest) {
   try {
     const auth = await authedUid(req);
     if (!auth) return jsonError(401, { error: 'Unauthorized' });
-    const ctx = await readAgentContext(auth.uid, auth.email);
-    return jsonOk({ meter: meterPayload(ctx.access, ctx.used), usingDefaultPlaybook: ctx.usingDefaultPlaybook });
+    const [ctx, scores] = await Promise.all([
+      readAgentContext(auth.uid, auth.email),
+      readRecentScores(auth.uid),
+    ]);
+    return jsonOk({ meter: meterPayload(ctx.access, ctx.used), usingDefaultPlaybook: ctx.usingDefaultPlaybook, scores });
   } catch (error) {
     console.error('Coaching meter error:', error);
     return jsonError(500, { error: 'Internal server error' });
@@ -234,7 +271,21 @@ export async function POST(req: NextRequest) {
       { merge: true },
     );
 
-    return jsonOk({ result: buildReport(data, ctx.usingDefaultPlaybook), meter: meterPayload(ctx.access, nextUsed) });
+    // Archive the report so it joins the agent's history + trend. Best-effort:
+    // a persistence failure must not cost the agent the score they just spent
+    // an AI call (and a metered credit) on — they still get this turn's result.
+    const report = buildReport(data, ctx.usingDefaultPlaybook);
+    let saved: { id: string; createdAtMs: number } | null = null;
+    try {
+      const ref = await getAdminFirestore()
+        .collection('agents').doc(auth.uid).collection(COACHING_SCORES)
+        .add({ report, createdAt: FieldValue.serverTimestamp() });
+      saved = { id: ref.id, createdAtMs: Date.now() };
+    } catch (err) {
+      console.error('Coaching score: failed to archive report:', String(err));
+    }
+
+    return jsonOk({ result: report, meter: meterPayload(ctx.access, nextUsed), saved });
   } catch (error) {
     console.error('Coaching score error:', error);
     return jsonError(500, { error: 'Internal server error' });
