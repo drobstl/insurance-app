@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { BOOKED_LEAD_APP_AVAILABLE } from '../lib/feature-flags';
 import { useDashboard } from '../app/dashboard/DashboardContext';
+import { isFreeTier, type MaybeTier } from '../lib/tier-gating';
 import UpgradeConfirmModal, { type UpgradePreview } from './UpgradeConfirmModal';
 import { captureEvent } from '../lib/posthog';
 import { ANALYTICS_EVENTS } from '../lib/analytics-events';
@@ -140,6 +141,15 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
   // they click (no $99 → $49 bait-and-switch at Checkout).
   const isFounding = agentProfile?.isFoundingMember === true;
   const displayPrice = isFounding ? '$49/mo' : '$99/mo';
+
+  // Free tier is data-preserved + engine-paused (Growth + Distribution
+  // Lock §3): the agent keeps their whole book, but the outreach engine
+  // and pre-sale surfaces are switched off until they pick a plan. When
+  // that's why they're here, lead with the reassurance — "nothing's
+  // lost, it's just paused" — instead of a cold feature wall. Other
+  // locked viewers (e.g. a paying Growth agent hitting a Pro-only
+  // surface) aren't paused, so they don't see this.
+  const isFree = isFreeTier(agentProfile?.membershipTier as MaybeTier);
 
   // Click on "Upgrade to Pro" → POST to /api/stripe/upgrade-tier with
   // confirm=false. Server inspects the agent's Stripe customer state
@@ -287,6 +297,29 @@ export default function UpgradeToProCard({ surface }: UpgradeToProCardProps) {
           <div className="h-1.5 bg-gradient-to-r from-[#005851] to-[#44bbaa]" />
 
           <div className="p-7">
+            {/* Free tier is data-preserved (Growth + Distribution Lock §3):
+                the agent keeps their whole book with NO deletion deadline.
+                Lead with that as a positive — they're getting something real,
+                free — before the upgrade pitch. Calm teal, never a red alarm. */}
+            {isFree && (
+              <div className="flex items-start gap-3 border-[1.5px] border-[#44bbaa] bg-[#f1faf8] rounded-[10px] px-4 py-3 mb-5">
+                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#005851] text-white flex-shrink-0">
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-extrabold text-[#005851] mb-0.5">
+                    Your whole book stays — free.
+                  </div>
+                  <p className="text-[13px] text-[#1F2937] leading-[1.45]">
+                    Every client and note is safe and exportable, no time limit. Want it
+                    all working for you again? Pick a plan whenever you&apos;re ready.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Pro pill + price micro-line */}
             <div className="flex items-center gap-2.5 mb-3.5">
               <span className="inline-flex items-center gap-1.5 bg-[#daf3f0] text-[#005851] text-[11px] font-extrabold uppercase tracking-[0.08em] px-2.5 py-1 rounded-full">

@@ -8,6 +8,14 @@ import {
   type MultiFactorResolver,
 } from 'firebase/auth';
 import { auth } from '../firebase';
+import { withTimeout } from '../lib/timeout';
+
+// Failsafe for a hung send. Firebase's invisible reCAPTCHA can stall on the
+// resolver path (flaky network, or a headless browser), leaving
+// `verifyPhoneNumber` pending forever. Cap the wait so a stalled send rejects
+// into the catch below — surfacing the error and re-enabling "Resend code" —
+// instead of stranding the user on "Sending a code…" with every control disabled.
+const SEND_CODE_TIMEOUT_MS = 20_000;
 
 /**
  * SMS MFA sign-in challenge. Rendered by the login page when
@@ -42,9 +50,13 @@ export default function MfaChallenge({
         recaptchaRef.current = new RecaptchaVerifier(auth, hostRef.current, { size: 'invisible' });
       }
       const provider = new PhoneAuthProvider(auth);
-      const verificationId = await provider.verifyPhoneNumber(
-        { multiFactorHint: hint, session: resolver.session },
-        recaptchaRef.current!,
+      const verificationId = await withTimeout(
+        provider.verifyPhoneNumber(
+          { multiFactorHint: hint, session: resolver.session },
+          recaptchaRef.current!,
+        ),
+        SEND_CODE_TIMEOUT_MS,
+        'Couldn’t reach the verification service — check your connection and tap “Resend code”.',
       );
       verificationIdRef.current = verificationId;
       setPhase('codeSent');
