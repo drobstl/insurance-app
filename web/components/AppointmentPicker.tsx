@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { User } from 'firebase/auth';
 import { captureEvent } from '../lib/posthog';
 import { ANALYTICS_EVENTS } from '../lib/analytics-events';
@@ -328,7 +329,15 @@ export default function AppointmentPicker({
     }
   }, [user, leadId, date, time, duration, notes, onBooked, isReschedule, existingAppointment, mode, meetingUrl, inviteLeadByEmail, hasLeadEmail, usingAutoMeet]);
 
-  return (
+  // Portal to <body>: in Call mode this picker is rendered inside
+  // LeadDetailPanel, which lives in the slide-belt — a transform +
+  // overflow-hidden ancestor. A CSS transform makes `position: fixed`
+  // resolve against that ancestor (not the viewport) and overflow-hidden
+  // clips it, so the modal would be constrained to the right pane.
+  // Portaling escapes that so `fixed` = viewport again (same fix PR #174
+  // applied to the dial-script popup + the LeadDetailPanel modals).
+  if (typeof document === 'undefined') return null;
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/40"
@@ -602,6 +611,7 @@ export default function AppointmentPicker({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
