@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
 import { performanceAccess } from '../../../lib/tier-gating';
 import UpgradeToProCard from '../../../components/UpgradeToProCard';
+import ScoringInfinity from '../../../components/ScoringInfinity';
 
 interface RealCategory {
   key: string;
@@ -46,10 +47,25 @@ interface Meter {
   used?: number;
   remaining?: number;
 }
+interface LinkedClient {
+  id: string;
+  name: string;
+  apv: number;
+}
 interface SavedScore {
   id: string;
   createdAtMs: number;
   report: Report;
+  clientId?: string | null;
+  linkedClient?: LinkedClient;
+}
+interface ClientOption {
+  id: string;
+  name: string;
+}
+
+function formatUsd(n: number): string {
+  return `$${Math.round(n).toLocaleString()}`;
 }
 
 function scoreTone(s: number): string {
@@ -105,6 +121,13 @@ function Sparkline({ values }: { values: number[] }) {
   );
 }
 
+// Outcome buckets for the win/stall correlation. "Moved forward" = the call
+// produced a commitment (in this business, starting the application IS the
+// close); "stalled" = the prospect didn't commit. Callback Scheduled and
+// Unknown are deliberately excluded — neither a clear win nor a clear loss.
+const WON_OUTCOMES = ['Sale Closed', 'Application Started'];
+const STALLED_OUTCOMES = ['Think About It', 'Spouse Objection', 'Hard No', 'No-Show'];
+
 export default function CoachingPage() {
   const { user, agentProfile, loading } = useDashboard();
   const access = performanceAccess(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt);
@@ -120,6 +143,16 @@ export default function CoachingPage() {
   // back button reads correctly and we don't clear the transcript box.
   const [history, setHistory] = useState<SavedScore[]>([]);
   const [viewingSaved, setViewingSaved] = useState(false);
+
+  // Layer 2 (dollars): the score currently on screen + its client link, plus a
+  // lazily-loaded client picker for attaching a call to real placed business.
+  const [currentScoreId, setCurrentScoreId] = useState<string | null>(null);
+  const [currentLink, setCurrentLink] = useState<LinkedClient | null>(null);
+  const [clients, setClients] = useState<ClientOption[]>([]);
+  const [clientsLoaded, setClientsLoaded] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [clientSearch, setClientSearch] = useState('');
+  const [linking, setLinking] = useState(false);
 
   // Per-agent playbook editor
   const [playbook, setPlaybook] = useState('');
@@ -188,6 +221,9 @@ export default function CoachingPage() {
       if (res.ok) {
         setResult(data.result);
         setViewingSaved(false);
+        setCurrentScoreId(data.saved?.id ?? null);
+        setCurrentLink(null);
+        setPickerOpen(false);
         if (data.meter) setMeter(data.meter);
         if (data.saved?.id) {
           setHistory((h) => [
@@ -215,9 +251,64 @@ export default function CoachingPage() {
   const openSaved = useCallback((s: SavedScore) => {
     setResult(s.report);
     setViewingSaved(true);
+    setCurrentScoreId(s.id);
+    setCurrentLink(s.linkedClient ?? null);
+    setPickerOpen(false);
     setError(null);
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
+
+  // Lazily load the agent's clients (id + name only) the first time they open
+  // the link picker — avoids a clients read on every Coaching page visit.
+  const loadClients = useCallback(async () => {
+    if (!user || clientsLoaded) return;
+    try {
+      const snap = await getDocs(collection(db, 'agents', user.uid, 'clients'));
+      const list = snap.docs
+        .map((d) => ({ id: d.id, name: String(d.data()?.name ?? '').trim() || 'Unnamed client' }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      setClients(list);
+      setClientsLoaded(true);
+    } catch {
+      /* leave unloaded; the picker shows an empty state */
+    }
+  }, [user, clientsLoaded]);
+
+  const openPicker = useCallback(() => {
+    setPickerOpen(true);
+    void loadClients();
+  }, [loadClients]);
+
+  // Link / unlink the on-screen call to a client (clientId null → unlink).
+  // Updates the on-screen link and the matching history row in place.
+  const linkClient = useCallback(async (clientId: string | null) => {
+    if (!user || !currentScoreId || linking) return;
+    setLinking(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/coaching/score', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ scoreId: currentScoreId, clientId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        const link: LinkedClient | null = data.linkedClient ?? null;
+        setCurrentLink(link);
+        setPickerOpen(false);
+        setClientSearch('');
+        setHistory((h) =>
+          h.map((s) =>
+            s.id === currentScoreId ? { ...s, clientId: link?.id ?? null, linkedClient: link ?? undefined } : s,
+          ),
+        );
+      }
+    } catch {
+      /* swallow — the agent can retry */
+    } finally {
+      setLinking(false);
+    }
+  }, [user, currentScoreId, linking]);
 
   if (loading) return <div className="px-4 py-10 text-center text-[#707070]">Loading…</div>;
   if (access.level === 'locked') return <UpgradeToProCard surface="coaching" />;
@@ -235,6 +326,48 @@ export default function CoachingPage() {
     const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
     return { key: cat.key, letter: cat.letter, label: cat.label, avg: Math.round(avg * 10) / 10 };
   });
+
+  // Win/stall correlation: split the agent's own calls by outcome and compare
+  // R.E.A.L. averages, so they see which dimension actually separates wins from
+  // stalls. Computed from stored outcomes — no new data, no client/APV link.
+  const wonCalls = history.filter((s) => WON_OUTCOMES.includes(s.report.outcome));
+  const stalledCalls = history.filter((s) => STALLED_OUTCOMES.includes(s.report.outcome));
+  const showOutcomeSplit = wonCalls.length >= 1 && stalledCalls.length >= 1 && history.length >= 3;
+  const avgLetter = (list: SavedScore[], idx: number) => {
+    const vals = list.map((s) => s.report.real[idx]?.score).filter((v): v is number => typeof v === 'number');
+    return vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : 0;
+  };
+  const outcomeRows = (history[0]?.report.real ?? []).map((cat, idx) => {
+    const won = avgLetter(wonCalls, idx);
+    const stalled = avgLetter(stalledCalls, idx);
+    return { key: cat.key, letter: cat.letter, label: cat.label, won, stalled, gap: Math.round((won - stalled) * 10) / 10 };
+  });
+  const leverageRow = outcomeRows.reduce<(typeof outcomeRows)[number] | null>(
+    (best, r) => (r.gap > (best?.gap ?? -Infinity) ? r : best),
+    null,
+  );
+  const hasLeverage = !!leverageRow && leverageRow.gap >= 0.3;
+  const smallSample = wonCalls.length < 3 || stalledCalls.length < 3;
+
+  // Layer 2 (dollars): for calls linked to a client, does a higher score track
+  // with more placed APV? Bucket linked calls by overall >=7 vs <7, deduped by
+  // client (a client linked to two calls shouldn't count twice).
+  const linkedScores = history.filter((s) => s.linkedClient);
+  const apvBucket = (min: number, max: number) => {
+    const m = new Map<string, number>();
+    linkedScores.forEach((s) => {
+      const sc = s.report.overallScore;
+      if (sc >= min && sc < max && s.linkedClient) m.set(s.linkedClient.id, s.linkedClient.apv || 0);
+    });
+    const vals = [...m.values()];
+    return { clients: vals.length, avg: vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0 };
+  };
+  const highApv = apvBucket(7, Infinity);
+  const lowApv = apvBucket(0, 7);
+  const showApvCorrelation = highApv.clients >= 1 && lowApv.clients >= 1 && linkedScores.length >= 3;
+
+  const clientQuery = clientSearch.trim().toLowerCase();
+  const filteredClients = clientQuery ? clients.filter((c) => c.name.toLowerCase().includes(clientQuery)) : clients;
 
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-8 max-w-3xl mx-auto">
@@ -340,7 +473,12 @@ export default function CoachingPage() {
               {scoring ? 'Scoring…' : 'Score this call'}
             </button>
           </div>
-          {scoring && <p className="mt-2 text-xs text-[#9CA3AF]">Reading the whole call and scoring it against your script — this usually takes 30–60 seconds.</p>}
+          {scoring && (
+            <div className="mt-4 flex flex-col items-center text-center">
+              <ScoringInfinity className="block w-20 h-10" />
+              <p className="mt-2 text-xs text-[#9CA3AF]">Reading the whole call and scoring it against your script — this usually takes 30–60 seconds.</p>
+            </div>
+          )}
           {error === 'too_short' && <p className="mt-2 text-xs text-amber-700">That&apos;s a bit short to score — paste a little more of the call.</p>}
           {error === 'failed' && <p className="mt-2 text-xs text-red-600">Something went wrong scoring that call. Give it another try.</p>}
           {error === 'limit_reached' && (
@@ -392,6 +530,75 @@ export default function CoachingPage() {
             <p className="mt-3 text-[11px] text-[#9CA3AF]">Averages across your scored calls. Your weakest letter is where coaching pays off fastest.</p>
           </div>
 
+          {/* What separates your wins — outcome correlation */}
+          {showOutcomeSplit && (
+            <div className="rounded-[10px] border border-[#cdeee7] bg-[#f0faf8] p-4 sm:p-5">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-[#005851]">What separates your wins</h2>
+                <span className="text-xs text-[#707070]">{wonCalls.length} moved forward · {stalledCalls.length} stalled</span>
+              </div>
+              {hasLeverage && leverageRow ? (
+                <p className="mt-2 text-sm text-[#0D4D4D]">
+                  Your biggest edge on calls that moved forward is <span className="font-semibold">{leverageRow.label}</span> —{' '}
+                  <span className="font-semibold tabular-nums">{leverageRow.won}</span> on wins vs{' '}
+                  <span className="font-semibold tabular-nums">{leverageRow.stalled}</span> on stalls. That gap is your highest-leverage fix.
+                </p>
+              ) : (
+                <p className="mt-2 text-sm text-[#707070]">Your scores look similar across outcomes so far — score a few more calls and the pattern that separates your wins will surface here.</p>
+              )}
+              <div className="mt-3 grid grid-cols-[1fr_auto_auto_auto] gap-x-4 gap-y-1.5 items-center text-xs">
+                <span aria-hidden />
+                <span className="text-[10px] uppercase tracking-wide text-[#9CA3AF] text-right">Won</span>
+                <span className="text-[10px] uppercase tracking-wide text-[#9CA3AF] text-right">Stalled</span>
+                <span className="text-[10px] uppercase tracking-wide text-[#9CA3AF] text-right">Gap</span>
+                {outcomeRows.map((r) => {
+                  const isLeverage = hasLeverage && leverageRow?.key === r.key;
+                  return (
+                    <Fragment key={r.key}>
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className="w-5 h-5 rounded-full bg-[#daf3f0] text-[#005851] text-[11px] font-bold flex items-center justify-center shrink-0">{r.letter}</span>
+                        <span className={`truncate ${isLeverage ? 'font-semibold text-[#005851]' : 'text-[#374151]'}`}>{r.label}</span>
+                      </span>
+                      <span className={`tabular-nums font-semibold text-right ${scoreTone(r.won)}`}>{r.won}</span>
+                      <span className="tabular-nums font-semibold text-right text-amber-700">{r.stalled}</span>
+                      <span className={`tabular-nums font-bold text-right ${r.gap > 0 ? 'text-[#005851]' : 'text-[#9CA3AF]'}`}>{r.gap > 0 ? '+' : ''}{r.gap}</span>
+                    </Fragment>
+                  );
+                })}
+              </div>
+              <p className="mt-3 text-[11px] text-[#9CA3AF]">
+                {smallSample ? 'Based on a small sample — this sharpens as you score more calls. ' : ''}Win = the call moved forward (sale or application started). Calls awaiting a callback aren&apos;t counted either way.
+              </p>
+            </div>
+          )}
+
+          {/* Coaching → dollars: score vs placed APV on linked calls */}
+          {showApvCorrelation && (
+            <div className="rounded-[10px] border border-[#cdeee7] bg-[#f0faf8] p-4 sm:p-5">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-[#005851]">Coaching → dollars</h2>
+              <p className="mt-2 text-sm text-[#0D4D4D]">
+                On calls you scored <span className="font-semibold">7 or higher</span>, the clients you linked are carrying{' '}
+                <span className="font-semibold tabular-nums">{formatUsd(highApv.avg)}</span> in APV on average
+                {lowApv.avg > 0 && highApv.avg >= lowApv.avg ? (
+                  <> — about {Math.round((highApv.avg / Math.max(lowApv.avg, 1)) * 10) / 10}× the <span className="font-semibold tabular-nums">{formatUsd(lowApv.avg)}</span> from calls under 7.</>
+                ) : (
+                  <> vs <span className="font-semibold tabular-nums">{formatUsd(lowApv.avg)}</span> from calls under 7.</>
+                )}
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div className="rounded-[8px] bg-white border border-[#cdeee7] p-3 text-center">
+                  <div className="text-lg font-bold tabular-nums text-[#005851]">{formatUsd(highApv.avg)}</div>
+                  <div className="text-[11px] text-[#707070] mt-0.5">avg APV · scored 7+ ({highApv.clients} {highApv.clients === 1 ? 'client' : 'clients'})</div>
+                </div>
+                <div className="rounded-[8px] bg-white border border-[#e5e7eb] p-3 text-center">
+                  <div className="text-lg font-bold tabular-nums text-amber-700">{formatUsd(lowApv.avg)}</div>
+                  <div className="text-[11px] text-[#707070] mt-0.5">avg APV · under 7 ({lowApv.clients} {lowApv.clients === 1 ? 'client' : 'clients'})</div>
+                </div>
+              </div>
+              <p className="mt-3 text-[11px] text-[#9CA3AF]">Based on calls you&apos;ve linked to a client. APV is self-entered, so read this as a directional pattern, not an audit.</p>
+            </div>
+          )}
+
           {/* History list */}
           <div className="rounded-[10px] border border-[#d0d0d0] bg-white p-4 sm:p-5">
             <h2 className="text-xs font-bold uppercase tracking-wider text-[#005851]">Your calls</h2>
@@ -409,6 +616,9 @@ export default function CoachingPage() {
                         {s.report.productLine ? ` · ${s.report.productLine}` : ''}
                         {s.report.outcome ? ` · ${s.report.outcome}` : ''}
                       </p>
+                      {s.linkedClient && (
+                        <p className="text-[11px] text-[#005851] truncate">{s.linkedClient.name} · {formatUsd(s.linkedClient.apv)} APV</p>
+                      )}
                     </div>
                     <span className={`text-base font-bold tabular-nums shrink-0 ${scoreTone(s.report.overallScore)}`}>{s.report.overallScore}</span>
                     <span className="text-[#cbd5e1] shrink-0" aria-hidden>›</span>
@@ -440,6 +650,59 @@ export default function CoachingPage() {
               <div className="mt-0.5 text-[11px] text-[#707070]">/ 10</div>
             </div>
           </div>
+
+          {/* Linked client — ties this call to real placed APV */}
+          {currentScoreId && (
+            <div className="rounded-[10px] border border-[#d0d0d0] bg-white p-4">
+              {currentLink ? (
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="text-sm text-[#374151]">
+                    Linked to <span className="font-semibold text-[#0D4D4D]">{currentLink.name}</span>
+                    <span className="text-[#707070]"> · {currentLink.apv > 0 ? `${formatUsd(currentLink.apv)} APV on the books` : 'no placed APV yet'}</span>
+                  </div>
+                  <button onClick={() => linkClient(null)} disabled={linking} className="text-xs font-semibold text-[#707070] hover:text-[#0D4D4D] disabled:opacity-40">
+                    {linking ? 'Saving…' : 'Unlink'}
+                  </button>
+                </div>
+              ) : pickerOpen ? (
+                <div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-[#0D4D4D]">Link this call to a client</span>
+                    <button onClick={() => { setPickerOpen(false); setClientSearch(''); }} className="text-xs font-semibold text-[#707070] hover:text-[#0D4D4D]">Cancel</button>
+                  </div>
+                  <input
+                    value={clientSearch}
+                    onChange={(e) => setClientSearch(e.target.value)}
+                    placeholder="Search your clients…"
+                    className="mt-2 w-full rounded-[5px] border border-[#d0d0d0] p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#44bbaa]"
+                  />
+                  <div className="mt-2 max-h-44 overflow-y-auto divide-y divide-[#f1f1f1]">
+                    {!clientsLoaded ? (
+                      <p className="py-2 text-xs text-[#9CA3AF]">Loading your clients…</p>
+                    ) : filteredClients.length === 0 ? (
+                      <p className="py-2 text-xs text-[#9CA3AF]">{clients.length ? 'No matches.' : 'No clients yet.'}</p>
+                    ) : (
+                      filteredClients.slice(0, 50).map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => linkClient(c.id)}
+                          disabled={linking}
+                          className="w-full text-left py-2 -mx-2 px-2 rounded text-sm text-[#374151] hover:bg-[#f7fbfa] disabled:opacity-40"
+                        >
+                          {c.name}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <span className="text-sm text-[#707070]">Was this a real call? Link it to the client to track how your score tracks with placed business.</span>
+                  <button onClick={openPicker} className="text-sm font-semibold text-[#005851] hover:text-[#0D4D4D] shrink-0">+ Link a client</button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* R.E.A.L. cards */}
           <div className="grid sm:grid-cols-2 gap-3">
@@ -509,6 +772,9 @@ export default function CoachingPage() {
               setResult(null);
               if (!viewingSaved) setTranscript('');
               setViewingSaved(false);
+              setCurrentScoreId(null);
+              setCurrentLink(null);
+              setPickerOpen(false);
               setError(null);
             }}
             className="text-sm font-semibold text-[#005851] hover:text-[#0D4D4D]"

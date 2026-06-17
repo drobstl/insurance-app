@@ -6,6 +6,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
 import { performanceAccess, type PerformanceAccess } from '../../../../lib/tier-gating';
 import { REAL_CATEGORIES, DEFAULT_COACHING_PLAYBOOK } from '../../../../lib/coaching-playbook';
+import { computeAPV } from '../../../../lib/apv';
 
 // A full transcript scores in ~40-60s (one non-streaming Sonnet call), so this
 // function needs a long ceiling — Vercel's default (10-15s) would time out.
@@ -131,9 +132,7 @@ async function readAgentContext(uid: string, email: string | null) {
 // Recent scored calls (newest first) for the history list + trend strip.
 // Returns each stored report plus an id and a millis timestamp the client can
 // render; never throws — an empty history just renders no trend.
-async function readRecentScores(
-  uid: string,
-): Promise<Array<{ id: string; createdAtMs: number; report: unknown }>> {
+async function readRecentScores(uid: string): Promise<RecentScore[]> {
   try {
     const snap = await getAdminFirestore()
       .collection('agents').doc(uid).collection(COACHING_SCORES)
@@ -142,14 +141,61 @@ async function readRecentScores(
       .get();
     return snap.docs
       .map((d) => {
-        const data = d.data() as { report?: unknown; createdAt?: unknown };
-        return { id: d.id, createdAtMs: tsToMillis(data.createdAt) ?? 0, report: data.report ?? null };
+        const data = d.data() as { report?: unknown; createdAt?: unknown; clientId?: unknown };
+        return {
+          id: d.id,
+          createdAtMs: tsToMillis(data.createdAt) ?? 0,
+          report: data.report ?? null,
+          clientId: typeof data.clientId === 'string' ? data.clientId : null,
+        };
       })
       .filter((s) => s.report !== null);
   } catch (err) {
     console.error('Coaching history read failed:', String(err));
     return [];
   }
+}
+
+// Live placed-APV for one of the agent's clients: sum of annualized premium
+// across the client's Active/Pending policies (mirrors stats-aggregation's
+// referral-APV rule). Returns null if the client doesn't exist under this
+// agent — which also serves as the "is this my client?" ownership check.
+async function computeClientApv(uid: string, clientId: string): Promise<{ name: string; apv: number } | null> {
+  const db = getAdminFirestore();
+  const clientRef = db.collection('agents').doc(uid).collection('clients').doc(clientId);
+  const clientSnap = await clientRef.get();
+  if (!clientSnap.exists) return null;
+  const name = String(clientSnap.data()?.name ?? '').trim() || 'Client';
+  const polSnap = await clientRef.collection('policies').get();
+  let apv = 0;
+  polSnap.forEach((p) => {
+    const d = p.data() as { premiumAmount?: number; premiumFrequency?: string; status?: string };
+    if (d.status === 'Active' || d.status === 'Pending') {
+      apv += computeAPV(d.premiumAmount, d.premiumFrequency);
+    }
+  });
+  return { name, apv: Math.round(apv) };
+}
+
+// Attach each linked call's live client name + placed APV. Distinct clientIds
+// only (multiple calls can link the same client), so cost is bounded by the
+// number of distinct linked clients, not the history length.
+type RecentScore = { id: string; createdAtMs: number; report: unknown; clientId: string | null };
+async function attachLinkedApv(uid: string, scores: RecentScore[]) {
+  const ids = [...new Set(scores.map((s) => s.clientId).filter((c): c is string => !!c))];
+  if (!ids.length) return scores;
+  const byClient = new Map<string, { name: string; apv: number }>();
+  await Promise.all(
+    ids.map(async (cid) => {
+      const r = await computeClientApv(uid, cid);
+      if (r) byClient.set(cid, r);
+    }),
+  );
+  return scores.map((s) =>
+    s.clientId && byClient.has(s.clientId)
+      ? { ...s, linkedClient: { id: s.clientId, ...byClient.get(s.clientId)! } }
+      : s,
+  );
 }
 
 function meterPayload(access: PerformanceAccess, used: number) {
@@ -220,7 +266,8 @@ export async function GET(req: NextRequest) {
       readAgentContext(auth.uid, auth.email),
       readRecentScores(auth.uid),
     ]);
-    return jsonOk({ meter: meterPayload(ctx.access, ctx.used), usingDefaultPlaybook: ctx.usingDefaultPlaybook, scores });
+    const scoresWithApv = await attachLinkedApv(auth.uid, scores);
+    return jsonOk({ meter: meterPayload(ctx.access, ctx.used), usingDefaultPlaybook: ctx.usingDefaultPlaybook, scores: scoresWithApv });
   } catch (error) {
     console.error('Coaching meter error:', error);
     return jsonError(500, { error: 'Internal server error' });
@@ -288,6 +335,40 @@ export async function POST(req: NextRequest) {
     return jsonOk({ result: report, meter: meterPayload(ctx.access, nextUsed), saved });
   } catch (error) {
     console.error('Coaching score error:', error);
+    return jsonError(500, { error: 'Internal server error' });
+  }
+}
+
+// Link (or unlink) a saved scored call to one of the agent's clients, so the
+// score can be correlated with real placed APV. Body: { scoreId, clientId }
+// (clientId null/empty → unlink). Returns the linked client's live name + APV.
+export async function PATCH(req: NextRequest) {
+  try {
+    const auth = await authedUid(req);
+    if (!auth) return jsonError(401, { error: 'Unauthorized' });
+
+    const body = await req.json().catch(() => ({}));
+    const scoreId = typeof body.scoreId === 'string' ? body.scoreId : '';
+    if (!scoreId) return jsonError(400, { error: 'missing_scoreId' });
+    const clientId = typeof body.clientId === 'string' && body.clientId ? body.clientId : null;
+
+    const scoreRef = getAdminFirestore()
+      .collection('agents').doc(auth.uid).collection(COACHING_SCORES).doc(scoreId);
+    if (!(await scoreRef.get()).exists) return jsonError(404, { error: 'score_not_found' });
+
+    if (!clientId) {
+      await scoreRef.update({ clientId: FieldValue.delete() });
+      return jsonOk({ linkedClient: null });
+    }
+
+    // computeClientApv returns null when the client isn't under this agent —
+    // which is also the ownership check (an agent can only link their own).
+    const client = await computeClientApv(auth.uid, clientId);
+    if (!client) return jsonError(404, { error: 'client_not_found' });
+    await scoreRef.update({ clientId });
+    return jsonOk({ linkedClient: { id: clientId, name: client.name, apv: client.apv } });
+  } catch (error) {
+    console.error('Coaching link error:', error);
     return jsonError(500, { error: 'Internal server error' });
   }
 }
