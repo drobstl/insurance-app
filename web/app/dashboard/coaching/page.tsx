@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
@@ -104,6 +104,13 @@ function Sparkline({ values }: { values: number[] }) {
     </svg>
   );
 }
+
+// Outcome buckets for the win/stall correlation. "Moved forward" = the call
+// produced a commitment (in this business, starting the application IS the
+// close); "stalled" = the prospect didn't commit. Callback Scheduled and
+// Unknown are deliberately excluded — neither a clear win nor a clear loss.
+const WON_OUTCOMES = ['Sale Closed', 'Application Started'];
+const STALLED_OUTCOMES = ['Think About It', 'Spouse Objection', 'Hard No', 'No-Show'];
 
 export default function CoachingPage() {
   const { user, agentProfile, loading } = useDashboard();
@@ -235,6 +242,28 @@ export default function CoachingPage() {
     const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
     return { key: cat.key, letter: cat.letter, label: cat.label, avg: Math.round(avg * 10) / 10 };
   });
+
+  // Win/stall correlation: split the agent's own calls by outcome and compare
+  // R.E.A.L. averages, so they see which dimension actually separates wins from
+  // stalls. Computed from stored outcomes — no new data, no client/APV link.
+  const wonCalls = history.filter((s) => WON_OUTCOMES.includes(s.report.outcome));
+  const stalledCalls = history.filter((s) => STALLED_OUTCOMES.includes(s.report.outcome));
+  const showOutcomeSplit = wonCalls.length >= 1 && stalledCalls.length >= 1 && history.length >= 3;
+  const avgLetter = (list: SavedScore[], idx: number) => {
+    const vals = list.map((s) => s.report.real[idx]?.score).filter((v): v is number => typeof v === 'number');
+    return vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : 0;
+  };
+  const outcomeRows = (history[0]?.report.real ?? []).map((cat, idx) => {
+    const won = avgLetter(wonCalls, idx);
+    const stalled = avgLetter(stalledCalls, idx);
+    return { key: cat.key, letter: cat.letter, label: cat.label, won, stalled, gap: Math.round((won - stalled) * 10) / 10 };
+  });
+  const leverageRow = outcomeRows.reduce<(typeof outcomeRows)[number] | null>(
+    (best, r) => (r.gap > (best?.gap ?? -Infinity) ? r : best),
+    null,
+  );
+  const hasLeverage = !!leverageRow && leverageRow.gap >= 0.3;
+  const smallSample = wonCalls.length < 3 || stalledCalls.length < 3;
 
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-8 max-w-3xl mx-auto">
@@ -391,6 +420,48 @@ export default function CoachingPage() {
             )}
             <p className="mt-3 text-[11px] text-[#9CA3AF]">Averages across your scored calls. Your weakest letter is where coaching pays off fastest.</p>
           </div>
+
+          {/* What separates your wins — outcome correlation */}
+          {showOutcomeSplit && (
+            <div className="rounded-[10px] border border-[#cdeee7] bg-[#f0faf8] p-4 sm:p-5">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-[#005851]">What separates your wins</h2>
+                <span className="text-xs text-[#707070]">{wonCalls.length} moved forward · {stalledCalls.length} stalled</span>
+              </div>
+              {hasLeverage && leverageRow ? (
+                <p className="mt-2 text-sm text-[#0D4D4D]">
+                  Your biggest edge on calls that moved forward is <span className="font-semibold">{leverageRow.label}</span> —{' '}
+                  <span className="font-semibold tabular-nums">{leverageRow.won}</span> on wins vs{' '}
+                  <span className="font-semibold tabular-nums">{leverageRow.stalled}</span> on stalls. That gap is your highest-leverage fix.
+                </p>
+              ) : (
+                <p className="mt-2 text-sm text-[#707070]">Your scores look similar across outcomes so far — score a few more calls and the pattern that separates your wins will surface here.</p>
+              )}
+              <div className="mt-3 grid grid-cols-[1fr_auto_auto_auto] gap-x-4 gap-y-1.5 items-center text-xs">
+                <span aria-hidden />
+                <span className="text-[10px] uppercase tracking-wide text-[#9CA3AF] text-right">Won</span>
+                <span className="text-[10px] uppercase tracking-wide text-[#9CA3AF] text-right">Stalled</span>
+                <span className="text-[10px] uppercase tracking-wide text-[#9CA3AF] text-right">Gap</span>
+                {outcomeRows.map((r) => {
+                  const isLeverage = hasLeverage && leverageRow?.key === r.key;
+                  return (
+                    <Fragment key={r.key}>
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className="w-5 h-5 rounded-full bg-[#daf3f0] text-[#005851] text-[11px] font-bold flex items-center justify-center shrink-0">{r.letter}</span>
+                        <span className={`truncate ${isLeverage ? 'font-semibold text-[#005851]' : 'text-[#374151]'}`}>{r.label}</span>
+                      </span>
+                      <span className={`tabular-nums font-semibold text-right ${scoreTone(r.won)}`}>{r.won}</span>
+                      <span className="tabular-nums font-semibold text-right text-amber-700">{r.stalled}</span>
+                      <span className={`tabular-nums font-bold text-right ${r.gap > 0 ? 'text-[#005851]' : 'text-[#9CA3AF]'}`}>{r.gap > 0 ? '+' : ''}{r.gap}</span>
+                    </Fragment>
+                  );
+                })}
+              </div>
+              <p className="mt-3 text-[11px] text-[#9CA3AF]">
+                {smallSample ? 'Based on a small sample — this sharpens as you score more calls. ' : ''}Win = the call moved forward (sale or application started). Calls awaiting a callback aren&apos;t counted either way.
+              </p>
+            </div>
+          )}
 
           {/* History list */}
           <div className="rounded-[10px] border border-[#d0d0d0] bg-white p-4 sm:p-5">
