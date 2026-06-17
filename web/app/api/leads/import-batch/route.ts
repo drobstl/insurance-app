@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
 import { resolveLeadCodeOrDuplicate } from '../../../../lib/lead-dedup';
+import { deriveLeadCode } from '../../../../lib/lead-code-derive';
+import { loadLeadPhoneIndex } from '../../../../lib/lead-phone-index';
 
 /**
  * POST /api/leads/import-batch
@@ -19,7 +21,10 @@ import { resolveLeadCodeOrDuplicate } from '../../../../lib/lead-dedup';
  * Rows without a usable phone still import: `resolveLeadCodeOrDuplicate`
  * falls back to a random `L…` code (the lead shows in the queue but can't
  * log into the app until a phone is added). Same-agent phone collisions
- * are reported as `duplicates` rather than creating a second doc.
+ * are reported as `duplicates` rather than creating a second doc — matched
+ * by phone against the agent's existing leads (see `loadLeadPhoneIndex`),
+ * so re-importing a list also dedups leads stored under a fallback code,
+ * which the global `leadCodes` index alone would miss.
  *
  * The client chunks large files into batches of <= BATCH_SIZE and merges
  * the per-batch results. `row` numbers are 1-based within the batch; the
@@ -94,8 +99,19 @@ export async function POST(req: NextRequest) {
     const duplicates: DuplicateLead[] = [];
     const failed: FailedRow[] = [];
 
-    // Sequential so within-file duplicate phones are caught by the
-    // leadCodes index doc the first occurrence writes.
+    // Phone-keyed map of the agent's EXISTING leads. The shared
+    // `resolveLeadCodeOrDuplicate` dedup keys off the global
+    // `leadCodes/{derived}` index, which has no doc for leads stored
+    // under a random `L…` fallback code — so re-importing a list whose
+    // leads fell back (no phone at first import, a cross-agent code
+    // collision, or the old DOB-based scheme) would miss them and create
+    // duplicates. This index keys off each lead's actual phone, catching
+    // fallback-coded leads too. One read per batch (bulk import is rare).
+    const phoneIndex = await loadLeadPhoneIndex(db, agentId);
+
+    // Sequential so within-file duplicate phones are caught by the first
+    // occurrence — both via the leadCodes index doc it writes and via
+    // phoneIndex, which we seed below as each lead is created.
     for (let i = 0; i < rows.length; i++) {
       const rowNum = i + 1;
       const row = rows[i] || {};
@@ -107,6 +123,24 @@ export async function POST(req: NextRequest) {
       const phone = (row.phone || '').trim();
 
       try {
+        // Match against the agent's existing leads by phone FIRST — this
+        // catches fallback-coded leads the leadCodes index can't see.
+        const derived = deriveLeadCode(phone);
+        if (derived) {
+          const existing = phoneIndex.get(derived);
+          if (existing) {
+            duplicates.push({
+              row: rowNum,
+              phone,
+              name,
+              existingLeadId: existing.leadId,
+              existingLeadCode: existing.leadCode,
+              existingLeadName: existing.name,
+            });
+            continue;
+          }
+        }
+
         const leadRef = db.collection('agents').doc(agentId).collection('leads').doc();
         const resolution = await resolveLeadCodeOrDuplicate({
           db,
@@ -159,6 +193,12 @@ export async function POST(req: NextRequest) {
           name,
           row: rowNum,
         });
+        // Seed the index so a later row in THIS batch with the same phone
+        // dedups against the lead we just created (catches fallback-coded
+        // within-batch dupes the leadCodes index would miss).
+        if (derived) {
+          phoneIndex.set(derived, { leadId: leadRef.id, leadCode: resolution.leadCode, name });
+        }
       } catch (err) {
         console.error(`[leads/import-batch] row ${rowNum} failed:`, err);
         failed.push({ row: rowNum, reason: err instanceof Error ? err.message : 'write failed' });
