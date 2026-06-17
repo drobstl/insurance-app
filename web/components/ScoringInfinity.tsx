@@ -20,23 +20,33 @@ export default function ScoringInfinity({ className = '' }: { className?: string
   return (
     <span className={className} aria-hidden="true">
       <svg viewBox="0 0 100 50" className="block w-full h-full overflow-visible">
+        <defs>
+          {/* Brand teal range — light through the left of the loop, deep
+              through the right — so the comet blends across the full teal
+              palette as it orbits, echoing the logo's light→deep gradient. */}
+          <linearGradient id="aflScoringTeal" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#6fd6c2" />
+            <stop offset="50%" stopColor="#1aa893" />
+            <stop offset="100%" stopColor="#045e4e" />
+          </linearGradient>
+        </defs>
         {/* Faint full-loop track */}
         <path
           d={INFINITY_PATH}
           fill="none"
-          stroke="#45bcaa"
-          strokeOpacity="0.2"
+          stroke="url(#aflScoringTeal)"
+          strokeOpacity="0.18"
           strokeWidth="7"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        {/* Bright comet that orbits the track */}
+        {/* Bright comet that orbits the track, picking up the teal blend */}
         <path
           className="afl-scoring-comet"
           d={INFINITY_PATH}
           pathLength={100}
           fill="none"
-          stroke="#0e9e88"
+          stroke="url(#aflScoringTeal)"
           strokeWidth="7"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -44,7 +54,7 @@ export default function ScoringInfinity({ className = '' }: { className?: string
         />
       </svg>
       <style>{`
-        .afl-scoring-comet{animation:afl-scoring-orbit 1.5s linear infinite;filter:drop-shadow(0 0 3px rgba(14,158,136,0.5))}
+        .afl-scoring-comet{animation:afl-scoring-orbit 1.5s linear infinite;filter:drop-shadow(0 0 3px rgba(26,168,147,0.5))}
         @keyframes afl-scoring-orbit{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
         @media (prefers-reduced-motion:reduce){.afl-scoring-comet{animation:none;stroke-dasharray:none;stroke-opacity:.9}}
       `}</style>
