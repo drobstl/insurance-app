@@ -968,7 +968,14 @@ function LeadsPageInner() {
     for (const lead of leads) {
       if (lead.convertedToClientId) continue;
       const out = lead.lastDialOutcome;
-      if (out === 'booked' || out === 'not_interested' || out === 'wrong_number' || out === 'do_not_call') continue;
+      // Keep worked-but-unresolved leads callable: if the lead's most recent
+      // PAST appointment was a no-show / cancel / sat-no-sale / thinking (it's
+      // in pastOutcomeByLead) and there's no upcoming appointment, surface it
+      // for follow-up even though its last dial was 'booked' (which normally
+      // drops it from the queue). Rebooked leads (in nextApptByLead) stay out.
+      const needsFollowUp = pastOutcomeByLead.has(lead.id) && !nextApptByLead.has(lead.id);
+      if (out === 'not_interested' || out === 'wrong_number' || out === 'do_not_call') continue;
+      if (out === 'booked' && !needsFollowUp) continue;
 
       const lastDialMs = lead.lastDialAt?.toDate().getTime() ?? null;
       let score: number;
@@ -1006,7 +1013,7 @@ function LeadsPageInner() {
     return scored
       .sort((a, b) => b.score - a.score)
       .map(({ lead }) => lead);
-  }, [leads, agentProfile.dialPersistence]);
+  }, [leads, agentProfile.dialPersistence, pastOutcomeByLead, nextApptByLead]);
 
   // "Call next" sort for the All list reuses the exact queue priority
   // order, so the list previews who Start-calling will dial first.
