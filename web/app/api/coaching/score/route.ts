@@ -8,14 +8,19 @@ import { performanceAccess, type PerformanceAccess } from '../../../../lib/tier-
 import { REAL_CATEGORIES, DEFAULT_COACHING_PLAYBOOK } from '../../../../lib/coaching-playbook';
 import { computeAPV } from '../../../../lib/apv';
 
-// A full transcript scores in ~40-60s (one non-streaming Sonnet call), so this
-// function needs a long ceiling — Vercel's default (10-15s) would time out.
-// Matches the app's other heavy AI routes (referral / ingestion use 90-120).
-export const maxDuration = 120;
+// A full transcript scores in ~40-60s (one non-streaming Sonnet call). We do up
+// to TWO attempts on failure (transient API hiccup / a single unparseable
+// response), so the ceiling is raised to fit two passes — Vercel's default
+// (10-15s) would time out. Other heavy AI routes (referral / ingestion) use 90-120.
+export const maxDuration = 180;
 
 // Match Closr's call-scoring engine (apps/api/app/services/call_scorer.py)
 // so AFL produces the same R.E.A.L. scores Closr does.
 const MODEL = 'claude-sonnet-4-6';
+// Generous output ceiling: a rich report (4 R.E.A.L. write-ups + up to 8
+// checkpoints + 3 priorities) on a long transcript can run past a tight cap,
+// and a mid-JSON cutoff is unparseable → a 502. 8000 leaves ample headroom.
+const MAX_OUTPUT_TOKENS = 8000;
 
 let _anthropic: Anthropic | null = null;
 function getAnthropic(): Anthropic {
@@ -219,6 +224,24 @@ function parseJson(raw: string): ScoreRaw {
   }
 }
 
+// One scoring pass: call the model and parse its JSON. Throws on an API error
+// or an unparseable response; the caller retries once before surfacing a 502.
+async function scoreTranscript(userPrompt: string): Promise<ScoreRaw> {
+  const message = await getAnthropic().messages.create({
+    model: MODEL,
+    max_tokens: MAX_OUTPUT_TOKENS,
+    temperature: 0.3,
+    system: SCORING_SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: userPrompt }],
+  });
+  const raw = message.content
+    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('')
+    .trim();
+  return parseJson(raw);
+}
+
 // Shape the model output into the R.E.A.L. report the page renders.
 function buildReport(data: ScoreRaw, usingDefaultPlaybook: boolean) {
   const real = REAL_CATEGORIES.map((cat) => {
@@ -294,21 +317,21 @@ export async function POST(req: NextRequest) {
 
     const userPrompt = `AGENT PLAYBOOK (score Layer 2 checkpoints against this):\n${ctx.playbook}\n\n---\n\nCALL TRANSCRIPT:\n${clipped}\n\nScore this call now and return the JSON.`;
 
+    // Up to two attempts: most 502s here are a transient model hiccup or a
+    // single unparseable response, and a second pass almost always clears it.
+    // Both attempts happen before the meter increments, so a retry never costs
+    // the agent an extra credit.
     let data: ScoreRaw;
-    let raw = '';
     try {
-      const message = await getAnthropic().messages.create({
-        model: MODEL,
-        max_tokens: 4000,
-        temperature: 0.3,
-        system: SCORING_SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: userPrompt }],
-      });
-      raw = message.content.filter((b): b is Anthropic.TextBlock => b.type === 'text').map((b) => b.text).join('').trim();
-      data = parseJson(raw);
-    } catch (err) {
-      console.error('Coaching score: model/parse failure:', String(err), raw.slice(0, 300));
-      return jsonError(502, { error: 'score_unavailable' });
+      data = await scoreTranscript(userPrompt);
+    } catch (firstErr) {
+      console.warn('Coaching score: first attempt failed, retrying once:', String(firstErr));
+      try {
+        data = await scoreTranscript(userPrompt);
+      } catch (err) {
+        console.error('Coaching score: model/parse failure after retry:', String(err));
+        return jsonError(502, { error: 'score_unavailable' });
+      }
     }
 
     // Increment the meter only after a successful score (reset on new month).
