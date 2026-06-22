@@ -18,6 +18,7 @@ import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 import { PRICING_TIERS, type PricingTierId } from '../../../lib/pricing';
 import StateLicensesSection from '../../../components/StateLicensesSection';
 import { DEFAULT_DIAL_SCRIPT, SCRIPT_TOKEN_HINTS, SCRIPT_CONDITION_HINTS } from '../../../lib/dial-script';
+import { DEFAULT_INTRO_TEXT, INTRO_TOKEN_HINTS, INTRO_CONDITION_HINTS } from '../../../lib/lead-intro-text';
 import { canAccessLeads } from '../../../lib/tier-gating';
 
 type Tab = 'profile' | 'branding' | 'referral-ai' | 'account';
@@ -329,6 +330,7 @@ export default function SettingsPage() {
     anniversaryMessageCustomTitle: agentProfile.anniversaryMessageCustomTitle || '',
     policyReviewAIEnabled: agentProfile.policyReviewAIEnabled ?? true,
     welcomeSmsTemplate: agentProfile.welcomeSmsTemplate || '',
+    introTextTemplate: agentProfile.introTextTemplate || '',
     skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
     appointmentMode: agentProfile.appointmentMode || 'phone',
     defaultMeetingLink: agentProfile.defaultMeetingLink || '',
@@ -356,6 +358,7 @@ export default function SettingsPage() {
     agentProfile.anniversaryMessageCustomTitle,
     agentProfile.policyReviewAIEnabled,
     agentProfile.welcomeSmsTemplate,
+    agentProfile.introTextTemplate,
     agentProfile.skipWelcomeSmsConfirmation,
     agentProfile.appointmentMode,
     agentProfile.defaultMeetingLink,
@@ -792,6 +795,7 @@ export default function SettingsPage() {
         anniversaryMessageCustomTitle: agentProfile.anniversaryMessageCustomTitle || '',
         policyReviewAIEnabled: agentProfile.policyReviewAIEnabled ?? true,
         welcomeSmsTemplate: agentProfile.welcomeSmsTemplate || '',
+        introTextTemplate: (agentProfile.introTextTemplate || '').slice(0, 1000),
         skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
         appointmentMode: agentProfile.appointmentMode === 'video' ? 'video' : 'phone',
         defaultMeetingLink: (agentProfile.defaultMeetingLink || '').trim(),
@@ -1497,6 +1501,40 @@ export default function SettingsPage() {
                   />
                 </button>
               </div>
+            </div>
+          </div>
+
+          {/* Lead Intro Text */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Lead Intro Text</h3>
+            <div>
+              <label className="block text-sm font-medium text-[#000000] mb-1.5">Message Template</label>
+              <textarea
+                value={agentProfile.introTextTemplate || ''}
+                onChange={(e) => updateField('introTextTemplate', e.target.value)}
+                placeholder={DEFAULT_INTRO_TEXT}
+                rows={5}
+                className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa] resize-y"
+              />
+              <p className="text-xs text-[#707070] mt-1.5">
+                The optional teed-up text you can fire off to a new lead before your first call &mdash; it sends from your own phone. Leave blank to use the default shown above.
+              </p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {INTRO_TOKEN_HINTS.map((h) => (
+                  <span
+                    key={h.token}
+                    title={h.description}
+                    className="inline-flex items-center px-2 py-0.5 rounded bg-[#daf3f0] text-[#005851] text-xs font-medium"
+                  >
+                    {h.token}
+                  </span>
+                ))}
+              </div>
+              {INTRO_CONDITION_HINTS.map((h) => (
+                <p key={h.token} className="text-[11px] text-[#707070] mt-2 leading-snug">
+                  <span className="font-mono text-[#005851]">{h.token}</span> &mdash; {h.description}
+                </p>
+              ))}
             </div>
           </div>
 

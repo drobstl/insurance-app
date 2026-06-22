@@ -161,6 +161,10 @@ export function renderDialScript(template: string, ctx: DialScriptContext): stri
     agentphone: (ctx.agentPhone || '').trim(),
     agentnpn: (ctx.agentNpn || '').trim(),
     agentlicense: (ctx.agentLicense || '').trim(),
+    // Friendlier alias used by the lead intro text; same value as
+    // {agentlicense} (license # for the lead's state). Works in
+    // {#statelicensenumber}…{/statelicensenumber} blocks too.
+    statelicensenumber: (ctx.agentLicense || '').trim(),
     agencyname: (ctx.agencyName || '').trim(),
     leadfirstname: firstWord(ctx.leadFirstName),
     leadname: firstWord(ctx.leadFirstName),  // alias
