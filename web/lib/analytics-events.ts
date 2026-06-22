@@ -94,6 +94,12 @@ export const ANALYTICS_EVENTS = {
   // routes, with the agent's Firebase uid as distinct_id (same id the
   // client identifies with, so person profiles line up). Money truth
   // lives here: trial → paid, plan moves, cancel intent, dunning.
+  //
+  // TRIAL_STARTED is the funnel DENOMINATOR — fired server-side from
+  // /api/signup/trial the moment a no-card trial account is created.
+  // Without it there's no trial→paid conversion RATE, only raw paid
+  // counts (the gap that made revenue invisible in PostHog pre-Jun 22).
+  TRIAL_STARTED: 'trial_started',
   SUBSCRIPTION_ACTIVATED: 'subscription_activated',
   TRIAL_CONVERTED: 'trial_converted',
   SUBSCRIPTION_STATUS_CHANGED: 'subscription_status_changed',
@@ -107,6 +113,14 @@ export const ANALYTICS_EVENTS = {
   // (in-app commit) or subscription_activated (Checkout).
   UPSELL_CARD_VIEWED: 'upsell_card_viewed',
   UPSELL_CARD_CLICKED: 'upsell_card_clicked',
+  // Day-12 plan picker (PlanPickerGate) — the forced free-vs-paid
+  // decision at the back wall of the no-card trial. `shown` is the
+  // choice-point denominator; `choice` records which of the three cards
+  // the agent picked (growth / pro / free). The paid outcomes still land
+  // server-side (subscription_activated); the free outcome is captured
+  // by the choice event itself.
+  PLAN_PICKER_SHOWN: 'plan_picker_shown',
+  PLAN_PICKER_CHOICE: 'plan_picker_choice',
   // The sale itself — terminal step of the pre-sale leads funnel.
   // close_sale_started = the Close Sale ritual surface opened;
   // lead_converted = POST /api/leads/[id]/convert succeeded, from any
@@ -461,6 +475,17 @@ export type AnalyticsEventPropertiesMap = {
   // are RAW Stripe subscription statuses (trialing / active / past_due /
   // canceled / incomplete / unpaid), not the normalized Firestore field.
   // stripe_event_id is the webhook delivery id — for tracing dupes.
+  trial_started: {
+    // Only door that fires this today is the no-card trial form.
+    source?: 'no_card_trial';
+    // Always true at creation; kept explicit so a future resurrect/
+    // re-trial path can emit false without breaking the funnel.
+    new_account?: boolean;
+    // Came in through an agent-invite refCode.
+    referred?: boolean;
+    // Carried a FirstPromoter affiliate tid (paid-affiliate attribution).
+    has_affiliate?: boolean;
+  } & GenericEventProperties;
   subscription_activated: {
     tier?: string;
     on_trial?: boolean;
@@ -516,6 +541,16 @@ export type AnalyticsEventPropertiesMap = {
     // 'choose_plan' = coaching's Growth-or-Pro link to /pricing;
     // 'compare_plans' = the footer link to /pricing.
     cta?: 'upgrade_to_pro' | 'choose_plan' | 'compare_plans';
+  } & GenericEventProperties;
+  // ─── Day-12 plan picker (forced free-vs-paid choice) ────────────────
+  plan_picker_shown: {
+    days_left?: number;
+  } & GenericEventProperties;
+  plan_picker_choice: {
+    // 'free' = one-click Stay Free; 'growth'/'pro' = routed to Checkout
+    // (the activation then confirms server-side via subscription_activated).
+    choice?: 'growth' | 'pro' | 'free';
+    days_left?: number;
   } & GenericEventProperties;
   // ─── The close (terminal step of the pre-sale funnel) ───────────────
   close_sale_started: {

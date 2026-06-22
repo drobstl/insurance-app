@@ -1,9 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDashboard } from './DashboardContext';
 import { isTrialActive } from '../../lib/tier-gating';
 import { PRICING_TIERS } from '../../lib/pricing';
+import { captureEvent } from '../../lib/posthog';
+import { ANALYTICS_EVENTS } from '../../lib/analytics-events';
 
 /**
  * PlanPickerGate — the day-12 "back wall" of the no-card trial
@@ -48,6 +50,15 @@ export default function PlanPickerGate() {
     return trialEndsAtMs - Date.now() <= PICKER_WINDOW_MS;
   }, [user, agentProfile.membershipTier, trialEndsAtMs]);
 
+  // Choice-point denominator — fire once when the wall first appears.
+  // Lives above the early return so it obeys the rules of hooks; the
+  // `show` guard keeps it from firing for agents who never see the gate.
+  useEffect(() => {
+    if (!show || trialEndsAtMs == null) return;
+    const d = Math.max(1, Math.ceil((trialEndsAtMs - Date.now()) / DAY_MS));
+    captureEvent(ANALYTICS_EVENTS.PLAN_PICKER_SHOWN, { days_left: d });
+  }, [show, trialEndsAtMs]);
+
   if (!show) return null;
 
   const daysLeft = trialEndsAtMs
@@ -62,6 +73,7 @@ export default function PlanPickerGate() {
     if (!user || pending) return;
     setError(null);
     setPending(tier);
+    captureEvent(ANALYTICS_EVENTS.PLAN_PICKER_CHOICE, { choice: tier, days_left: daysLeft });
     try {
       const token = await user.getIdToken();
       const res = await fetch('/api/stripe/create-checkout-session', {
@@ -86,6 +98,7 @@ export default function PlanPickerGate() {
     if (!user || pending) return;
     setError(null);
     setPending('free');
+    captureEvent(ANALYTICS_EVENTS.PLAN_PICKER_CHOICE, { choice: 'free', days_left: daysLeft });
     try {
       const token = await user.getIdToken();
       const res = await fetch('/api/trial/stay-free', {
