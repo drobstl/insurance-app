@@ -439,6 +439,19 @@ function SubscriptionGate({ children }: { children: React.ReactNode }) {
 }
 
 const NAV_ITEMS = [
+  // Refer & Earn — agent-side affiliate program surface (May 31, 2026).
+  // Sourced from the May 30 growth + distribution lock; FirstPromoter
+  // is the underlying tracking provider (PR #58). Self-serve enrollment
+  // via /api/affiliate/create. Hidden gracefully if FIRSTPROMOTER_API_KEY
+  // / FIRSTPROMOTER_ACCOUNT_ID env vars aren't set yet — the page itself
+  // surfaces a "Coming soon" message in that case so we can ship the
+  // surface ahead of the FP key rollout. Leads the array so the flat
+  // (flag-off) rail shows it at the top, matching the grouped rail.
+  { key: 'refer-and-earn', path: '/dashboard/refer-and-earn', label: 'Refer & Earn', icon: (
+    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+    </svg>
+  )},
   { key: 'home', path: '/dashboard', label: 'Home', icon: (
     <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -499,18 +512,6 @@ const NAV_ITEMS = [
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
     </svg>
   )},
-  // Refer & Earn — agent-side affiliate program surface (May 31, 2026).
-  // Sourced from the May 30 growth + distribution lock; FirstPromoter
-  // is the underlying tracking provider (PR #58). Self-serve enrollment
-  // via /api/affiliate/create. Hidden gracefully if FIRSTPROMOTER_API_KEY
-  // / FIRSTPROMOTER_ACCOUNT_ID env vars aren't set yet — the page itself
-  // surfaces a "Coming soon" message in that case so we can ship the
-  // surface ahead of the FP key rollout.
-  { key: 'refer-and-earn', path: '/dashboard/refer-and-earn', label: 'Refer & Earn', icon: (
-    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
-    </svg>
-  )},
   { key: 'feedback', path: '/dashboard/feedback', label: 'Feedback', icon: (
     <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -545,10 +546,12 @@ const COACHING_NAV_ITEM = { key: 'coaching', path: '/dashboard/coaching', label:
 // gating (leads / activity / coaching accessibility) still applies.
 // Resources + Feedback intentionally live in the avatar menu, not here.
 const NAV_GROUPS: Array<{ label?: string; keys: string[] }> = [
+  // Refer & Earn leads the rail — it's the one nav item where the agent
+  // EARNS money, so it sits at the very top, above the daily-tool groups.
+  { keys: ['refer-and-earn'] },
   { label: 'Workspace', keys: ['home', 'leads', 'calendar', 'action-items'] },
   { label: 'Book', keys: ['clients', 'conservation', 'policy-reviews', 'referrals'] },
   { label: 'Performance', keys: ['activity', 'coaching'] },
-  { keys: ['refer-and-earn'] },
 ];
 const NAV_ITEM_BY_KEY = Object.fromEntries(
   NAV_ITEMS.map((item) => [item.key, item] as [string, (typeof NAV_ITEMS)[number]]),
@@ -820,9 +823,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         onClick={() => router.push(item.path)}
         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
           activeKey === item.key
-            ? 'bg-[#daf3f0] text-[#005851]'
+            ? isReferEarn
+              ? 'bg-[#f5c542] text-[#0D4D4D] shadow-sm shadow-[#f5c542]/40'
+              : 'bg-[#daf3f0] text-[#005851]'
             : isReferEarn
-              ? 'text-[#f5c542] hover:bg-[#f5c542]/10 hover:text-[#ffd860]'
+              ? 'bg-[#f5c542]/15 ring-1 ring-inset ring-[#f5c542]/40 text-[#ffd860] hover:bg-[#f5c542]/25 hover:ring-[#f5c542]/60 animate-[goldGlow_3s_ease-in-out_infinite]'
               : 'text-white/80 hover:bg-white/10 hover:text-white'
         }`}
       >
@@ -835,9 +840,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         {isReferEarn && activeKey !== item.key && (
           <span
             aria-hidden="true"
-            className="ml-auto text-[10px] font-bold text-[#f5c542]/90 tracking-widest"
+            className="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold tracking-wide bg-[#f5c542] text-[#0D4D4D]"
           >
-            $
+            EARN
           </span>
         )}
       </button>

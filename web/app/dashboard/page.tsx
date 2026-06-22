@@ -19,6 +19,7 @@ import BookHealthPopover from '../../components/BookHealthPopover';
 import BadgeCelebration from '../../components/BadgeCelebration';
 import PairPhoneBanner from '../../components/PairPhoneBanner';
 import EarlyAdopterBanner from '../../components/EarlyAdopterBanner';
+import ReferEarnPromoCard from '../../components/ReferEarnPromoCard';
 
 interface ActivityItem {
   id: string;
@@ -306,6 +307,12 @@ export default function DashboardHomePage() {
           <p className="text-sm text-[#707070] mt-1">total value created</p>
         </div>
       </div>
+
+      {/* ── Refer & Earn promo ─────────────────────────────────── */}
+      {/* Loud, static promo for the affiliate program. Sits right under
+          the APV hero, above the metric cards. See
+          components/ReferEarnPromoCard.tsx. */}
+      <ReferEarnPromoCard />
 
       {/* ── Next training session card ─────────────────────────── */}
       {/* Persistent reminder of the next weekly AFL training session
