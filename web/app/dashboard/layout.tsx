@@ -816,6 +816,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     // Refer & Earn gets a permanent gold accent — it's the one nav item
     // where the agent can EARN money, so it stands out from daily tools.
     const isReferEarn = item.key === 'refer-and-earn';
+    const isActive = activeKey === item.key;
     return (
       <button
         key={item.key}
@@ -823,11 +824,14 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         onClick={() => router.push(item.path)}
         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
           isReferEarn
-            // Always a solid gold pill — high static contrast against the
-            // dark rail makes it unmissable without any (annoying) motion.
-            // Active just adds an inset dark ring to read as "selected".
-            ? `bg-[#f5c542] text-[#0D4D4D] hover:bg-[#ffd860] ${activeKey === item.key ? 'ring-2 ring-inset ring-[#0D4D4D]/25' : ''}`
-            : activeKey === item.key
+            // Balanced gold: a crisp gold outline + bright gold text reads as
+            // distinct without a heavy fill. The loud solid-gold pill is
+            // reserved for when you're actually on the page (active), matching
+            // how the other items fill when active.
+            ? isActive
+              ? 'bg-[#f5c542] text-[#0D4D4D]'
+              : 'bg-[#f5c542]/10 ring-1 ring-inset ring-[#f5c542] text-[#f5c542] hover:bg-[#f5c542]/20'
+            : isActive
               ? 'bg-[#daf3f0] text-[#005851]'
               : 'text-white/80 hover:bg-white/10 hover:text-white'
         }`}
@@ -841,7 +845,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         {isReferEarn && (
           <span
             aria-hidden="true"
-            className="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold tracking-wide bg-[#0D4D4D] text-[#f5c542]"
+            className={`ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold tracking-wide ${
+              isActive ? 'bg-[#0D4D4D] text-[#f5c542]' : 'bg-[#f5c542] text-[#0D4D4D]'
+            }`}
           >
             EARN
           </span>
