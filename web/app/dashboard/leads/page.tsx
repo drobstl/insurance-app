@@ -281,11 +281,6 @@ function LeadsPageInner() {
   // data they're uploading before any bulk import runs. Reinforces the "your
   // book / your data" posture and the rights representation (see /trust).
   const [importConsent, setImportConsent] = useState(false);
-  // CSV-only "refresh" mode: when re-importing a spreadsheet, update leads we
-  // already have (matched by phone) in place instead of skipping them — keeps
-  // each lead's id, appointments, and dial history (no delete+recreate).
-  // Ignored by the PDF path.
-  const [csvUpdateExisting, setCsvUpdateExisting] = useState(false);
   // Hold-the-file: if a file is dropped/picked before consent is given, we
   // stash it here instead of throwing it away. Ticking the consent box then
   // auto-starts this file, so the agent never has to re-select after
@@ -796,7 +791,10 @@ function LeadsPageInner() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ rows: chunk, updateExisting: csvUpdateExisting }),
+          // A phone match on re-import refreshes the existing lead in place
+          // (keeping its appointments + history) when the names confirm it's
+          // the same person — handled server-side, no flag needed.
+          body: JSON.stringify({ rows: chunk }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -825,7 +823,7 @@ function LeadsPageInner() {
     } finally {
       setUploading(false);
     }
-  }, [user, csvUpdateExisting]);
+  }, [user]);
 
   // Dispatch a dropped/selected file to the PDF extractor or the CSV/Excel
   // importer based on type.
@@ -1677,18 +1675,6 @@ function LeadsPageInner() {
                 ) : (
                   'I confirm I have the right to upload and use this data.'
                 )}
-              </span>
-            </label>
-            <label className="mt-2 flex items-start gap-2 text-xs cursor-pointer select-none text-[#005851]">
-              <input
-                type="checkbox"
-                checked={csvUpdateExisting}
-                onChange={(e) => setCsvUpdateExisting(e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-[#005851]"
-              />
-              <span>
-                Re-importing a spreadsheet? Update leads I already have (matched by phone)
-                instead of skipping them — keeps their appointments and call history.
               </span>
             </label>
             {uploadError && (
