@@ -816,31 +816,38 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     // Refer & Earn gets a permanent gold accent — it's the one nav item
     // where the agent can EARN money, so it stands out from daily tools.
     const isReferEarn = item.key === 'refer-and-earn';
+    const isActive = activeKey === item.key;
     return (
       <button
         key={item.key}
         data-onboarding-target={item.key === 'clients' ? 'nav-clients' : undefined}
         onClick={() => router.push(item.path)}
         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 group relative ${
-          activeKey === item.key
-            ? isReferEarn
-              ? 'bg-[#f5c542] text-[#0D4D4D] shadow-sm shadow-[#f5c542]/40'
-              : 'bg-[#daf3f0] text-[#005851]'
-            : isReferEarn
-              ? 'bg-[#f5c542]/15 ring-1 ring-inset ring-[#f5c542]/40 text-[#ffd860] hover:bg-[#f5c542]/25 hover:ring-[#f5c542]/60 animate-[goldGlow_3s_ease-in-out_infinite]'
+          isReferEarn
+            // Balanced gold: a crisp gold outline + bright gold text reads as
+            // distinct without a heavy fill. The loud solid-gold pill is
+            // reserved for when you're actually on the page (active), matching
+            // how the other items fill when active.
+            ? isActive
+              ? 'bg-[#f5c542] text-[#0D4D4D]'
+              : 'bg-[#f5c542]/10 ring-1 ring-inset ring-[#f5c542] text-[#f5c542] hover:bg-[#f5c542]/20'
+            : isActive
+              ? 'bg-[#daf3f0] text-[#005851]'
               : 'text-white/80 hover:bg-white/10 hover:text-white'
         }`}
       >
         <div className="relative shrink-0">
           {item.icon}
         </div>
-        <span className="whitespace-nowrap overflow-hidden text-sm font-semibold opacity-100 w-auto">
+        <span className={`whitespace-nowrap overflow-hidden text-sm opacity-100 w-auto ${isReferEarn ? 'font-bold' : 'font-semibold'}`}>
           {item.label}
         </span>
-        {isReferEarn && activeKey !== item.key && (
+        {isReferEarn && (
           <span
             aria-hidden="true"
-            className="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold tracking-wide bg-[#f5c542] text-[#0D4D4D]"
+            className={`ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold tracking-wide ${
+              isActive ? 'bg-[#0D4D4D] text-[#f5c542]' : 'bg-[#f5c542] text-[#0D4D4D]'
+            }`}
           >
             EARN
           </span>

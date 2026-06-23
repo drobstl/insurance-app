@@ -299,6 +299,9 @@ export default function DashboardHomePage() {
       <PairPhoneBanner />
       <EarlyAdopterBanner />
       {/* ── Value Hero ─────────────────────────────────────────── */}
+      {/* APV on the left; the compact Refer & Earn promo fills the empty
+          space on the right (stacks below the number on mobile). See
+          components/ReferEarnPromoCard.tsx. */}
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6 mt-2 mb-8 md:mb-10">
         <div>
           <p className="text-5xl md:text-8xl font-extrabold text-[#005851] tracking-tight">
@@ -306,13 +309,8 @@ export default function DashboardHomePage() {
           </p>
           <p className="text-sm text-[#707070] mt-1">total value created</p>
         </div>
+        <ReferEarnPromoCard />
       </div>
-
-      {/* ── Refer & Earn promo ─────────────────────────────────── */}
-      {/* Loud, static promo for the affiliate program. Sits right under
-          the APV hero, above the metric cards. See
-          components/ReferEarnPromoCard.tsx. */}
-      <ReferEarnPromoCard />
 
       {/* ── Next training session card ─────────────────────────── */}
       {/* Persistent reminder of the next weekly AFL training session
