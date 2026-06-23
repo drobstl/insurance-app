@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import { REAL_CATEGORIES } from '../lib/coaching-playbook';
-import { carriersFromIds } from '../lib/presentation-carriers';
+import { carriersFromIds, type PresentationCarrier } from '../lib/presentation-carriers';
 
 /**
  * The fields the presentation reads off a lead. Kept local + loose so the
@@ -83,6 +83,29 @@ function NumField({
         />
       </div>
     </label>
+  );
+}
+
+function CarrierLogo({ carrier }: { carrier: PresentationCarrier }) {
+  const [errored, setErrored] = useState(false);
+  if (errored) {
+    return (
+      <span className="text-xs text-[#374151] bg-[#f4f6f5] border border-[#e5e7eb] rounded-md px-3 py-1.5 whitespace-nowrap">
+        {carrier.name}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center justify-center bg-white border border-[#e5e7eb] rounded-md px-3" style={{ height: 36 }}>
+      <img
+        src={carrier.logo || `/carriers/${carrier.id}.png`}
+        alt={carrier.name}
+        title={carrier.name}
+        onError={() => setErrored(true)}
+        className="w-auto object-contain"
+        style={{ maxHeight: 20, maxWidth: 120 }}
+      />
+    </span>
   );
 }
 
@@ -251,12 +274,7 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
             </div>
             <div className="flex flex-wrap gap-2 mb-3">
               {carriers.map((c) => (
-                <span
-                  key={c.id}
-                  className="text-xs text-[#374151] bg-[#f4f6f5] border border-[#e5e7eb] rounded-md px-3 py-1.5 whitespace-nowrap"
-                >
-                  {c.name}
-                </span>
+                <CarrierLogo key={c.id} carrier={c} />
               ))}
               {moreCount > 0 && (
                 <span className="text-xs text-[#707070] bg-[#f4f6f5] border border-[#e5e7eb] rounded-md px-3 py-1.5">
