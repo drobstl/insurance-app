@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import { REAL_CATEGORIES } from '../lib/coaching-playbook';
-import { carriersFromIds, type PresentationCarrier } from '../lib/presentation-carriers';
 
 /**
  * The fields the presentation reads off a lead. Kept local + loose so the
@@ -86,29 +85,6 @@ function NumField({
   );
 }
 
-function CarrierLogo({ carrier }: { carrier: PresentationCarrier }) {
-  const [errored, setErrored] = useState(false);
-  if (errored) {
-    return (
-      <span className="text-xs text-[#374151] bg-[#f4f6f5] border border-[#e5e7eb] rounded-md px-3 py-1.5 whitespace-nowrap">
-        {carrier.name}
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center justify-center bg-white border border-[#e5e7eb] rounded-md px-3" style={{ height: 36 }}>
-      <img
-        src={carrier.logo || `/carriers/${carrier.id}.png`}
-        alt={carrier.name}
-        title={carrier.name}
-        onError={() => setErrored(true)}
-        className="w-auto object-contain"
-        style={{ maxHeight: 20, maxWidth: 120 }}
-      />
-    </span>
-  );
-}
-
 export default function LeadPresentation({ lead, onClose }: { lead: PresentationLead; onClose: () => void }) {
   const { agentProfile } = useDashboard();
 
@@ -133,8 +109,6 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
     const [state, data] = leadState && lic[leadState] ? ([leadState, lic[leadState]] as const) : entries[0];
     return { state, number: data.number };
   }, [agentProfile?.licenses, leadState]);
-  const carriers = useMemo(() => carriersFromIds(agentProfile?.presentationCarriers), [agentProfile?.presentationCarriers]);
-  const moreCount = Math.max(0, 35 - carriers.length);
 
   // ── state ──
   const [idx, setIdx] = useState(0);
@@ -266,23 +240,12 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
             </div>
           </div>
           <div className="mt-8 border-t border-[#ececec] pt-5">
-            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-              <span className="text-sm text-[#374151]">35+ A-rated carriers to choose from</span>
-              <span className="inline-flex items-center gap-1.5 text-xs text-[#0F6E56] bg-[#daf3f0] rounded-md px-2.5 py-1">
-                <Icon path={P.star} className="w-3.5 h-3.5" /> A-rated &amp; A+ rated
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {carriers.map((c) => (
-                <CarrierLogo key={c.id} carrier={c} />
-              ))}
-              {moreCount > 0 && (
-                <span className="text-xs text-[#707070] bg-[#f4f6f5] border border-[#e5e7eb] rounded-md px-3 py-1.5">
-                  + {moreCount} more
-                </span>
-              )}
-            </div>
-            <div className="text-lg font-semibold text-[#0F6E56]">I don&apos;t work for any of them. I work for you.</div>
+            <img
+              src={agentProfile?.carrierStripBase64 ? `data:image/png;base64,${agentProfile.carrierStripBase64}` : '/carriers/strip.png'}
+              alt="A-rated carriers I shop"
+              className="w-full max-w-3xl mx-auto rounded-xl"
+            />
+            <div className="mt-4 text-center text-lg font-semibold text-[#0F6E56]">I don&apos;t work for any of them. I work for you.</div>
           </div>
         </div>
       ),

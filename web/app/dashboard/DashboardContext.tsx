@@ -120,11 +120,11 @@ export interface AgentProfile {
   /** Family photo shown on the Rapport credibility slide of the lead presentation. */
   familyPhotoBase64?: string;
   /**
-   * Carrier ids (keys of PRESENTATION_CARRIERS) the agent shows on the
-   * presentation's "A-rated carriers" strip. Empty/undefined → a curated
-   * default set is shown.
+   * Optional custom "A-rated carriers" strip image (base64) for the
+   * presentation's Rapport slide. Unset → the bundled default strip
+   * (web/public/carriers/strip.png).
    */
-  presentationCarriers?: string[];
+  carrierStripBase64?: string;
   referralMessage?: string;
   isFoundingMember?: boolean;
   schedulingUrl?: string;
