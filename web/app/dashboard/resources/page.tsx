@@ -25,7 +25,7 @@ const FAQ_ITEMS = [
   },
   {
     question: 'How do I turn on the referral AI?',
-    answer: 'Go to Settings, then the Referral & AI tab. Upload your business card and add a scheduling link first, then flip the toggle.',
+    answer: 'Go to Settings, then the Messages tab. Upload your business card and add a scheduling link first, then flip the toggle.',
     link: { href: '/dashboard/settings', label: 'Go to Settings' },
   },
   {
