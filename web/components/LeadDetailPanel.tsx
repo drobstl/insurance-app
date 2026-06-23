@@ -1471,16 +1471,18 @@ export default function LeadDetailPanel({
                   </svg>
                   {lead.introTextSentAt ? 'Intro sent ✓' : 'Text intro'}
                 </button>
-                <button
-                  onClick={() => setShowPresentation(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#005851] hover:bg-[#004440] text-white font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors text-sm"
-                  title="Open the guided R.E.A.L. appointment presentation for this lead"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h18v11H3z M8 20h8 M11 9l4 2.5-4 2.5z" />
-                  </svg>
-                  Present
-                </button>
+                {appointments.some((a) => a.status === 'scheduled') && (
+                  <button
+                    onClick={() => setShowPresentation(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-[#005851] hover:bg-[#004440] text-white font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors text-sm"
+                    title="Open the guided R.E.A.L. appointment presentation for this lead"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h18v11H3z M8 20h8 M11 9l4 2.5-4 2.5z" />
+                    </svg>
+                    Present
+                  </button>
+                )}
                 <button
                   onClick={() => setShowAppointmentPicker(true)}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-white text-[#0D4D4D] font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] hover:bg-[#f8f8f8] transition-colors text-sm"
