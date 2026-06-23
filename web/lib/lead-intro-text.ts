@@ -6,7 +6,7 @@ import { renderDialScript, type DialScriptContext } from './dial-script';
  * confirmation: pre-composed, editable, sent from the agent's own phone
  * (so it comes from their cell number, not a server).
  *
- * The template is per-agent customizable (Settings → Referral & AI,
+ * The template is per-agent customizable (Settings → Messages,
  * stored at `agents/{agentId}.introTextTemplate`) and falls back to
  * DEFAULT_INTRO_TEXT below. Token substitution + conditional blocks are
  * handled by the shared dial-script engine, so the vocabulary matches
