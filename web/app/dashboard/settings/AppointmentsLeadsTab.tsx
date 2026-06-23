@@ -1,0 +1,615 @@
+'use client';
+
+import { useCallback, useState } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
+import type { User } from 'firebase/auth';
+import { Upload as TusUpload } from 'tus-js-client';
+import type { AgentProfile } from '../DashboardContext';
+import { canAccessLeads } from '../../../lib/tier-gating';
+import {
+  MAX_LEAD_VIDEO_BYTES,
+  type LeadVideoItem,
+  type GoogleCalendarStatusResponse,
+  type SaveMessage,
+} from './settingsHelpers';
+
+/**
+ * Reusable upload list for FAQ + case-study video slots. Renders one
+ * row per existing item with a title input + preview/remove, plus a
+ * "+ Add" row for a new upload (title field + file picker).
+ */
+function LeadVideoList({
+  kind,
+  label,
+  items,
+  busyKey,
+  addingProgress,
+  onUpload,
+  onDelete,
+}: {
+  kind: 'faq' | 'caseStudy';
+  label: string;
+  items: LeadVideoItem[];
+  busyKey: string | null;
+  addingProgress: number | null;
+  onUpload: (file: File, slotId: string, title: string) => void;
+  onDelete: (slotId: string) => void;
+}) {
+  const [newTitle, setNewTitle] = useState('');
+  const handleNewFile = useCallback((file: File) => {
+    const slotId = `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const title = newTitle.trim() || 'Untitled video';
+    onUpload(file, slotId, title);
+    setNewTitle('');
+  }, [kind, newTitle, onUpload]);
+
+  return (
+    <div className="mb-5 pb-5 border-b border-[#ececec] last:border-b-0 last:pb-0 last:mb-0">
+      <h4 className="text-xs font-semibold text-[#374151] mb-2">{label}</h4>
+      {items.length === 0 && (
+        <p className="text-[11px] text-[#707070] mb-2">No videos uploaded yet.</p>
+      )}
+      <ul className="space-y-2 mb-3">
+        {items.map((item) => {
+          const itemBusy = busyKey === `${kind}:${item.id}`;
+          return (
+            <li key={item.id} className="flex items-center justify-between gap-3 rounded-[5px] border border-[#d0d0d0] bg-[#fafafa] px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-[#374151] truncate">{item.title || '(no title)'}</p>
+                {(item.iframeUrl || item.url) && (
+                  <a
+                    href={item.iframeUrl || item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10px] text-[#44bbaa] hover:text-[#005751] font-semibold"
+                  >
+                    Preview →
+                  </a>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => onDelete(item.id)}
+                disabled={itemBusy}
+                className="text-[11px] text-red-600 hover:text-red-800 font-semibold disabled:opacity-50"
+              >
+                {itemBusy ? 'Working…' : 'Remove'}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={newTitle}
+          onChange={(e) => setNewTitle(e.target.value)}
+          placeholder={kind === 'faq' ? 'e.g. Is this a sales pitch?' : 'e.g. How a real client handled this'}
+          className="flex-1 px-3 py-2 bg-white border border-[#d0d0d0] rounded-[5px] text-xs focus:outline-none focus:border-[#45bcaa]"
+        />
+        <label className={addingProgress !== null ? 'pointer-events-none' : ''}>
+          <input
+            type="file"
+            accept="video/mp4,video/quicktime,video/webm"
+            className="hidden"
+            disabled={addingProgress !== null}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) {
+                handleNewFile(f);
+                e.currentTarget.value = '';
+              }
+            }}
+          />
+          <span className={`inline-block px-3 py-2 text-xs font-semibold rounded-[5px] cursor-pointer whitespace-nowrap ${
+            addingProgress !== null
+              ? 'bg-gray-200 text-gray-500 cursor-default'
+              : 'bg-[#005851] hover:bg-[#004440] text-white'
+          }`}>
+            {addingProgress !== null ? `Uploading… ${addingProgress}%` : '+ Add'}
+          </span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+interface AppointmentsLeadsTabProps {
+  agentProfile: AgentProfile;
+  updateField: <K extends keyof AgentProfile>(key: K, value: AgentProfile[K]) => void;
+  user: User | null;
+  setAgentProfile: Dispatch<SetStateAction<AgentProfile>>;
+  setSaveMessage: (m: SaveMessage) => void;
+  /** Read-only — drives the "requires Google Calendar" hint on auto-Meet. */
+  googleCalendarStatus: GoogleCalendarStatusResponse['data'] | null;
+}
+
+export default function AppointmentsLeadsTab({
+  agentProfile,
+  updateField,
+  user,
+  setAgentProfile,
+  setSaveMessage,
+  googleCalendarStatus,
+}: AppointmentsLeadsTabProps) {
+  // ── Lead-home video uploads (Bunny.net Stream + TUS) ──
+  const [leadVideoBusy, setLeadVideoBusy] = useState<string | null>(null);
+  const [leadVideoProgress, setLeadVideoProgress] = useState<Record<string, number>>({});
+  const [leadVideoError, setLeadVideoError] = useState<string | null>(null);
+  // Local-only state for the intro title input. We initialize from
+  // the saved title (if any) and let the agent edit before uploading.
+  // The string lives here rather than on agentProfile so typing
+  // doesn't trigger Firestore writes on every keystroke.
+  const [introTitleDraft, setIntroTitleDraft] = useState<string>('');
+
+  const uploadLeadVideo = useCallback(async (params: {
+    file: File;
+    slot: 'intro' | 'faq' | 'caseStudy';
+    slotId?: string;
+    title?: string;
+  }) => {
+    if (!user) return;
+    if (params.file.size > MAX_LEAD_VIDEO_BYTES) {
+      const sizeMb = (params.file.size / 1024 / 1024).toFixed(0);
+      const msg = `That video is ${sizeMb} MB — max is 1 GB per video. Pick a smaller file.`;
+      setLeadVideoError(msg);
+      setSaveMessage({ type: 'error', text: msg });
+      return;
+    }
+    const busyKey = params.slot === 'intro' ? 'intro' : `${params.slot}:${params.slotId}`;
+    setLeadVideoBusy(busyKey);
+    setLeadVideoProgress((prev) => ({ ...prev, [busyKey]: 0 }));
+    setLeadVideoError(null);
+    try {
+      const token = await user.getIdToken();
+      const title = params.title || 'Intro';
+
+      // Step 1: provision Bunny.net upload endpoint. Sending the file size
+      // lets the server reject oversized files before minting the upload
+      // URL (the browser already capped above, but a malicious client
+      // could skip the browser cap).
+      const provRes = await fetch('/api/lead-content/upload-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ slot: params.slot, slotId: params.slotId, title, size: params.file.size }),
+      });
+      const provData = await provRes.json().catch(() => ({}));
+      if (!provRes.ok) throw new Error(provData?.error || `Could not start upload (${provRes.status})`);
+      const { videoId, uploadUrl, headers: uploadHeaders } = provData as {
+        videoId: string;
+        uploadUrl: string;
+        headers: Record<string, string>;
+      };
+
+      // Step 2: stream the file straight to Bunny via TUS (resumable, bypasses Vercel).
+      await new Promise<void>((resolve, reject) => {
+        const upload = new TusUpload(params.file, {
+          endpoint: uploadUrl,
+          headers: uploadHeaders,
+          metadata: { filetype: params.file.type, title },
+          chunkSize: 50 * 1024 * 1024,
+          retryDelays: [0, 1000, 3000, 5000, 10000],
+          onProgress: (sent, total) => {
+            setLeadVideoProgress((prev) => ({
+              ...prev,
+              [busyKey]: Math.min(99, Math.round((sent / total) * 100)),
+            }));
+          },
+          onSuccess: () => resolve(),
+          onError: (err) => reject(err instanceof Error ? err : new Error(String(err))),
+        });
+        upload.start();
+      });
+      setLeadVideoProgress((prev) => ({ ...prev, [busyKey]: 100 }));
+
+      // Step 3: persist the new entry on Firestore.
+      const commitRes = await fetch('/api/lead-content/commit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ slot: params.slot, slotId: params.slotId, title, videoId }),
+      });
+      const commitData = await commitRes.json().catch(() => ({}));
+      if (!commitRes.ok) throw new Error(commitData?.error || `Could not save video (${commitRes.status})`);
+
+      // Patch agentProfile.leadContent in-place so the UI updates immediately.
+      setAgentProfile((prev) => {
+        const next = { ...prev };
+        const lc = { ...(next.leadContent || {}) };
+        if (params.slot === 'intro') {
+          lc.intro = commitData.entry;
+        } else {
+          const arrKey = params.slot === 'faq' ? 'faqs' : 'caseStudies';
+          const current = (lc[arrKey] as LeadVideoItem[] | undefined) || [];
+          const arr: LeadVideoItem[] = [...current];
+          const idx = arr.findIndex((e) => e.id === params.slotId);
+          if (idx >= 0) arr[idx] = commitData.entry as LeadVideoItem;
+          else arr.push(commitData.entry as LeadVideoItem);
+          lc[arrKey] = arr;
+        }
+        next.leadContent = lc;
+        return next;
+      });
+      setSaveMessage({ type: 'success', text: 'Video uploaded.' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Upload failed';
+      setLeadVideoError(message);
+      setSaveMessage({ type: 'error', text: message });
+    } finally {
+      setLeadVideoBusy(null);
+      setLeadVideoProgress((prev) => {
+        const next = { ...prev };
+        delete next[busyKey];
+        return next;
+      });
+    }
+  }, [user, setAgentProfile, setSaveMessage]);
+
+  const deleteLeadVideo = useCallback(async (slot: 'intro' | 'faq' | 'caseStudy', slotId?: string) => {
+    if (!user) return;
+    const busyKey = slot === 'intro' ? 'intro' : `${slot}:${slotId}`;
+    setLeadVideoBusy(busyKey);
+    setLeadVideoError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/lead-content/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ slot, slotId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `Delete failed (${res.status})`);
+      setAgentProfile((prev) => {
+        const next = { ...prev };
+        const lc = { ...(next.leadContent || {}) };
+        if (slot === 'intro') {
+          delete lc.intro;
+        } else {
+          const arrKey = slot === 'faq' ? 'faqs' : 'caseStudies';
+          const arr: LeadVideoItem[] = ((lc[arrKey] as LeadVideoItem[] | undefined) || [])
+            .filter((e) => e.id !== slotId);
+          lc[arrKey] = arr;
+        }
+        next.leadContent = lc;
+        return next;
+      });
+      setSaveMessage({ type: 'success', text: 'Video removed.' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Delete failed';
+      setLeadVideoError(message);
+      setSaveMessage({ type: 'error', text: message });
+    } finally {
+      setLeadVideoBusy(null);
+    }
+  }, [user, setAgentProfile, setSaveMessage]);
+
+  return (
+    <div className="space-y-5">
+      {/* Appointment defaults — phone vs video, default meeting link, auto-Meet */}
+      <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+        <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Appointments</h3>
+
+        <div className="mb-4">
+          <label className="block text-xs font-semibold text-[#374151] mb-2">
+            Most of your appointments are:
+          </label>
+          <div className="inline-flex rounded-[5px] border border-[#d0d0d0] overflow-hidden">
+            <button
+              type="button"
+              onClick={() => updateField('appointmentMode', 'phone')}
+              className={`px-4 py-2 text-sm font-semibold transition-colors ${
+                (agentProfile.appointmentMode || 'phone') === 'phone'
+                  ? 'bg-[#005851] text-white'
+                  : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+              }`}
+            >
+              Phone
+            </button>
+            <button
+              type="button"
+              onClick={() => updateField('appointmentMode', 'video')}
+              className={`px-4 py-2 text-sm font-semibold transition-colors border-l border-[#d0d0d0] ${
+                agentProfile.appointmentMode === 'video'
+                  ? 'bg-[#005851] text-white'
+                  : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+              }`}
+            >
+              Video
+            </button>
+          </div>
+          <p className="text-[11px] text-[#707070] mt-1.5">
+            Sets the default when you book — you can override per appointment.
+          </p>
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-xs font-semibold text-[#374151] mb-2">
+            Send booking confirmations by:
+          </label>
+          <div className="inline-flex rounded-[5px] border border-[#d0d0d0] overflow-hidden">
+            <button
+              type="button"
+              onClick={() => updateField('confirmationChannel', 'text')}
+              className={`px-4 py-2 text-sm font-semibold transition-colors ${
+                (agentProfile.confirmationChannel || 'text') === 'text'
+                  ? 'bg-[#005851] text-white'
+                  : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+              }`}
+            >
+              Text
+            </button>
+            <button
+              type="button"
+              onClick={() => updateField('confirmationChannel', 'email')}
+              className={`px-4 py-2 text-sm font-semibold transition-colors border-l border-[#d0d0d0] ${
+                agentProfile.confirmationChannel === 'email'
+                  ? 'bg-[#005851] text-white'
+                  : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+              }`}
+            >
+              Email
+            </button>
+          </div>
+          <p className="text-[11px] text-[#707070] mt-1.5">
+            Your default when you send a confirmation — switchable per send. Email goes out from AgentForLife with your name, and replies come back to your inbox.
+          </p>
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-xs font-semibold text-[#374151] mb-1">
+            Auto push-reminder timing
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              max={24}
+              value={agentProfile.reminderPushHoursBefore ?? 1}
+              onChange={(e) => {
+                const v = e.target.value === '' ? 1 : Number(e.target.value);
+                updateField('reminderPushHoursBefore', Number.isFinite(v) ? v : 1);
+              }}
+              className="w-20 px-3 py-2 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+            />
+            <span className="text-sm text-[#374151]">hours before the appointment</span>
+          </div>
+          <p className="text-[11px] text-[#707070] mt-1">
+            If the lead has downloaded your app, AFL will auto-push a reminder this far before the appointment. Set to 0 to disable.
+          </p>
+        </div>
+
+        {agentProfile.appointmentMode === 'video' && (
+          <>
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-[#374151] mb-1">
+                Default meeting link
+              </label>
+              <input
+                type="url"
+                value={agentProfile.defaultMeetingLink || ''}
+                onChange={(e) => updateField('defaultMeetingLink', e.target.value)}
+                placeholder="https://zoom.us/j/123… or https://meet.google.com/abc-xyz"
+                className="w-full px-3 py-2 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+              />
+              <p className="text-[11px] text-[#707070] mt-1">
+                Your Zoom personal room or permanent Meet room. Used unless &quot;auto-create Google Meet&quot; is on.
+              </p>
+            </div>
+
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={agentProfile.autoCreateGoogleMeet ?? false}
+                onChange={(e) => updateField('autoCreateGoogleMeet', e.target.checked)}
+                className="mt-0.5"
+              />
+              <span className="text-sm text-[#374151] leading-snug">
+                Auto-create a unique Google Meet link for every video appointment
+                {!googleCalendarStatus && (
+                  <span className="block text-[11px] text-amber-700 mt-0.5">
+                    Requires Google Calendar connection (in Account).
+                  </span>
+                )}
+              </span>
+            </label>
+          </>
+        )}
+      </div>
+
+      {/* Lead-mode-gated settings: Dial persistence + Lead-home videos.
+          Both control surfaces that only exist when the agent can
+          actually access Leads — gated by the global flag + admin-only
+          mode + tier (Pro+). See web/lib/tier-gating.ts. The Dial script
+          (same gate) lives on the Messages tab. Hides entirely otherwise;
+          reappears the moment any axis of the gate opens (env flip, admin
+          grant, tier upgrade). */}
+      {canAccessLeads(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt) && <>
+        {/* Dial persistence — how many attempts on a lead before the
+            call queue auto-advances. Transient outcomes (no answer,
+            voicemail) count toward the threshold; terminal outcomes
+            (booked, do_not_call, not_interested, wrong_number,
+            callback_requested) always advance regardless. */}
+        <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+          <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Dial persistence</h3>
+          <p className="text-[11px] text-[#707070] mb-3">
+            How many times to dial a lead before the call queue moves on. Counts no-answer and voicemail outcomes; booked / wrong-number / not-interested / do-not-call / callback always advance immediately.
+          </p>
+          <div className="inline-flex rounded-[5px] border border-[#d0d0d0] overflow-hidden">
+            {([
+              { v: 1, label: 'Single', sub: '1 attempt' },
+              { v: 2, label: 'Double', sub: '2 attempts' },
+              { v: 3, label: 'Triple', sub: '3 attempts' },
+            ] as const).map((opt, idx) => {
+              const active = (agentProfile.dialPersistence ?? 1) === opt.v;
+              return (
+                <button
+                  key={opt.v}
+                  type="button"
+                  onClick={() => updateField('dialPersistence', opt.v)}
+                  className={`px-4 py-2 text-sm font-semibold transition-colors text-left ${idx > 0 ? 'border-l border-[#d0d0d0]' : ''} ${
+                    active
+                      ? 'bg-[#005851] text-white'
+                      : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                  }`}
+                >
+                  <div>{opt.label}</div>
+                  <div className={`text-[10px] font-normal ${active ? 'text-white/70' : 'text-[#707070]'}`}>
+                    {opt.sub}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Lead-home videos (Chunk 3). Per-agent overrides for the
+            intro / FAQ / case-study slots rendered in the mobile
+            lead-home screen. */}
+        <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+          <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Lead-home videos</h3>
+          <p className="text-[11px] text-[#707070] mb-4">
+            These videos play in your leads&apos; AFL app after they log in with their phone code. Without uploads the lead-home looks empty.
+          </p>
+
+          {/* Intro slot */}
+          <div className="mb-5 pb-5 border-b border-[#ececec]">
+            <div className="flex items-center justify-between mb-1">
+              <h4 className="text-xs font-semibold text-[#374151]">Intro video</h4>
+              {agentProfile.leadContent?.intro?.url && (
+                <button
+                  type="button"
+                  onClick={() => deleteLeadVideo('intro')}
+                  disabled={leadVideoBusy === 'intro'}
+                  className="text-[11px] text-red-600 hover:text-red-800 font-semibold disabled:opacity-50"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            {agentProfile.leadContent?.intro?.url ? (
+              <div className="rounded-[5px] border border-[#45bcaa]/30 bg-[#daf3f0]/40 px-3 py-2 mb-3">
+                <p className="text-sm font-medium text-[#005851]">
+                  {agentProfile.leadContent.intro.title || 'Uploaded'}
+                </p>
+                <a
+                  href={agentProfile.leadContent.intro.iframeUrl || agentProfile.leadContent.intro.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] text-[#44bbaa] hover:text-[#005751] font-semibold"
+                >
+                  Preview →
+                </a>
+              </div>
+            ) : (
+              <p className="text-[11px] text-[#707070] mb-2">Not uploaded yet.</p>
+            )}
+            {/* Title input — shown to the agent so the intro card on
+                the lead-home isn't stuck on the platform default
+                ("Welcome — what to do next"). Empty input falls back
+                to that default on upload. Pre-fills from whatever's
+                saved so the agent can edit-then-replace. */}
+            <label className="block text-[11px] font-semibold text-[#374151] mb-1">
+              Card title <span className="text-[#707070] font-normal">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={introTitleDraft || agentProfile.leadContent?.intro?.title || ''}
+              onChange={(e) => setIntroTitleDraft(e.target.value)}
+              placeholder="Welcome — what to do next"
+              maxLength={120}
+              className="w-full px-3 py-2 text-sm border border-[#d0d0d0] rounded-[5px] focus:outline-none focus:border-[#45bcaa] mb-2"
+            />
+            <label className="inline-block mt-1">
+              <input
+                type="file"
+                accept="video/mp4,video/quicktime,video/webm"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) {
+                    const title =
+                      introTitleDraft.trim() ||
+                      agentProfile.leadContent?.intro?.title ||
+                      'Welcome — what to do next';
+                    void uploadLeadVideo({ file: f, slot: 'intro', title });
+                    e.currentTarget.value = '';
+                  }
+                }}
+              />
+              <span className={`inline-block px-3 py-2 text-xs font-semibold rounded-[5px] cursor-pointer whitespace-nowrap ${
+                leadVideoBusy === 'intro'
+                  ? 'bg-gray-200 text-gray-500 cursor-default'
+                  : 'bg-[#005851] hover:bg-[#004440] text-white'
+              }`}>
+                {leadVideoBusy === 'intro'
+                  ? `Uploading… ${leadVideoProgress.intro ?? 0}%`
+                  : (agentProfile.leadContent?.intro?.url ? 'Replace' : 'Upload intro video')}
+              </span>
+            </label>
+
+            {/* App-link toggle (gated on a real intro video). Default
+                ON for Pro+, but locked until the agent records an intro
+                so booked leads never land on an empty prep page. When
+                on, booking confirmations carry the app-download link +
+                the lead's login code. */}
+            {(() => {
+              const hasIntro = Boolean(agentProfile.leadContent?.intro?.url?.trim());
+              return (
+                <div className="mt-4 pt-4 border-t border-[#ececec]">
+                  <label className={`flex items-start gap-2 ${hasIntro ? 'cursor-pointer' : 'cursor-default'}`}>
+                    <input
+                      type="checkbox"
+                      disabled={!hasIntro}
+                      checked={hasIntro && agentProfile.includeAppAccessInConfirmations !== false}
+                      onChange={(e) => updateField('includeAppAccessInConfirmations', e.target.checked)}
+                      className="mt-0.5 disabled:opacity-40"
+                    />
+                    <span className="text-sm text-[#374151] leading-snug">
+                      Include my app link + the lead&apos;s login code in booking confirmations
+                      <span className={`block text-[11px] mt-0.5 ${hasIntro ? 'text-[#707070]' : 'text-amber-700'}`}>
+                        {hasIntro
+                          ? 'Booked leads get a one-tap link to your branded prep page — your intro video plus a couple of quick questions — before you ever meet.'
+                          : 'Record your intro video first (above) so leads see a warm welcome, not an empty page. This unlocks the moment your intro is uploaded.'}
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* FAQs */}
+          <LeadVideoList
+            kind="faq"
+            label="FAQ videos"
+            items={agentProfile.leadContent?.faqs || []}
+            busyKey={leadVideoBusy}
+            addingProgress={leadVideoBusy?.startsWith('faq:') ? (leadVideoProgress[leadVideoBusy] ?? 0) : null}
+            onUpload={(file, slotId, title) => uploadLeadVideo({ file, slot: 'faq', slotId, title })}
+            onDelete={(slotId) => deleteLeadVideo('faq', slotId)}
+          />
+
+          {/* Case studies */}
+          <LeadVideoList
+            kind="caseStudy"
+            label="Case-study videos"
+            items={agentProfile.leadContent?.caseStudies || []}
+            busyKey={leadVideoBusy}
+            addingProgress={leadVideoBusy?.startsWith('caseStudy:') ? (leadVideoProgress[leadVideoBusy] ?? 0) : null}
+            onUpload={(file, slotId, title) => uploadLeadVideo({ file, slot: 'caseStudy', slotId, title })}
+            onDelete={(slotId) => deleteLeadVideo('caseStudy', slotId)}
+          />
+
+          {leadVideoError && (
+            <p className="text-xs text-red-600 mt-3">{leadVideoError}</p>
+          )}
+          <p className="text-[10px] text-[#707070] mt-3">
+            .mp4, .mov, or .webm. Up to 1 GB per video. Uploads stream directly to Bunny.net for transcoding and smooth playback on the lead-home screen.
+          </p>
+        </div>
+      </>}
+    </div>
+  );
+}
