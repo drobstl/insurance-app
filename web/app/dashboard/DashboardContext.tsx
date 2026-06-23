@@ -117,6 +117,14 @@ export interface AgentProfile {
   npn?: string;
   agencyLogoBase64?: string;
   businessCardBase64?: string;
+  /** Family photo shown on the Rapport credibility slide of the lead presentation. */
+  familyPhotoBase64?: string;
+  /**
+   * Optional custom "A-rated carriers" strip image (base64) for the
+   * presentation's Rapport slide. Unset → the bundled default strip
+   * (web/public/carriers/strip.png).
+   */
+  carrierStripBase64?: string;
   referralMessage?: string;
   isFoundingMember?: boolean;
   schedulingUrl?: string;

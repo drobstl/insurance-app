@@ -24,6 +24,7 @@ import { renderIntroText } from '../lib/lead-intro-text';
 import { useDraggablePanel } from '../lib/useDraggablePanel';
 import SendConfirmationDrawer from './SendConfirmationDrawer';
 import SendIntroDrawer from './SendIntroDrawer';
+import LeadPresentation from './LeadPresentation';
 import AppointmentFifResetControl from './AppointmentFifResetControl';
 import { isHttpUrl, type FifResetValue } from './FifResetCapture';
 import {
@@ -603,6 +604,7 @@ export default function LeadDetailPanel({
   // outcome — the picker's submit endpoint atomically creates the
   // appointment AND logs the 'booked' dial outcome in one round-trip.
   const [showAppointmentPicker, setShowAppointmentPicker] = useState(false);
+  const [showPresentation, setShowPresentation] = useState(false);
   const [reschedulingAppointmentId, setReschedulingAppointmentId] = useState<string | null>(null);
   const [cancellingAppointmentId, setCancellingAppointmentId] = useState<string | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
@@ -1468,6 +1470,16 @@ export default function LeadDetailPanel({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z" />
                   </svg>
                   {lead.introTextSentAt ? 'Intro sent ✓' : 'Text intro'}
+                </button>
+                <button
+                  onClick={() => setShowPresentation(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#005851] hover:bg-[#004440] text-white font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors text-sm"
+                  title="Open the guided R.E.A.L. appointment presentation for this lead"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h18v11H3z M8 20h8 M11 9l4 2.5-4 2.5z" />
+                  </svg>
+                  Present
                 </button>
                 <button
                   onClick={() => setShowAppointmentPicker(true)}
@@ -2647,6 +2659,9 @@ export default function LeadDetailPanel({
           which creates the client doc + mirrors + stamps the lead with
           convertedToClientId in one batch. Portaled to <body> so Call mode's
           transformed slide-belt ancestor can't clip this fixed overlay. */}
+      {showPresentation && lead && (
+        <LeadPresentation lead={lead} onClose={() => setShowPresentation(false)} />
+      )}
       {showConvertConfirm && lead && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div

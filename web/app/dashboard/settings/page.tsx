@@ -88,6 +88,8 @@ export default function SettingsPage() {
     agencyLogoBase64: agentProfile.agencyLogoBase64 || null,
     businessCardBase64: agentProfile.businessCardBase64 || null,
     photoBase64: agentProfile.photoBase64 || null,
+    familyPhotoBase64: agentProfile.familyPhotoBase64 || null,
+    carrierStripBase64: agentProfile.carrierStripBase64 || null,
     aiAssistantEnabled: agentProfile.aiAssistantEnabled ?? true,
     referralMessage: agentProfile.referralMessage || '',
     autoHolidayCards: agentProfile.autoHolidayCards ?? false,
@@ -116,6 +118,8 @@ export default function SettingsPage() {
     agentProfile.agencyLogoBase64,
     agentProfile.businessCardBase64,
     agentProfile.photoBase64,
+    agentProfile.familyPhotoBase64,
+    agentProfile.carrierStripBase64,
     agentProfile.aiAssistantEnabled,
     agentProfile.referralMessage,
     agentProfile.autoHolidayCards,
@@ -340,7 +344,7 @@ export default function SettingsPage() {
   }, [user]);
 
   const handleImageUpload = useCallback(
-    async (file: File, maxSize: number, field: 'photoBase64' | 'agencyLogoBase64' | 'businessCardBase64') => {
+    async (file: File, maxSize: number, field: 'photoBase64' | 'agencyLogoBase64' | 'businessCardBase64' | 'familyPhotoBase64' | 'carrierStripBase64') => {
       try {
         const base64 = await resizeImage(file, maxSize);
         updateField(field, base64);
@@ -400,6 +404,8 @@ export default function SettingsPage() {
         agencyLogoBase64: agentProfile.agencyLogoBase64 || null,
         businessCardBase64: agentProfile.businessCardBase64 || null,
         photoBase64: agentProfile.photoBase64 || null,
+        familyPhotoBase64: agentProfile.familyPhotoBase64 || null,
+        carrierStripBase64: agentProfile.carrierStripBase64 || null,
         aiAssistantEnabled: agentProfile.aiAssistantEnabled ?? true,
         referralMessage: agentProfile.referralMessage || '',
         autoHolidayCards: agentProfile.autoHolidayCards ?? false,
