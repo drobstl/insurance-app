@@ -58,6 +58,34 @@ const P = {
   heart: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
 };
 
+function NumField({
+  label,
+  value,
+  onChange,
+  prefix,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  prefix?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs text-[#707070]">{label}</span>
+      <div className="flex items-center border-b-2 border-[#e5e7eb] focus-within:border-[#45bcaa] transition-colors">
+        {prefix && <span className="text-[#707070]">{prefix}</span>}
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          inputMode="numeric"
+          placeholder="—"
+          className="w-full bg-transparent py-1.5 text-lg outline-none"
+        />
+      </div>
+    </label>
+  );
+}
+
 export default function LeadPresentation({ lead, onClose }: { lead: PresentationLead; onClose: () => void }) {
   const { agentProfile } = useDashboard();
 
@@ -125,7 +153,7 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
   }, []);
 
   const total = 8;
-  const go = (n: number) => setIdx((i) => Math.max(0, Math.min(total - 1, n)));
+  const go = (n: number) => setIdx(Math.max(0, Math.min(total - 1, n)));
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight') setIdx((i) => Math.min(total - 1, i + 1));
@@ -140,22 +168,6 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
   const eyebrow = (text: string, dark: boolean) => (
     <p className={cx('text-sm mb-3', dark ? 'text-[#9fd5cc]' : 'text-[#707070]')}>{text}</p>
   );
-  const DiscField = ({ label, k, prefix }: { label: string; k: keyof typeof disc; prefix?: string }) => (
-    <label className="block">
-      <span className="text-xs text-[#707070]">{label}</span>
-      <div className="flex items-center border-b-2 border-[#e5e7eb] focus-within:border-[#45bcaa] transition-colors">
-        {prefix && <span className="text-[#707070]">{prefix}</span>}
-        <input
-          value={disc[k]}
-          onChange={(e) => setDiscField(k, e.target.value)}
-          inputMode="numeric"
-          placeholder="—"
-          className="w-full bg-transparent py-1.5 text-lg outline-none"
-        />
-      </div>
-    </label>
-  );
-
   // ── slides ──
   const slides: Array<{ phase: string; dark: boolean; node: React.ReactNode }> = [
     // 0 — Cover (Rapport)
@@ -282,9 +294,9 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
           <div className="grid md:grid-cols-3 gap-8 mt-8">
             <div className="space-y-4">
               <div className="text-sm font-semibold text-[#0F6E56]">Mortgage</div>
-              <DiscField label="Balance" k="balance" prefix="$" />
-              <DiscField label="Monthly payment" k="payment" prefix="$" />
-              <DiscField label="Home value" k="homeValue" prefix="$" />
+              <NumField label="Balance" value={disc.balance} onChange={(v) => setDiscField('balance', v)} prefix="$" />
+              <NumField label="Monthly payment" value={disc.payment} onChange={(v) => setDiscField('payment', v)} prefix="$" />
+              <NumField label="Home value" value={disc.homeValue} onChange={(v) => setDiscField('homeValue', v)} prefix="$" />
             </div>
             <div className="space-y-4">
               <div className="text-sm font-semibold text-[#0F6E56]">Health</div>
@@ -301,8 +313,8 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
             </div>
             <div className="space-y-4">
               <div className="text-sm font-semibold text-[#0F6E56]">Money</div>
-              <DiscField label="Household income" k="income" prefix="$" />
-              <DiscField label="Existing coverage" k="existing" prefix="$" />
+              <NumField label="Household income" value={disc.income} onChange={(v) => setDiscField('income', v)} prefix="$" />
+              <NumField label="Existing coverage" value={disc.existing} onChange={(v) => setDiscField('existing', v)} prefix="$" />
             </div>
           </div>
           <p className="mt-8 text-sm text-[#707070]">This feeds the gap and your options — no paper, no whiteboard.</p>

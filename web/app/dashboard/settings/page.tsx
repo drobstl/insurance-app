@@ -16,6 +16,7 @@ import { useDashboard } from '../DashboardContext';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 import { PRICING_TIERS, type PricingTierId } from '../../../lib/pricing';
+import { PRESENTATION_CARRIERS } from '../../../lib/presentation-carriers';
 import StateLicensesSection from '../../../components/StateLicensesSection';
 import { DEFAULT_DIAL_SCRIPT, SCRIPT_TOKEN_HINTS, SCRIPT_CONDITION_HINTS } from '../../../lib/dial-script';
 import { DEFAULT_INTRO_TEXT, INTRO_TOKEN_HINTS, INTRO_CONDITION_HINTS } from '../../../lib/lead-intro-text';
@@ -301,6 +302,7 @@ export default function SettingsPage() {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const cardInputRef = useRef<HTMLInputElement>(null);
+  const familyInputRef = useRef<HTMLInputElement>(null);
   const saveInFlightRef = useRef(false);
   const autoSaveTimerRef = useRef<number | null>(null);
   const autosaveHydratedRef = useRef(false);
@@ -322,6 +324,8 @@ export default function SettingsPage() {
     agencyLogoBase64: agentProfile.agencyLogoBase64 || null,
     businessCardBase64: agentProfile.businessCardBase64 || null,
     photoBase64: agentProfile.photoBase64 || null,
+    familyPhotoBase64: agentProfile.familyPhotoBase64 || null,
+    presentationCarriers: agentProfile.presentationCarriers || [],
     aiAssistantEnabled: agentProfile.aiAssistantEnabled ?? true,
     referralMessage: agentProfile.referralMessage || '',
     autoHolidayCards: agentProfile.autoHolidayCards ?? false,
@@ -350,6 +354,8 @@ export default function SettingsPage() {
     agentProfile.agencyLogoBase64,
     agentProfile.businessCardBase64,
     agentProfile.photoBase64,
+    agentProfile.familyPhotoBase64,
+    agentProfile.presentationCarriers,
     agentProfile.aiAssistantEnabled,
     agentProfile.referralMessage,
     agentProfile.autoHolidayCards,
@@ -727,7 +733,7 @@ export default function SettingsPage() {
   }, [user, setAgentProfile]);
 
   const handleImageUpload = useCallback(
-    async (file: File, maxSize: number, field: 'photoBase64' | 'agencyLogoBase64' | 'businessCardBase64') => {
+    async (file: File, maxSize: number, field: 'photoBase64' | 'agencyLogoBase64' | 'businessCardBase64' | 'familyPhotoBase64') => {
       try {
         const base64 = await resizeImage(file, maxSize);
         updateField(field, base64);
@@ -787,6 +793,10 @@ export default function SettingsPage() {
         agencyLogoBase64: agentProfile.agencyLogoBase64 || null,
         businessCardBase64: agentProfile.businessCardBase64 || null,
         photoBase64: agentProfile.photoBase64 || null,
+        familyPhotoBase64: agentProfile.familyPhotoBase64 || null,
+        presentationCarriers: Array.isArray(agentProfile.presentationCarriers)
+          ? agentProfile.presentationCarriers.slice(0, 60)
+          : [],
         aiAssistantEnabled: agentProfile.aiAssistantEnabled ?? true,
         referralMessage: agentProfile.referralMessage || '',
         autoHolidayCards: agentProfile.autoHolidayCards ?? false,
@@ -1393,6 +1403,99 @@ export default function SettingsPage() {
                 <p className="text-xs text-[#707070] mt-1.5">Resized to 800px. Shown in your client-facing app.</p>
               </div>
             )}
+          </div>
+
+          {/* Family Photo — shown on the presentation's Rapport slide */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Family Photo</h3>
+            <p className="text-xs text-[#707070] mb-4">Shown on the &quot;a little about me&quot; slide of your lead presentation, next to your license.</p>
+            {agentProfile.familyPhotoBase64 ? (
+              <div className="space-y-3">
+                <img
+                  src={`data:image/jpeg;base64,${agentProfile.familyPhotoBase64}`}
+                  alt="Your family"
+                  className="w-full max-w-sm rounded-[5px] border border-gray-200"
+                />
+                <input
+                  ref={familyInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleImageUpload(f, 800, 'familyPhotoBase64');
+                  }}
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => familyInputRef.current?.click()}
+                    className="px-4 py-2 text-sm font-medium text-[#005851] border border-[#005851] rounded-[5px] hover:bg-[#005851] hover:text-white transition-colors"
+                  >
+                    Replace Photo
+                  </button>
+                  <button
+                    onClick={() => updateField('familyPhotoBase64', undefined)}
+                    className="px-4 py-2 text-sm font-medium text-[#707070] border border-gray-300 rounded-[5px] hover:bg-gray-50 transition-colors"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <input
+                  ref={familyInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleImageUpload(f, 800, 'familyPhotoBase64');
+                  }}
+                />
+                <button
+                  onClick={() => familyInputRef.current?.click()}
+                  className="w-full py-8 border-2 border-dashed border-gray-300 rounded-[5px] text-[#707070] text-sm hover:border-[#45bcaa] hover:text-[#005851] transition-colors flex flex-col items-center gap-2"
+                >
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a3 3 0 10-2-5.24" />
+                  </svg>
+                  Upload Family Photo
+                </button>
+                <p className="text-xs text-[#707070] mt-1.5">Resized to 800px. Builds trust at the start of the appointment.</p>
+              </div>
+            )}
+          </div>
+
+          {/* A-rated carriers — presentation strip */}
+          <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Carriers You Shop</h3>
+            <p className="text-xs text-[#707070] mb-4">Tick the A-rated carriers you&apos;re appointed with — they appear on your presentation&apos;s carrier strip. Leave all unticked to show a default set.</p>
+            <div className="flex flex-wrap gap-2">
+              {PRESENTATION_CARRIERS.map((c) => {
+                const selected = (agentProfile.presentationCarriers || []).includes(c.id);
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      const cur = agentProfile.presentationCarriers || [];
+                      updateField(
+                        'presentationCarriers',
+                        selected ? cur.filter((x) => x !== c.id) : [...cur, c.id],
+                      );
+                    }}
+                    className={
+                      'px-3 py-1.5 rounded-full text-xs border transition-colors ' +
+                      (selected
+                        ? 'bg-[#005851] text-white border-[#005851]'
+                        : 'bg-white text-[#707070] border-gray-300 hover:border-[#45bcaa]')
+                    }
+                  >
+                    {c.name}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
