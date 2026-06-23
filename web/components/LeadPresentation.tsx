@@ -55,6 +55,7 @@ const P = {
   users: 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a3 3 0 10-2-5.24',
   arrow: 'M14 5l7 7m0 0l-7 7m7-7H3',
   heart: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
+  adjust: 'M10 6H3M21 6h-4M14 6a2 2 0 11-4 0 2 2 0 014 0zM7 12H3m18 0h-9m1 0a2 2 0 11-4 0 2 2 0 014 0zM17 18H3m18 0h-1m-3 0a2 2 0 11-4 0 2 2 0 014 0z',
 };
 
 function NumField({
@@ -118,8 +119,10 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
   const [couple, setCouple] = useState<boolean>(lead.coborrowerStatus === 'Y' && hasSpouse);
   const [whoPasses, setWhoPasses] = useState<'you' | 'spouse'>('you');
   const [optTab, setOptTab] = useState<'payoff' | 'payment'>(age != null && age >= 60 ? 'payment' : 'payoff');
-  // Page "three ways" copy: the situational version for 60+/tobacco clients.
-  const olderFraming = (age != null && age >= 60) || lead.smokerStatus === 'Y';
+  // Page "three ways" copy: the situational version for older / health-impaired
+  // clients. Auto-on at 60+ (we don't store conditions like cancer/stroke/diabetes),
+  // with a subtle agent toggle to flip it for a younger client with health issues.
+  const [olderFraming, setOlderFraming] = useState(age != null && age >= 60);
   const [mostChosen, setMostChosen] = useState<{ payoff: number; payment: number }>({ payoff: 1, payment: 1 });
 
   const [disc, setDisc] = useState({
@@ -471,7 +474,17 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
       dark: false,
       node: (
         <div>
-          {eyebrow('Three ways to protect it', false)}
+          <div className="flex items-start justify-between">
+            {eyebrow('Three ways to protect it', false)}
+            <button
+              onClick={() => setOlderFraming((v) => !v)}
+              aria-label="Switch option framing"
+              title="Switch option framing"
+              className="opacity-20 hover:opacity-100 transition-opacity p-1 text-[#707070] shrink-0"
+            >
+              <Icon path={P.adjust} className="w-4 h-4" />
+            </button>
+          </div>
           <div className="space-y-3 mt-2">
             {(olderFraming
               ? [
