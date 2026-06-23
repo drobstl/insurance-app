@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useDashboard } from '../app/dashboard/DashboardContext';
-import { REAL_CATEGORIES } from '../lib/coaching-playbook';
 
 /**
  * The fields the presentation reads off a lead. Kept local + loose so the
@@ -12,8 +11,10 @@ import { REAL_CATEGORIES } from '../lib/coaching-playbook';
 export interface PresentationLead {
   name?: string;
   spouseName?: string;
+  spouseAgeYears?: number;
   ageYears?: number;
   dateOfBirth?: string;
+  gender?: 'M' | 'F';
   monthlyMortgageAmount?: number;
   mortgageDetails?: { balance?: number; lender?: string };
   smokerStatus?: 'Y' | 'N';
@@ -47,7 +48,6 @@ function Icon({ path, className }: { path: string; className?: string }) {
 }
 const P = {
   shield: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
-  star: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z',
   check: 'M5 13l4 4L19 7',
   left: 'M15 19l-7-7 7-7',
   right: 'M9 5l7 7-7 7',
@@ -89,9 +89,12 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
   const { agentProfile } = useDashboard();
 
   // ── derived: lead ──
-  const survivor = firstWord(lead.spouseName) || 'your family';
-  const leadFirst = firstWord(lead.name) || 'there';
+  const youFirst = firstWord(lead.name) || 'you';
+  const spouseFirst = firstWord(lead.spouseName);
+  const hasSpouse = !!spouseFirst;
+  const survivor = spouseFirst || 'your family';
   const age = lead.ageYears ?? ageFromDob(lead.dateOfBirth);
+  const spouseAge = lead.spouseAgeYears;
   const balance = lead.mortgageDetails?.balance;
   const payment = lead.monthlyMortgageAmount;
   const leadState = lead.address?.state;
@@ -112,33 +115,47 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
 
   // ── state ──
   const [idx, setIdx] = useState(0);
+  const [couple, setCouple] = useState<boolean>(lead.coborrowerStatus === 'Y' && hasSpouse);
+  const [whoPasses, setWhoPasses] = useState<'you' | 'spouse'>('you');
   const [optTab, setOptTab] = useState<'payoff' | 'payment'>(age != null && age >= 60 ? 'payment' : 'payoff');
+  // Page "three ways" copy: the situational version for 60+/tobacco clients.
+  const olderFraming = (age != null && age >= 60) || lead.smokerStatus === 'Y';
+  const [mostChosen, setMostChosen] = useState<{ payoff: number; payment: number }>({ payoff: 1, payment: 1 });
+
   const [disc, setDisc] = useState({
     balance: balance != null ? String(balance) : '',
     payment: payment != null ? String(payment) : '',
     homeValue: '',
-    income: '',
+    incomeYou: '',
+    incomeSpouse: '',
+    otherExpenses: '',
     existing: '',
-    continues: '',
+    continuesYou: '', // income that continues if YOU pass (default = spouse income)
+    continuesSpouse: '', // income that continues if SPOUSE passes (default = your income)
   });
-  const [payoffOpts, setPayoffOpts] = useState([
-    { label: 'Partial payoff', coverage: balance != null ? String(roundTo(balance / 2, 5000)) : '', price: '' },
-    { label: 'Full payoff', coverage: balance != null ? String(balance) : '', price: '' },
-    { label: 'Full payoff + cash value', coverage: balance != null ? String(balance) : '', price: '' },
-  ]);
-  const [paymentOpts, setPaymentOpts] = useState([
-    { label: '9 months of payments', price: '' },
-    { label: '1 year of payments', price: '' },
-    { label: '18 months of payments', price: '' },
-  ]);
-
   const setDiscField = (k: keyof typeof disc, v: string) => setDisc((d) => ({ ...d, [k]: v }));
 
-  // gap math
-  const need = toNum(disc.payment);
-  const continues = toNum(disc.continues);
-  const gap = Math.max(0, need - continues);
-  const coveredPct = need > 0 ? Math.min(100, Math.round((continues / need) * 100)) : 0;
+  const [payoffOpts, setPayoffOpts] = useState([
+    { label: 'Partial payoff', coverage: balance != null ? String(roundTo(balance / 2, 5000)) : '', priceYou: '', priceSpouse: '' },
+    { label: 'Full payoff', coverage: balance != null ? String(balance) : '', priceYou: '', priceSpouse: '' },
+    { label: 'Full payoff + cash value', coverage: balance != null ? String(balance) : '', priceYou: '', priceSpouse: '' },
+  ]);
+  const [paymentOpts, setPaymentOpts] = useState([
+    { label: '9 months of payments', coverage: '', priceYou: '', priceSpouse: '' },
+    { label: '1 year of payments', coverage: '', priceYou: '', priceSpouse: '' },
+    { label: '18 months of payments', coverage: '', priceYou: '', priceSpouse: '' },
+  ]);
+
+  // ── cash-flow math (all monthly) ──
+  const mortgage = toNum(disc.payment);
+  const otherExp = toNum(disc.otherExpenses);
+  const totalExpenses = mortgage + otherExp;
+  const incYou = toNum(disc.incomeYou);
+  const incSpouse = toNum(disc.incomeSpouse);
+  const overrideKey = whoPasses === 'you' ? 'continuesYou' : 'continuesSpouse';
+  const survivingDefault = whoPasses === 'you' ? (couple ? incSpouse : 0) : incYou;
+  const survivingIncome = disc[overrideKey].trim() !== '' ? toNum(disc[overrideKey]) : survivingDefault;
+  const passingName = whoPasses === 'you' ? youFirst : spouseFirst || 'your spouse';
 
   // body scroll lock + keyboard nav
   useEffect(() => {
@@ -161,19 +178,106 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  // ── shared bits ──
   const eyebrow = (text: string, dark: boolean) => (
     <p className={cx('text-sm mb-3', dark ? 'text-[#9fd5cc]' : 'text-[#707070]')}>{text}</p>
   );
+
+  // One gap scenario panel (expenses vs surviving income), scaled to a shared max.
+  const gapPanel = (title: string, expensesAmt: number) => {
+    const covered = Math.min(survivingIncome, expensesAmt);
+    const shortfall = Math.max(0, expensesAmt - survivingIncome);
+    const denom = totalExpenses > 0 ? totalExpenses : 1;
+    return (
+      <div className="flex-1">
+        <div className="flex items-center justify-between text-sm text-[#bfe4dd] mb-2">
+          <span>{title}</span>
+          <span>{fmtUsd(expensesAmt)}/mo</span>
+        </div>
+        <div className="h-7 rounded-md overflow-hidden bg-white/10 flex">
+          <div style={{ width: `${(covered / denom) * 100}%` }} className="bg-[#5DCAA5]" />
+          <div style={{ width: `${(shortfall / denom) * 100}%` }} className="bg-[#E24B4A]" />
+        </div>
+        <div className={cx('mt-3 text-2xl font-bold', shortfall > 0 ? 'text-[#ffb4b0]' : 'text-[#5DCAA5]')}>
+          {shortfall > 0 ? `${fmtUsd(shortfall)} short` : "They're covered"}
+        </div>
+      </div>
+    );
+  };
+
+  // One priced option card. Tapping the card body marks it "Most chosen".
+  const optionCard = (tab: 'payoff' | 'payment', opt: { label: string; coverage: string; priceYou: string; priceSpouse: string }, i: number) => {
+    const chosen = mostChosen[tab] === i;
+    const setter = tab === 'payoff' ? setPayoffOpts : setPaymentOpts;
+    const upd = (field: 'coverage' | 'priceYou' | 'priceSpouse', v: string) =>
+      setter((o) => o.map((x, j) => (j === i ? { ...x, [field]: v } : x)));
+    const priceInput = (val: string, field: 'priceYou' | 'priceSpouse', big: boolean) => (
+      <input
+        value={val}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => upd(field, e.target.value)}
+        inputMode="numeric"
+        placeholder="—"
+        className={cx(
+          'font-bold bg-transparent outline-none border-b-2 border-dashed border-[#cbd5d1] focus:border-[#45bcaa] text-[#1A1A1A]',
+          big ? 'text-3xl w-20' : 'text-lg w-16',
+        )}
+      />
+    );
+    return (
+      <div
+        key={opt.label}
+        onClick={() => setMostChosen((m) => ({ ...m, [tab]: i }))}
+        className={cx(
+          'rounded-xl border-2 p-5 bg-white relative cursor-pointer',
+          chosen ? 'border-[#0099FF]' : 'border-[#1A1A1A] border-r-[4px] border-b-[4px]',
+        )}
+      >
+        {chosen && (
+          <span className="absolute -top-3 left-4 bg-[#0099FF] text-white text-[11px] px-2.5 py-0.5 rounded-md">Most chosen</span>
+        )}
+        <div className="text-sm text-[#707070]">{opt.label}</div>
+        {couple ? (
+          <div className="mt-2 space-y-1.5">
+            {([['priceYou', youFirst], ['priceSpouse', spouseFirst || 'Spouse']] as const).map(([field, who]) => (
+              <div key={field} className="flex items-baseline gap-1.5">
+                <span className="text-xs text-[#707070] w-14 truncate">{who}</span>
+                <span className="text-lg font-bold text-[#1A1A1A]">$</span>
+                {priceInput(opt[field], field, false)}
+                <span className="text-xs text-[#707070]">/mo</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-1 flex items-baseline">
+            <span className="text-2xl font-bold text-[#1A1A1A]">$</span>
+            {priceInput(opt.priceYou, 'priceYou', true)}
+            <span className="text-sm text-[#707070] ml-1">/mo</span>
+          </div>
+        )}
+        {tab === 'payoff' && (
+          <div className="mt-3 text-sm text-[#707070]" onClick={(e) => e.stopPropagation()}>
+            Coverage $
+            <input
+              value={opt.coverage}
+              onChange={(e) => upd('coverage', e.target.value)}
+              inputMode="numeric"
+              placeholder="—"
+              className="w-24 bg-transparent outline-none border-b border-[#e5e7eb] focus:border-[#45bcaa] text-[#374151]"
+            />
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // ── slides ──
-  const slides: Array<{ phase: string; dark: boolean; node: React.ReactNode }> = [
-    // 0 — Cover (Rapport)
+  const slides: Array<{ dark: boolean; node: React.ReactNode }> = [
+    // 0 — Cover
     {
-      phase: 'rapport',
       dark: true,
       node: (
         <div>
-          {eyebrow(`Prepared for ${lead.name || survivor}`, true)}
+          {eyebrow(`Prepared for ${couple && hasSpouse ? `${youFirst} & ${spouseFirst}` : lead.name || survivor}`, true)}
           <h1 className="text-5xl md:text-6xl font-bold leading-[1.08]">A plan to keep your family in this home.</h1>
           <p className="mt-6 text-lg md:text-xl text-[#d6efea] max-w-2xl">
             I&apos;m an independent, licensed life insurance broker — here to find the plan that actually fits your family.
@@ -192,38 +296,28 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
         </div>
       ),
     },
-    // 1 — Credibility (Rapport)
+    // 1 — Credibility
     {
-      phase: 'rapport',
       dark: false,
       node: (
         <div className="w-full">
           <div className="grid md:grid-cols-[0.8fr_1.2fr] gap-8 items-center">
             <div>
-              {familyPhoto ? (
+              {familyPhoto && (
                 <img
                   src={`data:image/jpeg;base64,${familyPhoto}`}
                   alt="The agent's family"
                   className="rounded-2xl w-full object-cover"
                   style={{ maxHeight: 240 }}
                 />
-              ) : (
-                <div
-                  className="rounded-2xl border-2 border-dashed border-[#cbd5d1] bg-[#eef4f2] flex flex-col items-center justify-center text-[#9aa5a2]"
-                  style={{ height: 200 }}
-                >
-                  <Icon path={P.users} className="w-8 h-8" />
-                  <div className="text-sm mt-2">Your family photo</div>
-                  <div className="text-xs">Add it in Settings</div>
-                </div>
               )}
-              <div className="mt-4 inline-flex items-center gap-3 rounded-xl border-2 border-[#1A1A1A] border-r-[4px] border-b-[4px] bg-white px-4 py-3">
+              <div className={cx('inline-flex items-center gap-3 rounded-xl border-2 border-[#1A1A1A] border-r-[4px] border-b-[4px] bg-white px-4 py-3', familyPhoto && 'mt-4')}>
                 <Icon path={P.shield} className="w-6 h-6 text-[#0F6E56]" />
                 <div>
                   <div className="text-sm font-semibold text-[#1A1A1A]">Licensed life insurance broker</div>
-                  <div className="text-xs text-[#707070]">
-                    {licenseEntry ? `${licenseEntry.state} · License #${licenseEntry.number}` : 'Add your license in Settings'}
-                  </div>
+                  {licenseEntry && (
+                    <div className="text-xs text-[#707070]">{licenseEntry.state} · License #{licenseEntry.number}</div>
+                  )}
                 </div>
               </div>
             </div>
@@ -241,7 +335,7 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
           </div>
           <div className="mt-8 border-t border-[#ececec] pt-5">
             <img
-              src={agentProfile?.carrierStripBase64 ? `data:image/png;base64,${agentProfile.carrierStripBase64}` : '/carriers/strip.png'}
+              src={agentProfile?.carrierStripBase64 ? `data:image/jpeg;base64,${agentProfile.carrierStripBase64}` : '/carriers/strip.png'}
               alt="A-rated carriers I shop"
               className="w-full max-w-3xl mx-auto rounded-xl"
             />
@@ -250,29 +344,39 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
         </div>
       ),
     },
-    // 2 — Your concerns (Emotion)
+    // 2 — Your concerns
     {
-      phase: 'emotion',
       dark: false,
       node: (
         <div>
           {eyebrow('Understanding your concerns', false)}
           <h2 className="text-4xl md:text-5xl font-semibold leading-tight">
-            If something happened to you tomorrow — how long could {survivor} stay in this home?
+            {couple
+              ? `If something happened to ${youFirst} or ${spouseFirst} — how long could the other one keep this home?`
+              : `If something happened to you tomorrow — how long could ${survivor} stay in this home?`}
           </h2>
           <p className="mt-6 text-xl text-[#374151]">Most families can&apos;t carry the mortgage on one income for long.</p>
         </div>
       ),
     },
-    // 3 — Discovery (Emotion)
+    // 3 — Discovery
     {
-      phase: 'emotion',
       dark: false,
       node: (
         <div>
           {eyebrow("Let's map it out together", false)}
           <h2 className="text-3xl md:text-4xl font-semibold leading-tight">Here&apos;s what we know — we fill in the rest together.</h2>
-          <div className="grid md:grid-cols-3 gap-8 mt-8">
+          {hasSpouse && (
+            <div className="inline-flex rounded-lg border-2 border-[#1A1A1A] overflow-hidden text-sm mt-5">
+              <button onClick={() => setCouple(false)} className={cx('px-4 py-1.5', !couple ? 'bg-[#005851] text-white' : 'bg-white text-[#1A1A1A]')}>
+                Just {youFirst}
+              </button>
+              <button onClick={() => setCouple(true)} className={cx('px-4 py-1.5', couple ? 'bg-[#005851] text-white' : 'bg-white text-[#1A1A1A]')}>
+                {youFirst} &amp; {spouseFirst}
+              </button>
+            </div>
+          )}
+          <div className="grid md:grid-cols-3 gap-8 mt-6">
             <div className="space-y-4">
               <div className="text-sm font-semibold text-[#0F6E56]">Mortgage</div>
               <NumField label="Balance" value={disc.balance} onChange={(v) => setDiscField('balance', v)} prefix="$" />
@@ -282,9 +386,15 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
             <div className="space-y-4">
               <div className="text-sm font-semibold text-[#0F6E56]">Health</div>
               <div>
-                <div className="text-xs text-[#707070]">Age</div>
+                <div className="text-xs text-[#707070]">{couple ? `Age — ${youFirst}` : 'Age'}</div>
                 <div className="text-lg py-1.5 border-b-2 border-[#e5e7eb]">{age ?? '—'}</div>
               </div>
+              {couple && (
+                <div>
+                  <div className="text-xs text-[#707070]">Age — {spouseFirst}</div>
+                  <div className="text-lg py-1.5 border-b-2 border-[#e5e7eb]">{spouseAge ?? '—'}</div>
+                </div>
+              )}
               <div>
                 <div className="text-xs text-[#707070]">Tobacco</div>
                 <div className="text-lg py-1.5 border-b-2 border-[#e5e7eb]">
@@ -294,64 +404,87 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
             </div>
             <div className="space-y-4">
               <div className="text-sm font-semibold text-[#0F6E56]">Money</div>
-              <NumField label="Household income" value={disc.income} onChange={(v) => setDiscField('income', v)} prefix="$" />
+              <NumField label={couple ? `Monthly income — ${youFirst}` : 'Monthly income'} value={disc.incomeYou} onChange={(v) => setDiscField('incomeYou', v)} prefix="$" />
+              {couple && (
+                <NumField label={`Monthly income — ${spouseFirst}`} value={disc.incomeSpouse} onChange={(v) => setDiscField('incomeSpouse', v)} prefix="$" />
+              )}
+              <NumField label="Other monthly expenses" value={disc.otherExpenses} onChange={(v) => setDiscField('otherExpenses', v)} prefix="$" />
               <NumField label="Existing coverage" value={disc.existing} onChange={(v) => setDiscField('existing', v)} prefix="$" />
             </div>
           </div>
-          <p className="mt-8 text-sm text-[#707070]">This feeds the gap and your options — no paper, no whiteboard.</p>
         </div>
       ),
     },
-    // 4 — The gap (Emotion)
+    // 4 — The gap (cash-flow, before/after payoff)
     {
-      phase: 'emotion',
       dark: true,
       node: (
         <div>
-          {eyebrow(`What ${survivor} would actually face`, true)}
-          <h2 className="text-4xl md:text-5xl font-semibold leading-tight">Your paycheck stops. The mortgage doesn&apos;t.</h2>
-          {need > 0 ? (
-            <div className="mt-8 max-w-2xl">
-              <div className="flex items-center justify-between text-sm text-[#bfe4dd] mb-2">
-                <span>The mortgage payment</span>
-                <span>{fmtUsd(need)}/mo</span>
-              </div>
-              <div className="h-7 rounded-md overflow-hidden flex bg-white/10">
-                <div style={{ width: `${coveredPct}%` }} className="bg-[#5DCAA5]" />
-                <div style={{ width: `${100 - coveredPct}%` }} className="bg-[#E24B4A]" />
-              </div>
-              <label className="block mt-5 text-sm text-[#bfe4dd]">
+          {eyebrow('What your family would actually face', true)}
+          <h2 className="text-4xl md:text-5xl font-semibold leading-tight">
+            {couple ? `If ${passingName}'s income stops, the bills don't.` : "Your paycheck stops. The bills don't."}
+          </h2>
+          {totalExpenses > 0 ? (
+            <div className="mt-7 max-w-3xl">
+              {couple && (
+                <div className="inline-flex rounded-lg border border-white/30 overflow-hidden text-sm mb-5">
+                  {(['you', 'spouse'] as const).map((w) => (
+                    <button
+                      key={w}
+                      onClick={() => setWhoPasses(w)}
+                      className={cx('px-4 py-1.5', whoPasses === w ? 'bg-white text-[#005851] font-semibold' : 'text-[#d6efea]')}
+                    >
+                      If {w === 'you' ? youFirst : spouseFirst}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <label className="block text-sm text-[#bfe4dd] mb-6">
                 Income that would continue
                 <span className="ml-2">$</span>
                 <input
-                  value={disc.continues}
-                  onChange={(e) => setDiscField('continues', e.target.value)}
+                  value={disc[overrideKey]}
+                  onChange={(e) => setDiscField(overrideKey, e.target.value)}
                   inputMode="numeric"
-                  placeholder="0"
+                  placeholder={String(Math.round(survivingDefault))}
                   className="w-28 bg-transparent border-b border-white/40 text-white outline-none ml-1 py-1"
                 />
               </label>
-              <div className="mt-6 text-3xl font-bold text-[#ffb4b0]">{fmtUsd(gap)} short — every month.</div>
+              <div className="flex flex-col md:flex-row gap-8">
+                {gapPanel('Bills right now', totalExpenses)}
+                {gapPanel('With the home paid off', otherExp)}
+              </div>
+              {mortgage > 0 && (
+                <p className="mt-6 text-[#bfe4dd]">
+                  Paying off the home removes <span className="text-white font-semibold">{fmtUsd(mortgage)}</span> a month in bills.
+                </p>
+              )}
             </div>
           ) : (
-            <p className="mt-6 text-lg text-[#d6efea]">Add the mortgage payment on the discovery slide to show the gap.</p>
+            <p className="mt-6 text-lg text-[#d6efea]">Add the payment and monthly expenses on the previous slide to see the picture.</p>
           )}
         </div>
       ),
     },
-    // 5 — Three ways (Assumption)
+    // 5 — Three ways (situational)
     {
-      phase: 'assumption',
       dark: false,
       node: (
         <div>
           {eyebrow('Three ways to protect it', false)}
           <div className="space-y-3 mt-2">
-            {[
-              ['Full payoff', 'Wipes out the entire balance — your family owns the home free and clear.'],
-              ['Partial payoff', 'Covers part of it now — a more affordable starting place.'],
-              ['Payment protection', 'Covers the mortgage payments through the hardest months. Most common after 65.'],
-            ].map(([t, d]) => (
+            {(olderFraming
+              ? [
+                  ['Full payoff', 'The most coverage — but the most expensive and the hardest to qualify for. And as the balance drops over the years, you can end up paying for far more than you still owe.'],
+                  ['Partial payoff', 'A middle ground — still can be pricey and tougher to qualify for.'],
+                  ['Equity protection', "The most affordable and the easiest to qualify for. It protects your family's equity and buys them time — no panic decisions, room to make the call that's right for them. Time gives people options."],
+                ]
+              : [
+                  ['Full payoff', 'Wipes out the entire balance — your family owns the home free and clear.'],
+                  ['Partial payoff', 'Covers part of it now — a more affordable starting place.'],
+                  ['Payment protection', 'Covers the mortgage payments through the hardest months. Most common after 65.'],
+                ]
+            ).map(([t, d]) => (
               <div key={t} className="rounded-xl border-2 border-[#1A1A1A] border-r-[4px] border-b-[4px] bg-white px-5 py-4">
                 <span className="font-semibold text-[#1A1A1A]">{t}</span>
                 <span className="text-[#374151]"> — {d}</span>
@@ -367,9 +500,8 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
         </div>
       ),
     },
-    // 6 — Options (Assumption)
+    // 6 — Options
     {
-      phase: 'assumption',
       dark: false,
       node: (
         <div>
@@ -388,85 +520,13 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
             </div>
           </div>
           <div className="grid md:grid-cols-3 gap-4">
-            {optTab === 'payoff'
-              ? payoffOpts.map((opt, i) => (
-                  <div
-                    key={opt.label}
-                    className={cx(
-                      'rounded-xl border-2 p-5 bg-white relative',
-                      i === 1 ? 'border-[#0099FF]' : 'border-[#1A1A1A] border-r-[4px] border-b-[4px]',
-                    )}
-                  >
-                    {i === 1 && (
-                      <span className="absolute -top-3 left-4 bg-[#0099FF] text-white text-[11px] px-2.5 py-0.5 rounded-md">
-                        Most chosen
-                      </span>
-                    )}
-                    <div className="text-sm text-[#707070]">{opt.label}</div>
-                    <div className="mt-1 flex items-baseline">
-                      <span className="text-2xl font-bold text-[#1A1A1A]">$</span>
-                      <input
-                        value={opt.price}
-                        onChange={(e) => setPayoffOpts((o) => o.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))}
-                        inputMode="numeric"
-                        placeholder="—"
-                        className="text-3xl font-bold w-20 bg-transparent outline-none border-b-2 border-dashed border-[#cbd5d1] focus:border-[#45bcaa] text-[#1A1A1A]"
-                      />
-                      <span className="text-sm text-[#707070] ml-1">/mo</span>
-                    </div>
-                    <div className="mt-3 text-sm text-[#707070]">
-                      Coverage $
-                      <input
-                        value={opt.coverage}
-                        onChange={(e) =>
-                          setPayoffOpts((o) => o.map((x, j) => (j === i ? { ...x, coverage: e.target.value } : x)))
-                        }
-                        inputMode="numeric"
-                        placeholder="—"
-                        className="w-24 bg-transparent outline-none border-b border-[#e5e7eb] focus:border-[#45bcaa] text-[#374151]"
-                      />
-                    </div>
-                  </div>
-                ))
-              : paymentOpts.map((opt, i) => (
-                  <div
-                    key={opt.label}
-                    className={cx(
-                      'rounded-xl border-2 p-5 bg-white relative',
-                      i === 1 ? 'border-[#0099FF]' : 'border-[#1A1A1A] border-r-[4px] border-b-[4px]',
-                    )}
-                  >
-                    {i === 1 && (
-                      <span className="absolute -top-3 left-4 bg-[#0099FF] text-white text-[11px] px-2.5 py-0.5 rounded-md">
-                        Most chosen
-                      </span>
-                    )}
-                    <div className="text-sm text-[#707070]">{opt.label}</div>
-                    <div className="mt-1 flex items-baseline">
-                      <span className="text-2xl font-bold text-[#1A1A1A]">$</span>
-                      <input
-                        value={opt.price}
-                        onChange={(e) =>
-                          setPaymentOpts((o) => o.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))
-                        }
-                        inputMode="numeric"
-                        placeholder="—"
-                        className="text-3xl font-bold w-20 bg-transparent outline-none border-b-2 border-dashed border-[#cbd5d1] focus:border-[#45bcaa] text-[#1A1A1A]"
-                      />
-                      <span className="text-sm text-[#707070] ml-1">/mo</span>
-                    </div>
-                  </div>
-                ))}
+            {(optTab === 'payoff' ? payoffOpts : paymentOpts).map((opt, i) => optionCard(optTab, opt, i))}
           </div>
-          <p className="mt-5 text-sm text-[#707070]">
-            Auto-picked to match {leadFirst}&apos;s age &amp; health — flip the switch any time.
-          </p>
         </div>
       ),
     },
-    // 7 — Lock it down (Lock)
+    // 7 — Lock it down
     {
-      phase: 'lock_it_down',
       dark: true,
       node: (
         <div>
@@ -503,31 +563,12 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
       className="fixed inset-0 z-[100] flex flex-col"
       style={{ background: dark ? 'linear-gradient(160deg,#00403B 0%,#005851 100%)' : '#f7faf9' }}
     >
-      {/* Top bar: R.E.A.L. spine + counter + close */}
-      <div className="flex items-center justify-between px-5 md:px-8 py-4">
-        <div className="flex gap-2">
-          {REAL_CATEGORIES.map((cat) => {
-            const active = cat.key === current.phase;
-            return (
-              <div
-                key={cat.key}
-                className={cx(
-                  'px-3 py-1.5 rounded-md text-xs flex items-center gap-1.5',
-                  active ? 'bg-[#005851] text-white' : dark ? 'bg-white/10 text-white/70' : 'bg-[#eef2f1] text-[#707070]',
-                )}
-              >
-                <span className="font-bold">{cat.letter}</span>
-                <span className="hidden sm:inline">{cat.label}</span>
-              </div>
-            );
-          })}
-        </div>
-        <div className={cx('flex items-center gap-4', dark ? 'text-white/80' : 'text-[#707070]')}>
-          <span className="text-sm">{idx + 1} / {total}</span>
-          <button onClick={onClose} aria-label="Close presentation" className="p-1.5 rounded-md hover:bg-black/10">
-            <Icon path={P.x} className="w-5 h-5" />
-          </button>
-        </div>
+      {/* Top bar: slide counter + close. (No sales-framework labels — the lead sees this screen.) */}
+      <div className={cx('flex items-center justify-end gap-4 px-5 md:px-8 py-4', dark ? 'text-white/80' : 'text-[#707070]')}>
+        <span className="text-sm">{idx + 1} / {total}</span>
+        <button onClick={onClose} aria-label="Close presentation" className="p-1.5 rounded-md hover:bg-black/10">
+          <Icon path={P.x} className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Slide */}
@@ -557,10 +598,7 @@ export default function LeadPresentation({ lead, onClose }: { lead: Presentation
               key={i}
               onClick={() => go(i)}
               aria-label={`Go to slide ${i + 1}`}
-              className={cx(
-                'w-2 h-2 rounded-full transition-colors',
-                i === idx ? 'bg-[#45bcaa]' : dark ? 'bg-white/30' : 'bg-[#cbd5d1]',
-              )}
+              className={cx('w-2 h-2 rounded-full transition-colors', i === idx ? 'bg-[#45bcaa]' : dark ? 'bg-white/30' : 'bg-[#cbd5d1]')}
             />
           ))}
         </div>
