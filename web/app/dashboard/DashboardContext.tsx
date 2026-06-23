@@ -127,6 +127,9 @@ export interface AgentProfile {
   anniversaryMessageCustomTitle?: string;
   policyReviewAIEnabled?: boolean;
   welcomeSmsTemplate?: string;
+  /** Optional "teed up" first-touch intro SMS, customizable per agent.
+   *  Falls back to DEFAULT_INTRO_TEXT (lib/lead-intro-text.ts). */
+  introTextTemplate?: string;
   skipWelcomeSmsConfirmation?: boolean;
   forwardInboundSms?: boolean;
   onboardingComplete?: boolean;
@@ -367,6 +370,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           anniversaryMessageCustomTitle: data.anniversaryMessageCustomTitle,
           policyReviewAIEnabled: data.policyReviewAIEnabled,
           welcomeSmsTemplate: data.welcomeSmsTemplate,
+          introTextTemplate: typeof data.introTextTemplate === 'string' ? data.introTextTemplate : undefined,
           skipWelcomeSmsConfirmation: data.skipWelcomeSmsConfirmation,
           forwardInboundSms: data.forwardInboundSms,
           onboardingComplete: data.onboardingComplete,

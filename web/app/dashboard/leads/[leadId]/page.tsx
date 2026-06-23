@@ -17,6 +17,9 @@ export default function LeadDetailPage() {
   // on macOS. The panel auto-opens the send-confirmation drawer for
   // this appointment and strips the param from the URL.
   const openConfirmationParam = searchParams?.get('openConfirmation') ?? null;
+  // Deep-link from the intro-text QR hand-off — auto-opens the intro
+  // drawer on the phone so the agent sends from their own number.
+  const openIntroParam = searchParams?.get('openIntro') === '1';
 
   const { user, agentProfile, profileLoading } = useDashboard();
 
@@ -78,6 +81,7 @@ export default function LeadDetailPage() {
             key={leadId}
             leadId={leadId}
             initialOpenConfirmationApptId={openConfirmationParam}
+            initialOpenIntro={openIntroParam}
             onConverted={() => router.push('/dashboard/clients')}
             onDeleted={() => router.push('/dashboard/leads')}
             onRequestCloseSale={(leadSnapshot) => {

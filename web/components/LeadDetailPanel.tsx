@@ -20,8 +20,10 @@ import AppointmentPicker from './AppointmentPicker';
 import DoNotContactToggle from './DoNotContactToggle';
 import Link from 'next/link';
 import { DEFAULT_DIAL_SCRIPT, renderDialScript } from '../lib/dial-script';
+import { renderIntroText } from '../lib/lead-intro-text';
 import { useDraggablePanel } from '../lib/useDraggablePanel';
 import SendConfirmationDrawer from './SendConfirmationDrawer';
+import SendIntroDrawer from './SendIntroDrawer';
 import AppointmentFifResetControl from './AppointmentFifResetControl';
 import { isHttpUrl, type FifResetValue } from './FifResetCapture';
 import {
@@ -87,6 +89,10 @@ interface Lead {
   dialLog?: Array<{ at: Timestamp; outcome: DialOutcome; notes?: string; phoneDialed?: string }>;
   lastDialAt?: Timestamp | null;
   lastDialOutcome?: DialOutcome;
+
+  // Intro text (teed-up first-touch SMS). Stamped on send intent by
+  // POST /api/leads/[leadId]/intro-sent; drives the "Intro sent ✓" state.
+  introTextSentAt?: Timestamp | null;
 
   // Attachment dedup (Chunk 4f). Tracks what's already been sent to
   // this lead so confirmation + reminder sends don't re-attach files
@@ -431,6 +437,9 @@ export interface LeadDetailPanelProps {
   // search-param value (the QR-scan hand-off from macOS). Queue right-pane
   // never passes this.
   initialOpenConfirmationApptId?: string | null;
+  /** When true (intro-text QR hand-off `?openIntro=1`), auto-open the
+   *  intro drawer on mount and strip the param. */
+  initialOpenIntro?: boolean;
   // Bumping the nonce auto-fires `tel:` for the given phone and opens
   // the outcome prompt. Used by the call-queue right-pane so the row's
   // Call button performs "select + dial" in one motion. The parent picks
@@ -489,6 +498,7 @@ export interface LeadDetailPanelProps {
 export default function LeadDetailPanel({
   leadId,
   initialOpenConfirmationApptId,
+  initialOpenIntro,
   pendingDial,
   onConverted,
   onDeleted,
@@ -640,6 +650,8 @@ export default function LeadDetailPanel({
     appointmentId: string;
     scheduledAt: Date | null;
   } | null>(null);
+  // Intro-text drawer (teed-up first-touch SMS).
+  const [introOpen, setIntroOpen] = useState(false);
   // Drawer-dismiss advance gate. Set TRUE when the drawer is opened
   // from the just-booked flow (AppointmentPicker.onBooked) so the queue
   // parent advances to the next lead only after the agent finishes
@@ -667,6 +679,21 @@ export default function LeadDetailPanel({
       window.history.replaceState({}, '', url.toString());
     }
   }, [openConfirmationParam, appointments]);
+
+  // Auto-open the intro drawer from the ?openIntro=1 QR hand-off, then
+  // strip the param so a refresh doesn't re-open it.
+  const introHandoffOpenedRef = useRef(false);
+  useEffect(() => {
+    if (introHandoffOpenedRef.current) return;
+    if (!initialOpenIntro) return;
+    setIntroOpen(true);
+    introHandoffOpenedRef.current = true;
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('openIntro');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [initialOpenIntro]);
 
   // ── Live lead doc ──
   useEffect(() => {
@@ -1428,6 +1455,20 @@ export default function LeadDetailPanel({
           {!lead.convertedToClientId && (
             <div className="mt-3 space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => setIntroOpen(true)}
+                  className={`inline-flex items-center gap-2 px-4 py-2 font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors text-sm ${
+                    lead.introTextSentAt
+                      ? 'bg-[#daf3f0] text-[#005851] hover:bg-[#cdeee9]'
+                      : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                  }`}
+                  title="Send the teed-up intro text to this lead"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z" />
+                  </svg>
+                  {lead.introTextSentAt ? 'Intro sent ✓' : 'Text intro'}
+                </button>
                 <button
                   onClick={() => setShowAppointmentPicker(true)}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-white text-[#0D4D4D] font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] hover:bg-[#f8f8f8] transition-colors text-sm"
@@ -2551,6 +2592,45 @@ export default function LeadDetailPanel({
                 onOutcomeLogged?.('booked');
               }
             }}
+          />
+        );
+      })()}
+
+      {/* Intro-text drawer (teed-up first-touch SMS). Composes the
+          per-agent template via renderIntroText (tokens filled from the
+          lead + agent profile), then hands off to the agent's phone
+          (sms: / QR). The drawer portals itself to <body> so Call mode's
+          slide-belt can't clip it. */}
+      {introOpen && lead && (() => {
+        const leadStateCode = (lead.address?.state || '').toUpperCase();
+        const introMessage = renderIntroText(agentProfile.introTextTemplate || '', {
+          agentFirstName: agentProfile.name || '',
+          agentFullName: agentProfile.name || '',
+          agentPhone: agentProfile.phoneNumber || '',
+          agentNpn: agentProfile.npn || '',
+          agentLicense: (leadStateCode && agentProfile.licenses?.[leadStateCode]?.number) || '',
+          agencyName: agentProfile.agencyName || '',
+          leadFirstName: lead.name || '',
+          leadFullName: lead.name || '',
+          leadAge: lead.ageYears ?? ageFromDob(lead.dateOfBirth),
+          leadCity: lead.address?.city || '',
+          leadState: lead.address?.state || '',
+          leadPhone: lead.phone || '',
+          tobaccoUse: lead.smokerStatus,
+          mortgageAmount: typeof lead.mortgageDetails?.balance === 'number'
+            ? lead.mortgageDetails.balance
+            : null,
+          spouseName: lead.spouseName || '',
+        });
+        return (
+          <SendIntroDrawer
+            user={user}
+            leadId={lead.id}
+            leadName={lead.name || ''}
+            leadPhone={lead.phone || ''}
+            initialMessage={introMessage}
+            onSent={() => setIntroOpen(false)}
+            onCancel={() => setIntroOpen(false)}
           />
         );
       })()}
