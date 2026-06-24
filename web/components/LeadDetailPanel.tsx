@@ -26,6 +26,7 @@ import SendConfirmationDrawer from './SendConfirmationDrawer';
 import SendIntroDrawer from './SendIntroDrawer';
 import LeadPresentation from './LeadPresentation';
 import HouseholdEditor from './HouseholdEditor';
+import PeopleEditor from './PeopleEditor';
 import AppointmentFifResetControl from './AppointmentFifResetControl';
 import { isHttpUrl, type FifResetValue } from './FifResetCapture';
 import {
@@ -1842,7 +1843,7 @@ export default function LeadDetailPanel({
         </div>
       )}
 
-      <HouseholdEditor leadId={leadId} leadName={lead.name} />
+      <PeopleEditor leadId={leadId} leadName={lead.name} />
 
       {/* Lead profile fields. Editable underwriting basics — none of
           these drive the lead code, so corrections here are harmless. */}
@@ -2651,6 +2652,8 @@ export default function LeadDetailPanel({
           />
         );
       })()}
+
+      <HouseholdEditor leadId={leadId} leadName={lead.name} />
 
       {/* Close Sale ritual is rendered by the PARENT (queue page or
           standalone lead route), NOT here. Reason: Card 1's success

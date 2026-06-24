@@ -253,6 +253,14 @@ export async function POST(
       clientPayload.notes = notes;
       clientPayload.notesUpdatedAt = now;
     }
+    // Carry the primary's underwriting basics + the captured household snapshot
+    // (people + financials) onto the per-agent client doc so they aren't lost on
+    // conversion. Kept off the top-level mirror (it's the lighter public index).
+    if (leadData.gender) clientPayload.gender = leadData.gender;
+    if (leadData.smokerStatus) clientPayload.smokerStatus = leadData.smokerStatus;
+    if (leadData.heightText) clientPayload.heightText = leadData.heightText;
+    if (typeof leadData.weightLbs === 'number') clientPayload.weightLbs = leadData.weightLbs;
+    if (leadData.household && typeof leadData.household === 'object') clientPayload.household = leadData.household;
 
     // Top-level mirrors (matches the existing Add Client flow). Keep the
     // gap-filled contact values in sync with the per-agent doc above.

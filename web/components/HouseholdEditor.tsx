@@ -1,11 +1,10 @@
 'use client';
 
-import { useLeadHousehold, firstWord, toNum, type IncomeItem } from '../lib/household';
+import { useLeadHousehold, firstWord, type IncomeItem } from '../lib/household';
 import { MoneyList } from './MoneyList';
 
 const CARD = 'bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5 mb-6';
 const LABEL = 'text-sm font-semibold text-[#0F6E56] mb-2';
-const FIELD = 'w-full bg-transparent border-b-2 border-[#e5e7eb] focus:border-[#45bcaa] outline-none py-1 text-sm';
 
 /**
  * Editable second insured + household financial fact-finder on the lead
@@ -31,57 +30,7 @@ export default function HouseholdEditor({ leadId, leadName }: { leadId: string; 
   return (
     <div className={CARD}>
       <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider mb-1">Household &amp; finances</h3>
-      <p className="text-xs text-[#707070] mb-4">Add a spouse or partner and walk through income, expenses, and savings. This feeds the presentation and saves automatically.</p>
-
-      <div className="mb-5">
-        <div className={LABEL}>Second insured (spouse / partner)</div>
-        {!hasSpouse ? (
-          <button
-            type="button"
-            onClick={() => hh.setSpouse({ name: '' })}
-            className="px-4 py-2 text-sm font-semibold text-[#005851] border-2 border-[#005851] rounded-[5px] hover:bg-[#005851] hover:text-white transition-colors"
-          >
-            + Add a spouse / second insured
-          </button>
-        ) : (
-          <div className="rounded-[5px] border border-[#e5e7eb] p-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="block">
-                <span className="text-xs text-[#707070]">Name</span>
-                <input value={spouse?.name || ''} onChange={(e) => hh.setSpouse({ name: e.target.value })} className={FIELD} />
-              </label>
-              <label className="block">
-                <span className="text-xs text-[#707070]">Age</span>
-                <input
-                  value={spouse?.ageYears != null ? String(spouse.ageYears) : ''}
-                  onChange={(e) => hh.setSpouse({ ageYears: e.target.value.trim() === '' ? undefined : toNum(e.target.value) })}
-                  inputMode="numeric"
-                  className={FIELD}
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs text-[#707070]">Gender</span>
-                <select value={spouse?.gender || ''} onChange={(e) => hh.setSpouse({ gender: (e.target.value || undefined) as 'M' | 'F' | undefined })} className={FIELD}>
-                  <option value="">—</option>
-                  <option value="M">Male</option>
-                  <option value="F">Female</option>
-                </select>
-              </label>
-              <label className="block">
-                <span className="text-xs text-[#707070]">Tobacco</span>
-                <select value={spouse?.smokerStatus || ''} onChange={(e) => hh.setSpouse({ smokerStatus: (e.target.value || undefined) as 'Y' | 'N' | undefined })} className={FIELD}>
-                  <option value="">—</option>
-                  <option value="N">No</option>
-                  <option value="Y">Yes</option>
-                </select>
-              </label>
-            </div>
-            <button type="button" onClick={() => hh.clearSpouse()} className="mt-3 text-xs text-[#991B1B] hover:underline">
-              Remove second insured
-            </button>
-          </div>
-        )}
-      </div>
+      <p className="text-xs text-[#707070] mb-4">Walk through income, expenses, and savings during the appointment. Feeds the presentation and saves automatically.</p>
 
       <div className="space-y-5">
         <div>
