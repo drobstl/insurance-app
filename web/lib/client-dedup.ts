@@ -719,6 +719,20 @@ async function loadClients(
 }
 
 /**
+ * Public loader: the agent's active clients as match candidates (no
+ * policy counts). Exposed so create-time paths that match many probes —
+ * e.g. the bulk CSV importer — can load the book ONCE and pass it to
+ * matchProbeAgainst repeatedly, instead of re-reading the whole
+ * collection per row.
+ */
+export async function loadClientCandidates(
+  db: Firestore,
+  agentId: string,
+): Promise<ClientCandidate[]> {
+  return loadClients(db, agentId, { includePolicyCounts: false });
+}
+
+/**
  * Whole-account scan. Powers the "Find duplicates" review screen.
  * Returns candidate groups sorted highest-confidence first.
  */
@@ -736,22 +750,23 @@ export interface ExistingClientMatch {
 }
 
 /**
- * Single-candidate lookup. Called from create-time paths (PDF parse /
- * manual add / CSV import / lead convert) BEFORE we write a new client
- * doc. Returns the best (highest-bucket) match for the candidate among
- * the agent's existing clients, or null if no match clears the
- * thresholds.
+ * Pure single-probe matcher over an ALREADY-LOADED client list. Returns
+ * the best (highest-bucket) match for `candidate`, or null if nothing
+ * clears the thresholds.
  *
- * The candidate's `id` is not used — pass anything (e.g., 'new').
- * `notDuplicateOf` is read off the existing client docs, not the
- * candidate (since the candidate isn't persisted yet).
+ * Split out of findExistingClient so create-time loops — notably the
+ * bulk CSV importer — can load the book once (loadClientCandidates) and
+ * match many probes in memory instead of re-reading the whole collection
+ * per row.
+ *
+ * The candidate's `id` is not used for matching — pass anything (e.g.
+ * 'new'). `notDuplicateOf` is read off the existing client docs, not the
+ * candidate (the candidate isn't persisted yet).
  */
-export async function findExistingClient(
-  db: Firestore,
-  agentId: string,
+export function matchProbeAgainst(
+  existing: ClientCandidate[],
   candidate: Omit<ClientCandidate, 'id'> & { id?: string },
-): Promise<ExistingClientMatch | null> {
-  const existing = await loadClients(db, agentId, { includePolicyCounts: false });
+): ExistingClientMatch | null {
   if (existing.length === 0) return null;
 
   const probe: ClientCandidate = {
@@ -767,18 +782,14 @@ export async function findExistingClient(
 
   // Reuse blocking to avoid scanning the whole book.
   const probeKeys = new Set(blockKeysFor(probe, probeNorm));
-  const candidateBlocks: ClientCandidate[] = [];
+
+  let best: ExistingClientMatch | null = null;
   for (const c of existing) {
     const n = normalizeName(c.name);
     if (!n.ok) continue;
     const keys = blockKeysFor(c, n);
-    if (keys.some((k) => probeKeys.has(k))) candidateBlocks.push(c);
-  }
-
-  let best: ExistingClientMatch | null = null;
-  for (const c of candidateBlocks) {
+    if (!keys.some((k) => probeKeys.has(k))) continue;
     if (c.notDuplicateOf?.includes(probe.id)) continue;
-    const n = normalizeName(c.name);
     const m = classifyPair(probe, c, probeNorm, n);
     if (!m) continue;
     if (
@@ -790,4 +801,23 @@ export async function findExistingClient(
     }
   }
   return best;
+}
+
+/**
+ * Single-candidate lookup. Called from create-time paths (PDF parse /
+ * manual add / lead convert) BEFORE we write a new client doc. Returns
+ * the best (highest-bucket) match for the candidate among the agent's
+ * existing clients, or null if no match clears the thresholds.
+ *
+ * The candidate's `id` is not used — pass anything (e.g., 'new').
+ * `notDuplicateOf` is read off the existing client docs, not the
+ * candidate (since the candidate isn't persisted yet).
+ */
+export async function findExistingClient(
+  db: Firestore,
+  agentId: string,
+  candidate: Omit<ClientCandidate, 'id'> & { id?: string },
+): Promise<ExistingClientMatch | null> {
+  const existing = await loadClientCandidates(db, agentId);
+  return matchProbeAgainst(existing, candidate);
 }
