@@ -221,6 +221,7 @@ export function useLeadHousehold(leadId?: string) {
   );
   const setExistingCoverage = useCallback((v: string) => patchHH((h) => ({ ...h, existingCoverage: v })), [patchHH]);
   const setHomeValue = useCallback((v: string) => patchHH((h) => ({ ...h, homeValue: v })), [patchHH]);
+  const clearSpouse = useCallback(() => patchHH((h) => ({ ...h, spouse: undefined })), [patchHH]);
 
   const setMortgagePayment = useCallback(
     (v: string) => {
@@ -255,6 +256,7 @@ export function useLeadHousehold(leadId?: string) {
     setExpenses,
     setAssets,
     setSpouse,
+    clearSpouse,
     setSurvivorIncome,
     setExistingCoverage,
     setHomeValue,

@@ -25,6 +25,7 @@ import { useDraggablePanel } from '../lib/useDraggablePanel';
 import SendConfirmationDrawer from './SendConfirmationDrawer';
 import SendIntroDrawer from './SendIntroDrawer';
 import LeadPresentation from './LeadPresentation';
+import HouseholdEditor from './HouseholdEditor';
 import AppointmentFifResetControl from './AppointmentFifResetControl';
 import { isHttpUrl, type FifResetValue } from './FifResetCapture';
 import {
@@ -1840,6 +1841,8 @@ export default function LeadDetailPanel({
           </dl>
         </div>
       )}
+
+      <HouseholdEditor leadId={leadId} leadName={lead.name} />
 
       {/* Lead profile fields. Editable underwriting basics — none of
           these drive the lead code, so corrections here are harmless. */}
