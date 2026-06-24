@@ -12,6 +12,7 @@ import {
   type SupportedLanguage,
 } from '../lib/client-language';
 import { formatClientDisplayName } from '../lib/name-utils';
+import { relationshipLabel } from '../lib/household-shared';
 
 interface Client {
   id: string;
@@ -31,6 +32,11 @@ interface Client {
   // notes on convert; freely editable from this modal afterward.
   notes?: string;
   notesUpdatedAt?: Timestamp;
+  // Household linking (Phase 2).
+  householdId?: string;
+  householdRole?: 'primary' | 'member';
+  householdRelationship?: string;
+  householdPrimaryName?: string;
 }
 
 interface Policy {
@@ -90,6 +96,10 @@ interface ClientDetailModalProps {
   hasSchedulingUrl?: boolean;
   clientPushToken?: string | null;
   displayMode?: 'modal' | 'pane';
+  /** Other clients in this client's household (Phase 2 linking). */
+  householdMembers?: Client[];
+  /** Open another household member's detail. */
+  onSelectHouseholdMember?: (client: Client) => void;
 }
 
 export default function ClientDetailModal({
@@ -108,6 +118,8 @@ export default function ClientDetailModal({
   hasSchedulingUrl,
   clientPushToken,
   displayMode = 'modal',
+  householdMembers = [],
+  onSelectHouseholdMember,
 }: ClientDetailModalProps) {
   const isPane = displayMode === 'pane';
   const formatPremiumCurrency = (amount: number) => {
@@ -1350,6 +1362,59 @@ export default function ClientDetailModal({
 
           {/* Divider */}
           <div className="border-t border-gray-200" />
+
+          {/* Household Section (Phase 2) — linked clients from the same lead */}
+          {(client?.householdRole || householdMembers.length > 0) && (
+            <>
+              <div className="px-6 pt-5 pb-2">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg className="w-4 h-4 text-[#005851]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a3 3 0 10-3-3" />
+                  </svg>
+                  <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider">Household</h3>
+                </div>
+                {client?.householdRole === 'member' && client.householdPrimaryName && (
+                  <p className="text-xs text-[#707070] mb-3">
+                    {relationshipLabel(client.householdRelationship) || 'Family'} of{' '}
+                    <span className="font-medium text-[#0D4D4D]">{formatClientDisplayName(client.householdPrimaryName)}</span>.
+                  </p>
+                )}
+                {householdMembers.length === 0 ? (
+                  <p className="text-xs text-[#a0a0a0] italic mb-2">No other household members yet.</p>
+                ) : (
+                  <div className="space-y-2 mb-2">
+                    {householdMembers.map((m) => {
+                      const rel = m.householdRole === 'primary' ? 'Primary' : (relationshipLabel(m.householdRelationship) || 'Family');
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => onSelectHouseholdMember?.(m)}
+                          disabled={!onSelectHouseholdMember}
+                          className="w-full flex items-center gap-3 rounded-[5px] border border-gray-200 hover:border-[#45bcaa] hover:bg-[#f0fbf9] px-3 py-2 text-left transition-colors disabled:cursor-default disabled:hover:border-gray-200 disabled:hover:bg-transparent"
+                        >
+                          <div className="w-7 h-7 bg-[#005851] rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                            {formatClientDisplayName(m.name).charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-[#0D4D4D] truncate">{formatClientDisplayName(m.name)}</p>
+                            <p className="text-xs text-[#707070]">{rel}</p>
+                          </div>
+                          {onSelectHouseholdMember && (
+                            <svg className="w-4 h-4 text-[#a0a0a0] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <p className="text-[11px] text-[#a0a0a0]">Each policy still counts as its own sale — the link is for context.</p>
+              </div>
+              <div className="border-t border-gray-200" />
+            </>
+          )}
 
           {/* Policies Section */}
           <div className="px-6 pt-5 pb-6">
