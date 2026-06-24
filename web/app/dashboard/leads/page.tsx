@@ -17,7 +17,7 @@ import { useDashboard } from '../DashboardContext';
 import AppointmentPicker from '../../../components/AppointmentPicker';
 import SendConfirmationDrawer from '../../../components/SendConfirmationDrawer';
 import LeadDetailPanel from '../../../components/LeadDetailPanel';
-import { CloseSaleRitual } from '../../../components/CloseSaleRitual';
+import { CloseSaleRitual, type CloseSaleLead } from '../../../components/CloseSaleRitual';
 import LeadsCalendar from '../../../components/LeadsCalendar';
 import { leadsAccessReason } from '../../../lib/tier-gating';
 import UpgradeToProCard from '../../../components/UpgradeToProCard';
@@ -1174,12 +1174,7 @@ function LeadsPageInner() {
   // converted so onClose can fire the queue advance only when the
   // agent finished a real conversion (vs. closed the modal having
   // done nothing).
-  const [closeSaleLead, setCloseSaleLead] = useState<{
-    id: string;
-    name: string;
-    firstName: string;
-    phone: string;
-  } | null>(null);
+  const [closeSaleLead, setCloseSaleLead] = useState<CloseSaleLead | null>(null);
   const advanceAfterCloseSale = useRef(false);
 
   // `outcome` is the literal union (not string) so the funnel event

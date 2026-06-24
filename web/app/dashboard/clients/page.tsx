@@ -49,6 +49,7 @@ import { useGooglePicker } from '../../../hooks/useGooglePicker';
 import type { GooglePickerSelectedFile } from '../../../hooks/useGooglePicker';
 import { buildWelcomeMessage, resolveClientLanguage, type SupportedLanguage } from '../../../lib/client-language';
 import { extractFirstName, formatClientDisplayName } from '../../../lib/name-utils';
+import { relationshipLabel } from '../../../lib/household-shared';
 import { fireConfetti } from '../../../lib/confetti';
 import {
   renderFirstPdfPagesToJpegs,
@@ -195,6 +196,13 @@ interface Client {
   /** Agent-private notes; seeded from lead.notes on convert. */
   notes?: string;
   notesUpdatedAt?: Timestamp;
+  // Household linking (Phase 2). Members of one household share a
+  // householdId; the primary is the converted lead, members are the
+  // insured people whose own applications were written.
+  householdId?: string;
+  householdRole?: 'primary' | 'member';
+  householdRelationship?: string;
+  householdPrimaryName?: string;
 }
 
 /** Calendar date written on the application (YYYY-MM-DD), distinct from Firestore createdAt. */
@@ -1514,11 +1522,80 @@ export default function ClientsPage() {
     return result;
   }, [clients, searchQuery, sortKey, sortDir]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredClients.length / PAGE_SIZE));
+  // ── Household grouping (Phase 2) ──
+  // Clients converted from the same lead's household share a householdId.
+  // Only households with 2+ loaded members render as a visible cluster.
+  const householdGroups = useMemo(() => {
+    const m = new Map<string, Client[]>();
+    for (const c of clients) {
+      if (!c.householdId) continue;
+      const arr = m.get(c.householdId);
+      if (arr) arr.push(c);
+      else m.set(c.householdId, [c]);
+    }
+    for (const [k, arr] of m) if (arr.length < 2) m.delete(k);
+    return m;
+  }, [clients]);
+
+  // Reorder the filtered list so household members sit together (primary
+  // first), clustered at whichever member sorts first. Same length as
+  // filteredClients — a reorder, not a filter.
+  const groupedClients = useMemo(() => {
+    if (householdGroups.size === 0) return filteredClients;
+    const filteredIds = new Set(filteredClients.map((c) => c.id));
+    const emitted = new Set<string>();
+    const out: Client[] = [];
+    const order = (a: Client, b: Client) => {
+      const ar = a.householdRole === 'primary' ? 0 : 1;
+      const br = b.householdRole === 'primary' ? 0 : 1;
+      if (ar !== br) return ar - br;
+      return (a.name || '').localeCompare(b.name || '');
+    };
+    for (const c of filteredClients) {
+      if (emitted.has(c.id)) continue;
+      const group = c.householdId ? householdGroups.get(c.householdId) : undefined;
+      if (group && group.length >= 2) {
+        const inFilter = group.filter((g) => filteredIds.has(g.id)).sort(order);
+        for (const g of inFilter) {
+          if (!emitted.has(g.id)) { emitted.add(g.id); out.push(g); }
+        }
+      } else {
+        emitted.add(c.id);
+        out.push(c);
+      }
+    }
+    return out;
+  }, [filteredClients, householdGroups]);
+
+  // Household display metadata for a client row (pill label + accent).
+  const householdMeta = useCallback((client: Client) => {
+    if (!client.householdId) return null;
+    const group = householdGroups.get(client.householdId);
+    if (!group || group.length < 2) return null;
+    const isPrimary = client.householdRole === 'primary';
+    const primary = group.find((g) => g.householdRole === 'primary');
+    const primaryFirst = ((client.householdPrimaryName || primary?.name || '').trim().split(/\s+/)[0]) || '';
+    const rel = relationshipLabel(client.householdRelationship) || 'Family';
+    return {
+      isPrimary,
+      size: group.length,
+      pill: isPrimary ? `Household · ${group.length}` : (primaryFirst ? `${rel} of ${primaryFirst}` : rel),
+    };
+  }, [householdGroups]);
+
+  // Other clients in the selected client's household (for the detail panel).
+  const selectedHouseholdMembers = useMemo(() => {
+    if (!selectedClient?.householdId) return [];
+    const group = householdGroups.get(selectedClient.householdId);
+    if (!group) return [];
+    return group.filter((g) => g.id !== selectedClient.id);
+  }, [selectedClient, householdGroups]);
+
+  const totalPages = Math.max(1, Math.ceil(groupedClients.length / PAGE_SIZE));
   const paginatedClients = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredClients.slice(start, start + PAGE_SIZE);
-  }, [filteredClients, currentPage]);
+    return groupedClients.slice(start, start + PAGE_SIZE);
+  }, [groupedClients, currentPage]);
 
   useEffect(() => {
     if (clientsLoading) return;
@@ -5460,13 +5537,14 @@ export default function ClientsPage() {
                   const summary = clientPolicySummaries[client.id];
                   const hasLapsed = summary && summary.lapsed > 0;
                   const upcomingAnniversaryCount = clientUpcomingAnniversaryCounts[client.id] || 0;
+                  const hh = householdMeta(client);
                   return (
                   <tr
                     key={client.id}
                     className="hover:bg-[#f8f8f8] transition-colors cursor-pointer"
                     onClick={() => handleSelectClient(client)}
                   >
-                    <td className="px-5 py-3.5">
+                    <td className="px-5 py-3.5" style={hh ? { boxShadow: 'inset 3px 0 0 #45bcaa' } : undefined}>
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 bg-[#005851] rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0">
                           {formatClientDisplayName(client.name).charAt(0).toUpperCase()}
@@ -5474,6 +5552,17 @@ export default function ClientsPage() {
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 min-w-0">
                             <span className="text-sm font-medium text-[#000000] block truncate">{formatClientDisplayName(client.name)}</span>
+                            {hh && (
+                              <span
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#daf3f0] text-[#005851] text-[10px] rounded-full font-semibold shrink-0"
+                                title={hh.isPrimary ? `Head of a ${hh.size}-person household` : 'Linked household member'}
+                              >
+                                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a3 3 0 10-3-3" />
+                                </svg>
+                                {hh.pill}
+                              </span>
+                            )}
                             {upcomingAnniversaryCount > 0 && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[10px] rounded-full font-semibold shrink-0">
                                 <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5565,11 +5654,13 @@ export default function ClientsPage() {
               const summary = clientPolicySummaries[client.id];
               const hasLapsed = summary && summary.lapsed > 0;
               const upcomingAnniversaryCount = clientUpcomingAnniversaryCounts[client.id] || 0;
+              const hh = householdMeta(client);
               return (
               <div
                 key={client.id}
                 className="p-4 hover:bg-[#f8f8f8] transition-colors cursor-pointer"
                 onClick={() => handleSelectClient(client)}
+                style={hh ? { boxShadow: 'inset 3px 0 0 #45bcaa' } : undefined}
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#005851] rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
@@ -5578,6 +5669,11 @@ export default function ClientsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold text-[#000000] truncate">{formatClientDisplayName(client.name)}</p>
+                      {hh && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 bg-[#daf3f0] text-[#005851] text-[10px] rounded-full font-semibold shrink-0">
+                          {hh.pill}
+                        </span>
+                      )}
                       {upcomingAnniversaryCount > 0 && (
                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[10px] rounded-full font-semibold shrink-0">
                           <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -6872,6 +6968,8 @@ export default function ClientsPage() {
               agentName={agentProfile.name}
               hasSchedulingUrl={!!agentProfile.schedulingUrl}
               clientPushToken={clientPushToken === undefined ? null : clientPushToken}
+              householdMembers={selectedHouseholdMembers}
+              onSelectHouseholdMember={handleSelectClient}
             />
           </div>
           <div className="xl:hidden">
@@ -6931,6 +7029,8 @@ export default function ClientsPage() {
               agentName={agentProfile.name}
               hasSchedulingUrl={!!agentProfile.schedulingUrl}
               clientPushToken={clientPushToken === undefined ? null : clientPushToken}
+              householdMembers={selectedHouseholdMembers}
+              onSelectHouseholdMember={handleSelectClient}
             />
           </div>
         </>

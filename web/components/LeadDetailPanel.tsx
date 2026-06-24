@@ -27,6 +27,8 @@ import SendIntroDrawer from './SendIntroDrawer';
 import LeadPresentation from './LeadPresentation';
 import HouseholdEditor from './HouseholdEditor';
 import PeopleEditor from './PeopleEditor';
+import type { Person } from '../lib/household';
+import type { CloseSaleLead } from './CloseSaleRitual';
 import AppointmentFifResetControl from './AppointmentFifResetControl';
 import { isHttpUrl, type FifResetValue } from './FifResetCapture';
 import {
@@ -63,6 +65,12 @@ interface Lead {
   assessmentCompletedAt?: Timestamp | null;
   leadScore?: LeadScore | null;
   convertedToClientId?: string | null;
+  // Per-person household conversion bookkeeping (Phase 2).
+  householdId?: string | null;
+  convertedClientIds?: Record<string, string>;
+  // Captured people (spouse/partner/family) — `insured` ones become their
+  // own linked clients at close. Read here to seed the Close Sale ritual.
+  household?: { people?: Person[] };
   // Extracted-from-PDF fields (Chunk 2). Also agent-editable on the
   // detail page when missing — e.g. for manual leads, or to correct
   // bad extraction.
@@ -474,12 +482,7 @@ export interface LeadDetailPanelProps {
   // to refetch — and so the modal renders against a stable copy even
   // after the panel below it unmounts. Absent = no Close Sale button
   // shown (currently both real call sites pass it).
-  onRequestCloseSale?: (lead: {
-    id: string;
-    name: string;
-    firstName: string;
-    phone: string;
-  }) => void;
+  onRequestCloseSale?: (lead: CloseSaleLead) => void;
   // Fired when AppointmentPicker returns from a successful book. When
   // present, the panel hands the confirmation drawer off to the parent
   // (queue page) instead of rendering it locally. Required for the
@@ -1501,6 +1504,16 @@ export default function LeadDetailPanel({
                       name: lead.name || 'this lead',
                       firstName: (lead.name || '').trim().split(/\s+/)[0] || 'there',
                       phone: lead.phone || '',
+                      // Insured, named people → each becomes a linked client in
+                      // the same Close Sale pass (Phase 2 household conversion).
+                      people: (lead.household?.people || [])
+                        .filter((p) => p.insured && (p.name || '').trim())
+                        .map((p) => ({
+                          id: p.id,
+                          name: (p.name || '').trim(),
+                          relationship: p.relationship,
+                          phone: p.phone,
+                        })),
                     })}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-[#0099FF] hover:bg-[#0079CC] text-white font-semibold rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors text-sm"
                     title="Close the sale: convert + upload application + send welcome + activate, all in one ritual"
@@ -2398,19 +2411,6 @@ export default function LeadDetailPanel({
         </div>
       )}
 
-      {/* Danger zone — delete the lead. Removes the lead doc, the
-          leadCodes index entry, and any leadActivity entries. If the lead
-          has the app open, their next lookup 404s and the mobile session
-          clears automatically. */}
-      <div className="mt-12 pt-6 border-t border-[#FECACA]">
-        <button
-          onClick={() => setShowDeleteConfirm(true)}
-          className="text-sm text-red-600 hover:text-red-700 font-semibold"
-        >
-          Delete lead
-        </button>
-      </div>
-
       {/* Appointment picker (Chunk 4c). Opens via the standalone
           "Book appointment" header button OR via the 'booked' outcome
           chip in the dial-flow. The picker's submit endpoint
@@ -2654,6 +2654,20 @@ export default function LeadDetailPanel({
       })()}
 
       <HouseholdEditor leadId={leadId} leadName={lead.name} />
+
+      {/* Danger zone — delete the lead. Removes the lead doc, the
+          leadCodes index entry, and any leadActivity entries. If the lead
+          has the app open, their next lookup 404s and the mobile session
+          clears automatically. Sits at the very bottom of the profile,
+          below the household & finances card. */}
+      <div className="mt-12 pt-6 border-t border-[#FECACA]">
+        <button
+          onClick={() => setShowDeleteConfirm(true)}
+          className="text-sm text-red-600 hover:text-red-700 font-semibold"
+        >
+          Delete lead
+        </button>
+      </div>
 
       {/* Close Sale ritual is rendered by the PARENT (queue page or
           standalone lead route), NOT here. Reason: Card 1's success
