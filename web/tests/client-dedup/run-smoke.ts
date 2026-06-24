@@ -3,6 +3,7 @@ import {
   normalizeName,
   jaroWinkler,
   scanForDuplicateGroups,
+  matchProbeAgainst,
   type ClientCandidate,
   type MatchBucket,
 } from '../../lib/client-dedup';
@@ -237,5 +238,59 @@ section('6. notDuplicateOf suppression');
 })();
 
 // ─────────────────────────────────────────────────────────────────
- 
+section('7. matchProbeAgainst — create-time single-probe lookup (bulk import)');
+
+(() => {
+  // The bulk importer loads the book once and matches each incoming row
+  // against it. These are the buckets the importer keys off: exact and
+  // fuzzy-corroborated MERGE; strong / fuzzy-name-only / weak FLAG.
+  const CONFIDENT_MERGE = new Set<MatchBucket>(['exact', 'fuzzy-corroborated']);
+
+  const book: ClientCandidate[] = [
+    { id: 'x1', name: 'John Smith', dateOfBirth: '1980-05-15', phone: '5551112222', email: 'john@example.com' },
+    { id: 'x2', name: 'Mary Johnson', dateOfBirth: '1975-11-02' },
+    { id: 'x3', name: 'Robert Williams', phone: '+15553334444' },
+  ];
+
+  // Exact: same name + DOB.
+  const m1 = matchProbeAgainst(book, { name: 'John Smith', dateOfBirth: '1980-05-15' });
+  assert.equal(m1?.clientId, 'x1', 'name + DOB → x1');
+  assert.equal(m1?.match.bucket, 'exact', 'name + DOB is exact');
+  assert.ok(m1 && CONFIDENT_MERGE.has(m1.match.bucket), 'exact merges');
+
+  // Exact via phone in a different format (importer never normalizes the
+  // raw CSV phone itself — the matcher does).
+  const m2 = matchProbeAgainst(book, { name: 'John Smith', phone: '(555) 111-2222' });
+  assert.equal(m2?.match.bucket, 'exact', 'name + reformatted phone is exact');
+
+  // Exact via nickname canonicalization + phone (Bob → Robert).
+  const m3 = matchProbeAgainst(book, { name: 'Bob Williams', phone: '555-333-4444' });
+  assert.equal(m3?.clientId, 'x3', 'Bob Williams → Robert Williams (x3)');
+  assert.equal(m3?.match.bucket, 'exact', 'nickname + phone is exact');
+
+  // Fuzzy-corroborated: typo name + matching DOB.
+  const m4 = matchProbeAgainst(book, { name: 'Mary Johnston', dateOfBirth: '1975-11-02' });
+  assert.equal(m4?.clientId, 'x2', 'Johnston/Johnson + DOB → x2');
+  assert.equal(m4?.match.bucket, 'fuzzy-corroborated', 'fuzzy name + DOB corroborated');
+  assert.ok(m4 && CONFIDENT_MERGE.has(m4.match.bucket), 'fuzzy-corroborated merges');
+
+  // The critical FLAG case: same exact name, DIFFERENT birthday, no other
+  // identifier → 'strong', which the importer must NOT auto-merge (could
+  // be two different John Smiths) — it creates + flags for review.
+  const m5 = matchProbeAgainst(book, { name: 'John Smith', dateOfBirth: '1990-01-01' });
+  assert.equal(m5?.match.bucket, 'strong', 'same name, different DOB → strong');
+  assert.ok(m5 && !CONFIDENT_MERGE.has(m5.match.bucket), 'strong is flagged, not merged');
+
+  // No match: a genuinely new person.
+  const m6 = matchProbeAgainst(book, { name: 'Nancy Drew', dateOfBirth: '2000-01-01' });
+  assert.equal(m6, null, 'unrelated person → no match');
+
+  // Empty book → null (first-ever import creates everyone).
+  assert.equal(matchProbeAgainst([], { name: 'John Smith', dateOfBirth: '1980-05-15' }), null, 'empty book → null');
+
+  ok('probe matching merges confident dupes and flags name-only collisions');
+})();
+
+// ─────────────────────────────────────────────────────────────────
+
 console.log('\nClient-dedup smoke test: all checks passed.');
