@@ -30,8 +30,11 @@ export interface IncomeItem { id: string; person?: 'lead' | 'spouse'; label: str
 export interface MoneyItem { id: string; label: string; amount: string }
 export interface SpouseInfo { name?: string; ageYears?: number; gender?: 'M' | 'F'; smokerStatus?: 'Y' | 'N' }
 
-export type Relationship = 'spouse' | 'partner' | 'child' | 'parent' | 'sibling' | 'grandparent' | 'other';
-export const RELATIONSHIPS: Relationship[] = ['spouse', 'partner', 'child', 'parent', 'sibling', 'grandparent', 'other'];
+// Relationship vocabulary lives in the server-safe shared module so the
+// convert API route can import it too. Re-exported here for existing consumers.
+export { RELATIONSHIPS, RELATIONSHIP_LABELS, relationshipLabel } from './household-shared';
+export type { Relationship, HouseholdRole, HouseholdRelationship } from './household-shared';
+import type { Relationship } from './household-shared';
 
 /** An additional person on the lead (the primary lead keeps its own fields). */
 export interface Person {

@@ -60,17 +60,65 @@ import { buildCloseSaleWelcomeBody } from '../lib/welcome-sms-body';
 import { ClientActivationStatusRow } from './ClientActivationStatusRow';
 import { captureEvent } from '../lib/posthog';
 import { ANALYTICS_EVENTS } from '../lib/analytics-events';
+import { relationshipLabel, type Relationship } from '../lib/household-shared';
 
 const MAX_PDF_BYTES = 25 * 1024 * 1024;
 
-type Stage = 'capture' | 'welcome' | 'activation';
+type Stage = 'capture' | 'household' | 'welcome' | 'activation';
 
-interface CloseSaleLead {
+const STAGE_LABEL: Record<Stage, string> = {
+  capture: 'Capture application',
+  household: 'Add the household',
+  welcome: 'Send welcome text',
+  activation: 'Activation status',
+};
+
+/** An insured person on the lead who should become their own linked client. */
+export interface CloseSalePerson {
+  id: string;
+  name: string;
+  relationship: Relationship;
+  phone?: string;
+}
+
+export interface CloseSaleLead {
   id: string;
   name: string;
   firstName: string;
   phone: string;
+  /** Insured people (besides the primary) to convert in the same pass. */
+  people?: CloseSalePerson[];
 }
+
+type MemberStatus = 'idle' | 'working' | 'done' | 'error';
+
+interface MemberMatch {
+  existingClientId: string;
+  existingClientName: string;
+  existingClientCode: string | null;
+}
+
+interface MemberState {
+  status: MemberStatus;
+  file: File | null;
+  carrier: ApplicationFormType | '';
+  progress: { pct: number; label: string };
+  error: string | null;
+  clientId?: string;
+  clientCode?: string;
+  qualityWarning?: string | null;
+  /** A duplicate-client match the agent must resolve (link vs create new). */
+  match?: MemberMatch | null;
+}
+
+const EMPTY_MEMBER: MemberState = {
+  status: 'idle',
+  file: null,
+  carrier: '',
+  progress: { pct: 0, label: '' },
+  error: null,
+  match: null,
+};
 
 interface Props {
   open: boolean;
@@ -151,6 +199,21 @@ export function CloseSaleRitual({
   const [welcomeBody, setWelcomeBody] = useState('');
   const isMac = useMemo(() => detectMac(), []);
 
+  // ── Household card state (Phase 2) ──
+  // Insured people on the lead (besides the primary) each become their own
+  // linked client. Only those with a name are convertible. Keyed by person id.
+  const insuredPeople = useMemo(
+    () => (lead.people || []).filter((p) => (p.name || '').trim()),
+    [lead.people],
+  );
+  const hasHousehold = insuredPeople.length > 0;
+  const [members, setMembers] = useState<Record<string, MemberState>>({});
+  const membersRef = useRef<Record<string, MemberState>>({});
+  useEffect(() => { membersRef.current = members; }, [members]);
+  const patchMember = useCallback((id: string, patch: Partial<MemberState>) => {
+    setMembers((m) => ({ ...m, [id]: { ...(m[id] || EMPTY_MEMBER), ...patch } }));
+  }, []);
+
   // Funnel: the terminal stretch of the pre-sale funnel starts here —
   // one event per ritual open (the state reset below covers close).
   useEffect(() => {
@@ -174,6 +237,8 @@ export function CloseSaleRitual({
     setClientId(null);
     setClientCode(null);
     setWelcomeBody('');
+    setMembers({});
+    membersRef.current = {};
     abortRef.current?.abort();
     abortRef.current = null;
   }, [open]);
@@ -293,7 +358,9 @@ export function CloseSaleRitual({
         policy_created: policyRes.ok,
       });
       onConverted(newClientId);
-      setStage('welcome');
+      // If the lead has insured people, walk the household next; otherwise
+      // go straight to the welcome text for the primary.
+      setStage(hasHousehold ? 'household' : 'welcome');
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       setExtractError(err instanceof Error ? err.message : 'Something went wrong.');
@@ -301,7 +368,7 @@ export function CloseSaleRitual({
       setExtracting(false);
       abortRef.current = null;
     }
-  }, [user, lead.id, lead.firstName, agentName, onConverted]);
+  }, [user, lead.id, lead.firstName, agentName, onConverted, hasHousehold]);
 
   const handleUpload = useCallback(async () => {
     if (!stagedFile || !carrierType || extracting) return;
@@ -360,6 +427,119 @@ export function CloseSaleRitual({
     void finalizeConversion(extracted, preferExtractedPhone);
   }, [finalizeConversion]);
 
+  // ── Household card: convert one insured person → their own client ──
+  // Optionally reads their application PDF (→ their policy). The convert
+  // endpoint builds the client from the Person's captured fields and stamps
+  // the shared householdId + relationship, so two apps on one sit become two
+  // linked clients. `withoutApp` skips the PDF (client only, policy later).
+  const convertMember = useCallback(async (
+    person: CloseSalePerson,
+    opts: { withoutApp?: boolean; force?: boolean; linkToExistingClientId?: string } = {},
+  ) => {
+    const ms = membersRef.current[person.id] || EMPTY_MEMBER;
+    const useApp = !opts.withoutApp && !!ms.file && !!ms.carrier;
+    patchMember(person.id, {
+      status: 'working', error: null, match: null,
+      progress: { pct: 0, label: useApp ? 'Reading application…' : 'Creating client…' },
+    });
+    const controller = new AbortController();
+
+    // 1) Extract policy data from the application (only when one is staged).
+    let extracted: Awaited<ReturnType<typeof runApplicationExtractionV3>> | null = null;
+    if (useApp && ms.file && ms.carrier) {
+      try {
+        extracted = await runApplicationExtractionV3({
+          user, file: ms.file, carrierFormType: ms.carrier, signal: controller.signal,
+          onProgress: (pct, label) => patchMember(person.id, { progress: { pct, label } }),
+        });
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') { patchMember(person.id, { status: 'idle' }); return; }
+        patchMember(person.id, { status: 'error', error: err instanceof Error ? err.message : 'Could not read the application.' });
+        return;
+      }
+    }
+
+    // 2) Convert the person → their own client (+ create their policy).
+    try {
+      const token = await user.getIdToken();
+      const data = extracted?.data;
+      patchMember(person.id, { progress: { pct: 95, label: 'Creating client…' } });
+      const convertRes = await fetch(`/api/leads/${lead.id}/convert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          personId: person.id,
+          ...(opts.force ? { force: true } : {}),
+          ...(opts.linkToExistingClientId ? { linkToExistingClientId: opts.linkToExistingClientId } : {}),
+          ...(data ? { extractedContact: { email: data.insuredEmail ?? null, dateOfBirth: data.insuredDateOfBirth ?? null, phone: data.insuredPhone ?? null } } : {}),
+        }),
+        signal: controller.signal,
+      });
+      const body = (await convertRes.json()) as {
+        clientId?: string; clientCode?: string; error?: string;
+        matched?: boolean; existingClientId?: string; existingClientName?: string; existingClientCode?: string | null;
+      };
+      if (convertRes.status === 409 && body.matched && body.existingClientId) {
+        patchMember(person.id, {
+          status: 'idle', progress: { pct: 0, label: '' },
+          match: { existingClientId: body.existingClientId, existingClientName: body.existingClientName || '', existingClientCode: body.existingClientCode ?? null },
+        });
+        return;
+      }
+      if (!convertRes.ok || !body.clientId) {
+        throw new Error(body.error || `Could not convert ${person.name} (${convertRes.status}).`);
+      }
+      const memberClientId = body.clientId;
+      const memberCode = body.clientCode ?? undefined;
+
+      let qualityWarning: string | null = null;
+      if (data) {
+        patchMember(person.id, { progress: { pct: 98, label: 'Creating policy…' } });
+        const policyPayload = mapExtractedApplicationToPolicyFormData(data);
+        const policyRes = await fetch('/api/policies', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ clientId: memberClientId, ...policyPayload, ingestionQualityGate: true }),
+          signal: controller.signal,
+        });
+        if (!policyRes.ok) {
+          const pb = (await policyRes.json().catch(() => ({}))) as { error?: string };
+          qualityWarning = pb.error || 'Extraction was thin — add policy details on their profile later.';
+        }
+      }
+
+      patchMember(person.id, {
+        status: 'done', clientId: memberClientId, clientCode: memberCode,
+        qualityWarning, error: null, match: null, progress: { pct: 100, label: '' },
+      });
+      captureEvent(ANALYTICS_EVENTS.LEAD_CONVERTED, {
+        lead_id: lead.id, client_id: memberClientId, method: 'close_sale_household',
+        person_id: person.id, relationship: person.relationship, policy_created: !!data,
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') { patchMember(person.id, { status: 'idle' }); return; }
+      patchMember(person.id, { status: 'error', error: err instanceof Error ? err.message : 'Something went wrong.' });
+    }
+  }, [user, lead.id, patchMember]);
+
+  const handleMemberFile = useCallback((personId: string, file: File | null) => {
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      patchMember(personId, { error: 'Please pick a PDF file.' });
+      return;
+    }
+    if (file.size > MAX_PDF_BYTES) {
+      patchMember(personId, { error: 'This PDF is too large. Max 25MB.' });
+      return;
+    }
+    patchMember(personId, { file, error: null });
+  }, [patchMember]);
+
+  const membersWorking = insuredPeople.some((p) => members[p.id]?.status === 'working');
+  const convertedMembers = insuredPeople
+    .map((p) => ({ person: p, state: members[p.id] }))
+    .filter((m): m is { person: CloseSalePerson; state: MemberState } => m.state?.status === 'done');
+
   // ── Card 2 send ──
   const handleSendWelcome = useCallback(() => {
     if (!welcomeBody) return;
@@ -382,7 +562,12 @@ export function CloseSaleRitual({
 
   if (!open) return null;
 
-  const stageIndex = stage === 'capture' ? 0 : stage === 'welcome' ? 1 : 2;
+  // The household stage only exists when there are insured people to convert,
+  // so the card list (and the step count) flex to 3 or 4.
+  const stages: Stage[] = hasHousehold
+    ? ['capture', 'household', 'welcome', 'activation']
+    : ['capture', 'welcome', 'activation'];
+  const stageIndex = Math.max(0, stages.indexOf(stage));
   const uploadEnabled = !!stagedFile && !!carrierType && !extracting;
 
   // Conveyor belt: each card is in a 100%-wide slot; the track
@@ -407,7 +592,7 @@ export function CloseSaleRitual({
           <div>
             <h2 className="text-lg font-bold text-[#0D4D4D]">Close Sale — {lead.name}</h2>
             <p className="text-xs text-[#707070] mt-0.5">
-              Step {stageIndex + 1} of 3 · {stage === 'capture' ? 'Capture application' : stage === 'welcome' ? 'Send welcome text' : 'Activation status'}
+              Step {stageIndex + 1} of {stages.length} · {STAGE_LABEL[stage]}
             </p>
           </div>
           <button
@@ -558,6 +743,52 @@ export function CloseSaleRitual({
               )}
             </div>
 
+            {/* ── CARD 1.5: Add the household (only when insured people exist) ── */}
+            {hasHousehold && (
+              <div className="w-full shrink-0 p-6 space-y-4">
+                <div>
+                  <p className="text-sm font-semibold text-[#0D4D4D]">
+                    {insuredPeople.length === 1
+                      ? `You're also writing ${insuredPeople[0].name.split(/\s+/)[0]}`
+                      : `You're also writing ${insuredPeople.length} more people on this household`}
+                  </p>
+                  <p className="text-xs text-[#707070] mt-0.5 leading-relaxed">
+                    Each becomes their own client, linked to {lead.firstName}. Add their application to record their policy too — or add them now and fill the policy in later. Each policy still counts as its own sale.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  {insuredPeople.map((person) => (
+                    <HouseholdMemberRow
+                      key={person.id}
+                      person={person}
+                      state={members[person.id] || EMPTY_MEMBER}
+                      onFile={(file) => handleMemberFile(person.id, file)}
+                      onCarrier={(c) => patchMember(person.id, { carrier: c })}
+                      onUpload={() => void convertMember(person)}
+                      onAddWithoutApp={() => void convertMember(person, { withoutApp: true })}
+                      onLinkExisting={(existingId) => void convertMember(person, { linkToExistingClientId: existingId })}
+                      onCreateAnyway={() => void convertMember(person, { force: true })}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setStage('welcome')}
+                  disabled={membersWorking}
+                  className="w-full px-4 py-3 bg-[#0D4D4D] hover:bg-[#005751] text-white text-sm font-semibold rounded-[5px] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {convertedMembers.length === insuredPeople.length ? 'Continue' : 'Continue — send welcome text'}
+                </button>
+                {convertedMembers.length < insuredPeople.length && !membersWorking && (
+                  <p className="text-center text-xs text-[#707070]">
+                    Skip anyone whose application you don&apos;t have yet — they stay on the lead.
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* ── CARD 2: Send welcome text ── */}
             <div className="w-full shrink-0 p-6 space-y-4">
               <div>
@@ -615,8 +846,35 @@ export function CloseSaleRitual({
 
               {clientCode && (
                 <p className="text-xs text-[#707070]">
-                  Their login code is <strong className="font-mono text-[#0D4D4D]">{clientCode}</strong> — also at the bottom of the welcome text you sent.
+                  {convertedMembers.length > 0 ? `${lead.firstName}'s` : 'Their'} login code is <strong className="font-mono text-[#0D4D4D]">{clientCode}</strong> — also at the bottom of the welcome text you sent.
                 </p>
+              )}
+
+              {convertedMembers.length > 0 && (
+                <div className="pt-2 border-t border-gray-100 space-y-3">
+                  <p className="text-xs font-semibold text-[#0D4D4D] uppercase tracking-wider">
+                    Household — {convertedMembers.length} more {convertedMembers.length === 1 ? 'person' : 'people'}
+                  </p>
+                  {convertedMembers.map(({ person, state }) => (
+                    <div key={person.id} className="space-y-1.5">
+                      <p className="text-xs font-medium text-[#0D4D4D]">
+                        {person.name}
+                        <span className="text-[#707070] font-normal"> · {relationshipLabel(person.relationship)}</span>
+                      </p>
+                      <ClientActivationStatusRow
+                        agentId={agentId}
+                        clientId={state.clientId!}
+                        variant="card"
+                      />
+                      {state.clientCode && (
+                        <p className="text-xs text-[#707070]">
+                          Login code <strong className="font-mono text-[#0D4D4D]">{state.clientCode}</strong>
+                          {state.qualityWarning ? ' · add their policy details from their profile later.' : ''}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
 
               <button
@@ -629,6 +887,152 @@ export function CloseSaleRitual({
             </div>
           </div>
         </div>
+    </div>
+  );
+}
+
+/**
+ * One insured person in the household card: pick their application (→ extract
+ * → their policy) and convert them into their own linked client, or add them
+ * without an application (client now, policy later). Surfaces a per-person
+ * progress bar, error, and a duplicate-client resolve prompt.
+ */
+function HouseholdMemberRow({
+  person,
+  state,
+  onFile,
+  onCarrier,
+  onUpload,
+  onAddWithoutApp,
+  onLinkExisting,
+  onCreateAnyway,
+}: {
+  person: CloseSalePerson;
+  state: MemberState;
+  onFile: (file: File | null) => void;
+  onCarrier: (c: ApplicationFormType | '') => void;
+  onUpload: () => void;
+  onAddWithoutApp: () => void;
+  onLinkExisting: (clientId: string) => void;
+  onCreateAnyway: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const working = state.status === 'working';
+  const done = state.status === 'done';
+  const canUpload = !!state.file && !!state.carrier && !working;
+  const rel = relationshipLabel(person.relationship);
+  const first = person.name.split(/\s+/)[0] || person.name;
+
+  return (
+    <div className={`rounded-[5px] border p-3 ${done ? 'border-[#45bcaa] bg-[#f0fbf9]' : 'border-gray-300 bg-white'}`}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-[#0D4D4D] truncate">
+          {person.name}
+          {rel && <span className="text-[#707070] font-normal"> · {rel}</span>}
+        </p>
+        {done && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#daf3f0] text-[#005851] text-[10px] font-semibold rounded-full shrink-0">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            Converted
+          </span>
+        )}
+      </div>
+
+      {done ? (
+        <p className="mt-1 text-xs text-[#707070]">
+          Now their own client
+          {state.clientCode ? <> · code <strong className="font-mono text-[#0D4D4D]">{state.clientCode}</strong></> : null}
+          {state.qualityWarning ? ' · add policy details on their profile later.' : ''}
+        </p>
+      ) : working ? (
+        <div className="mt-2 rounded-[5px] border border-[#0099FF]/25 bg-[#0099FF]/5 p-2">
+          <div className="flex items-center justify-between text-[11px] text-[#0A5CA8] mb-1">
+            <span className="font-medium truncate pr-2">{state.progress.label || 'Working…'}</span>
+            <span>{state.progress.pct}%</span>
+          </div>
+          <div className="h-1 w-full bg-white rounded-full overflow-hidden">
+            <div className="h-full bg-[#0099FF] transition-all duration-300 ease-out" style={{ width: `${state.progress.pct}%` }} />
+          </div>
+        </div>
+      ) : state.match ? (
+        <div className="mt-2 rounded-[5px] border border-yellow-300 bg-yellow-50 p-2.5 space-y-2">
+          <p className="text-xs text-yellow-900 leading-relaxed">
+            <strong>{state.match.existingClientName || 'An existing client'}</strong> looks like the same person. Link {first} to them, or create a new client?
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => onLinkExisting(state.match!.existingClientId)}
+              className="flex-1 px-3 py-1.5 bg-white border border-[#d0d0d0] hover:border-[#45bcaa] rounded-[5px] text-xs font-semibold text-[#0D4D4D] transition-colors"
+            >
+              Link to them
+            </button>
+            <button
+              type="button"
+              onClick={onCreateAnyway}
+              className="flex-1 px-3 py-1.5 bg-white border border-[#d0d0d0] hover:border-[#45bcaa] rounded-[5px] text-xs font-semibold text-[#0D4D4D] transition-colors"
+            >
+              Create new
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-2 space-y-2">
+          {!state.file ? (
+            <>
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                className="w-full px-3 py-2 border-2 border-dashed border-[#0099FF]/30 hover:border-[#0099FF] bg-[#0099FF]/5 rounded-[5px] text-xs font-medium text-[#0099FF] transition-all"
+              >
+                Upload {first}&apos;s application
+              </button>
+              <button
+                type="button"
+                onClick={onAddWithoutApp}
+                className="w-full px-3 py-2 text-xs font-medium text-[#707070] hover:text-[#0D4D4D] border border-gray-300 rounded-[5px] hover:bg-gray-50 transition-colors"
+              >
+                Add {first} without an application
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="rounded-[5px] border border-gray-300 bg-gray-50 px-2.5 py-1.5 flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[#0D4D4D] truncate" title={state.file.name}>{state.file.name}</span>
+                <button type="button" onClick={() => inputRef.current?.click()} className="text-[11px] font-semibold text-[#0099FF] hover:underline shrink-0">Change</button>
+              </div>
+              <select
+                value={state.carrier}
+                onChange={(e) => onCarrier(e.target.value as ApplicationFormType)}
+                className="w-full px-2.5 py-2 bg-white border border-[#d0d0d0] rounded-[5px] text-xs text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30"
+              >
+                <option value="">— Select carrier and form type —</option>
+                {APPLICATION_TYPE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={onUpload}
+                disabled={!canUpload}
+                className="w-full px-3 py-2 bg-[#0099FF] hover:bg-[#0079CC] text-white text-xs font-semibold rounded-[5px] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Add {first} + their policy
+              </button>
+            </>
+          )}
+          {state.error && <p className="text-xs text-red-700">{state.error}</p>}
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0] || null; e.target.value = ''; onFile(f); }}
+          />
+        </div>
+      )}
     </div>
   );
 }
