@@ -2411,19 +2411,6 @@ export default function LeadDetailPanel({
         </div>
       )}
 
-      {/* Danger zone — delete the lead. Removes the lead doc, the
-          leadCodes index entry, and any leadActivity entries. If the lead
-          has the app open, their next lookup 404s and the mobile session
-          clears automatically. */}
-      <div className="mt-12 pt-6 border-t border-[#FECACA]">
-        <button
-          onClick={() => setShowDeleteConfirm(true)}
-          className="text-sm text-red-600 hover:text-red-700 font-semibold"
-        >
-          Delete lead
-        </button>
-      </div>
-
       {/* Appointment picker (Chunk 4c). Opens via the standalone
           "Book appointment" header button OR via the 'booked' outcome
           chip in the dial-flow. The picker's submit endpoint
@@ -2667,6 +2654,20 @@ export default function LeadDetailPanel({
       })()}
 
       <HouseholdEditor leadId={leadId} leadName={lead.name} />
+
+      {/* Danger zone — delete the lead. Removes the lead doc, the
+          leadCodes index entry, and any leadActivity entries. If the lead
+          has the app open, their next lookup 404s and the mobile session
+          clears automatically. Sits at the very bottom of the profile,
+          below the household & finances card. */}
+      <div className="mt-12 pt-6 border-t border-[#FECACA]">
+        <button
+          onClick={() => setShowDeleteConfirm(true)}
+          className="text-sm text-red-600 hover:text-red-700 font-semibold"
+        >
+          Delete lead
+        </button>
+      </div>
 
       {/* Close Sale ritual is rendered by the PARENT (queue page or
           standalone lead route), NOT here. Reason: Card 1's success
