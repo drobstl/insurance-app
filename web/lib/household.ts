@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useDashboard } from '../app/dashboard/DashboardContext';
@@ -30,7 +30,29 @@ export interface IncomeItem { id: string; person?: 'lead' | 'spouse'; label: str
 export interface MoneyItem { id: string; label: string; amount: string }
 export interface SpouseInfo { name?: string; ageYears?: number; gender?: 'M' | 'F'; smokerStatus?: 'Y' | 'N' }
 
+export type Relationship = 'spouse' | 'partner' | 'child' | 'parent' | 'sibling' | 'grandparent' | 'other';
+export const RELATIONSHIPS: Relationship[] = ['spouse', 'partner', 'child', 'parent', 'sibling', 'grandparent', 'other'];
+
+/** An additional person on the lead (the primary lead keeps its own fields). */
+export interface Person {
+  id: string;
+  relationship: Relationship;
+  name?: string;
+  dateOfBirth?: string; // YYYY-MM-DD
+  ageYears?: number;
+  gender?: 'M' | 'F';
+  smokerStatus?: 'Y' | 'N';
+  heightText?: string;
+  weightLbs?: number;
+  phone?: string;
+  email?: string;
+  healthNotes?: string;
+  insured?: boolean; // we're writing an application on them → becomes a client at close
+}
+
 export interface HouseholdProfile {
+  people: Person[];
+  /** Derived view of the first spouse/partner person — for the deck's couple math. Not persisted directly. */
   spouse?: SpouseInfo;
   incomes: IncomeItem[];
   expenses: MoneyItem[]; // monthly, EXCLUDING the mortgage (that's lead.monthlyMortgageAmount)
@@ -51,7 +73,13 @@ export interface QuoteState {
   paymentOpts: QuoteOption[];
 }
 
-const EMPTY_HH: HouseholdProfile = { incomes: [], expenses: [], assets: [], survivorIncome: {} };
+const EMPTY_HH: HouseholdProfile = { people: [], incomes: [], expenses: [], assets: [], survivorIncome: {} };
+
+const isSpouseRel = (r: Relationship) => r === 'spouse' || r === 'partner';
+const primarySpouse = (people: Person[]): SpouseInfo | undefined => {
+  const p = people.find((x) => isSpouseRel(x.relationship));
+  return p ? { name: p.name, ageYears: p.ageYears, gender: p.gender, smokerStatus: p.smokerStatus } : undefined;
+};
 
 // ── calc ──
 export const sumIncomes = (h: HouseholdProfile, person?: 'lead' | 'spouse'): number =>
@@ -95,17 +123,22 @@ type LeadDocShape = {
   smokerStatus?: 'Y' | 'N';
   mortgageDetails?: { balance?: number };
   monthlyMortgageAmount?: number;
-  household?: Partial<HouseholdProfile>;
+  household?: Partial<HouseholdProfile> & { spouse?: SpouseInfo };
   presentationQuote?: QuoteState;
 };
 
 function hydrateHousehold(d: LeadDocShape): HouseholdProfile {
   const hh = d.household || {};
-  const spouse: SpouseInfo | undefined =
-    hh.spouse ||
-    (d.spouseName ? { name: d.spouseName, ageYears: d.spouseAgeYears } : undefined);
+  let people: Person[] = hh.people || [];
+  if (people.length === 0) {
+    // Migrate from the earlier thin spouse object / flat lead fields.
+    const sp = hh.spouse || (d.spouseName ? { name: d.spouseName, ageYears: d.spouseAgeYears } : undefined);
+    if (sp && (sp.name || sp.ageYears != null)) {
+      people = [{ id: newId(), relationship: 'spouse', insured: true, name: sp.name, ageYears: sp.ageYears, gender: sp.gender, smokerStatus: sp.smokerStatus }];
+    }
+  }
   return {
-    spouse,
+    people,
     incomes: hh.incomes || [],
     expenses: hh.expenses || [],
     assets: hh.assets || [],
@@ -118,7 +151,11 @@ function hydrateHousehold(d: LeadDocShape): HouseholdProfile {
 export function defaultQuote(d: LeadDocShape): QuoteState {
   const age = d.ageYears ?? ageFromDob(d.dateOfBirth);
   const balance = d.mortgageDetails?.balance;
-  const hasSpouse = !!(d.household?.spouse?.name || d.spouseName);
+  const hasSpouse = !!(
+    d.household?.people?.some((p) => isSpouseRel(p.relationship)) ||
+    d.household?.spouse?.name ||
+    d.spouseName
+  );
   const balStr = balance != null ? String(balance) : '';
   const half = balance != null ? String(roundTo(balance / 2, 5000)) : '';
   const blank = { priceYou: '', priceSpouse: '' };
@@ -144,10 +181,10 @@ export function defaultQuote(d: LeadDocShape): QuoteState {
 const clean = <T,>(v: T): T => JSON.parse(JSON.stringify(v)); // drops undefined for Firestore
 
 /**
- * Reads + writes a lead's household financial profile and saved presentation
- * quote. Hydrates once from the lead doc, then local state is the source of
- * truth (the agent is editing); all writes are debounced ~600ms, matching the
- * lead-detail autosave convention.
+ * Reads + writes a lead's household financial profile, its people, and the
+ * saved presentation quote. Hydrates once from the lead doc, then local state
+ * is the source of truth (the agent is editing); writes are debounced ~600ms,
+ * matching the lead-detail autosave convention.
  */
 export function useLeadHousehold(leadId?: string) {
   const { user } = useDashboard();
@@ -201,6 +238,7 @@ export function useLeadHousehold(leadId?: string) {
     (updater: (h: HouseholdProfile) => HouseholdProfile) => {
       setHouseholdState((h) => {
         const next = updater(h);
+        // `spouse` is a derived view (added on read), never stored in state — persist as-is.
         write('household', { household: clean(next) });
         return next;
       });
@@ -211,17 +249,45 @@ export function useLeadHousehold(leadId?: string) {
   const setIncomes = useCallback((rows: IncomeItem[]) => patchHH((h) => ({ ...h, incomes: rows })), [patchHH]);
   const setExpenses = useCallback((rows: MoneyItem[]) => patchHH((h) => ({ ...h, expenses: rows })), [patchHH]);
   const setAssets = useCallback((rows: MoneyItem[]) => patchHH((h) => ({ ...h, assets: rows })), [patchHH]);
-  const setSpouse = useCallback(
-    (partial: Partial<SpouseInfo>) => patchHH((h) => ({ ...h, spouse: { ...h.spouse, ...partial } })),
+
+  // People
+  const addPerson = useCallback(
+    (relationship: Relationship = 'spouse', insured = true) =>
+      patchHH((h) => ({ ...h, people: [...h.people, { id: newId(), relationship, insured }] })),
     [patchHH],
   );
+  const updatePerson = useCallback(
+    (id: string, patch: Partial<Person>) => patchHH((h) => ({ ...h, people: h.people.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
+    [patchHH],
+  );
+  const removePerson = useCallback((id: string) => patchHH((h) => ({ ...h, people: h.people.filter((p) => p.id !== id) })), [patchHH]);
+
+  // Spouse convenience (back-compat for the deck) — upserts the primary spouse/partner person.
+  const setSpouse = useCallback(
+    (partial: Partial<SpouseInfo>) =>
+      patchHH((h) => {
+        const people = [...h.people];
+        const i = people.findIndex((p) => isSpouseRel(p.relationship));
+        if (i === -1) people.push({ id: newId(), relationship: 'spouse', insured: true, ...partial });
+        else people[i] = { ...people[i], ...partial };
+        return { ...h, people };
+      }),
+    [patchHH],
+  );
+  const clearSpouse = useCallback(
+    () => patchHH((h) => {
+      const i = h.people.findIndex((p) => isSpouseRel(p.relationship));
+      return i === -1 ? h : { ...h, people: h.people.filter((_, idx) => idx !== i) };
+    }),
+    [patchHH],
+  );
+
   const setSurvivorIncome = useCallback(
     (k: 'ifLead' | 'ifSpouse', v: string) => patchHH((h) => ({ ...h, survivorIncome: { ...h.survivorIncome, [k]: v } })),
     [patchHH],
   );
   const setExistingCoverage = useCallback((v: string) => patchHH((h) => ({ ...h, existingCoverage: v })), [patchHH]);
   const setHomeValue = useCallback((v: string) => patchHH((h) => ({ ...h, homeValue: v })), [patchHH]);
-  const clearSpouse = useCallback(() => patchHH((h) => ({ ...h, spouse: undefined })), [patchHH]);
 
   const setMortgagePayment = useCallback(
     (v: string) => {
@@ -249,12 +315,22 @@ export function useLeadHousehold(leadId?: string) {
     [write],
   );
 
+  // Returned household carries the derived spouse view so existing consumers (the deck) are unchanged.
+  const householdView = useMemo<HouseholdProfile>(
+    () => ({ ...household, spouse: primarySpouse(household.people) }),
+    [household],
+  );
+
   return {
     loading,
-    household,
+    household: householdView,
+    people: household.people,
     setIncomes,
     setExpenses,
     setAssets,
+    addPerson,
+    updatePerson,
+    removePerson,
     setSpouse,
     clearSpouse,
     setSurvivorIncome,
