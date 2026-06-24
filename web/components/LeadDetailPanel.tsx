@@ -2662,7 +2662,7 @@ export default function LeadDetailPanel({
           convertedToClientId in one batch. Portaled to <body> so Call mode's
           transformed slide-belt ancestor can't clip this fixed overlay. */}
       {showPresentation && lead && (
-        <LeadPresentation lead={lead} onClose={() => setShowPresentation(false)} />
+        <LeadPresentation lead={lead} leadId={leadId} onClose={() => setShowPresentation(false)} />
       )}
       {showConvertConfirm && lead && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
