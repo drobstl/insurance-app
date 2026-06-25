@@ -71,6 +71,9 @@ export default function SettingsPage() {
   const autoSaveTimerRef = useRef<number | null>(null);
   const autosaveHydratedRef = useRef(false);
   const lastSavedSnapshotRef = useRef('');
+  // Holds a live "flush if there are unsaved edits" closure so the unmount
+  // handler can persist a pending (debounced) autosave instead of dropping it.
+  const flushPendingSaveRef = useRef<() => void>(() => {});
 
   const updateField = useCallback(
     <K extends keyof typeof agentProfile>(key: K, value: (typeof agentProfile)[K]) => {
@@ -500,6 +503,13 @@ export default function SettingsPage() {
     }
   }, [activeTab, agentProfile, settingsSnapshot, user]);
 
+  // Keep the flush closure current each render (latest handleSave + snapshot).
+  flushPendingSaveRef.current = () => {
+    if (settingsSnapshot !== lastSavedSnapshotRef.current) {
+      void handleSave('auto', settingsSnapshot);
+    }
+  };
+
   useEffect(() => {
     if (loading || !user) return;
     if (!autosaveHydratedRef.current) {
@@ -534,7 +544,11 @@ export default function SettingsPage() {
   useEffect(() => () => {
     if (autoSaveTimerRef.current) {
       window.clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
     }
+    // Flush a pending (debounced) autosave so leaving the page mid-edit —
+    // e.g. uploading a photo then jumping straight to the deck — still saves.
+    flushPendingSaveRef.current();
   }, []);
 
   // Deep link: the live-call dial-script popup links to

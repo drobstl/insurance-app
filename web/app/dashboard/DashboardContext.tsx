@@ -367,6 +367,12 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           npn: typeof data.npn === 'string' ? data.npn : undefined,
           agencyLogoBase64: data.agencyLogoBase64,
           businessCardBase64: data.businessCardBase64,
+          // These two were missing from the loader, so after any refresh they
+          // came back undefined even when saved — and the settings autosave
+          // then wrote them back as null, silently wiping a saved family photo
+          // / custom carrier strip on the next edit. Load them like the others.
+          familyPhotoBase64: data.familyPhotoBase64,
+          carrierStripBase64: data.carrierStripBase64,
           referralMessage: data.referralMessage,
           isFoundingMember: data.isFoundingMember,
           schedulingUrl: data.schedulingUrl,
