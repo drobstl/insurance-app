@@ -277,9 +277,9 @@ export default function LeadPresentation({ lead, leadId, onClose }: { lead: Pres
               {eyebrow('A little about me', false)}
               <h2 className="text-3xl md:text-4xl font-semibold leading-tight">You should know who&apos;s helping protect your family.</h2>
               <p className="mt-4 text-lg text-[#374151] leading-relaxed">
-                I&apos;m {agentFirst} — a licensed life insurance broker, and a family person myself.{' '}
+                I&apos;m {agentFirst} — a licensed life insurance broker, and a family person myself. I&apos;m what&apos;s called a field underwriter, which means{' '}
                 <mark style={HIGHLIGHTER_STYLE}>
-                  I&apos;m what&apos;s called a field underwriter, which means I&apos;m independent. My only job today is to understand what your family needs, find the best fit, and help you get approved
+                  I&apos;m independent. My only job today is to understand what your family needs, find the best fit, and help you get approved
                 </mark>{' '}
                 — no pressure, ever.
               </p>
