@@ -251,6 +251,9 @@ interface Policy {
   amountOfProtection?: number;
   protectionUnit?: 'months' | 'years';
   effectiveDate?: string;
+  /** YYYY-MM-DD the client signed the application; drives the sale date
+   *  in activity stats. Preferred over effectiveDate/createdAt. */
+  applicationSignedDate?: string;
   // Manual lifecycle dates (Issue Paid Tracker parity). Agent enters
   // these; chargebackDate is also auto-stamped on Mark Lost.
   issuePaidDate?: string;
@@ -761,6 +764,7 @@ const emptyPolicyForm: PolicyFormData = {
   premiumFrequency: 'monthly',
   renewalDate: '',
   effectiveDate: '',
+  applicationSignedDate: '',
   issuePaidDate: '',
   chargebackDate: '',
   amountOfProtection: '',
@@ -1839,6 +1843,44 @@ export default function ClientsPage() {
       console.error('Top-level client mirror update failed (non-blocking):', mirrorErr);
     }
 
+    // Keep the policy sale date in lockstep with "Client Since" so the
+    // date the agent edits in the profile actually moves their Activity
+    // numbers (Activity reads the policy's applicationSignedDate, not the
+    // client's clientSinceDate). Surgical: only when the client has a
+    // single policy whose sale date is still the createdAt fallback — no
+    // real signed OR effective date — which is exactly the case that
+    // silently dates an old policy to its import day. Never clobbers a
+    // policy that already carries a real date, and skips multi-policy
+    // clients (those stay per-policy editable on the Activity ledger).
+    if (sinceTrim && CLIENT_SINCE_ISO.test(sinceTrim)) {
+      try {
+        const token = await user.getIdToken();
+        const polRes = await fetch(`/api/policies?clientId=${clientId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (polRes.ok) {
+          const { policies: pols } = (await polRes.json()) as {
+            policies: Array<{ id: string; applicationSignedDate?: string | null; effectiveDate?: string | null }>;
+          };
+          if (pols.length === 1) {
+            const only = pols[0];
+            const hasRealDate =
+              (typeof only.applicationSignedDate === 'string' && only.applicationSignedDate.trim() !== '') ||
+              (typeof only.effectiveDate === 'string' && only.effectiveDate.trim() !== '');
+            if (!hasRealDate) {
+              await fetch('/api/policies', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ clientId, policyId: only.id, applicationSignedDate: sinceTrim }),
+              });
+            }
+          }
+        }
+      } catch (syncErr) {
+        console.error('clientSince → policy sale-date sync failed (non-blocking):', syncErr);
+      }
+    }
+
     const nextClientSinceLocal = (prev: string | undefined): string | undefined => {
       if (!sinceTrim) return undefined;
       if (CLIENT_SINCE_ISO.test(sinceTrim)) return sinceTrim;
@@ -2076,6 +2118,7 @@ export default function ClientsPage() {
         premiumFrequency: addFlowPolicyForm.premiumFrequency || 'monthly',
         renewalDate: addFlowPolicyForm.renewalDate || '',
         effectiveDate: addFlowPolicyForm.effectiveDate || null,
+        applicationSignedDate: addFlowPolicyForm.applicationSignedDate || null,
         status: 'Active',
       };
       if (
@@ -2259,6 +2302,7 @@ export default function ClientsPage() {
           premiumFrequency: addFlowPolicyForm.premiumFrequency || 'monthly',
           renewalDate: addFlowPolicyForm.renewalDate || '',
           effectiveDate: addFlowPolicyForm.effectiveDate || null,
+          applicationSignedDate: addFlowPolicyForm.applicationSignedDate || null,
           status: 'Active',
         };
         if (
@@ -2665,6 +2709,7 @@ export default function ClientsPage() {
         premiumFrequency: policyFormData.premiumFrequency,
         renewalDate: policyFormData.renewalDate,
         effectiveDate: policyFormData.effectiveDate || null,
+        applicationSignedDate: policyFormData.applicationSignedDate || null,
         issuePaidDate: policyFormData.issuePaidDate || null,
         chargebackDate: policyFormData.chargebackDate || null,
         status: policyFormData.status,
@@ -4378,6 +4423,16 @@ export default function ClientsPage() {
           <option value="semi-annual">Premium Frequency: Semi-Annual</option>
           <option value="annual">Premium Frequency: Annual</option>
         </select>
+        <div className="flex flex-col">
+          <label className="text-xs font-medium text-[#707070] mb-1">Application Signed Date</label>
+          <input
+            type="date"
+            value={addFlowPolicyForm.applicationSignedDate}
+            onChange={(e) => setAddFlowPolicyForm((f) => ({ ...f, applicationSignedDate: e.target.value }))}
+            className="px-3 py-2.5 border border-[#d0d0d0] rounded-[5px] text-sm"
+          />
+          <p className="text-[11px] text-[#707070] mt-1">When the client signed — this is the sale date in your Activity.</p>
+        </div>
         <div className="flex flex-col">
           <label className="text-xs font-medium text-[#707070] mb-1">Effective Date</label>
           <input
@@ -6673,6 +6728,18 @@ export default function ClientsPage() {
                 </select>
               </div>
 
+              {/* Application Signed Date — the sale date used in Activity */}
+              <div>
+                <label className="block text-sm font-medium text-[#000000] mb-1">Application Signed Date</label>
+                <input
+                  type="date"
+                  value={policyFormData.applicationSignedDate}
+                  onChange={(e) => setPolicyFormData((f) => ({ ...f, applicationSignedDate: e.target.value }))}
+                  className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm text-[#000000] focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors"
+                />
+                <p className="text-xs text-[#707070] mt-1">When the client signed the application. This is the sale date used in your Activity numbers — set it for back-dated/existing policies so they don&apos;t count as new sales.</p>
+              </div>
+
               {/* Effective Date */}
               <div>
                 <label className="block text-sm font-medium text-[#000000] mb-1">Effective Date</label>
@@ -6950,6 +7017,7 @@ export default function ClientsPage() {
                   premiumFrequency: policy.premiumFrequency || 'monthly',
                   renewalDate: policy.renewalDate || '',
                   effectiveDate: policy.effectiveDate || '',
+                  applicationSignedDate: policy.applicationSignedDate || '',
                   issuePaidDate: policy.issuePaidDate || '',
                   chargebackDate: policy.chargebackDate || '',
                   amountOfProtection: policy.amountOfProtection ? String(policy.amountOfProtection) : '',
@@ -7011,6 +7079,7 @@ export default function ClientsPage() {
                   premiumFrequency: policy.premiumFrequency || 'monthly',
                   renewalDate: policy.renewalDate || '',
                   effectiveDate: policy.effectiveDate || '',
+                  applicationSignedDate: policy.applicationSignedDate || '',
                   issuePaidDate: policy.issuePaidDate || '',
                   chargebackDate: policy.chargebackDate || '',
                   amountOfProtection: policy.amountOfProtection ? String(policy.amountOfProtection) : '',

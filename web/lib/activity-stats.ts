@@ -240,6 +240,11 @@ export interface ActivityStats {
     product: string | null;
     policyNumber: string | null;
     submittedAt: string | null;
+    /** Which policy field produced submittedAt. 'createdAt' means neither
+     *  a signed nor effective date was on the doc, so we fell back to the
+     *  Firestore write time — the ledger flags these as needing a real
+     *  date so an old import doesn't masquerade as a today sale. */
+    saleDateSource: 'applicationSignedDate' | 'effectiveDate' | 'createdAt' | null;
     premium: number | null;
     premiumFrequency: string | null;
     faceAmount: number | null;
@@ -312,6 +317,20 @@ export function policySaleDateMillis(policy: {
   createdAt?: unknown;
 }): number | null {
   return ymdMillis(policy.applicationSignedDate) ?? ymdMillis(policy.effectiveDate) ?? timestampMillis(policy.createdAt);
+}
+
+/** Which field policySaleDateMillis drew the sale date from. Mirrors the
+ *  precedence above. 'createdAt' means no real sale date was on the doc
+ *  (the bug-prone fallback the ledger surfaces for confirmation). */
+export function policySaleDateSource(policy: {
+  applicationSignedDate?: unknown;
+  effectiveDate?: unknown;
+  createdAt?: unknown;
+}): 'applicationSignedDate' | 'effectiveDate' | 'createdAt' | null {
+  if (ymdMillis(policy.applicationSignedDate) !== null) return 'applicationSignedDate';
+  if (ymdMillis(policy.effectiveDate) !== null) return 'effectiveDate';
+  if (timestampMillis(policy.createdAt) !== null) return 'createdAt';
+  return null;
 }
 
 export async function getActivityStats(
@@ -498,6 +517,7 @@ export async function getActivityStats(
       // policy in a period when the SALE happened in that period.
       const saleMs = policySaleDateMillis(p);
       if (saleMs === null) continue;
+      const saleDateSource = policySaleDateSource(p);
       const apv = computeAPV(p.premiumAmount, p.premiumFrequency);
       // Honor an explicit source field if a future phase stamps one;
       // otherwise infer from context. Inference still uses the sale
@@ -553,6 +573,7 @@ export async function getActivityStats(
           product,
           policyNumber: p.policyNumber || null,
           submittedAt: new Date(saleMs).toISOString(),
+          saleDateSource,
           premium: typeof p.premiumAmount === 'number' ? p.premiumAmount : null,
           premiumFrequency: p.premiumFrequency || null,
           faceAmount: typeof p.coverageAmount === 'number' ? p.coverageAmount : null,
