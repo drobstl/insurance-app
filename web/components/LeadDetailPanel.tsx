@@ -39,6 +39,7 @@ import {
 import { DIMENSION_MAX, type LeadScore } from '../lib/lead-assessment';
 import { LeadTempChip } from './LeadTempChip';
 import { isDerivedLeadCode } from '../lib/lead-code-derive';
+import { US_STATE_CODES, normalizeUsStateCode } from '../lib/us-states';
 import { captureEvent } from '../lib/posthog';
 import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 
@@ -559,6 +560,37 @@ export default function LeadDetailPanel({
   const weightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const weightHydratedRef = useRef(false);
 
+  // ── Address autosave fields (street / city / state / zip) ──
+  // Same debounced-onChange pattern as the fields above for the free
+  // text bits; `state` saves immediately (it's a <select>) and is the
+  // load-bearing one — it drives which agent license the booking
+  // confirmation attaches (see SendConfirmationDrawer / Stream 4).
+  const [street, setStreet] = useState('');
+  const [streetSavedAt, setStreetSavedAt] = useState<Date | null>(null);
+  const [streetSaving, setStreetSaving] = useState(false);
+  const streetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const streetHydratedRef = useRef(false);
+
+  const [city, setCity] = useState('');
+  const [citySavedAt, setCitySavedAt] = useState<Date | null>(null);
+  const [citySaving, setCitySaving] = useState(false);
+  const cityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cityHydratedRef = useRef(false);
+
+  // 2-letter USPS code. Optimistic local state (not bound straight to
+  // the live doc) so the first save "takes" instead of flashing back —
+  // same lesson as the state-license autofill repaint fix.
+  const [addrState, setAddrState] = useState('');
+  const [addrStateSavedAt, setAddrStateSavedAt] = useState<Date | null>(null);
+  const [addrStateSaving, setAddrStateSaving] = useState(false);
+  const addrStateHydratedRef = useRef(false);
+
+  const [zip, setZip] = useState('');
+  const [zipSavedAt, setZipSavedAt] = useState<Date | null>(null);
+  const [zipSaving, setZipSaving] = useState(false);
+  const zipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const zipHydratedRef = useRef(false);
+
   const [email, setEmail] = useState('');
   const [emailSavedAt, setEmailSavedAt] = useState<Date | null>(null);
   const [emailSaving, setEmailSaving] = useState(false);
@@ -757,6 +789,22 @@ export default function LeadDetailPanel({
       if (!coborrowerHydratedRef.current) {
         setCoborrower(data.coborrowerStatus === 'Y' || data.coborrowerStatus === 'N' ? data.coborrowerStatus : null);
         coborrowerHydratedRef.current = true;
+      }
+      if (!streetHydratedRef.current) {
+        setStreet(data.address?.street || '');
+        streetHydratedRef.current = true;
+      }
+      if (!cityHydratedRef.current) {
+        setCity(data.address?.city || '');
+        cityHydratedRef.current = true;
+      }
+      if (!addrStateHydratedRef.current) {
+        setAddrState(normalizeUsStateCode(data.address?.state));
+        addrStateHydratedRef.current = true;
+      }
+      if (!zipHydratedRef.current) {
+        setZip(data.address?.zip || '');
+        zipHydratedRef.current = true;
       }
       setLoading(false);
     }, (err) => {
@@ -1047,6 +1095,86 @@ export default function LeadDetailPanel({
         setWeightSaving(false);
       }
     }, AUTOSAVE_DEBOUNCE_MS);
+  }, [user, leadId]);
+
+  // ── Address savers ──
+  // Each writes its own dot-path so a blank field clears only itself
+  // (Firestore leaves the sibling address.* keys intact) and creates
+  // the `address` map on demand for manually-entered leads.
+  const scheduleStreetSave = useCallback((value: string) => {
+    if (!user || !leadId) return;
+    if (streetTimer.current) clearTimeout(streetTimer.current);
+    streetTimer.current = setTimeout(async () => {
+      setStreetSaving(true);
+      try {
+        await updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+          'address.street': value.trim() || null,
+        });
+        setStreetSavedAt(new Date());
+      } catch (err) {
+        console.error('street autosave failed:', err);
+      } finally {
+        setStreetSaving(false);
+      }
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }, [user, leadId]);
+
+  const scheduleCitySave = useCallback((value: string) => {
+    if (!user || !leadId) return;
+    if (cityTimer.current) clearTimeout(cityTimer.current);
+    cityTimer.current = setTimeout(async () => {
+      setCitySaving(true);
+      try {
+        await updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+          'address.city': value.trim() || null,
+        });
+        setCitySavedAt(new Date());
+      } catch (err) {
+        console.error('city autosave failed:', err);
+      } finally {
+        setCitySaving(false);
+      }
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }, [user, leadId]);
+
+  const scheduleZipSave = useCallback((value: string) => {
+    if (!user || !leadId) return;
+    if (zipTimer.current) clearTimeout(zipTimer.current);
+    zipTimer.current = setTimeout(async () => {
+      setZipSaving(true);
+      try {
+        await updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+          'address.zip': value.trim() || null,
+        });
+        setZipSavedAt(new Date());
+      } catch (err) {
+        console.error('zip autosave failed:', err);
+      } finally {
+        setZipSaving(false);
+      }
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }, [user, leadId]);
+
+  // State saves immediately (discrete <select>, no debounce). Optimistic
+  // local repaint first so it never flashes back to the old value, then
+  // the write. `next` is already a valid code or '' from the picker;
+  // normalize defensively. This same write happens from the booking
+  // drawer (its picker is the lead's state) via `saveAddrState`.
+  const saveAddrState = useCallback(async (next: string) => {
+    if (!user || !leadId) return;
+    const code = normalizeUsStateCode(next);
+    setAddrState(code);
+    setAddrStateSaving(true);
+    try {
+      await updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+        'address.state': code || null,
+      });
+      setAddrStateSavedAt(new Date());
+    } catch (err) {
+      console.error('state save failed:', err);
+    } finally {
+      setAddrStateSaving(false);
+    }
   }, [user, leadId]);
 
   // ── Dial tracking ──
@@ -1968,6 +2096,96 @@ export default function LeadDetailPanel({
           </div>
         </div>
 
+        {/* Mailing address. State is the load-bearing field: it picks
+            which of the agent's per-state licenses attaches to the
+            booking confirmation, so it's surfaced prominently and saved
+            the moment it changes. */}
+        <div className="mt-4">
+          <label className="block text-sm font-semibold text-[#374151] mb-1">
+            Street address
+            <span className="ml-2 text-xs font-normal text-[#707070]">
+              {streetSaving ? 'Saving…' : streetSavedAt ? `Saved · ${formatRelativeTime(streetSavedAt)}` : ''}
+            </span>
+          </label>
+          <input
+            type="text"
+            value={street}
+            onChange={(e) => {
+              const v = e.target.value;
+              setStreet(v);
+              scheduleStreetSave(v);
+            }}
+            placeholder="123 Main St"
+            className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+          />
+        </div>
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-[#374151] mb-1">
+              City
+              <span className="ml-2 text-xs font-normal text-[#707070]">
+                {citySaving ? 'Saving…' : citySavedAt ? `Saved · ${formatRelativeTime(citySavedAt)}` : ''}
+              </span>
+            </label>
+            <input
+              type="text"
+              value={city}
+              onChange={(e) => {
+                const v = e.target.value;
+                setCity(v);
+                scheduleCitySave(v);
+              }}
+              placeholder="Dallas"
+              className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-[#374151] mb-1">
+              State
+              <span className="ml-2 text-xs font-normal text-[#707070]">
+                {addrStateSaving ? 'Saving…' : addrStateSavedAt ? `Saved · ${formatRelativeTime(addrStateSavedAt)}` : ''}
+              </span>
+            </label>
+            <select
+              value={addrState}
+              onChange={(e) => saveAddrState(e.target.value)}
+              className={`w-full px-3 py-2.5 bg-white border rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa] ${
+                addrState ? 'border-[#d0d0d0]' : 'border-[#FCD34D] bg-[#FFFBEB]'
+              }`}
+            >
+              <option value="">— Select —</option>
+              {US_STATE_CODES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-[#374151] mb-1">
+              ZIP
+              <span className="ml-2 text-xs font-normal text-[#707070]">
+                {zipSaving ? 'Saving…' : zipSavedAt ? `Saved · ${formatRelativeTime(zipSavedAt)}` : ''}
+              </span>
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={zip}
+              onChange={(e) => {
+                const v = e.target.value;
+                setZip(v);
+                scheduleZipSave(v);
+              }}
+              placeholder="75201"
+              className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+            />
+          </div>
+        </div>
+        <p className="text-[11px] text-[#707070] mt-1.5">
+          {addrState
+            ? `The booking confirmation attaches your ${addrState} license. Change the state here to attach a different one.`
+            : 'Set the state so the booking confirmation attaches your matching state license.'}
+        </p>
+
         {/* Underwriting yes/no fields. Tri-state — Yes / No / Unknown.
             Unknown is the default for manually-entered leads; lead-form
             extraction populates Y or N when the form contained the field. */}
@@ -2589,6 +2807,10 @@ export default function LeadDetailPanel({
             leadEmail={lead.email || email || undefined}
             leadCode={lead.leadCode}
             leadState={lead.address?.state || null}
+            // The drawer's state picker IS the lead's state — it persists
+            // the change itself; this just keeps the profile's State select
+            // above in sync without a second write or a remount.
+            onLeadStateChange={(code) => setAddrState(normalizeUsStateCode(code))}
             scheduledAt={scheduledAt}
             scheduledAtTimeZone={appt?.scheduledAtTimeZone || null}
             meetingUrl={appt?.meetingUrl || null}
