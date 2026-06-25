@@ -10,6 +10,7 @@ import {
   fmtUsd,
   firstWord,
   ageFromDob,
+  PAYMENT_VISIBLE_COUNT,
   type IncomeItem,
 } from '../lib/household';
 import { MoneyList } from './MoneyList';
@@ -90,6 +91,10 @@ export default function LeadPresentation({ lead, leadId, onClose }: { lead: Pres
   }, [agentProfile?.licenses, leadState]);
 
   const [idx, setIdx] = useState(0);
+  // Agent-only toggle on the options slide: reveals the shorter (cheaper)
+  // payment-protection terms (9 & 6 mo) for a budget-sensitive client.
+  // Hidden by default; resets each time the deck opens.
+  const [showShortTerms, setShowShortTerms] = useState(false);
   const total = 8;
 
   useEffect(() => {
@@ -499,7 +504,31 @@ export default function LeadPresentation({ lead, leadId, onClose }: { lead: Pres
               ))}
             </div>
           </div>
-          <div className="grid md:grid-cols-3 gap-4">{(optTab === 'payoff' ? payoffOpts : paymentOpts).map((opt, i) => optionCard(optTab, opt, i))}</div>
+          {optTab === 'payoff' ? (
+            <div className="grid md:grid-cols-3 gap-4">{payoffOpts.map((opt, i) => optionCard('payoff', opt, i))}</div>
+          ) : (
+            <>
+              <div className="grid md:grid-cols-3 gap-4">
+                {paymentOpts.slice(0, PAYMENT_VISIBLE_COUNT).map((opt, i) => optionCard('payment', opt, i))}
+              </div>
+              {paymentOpts.length > PAYMENT_VISIBLE_COUNT && (
+                <div className="mt-4">
+                  <button
+                    onClick={() => setShowShortTerms((s) => !s)}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-[#005851] hover:text-[#0099FF] transition-colors"
+                  >
+                    <Icon path={P.right} className={cx('w-4 h-4 transition-transform', showShortTerms && 'rotate-90')} />
+                    {showShortTerms ? 'Hide shorter terms' : 'Show shorter terms (9 & 6 months)'}
+                  </button>
+                  {showShortTerms && (
+                    <div className="grid md:grid-cols-3 gap-4 mt-4">
+                      {paymentOpts.slice(PAYMENT_VISIBLE_COUNT).map((opt, i) => optionCard('payment', opt, i + PAYMENT_VISIBLE_COUNT))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
         </div>
       ),
     },
