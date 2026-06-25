@@ -15,7 +15,6 @@ interface ProfileTabProps {
   agentProfile: AgentProfile;
   updateField: <K extends keyof AgentProfile>(key: K, value: AgentProfile[K]) => void;
   user: User | null;
-  refreshProfile: () => Promise<void>;
   setSaveMessage: (m: SaveMessage) => void;
   /** Opens the Change Email section over on the Account tab. */
   onChangeEmail: () => void;
@@ -29,7 +28,6 @@ export default function ProfileTab({
   agentProfile,
   updateField,
   user,
-  refreshProfile,
   setSaveMessage,
   onChangeEmail,
   setCropImageSrc,
@@ -206,7 +204,7 @@ export default function ProfileTab({
       <StateLicensesSection
         user={user}
         licenses={agentProfile.licenses}
-        onChanged={() => { void refreshProfile(); }}
+        onChange={(next) => updateField('licenses', next)}
       />
     </div>
   );

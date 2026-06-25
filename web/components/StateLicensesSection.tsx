@@ -37,8 +37,19 @@ interface Props {
   user: User | null;
   /** Live registry from agentProfile.licenses. Keyed by state code. */
   licenses: Record<string, LicenseEntry> | undefined;
-  /** Callback so the parent can refetch its profile after a mutation. */
-  onChanged: () => void;
+  /**
+   * Persist the next registry onto the parent's agent profile. Called
+   * with the full updated map after an add or remove.
+   *
+   * We update optimistically from the authoritative server response
+   * instead of re-reading the agent doc. The old re-read raced the
+   * just-written license: the upload succeeded (no error, form closed)
+   * but the immediate re-read didn't yet reflect the new entry, so the
+   * row stayed invisible — and the dashboard's live snapshot listener
+   * only patches `phonePaired`, so it never self-healed. Agents saw
+   * "it didn't take" until a second save happened to read fresh.
+   */
+  onChange: (next: Record<string, LicenseEntry>) => void;
 }
 
 interface FormState {
@@ -56,7 +67,7 @@ function isExpired(entry: LicenseEntry): boolean {
   return entry.expiresOn < today;
 }
 
-export default function StateLicensesSection({ user, licenses, onChanged }: Props) {
+export default function StateLicensesSection({ user, licenses, onChange }: Props) {
   const sortedStateCodes = useMemo(
     () => Object.keys(licenses || {}).sort(),
     [licenses],
@@ -106,7 +117,17 @@ export default function StateLicensesSection({ user, licenses, onChanged }: Prop
         setError(data?.error || `Upload failed (${res.status})`);
         return;
       }
-      onChanged();
+      // Repaint optimistically from the server's authoritative entry so
+      // the new row shows immediately — no re-read race (see Props.onChange).
+      const savedStateCode =
+        (typeof data?.stateCode === 'string' && data.stateCode) || form.stateCode;
+      const savedEntry: LicenseEntry = (data?.entry as LicenseEntry) ?? {
+        number: form.number.trim(),
+        expiresOn: form.expiresOn || null,
+        pdfStoragePath: '',
+        uploadedAt: new Date().toISOString(),
+      };
+      onChange({ ...(licenses || {}), [savedStateCode]: savedEntry });
       resetForm();
       setShowAdd(false);
     } catch (err) {
@@ -115,7 +136,7 @@ export default function StateLicensesSection({ user, licenses, onChanged }: Prop
     } finally {
       setBusy(false);
     }
-  }, [user, form, onChanged, resetForm]);
+  }, [user, form, licenses, onChange, resetForm]);
 
   // ── Delete (DELETE /api/agent-licenses/[stateCode]) ──
   const handleDelete = useCallback(async (stateCode: string) => {
@@ -132,7 +153,9 @@ export default function StateLicensesSection({ user, licenses, onChanged }: Prop
         setError(data?.error || `Delete failed (${res.status})`);
         return;
       }
-      onChanged();
+      const next = { ...(licenses || {}) };
+      delete next[stateCode];
+      onChange(next);
       setPendingDeleteState(null);
     } catch (err) {
       console.error('license delete error:', err);
@@ -140,7 +163,7 @@ export default function StateLicensesSection({ user, licenses, onChanged }: Prop
     } finally {
       setBusy(false);
     }
-  }, [user, onChanged]);
+  }, [user, licenses, onChange]);
 
   // ── View PDF (GET /api/agent-licenses/[stateCode] → signed URL) ──
   const handleViewPdf = useCallback(async (stateCode: string) => {
