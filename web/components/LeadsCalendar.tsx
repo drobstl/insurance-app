@@ -20,6 +20,7 @@ import { useDashboard } from '../app/dashboard/DashboardContext';
 import AppointmentPicker from './AppointmentPicker';
 import SendConfirmationDrawer from './SendConfirmationDrawer';
 import type { AppointmentStatus } from '../lib/appointments';
+import { getFifResetChip } from '../lib/appointment-outcome-chip';
 
 /**
  * Leads → Calendar tab (v1).
@@ -165,7 +166,46 @@ function rangeLabel(weekStart: Date): string {
   return `${weekStart.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })} – ${end.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`;
 }
 
+function fmtMonthDay(d: Date): string {
+  try {
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  } catch {
+    return '';
+  }
+}
+
 const SIT_HAPPENED: AppointmentStatus[] = ['completed', 'sit_no_sale', 'sit_think_about_it'];
+
+// ── First-sit vs follow-up (derived, never stored) ────────────────────
+interface PriorSit {
+  at: Date;
+  status: AppointmentStatus;
+}
+type ApptKind =
+  | { kind: 'first' }
+  | { kind: 'follow_up'; priorStatus: AppointmentStatus; priorAt: Date };
+
+/**
+ * Classify an appointment as a first sit vs a follow-up. A follow-up = the
+ * lead has a prior SIT_HAPPENED appointment dated **strictly earlier** than
+ * this one. `priorSits` is in descending date order (the query is desc), so
+ * the first qualifying entry is the most-recent prior sit — what we surface
+ * as "last sit: …". The strict `<` handles a same-day earlier sit and
+ * auto-excludes the appointment itself (its own scheduledAt is never `<`
+ * itself), so an in-week sit that already happened doesn't self-mark.
+ */
+function classifyAppt(appt: CalAppt, priorSitsByLead: Map<string, PriorSit[]>): ApptKind {
+  const priors = priorSitsByLead.get(appt.leadId);
+  if (priors) {
+    const apptMs = appt.scheduledAt.getTime();
+    for (const p of priors) {
+      if (p.at.getTime() < apptMs) {
+        return { kind: 'follow_up', priorStatus: p.status, priorAt: p.at };
+      }
+    }
+  }
+  return { kind: 'first' };
+}
 
 // ══════════════════════════════════════════════════════════════════════
 // Data hooks
@@ -291,6 +331,85 @@ function useGoogleBusy(user: User | null, weekStart: Date): { busy: BusyBlock[];
   return { busy, connected };
 }
 
+/**
+ * Prior SIT_HAPPENED appointments per lead — the raw material for tagging
+ * each block as a first sit vs a follow-up. Mirrors the leads page's
+ * past-appointment subscription (`web/app/dashboard/leads/page.tsx:442-481`):
+ * same single-field `scheduledAt` range so it reuses the default index, with
+ * the status filter done in memory. Two deliberate differences:
+ *   - Filtered to SIT_HAPPENED (which **includes** `completed`/Sold) rather
+ *     than the leads page's outcome-chip set, which excludes the sale path.
+ *   - Upper bound is **weekEnd, not now** — so a Tuesday follow-up still sees
+ *     its Monday-same-week prior sit (the strict `<` in classifyAppt keeps an
+ *     appointment from marking itself).
+ * Bounded a year back to cap the read for high-volume agents; a prior sit
+ * older than a year reads as a first sit (matches the leads-page bound).
+ * `fifResetByLead` rides along from the same snapshot, exactly like the leads
+ * page (orthogonal to the sit outcome — a reset can sit on a sold appt).
+ */
+function usePriorSits(
+  user: User | null,
+  weekStart: Date,
+): { priorSitsByLead: Map<string, PriorSit[]>; fifResetByLead: Map<string, { smeName?: string }> } {
+  const [state, setState] = useState<{
+    priorSitsByLead: Map<string, PriorSit[]>;
+    fifResetByLead: Map<string, { smeName?: string }>;
+  }>(() => ({ priorSitsByLead: new Map(), fifResetByLead: new Map() }));
+  const weekKey = weekStart.getTime();
+
+  useEffect(() => {
+    if (!user) {
+      setState({ priorSitsByLead: new Map(), fifResetByLead: new Map() });
+      return;
+    }
+    const weekEnd = addDays(weekStart, 7);
+    const oneYearAgo = addDays(weekStart, -365);
+    const q = query(
+      collection(db, 'agents', user.uid, 'appointments'),
+      where('scheduledAt', '>=', Timestamp.fromDate(oneYearAgo)),
+      where('scheduledAt', '<', Timestamp.fromDate(weekEnd)),
+      orderBy('scheduledAt', 'desc'),
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const priorSitsByLead = new Map<string, PriorSit[]>();
+        const fifResetByLead = new Map<string, { smeName?: string }>();
+        snap.forEach((d) => {
+          const v = d.data() as {
+            leadId?: string;
+            scheduledAt?: Timestamp;
+            status?: string;
+            fifResetBooked?: boolean;
+            fifResetSmeName?: string | null;
+          };
+          if (!v.leadId || !v.scheduledAt) return;
+          // FIF reset is orthogonal to the sit outcome (can ride on a sold
+          // appt), so capture it before the SIT_HAPPENED filter. First hit
+          // wins (query is desc) = the lead's most recent reset.
+          if (v.fifResetBooked === true && !fifResetByLead.has(v.leadId)) {
+            fifResetByLead.set(v.leadId, { smeName: v.fifResetSmeName ?? undefined });
+          }
+          const status = typeof v.status === 'string' ? (v.status as AppointmentStatus) : null;
+          if (!status || !SIT_HAPPENED.includes(status)) return;
+          // Built in descending order because the query is desc — classifyAppt
+          // relies on that to pick the most-recent prior sit.
+          const sit: PriorSit = { at: v.scheduledAt.toDate(), status };
+          const arr = priorSitsByLead.get(v.leadId);
+          if (arr) arr.push(sit);
+          else priorSitsByLead.set(v.leadId, [sit]);
+        });
+        setState({ priorSitsByLead, fifResetByLead });
+      },
+      (err) => console.warn('calendar prior-sits snapshot error:', err),
+    );
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, weekKey]);
+
+  return state;
+}
+
 // ══════════════════════════════════════════════════════════════════════
 // Main component
 // ══════════════════════════════════════════════════════════════════════
@@ -304,6 +423,7 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
 
   const appts = useWeekAppointments(user, weekStart);
   const { busy, connected } = useGoogleBusy(user, weekStart);
+  const { priorSitsByLead, fifResetByLead } = usePriorSits(user, weekStart);
 
   const [selected, setSelected] = useState<CalAppt | null>(null);
   const [reminderFor, setReminderFor] = useState<CalAppt | null>(null);
@@ -365,6 +485,13 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
         optimistic[a.id] != null ? { ...a, scheduledAt: new Date(optimistic[a.id]) } : a,
       ),
     [appts, optimistic],
+  );
+
+  // First sit vs follow-up per block. Keyed off displayAppts so an optimistic
+  // reschedule re-classifies against the dragged time (and rolls back with it).
+  const kindById = useMemo(
+    () => new Map<string, ApptKind>(displayAppts.map((a) => [a.id, classifyAppt(a, priorSitsByLead)])),
+    [displayAppts, priorSitsByLead],
   );
 
   // Week tally → the "production view" header.
@@ -563,14 +690,14 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
       )}
 
       {isMobile ? (
-        <AgendaWeek days={days} appts={displayAppts} onSelect={setSelected} />
+        <AgendaWeek days={days} appts={displayAppts} kindById={kindById} onSelect={setSelected} />
       ) : (
         <div className="flex gap-4 items-start">
           <div className="shrink-0 hidden lg:block">
             <MiniMonth anchor={anchor} onPick={setAnchor} apptDayKeys={apptDayKeys} weekStart={weekStart} />
             <Legend />
           </div>
-          <WeekGrid days={days} appts={displayAppts} busy={visibleBusy} onSelect={setSelected} onReschedule={handleReschedule} onNewAppt={openNewAppt} />
+          <WeekGrid days={days} appts={displayAppts} busy={visibleBusy} kindById={kindById} onSelect={setSelected} onReschedule={handleReschedule} onNewAppt={openNewAppt} />
         </div>
       )}
 
@@ -578,6 +705,8 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
       {selected && (
         <ApptPopover
           appt={selected}
+          kind={kindById.get(selected.id)}
+          fifReset={fifResetByLead.get(selected.leadId)}
           onClose={() => setSelected(null)}
           onOpenLead={() => router.push(`/dashboard/leads/${selected.leadId}`)}
           onRemind={() => openReminder(selected)}
@@ -691,6 +820,7 @@ function WeekGrid({
   days,
   appts,
   busy,
+  kindById,
   onSelect,
   onReschedule,
   onNewAppt,
@@ -698,6 +828,7 @@ function WeekGrid({
   days: Date[];
   appts: CalAppt[];
   busy: BusyBlock[];
+  kindById: Map<string, ApptKind>;
   onSelect: (a: CalAppt) => void;
   onReschedule: (appt: CalAppt, newStart: Date) => void;
   onNewAppt: (at: Date) => void;
@@ -761,6 +892,7 @@ function WeekGrid({
               hours={hours}
               appts={appts.filter((a) => isSameDay(a.scheduledAt, d))}
               busy={busy.filter((b) => isSameDay(b.start, d))}
+              kindById={kindById}
               onSelect={onSelect}
               draggingId={draggingId}
               isDragOver={dragOverIdx === idx}
@@ -825,6 +957,7 @@ function DayColumn({
   hours,
   appts,
   busy,
+  kindById,
   onSelect,
   draggingId,
   isDragOver,
@@ -838,6 +971,7 @@ function DayColumn({
   hours: number[];
   appts: CalAppt[];
   busy: BusyBlock[];
+  kindById: Map<string, ApptKind>;
   onSelect: (a: CalAppt) => void;
   draggingId: string | null;
   isDragOver: boolean;
@@ -863,6 +997,7 @@ function DayColumn({
     title: string;
     subtitle: string;
     tzLine?: string;
+    kind?: ApptKind;
     hint?: string;
   } | null>(null);
 
@@ -939,6 +1074,7 @@ function DayColumn({
         const meta = STATUS_META[a.status];
         const showTheir =
           a.scheduledAtTimeZone && localTz && a.scheduledAtTimeZone !== localTz;
+        const kind = kindById.get(a.id);
         return (
           <button
             key={a.id}
@@ -962,6 +1098,7 @@ function DayColumn({
                   showTheir && a.scheduledAtTimeZone
                     ? `Their time: ${fmtTime(a.scheduledAt, a.scheduledAtTimeZone)} ${tzAbbrev(a.scheduledAt, a.scheduledAtTimeZone)}`
                     : undefined,
+                kind,
                 hint: 'Drag to reschedule · click for options',
               });
             }}
@@ -974,13 +1111,32 @@ function DayColumn({
             // block; the block's details come from the portal hover card below.
             title=""
           >
-            <div className="text-[11px] font-bold leading-tight truncate">{a.leadName}</div>
+            <div className="text-[11px] font-bold leading-tight truncate pr-5">{a.leadName}</div>
             <div className="text-[10px] leading-tight truncate opacity-80">
               {fmtTime(a.scheduledAt)}
               {showTheir && a.scheduledAtTimeZone
                 ? ` · ${fmtTime(a.scheduledAt, a.scheduledAtTimeZone)} ${tzAbbrev(a.scheduledAt, a.scheduledAtTimeZone)}`
                 : ''}
             </div>
+            {/* First-sit vs follow-up marker (top-right corner). Follow-up =
+                ↻ tinted by the prior outcome (gold Thinking / blue No-sale /
+                green Sold); first sit = a faint "1st". */}
+            {kind &&
+              (kind.kind === 'follow_up' ? (
+                <span
+                  className={`absolute top-0.5 right-0.5 inline-flex items-center justify-center h-3.5 px-1 rounded-[3px] text-[9px] font-bold leading-none border ${STATUS_META[kind.priorStatus].block}`}
+                  aria-hidden
+                >
+                  ↻
+                </span>
+              ) : (
+                <span
+                  className="absolute top-0.5 right-0.5 inline-flex items-center justify-center h-3.5 px-1 rounded-[3px] text-[8px] font-bold leading-none text-[#9CA3AF] bg-white/70 border border-[#ececec]"
+                  aria-hidden
+                >
+                  1st
+                </span>
+              ))}
           </button>
         );
       })}
@@ -1011,6 +1167,7 @@ function HoverCard({
   title,
   subtitle,
   tzLine,
+  kind,
   hint,
 }: {
   x: number;
@@ -1018,6 +1175,7 @@ function HoverCard({
   title: string;
   subtitle: string;
   tzLine?: string;
+  kind?: ApptKind;
   hint?: string;
 }) {
   return (
@@ -1029,6 +1187,15 @@ function HoverCard({
         <div className="text-xs font-bold text-[#000000] truncate">{title}</div>
         <div className="text-[11px] text-[#707070] whitespace-nowrap">{subtitle}</div>
         {tzLine && <div className="text-[10px] text-[#005851] whitespace-nowrap">{tzLine}</div>}
+        {kind &&
+          (kind.kind === 'follow_up' ? (
+            <div className="text-[10px] text-[#444] whitespace-nowrap mt-0.5 flex items-center gap-1">
+              <span className={`w-1.5 h-1.5 rounded-full ${STATUS_META[kind.priorStatus].dot}`} />
+              Follow-up · last sit: {STATUS_META[kind.priorStatus].label} · {fmtMonthDay(kind.priorAt)}
+            </div>
+          ) : (
+            <div className="text-[10px] text-[#9CA3AF] whitespace-nowrap mt-0.5">First sit</div>
+          ))}
         {hint && <div className="text-[10px] text-[#9CA3AF] whitespace-nowrap mt-0.5">{hint}</div>}
       </div>
     </div>
@@ -1041,10 +1208,12 @@ function HoverCard({
 function AgendaWeek({
   days,
   appts,
+  kindById,
   onSelect,
 }: {
   days: Date[];
   appts: CalAppt[];
+  kindById: Map<string, ApptKind>;
   onSelect: (a: CalAppt) => void;
 }) {
   const today = new Date();
@@ -1074,6 +1243,7 @@ function AgendaWeek({
                 {dayAppts.map((a) => {
                   const meta = STATUS_META[a.status];
                   const showTheir = a.scheduledAtTimeZone && localTz && a.scheduledAtTimeZone !== localTz;
+                  const kind = kindById.get(a.id);
                   return (
                     <li key={a.id}>
                       <button
@@ -1089,6 +1259,18 @@ function AgendaWeek({
                               ? ` · their ${fmtTime(a.scheduledAt, a.scheduledAtTimeZone)}`
                               : ''}
                           </div>
+                          {kind &&
+                            (kind.kind === 'follow_up' ? (
+                              <span
+                                className={`mt-1 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${STATUS_META[kind.priorStatus].block}`}
+                              >
+                                ↻ {STATUS_META[kind.priorStatus].label} · {fmtMonthDay(kind.priorAt)}
+                              </span>
+                            ) : (
+                              <span className="mt-1 inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded text-[#9CA3AF] bg-gray-50 border border-[#ececec]">
+                                1st
+                              </span>
+                            ))}
                         </div>
                         <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${meta.block}`}>
                           {meta.label}
@@ -1203,16 +1385,21 @@ function Legend() {
 // ══════════════════════════════════════════════════════════════════════
 function ApptPopover({
   appt,
+  kind,
+  fifReset,
   onClose,
   onOpenLead,
   onRemind,
 }: {
   appt: CalAppt;
+  kind?: ApptKind;
+  fifReset?: { smeName?: string };
   onClose: () => void;
   onOpenLead: () => void;
   onRemind: () => void;
 }) {
   const meta = STATUS_META[appt.status];
+  const fifChip = fifReset ? getFifResetChip(fifReset.smeName) : null;
   const localTz = browserTz();
   const showTheir = appt.scheduledAtTimeZone && localTz && appt.scheduledAtTimeZone !== localTz;
   const end = new Date(appt.scheduledAt.getTime() + appt.durationMinutes * 60000);
@@ -1239,6 +1426,26 @@ function ApptPopover({
             )}
           </div>
           <span className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-full border ${meta.block}`}>{meta.label}</span>
+        </div>
+
+        {/* First sit vs follow-up — and, orthogonally, a booked FIF reset
+            (which lives on the SME's external calendar, never its own block). */}
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          {kind &&
+            (kind.kind === 'follow_up' ? (
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_META[kind.priorStatus].block}`}>
+                ↻ Follow-up · last sit: {STATUS_META[kind.priorStatus].label} · {fmtMonthDay(kind.priorAt)}
+              </span>
+            ) : (
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border text-[#005851] bg-[#daf3f0] border-[#45bcaa]/40">
+                First presentation
+              </span>
+            ))}
+          {fifChip && (
+            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${fifChip.classes}`}>
+              {fifChip.label}
+            </span>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-2">
