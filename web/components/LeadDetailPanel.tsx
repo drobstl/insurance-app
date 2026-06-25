@@ -21,6 +21,7 @@ import DoNotContactToggle from './DoNotContactToggle';
 import Link from 'next/link';
 import { DEFAULT_DIAL_SCRIPT, renderDialScript } from '../lib/dial-script';
 import { renderIntroText } from '../lib/lead-intro-text';
+import { normalizePhone } from '../lib/phone-format';
 import { useDraggablePanel } from '../lib/useDraggablePanel';
 import SendConfirmationDrawer from './SendConfirmationDrawer';
 import SendIntroDrawer from './SendIntroDrawer';
@@ -1171,9 +1172,14 @@ export default function LeadDetailPanel({
     // is set — pendingDialEffect deliberately doesn't fire onCallFired
     // to avoid double-counting.
     onCallFired?.();
-    // US-only — `tel:` with raw digits lets the OS dialer handle
-    // country-code interpretation per the device locale.
-    window.location.href = `tel:${digits}`;
+    // Dial the canonical E.164 form (+1XXXXXXXXXX for US 10-digit numbers;
+    // pass-through for numbers already in + form). A fully-qualified number
+    // routes more reliably than bare local digits, which force the handler
+    // to guess the country code — notably Windows Phone Link relaying to a
+    // paired Android phone. `digits` (above) already gated length; logging
+    // still uses `activeDialPhone` (the original), so dial-count matching is
+    // unchanged.
+    window.location.href = `tel:${normalizePhone(target)}`;
   }, [lead?.phone, lead?.dialLog, leadId, onCallFired]);
 
   const handleLogOutcome = useCallback(async (outcome: DialOutcome) => {
@@ -1240,7 +1246,9 @@ export default function LeadDetailPanel({
     setOutcomeError(null);
     setActiveDialPhone(pendingDial.phone);
     setOutcomePrompt(true);
-    window.location.href = `tel:${digits}`;
+    // Dial E.164 for reliable handling (see handleStartCall); `digits` above
+    // still guards length and `activeDialPhone` keeps the original for logging.
+    window.location.href = `tel:${normalizePhone(pendingDial.phone)}`;
   }, [pendingDial]);
 
   const handleDelete = useCallback(async () => {
