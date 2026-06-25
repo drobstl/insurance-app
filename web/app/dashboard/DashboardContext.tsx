@@ -138,7 +138,6 @@ export interface AgentProfile {
   /** Optional "teed up" first-touch intro SMS, customizable per agent.
    *  Falls back to DEFAULT_INTRO_TEXT (lib/lead-intro-text.ts). */
   introTextTemplate?: string;
-  skipWelcomeSmsConfirmation?: boolean;
   forwardInboundSms?: boolean;
   onboardingComplete?: boolean;
   pendingSubscriptionCelebration?: boolean;
@@ -379,7 +378,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           policyReviewAIEnabled: data.policyReviewAIEnabled,
           welcomeSmsTemplate: data.welcomeSmsTemplate,
           introTextTemplate: typeof data.introTextTemplate === 'string' ? data.introTextTemplate : undefined,
-          skipWelcomeSmsConfirmation: data.skipWelcomeSmsConfirmation,
           forwardInboundSms: data.forwardInboundSms,
           onboardingComplete: data.onboardingComplete,
           pendingSubscriptionCelebration: data.pendingSubscriptionCelebration === true,
