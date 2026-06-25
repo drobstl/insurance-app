@@ -2,6 +2,7 @@ import 'server-only';
 
 import Anthropic from '@anthropic-ai/sdk';
 import { PRIMARY_MODEL, HELPER_MODEL } from './ai-models';
+import { enforceCarrierContactPhone } from './carriers';
 import { buildSharedVoiceBlock, buildDripPrinciples } from './ai-voice';
 import { languageInstruction } from './client-language';
 import { enrichPrompt, type EnrichmentResult } from './dynamic-prompt';
@@ -283,7 +284,14 @@ ${languageInstruction(ctx.preferredLanguage ?? 'en')}`,
   );
 
   const block = message.content[0];
-  return block.type === 'text' ? block.text.trim() : '';
+  const text = block.type === 'text' ? block.text.trim() : '';
+  // Deterministic safety net: never ship a carrier number the model typed from
+  // memory — correct or insert the verified one. (SMS has no agent phone.)
+  return enforceCarrierContactPhone({
+    message: text,
+    carrier: ctx.carrier,
+    carrierServicePhone: ctx.carrierServicePhone,
+  });
 }
 
 /**
@@ -745,7 +753,15 @@ ${languageInstruction(ctx.preferredLanguage ?? 'en')}`,
   );
 
   const block = message.content[0];
-  return block.type === 'text' ? block.text.trim() : '';
+  const text = block.type === 'text' ? block.text.trim() : '';
+  // Deterministic safety net: correct/insert the verified carrier number, but
+  // preserve the agent's own number in the email sign-off.
+  return enforceCarrierContactPhone({
+    message: text,
+    carrier: ctx.carrier,
+    carrierServicePhone: ctx.carrierServicePhone,
+    preservePhones: [ctx.agentPhone],
+  });
 }
 
 /**
