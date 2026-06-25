@@ -60,6 +60,11 @@ export interface PolicyFormData {
   premiumFrequency: string;
   renewalDate: string;
   effectiveDate: string;
+  /** YYYY-MM-DD the client signed the application. Drives the sale date
+   *  in activity stats (policySaleDateMillis) — must survive to the
+   *  POST /api/policies body, else an old policy imported today falls
+   *  back to createdAt and pollutes current activity. */
+  applicationSignedDate: string;
   issuePaidDate: string;
   chargebackDate: string;
   amountOfProtection: string;
@@ -110,6 +115,7 @@ export function mapExtractedApplicationToPolicyFormData(
   if (data.premiumFrequency) mapped.premiumFrequency = data.premiumFrequency;
   if (data.renewalDate) mapped.renewalDate = data.renewalDate;
   if (data.effectiveDate) mapped.effectiveDate = data.effectiveDate;
+  if (data.applicationSignedDate) mapped.applicationSignedDate = data.applicationSignedDate;
 
   mapped.status = 'Active';
 
