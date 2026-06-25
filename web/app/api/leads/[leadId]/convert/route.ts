@@ -535,6 +535,20 @@ export async function POST(
     if (leadData.heightText) clientPayload.heightText = leadData.heightText;
     if (typeof leadData.weightLbs === 'number') clientPayload.weightLbs = leadData.weightLbs;
     if (leadData.household && typeof leadData.household === 'object') clientPayload.household = leadData.household;
+    // Carry the mortgage figures + saved presentation quote too. These live at
+    // the lead's TOP level (not inside `household`), so the household-carry line
+    // above misses them — and the mortgage balance is the number the reset
+    // reveal is built around. Without this they're lost the moment the sale
+    // closes. Read off the client by the reveal + reset surfaces.
+    if (leadData.mortgageDetails && typeof leadData.mortgageDetails === 'object') {
+      clientPayload.mortgageDetails = leadData.mortgageDetails;
+    }
+    if (typeof leadData.monthlyMortgageAmount === 'number') {
+      clientPayload.monthlyMortgageAmount = leadData.monthlyMortgageAmount;
+    }
+    if (leadData.presentationQuote && typeof leadData.presentationQuote === 'object') {
+      clientPayload.presentationQuote = leadData.presentationQuote;
+    }
     // Household linking (Phase 2): when the lead has insured people, this
     // client is the household's primary. Members link back via householdId.
     if (household.exists) {
