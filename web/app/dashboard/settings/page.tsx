@@ -33,7 +33,7 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 export default function SettingsPage() {
-  const { user, agentProfile, setAgentProfile, loading, refreshProfile } = useDashboard();
+  const { user, agentProfile, setAgentProfile, loading } = useDashboard();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -659,7 +659,6 @@ export default function SettingsPage() {
           agentProfile={agentProfile}
           updateField={updateField}
           user={user}
-          refreshProfile={refreshProfile}
           setSaveMessage={setSaveMessage}
           onChangeEmail={() => { setActiveTab('account'); setShowEmailSection(true); }}
           setCropImageSrc={setCropImageSrc}
