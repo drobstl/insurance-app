@@ -39,10 +39,13 @@ const APP_DOWNLOAD_URL = `${APP_URL}/app`;
  * `sentReminderAt` + `lead.attachmentsSent` records the text path
  * stamps, so dedup + "already sent" UX stay consistent across channels.
  *
- * Body: `{ kind?: 'confirmation' | 'reminder', message?: string }`.
+ * Body: `{ kind?, message?, leadState? }`.
  *   - `message` is the (possibly agent-edited) body from the drawer.
  *     When omitted we compose server-side with the same template +
  *     app-access gate the text path uses.
+ *   - `leadState` is the picker's value (the lead's state). When a valid
+ *     2-letter code, it wins over the stored value for license matching
+ *     and is mirrored back onto the lead doc.
  *
  * Auth: Bearer ID token; the appointment must belong to the caller.
  */
@@ -106,10 +109,25 @@ export async function POST(
     }
     const leadPhone: string = typeof lead.phone === 'string' ? lead.phone :
                               typeof lead.phoneNumber === 'string' ? lead.phoneNumber : '';
-    const leadAddressState =
-      typeof lead.address?.state === 'string' ? lead.address.state :
-      typeof lead.state === 'string' ? lead.state : '';
-    const pickedState = leadAddressState ? leadAddressState.toUpperCase() : '';
+
+    // The lead's state is the source of truth for which license attaches
+    // (mirrors the text path). The drawer posts the picker's value —
+    // prefer it over the stored value so we don't race the client's
+    // write-back, and when it's a correction, mirror it onto the lead doc
+    // so the record stays consistent across channels. We never attach a
+    // license for a state other than where the lead lives.
+    const storedLeadState =
+      typeof lead.address?.state === 'string' ? lead.address.state.toUpperCase() :
+      typeof lead.state === 'string' ? lead.state.toUpperCase() : '';
+    const providedLeadState =
+      typeof body?.leadState === 'string' ? body.leadState.trim().toUpperCase() : '';
+    const validProvidedState = isValidStateCode(providedLeadState) ? providedLeadState : '';
+    const pickedState = validProvidedState || (isValidStateCode(storedLeadState) ? storedLeadState : '');
+    if (validProvidedState && validProvidedState !== storedLeadState) {
+      await leadRef.update({ 'address.state': validProvidedState }).catch((err) => {
+        console.warn('lead state write-back (email path) failed (non-fatal):', err);
+      });
+    }
 
     const agentName: string =
       typeof agent.name === 'string' ? agent.name :

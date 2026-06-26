@@ -229,6 +229,19 @@ function LeadsPageInner() {
     router.replace(qs ? `/dashboard/leads?${qs}` : '/dashboard/leads', { scroll: false });
   }, [searchParams, router]);
 
+  // Deep link: /dashboard/leads?view=calendar reopens the Calendar tab —
+  // used when returning from the Google Calendar OAuth round-trip that was
+  // started on that tab. Consume `view` but leave any `google_calendar`
+  // result param for LeadsCalendar to surface once it mounts.
+  useEffect(() => {
+    if (searchParams?.get('view') !== 'calendar') return;
+    setView('calendar');
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('view');
+    const qs = params.toString();
+    router.replace(qs ? `/dashboard/leads?${qs}` : '/dashboard/leads', { scroll: false });
+  }, [searchParams, router]);
+
   // ── Search + sort (All view only) ──
   // Queue has its own priority sort that we don't override. Search +
   // explicit sort are All-leads concerns — agent scanning the full

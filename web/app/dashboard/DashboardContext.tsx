@@ -183,6 +183,14 @@ export interface AgentProfile {
    */
   autoCreateGoogleMeet?: boolean;
   /**
+   * How the calendar (web/components/LeadsCalendar.tsx) renders the
+   * agent's Google Calendar events behind their AFL sits. 'focus'
+   * (default) = muted gray hatched busy blocks; 'normal' = each event
+   * shown with its own title in a distinct color. Persisted here so the
+   * preference follows the agent across devices.
+   */
+  calendarViewMode?: 'focus' | 'normal';
+  /**
    * How far ahead of an appointment the cron should send a push reminder
    * to the lead (Chunk 4f-extension). Defaults to 1 hour. Set to 0 to
    * disable auto push reminders entirely. The agent's manual "Send
@@ -393,7 +401,13 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           licenses: data.licenses || {},
           appointmentMode: data.appointmentMode === 'video' ? 'video' : 'phone',
           defaultMeetingLink: data.defaultMeetingLink,
-          autoCreateGoogleMeet: data.autoCreateGoogleMeet === true,
+          // Tri-state: undefined = "use the default", which is ON when Google
+          // Calendar is connected (a fresh per-meeting Meet link). Only an
+          // explicit false (the agent opted out) disables it. The on-by-default
+          // decision lives in AppointmentPicker (usingAutoMeet).
+          autoCreateGoogleMeet:
+            typeof data.autoCreateGoogleMeet === 'boolean' ? data.autoCreateGoogleMeet : undefined,
+          calendarViewMode: data.calendarViewMode === 'normal' ? 'normal' : 'focus',
           reminderPushHoursBefore: typeof data.reminderPushHoursBefore === 'number'
             ? data.reminderPushHoursBefore
             : 1,

@@ -3,8 +3,9 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { User } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { QRCodeSVG } from 'qrcode.react';
+import { US_STATE_CODES, normalizeUsStateCode } from '../lib/us-states';
 import { composeMessage } from '../lib/booking-confirmation';
 import { deriveLeadCode } from '../lib/lead-code-derive';
 import { canAccessLeads } from '../lib/tier-gating';
@@ -73,8 +74,15 @@ interface Props {
    * app-access block in the message body (download link + this code).
    */
   leadCode?: string;
-  /** Lead's state from PDF extraction (`address.state`). May be null/empty. */
+  /** Lead's state (`address.state`). May be null/empty. This is the
+   *  source of truth for which license attaches — the picker below
+   *  defaults to it, and editing the picker rewrites it on the lead. */
   leadState?: string | null;
+  /** Notified when the agent edits the state in the picker (after the
+   *  drawer has persisted it to the lead). Parents that show their own
+   *  state editor (LeadDetailPanel) use it to stay in sync. Optional —
+   *  persistence happens regardless of whether this is provided. */
+  onLeadStateChange?: (stateCode: string) => void;
   scheduledAt: Date;
   /** IANA TZ captured at booking time; renders time + TZ label in the message. */
   scheduledAtTimeZone?: string | null;
@@ -102,14 +110,6 @@ interface Props {
   onSent: () => void;
   onCancel: () => void;
 }
-
-const US_STATE_CODES = [
-  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'DC', 'FL', 'GA',
-  'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA',
-  'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY',
-  'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX',
-  'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'PR',
-];
 
 /**
  * Convert a base64 string + mime to a File the Web Share API accepts.
@@ -164,6 +164,7 @@ export default function SendConfirmationDrawer({
   leadEmail,
   leadCode,
   leadState,
+  onLeadStateChange,
   scheduledAt,
   scheduledAtTimeZone,
   meetingUrl,
@@ -385,15 +386,34 @@ export default function SendConfirmationDrawer({
 
   const [message, setMessage] = useState(initialMessage);
 
-  // State for license matching. If the lead has a state from
-  // extraction, default to it; otherwise the agent picks. We let
-  // the agent override either way.
-  const initialState = (leadState || '').toUpperCase();
-  const [pickedState, setPickedState] = useState<string>(
-    initialState && US_STATE_CODES.includes(initialState) ? initialState : '',
-  );
+  // State for license matching. The picker IS the lead's state — it
+  // defaults to whatever the lead has on file, and editing it rewrites
+  // the lead (below) rather than silently attaching a different state's
+  // license. So the attached license always matches where the lead lives.
+  const [pickedState, setPickedState] = useState<string>(normalizeUsStateCode(leadState));
   const matchedLicense = pickedState ? licenses[pickedState] : null;
   const agentLicensedStates = useMemo(() => Object.keys(licenses).sort(), [licenses]);
+
+  // Persist a picker edit straight to the lead doc. Works from every
+  // drawer mount site (panel, leads list, calendar, upcoming card), so
+  // the correction sticks regardless of which surface opened the drawer.
+  const persistLeadState = useCallback(async (code: string) => {
+    if (!user || !leadId) return;
+    try {
+      await updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+        'address.state': code || null,
+      });
+    } catch (err) {
+      console.error('lead state write-back failed:', err);
+    }
+  }, [user, leadId]);
+
+  const handlePickStateChange = useCallback((raw: string) => {
+    const code = normalizeUsStateCode(raw);
+    setPickedState(code);
+    void persistLeadState(code);
+    onLeadStateChange?.(code);
+  }, [persistLeadState, onLeadStateChange]);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -675,7 +695,9 @@ export default function SendConfirmationDrawer({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ kind, message }),
+        // Send the picked state so the server matches the license to the
+        // lead's state authoritatively, without racing the write-back above.
+        body: JSON.stringify({ kind, message, leadState: pickedState }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -694,7 +716,7 @@ export default function SendConfirmationDrawer({
     } finally {
       setBusy(false);
     }
-  }, [user, leadHasEmail, appointmentId, kind, message, onSent, trackConfirmationSent]);
+  }, [user, leadHasEmail, appointmentId, kind, message, pickedState, onSent, trackConfirmationSent]);
 
   /** "Send from phone" deep-link URL — agent scans QR with phone, the
    *  URL opens AFL in iPhone Safari deep-linked to this drawer. */
@@ -955,34 +977,38 @@ export default function SendConfirmationDrawer({
           <div className="rounded-[5px] border border-[#d0d0d0] bg-[#fafafa] p-3">
             <div className="flex items-center justify-between gap-3 mb-2">
               <div>
-                <p className="text-xs font-semibold text-[#374151]">License attachment</p>
+                <p className="text-xs font-semibold text-[#374151]">Lead&apos;s state &amp; license</p>
                 {matchedLicense && licenseAlreadySent ? (
                   <p className="text-[11px] text-[#707070] mt-0.5">
                     {pickedState} license already on file with this lead — won&apos;t re-attach.
                   </p>
                 ) : matchedLicense ? (
                   <p className="text-[11px] text-[#005851] mt-0.5">
-                    {pickedState} license #{matchedLicense.number} will be attached.
+                    Your {pickedState} license #{matchedLicense.number} attaches — matches where the lead lives.
                     {licenseLoading && (
-                      <span className="ml-1.5 text-amber-700">· Loading PDF…</span>
+                      <span className="ml-1.5 text-amber-700">· Loading…</span>
                     )}
                   </p>
                 ) : pickedState ? (
-                  <p className="text-[11px] text-amber-700 mt-0.5">
-                    You&apos;re not licensed in {pickedState}. Sending without license.
+                  <p className="text-[11px] text-amber-700 mt-0.5 font-medium">
+                    ⚠ No {pickedState} license on file — this goes out with no license. Upload it in
+                    Settings → Licenses, or correct the lead&apos;s state below.
                   </p>
                 ) : (
-                  <p className="text-[11px] text-amber-700 mt-0.5">
-                    Lead&apos;s state isn&apos;t on file. Pick the state to attach a license.
+                  <p className="text-[11px] text-amber-700 mt-0.5 font-medium">
+                    ⚠ This lead&apos;s state isn&apos;t set. Pick it below so your matching license attaches —
+                    it saves to the lead too.
                   </p>
                 )}
               </div>
             </div>
             <select
               value={pickedState}
-              onChange={(e) => setPickedState(e.target.value)}
+              onChange={(e) => handlePickStateChange(e.target.value)}
               disabled={busy}
-              className="w-full px-3 py-2 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+              className={`w-full px-3 py-2 bg-white border rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa] ${
+                pickedState ? 'border-[#d0d0d0]' : 'border-[#FCD34D] bg-[#FFFBEB]'
+              }`}
             >
               <option value="">— Pick lead&apos;s state —</option>
               <optgroup label="States you're licensed in">
@@ -996,6 +1022,10 @@ export default function SendConfirmationDrawer({
                 ))}
               </optgroup>
             </select>
+            <p className="text-[11px] text-[#707070] mt-1">
+              This is where the lead lives. Changing it updates the lead&apos;s state so the right
+              license attaches every time.
+            </p>
             {licenseSignedUrl && (
               <a
                 href={licenseSignedUrl}
