@@ -248,16 +248,15 @@ export default function SendConfirmationDrawer({
 
   // Post-send outcome — what ACTUALLY went out, not what we intended.
   // Drives a brief honest overlay so the agent knows whether the card /
-  // license attached as files, rode along as tap-to-save links, or
-  // couldn't be delivered on this device. Set by handleSendMobile.
-  //   - 'attached'    → real file delivered via Web Share
-  //   - 'link'        → tap-to-save link appended to the SMS body
-  //   - 'unavailable' → we wanted to include it but had no URL/file
-  //   - 'skip'        → nothing to include (none on file / already sent)
+  // license attached as files or rode along as tap-to-save links. Set by
+  // handleSendMobile.
+  //   - 'attached' → real file delivered via Web Share
+  //   - 'link'     → tap-to-save link appended to the SMS body
+  //   - 'skip'     → nothing to include (none on file / already sent)
   const [sendOutcome, setSendOutcome] = useState<{
     method: 'share' | 'sms';
-    card: 'attached' | 'link' | 'unavailable' | 'skip';
-    license: 'attached' | 'link' | 'unavailable' | 'skip';
+    card: 'attached' | 'link' | 'skip';
+    license: 'attached' | 'link' | 'skip';
   } | null>(null);
 
   // Funnel: at most ONE booking_confirmation_sent per drawer open,
@@ -511,27 +510,6 @@ export default function SendConfirmationDrawer({
     }
   }, [user, appointmentId, kind]);
 
-  // Fetch the agent's business card as a stable public URL. Used only
-  // by the SMS fallback (Android / any device where Web Share can't
-  // carry files), so the lead still gets a tap-to-save card link in the
-  // message body. Server uploads-and-caches on first call; null when
-  // the agent has no card on file.
-  const fetchBusinessCardUrl = useCallback(async (): Promise<string | null> => {
-    if (!user) return null;
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch('/api/agent-business-card-url', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return null;
-      const data = await res.json().catch(() => ({}));
-      return typeof data?.url === 'string' && data.url ? data.url : null;
-    } catch (err) {
-      console.error('fetchBusinessCardUrl error:', err);
-      return null;
-    }
-  }, [user]);
-
   // Determine which attachments to actually include based on what's
   // already been sent to this lead. Agents shouldn't re-send the
   // same business card / license PDF on every reminder — once it's
@@ -621,28 +599,33 @@ export default function SendConfirmationDrawer({
         return;
       }
 
-      // ── Path 2 — `sms:` fallback. Reliable on every phone, but it
-      //    CANNOT carry attachments. This was the Android bug: the old
-      //    code fell here yet still stamped `attachedReport` (intent),
-      //    recording businessCard:true with nothing actually sent.
+      // ── Path 2 — `sms:` fallback. Reliable on EVERY phone, and the
+      //    text is the essential payload — so this path guarantees the
+      //    confirmation text goes through. `sms:` can't carry attachments,
+      //    so (a) we append SHORT tap-to-save card/license links so the
+      //    lead still gets those too, and (b) we stamp the TRUTH — no
+      //    files physically attached (businessCard:false, licenseState:'').
+      //    This was the Android bug: the old code fell here yet stamped
+      //    `attachedReport` (intent), recording businessCard:true with
+      //    nothing sent.
       //
-      //    Fix: (a) append tap-to-save card/license links to the body so
-      //    the lead still gets them, and (b) stamp the TRUTH — no files
-      //    attached, so businessCard:false / licenseState:''.
+      //    The links are built from IDs we already have (no send-time
+      //    fetch) and resolve server-side via public redirect routes.
+      //    They're kept SHORT on purpose: a raw signed URL is ~700 chars
+      //    and could bloat the body enough to truncate the text. Text
+      //    stays first so it's never the thing that gets cut.
       //
-      //    Note: the plan floated a bare `navigator.share({ files })`
-      //    (files-only) retry for Android targets that reject files+text
-      //    together. We intentionally don't do that: a files-only share
-      //    drops the message body, and a booking confirmation's text
-      //    (date/time/meeting link) is its essential payload. The link
-      //    fallback below keeps BOTH the text and the card.
-      let cardUrl: string | null = null;
-      if (willAttachBusinessCard) cardUrl = await fetchBusinessCardUrl();
-      const licenseUrl = willAttachLicense ? licenseSignedUrl : null;
-
+      //    Why not a bare `navigator.share({ files })` (files-only) retry
+      //    on Android targets that reject files+text? Because a files-only
+      //    share drops the message body, and the appointment text must
+      //    always go through (Daniel, Jun 25). Links keep BOTH.
       const extras: string[] = [];
-      if (willAttachBusinessCard && cardUrl) extras.push(`My business card: ${cardUrl}`);
-      if (willAttachLicense && licenseUrl) extras.push(`My ${pickedState} license: ${licenseUrl}`);
+      if (willAttachBusinessCard && user) {
+        extras.push(`My business card: ${APP_URL}/api/agent-card-link/${user.uid}`);
+      }
+      if (willAttachLicense && user && pickedState) {
+        extras.push(`My ${pickedState} license: ${APP_URL}/api/agent-license-link/${user.uid}/${pickedState}`);
+      }
       const body = extras.length > 0 ? `${message}\n\n${extras.join('\n')}` : message;
 
       const url = buildSmsUrl(body);
@@ -652,8 +635,8 @@ export default function SendConfirmationDrawer({
       await stampSent({ businessCard: false, licenseState: '' });
       setSendOutcome({
         method: 'sms',
-        card: !willAttachBusinessCard ? 'skip' : cardUrl ? 'link' : 'unavailable',
-        license: !willAttachLicense ? 'skip' : licenseUrl ? 'link' : 'unavailable',
+        card: willAttachBusinessCard ? 'link' : 'skip',
+        license: willAttachLicense ? 'link' : 'skip',
       });
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
@@ -668,9 +651,8 @@ export default function SendConfirmationDrawer({
       setBusy(false);
     }
   }, [
-    buildFiles, message, stampSent, attachedReport, buildSmsUrl, leadPhone,
-    trackConfirmationSent, fetchBusinessCardUrl, licenseSignedUrl,
-    willAttachBusinessCard, willAttachLicense, pickedState,
+    user, buildFiles, message, stampSent, attachedReport, buildSmsUrl, leadPhone,
+    trackConfirmationSent, willAttachBusinessCard, willAttachLicense, pickedState,
   ]);
 
   /** Email — server-side send via AFL's verified domain (Resend). The
@@ -726,10 +708,11 @@ export default function SendConfirmationDrawer({
   }, [leadId, appointmentId]);
 
   // Honest, human-readable summary of what physically went out — backs
-  // the post-send overlay. 'warn' tone when something the agent expected
-  // to send couldn't be attached OR linked on this device.
+  // the post-send overlay. The confirmation text always goes; the card/
+  // license either attach as files (Web Share) or ride along as
+  // tap-to-save links (sms: fallback).
   const outcomeMessage = useMemo<
-    { tone: 'ok' | 'info' | 'warn'; title: string; detail: string } | null
+    { tone: 'ok' | 'info'; title: string; detail: string } | null
   >(() => {
     if (!sendOutcome) return null;
     const o = sendOutcome;
@@ -753,21 +736,13 @@ export default function SendConfirmationDrawer({
       };
     }
 
-    // sms: fallback
+    // sms: fallback — text always goes; card/license ride as links.
     const linked = itemsWith('link');
-    const missing = itemsWith('unavailable');
     if (linked.length > 0) {
       return {
         tone: 'info',
-        title: 'Card link added to your message',
-        detail: `This phone can’t attach files to a text, so a tap-to-save ${linked.join(' + ')} link is in the message instead.`,
-      };
-    }
-    if (missing.length > 0) {
-      return {
-        tone: 'warn',
-        title: 'Couldn’t attach on this device',
-        detail: `Your message was sent, but your ${missing.join(' + ')} couldn’t be attached here. Use Email to include ${missing.length > 1 ? 'them' : 'it'}.`,
+        title: 'Sent — card link added',
+        detail: `Your message is going out. This phone can’t attach files to a text, so a tap-to-save ${linked.join(' + ')} link is in it too.`,
       };
     }
     return { tone: 'ok', title: 'Confirmation sent', detail: 'Your message is on its way.' };
@@ -797,20 +772,13 @@ export default function SendConfirmationDrawer({
           </div>
         )}
         {/* Honest post-send overlay — tells the agent what ACTUALLY went
-            out (inline attachment vs tap-to-save link vs nothing). */}
+            out: card/license attached as files, or as tap-to-save links.
+            The confirmation text always goes either way. */}
         {sendOutcome && outcomeMessage && (
           <div className="absolute inset-0 z-10 bg-white flex flex-col items-center justify-center px-6 animate-in fade-in duration-300">
-            <div
-              className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 ${
-                outcomeMessage.tone === 'warn' ? 'bg-[#F59E0B]' : 'bg-[#3DD6C3]'
-              }`}
-            >
+            <div className="w-20 h-20 rounded-full bg-[#3DD6C3] flex items-center justify-center mb-4">
               <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
-                {outcomeMessage.tone === 'warn' ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3.75h.01M10.34 3.94l-7.2 12.45A1.5 1.5 0 004.44 18.75h15.12a1.5 1.5 0 001.3-2.36L13.66 3.94a1.5 1.5 0 00-2.6 0z" />
-                ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                )}
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </div>
             <p className="text-xl font-bold text-[#0D4D4D] text-center">{outcomeMessage.title}</p>
