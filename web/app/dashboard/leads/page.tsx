@@ -29,6 +29,7 @@ import {
 } from '../../../lib/appointment-outcome-chip';
 import type { LeadScore } from '../../../lib/lead-assessment';
 import { LeadTempChip } from '../../../components/LeadTempChip';
+import { LeadTagChips } from '../../../components/LeadTagChips';
 import { parseLeadFile } from '../../../lib/lead-csv-parse';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
@@ -52,6 +53,7 @@ interface Lead {
   convertedToClientId?: string | null;
   monthlyMortgageAmount?: number;
   notes?: string;
+  tagIds?: string[];
   // Dial-tracking fields (Chunk 4b). Denormalized at write time so
   // queue queries / sorting don't require reading dialLog[].
   lastDialAt?: Timestamp | null;
@@ -2257,6 +2259,7 @@ function LeadsPageInner() {
                             {lead.leadScore && (
                               <LeadTempChip temperature={lead.leadScore.temperature} />
                             )}
+                            <LeadTagChips tagIds={lead.tagIds} tags={agentProfile.leadTags ?? []} />
                           </div>
                         </td>
                         <td className="px-5 py-3.5 text-sm text-[#444] whitespace-nowrap">{lead.phone}</td>

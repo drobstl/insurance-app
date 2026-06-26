@@ -15,6 +15,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { LeadTagEditor } from './LeadTagEditor';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import AppointmentPicker from './AppointmentPicker';
 import DoNotContactToggle from './DoNotContactToggle';
@@ -59,6 +60,8 @@ interface Lead {
   formType?: string;
   notes?: string;
   notesUpdatedAt?: Timestamp | null;
+  // Agent-defined labels (ids into agentProfile.leadTags).
+  tagIds?: string[];
   monthlyMortgageAmount?: number;
   monthlyMortgageAmountUpdatedAt?: Timestamp | null;
   createdAt?: Timestamp | null;
@@ -516,7 +519,7 @@ export default function LeadDetailPanel({
   onBookingComplete,
   showNotFoundBackLink,
 }: LeadDetailPanelProps) {
-  const { user, agentProfile, rememberFifResetSme } = useDashboard();
+  const { user, agentProfile, rememberFifResetSme, createLeadTag, deleteLeadTag } = useDashboard();
   // Snapshot the initial deep-link prop so a parent re-render that flips
   // it to null after consumption doesn't break the auto-open path.
   const openConfirmationParam = initialOpenConfirmationApptId;
@@ -1566,6 +1569,18 @@ export default function LeadDetailPanel({
               </div>
             )}
           </div>
+        </div>
+
+        {/* Tags — agent-defined labels for slicing the book */}
+        <div className="px-5 pt-3">
+          <LeadTagEditor
+            user={user}
+            leadId={lead.id}
+            assignedTagIds={lead.tagIds}
+            tags={agentProfile.leadTags ?? []}
+            onCreateTag={createLeadTag}
+            onDeleteTag={deleteLeadTag}
+          />
         </div>
 
         {/* Action toolbar — call panel (carries dial count + last outcome), then book / close */}
