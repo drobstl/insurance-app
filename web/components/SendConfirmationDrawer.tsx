@@ -245,6 +245,20 @@ export default function SendConfirmationDrawer({
   // your phone" over the honest local outcome overlay).
   const localSendRef = useRef(false);
 
+  // Post-send outcome — what ACTUALLY went out, not what we intended.
+  // Drives a brief honest overlay so the agent knows whether the card /
+  // license attached as files, rode along as tap-to-save links, or
+  // couldn't be delivered on this device. Set by handleSendMobile.
+  //   - 'attached'    → real file delivered via Web Share
+  //   - 'link'        → tap-to-save link appended to the SMS body
+  //   - 'unavailable' → we wanted to include it but had no URL/file
+  //   - 'skip'        → nothing to include (none on file / already sent)
+  const [sendOutcome, setSendOutcome] = useState<{
+    method: 'share' | 'sms';
+    card: 'attached' | 'link' | 'unavailable' | 'skip';
+    license: 'attached' | 'link' | 'unavailable' | 'skip';
+  } | null>(null);
+
   // Funnel: at most ONE booking_confirmation_sent per drawer open,
   // whichever channel lands first — the phone-push stamp snapshot can
   // re-deliver and the agent can hammer a send button; the ref guard
@@ -385,7 +399,6 @@ export default function SendConfirmationDrawer({
   const [error, setError] = useState<string | null>(null);
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [licenseSignedUrl, setLicenseSignedUrl] = useState<string | null>(null);
-  const [hasShareApi, setHasShareApi] = useState(false);
 
   // Platform tier:
   //   - 'mobile' (iPhone/Android) → Web Share opens Messages with
@@ -407,10 +420,8 @@ export default function SendConfirmationDrawer({
     const ua = navigator.userAgent;
     if (/Mobi|Android|iPhone|iPad|iPod/i.test(ua)) {
       setPlatform('mobile');
-      if ('canShare' in navigator) setHasShareApi(true);
     } else if (/Macintosh|Mac OS X/i.test(ua)) {
       setPlatform('mac');
-      if ('canShare' in navigator) setHasShareApi(true);
     } else {
       setPlatform('other');
       // Other desktops use sms: + drag fallback, no Web Share path.
@@ -425,20 +436,6 @@ export default function SendConfirmationDrawer({
   // doesn't fire the share before the file is ready (would have
   // resulted in the license missing from the attached share).
   const [licenseLoading, setLicenseLoading] = useState(false);
-
-  // Post-send outcome — what ACTUALLY went out, not what we intended.
-  // Drives a brief honest overlay so the agent knows whether the card /
-  // license attached as files, rode along as tap-to-save links, or
-  // couldn't be delivered on this device. Set by handleSendMobile.
-  //   - 'attached'    → real file delivered via Web Share
-  //   - 'link'        → tap-to-save link appended to the SMS body
-  //   - 'unavailable' → we wanted to include it but had no URL/file
-  //   - 'skip'        → nothing to include (none on file / already sent)
-  const [sendOutcome, setSendOutcome] = useState<{
-    method: 'share' | 'sms';
-    card: 'attached' | 'link' | 'unavailable' | 'skip';
-    license: 'attached' | 'link' | 'unavailable' | 'skip';
-  } | null>(null);
 
   // Resolve the matched license PDF as a File whenever the state changes.
   useEffect(() => {
@@ -714,15 +711,16 @@ export default function SendConfirmationDrawer({
   >(() => {
     if (!sendOutcome) return null;
     const o = sendOutcome;
-    const noun = (a: 'card' | 'license', b: 'card' | 'license') => {
+    // Which items (card/license) ended up in the given status.
+    const itemsWith = (...statuses: Array<typeof o.card>) => {
       const parts: string[] = [];
-      if (o.card === a || o.card === b) parts.push('business card');
-      if (o.license === a || o.license === b) parts.push('license');
+      if (statuses.includes(o.card)) parts.push('business card');
+      if (statuses.includes(o.license)) parts.push('license');
       return parts;
     };
 
     if (o.method === 'share') {
-      const attached = noun('attached', 'attached');
+      const attached = itemsWith('attached');
       if (attached.length === 0) {
         return { tone: 'ok', title: 'Confirmation sent', detail: 'Pick Messages and tap send.' };
       }
@@ -734,8 +732,8 @@ export default function SendConfirmationDrawer({
     }
 
     // sms: fallback
-    const linked = noun('link', 'link');
-    const missing = noun('unavailable', 'unavailable');
+    const linked = itemsWith('link');
+    const missing = itemsWith('unavailable');
     if (linked.length > 0) {
       return {
         tone: 'info',
