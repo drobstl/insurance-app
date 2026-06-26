@@ -3,7 +3,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { checkRateLimit, getClientIp } from '../../../../lib/rate-limit';
-import { findClientByCode } from '../../../../lib/client-code-lookup';
+import { resolveClientByAnyCode } from '../../../../lib/resolve-client-by-code';
 
 /**
  * POST /api/mobile/client-seen
@@ -40,10 +40,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing or invalid clientCode' }, { status: 400 });
     }
 
-    const match = await findClientByCode(clientCode);
+    const match = await resolveClientByAnyCode(clientCode);
     if (!match) {
-      // Quietly no-op for non-clients (leads/beneficiaries). The open signal
-      // is a client-only concern; no need to error the app over it.
+      // Quietly no-op for non-clients (unconverted leads / beneficiaries). The
+      // open signal is a client-only concern; no need to error the app over it.
       return new NextResponse(null, { status: 204 });
     }
 
