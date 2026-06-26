@@ -401,7 +401,12 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           licenses: data.licenses || {},
           appointmentMode: data.appointmentMode === 'video' ? 'video' : 'phone',
           defaultMeetingLink: data.defaultMeetingLink,
-          autoCreateGoogleMeet: data.autoCreateGoogleMeet === true,
+          // Tri-state: undefined = "use the default", which is ON when Google
+          // Calendar is connected (a fresh per-meeting Meet link). Only an
+          // explicit false (the agent opted out) disables it. The on-by-default
+          // decision lives in AppointmentPicker (usingAutoMeet).
+          autoCreateGoogleMeet:
+            typeof data.autoCreateGoogleMeet === 'boolean' ? data.autoCreateGoogleMeet : undefined,
           calendarViewMode: data.calendarViewMode === 'normal' ? 'normal' : 'focus',
           reminderPushHoursBefore: typeof data.reminderPushHoursBefore === 'number'
             ? data.reminderPushHoursBefore

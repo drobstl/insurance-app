@@ -104,7 +104,7 @@ export default function SettingsPage() {
     introTextTemplate: agentProfile.introTextTemplate || '',
     appointmentMode: agentProfile.appointmentMode || 'phone',
     defaultMeetingLink: agentProfile.defaultMeetingLink || '',
-    autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? false,
+    autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? true,
     reminderPushHoursBefore: agentProfile.reminderPushHoursBefore ?? 1,
     dialScript: agentProfile.dialScript || '',
     dialPersistence: agentProfile.dialPersistence ?? 1,
@@ -418,7 +418,7 @@ export default function SettingsPage() {
         introTextTemplate: (agentProfile.introTextTemplate || '').slice(0, 1000),
         appointmentMode: agentProfile.appointmentMode === 'video' ? 'video' : 'phone',
         defaultMeetingLink: (agentProfile.defaultMeetingLink || '').trim(),
-        autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? false,
+        autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? true,
         reminderPushHoursBefore: (() => {
           const raw = Number(agentProfile.reminderPushHoursBefore ?? 1);
           if (!Number.isFinite(raw)) return 1;

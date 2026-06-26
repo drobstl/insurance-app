@@ -171,11 +171,13 @@ export default function AppointmentPicker({
 
   // Meeting URL handling:
   //  - existing appointment → prefill from existingAppointment.meetingUrl
-  //  - new + agentAutoCreateGoogleMeet + Calendar connected → "(auto-generate)"
-  //    rendered as a non-editable placeholder, URL left empty so the server
-  //    creates one and writes it back
-  //  - new + defaultMeetingLink → prefill that
-  const usingAutoMeet = !isReschedule && !!agentAutoCreateGoogleMeet && !!googleCalendarConnected;
+  //  - new + Calendar connected → auto-Meet by DEFAULT (a fresh per-meeting
+  //    Google Meet link), unless the agent explicitly turned it off. Rendered
+  //    as a non-editable "(auto-generate)" placeholder, URL left empty so the
+  //    server creates one and writes it back.
+  //  - otherwise (not connected, or opted out) → prefill defaultMeetingLink
+  const usingAutoMeet =
+    !isReschedule && !!googleCalendarConnected && (agentAutoCreateGoogleMeet ?? true);
   const [meetingUrl, setMeetingUrl] = useState<string>(
     existingAppointment?.meetingUrl
       ?? (usingAutoMeet ? '' : (agentDefaultMeetingLink || '')),

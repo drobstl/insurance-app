@@ -401,12 +401,16 @@ export default function AppointmentsLeadsTab({
             <label className="flex items-start gap-2 cursor-pointer">
               <input
                 type="checkbox"
-                checked={agentProfile.autoCreateGoogleMeet ?? false}
+                checked={agentProfile.autoCreateGoogleMeet ?? true}
                 onChange={(e) => updateField('autoCreateGoogleMeet', e.target.checked)}
                 className="mt-0.5"
               />
               <span className="text-sm text-[#374151] leading-snug">
                 Auto-create a unique Google Meet link for every video appointment
+                <span className="block text-[11px] text-[#707070] mt-0.5">
+                  On by default whenever Google Calendar is connected. Turn it off to
+                  use your one fixed meeting link above instead.
+                </span>
                 {!googleCalendarStatus && (
                   <span className="block text-[11px] text-amber-700 mt-0.5">
                     Requires Google Calendar connection (in Account).
@@ -419,9 +423,9 @@ export default function AppointmentsLeadsTab({
                 changes every meeting" reads as intended, not as a bug. */}
             <p className="text-[11px] text-[#374151] mt-2 bg-[#f8f8f8] border border-[#ececec] rounded px-2 py-1.5">
               <span className="font-semibold">In effect now: </span>
-              {agentProfile.autoCreateGoogleMeet && googleCalendarStatus
+              {(agentProfile.autoCreateGoogleMeet ?? true) && googleCalendarStatus
                 ? 'each video booking creates its own fresh Google Meet link, and that unique link is what the confirmation sends.'
-                : agentProfile.autoCreateGoogleMeet && !googleCalendarStatus
+                : (agentProfile.autoCreateGoogleMeet ?? true) && !googleCalendarStatus
                 ? 'auto-Meet is on, but Google Calendar isn’t connected — so bookings fall back to the default link above. Connect Google in Account to use fresh Meet links.'
                 : 'every video booking sends the one default meeting link above.'}
             </p>
