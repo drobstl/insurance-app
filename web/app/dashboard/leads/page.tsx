@@ -30,6 +30,9 @@ import {
 import type { LeadScore } from '../../../lib/lead-assessment';
 import { LeadTempChip } from '../../../components/LeadTempChip';
 import { LeadTagChips } from '../../../components/LeadTagChips';
+import { LeadFilterBar } from '../../../components/LeadFilterBar';
+import { type LeadFilters, EMPTY_LEAD_FILTERS, hasActiveFilters } from '../../../lib/lead-filters';
+import { resolveLeadTags } from '../../../lib/lead-tag';
 import { parseLeadFile } from '../../../lib/lead-csv-parse';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
@@ -68,7 +71,7 @@ interface Lead {
 }
 
 type LeadView = 'all' | 'queue' | 'calendar';
-type LeadSortKey = 'name' | 'createdAt' | 'source' | 'priority';
+type LeadSortKey = 'name' | 'createdAt' | 'source' | 'priority' | 'state' | 'temperature' | 'lastContacted';
 type SortDir = 'asc' | 'desc';
 
 // Multi-page lead-form bundles route to the off-Vercel batch engine
@@ -251,6 +254,7 @@ function LeadsPageInner() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortKey, setSortKey] = useState<LeadSortKey>('createdAt');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [filters, setFilters] = useState<LeadFilters>(EMPTY_LEAD_FILTERS);
 
   // Add-Lead flow ── replaces the centered modal with a horizontal
   // slide. addFlowOpen=true → list slides out left, form slides in
@@ -905,15 +909,64 @@ function LeadsPageInner() {
   //   2. Never dialed, newer first (fresh leads outrank stale ones).
   //   3. Dialed, oldest-last-call first. No per-outcome weighting —
   //      the agent cycles through and comes back around naturally.
+  // Distinct USPS states present in the loaded leads — powers the State
+  // filter dropdown. Recomputed only when the lead set changes.
+  const availableStates = useMemo<string[]>(() => {
+    const set = new Set<string>();
+    for (const lead of leads) {
+      const s = lead.address?.state?.trim().toUpperCase();
+      if (s) set.add(s);
+    }
+    return [...set].sort();
+  }, [leads]);
+
   // ── Filtered + sorted All-leads view ──
-  // Search matches against name / phone / leadCode / formType / state /
-  // city (case-insensitive substring). Sort key cycles through
-  // name / createdAt / state / source with asc/desc toggle per the
-  // SortIcon helper below.
+  // Filters (status / tag / state / date) → search → sort, all client-side
+  // over the already-loaded leads (no Firestore index). Status no-show /
+  // booked / thinking / no-sale read from the same nextApptByLead /
+  // pastOutcomeByLead maps the row chips use. Search covers name / phone /
+  // code / form / email / state / city / notes / tag labels.
   const filteredLeads = useMemo<Lead[]>(() => {
     let result = leads;
+    const tempRank = (t?: string | null) => (t === 'hot' ? 3 : t === 'warm' ? 2 : t === 'cool' ? 1 : 0);
+
+    if (filters.statuses.length) {
+      result = result.filter((lead) => {
+        const past = pastOutcomeByLead.get(lead.id)?.status;
+        const booked = nextApptByLead.has(lead.id);
+        return filters.statuses.some((s) => {
+          switch (s) {
+            case 'converted': return !!lead.convertedToClientId;
+            case 'booked': return booked;
+            case 'no_show': return past === 'no_show';
+            case 'thinking': return past === 'sit_think_about_it';
+            case 'no_sale': return past === 'sit_no_sale';
+            case 'callback': return lead.lastDialOutcome === 'callback_requested';
+            case 'not_interested': return lead.lastDialOutcome === 'not_interested';
+            case 'new': return !lead.lastDialAt && !booked && !past && !lead.convertedToClientId;
+            default: return false;
+          }
+        });
+      });
+    }
+    if (filters.tagIds.length) {
+      result = result.filter((lead) => filters.tagIds.every((id) => (lead.tagIds ?? []).includes(id)));
+    }
+    if (filters.state) {
+      result = result.filter((lead) => (lead.address?.state ?? '').toUpperCase() === filters.state);
+    }
+    if (filters.dateFrom || filters.dateTo) {
+      const fromMs = filters.dateFrom ? Date.parse(`${filters.dateFrom}T00:00:00`) : -Infinity;
+      const toMs = filters.dateTo ? Date.parse(`${filters.dateTo}T23:59:59`) : Infinity;
+      result = result.filter((lead) => {
+        const t = lead.createdAt?.toDate().getTime();
+        return t != null && t >= fromMs && t <= toMs;
+      });
+    }
+
     const q = searchQuery.trim().toLowerCase();
     if (q) {
+      const tagDefs = agentProfile.leadTags ?? [];
       result = result.filter((lead) => {
         const fields = [
           lead.name,
@@ -923,10 +976,13 @@ function LeadsPageInner() {
           lead.email,
           lead.address?.state,
           lead.address?.city,
+          lead.notes,
         ];
-        return fields.some((f) => typeof f === 'string' && f.toLowerCase().includes(q));
+        if (fields.some((f) => typeof f === 'string' && f.toLowerCase().includes(q))) return true;
+        return resolveLeadTags(lead.tagIds, tagDefs).some((t) => t.label.toLowerCase().includes(q));
       });
     }
+
     result = [...result].sort((a, b) => {
       let cmp = 0;
       if (sortKey === 'name') {
@@ -937,11 +993,19 @@ function LeadsPageInner() {
         cmp = aT - bT;
       } else if (sortKey === 'source') {
         cmp = (a.formType || '').localeCompare(b.formType || '');
+      } else if (sortKey === 'state') {
+        cmp = (a.address?.state || '').localeCompare(b.address?.state || '');
+      } else if (sortKey === 'temperature') {
+        cmp = tempRank(a.leadScore?.temperature) - tempRank(b.leadScore?.temperature);
+      } else if (sortKey === 'lastContacted') {
+        const aT = a.lastDialAt?.toDate().getTime() ?? 0;
+        const bT = b.lastDialAt?.toDate().getTime() ?? 0;
+        cmp = aT - bT;
       }
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return result;
-  }, [leads, searchQuery, sortKey, sortDir]);
+  }, [leads, filters, searchQuery, sortKey, sortDir, nextApptByLead, pastOutcomeByLead, agentProfile.leadTags]);
 
   const handleSort = useCallback((key: LeadSortKey) => {
     setSortKey((prev) => {
@@ -1544,7 +1608,7 @@ function LeadsPageInner() {
               >
                 All leads
                 <span className={`text-xs font-normal ${view === 'all' ? 'text-white/80' : 'text-[#9CA3AF]'}`}>
-                  {view === 'all' && searchQuery.trim() ? `${filteredLeads.length} / ${leads.length}` : leads.length}
+                  {view === 'all' && (searchQuery.trim() || hasActiveFilters(filters)) ? `${filteredLeads.length} / ${leads.length}` : leads.length}
                 </span>
               </button>
               <button
@@ -1607,6 +1671,44 @@ function LeadsPageInner() {
                     </svg>
                   </button>
                 )}
+              </div>
+            )}
+            {view === 'all' && (
+              <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
+                <LeadFilterBar
+                  filters={filters}
+                  onChange={setFilters}
+                  tags={agentProfile.leadTags ?? []}
+                  availableStates={availableStates}
+                />
+                <div className="flex items-center gap-1.5 text-xs mb-2">
+                  <span className="font-semibold uppercase tracking-wider text-[#9CA3AF]">Sort</span>
+                  <select
+                    value={sortKey === 'priority' ? 'createdAt' : sortKey}
+                    onChange={(e) => {
+                      const k = e.target.value as LeadSortKey;
+                      setSortKey(k);
+                      setSortDir(k === 'name' || k === 'source' || k === 'state' ? 'asc' : 'desc');
+                    }}
+                    className="px-2 py-1 border border-[#d0d0d0] rounded-[5px] bg-white"
+                  >
+                    <option value="createdAt">Date added</option>
+                    <option value="name">Name</option>
+                    <option value="source">Source</option>
+                    <option value="state">State</option>
+                    <option value="temperature">Temperature</option>
+                    <option value="lastContacted">Last contacted</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                    className="px-2 py-1 border border-[#d0d0d0] rounded-[5px] bg-white"
+                    aria-label="Toggle sort direction"
+                    title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
+                  >
+                    {sortDir === 'asc' ? '↑' : '↓'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
