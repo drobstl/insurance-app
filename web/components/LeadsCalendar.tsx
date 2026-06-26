@@ -22,6 +22,7 @@ import AppointmentPicker from './AppointmentPicker';
 import SendConfirmationDrawer from './SendConfirmationDrawer';
 import type { AppointmentStatus } from '../lib/appointments';
 import { getFifResetChip } from '../lib/appointment-outcome-chip';
+import { normalizePhone } from '../lib/phone-format';
 
 /**
  * Leads → Calendar tab (v1).
@@ -1713,7 +1714,7 @@ function ApptPopover({
         <div className="grid grid-cols-2 gap-2">
           {appt.leadPhone && (
             <a
-              href={`tel:${appt.leadPhone}`}
+              href={`tel:${normalizePhone(appt.leadPhone)}`}
               className="col-span-1 grid place-items-center py-2.5 text-sm font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors"
             >
               Call
