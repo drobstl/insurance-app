@@ -414,6 +414,17 @@ export default function AppointmentsLeadsTab({
                 )}
               </span>
             </label>
+
+            {/* State plainly which link actually goes out, so "the link
+                changes every meeting" reads as intended, not as a bug. */}
+            <p className="text-[11px] text-[#374151] mt-2 bg-[#f8f8f8] border border-[#ececec] rounded px-2 py-1.5">
+              <span className="font-semibold">In effect now: </span>
+              {agentProfile.autoCreateGoogleMeet && googleCalendarStatus
+                ? 'each video booking creates its own fresh Google Meet link, and that unique link is what the confirmation sends.'
+                : agentProfile.autoCreateGoogleMeet && !googleCalendarStatus
+                ? 'auto-Meet is on, but Google Calendar isn’t connected — so bookings fall back to the default link above. Connect Google in Account to use fresh Meet links.'
+                : 'every video booking sends the one default meeting link above.'}
+            </p>
           </>
         )}
       </div>
