@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence, useAnimationControls, useReducedMotion, type PanInfo } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion, type PanInfo } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import { captureEvent } from '../lib/posthog';
@@ -116,11 +116,13 @@ function randomBetween(min: number, max: number) {
 // guide (emotional note: relief, not "look how much we have"), then genies back
 // down to his corner. His look — the face PNG — is untouched; this is motion only.
 function PatchReveal({ onDone }: { onDone: () => void }) {
+  type Pt = { x: number; y: number };
   const reduce = useReducedMotion();
-  const controls = useAnimationControls();
-  const [showCaption, setShowCaption] = useState(false);
+  const patchRef = useRef<HTMLDivElement>(null);
+  const [showMessage, setShowMessage] = useState(false);
   const [bgVisible, setBgVisible] = useState(false);
   const doneRef = useRef(false);
+  const dismissingRef = useRef(false);
 
   const finish = useCallback(() => {
     if (doneRef.current) return;
@@ -128,9 +130,17 @@ function PatchReveal({ onDone }: { onDone: () => void }) {
     onDone();
   }, [onDone]);
 
-  // Delta from screen center to Patch's bottom-right resting spot — he genies in
-  // from there and tucks back to it, so the handoff to the real FAB is seamless.
-  const cornerDelta = () => {
+  // Quadratic bezier point — bends Patch's path into a graceful arc.
+  const bezier = (p0: Pt, p1: Pt, p2: Pt, t: number): Pt => {
+    const mt = 1 - t;
+    return {
+      x: mt * mt * p0.x + 2 * mt * t * p1.x + t * t * p2.x,
+      y: mt * mt * p0.y + 2 * mt * t * p1.y + t * t * p2.y,
+    };
+  };
+
+  // Delta from screen center to Patch's bottom-right resting spot.
+  const cornerDelta = (): Pt => {
     if (typeof window === 'undefined') return { x: 240, y: 240 };
     const margin = 24;
     return {
@@ -139,52 +149,98 @@ function PatchReveal({ onDone }: { onDone: () => void }) {
     };
   };
 
+  const tf = (x: number, y: number, sx: number, sy: number) =>
+    `translate(${x}px, ${y}px) scaleX(${sx}) scaleY(${sy})`;
+
+  // Entrance: arc up from the corner with squash-and-stretch — his body
+  // elongates into the motion, then his mass catches up and reforms with a
+  // settle. Driven by the Web Animations API as one transform track so
+  // position and scale never drift apart (the cause of the old wobble).
   useEffect(() => {
+    const el = patchRef.current;
+    if (!el) return;
     let cancelled = false;
-    const run = async () => {
-      const corner = cornerDelta();
-      setBgVisible(true);
-      if (reduce) {
-        await controls.start({ x: 0, y: 0, scaleX: 1, scaleY: 1, opacity: 1, transition: { duration: 0.3 } });
-      } else {
-        await controls.start({
-          x: 0,
-          y: 0,
-          opacity: 1,
-          scaleX: [0.5, 0.72, 1],
-          scaleY: [0.5, 1.28, 1],
-          transition: { duration: 0.85, ease: [0.42, 0, 0.2, 1], times: [0, 0.5, 1] },
-        });
-      }
-      if (cancelled) return;
-      setShowCaption(true);
-      await new Promise((resolve) => setTimeout(resolve, 2400));
-      if (cancelled) return;
-      setShowCaption(false);
-      setBgVisible(false);
-      if (reduce) {
-        await controls.start({ opacity: 0, transition: { duration: 0.3 } });
-      } else {
-        await controls.start({
-          x: corner.x,
-          y: corner.y,
-          opacity: 0,
-          scaleX: [1, 0.72, 0.42],
-          scaleY: [1, 1.28, 0.42],
-          transition: { duration: 0.8, ease: [0.42, 0, 0.2, 1], times: [0, 0.45, 1] },
-        });
-      }
-      if (cancelled) return;
-      finish();
-    };
-    run();
+    setBgVisible(true);
+    const c = cornerDelta();
+    if (reduce) {
+      el.style.transform = 'translate(0px, 0px)';
+      el.style.opacity = '1';
+      setShowMessage(true);
+      return;
+    }
+    el.style.transformOrigin = 'center bottom';
+    const p0 = { x: c.x, y: c.y };
+    const p2 = { x: 0, y: 0 };
+    const p1 = { x: c.x * 0.5, y: -Math.abs(c.y) * 0.5 };
+    const at = (t: number) => bezier(p0, p1, p2, Math.min(1, t / 0.68));
+    const anim = el.animate(
+      [
+        { offset: 0, opacity: 0, transform: tf(p0.x, p0.y, 0.5, 0.5) },
+        { offset: 0.22, opacity: 1, transform: tf(at(0.22).x, at(0.22).y, 0.7, 1.42) },
+        { offset: 0.46, opacity: 1, transform: tf(at(0.46).x, at(0.46).y, 0.64, 1.54) },
+        { offset: 0.68, opacity: 1, transform: tf(0, 0, 0.82, 1.26) },
+        { offset: 0.82, opacity: 1, transform: tf(0, 0, 1.14, 0.86) },
+        { offset: 0.92, opacity: 1, transform: tf(0, 0, 0.97, 1.04) },
+        { offset: 1, opacity: 1, transform: tf(0, 0, 1, 1) },
+      ],
+      { duration: 1300, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'forwards' },
+    );
+    anim.finished
+      .then(() => {
+        if (cancelled) return;
+        el.style.transformOrigin = 'center';
+        setShowMessage(true);
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
+      anim.cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [reduce]);
 
-  const corner = cornerDelta();
+  // Exit: a small acknowledging bob, then arc back out to the corner. Only the
+  // agent dismisses him (the Got it button or the backdrop) — no auto-timeout.
+  const dismiss = useCallback(() => {
+    const el = patchRef.current;
+    if (!el || dismissingRef.current) return;
+    dismissingRef.current = true;
+    setShowMessage(false);
+    setBgVisible(false);
+    const c = cornerDelta();
+    if (reduce) {
+      finish();
+      return;
+    }
+    el.style.transformOrigin = 'center top';
+    const q0 = { x: 0, y: 0 };
+    const q2 = { x: c.x, y: c.y };
+    const q1 = { x: c.x * 0.5, y: -Math.abs(c.y) * 0.42 };
+    const at = (t: number) => bezier(q0, q1, q2, t);
+    el.animate(
+      [
+        { transform: tf(0, 0, 1, 1) },
+        { transform: tf(0, 0, 1.1, 0.9), offset: 0.22 },
+        { transform: tf(0, 0, 1, 1), offset: 0.42 },
+      ],
+      { duration: 300, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)', fill: 'forwards' },
+    )
+      .finished.then(() =>
+        el.animate(
+          [
+            { offset: 0, opacity: 1, transform: tf(0, 0, 1, 1) },
+            { offset: 0.3, opacity: 1, transform: tf(at(0.3).x, at(0.3).y, 0.74, 1.4) },
+            { offset: 0.66, opacity: 0.95, transform: tf(at(0.66).x, at(0.66).y, 0.64, 1.5) },
+            { offset: 1, opacity: 0, transform: tf(q2.x, q2.y, 0.5, 0.5) },
+          ],
+          { duration: 1000, easing: 'cubic-bezier(0.5, 0, 0.2, 1)', fill: 'forwards' },
+        ).finished,
+      )
+      .then(() => finish())
+      .catch(() => finish());
+  }, [reduce, finish]);
+
+  const c0 = cornerDelta();
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center" role="dialog" aria-label="Meet Patch">
@@ -192,34 +248,38 @@ function PatchReveal({ onDone }: { onDone: () => void }) {
         className="absolute inset-0 bg-black/30"
         initial={{ opacity: 0 }}
         animate={{ opacity: bgVisible ? 1 : 0 }}
-        transition={{ duration: 0.4 }}
-        onClick={finish}
+        transition={{ duration: 0.45 }}
+        onClick={dismiss}
       />
-      <div className="relative flex flex-col items-center" style={{ pointerEvents: 'none' }}>
+      <div className="relative flex flex-col items-center px-4" style={{ pointerEvents: 'none' }}>
+        <div ref={patchRef} style={{ opacity: 0, transform: tf(c0.x, c0.y, 0.5, 0.5), willChange: 'transform' }}>
+          <motion.div
+            animate={showMessage && !reduce ? { scale: [1, 1.035, 1] } : { scale: 1 }}
+            transition={
+              showMessage && !reduce ? { duration: 2.8, repeat: Infinity, ease: 'easeInOut' } : { duration: 0 }
+            }
+          >
+            <PatchMascot size={104} />
+          </motion.div>
+        </div>
         <motion.div
-          initial={{ x: corner.x, y: corner.y, scaleX: 0.5, scaleY: 0.5, opacity: 0 }}
-          animate={controls}
-          style={{ transformOrigin: 'bottom right' }}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: showMessage ? 1 : 0, y: showMessage ? 0 : 12 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          className="mt-6 max-w-[320px] text-center"
+          style={{ pointerEvents: showMessage ? 'auto' : 'none' }}
         >
-          <PatchMascot size={104} />
+          <p className="text-white text-[15px] font-medium leading-snug">Hi, I&apos;m Patch — your guide.</p>
+          <p className="text-white/85 text-sm leading-snug mt-1">
+            You don&apos;t have to memorize any of this. Ask me anything, anytime.
+          </p>
+          <button
+            onClick={dismiss}
+            className="mt-4 bg-white text-[#005851] hover:bg-white/90 rounded-[9px] px-5 py-2 text-sm font-semibold transition-colors"
+          >
+            Got it
+          </button>
         </motion.div>
-        <AnimatePresence>
-          {showCaption && (
-            <motion.div
-              key="patch-reveal-caption"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 6 }}
-              transition={{ duration: 0.4 }}
-              className="mt-5 max-w-[300px] text-center px-4"
-            >
-              <p className="text-white text-[15px] font-medium leading-snug">Hi, I&apos;m Patch — your guide.</p>
-              <p className="text-white/85 text-sm leading-snug mt-1">
-                You don&apos;t have to memorize any of this. Ask me anything, anytime.
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
     </div>
   );
