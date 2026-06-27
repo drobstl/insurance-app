@@ -24,6 +24,12 @@ interface ActivityStats {
     bookRate: number;
     deltaPct: number | null;
   };
+  advancedMarketSits: {
+    sits: number;
+    resetsSet: number;
+    ratePerSit: number;
+    deltaPct: number | null;
+  };
   sales: {
     count: number;
     apv: number;
@@ -702,6 +708,23 @@ export default function ActivityPage() {
               label="Close rate"
               primary={fmtPct(stats.sales.closeRate)}
               secondary={`sales / showed · ${stats.sales.count} of ${stats.appointments.showed}`}
+            />
+          </div>
+
+          {/* Advanced market sits (FIF resets) — the per-sit discipline
+              metric: of your sits, how many did you set a reset on. The
+              count rides beside the rate, with its period delta. */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+            <HeroTile
+              label="Advanced market sit rate"
+              primary={fmtPct(stats.advancedMarketSits.ratePerSit)}
+              secondary={`reset set / sits · ${stats.advancedMarketSits.resetsSet} of ${stats.advancedMarketSits.sits}`}
+            />
+            <HeroTile
+              label="Advanced market sits set"
+              primary={String(stats.advancedMarketSits.resetsSet)}
+              secondary="reset booked on a sit this period"
+              delta={stats.advancedMarketSits.deltaPct}
             />
           </div>
 

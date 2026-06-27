@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -22,7 +22,13 @@ import * as Clipboard from 'expo-clipboard';
 import * as Notifications from 'expo-notifications';
 import Confetti from '../components/confetti';
 import MessageCard from '../components/MessageCard';
+import ResetReveal from '../components/ResetReveal';
 import { clearSession, getSession, registerAndSavePushToken } from './index';
+import {
+  fetchResetRevealDecision,
+  recordResetRevealEvent,
+  type ResetRevealData,
+} from '../lib/reset-reveal-client';
 
 // Get first name from full name
 const getFirstName = (fullName: string | undefined) => {
@@ -61,6 +67,9 @@ export default function AgentProfileScreen() {
   const [pushStatus, setPushStatus] = useState<'checking' | 'enabled' | 'denied' | 'error'>('checking');
   const [retrying, setRetrying] = useState(false);
   const [storedClientCode, setStoredClientCode] = useState<string | undefined>(undefined);
+  const [revealData, setRevealData] = useState<ResetRevealData | null>(null);
+  const [revealVisible, setRevealVisible] = useState(false);
+  const revealTriedRef = useRef(false);
 
   const agentId = getParamValue(params.agentId).trim();
   const clientId = getParamValue(params.clientId).trim();
@@ -76,6 +85,30 @@ export default function AgentProfileScreen() {
   useEffect(() => {
     getSession().then((s) => { if (s?.clientCode) setStoredClientCode(s.clientCode); });
   }, []);
+
+  // Ask the server whether to show the reset reveal. The server owns
+  // eligibility + cadence; we just render what comes back, once per mount.
+  useEffect(() => {
+    if (!storedClientCode || revealTriedRef.current) return;
+    revealTriedRef.current = true;
+    (async () => {
+      const data = await fetchResetRevealDecision(storedClientCode);
+      if (data) {
+        setRevealData(data);
+        setRevealVisible(true);
+        recordResetRevealEvent(storedClientCode, 'shown');
+      }
+    })();
+  }, [storedClientCode]);
+
+  const handleRevealEngage = () => {
+    if (storedClientCode) recordResetRevealEvent(storedClientCode, 'engaged');
+    setRevealVisible(false);
+  };
+  const handleRevealDismiss = () => {
+    if (storedClientCode) recordResetRevealEvent(storedClientCode, 'dismissed');
+    setRevealVisible(false);
+  };
 
   // Fetch agent-specific data via server API (fields too large for URL params)
   useEffect(() => {
@@ -577,6 +610,16 @@ export default function AgentProfileScreen() {
             agencyLogoBase64={agencyLogoBase64}
             clientName={getFirstName(clientName)}
           />
+
+          {/* Reset reveal — full-screen Modal; renders above everything when shown. */}
+          {revealData ? (
+            <ResetReveal
+              visible={revealVisible}
+              data={revealData}
+              onEngage={handleRevealEngage}
+              onDismiss={handleRevealDismiss}
+            />
+          ) : null}
 
           {/* Referral Button - Red Primary Style */}
           <TouchableOpacity 
