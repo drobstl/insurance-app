@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 
@@ -65,7 +65,7 @@ export interface HouseholdProfile {
   homeValue?: string;
 }
 
-export interface QuoteOption { label: string; coverage: string; priceYou: string; priceSpouse: string }
+export interface QuoteOption { label: string; coverage: string; priceYou: string; priceSpouse: string; carrier?: string }
 export interface QuoteState {
   optTab: 'payoff' | 'payment';
   couple: boolean;
@@ -74,6 +74,29 @@ export interface QuoteState {
   mostChosen: { payoff: number; payment: number };
   payoffOpts: QuoteOption[];
   paymentOpts: QuoteOption[];
+}
+
+/** The single option the client chose to "Protect", snapshotted at that moment. */
+export interface ProtectedChoice {
+  tab: 'payoff' | 'payment';
+  label: string;
+  carrier: string;
+  coverage: string;
+  priceYou: string;
+  priceSpouse: string;
+  couple: boolean;
+}
+/**
+ * A durable record of one "Protect" moment in a presentation: which option the
+ * client chose (with its carrier) AND the full set of options on the table at
+ * that time. Appended to `lead.protectionHistory` so the agent can revisit, at
+ * any time, exactly what was presented and what was protected.
+ */
+export interface ProtectionRecord {
+  id: string;
+  protectedAt: number; // epoch ms
+  chosen: ProtectedChoice;
+  presented: { payoff: QuoteOption[]; payment: QuoteOption[] };
 }
 
 /**
@@ -359,6 +382,21 @@ export function useLeadHousehold(leadId?: string) {
     [write],
   );
 
+  // A "Protect" is a discrete, celebratory commit — written immediately (not
+  // debounced) and appended (never overwriting prior protections) so the lead's
+  // protectionHistory is a true, growing audit trail. Also stamps the lead's
+  // "Application opened" marker.
+  const protect = useCallback(
+    (record: ProtectionRecord) => {
+      if (!user || !leadId) return Promise.resolve();
+      return updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+        protectionHistory: arrayUnion(clean(record)),
+        applicationOpenedAt: record.protectedAt,
+      }).catch((e) => console.error('protect save failed:', e));
+    },
+    [user, leadId],
+  );
+
   const patchQuote = useCallback(
     (partial: Partial<QuoteState>) => {
       setQuoteState((q) => {
@@ -397,5 +435,6 @@ export function useLeadHousehold(leadId?: string) {
     setMortgagePayment,
     quote,
     patchQuote,
+    protect,
   };
 }
