@@ -302,3 +302,57 @@ export function renderWalkthroughs(items: PatchWalkthrough[] = PATCH_WALKTHROUGH
     )
     .join('\n');
 }
+
+// Suggested questions shown when Patch opens with an empty thread. Page-aware:
+// the agent's current route picks the most relevant set, with a general fallback.
+const DEFAULT_SUGGESTED_QUESTIONS = [
+  'How do I add clients?',
+  'How do referrals work?',
+  'What are conservation alerts?',
+  'Where do I change my branding?',
+];
+
+const SUGGESTIONS_BY_ROUTE: Record<string, string[]> = {
+  '/dashboard/leads': [
+    'How do I add a lead?',
+    'How do I book an appointment?',
+    'How does the call queue work?',
+    "What's the 'do not call' outcome?",
+  ],
+  '/dashboard/calendar': ['How do I see my calendar in AFL?', 'How do I reschedule an appointment?'],
+  '/dashboard/clients': [
+    'How do I add clients?',
+    'How does bulk import work?',
+    "What's the 90-second onboarding ritual?",
+  ],
+  '/dashboard/action-items': ['What are Action Items?', 'How do completion actions work on action items?'],
+  '/dashboard/activity': [
+    'How do I read my numbers?',
+    "What's APV net placed?",
+    'What does my book rate tell me?',
+  ],
+  '/dashboard/conservation': ['What are conservation alerts?', 'What is a chargeback alert?'],
+  '/dashboard/policy-reviews': ["What's a rewrite alert?", 'How do anniversary messages work?'],
+  '/dashboard/referrals': ['How do referrals work?', 'How do I turn on the referral assistant?'],
+  '/dashboard/coaching': [
+    'How does call coaching work?',
+    "What's the R.E.A.L. framework?",
+    'How many calls can I score?',
+  ],
+  '/dashboard/settings': [
+    'Where do I change my branding?',
+    'How do I switch plans?',
+    'How do I connect Google Calendar?',
+  ],
+};
+
+/** Page-aware suggested questions for the Patch launcher. */
+export function getSuggestedQuestions(pathname?: string | null): string[] {
+  if (pathname) {
+    const match = Object.keys(SUGGESTIONS_BY_ROUTE)
+      .filter((route) => pathname.startsWith(route))
+      .sort((a, b) => b.length - a.length)[0];
+    if (match) return SUGGESTIONS_BY_ROUTE[match];
+  }
+  return DEFAULT_SUGGESTED_QUESTIONS;
+}

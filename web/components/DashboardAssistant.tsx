@@ -2,9 +2,11 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence, useAnimationControls, useReducedMotion, type PanInfo } from 'framer-motion';
+import { usePathname } from 'next/navigation';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import { captureEvent } from '../lib/posthog';
 import { ANALYTICS_EVENTS } from '../lib/analytics-events';
+import { getSuggestedQuestions } from '../lib/patch-knowledge';
 
 const MotionDiv = motion.div;
 
@@ -16,13 +18,6 @@ interface Message {
 interface DashboardAssistantProps {
   onFirstUserMessage?: (message: string) => void;
 }
-
-const SUGGESTED_QUESTIONS = [
-  'How do I add clients?',
-  'How do referrals work?',
-  'What are conservation alerts?',
-  'Where do I change my branding?',
-];
 
 const LINK_REGEX = /(\[[^\]]+\]\([^)]+\))/g;
 const LINK_MATCH_REGEX = /^\[([^\]]+)\]\(([^)]+)\)$/;
@@ -232,6 +227,7 @@ function PatchReveal({ onDone }: { onDone: () => void }) {
 
 export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssistantProps) {
   const { user, agentProfile, profileLoading } = useDashboard();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [showReveal, setShowReveal] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -448,6 +444,11 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
           },
           body: JSON.stringify({
             messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+            context: {
+              page: pathname,
+              tier: agentProfile.membershipTier,
+              onboardingComplete: agentProfile.onboardingComplete,
+            },
           }),
           signal: abortRef.current.signal,
         });
@@ -507,7 +508,7 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
         abortRef.current = null;
       }
     },
-    [user, messages, streaming, onFirstUserMessage],
+    [user, messages, streaming, onFirstUserMessage, pathname, agentProfile],
   );
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -666,7 +667,7 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
                     Ask me anything about the dashboard.
                   </p>
                   <div className="w-full space-y-2">
-                    {SUGGESTED_QUESTIONS.map((q) => (
+                    {getSuggestedQuestions(pathname).map((q) => (
                       <button
                         key={q}
                         onClick={() => sendMessage(q)}

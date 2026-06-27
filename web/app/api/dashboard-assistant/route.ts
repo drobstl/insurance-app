@@ -165,6 +165,34 @@ RULES:
 - Never discuss topics outside AFL, the dashboard, or insurance-agent workflows.
 - Speak about AFL doing things, not "AI." (See PERSONALITY & VOICE above.)`;
 
+interface AgentContext {
+  page?: string;
+  tier?: string;
+  onboardingComplete?: boolean;
+}
+
+// Per-request personalization appended to the system prompt so Patch tailors
+// answers to where the agent is and what plan they're on.
+function renderAgentContext(ctx: AgentContext | undefined): string {
+  if (!ctx || typeof ctx !== 'object') return '';
+  const lines: string[] = [];
+  if (typeof ctx.page === 'string' && ctx.page) {
+    lines.push(`- They are currently on the ${ctx.page} page — bias toward that area when relevant.`);
+  }
+  if (typeof ctx.tier === 'string' && ctx.tier) {
+    lines.push(
+      `- Their plan is "${ctx.tier}". Lead with what their plan includes. If they ask about a higher-tier feature (Leads, Calendar, and Activity are Pro), explain what it does and that it unlocks on Pro, with a link to [Settings → Account](/dashboard/settings).`,
+    );
+  }
+  if (ctx.onboardingComplete === false) {
+    lines.push(
+      `- They are a new agent still onboarding — bias toward first steps: completing their profile, adding their first client, and the 90-second end-of-sale ritual.`,
+    );
+  }
+  if (lines.length === 0) return '';
+  return `\n\nAGENT CONTEXT (tailor your answer to this; do not read it back verbatim):\n${lines.join('\n')}`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('Authorization');
@@ -181,6 +209,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const messages: { role: 'user' | 'assistant'; content: string }[] = body.messages;
+    const context: AgentContext | undefined = body.context;
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return new Response(JSON.stringify({ error: 'messages array is required' }), {
@@ -194,7 +223,7 @@ export async function POST(req: NextRequest) {
     const stream = anthropic.messages.stream({
       model: MODEL,
       max_tokens: 1024,
-      system: SYSTEM_PROMPT,
+      system: SYSTEM_PROMPT + renderAgentContext(context),
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
     });
 
