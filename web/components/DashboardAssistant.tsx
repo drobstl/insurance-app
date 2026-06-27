@@ -131,6 +131,7 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
   const suppressClickRef = useRef(false);
   const [fabOffset, setFabOffset] = useState({ x: 0, y: 0 });
   const [dragArmed, setDragArmed] = useState(false);
+  const [enableSnapAnim, setEnableSnapAnim] = useState(false);
   const firstUserMessageReportedRef = useRef(false);
 
   // Tilt: two 10deg nods back-to-back, then rest, then random delay and repeat
@@ -200,6 +201,31 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
       x: Math.max(maxLeft, Math.min(0, next.x)),
       y: Math.max(maxUp, Math.min(0, next.y)),
     };
+  }, []);
+
+  // "Tuck near corners, free elsewhere" — if the agent drops Patch close to a
+  // corner, ease him into it; otherwise leave him exactly where dropped.
+  const snapNearCorner = useCallback((offset: { x: number; y: number }) => {
+    if (typeof window === 'undefined') return offset;
+    const maxLeft = Math.min(0, -(window.innerWidth - PATCH_BUTTON_SIZE_PX - PATCH_MIN_MARGIN_PX * 2));
+    const maxUp = Math.min(0, -(window.innerHeight - PATCH_BUTTON_SIZE_PX - PATCH_MIN_MARGIN_PX * 2));
+    const corners = [
+      { x: 0, y: 0 },
+      { x: maxLeft, y: 0 },
+      { x: 0, y: maxUp },
+      { x: maxLeft, y: maxUp },
+    ];
+    const SNAP_THRESHOLD_PX = 96;
+    let nearest = offset;
+    let nearestDist = SNAP_THRESHOLD_PX;
+    for (const corner of corners) {
+      const dist = Math.hypot(offset.x - corner.x, offset.y - corner.y);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearest = corner;
+      }
+    }
+    return nearest;
   }, []);
 
   useEffect(() => {
@@ -374,7 +400,8 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
   const handleFabDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     suppressClickRef.current = true;
     setDragArmed(false);
-    setFabOffset((prev) => clampFabOffset({ x: prev.x + info.offset.x, y: prev.y + info.offset.y }));
+    setEnableSnapAnim(true);
+    setFabOffset((prev) => snapNearCorner(clampFabOffset({ x: prev.x + info.offset.x, y: prev.y + info.offset.y })));
   };
 
   return (
@@ -405,11 +432,19 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
           suppressClickRef.current = true;
         }}
         onDragEnd={handleFabDragEnd}
-        className="fixed bottom-24 md:bottom-5 right-4 md:right-5 z-50 w-11 h-11 rounded-full flex items-center justify-center bg-transparent border border-gray-200/80 shadow-[0_4px_12px_rgba(0,0,0,0.12)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.15)] p-0 transition-shadow"
-        animate={{ rotate: open ? 0 : tiltDeg, x: fabOffset.x, y: fabOffset.y }}
-        transition={{ rotate: { duration: 0.35, ease: 'easeInOut' } }}
-        whileHover={{ scale: 1.08 }}
-        whileTap={{ scale: 0.95 }}
+        className={`fixed bottom-24 md:bottom-5 right-4 md:right-5 z-50 w-11 h-11 rounded-full flex items-center justify-center bg-transparent border p-0 transition-shadow ${
+          dragArmed
+            ? 'border-[#3DD6C3] ring-2 ring-[#3DD6C3]/60 shadow-[0_12px_30px_rgba(0,0,0,0.22)]'
+            : 'border-gray-200/80 shadow-[0_4px_12px_rgba(0,0,0,0.12)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.15)]'
+        }`}
+        animate={{ rotate: open ? 0 : tiltDeg, x: fabOffset.x, y: fabOffset.y, scale: dragArmed ? 1.1 : 1 }}
+        transition={{
+          rotate: { duration: 0.35, ease: 'easeInOut' },
+          scale: { type: 'spring', stiffness: 500, damping: 28 },
+          x: enableSnapAnim ? { type: 'spring', stiffness: 520, damping: 34 } : { duration: 0 },
+          y: enableSnapAnim ? { type: 'spring', stiffness: 520, damping: 34 } : { duration: 0 },
+        }}
+        whileHover={{ scale: dragArmed ? 1.1 : 1.08 }}
         aria-label={open ? 'Close Patch' : 'Open Patch'}
       >
         <AnimatePresence mode="wait">
