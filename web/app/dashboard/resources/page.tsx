@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   OnboardingWalkthroughModal,
@@ -81,6 +81,16 @@ const WALKTHROUGHS: {
 export default function ResourcesPage() {
   const [activeWalkthrough, setActiveWalkthrough] = useState<WalkthroughId | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+
+  // Deep link: /dashboard/resources?watch=onboarding|bulkImport opens that
+  // walkthrough on load, so Patch can hand an agent a one-click "watch this."
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const watch = new URLSearchParams(window.location.search).get('watch');
+    if (watch === 'onboarding' || watch === 'bulkImport') {
+      setActiveWalkthrough(watch);
+    }
+  }, []);
 
   return (
     <div>

@@ -268,3 +268,37 @@ export function renderWhatsNew(entries: WhatsNewEntry[] = PATCH_WHATS_NEW, limit
     })
     .join('\n');
 }
+
+export interface PatchWalkthrough {
+  id: string;
+  title: string;
+  about: string;
+}
+
+// Short walkthrough videos Patch can launch directly. The ids match the
+// WalkthroughId union on the Resources page; linking
+// /dashboard/resources?watch=<id> opens that video. Add an entry here when a
+// new walkthrough is added there.
+export const PATCH_WALKTHROUGHS: PatchWalkthrough[] = [
+  {
+    id: 'onboarding',
+    title: 'The 90-second end-of-sale ritual',
+    about:
+      'onboarding a client live on the call — drop the PDF, send the welcome, walk them through download → notifications → Activate, then ask for the referral',
+  },
+  {
+    id: 'bulkImport',
+    title: 'Bulk import — migrate your existing book',
+    about: 'bringing an existing book into AFL via CSV or a folder of PDFs, with daily drip pacing',
+  },
+];
+
+/** Render the launchable walkthroughs as markdown for Patch's system prompt. */
+export function renderWalkthroughs(items: PatchWalkthrough[] = PATCH_WALKTHROUGHS): string {
+  return items
+    .map(
+      (w) =>
+        `- **${w.title}** (${w.about}) — link it as [watch the walkthrough](/dashboard/resources?watch=${w.id}); clicking opens the video.`,
+    )
+    .join('\n');
+}

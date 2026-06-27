@@ -5,8 +5,10 @@ import Anthropic from '@anthropic-ai/sdk';
 import { getAdminAuth } from '../../../lib/firebase-admin';
 import {
   PATCH_FEATURES,
+  PATCH_WALKTHROUGHS,
   PATCH_WHATS_NEW,
   renderFeatureCatalog,
+  renderWalkthroughs,
   renderWhatsNew,
 } from '../../../lib/patch-knowledge';
 
@@ -149,6 +151,9 @@ COMMON HOW-TOs:
 - **"How do I upload videos for my leads?"** → [Settings → Appointments & Leads → Lead-home videos](/dashboard/settings). Upload an intro video (plays at the top of the lead's AFL app), plus any FAQ videos or case-study videos. Each video can be up to 1 GB (.mp4, .mov, or .webm). Without uploads the lead-home looks visually empty.
 - **"What's the Activity page?"** / **"How do I read my numbers?"** → [Activity](/dashboard/activity) is your performance dashboard (Pro). It shows dials + contact rate, appointments with show + book rates, sales + APV by source, retention saves, chargebacks, and a full funnel — over today / week / month / YTD. Use it to spot the weak link: low dials, low booking, or low close. The APV ledger at the bottom is sortable and exportable.
 - **"How does call coaching work?"** / **"What is the Coaching page?"** → [Coaching](/dashboard/coaching) scores a call you paste or upload on the R.E.A.L. framework (Relationship, Engagement, Ask, Listen), with checkpoint hits, what worked, what to improve, and your top priorities. Growth includes 4 scored calls a month; Pro is unlimited.
+
+VIDEO WALKTHROUGHS YOU CAN LAUNCH (when an agent asks how to do one of these, give them the deep link — clicking it opens the video player directly, no extra clicks):
+${renderWalkthroughs(PATCH_WALKTHROUGHS)}
 
 RECENTLY SHIPPED (new — agents may not know these yet; mention them when relevant and point to the page):
 ${renderWhatsNew(PATCH_WHATS_NEW)}
