@@ -15,6 +15,7 @@ import SectionTipCard from '../../components/SectionTipCard';
 import NextTrainingSessionCard from '../../components/NextTrainingSessionCard';
 import BadgeProgressCard from '../../components/BadgeProgressCard';
 import WhatsNewSpotlight from '../../components/WhatsNewSpotlight';
+import GetStartedHome from '../../components/GetStartedHome';
 import BookHealthPopover from '../../components/BookHealthPopover';
 import BadgeCelebration from '../../components/BadgeCelebration';
 import PairPhoneBanner from '../../components/PairPhoneBanner';
@@ -286,6 +287,20 @@ export default function DashboardHomePage() {
   }, [badgeStats, user, agentProfile]);
 
   if (loading) return null;
+
+  // Brand-new agents get a calm, finite "get set up" Home instead of the full
+  // cockpit (a $0 hero + zeroed cards is overwhelming and deflating). The real
+  // dashboard below takes over the moment onboarding is complete.
+  // ?getStarted=1 lets an already-onboarded agent preview this view.
+  const forceGetStarted =
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('getStarted') === '1';
+  if (forceGetStarted || agentProfile.onboardingComplete !== true) {
+    return (
+      <div className="max-w-5xl mx-auto">
+        <GetStartedHome />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto">
