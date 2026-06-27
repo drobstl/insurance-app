@@ -14,6 +14,7 @@ import { computeBadges, type EarnedBadge } from '../../lib/badges';
 import SectionTipCard from '../../components/SectionTipCard';
 import NextTrainingSessionCard from '../../components/NextTrainingSessionCard';
 import BadgeProgressCard from '../../components/BadgeProgressCard';
+import WhatsNewSpotlight from '../../components/WhatsNewSpotlight';
 import BookHealthPopover from '../../components/BookHealthPopover';
 import BadgeCelebration from '../../components/BadgeCelebration';
 import PairPhoneBanner from '../../components/PairPhoneBanner';
@@ -297,6 +298,7 @@ export default function DashboardHomePage() {
       )}
       <PairPhoneBanner />
       <EarlyAdopterBanner />
+      <WhatsNewSpotlight />
       {/* ── Value Hero ─────────────────────────────────────────── */}
       {/* APV on the left; the compact Refer & Earn promo fills the empty
           space on the right (stacks below the number on mobile). See
