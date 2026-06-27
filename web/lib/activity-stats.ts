@@ -4,6 +4,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { getAdminFirestore } from './firebase-admin';
 import { computeAPV } from './apv';
 import { carrierDisplayName } from './carriers';
+import { tallyAdvancedMarketSitsInWindow } from './advanced-market-sits';
 
 /**
  * Agent activity stats.
@@ -175,6 +176,16 @@ export interface ActivityStats {
     showRate: number;       // showed / (showed + noShowed) — cancellations + pending excluded
     bookRate: number;       // booked / contacts (current window)
     deltaPct: number | null;
+  };
+  // Advanced market sits (FIF resets) — the per-sit discipline metric.
+  // resetsSet ⊆ sits, both anchored by the sit's scheduledAt in window. The
+  // count of resets you set on a sit this period + the rate you set them.
+  // App-driven resets (no sit) are tracked separately in the reveal funnel.
+  advancedMarketSits: {
+    sits: number;
+    resetsSet: number;
+    ratePerSit: number;       // resetsSet / sits
+    deltaPct: number | null;  // resetsSet vs the prior window
   };
   sales: {
     count: number;
@@ -387,6 +398,7 @@ export async function getActivityStats(
     status?: string;
     leadId?: string;
     clientId?: string;
+    fifResetBooked?: boolean | null;
   }
   const apptsSnap = await db
     .collection('agents')
@@ -397,8 +409,12 @@ export async function getActivityStats(
   // back to clientId when the lead has converted). Multiple appointment
   // docs for one entity = reschedules; we collapse them.
   const apptsByEntity = new Map<string, ApptDoc[]>();
+  // Flat list of every appointment doc — fed to the advanced-market-sits
+  // tally (which is per-sit, not per-entity, so it doesn't use the grouping).
+  const apptFlat: ApptDoc[] = [];
   for (const apptDoc of apptsSnap.docs) {
     const data = apptDoc.data() as ApptDoc;
+    apptFlat.push(data);
     const entityId = data.leadId || data.clientId;
     if (!entityId) continue;
     const arr = apptsByEntity.get(entityId);
@@ -793,6 +809,10 @@ export async function getActivityStats(
   // Ledger newest-first by sale date.
   ledger.sort((a, b) => ((b.submittedAt || '') > (a.submittedAt || '') ? 1 : -1));
 
+  // ── Advanced market sits (FIF resets) ── per-sit discipline metric.
+  const amCurr = tallyAdvancedMarketSitsInWindow(apptFlat, fromMs, toMs);
+  const amPrev = tallyAdvancedMarketSitsInWindow(apptFlat, prevFromMs, prevToMs);
+
   return {
     range: {
       from: win.from.toISOString(),
@@ -815,6 +835,12 @@ export async function getActivityStats(
       showRate,
       bookRate,
       deltaPct: pct(booked, bookedPrev),
+    },
+    advancedMarketSits: {
+      sits: amCurr.sits,
+      resetsSet: amCurr.resetsSet,
+      ratePerSit: amCurr.sits > 0 ? amCurr.resetsSet / amCurr.sits : 0,
+      deltaPct: pct(amCurr.resetsSet, amPrev.resetsSet),
     },
     sales: {
       count: salesCount,
