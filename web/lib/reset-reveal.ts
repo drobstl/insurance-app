@@ -88,6 +88,11 @@ export function buildResetRevealDecision(
   const now = opts.now ?? Date.now();
   const cooldown = opts.cooldownMs ?? RESET_REVEAL_COOLDOWN_MS;
 
+  // Gate 0 — the agent has switched the reveal on. Defaults OFF, so a deploy
+  // never fires it for anyone until an agent explicitly opts in (and points it
+  // at a specialist) in Settings. The platform-wide kill switch, per agent.
+  if (agentData.resetRevealEnabled !== true) return { show: false, reason: 'disabled' };
+
   // Gate 1 — activated clients only. The reveal is a post-activation client
   // experience; unactivated clients are still in the onboarding funnel.
   if (!toMs(clientData.clientActivatedAt)) return { show: false, reason: 'not_activated' };
