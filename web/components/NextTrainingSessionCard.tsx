@@ -12,6 +12,7 @@ import {
   hasSessionStarted,
   isSessionLive,
   TRAINING_PITCH_LINE,
+  TRAINING_SESSION_DURATION_MINUTES,
 } from '../lib/training-sessions';
 
 /**
@@ -95,6 +96,9 @@ export default function NextTrainingSessionCard() {
           </div>
           <p className="text-xl font-bold text-[#0D4D4D]">
             {headline}
+            <span className="ml-2 inline-flex items-center rounded-full bg-[#005851] px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white align-middle">
+              {TRAINING_SESSION_DURATION_MINUTES} min
+            </span>
             <span className="ml-2 text-sm font-medium text-[#5f5f5f]">· {relative}</span>
           </p>
           <p className="mt-1 text-sm text-[#4f4f4f] italic">

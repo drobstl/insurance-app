@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import {
@@ -11,6 +11,7 @@ import {
   firstWord,
   ageFromDob,
   newId,
+  PAYMENT_VISIBLE_COUNT,
   type IncomeItem,
   type ProtectionRecord,
 } from '../lib/household';
@@ -63,6 +64,21 @@ function NumField({ label, value, onChange, prefix }: { label: string; value: st
 
 const sectionLabel = (t: string) => <div className="text-sm font-semibold text-[#0F6E56] mb-2">{t}</div>;
 
+// Realistic teal highlighter — dual gradient so it reads as a marker swipe:
+// translucent (text shows through), fades at the stroke ends like the pen
+// lifting off, with a subtle top→bottom density change from tip pressure.
+// box-decoration-break: clone gives each wrapped line its own swipe.
+const HIGHLIGHTER_STYLE: CSSProperties = {
+  background:
+    'linear-gradient(104deg, rgba(69,188,170,0) 0.9%, rgba(69,188,170,0.55) 2.4%, rgba(69,188,170,0.5) 5.8%, rgba(69,188,170,0.42) 93%, rgba(69,188,170,0.62) 96%, rgba(69,188,170,0) 98%), linear-gradient(183deg, rgba(69,188,170,0) 0%, rgba(69,188,170,0.3) 7.9%, rgba(69,188,170,0) 15%)',
+  WebkitBoxDecorationBreak: 'clone',
+  boxDecorationBreak: 'clone',
+  borderRadius: '0.55em 0.4em 0.5em 0.45em',
+  padding: '0.05em 0.14em',
+  margin: '0 -0.08em',
+  color: 'inherit',
+};
+
 export default function LeadPresentation({ lead, leadId, onClose }: { lead: PresentationLead; leadId: string; onClose: () => void }) {
   const { agentProfile } = useDashboard();
   const hh = useLeadHousehold(leadId);
@@ -94,6 +110,10 @@ export default function LeadPresentation({ lead, leadId, onClose }: { lead: Pres
   }, [agentProfile?.licenses, leadState]);
 
   const [idx, setIdx] = useState(0);
+  // Agent-only toggle on the options slide: reveals the shorter (cheaper)
+  // payment-protection terms (9 & 6 mo) for a budget-sensitive client.
+  // Hidden by default; resets each time the deck opens.
+  const [showShortTerms, setShowShortTerms] = useState(false);
   const total = 8;
 
   useEffect(() => {
@@ -295,9 +315,11 @@ export default function LeadPresentation({ lead, leadId, onClose }: { lead: Pres
               {eyebrow('A little about me', false)}
               <h2 className="text-3xl md:text-4xl font-semibold leading-tight">You should know who&apos;s helping protect your family.</h2>
               <p className="mt-4 text-lg text-[#374151] leading-relaxed">
-                I&apos;m {agentFirst} — a licensed life insurance broker, and a family person myself. I&apos;m what&apos;s called a field
-                underwriter, which means I&apos;m independent. My only job today is to understand what your family needs, find the best
-                fit, and help you get approved — no pressure, ever.
+                I&apos;m {agentFirst} — a licensed life insurance broker, and a family person myself. I&apos;m what&apos;s called a field underwriter, which means{' '}
+                <mark style={HIGHLIGHTER_STYLE}>
+                  I&apos;m independent. My only job today is to understand what your family needs, find the best fit, and help you get approved
+                </mark>{' '}
+                — no pressure, ever.
               </p>
             </div>
           </div>
@@ -537,7 +559,31 @@ export default function LeadPresentation({ lead, leadId, onClose }: { lead: Pres
               ))}
             </div>
           </div>
-          <div className="grid md:grid-cols-3 gap-4">{(optTab === 'payoff' ? payoffOpts : paymentOpts).map((opt, i) => optionCard(optTab, opt, i))}</div>
+          {optTab === 'payoff' ? (
+            <div className="grid md:grid-cols-3 gap-4">{payoffOpts.map((opt, i) => optionCard('payoff', opt, i))}</div>
+          ) : (
+            <>
+              <div className="grid md:grid-cols-3 gap-4">
+                {paymentOpts.slice(0, PAYMENT_VISIBLE_COUNT).map((opt, i) => optionCard('payment', opt, i))}
+              </div>
+              {paymentOpts.length > PAYMENT_VISIBLE_COUNT && (
+                <div className="mt-4">
+                  <button
+                    onClick={() => setShowShortTerms((s) => !s)}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-[#005851] hover:text-[#0099FF] transition-colors"
+                  >
+                    <Icon path={P.right} className={cx('w-4 h-4 transition-transform', showShortTerms && 'rotate-90')} />
+                    {showShortTerms ? 'Hide shorter terms' : 'Show shorter terms (9 & 6 months)'}
+                  </button>
+                  {showShortTerms && (
+                    <div className="grid md:grid-cols-3 gap-4 mt-4">
+                      {paymentOpts.slice(PAYMENT_VISIBLE_COUNT).map((opt, i) => optionCard('payment', opt, i + PAYMENT_VISIBLE_COUNT))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
           <div className="mt-7 flex flex-col items-center gap-2">
             <button
               onClick={doProtect}

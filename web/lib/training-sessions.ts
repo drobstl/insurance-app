@@ -62,7 +62,7 @@ export const TRAINING_SCHEDULE: readonly TrainingSlot[] = [
 export const TRAINING_PITCH_LINE = 'Learn new features. Master the system. Capture ROI.';
 
 /** Session duration heuristic for "live now" detection + add-to-cal end time. */
-export const TRAINING_SESSION_DURATION_MINUTES = 60;
+export const TRAINING_SESSION_DURATION_MINUTES = 30;
 
 /** Window before a session's start that counts as "live now" so the
  *  Join button stays prominent for early-arrivers. */

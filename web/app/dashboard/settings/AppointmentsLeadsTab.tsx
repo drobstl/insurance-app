@@ -301,8 +301,8 @@ export default function AppointmentsLeadsTab({
               onClick={() => updateField('appointmentMode', 'phone')}
               className={`px-4 py-2 text-sm font-semibold transition-colors ${
                 (agentProfile.appointmentMode || 'phone') === 'phone'
-                  ? 'bg-[#005851] text-white'
-                  : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                  ? 'bg-[#e1f5ee] text-[#005851] ring-1 ring-inset ring-[#005851]'
+                  : 'bg-white text-[#707070] hover:bg-[#f8f8f8]'
               }`}
             >
               Phone
@@ -312,8 +312,8 @@ export default function AppointmentsLeadsTab({
               onClick={() => updateField('appointmentMode', 'video')}
               className={`px-4 py-2 text-sm font-semibold transition-colors border-l border-[#d0d0d0] ${
                 agentProfile.appointmentMode === 'video'
-                  ? 'bg-[#005851] text-white'
-                  : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                  ? 'bg-[#e1f5ee] text-[#005851] ring-1 ring-inset ring-[#005851]'
+                  : 'bg-white text-[#707070] hover:bg-[#f8f8f8]'
               }`}
             >
               Video
@@ -334,8 +334,8 @@ export default function AppointmentsLeadsTab({
               onClick={() => updateField('confirmationChannel', 'text')}
               className={`px-4 py-2 text-sm font-semibold transition-colors ${
                 (agentProfile.confirmationChannel || 'text') === 'text'
-                  ? 'bg-[#005851] text-white'
-                  : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                  ? 'bg-[#e1f5ee] text-[#005851] ring-1 ring-inset ring-[#005851]'
+                  : 'bg-white text-[#707070] hover:bg-[#f8f8f8]'
               }`}
             >
               Text
@@ -345,8 +345,8 @@ export default function AppointmentsLeadsTab({
               onClick={() => updateField('confirmationChannel', 'email')}
               className={`px-4 py-2 text-sm font-semibold transition-colors border-l border-[#d0d0d0] ${
                 agentProfile.confirmationChannel === 'email'
-                  ? 'bg-[#005851] text-white'
-                  : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                  ? 'bg-[#e1f5ee] text-[#005851] ring-1 ring-inset ring-[#005851]'
+                  : 'bg-white text-[#707070] hover:bg-[#f8f8f8]'
               }`}
             >
               Email
@@ -401,12 +401,16 @@ export default function AppointmentsLeadsTab({
             <label className="flex items-start gap-2 cursor-pointer">
               <input
                 type="checkbox"
-                checked={agentProfile.autoCreateGoogleMeet ?? false}
+                checked={agentProfile.autoCreateGoogleMeet ?? true}
                 onChange={(e) => updateField('autoCreateGoogleMeet', e.target.checked)}
                 className="mt-0.5"
               />
               <span className="text-sm text-[#374151] leading-snug">
                 Auto-create a unique Google Meet link for every video appointment
+                <span className="block text-[11px] text-[#707070] mt-0.5">
+                  On by default whenever Google Calendar is connected. Turn it off to
+                  use your one fixed meeting link above instead.
+                </span>
                 {!googleCalendarStatus && (
                   <span className="block text-[11px] text-amber-700 mt-0.5">
                     Requires Google Calendar connection (in Account).
@@ -414,6 +418,17 @@ export default function AppointmentsLeadsTab({
                 )}
               </span>
             </label>
+
+            {/* State plainly which link actually goes out, so "the link
+                changes every meeting" reads as intended, not as a bug. */}
+            <p className="text-[11px] text-[#374151] mt-2 bg-[#f8f8f8] border border-[#ececec] rounded px-2 py-1.5">
+              <span className="font-semibold">In effect now: </span>
+              {(agentProfile.autoCreateGoogleMeet ?? true) && googleCalendarStatus
+                ? 'each video booking creates its own fresh Google Meet link, and that unique link is what the confirmation sends.'
+                : (agentProfile.autoCreateGoogleMeet ?? true) && !googleCalendarStatus
+                ? 'auto-Meet is on, but Google Calendar isn’t connected — so bookings fall back to the default link above. Connect Google in Account to use fresh Meet links.'
+                : 'every video booking sends the one default meeting link above.'}
+            </p>
           </>
         )}
       </div>
@@ -450,12 +465,12 @@ export default function AppointmentsLeadsTab({
                   onClick={() => updateField('dialPersistence', opt.v)}
                   className={`px-4 py-2 text-sm font-semibold transition-colors text-left ${idx > 0 ? 'border-l border-[#d0d0d0]' : ''} ${
                     active
-                      ? 'bg-[#005851] text-white'
-                      : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                      ? 'bg-[#e1f5ee] text-[#005851] ring-1 ring-inset ring-[#005851]'
+                      : 'bg-white text-[#707070] hover:bg-[#f8f8f8]'
                   }`}
                 >
                   <div>{opt.label}</div>
-                  <div className={`text-[10px] font-normal ${active ? 'text-white/70' : 'text-[#707070]'}`}>
+                  <div className={`text-[10px] font-normal ${active ? 'text-[#005851]/70' : 'text-[#707070]'}`}>
                     {opt.sub}
                   </div>
                 </button>

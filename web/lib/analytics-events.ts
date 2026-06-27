@@ -526,10 +526,15 @@ export type AnalyticsEventPropertiesMap = {
     client_id?: string;
     // 'close_sale_ritual' = Card 1 atomic convert+policy; 'manual_convert'
     // = the panel's plain Convert-to-client confirm; 'link_to_existing' /
-    // 'force_new_after_match' = the duplicate-match prompt's two paths.
-    method?: 'close_sale_ritual' | 'manual_convert' | 'link_to_existing' | 'force_new_after_match';
+    // 'force_new_after_match' = the duplicate-match prompt's two paths;
+    // 'close_sale_household' = a Phase 2 per-person household member converted
+    // in the ritual's household stage.
+    method?: 'close_sale_ritual' | 'manual_convert' | 'link_to_existing' | 'force_new_after_match' | 'close_sale_household';
     // Ritual only: whether the policy create passed the quality gate.
     policy_created?: boolean;
+    // Household stage only: which person + their relationship to the primary.
+    person_id?: string;
+    relationship?: string;
   } & GenericEventProperties;
 };
 

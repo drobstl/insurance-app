@@ -30,8 +30,11 @@ export interface IncomeItem { id: string; person?: 'lead' | 'spouse'; label: str
 export interface MoneyItem { id: string; label: string; amount: string }
 export interface SpouseInfo { name?: string; ageYears?: number; gender?: 'M' | 'F'; smokerStatus?: 'Y' | 'N' }
 
-export type Relationship = 'spouse' | 'partner' | 'child' | 'parent' | 'sibling' | 'grandparent' | 'other';
-export const RELATIONSHIPS: Relationship[] = ['spouse', 'partner', 'child', 'parent', 'sibling', 'grandparent', 'other'];
+// Relationship vocabulary lives in the server-safe shared module so the
+// convert API route can import it too. Re-exported here for existing consumers.
+export { RELATIONSHIPS, RELATIONSHIP_LABELS, relationshipLabel } from './household-shared';
+export type { Relationship, HouseholdRole, HouseholdRelationship } from './household-shared';
+import type { Relationship } from './household-shared';
 
 /** An additional person on the lead (the primary lead keeps its own fields). */
 export interface Person {
@@ -94,6 +97,62 @@ export interface ProtectionRecord {
   protectedAt: number; // epoch ms
   chosen: ProtectedChoice;
   presented: { payoff: QuoteOption[]; payment: QuoteOption[] };
+}
+
+/**
+ * Canonical payment-protection terms for the deck's options slide, in display
+ * order. The first PAYMENT_VISIBLE_COUNT show by default; the rest sit behind
+ * an agent "show shorter terms" toggle (shorter = cheaper, for a budget-
+ * sensitive client). Saved quotes are reconciled to this list on load.
+ */
+export const PAYMENT_TERMS = [
+  '2 years of payments',
+  '1.5 years of payments',
+  '1 year of payments',
+  '9 months of payments',
+  '6 months of payments',
+] as const;
+export const PAYMENT_VISIBLE_COUNT = 3;
+
+// Old labels → their current canonical equivalent, so a price typed on a quote
+// saved before the term list changed isn't lost (18 months === 1.5 years).
+const PAYMENT_TERM_ALIASES: Record<string, string> = {
+  '18 months of payments': '1.5 years of payments',
+};
+
+const blankQuoteOption = (label: string): QuoteOption => ({ label, coverage: '', priceYou: '', priceSpouse: '' });
+
+/**
+ * Ensure a quote's paymentOpts match the canonical terms (presence + order),
+ * carrying over any saved prices by label (honoring aliases). Back-compat for
+ * quotes saved before the term list changed.
+ */
+export function reconcilePaymentOpts(saved?: QuoteOption[]): QuoteOption[] {
+  const byLabel = new Map<string, QuoteOption>();
+  for (const o of saved || []) {
+    const canonical = PAYMENT_TERM_ALIASES[o.label] || o.label;
+    if (!byLabel.has(canonical)) byLabel.set(canonical, { ...o, label: canonical });
+  }
+  return PAYMENT_TERMS.map((label) => byLabel.get(label) || blankQuoteOption(label));
+}
+
+/**
+ * Reconcile a whole saved quote to the current payment-term list: canonical
+ * paymentOpts (prices preserved by label) + the payment "most chosen" index
+ * remapped through the reorder so the badge still lands on the same term.
+ */
+export function reconcileSavedQuote(saved: QuoteState): QuoteState {
+  const paymentOpts = reconcilePaymentOpts(saved.paymentOpts);
+  let mostChosen = saved.mostChosen;
+  const oldLabel = saved.paymentOpts?.[saved.mostChosen?.payment]?.label;
+  if (oldLabel) {
+    const canonical = PAYMENT_TERM_ALIASES[oldLabel] || oldLabel;
+    const newIdx = paymentOpts.findIndex((o) => o.label === canonical);
+    if (newIdx >= 0 && newIdx !== saved.mostChosen.payment) {
+      mostChosen = { ...saved.mostChosen, payment: newIdx };
+    }
+  }
+  return { ...saved, paymentOpts, mostChosen };
 }
 
 const EMPTY_HH: HouseholdProfile = { people: [], incomes: [], expenses: [], assets: [], survivorIncome: {} };
@@ -193,11 +252,7 @@ export function defaultQuote(d: LeadDocShape): QuoteState {
       { label: 'Full payoff', coverage: balStr, ...blank },
       { label: 'Full payoff + cash value', coverage: balStr, ...blank },
     ],
-    paymentOpts: [
-      { label: '9 months of payments', coverage: '', ...blank },
-      { label: '1 year of payments', coverage: '', ...blank },
-      { label: '18 months of payments', coverage: '', ...blank },
-    ],
+    paymentOpts: reconcilePaymentOpts(),
   };
 }
 
@@ -227,7 +282,7 @@ export function useLeadHousehold(leadId?: string) {
         const d = (snap.data() || {}) as LeadDocShape;
         if (!hydrated.current) {
           setHouseholdState(hydrateHousehold(d));
-          setQuoteState(d.presentationQuote || defaultQuote(d));
+          setQuoteState(d.presentationQuote ? reconcileSavedQuote(d.presentationQuote) : defaultQuote(d));
           setMortgageLocal({
             balance: d.mortgageDetails?.balance != null ? String(d.mortgageDetails.balance) : '',
             payment: d.monthlyMortgageAmount != null ? String(d.monthlyMortgageAmount) : '',

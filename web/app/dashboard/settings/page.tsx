@@ -33,7 +33,7 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 export default function SettingsPage() {
-  const { user, agentProfile, setAgentProfile, loading, refreshProfile } = useDashboard();
+  const { user, agentProfile, setAgentProfile, loading } = useDashboard();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -71,6 +71,9 @@ export default function SettingsPage() {
   const autoSaveTimerRef = useRef<number | null>(null);
   const autosaveHydratedRef = useRef(false);
   const lastSavedSnapshotRef = useRef('');
+  // Holds a live "flush if there are unsaved edits" closure so the unmount
+  // handler can persist a pending (debounced) autosave instead of dropping it.
+  const flushPendingSaveRef = useRef<() => void>(() => {});
 
   const updateField = useCallback(
     <K extends keyof typeof agentProfile>(key: K, value: (typeof agentProfile)[K]) => {
@@ -99,10 +102,9 @@ export default function SettingsPage() {
     policyReviewAIEnabled: agentProfile.policyReviewAIEnabled ?? true,
     welcomeSmsTemplate: agentProfile.welcomeSmsTemplate || '',
     introTextTemplate: agentProfile.introTextTemplate || '',
-    skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
     appointmentMode: agentProfile.appointmentMode || 'phone',
     defaultMeetingLink: agentProfile.defaultMeetingLink || '',
-    autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? false,
+    autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? true,
     reminderPushHoursBefore: agentProfile.reminderPushHoursBefore ?? 1,
     dialScript: agentProfile.dialScript || '',
     dialPersistence: agentProfile.dialPersistence ?? 1,
@@ -129,7 +131,6 @@ export default function SettingsPage() {
     agentProfile.policyReviewAIEnabled,
     agentProfile.welcomeSmsTemplate,
     agentProfile.introTextTemplate,
-    agentProfile.skipWelcomeSmsConfirmation,
     agentProfile.appointmentMode,
     agentProfile.defaultMeetingLink,
     agentProfile.autoCreateGoogleMeet,
@@ -415,10 +416,9 @@ export default function SettingsPage() {
         policyReviewAIEnabled: agentProfile.policyReviewAIEnabled ?? true,
         welcomeSmsTemplate: agentProfile.welcomeSmsTemplate || '',
         introTextTemplate: (agentProfile.introTextTemplate || '').slice(0, 1000),
-        skipWelcomeSmsConfirmation: agentProfile.skipWelcomeSmsConfirmation ?? false,
         appointmentMode: agentProfile.appointmentMode === 'video' ? 'video' : 'phone',
         defaultMeetingLink: (agentProfile.defaultMeetingLink || '').trim(),
-        autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? false,
+        autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? true,
         reminderPushHoursBefore: (() => {
           const raw = Number(agentProfile.reminderPushHoursBefore ?? 1);
           if (!Number.isFinite(raw)) return 1;
@@ -503,6 +503,13 @@ export default function SettingsPage() {
     }
   }, [activeTab, agentProfile, settingsSnapshot, user]);
 
+  // Keep the flush closure current each render (latest handleSave + snapshot).
+  flushPendingSaveRef.current = () => {
+    if (settingsSnapshot !== lastSavedSnapshotRef.current) {
+      void handleSave('auto', settingsSnapshot);
+    }
+  };
+
   useEffect(() => {
     if (loading || !user) return;
     if (!autosaveHydratedRef.current) {
@@ -537,7 +544,11 @@ export default function SettingsPage() {
   useEffect(() => () => {
     if (autoSaveTimerRef.current) {
       window.clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
     }
+    // Flush a pending (debounced) autosave so leaving the page mid-edit —
+    // e.g. uploading a photo then jumping straight to the deck — still saves.
+    flushPendingSaveRef.current();
   }, []);
 
   // Deep link: the live-call dial-script popup links to
@@ -626,16 +637,16 @@ export default function SettingsPage() {
       <div className={showPhonePreview ? 'flex-1 min-w-0' : ''}>
 
       {/* Tab Bar */}
-      <div className="flex gap-1 mb-6 bg-white rounded-[5px] border border-gray-200 p-1">
+      <div className="flex gap-1 sm:gap-2 mb-6 border-b-2 border-gray-200 overflow-x-auto">
         {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             data-onboarding-target={tab.key === 'profile' ? 'settings-tab-profile' : tab.key === 'branding' ? 'settings-tab-branding' : undefined}
-            className={`flex-1 py-2 px-2 text-xs sm:text-sm font-semibold rounded-[4px] leading-tight transition-colors ${
+            className={`relative -mb-0.5 whitespace-nowrap px-3 sm:px-5 py-3 text-sm sm:text-base font-semibold border-b-[3px] transition-colors ${
               activeTab === tab.key
-                ? 'bg-[#005851] text-white'
-                : 'text-[#707070] hover:text-[#005851] hover:bg-[#f5f5f5]'
+                ? 'border-[#005851] text-[#005851]'
+                : 'border-transparent text-[#707070] hover:text-[#005851] hover:border-[#c8c8c8]'
             }`}
           >
             {tab.label}
@@ -648,7 +659,6 @@ export default function SettingsPage() {
           agentProfile={agentProfile}
           updateField={updateField}
           user={user}
-          refreshProfile={refreshProfile}
           setSaveMessage={setSaveMessage}
           onChangeEmail={() => { setActiveTab('account'); setShowEmailSection(true); }}
           setCropImageSrc={setCropImageSrc}

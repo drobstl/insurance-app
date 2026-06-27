@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import LeadDetailPanel from '../../../../components/LeadDetailPanel';
-import { CloseSaleRitual } from '../../../../components/CloseSaleRitual';
+import { CloseSaleRitual, type CloseSaleLead } from '../../../../components/CloseSaleRitual';
 import { useDashboard } from '../../DashboardContext';
 import { leadsAccessReason } from '../../../../lib/tier-gating';
 import UpgradeToProCard from '../../../../components/UpgradeToProCard';
@@ -26,12 +26,7 @@ export default function LeadDetailPage() {
   // Close Sale slide state — see queue page for the same pattern.
   // LeadDetailPanel slides left out of view; Close Sale slides in
   // from the right. Matches the Add Client flow on /dashboard/clients.
-  const [closeSaleLead, setCloseSaleLead] = useState<{
-    id: string;
-    name: string;
-    firstName: string;
-    phone: string;
-  } | null>(null);
+  const [closeSaleLead, setCloseSaleLead] = useState<CloseSaleLead | null>(null);
   const navigateAfterCloseSale = useRef(false);
 
   // Feature flag + tier gate — see web/app/dashboard/leads/page.tsx
