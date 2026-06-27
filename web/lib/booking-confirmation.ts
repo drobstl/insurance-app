@@ -134,8 +134,8 @@ export function composeMessage(input: CompositionInput): string {
   const appBlock =
     input.kind === 'confirmation' && input.appAccess
       ? `\n\nWant a head start before we meet? Download my app: ${input.appAccess.downloadUrl} ` +
-        `and log in with code ${input.appAccess.code} — there's a short intro from me ` +
-        `plus a couple quick questions.`
+        `and log in with code ${input.appAccess.code}. You'll get a quick intro from me ` +
+        `and a few short questions — they help me line up the right coverage at the best rate before we even talk.`
       : '';
 
   if (input.kind === 'reminder') {
