@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence, type PanInfo } from 'framer-motion';
+import { motion, AnimatePresence, useAnimationControls, useReducedMotion, type PanInfo } from 'framer-motion';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import { captureEvent } from '../lib/posthog';
 import { ANALYTICS_EVENTS } from '../lib/analytics-events';
@@ -32,6 +32,7 @@ const PATCH_DRAG_HOLD_MS = 280;
 const PATCH_OFFSET_STORAGE_KEY = 'patch-fab-offset-v1';
 const PATCH_BUTTON_SIZE_PX = 44;
 const PATCH_MIN_MARGIN_PX = 12;
+const PATCH_REVEAL_SEEN_KEY = 'patch-reveal-seen-v1';
 
 function parseLinks(text: string): React.ReactNode[] {
   const parts = text.split(LINK_REGEX);
@@ -116,9 +117,123 @@ function randomBetween(min: number, max: number) {
   return min + Math.random() * (max - min);
 }
 
+// First-meeting reveal: Patch genies up to center, introduces himself as the
+// guide (emotional note: relief, not "look how much we have"), then genies back
+// down to his corner. His look — the face PNG — is untouched; this is motion only.
+function PatchReveal({ onDone }: { onDone: () => void }) {
+  const reduce = useReducedMotion();
+  const controls = useAnimationControls();
+  const [showCaption, setShowCaption] = useState(false);
+  const [bgVisible, setBgVisible] = useState(false);
+  const doneRef = useRef(false);
+
+  const finish = useCallback(() => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    onDone();
+  }, [onDone]);
+
+  // Delta from screen center to Patch's bottom-right resting spot — he genies in
+  // from there and tucks back to it, so the handoff to the real FAB is seamless.
+  const cornerDelta = () => {
+    if (typeof window === 'undefined') return { x: 240, y: 240 };
+    const margin = 24;
+    return {
+      x: window.innerWidth / 2 - PATCH_BUTTON_SIZE_PX / 2 - margin,
+      y: window.innerHeight / 2 - PATCH_BUTTON_SIZE_PX / 2 - margin,
+    };
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      const corner = cornerDelta();
+      setBgVisible(true);
+      if (reduce) {
+        await controls.start({ x: 0, y: 0, scaleX: 1, scaleY: 1, opacity: 1, transition: { duration: 0.3 } });
+      } else {
+        await controls.start({
+          x: 0,
+          y: 0,
+          opacity: 1,
+          scaleX: [0.5, 0.72, 1],
+          scaleY: [0.5, 1.28, 1],
+          transition: { duration: 0.85, ease: [0.42, 0, 0.2, 1], times: [0, 0.5, 1] },
+        });
+      }
+      if (cancelled) return;
+      setShowCaption(true);
+      await new Promise((resolve) => setTimeout(resolve, 2400));
+      if (cancelled) return;
+      setShowCaption(false);
+      setBgVisible(false);
+      if (reduce) {
+        await controls.start({ opacity: 0, transition: { duration: 0.3 } });
+      } else {
+        await controls.start({
+          x: corner.x,
+          y: corner.y,
+          opacity: 0,
+          scaleX: [1, 0.72, 0.42],
+          scaleY: [1, 1.28, 0.42],
+          transition: { duration: 0.8, ease: [0.42, 0, 0.2, 1], times: [0, 0.45, 1] },
+        });
+      }
+      if (cancelled) return;
+      finish();
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const corner = cornerDelta();
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center" role="dialog" aria-label="Meet Patch">
+      <motion.div
+        className="absolute inset-0 bg-black/30"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: bgVisible ? 1 : 0 }}
+        transition={{ duration: 0.4 }}
+        onClick={finish}
+      />
+      <div className="relative flex flex-col items-center" style={{ pointerEvents: 'none' }}>
+        <motion.div
+          initial={{ x: corner.x, y: corner.y, scaleX: 0.5, scaleY: 0.5, opacity: 0 }}
+          animate={controls}
+          style={{ transformOrigin: 'bottom right' }}
+        >
+          <PatchMascot size={104} />
+        </motion.div>
+        <AnimatePresence>
+          {showCaption && (
+            <motion.div
+              key="patch-reveal-caption"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 6 }}
+              transition={{ duration: 0.4 }}
+              className="mt-5 max-w-[300px] text-center px-4"
+            >
+              <p className="text-white text-[15px] font-medium leading-snug">Hi, I&apos;m Patch — your guide.</p>
+              <p className="text-white/85 text-sm leading-snug mt-1">
+                You don&apos;t have to memorize any of this. Ask me anything, anytime.
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssistantProps) {
-  const { user } = useDashboard();
+  const { user, agentProfile, profileLoading } = useDashboard();
   const [open, setOpen] = useState(false);
+  const [showReveal, setShowReveal] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
@@ -285,6 +400,24 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
     return () => window.removeEventListener('afl:open-patch-assistant', handleOpenEvent as EventListener);
   }, []);
 
+  // Replay the meet-Patch reveal on demand (?patchReveal=1, or after a big ship).
+  useEffect(() => {
+    const handleReveal = () => setShowReveal(true);
+    window.addEventListener('afl:patch-reveal', handleReveal);
+    return () => window.removeEventListener('afl:patch-reveal', handleReveal);
+  }, []);
+
+  // First-meeting reveal: play once for a genuinely new agent (onboarding not yet
+  // complete) or when forced via ?patchReveal=1. Veterans mid-work never see it.
+  useEffect(() => {
+    if (typeof window === 'undefined' || profileLoading) return;
+    const forced = new URLSearchParams(window.location.search).get('patchReveal') === '1';
+    const seen = window.localStorage.getItem(PATCH_REVEAL_SEEN_KEY) === '1';
+    if (!forced && (seen || agentProfile.onboardingComplete === true)) return;
+    const timer = setTimeout(() => setShowReveal(true), 700);
+    return () => clearTimeout(timer);
+  }, [profileLoading, agentProfile.onboardingComplete]);
+
   const sendMessage = useCallback(
     async (text: string) => {
       if (!user || !text.trim() || streaming) return;
@@ -406,9 +539,19 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
 
   return (
     <>
+      {showReveal && (
+        <PatchReveal
+          onDone={() => {
+            setShowReveal(false);
+            if (typeof window !== 'undefined') window.localStorage.setItem(PATCH_REVEAL_SEEN_KEY, '1');
+          }}
+        />
+      )}
+
       {/* Floating mascot button */}
       <motion.button
         data-onboarding-target="patch-launcher"
+        style={{ pointerEvents: showReveal ? 'none' : 'auto' }}
         onClick={() => {
           if (suppressClickRef.current) {
             suppressClickRef.current = false;
@@ -437,8 +580,9 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
             ? 'border-[#3DD6C3] ring-2 ring-[#3DD6C3]/60 shadow-[0_12px_30px_rgba(0,0,0,0.22)]'
             : 'border-gray-200/80 shadow-[0_4px_12px_rgba(0,0,0,0.12)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.15)]'
         }`}
-        animate={{ rotate: open ? 0 : tiltDeg, x: fabOffset.x, y: fabOffset.y, scale: dragArmed ? 1.1 : 1 }}
+        animate={{ rotate: open ? 0 : tiltDeg, x: fabOffset.x, y: fabOffset.y, scale: dragArmed ? 1.1 : 1, opacity: showReveal ? 0 : 1 }}
         transition={{
+          opacity: { duration: 0.3 },
           rotate: { duration: 0.35, ease: 'easeInOut' },
           scale: { type: 'spring', stiffness: 500, damping: 28 },
           x: enableSnapAnim ? { type: 'spring', stiffness: 520, damping: 34 } : { duration: 0 },
