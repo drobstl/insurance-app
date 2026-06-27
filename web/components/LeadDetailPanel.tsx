@@ -25,6 +25,7 @@ import { useDraggablePanel } from '../lib/useDraggablePanel';
 import SendConfirmationDrawer from './SendConfirmationDrawer';
 import SendIntroDrawer from './SendIntroDrawer';
 import LeadPresentation from './LeadPresentation';
+import type { ProtectionRecord } from '../lib/household';
 import HouseholdEditor from './HouseholdEditor';
 import PeopleEditor from './PeopleEditor';
 import AppointmentFifResetControl from './AppointmentFifResetControl';
@@ -63,6 +64,11 @@ interface Lead {
   assessmentCompletedAt?: Timestamp | null;
   leadScore?: LeadScore | null;
   convertedToClientId?: string | null;
+  // Presentation "Protect" trail. Each record snapshots the options that were
+  // on the table and which one the client chose (with carrier). applicationOpenedAt
+  // is stamped on the first Protect → drives the "Application opened" chip.
+  protectionHistory?: ProtectionRecord[];
+  applicationOpenedAt?: number | null;
   // Extracted-from-PDF fields (Chunk 2). Also agent-editable on the
   // detail page when missing — e.g. for manual leads, or to correct
   // bad extraction.
@@ -496,6 +502,72 @@ export interface LeadDetailPanelProps {
   // all leads" button. When false (queue right-pane), the parent owns
   // the navigation/empty state.
   showNotFoundBackLink?: boolean;
+}
+
+/**
+ * Read-only recap of every "Protect" moment from the presentation deck: when it
+ * happened, which option the client chose (with carrier + price), and the full
+ * set of options that were on the table at that time. Newest first.
+ */
+function ProtectionHistorySection({ records }: { records?: ProtectionRecord[] }) {
+  if (!records || records.length === 0) return null;
+  const sorted = [...records].sort((a, b) => (b.protectedAt || 0) - (a.protectedAt || 0));
+  const price = (r: ProtectionRecord) => {
+    const c = r.chosen;
+    if (c.couple) {
+      const parts = [c.priceYou && `$${c.priceYou}`, c.priceSpouse && `$${c.priceSpouse}`].filter(Boolean);
+      return parts.length ? `${parts.join(' + ')}/mo` : '';
+    }
+    return c.priceYou ? `$${c.priceYou}/mo` : '';
+  };
+  return (
+    <div className="px-5 py-4 border-t border-[#e5e7eb]">
+      <div className="flex items-center gap-2 mb-3">
+        <svg className="w-4 h-4 text-[#0F6E56]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+        <h3 className="text-sm font-bold text-[#1A1A1A]">What we presented &amp; protected</h3>
+      </div>
+      <div className="space-y-3">
+        {sorted.map((r) => {
+          const presented = r.chosen.tab === 'payoff' ? r.presented.payoff : r.presented.payment;
+          return (
+            <div key={r.id} className="rounded-lg border border-[#e5e7eb] bg-[#f8faf9] p-3">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-[11px] uppercase tracking-wider font-semibold text-[#9CA3AF]">
+                  {r.chosen.tab === 'payoff' ? 'Payoff plan' : 'Payment protection'}
+                </span>
+                <span className="text-[11px] text-[#9CA3AF]">
+                  {r.protectedAt ? new Date(r.protectedAt).toLocaleDateString() : ''}
+                </span>
+              </div>
+              <div className="rounded-md bg-[#dcfce7] border border-[#86efac] px-3 py-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="font-semibold text-[#166534] text-sm">
+                    ✓ {r.chosen.label}
+                    {r.chosen.carrier ? <span className="text-[#0F6E56]"> · {r.chosen.carrier}</span> : null}
+                  </span>
+                  {price(r) && <span className="font-bold text-[#166534] text-sm">{price(r)}</span>}
+                </div>
+                {r.chosen.coverage && (
+                  <div className="text-xs text-[#15803d] mt-0.5">Coverage ${r.chosen.coverage}</div>
+                )}
+              </div>
+              {presented.length > 1 && (
+                <div className="mt-2 text-xs text-[#707070]">
+                  <span className="font-semibold">Also presented:</span>{' '}
+                  {presented
+                    .filter((o) => o.label !== r.chosen.label)
+                    .map((o) => `${o.label}${o.carrier ? ` (${o.carrier})` : ''}`)
+                    .join(', ')}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export default function LeadDetailPanel({
@@ -1401,6 +1473,11 @@ export default function LeadDetailPanel({
                   Converted to client
                 </span>
               )}
+              {!lead.convertedToClientId && (lead.protectionHistory?.length ?? 0) > 0 && (
+                <span className="inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#dcfce7] text-[#166534] rounded">
+                  Application opened
+                </span>
+              )}
               {mostRecentPastOutcomeChip && (
                 <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${mostRecentPastOutcomeChip.classes}`}>
                   {mostRecentPastOutcomeChip.label}
@@ -1531,6 +1608,9 @@ export default function LeadDetailPanel({
             </div>
           )}
         </div>
+
+        {/* What we presented & protected — full history of every Protect moment */}
+        <ProtectionHistorySection records={lead.protectionHistory} />
 
         {/* Status footer — lifecycle facts at a glance */}
         <div className="px-5 py-2.5 bg-[#f8faf9] border-t border-[#e5e7eb] flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#707070]">
