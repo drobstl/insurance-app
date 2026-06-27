@@ -8,6 +8,7 @@ import { defineSecret } from 'firebase-functions/params';
 import { PDFDocument } from 'pdf-lib';
 import { extractLeadFromPdf } from './lead-extractor';
 import { commitLead } from './lead-commit';
+import { computeLeadSegmentsFromPdf } from './cie-segment-pdf';
 
 /**
  * leads-batch-processor — splits a multi-page lead-form PDF and extracts
@@ -151,7 +152,25 @@ export const processLeadBatch = onDocumentCreated(
       // only if they cleanly partition the authoritative page set (see
       // validateSegments). Anything off → one unit per page, byte-for-byte
       // the prior behavior.
-      const segments = validateSegments(batch.leadSegments, pageCount);
+      let segments = validateSegments(batch.leadSegments, pageCount);
+      let groupedBy: 'web' | 'gcf' | null = segments ? 'web' : null;
+      // The web tier precomputes groupings, but its bundled pdf-parse has been
+      // unreliable in the Vercel serverless runtime (it silently extracted no
+      // text, so no groupings were written). When that happens, compute them
+      // here in the GCF's normal Node runtime, where pdf-parse is reliable.
+      if (!segments) {
+        try {
+          const computed = await computeLeadSegmentsFromPdf(pdfBuffer);
+          segments = validateSegments(computed, pageCount);
+          if (segments) groupedBy = 'gcf';
+        } catch (segErr) {
+          emit('leads_batch_segment_compute_failed', {
+            agent_id: agentId,
+            batch_id: batchId,
+            error: segErr instanceof Error ? segErr.message : String(segErr),
+          });
+        }
+      }
       const unitBuffers = segments
         ? await splitToSegments(parentDoc, segments)
         : await splitToPages(parentDoc, pageCount);
@@ -161,6 +180,7 @@ export const processLeadBatch = onDocumentCreated(
           batch_id: batchId,
           pages: pageCount,
           units: unitBuffers.length,
+          grouped_by: groupedBy,
         });
       }
 
