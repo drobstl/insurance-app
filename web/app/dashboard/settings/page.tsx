@@ -637,16 +637,16 @@ export default function SettingsPage() {
       <div className={showPhonePreview ? 'flex-1 min-w-0' : ''}>
 
       {/* Tab Bar */}
-      <div className="flex gap-1 sm:gap-2 mb-6 border-b-2 border-gray-200 overflow-x-auto">
+      <div className="flex flex-wrap gap-x-1 mb-6 border-b-2 border-gray-200">
         {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             data-onboarding-target={tab.key === 'profile' ? 'settings-tab-profile' : tab.key === 'branding' ? 'settings-tab-branding' : undefined}
-            className={`relative -mb-0.5 whitespace-nowrap px-3 sm:px-5 py-3 text-sm sm:text-base font-semibold border-b-[3px] transition-colors ${
+            className={`relative -mb-0.5 px-3 sm:px-4 py-2.5 text-sm font-semibold border-b-[3px] transition-colors ${
               activeTab === tab.key
-                ? 'border-[#005851] text-[#005851]'
-                : 'border-transparent text-[#707070] hover:text-[#005851] hover:border-[#c8c8c8]'
+                ? 'border-[#005851] text-[#005851] bg-[#005851]/[0.06] rounded-t-[6px]'
+                : 'border-transparent text-[#9ca3af] hover:text-[#005851] hover:border-[#c8c8c8]'
             }`}
           >
             {tab.label}
