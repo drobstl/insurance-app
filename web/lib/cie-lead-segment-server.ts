@@ -1,5 +1,6 @@
 import 'server-only';
-import { PDFParse } from 'pdf-parse';
+import './pdf-dommatrix-polyfill';
+import type { PDFParse as PDFParseType } from 'pdf-parse';
 import { segmentLeadPackets, type LeadSegmentation } from './cie-lead-segment';
 
 /**
@@ -17,8 +18,9 @@ import { segmentLeadPackets, type LeadSegmentation } from './cie-lead-segment';
 export async function computeLeadSegmentsFromPdf(
   pdfBuffer: Buffer,
 ): Promise<LeadSegmentation | null> {
-  let parser: PDFParse | null = null;
+  let parser: PDFParseType | null = null;
   try {
+    const { PDFParse } = await import('pdf-parse');
     parser = new PDFParse({ data: pdfBuffer });
     const result = await parser.getText();
     if (!result?.pages?.length) return null;
