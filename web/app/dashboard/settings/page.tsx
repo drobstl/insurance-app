@@ -33,7 +33,7 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 export default function SettingsPage() {
-  const { user, agentProfile, setAgentProfile, loading, refreshProfile } = useDashboard();
+  const { user, agentProfile, setAgentProfile, loading } = useDashboard();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -104,7 +104,7 @@ export default function SettingsPage() {
     introTextTemplate: agentProfile.introTextTemplate || '',
     appointmentMode: agentProfile.appointmentMode || 'phone',
     defaultMeetingLink: agentProfile.defaultMeetingLink || '',
-    autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? false,
+    autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? true,
     reminderPushHoursBefore: agentProfile.reminderPushHoursBefore ?? 1,
     dialScript: agentProfile.dialScript || '',
     dialPersistence: agentProfile.dialPersistence ?? 1,
@@ -418,7 +418,7 @@ export default function SettingsPage() {
         introTextTemplate: (agentProfile.introTextTemplate || '').slice(0, 1000),
         appointmentMode: agentProfile.appointmentMode === 'video' ? 'video' : 'phone',
         defaultMeetingLink: (agentProfile.defaultMeetingLink || '').trim(),
-        autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? false,
+        autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? true,
         reminderPushHoursBefore: (() => {
           const raw = Number(agentProfile.reminderPushHoursBefore ?? 1);
           if (!Number.isFinite(raw)) return 1;
@@ -637,16 +637,16 @@ export default function SettingsPage() {
       <div className={showPhonePreview ? 'flex-1 min-w-0' : ''}>
 
       {/* Tab Bar */}
-      <div className="flex gap-1 mb-6 bg-white rounded-[5px] border border-gray-200 p-1">
+      <div className="flex flex-wrap gap-x-1 mb-6 border-b-2 border-gray-200">
         {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             data-onboarding-target={tab.key === 'profile' ? 'settings-tab-profile' : tab.key === 'branding' ? 'settings-tab-branding' : undefined}
-            className={`flex-1 py-2 px-2 text-xs sm:text-sm font-semibold rounded-[4px] leading-tight transition-colors ${
+            className={`relative -mb-0.5 px-3 sm:px-4 py-2.5 text-sm font-semibold border-b-[3px] transition-colors ${
               activeTab === tab.key
-                ? 'bg-[#005851] text-white'
-                : 'text-[#707070] hover:text-[#005851] hover:bg-[#f5f5f5]'
+                ? 'border-[#005851] text-[#005851] bg-[#005851]/[0.06] rounded-t-[6px]'
+                : 'border-transparent text-[#9ca3af] hover:text-[#005851] hover:border-[#c8c8c8]'
             }`}
           >
             {tab.label}
@@ -659,7 +659,6 @@ export default function SettingsPage() {
           agentProfile={agentProfile}
           updateField={updateField}
           user={user}
-          refreshProfile={refreshProfile}
           setSaveMessage={setSaveMessage}
           onChangeEmail={() => { setActiveTab('account'); setShowEmailSection(true); }}
           setCropImageSrc={setCropImageSrc}

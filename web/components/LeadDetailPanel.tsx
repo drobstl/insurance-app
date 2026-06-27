@@ -15,19 +15,21 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { LeadTagEditor } from './LeadTagEditor';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import AppointmentPicker from './AppointmentPicker';
 import DoNotContactToggle from './DoNotContactToggle';
 import Link from 'next/link';
 import { DEFAULT_DIAL_SCRIPT, renderDialScript } from '../lib/dial-script';
 import { renderIntroText } from '../lib/lead-intro-text';
+import { normalizePhone } from '../lib/phone-format';
 import { useDraggablePanel } from '../lib/useDraggablePanel';
 import SendConfirmationDrawer from './SendConfirmationDrawer';
 import SendIntroDrawer from './SendIntroDrawer';
 import LeadPresentation from './LeadPresentation';
 import HouseholdEditor from './HouseholdEditor';
 import PeopleEditor from './PeopleEditor';
-import type { Person } from '../lib/household';
+import type { Person, ProtectionRecord } from '../lib/household';
 import type { CloseSaleLead } from './CloseSaleRitual';
 import AppointmentFifResetControl from './AppointmentFifResetControl';
 import { isHttpUrl, type FifResetValue } from './FifResetCapture';
@@ -39,6 +41,7 @@ import {
 import { DIMENSION_MAX, type LeadScore } from '../lib/lead-assessment';
 import { LeadTempChip } from './LeadTempChip';
 import { isDerivedLeadCode } from '../lib/lead-code-derive';
+import { US_STATE_CODES, normalizeUsStateCode } from '../lib/us-states';
 import { captureEvent } from '../lib/posthog';
 import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 
@@ -57,6 +60,8 @@ interface Lead {
   formType?: string;
   notes?: string;
   notesUpdatedAt?: Timestamp | null;
+  // Agent-defined labels (ids into agentProfile.leadTags).
+  tagIds?: string[];
   monthlyMortgageAmount?: number;
   monthlyMortgageAmountUpdatedAt?: Timestamp | null;
   createdAt?: Timestamp | null;
@@ -65,6 +70,11 @@ interface Lead {
   assessmentCompletedAt?: Timestamp | null;
   leadScore?: LeadScore | null;
   convertedToClientId?: string | null;
+  // Presentation "Protect" trail. Each record snapshots the options that were
+  // on the table and which one the client chose (with carrier). applicationOpenedAt
+  // is stamped on the first Protect → drives the "Application opened" chip.
+  protectionHistory?: ProtectionRecord[];
+  applicationOpenedAt?: number | null;
   // Per-person household conversion bookkeeping (Phase 2).
   householdId?: string | null;
   convertedClientIds?: Record<string, string>;
@@ -501,6 +511,72 @@ export interface LeadDetailPanelProps {
   showNotFoundBackLink?: boolean;
 }
 
+/**
+ * Read-only recap of every "Protect" moment from the presentation deck: when it
+ * happened, which option the client chose (with carrier + price), and the full
+ * set of options that were on the table at that time. Newest first.
+ */
+function ProtectionHistorySection({ records }: { records?: ProtectionRecord[] }) {
+  if (!records || records.length === 0) return null;
+  const sorted = [...records].sort((a, b) => (b.protectedAt || 0) - (a.protectedAt || 0));
+  const price = (r: ProtectionRecord) => {
+    const c = r.chosen;
+    if (c.couple) {
+      const parts = [c.priceYou && `$${c.priceYou}`, c.priceSpouse && `$${c.priceSpouse}`].filter(Boolean);
+      return parts.length ? `${parts.join(' + ')}/mo` : '';
+    }
+    return c.priceYou ? `$${c.priceYou}/mo` : '';
+  };
+  return (
+    <div className="px-5 py-4 border-t border-[#e5e7eb]">
+      <div className="flex items-center gap-2 mb-3">
+        <svg className="w-4 h-4 text-[#0F6E56]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+        <h3 className="text-sm font-bold text-[#1A1A1A]">What we presented &amp; protected</h3>
+      </div>
+      <div className="space-y-3">
+        {sorted.map((r) => {
+          const presented = r.chosen.tab === 'payoff' ? r.presented.payoff : r.presented.payment;
+          return (
+            <div key={r.id} className="rounded-lg border border-[#e5e7eb] bg-[#f8faf9] p-3">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-[11px] uppercase tracking-wider font-semibold text-[#9CA3AF]">
+                  {r.chosen.tab === 'payoff' ? 'Payoff plan' : 'Payment protection'}
+                </span>
+                <span className="text-[11px] text-[#9CA3AF]">
+                  {r.protectedAt ? new Date(r.protectedAt).toLocaleDateString() : ''}
+                </span>
+              </div>
+              <div className="rounded-md bg-[#dcfce7] border border-[#86efac] px-3 py-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="font-semibold text-[#166534] text-sm">
+                    ✓ {r.chosen.label}
+                    {r.chosen.carrier ? <span className="text-[#0F6E56]"> · {r.chosen.carrier}</span> : null}
+                  </span>
+                  {price(r) && <span className="font-bold text-[#166534] text-sm">{price(r)}</span>}
+                </div>
+                {r.chosen.coverage && (
+                  <div className="text-xs text-[#15803d] mt-0.5">Coverage ${r.chosen.coverage}</div>
+                )}
+              </div>
+              {presented.length > 1 && (
+                <div className="mt-2 text-xs text-[#707070]">
+                  <span className="font-semibold">Also presented:</span>{' '}
+                  {presented
+                    .filter((o) => o.label !== r.chosen.label)
+                    .map((o) => `${o.label}${o.carrier ? ` (${o.carrier})` : ''}`)
+                    .join(', ')}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function LeadDetailPanel({
   leadId,
   initialOpenConfirmationApptId,
@@ -514,7 +590,7 @@ export default function LeadDetailPanel({
   onBookingComplete,
   showNotFoundBackLink,
 }: LeadDetailPanelProps) {
-  const { user, agentProfile, rememberFifResetSme } = useDashboard();
+  const { user, agentProfile, rememberFifResetSme, createLeadTag, deleteLeadTag } = useDashboard();
   // Snapshot the initial deep-link prop so a parent re-render that flips
   // it to null after consumption doesn't break the auto-open path.
   const openConfirmationParam = initialOpenConfirmationApptId;
@@ -558,6 +634,37 @@ export default function LeadDetailPanel({
   const [weightSaving, setWeightSaving] = useState(false);
   const weightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const weightHydratedRef = useRef(false);
+
+  // ── Address autosave fields (street / city / state / zip) ──
+  // Same debounced-onChange pattern as the fields above for the free
+  // text bits; `state` saves immediately (it's a <select>) and is the
+  // load-bearing one — it drives which agent license the booking
+  // confirmation attaches (see SendConfirmationDrawer / Stream 4).
+  const [street, setStreet] = useState('');
+  const [streetSavedAt, setStreetSavedAt] = useState<Date | null>(null);
+  const [streetSaving, setStreetSaving] = useState(false);
+  const streetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const streetHydratedRef = useRef(false);
+
+  const [city, setCity] = useState('');
+  const [citySavedAt, setCitySavedAt] = useState<Date | null>(null);
+  const [citySaving, setCitySaving] = useState(false);
+  const cityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cityHydratedRef = useRef(false);
+
+  // 2-letter USPS code. Optimistic local state (not bound straight to
+  // the live doc) so the first save "takes" instead of flashing back —
+  // same lesson as the state-license autofill repaint fix.
+  const [addrState, setAddrState] = useState('');
+  const [addrStateSavedAt, setAddrStateSavedAt] = useState<Date | null>(null);
+  const [addrStateSaving, setAddrStateSaving] = useState(false);
+  const addrStateHydratedRef = useRef(false);
+
+  const [zip, setZip] = useState('');
+  const [zipSavedAt, setZipSavedAt] = useState<Date | null>(null);
+  const [zipSaving, setZipSaving] = useState(false);
+  const zipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const zipHydratedRef = useRef(false);
 
   const [email, setEmail] = useState('');
   const [emailSavedAt, setEmailSavedAt] = useState<Date | null>(null);
@@ -757,6 +864,22 @@ export default function LeadDetailPanel({
       if (!coborrowerHydratedRef.current) {
         setCoborrower(data.coborrowerStatus === 'Y' || data.coborrowerStatus === 'N' ? data.coborrowerStatus : null);
         coborrowerHydratedRef.current = true;
+      }
+      if (!streetHydratedRef.current) {
+        setStreet(data.address?.street || '');
+        streetHydratedRef.current = true;
+      }
+      if (!cityHydratedRef.current) {
+        setCity(data.address?.city || '');
+        cityHydratedRef.current = true;
+      }
+      if (!addrStateHydratedRef.current) {
+        setAddrState(normalizeUsStateCode(data.address?.state));
+        addrStateHydratedRef.current = true;
+      }
+      if (!zipHydratedRef.current) {
+        setZip(data.address?.zip || '');
+        zipHydratedRef.current = true;
       }
       setLoading(false);
     }, (err) => {
@@ -1049,6 +1172,86 @@ export default function LeadDetailPanel({
     }, AUTOSAVE_DEBOUNCE_MS);
   }, [user, leadId]);
 
+  // ── Address savers ──
+  // Each writes its own dot-path so a blank field clears only itself
+  // (Firestore leaves the sibling address.* keys intact) and creates
+  // the `address` map on demand for manually-entered leads.
+  const scheduleStreetSave = useCallback((value: string) => {
+    if (!user || !leadId) return;
+    if (streetTimer.current) clearTimeout(streetTimer.current);
+    streetTimer.current = setTimeout(async () => {
+      setStreetSaving(true);
+      try {
+        await updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+          'address.street': value.trim() || null,
+        });
+        setStreetSavedAt(new Date());
+      } catch (err) {
+        console.error('street autosave failed:', err);
+      } finally {
+        setStreetSaving(false);
+      }
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }, [user, leadId]);
+
+  const scheduleCitySave = useCallback((value: string) => {
+    if (!user || !leadId) return;
+    if (cityTimer.current) clearTimeout(cityTimer.current);
+    cityTimer.current = setTimeout(async () => {
+      setCitySaving(true);
+      try {
+        await updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+          'address.city': value.trim() || null,
+        });
+        setCitySavedAt(new Date());
+      } catch (err) {
+        console.error('city autosave failed:', err);
+      } finally {
+        setCitySaving(false);
+      }
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }, [user, leadId]);
+
+  const scheduleZipSave = useCallback((value: string) => {
+    if (!user || !leadId) return;
+    if (zipTimer.current) clearTimeout(zipTimer.current);
+    zipTimer.current = setTimeout(async () => {
+      setZipSaving(true);
+      try {
+        await updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+          'address.zip': value.trim() || null,
+        });
+        setZipSavedAt(new Date());
+      } catch (err) {
+        console.error('zip autosave failed:', err);
+      } finally {
+        setZipSaving(false);
+      }
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }, [user, leadId]);
+
+  // State saves immediately (discrete <select>, no debounce). Optimistic
+  // local repaint first so it never flashes back to the old value, then
+  // the write. `next` is already a valid code or '' from the picker;
+  // normalize defensively. This same write happens from the booking
+  // drawer (its picker is the lead's state) via `saveAddrState`.
+  const saveAddrState = useCallback(async (next: string) => {
+    if (!user || !leadId) return;
+    const code = normalizeUsStateCode(next);
+    setAddrState(code);
+    setAddrStateSaving(true);
+    try {
+      await updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+        'address.state': code || null,
+      });
+      setAddrStateSavedAt(new Date());
+    } catch (err) {
+      console.error('state save failed:', err);
+    } finally {
+      setAddrStateSaving(false);
+    }
+  }, [user, leadId]);
+
   // ── Dial tracking ──
   // Per-phone dial. Records which number was tapped so the outcome
   // chip flow can stamp it onto the dial log entry — that's how
@@ -1171,9 +1374,14 @@ export default function LeadDetailPanel({
     // is set — pendingDialEffect deliberately doesn't fire onCallFired
     // to avoid double-counting.
     onCallFired?.();
-    // US-only — `tel:` with raw digits lets the OS dialer handle
-    // country-code interpretation per the device locale.
-    window.location.href = `tel:${digits}`;
+    // Dial the canonical E.164 form (+1XXXXXXXXXX for US 10-digit numbers;
+    // pass-through for numbers already in + form). A fully-qualified number
+    // routes more reliably than bare local digits, which force the handler
+    // to guess the country code — notably Windows Phone Link relaying to a
+    // paired Android phone. `digits` (above) already gated length; logging
+    // still uses `activeDialPhone` (the original), so dial-count matching is
+    // unchanged.
+    window.location.href = `tel:${normalizePhone(target)}`;
   }, [lead?.phone, lead?.dialLog, leadId, onCallFired]);
 
   const handleLogOutcome = useCallback(async (outcome: DialOutcome) => {
@@ -1240,7 +1448,9 @@ export default function LeadDetailPanel({
     setOutcomeError(null);
     setActiveDialPhone(pendingDial.phone);
     setOutcomePrompt(true);
-    window.location.href = `tel:${digits}`;
+    // Dial E.164 for reliable handling (see handleStartCall); `digits` above
+    // still guards length and `activeDialPhone` keeps the original for logging.
+    window.location.href = `tel:${normalizePhone(pendingDial.phone)}`;
   }, [pendingDial]);
 
   const handleDelete = useCallback(async () => {
@@ -1404,6 +1614,11 @@ export default function LeadDetailPanel({
                   Converted to client
                 </span>
               )}
+              {!lead.convertedToClientId && (lead.protectionHistory?.length ?? 0) > 0 && (
+                <span className="inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#dcfce7] text-[#166534] rounded">
+                  Application opened
+                </span>
+              )}
               {mostRecentPastOutcomeChip && (
                 <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${mostRecentPastOutcomeChip.classes}`}>
                   {mostRecentPastOutcomeChip.label}
@@ -1430,6 +1645,18 @@ export default function LeadDetailPanel({
               </div>
             )}
           </div>
+        </div>
+
+        {/* Tags — agent-defined labels for slicing the book */}
+        <div className="px-5 pt-3">
+          <LeadTagEditor
+            user={user}
+            leadId={lead.id}
+            assignedTagIds={lead.tagIds}
+            tags={agentProfile.leadTags ?? []}
+            onCreateTag={createLeadTag}
+            onDeleteTag={deleteLeadTag}
+          />
         </div>
 
         {/* Action toolbar — call panel (carries dial count + last outcome), then book / close */}
@@ -1544,6 +1771,9 @@ export default function LeadDetailPanel({
             </div>
           )}
         </div>
+
+        {/* What we presented & protected — full history of every Protect moment */}
+        <ProtectionHistorySection records={lead.protectionHistory} />
 
         {/* Status footer — lifecycle facts at a glance */}
         <div className="px-5 py-2.5 bg-[#f8faf9] border-t border-[#e5e7eb] flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#707070]">
@@ -1967,6 +2197,96 @@ export default function LeadDetailPanel({
             />
           </div>
         </div>
+
+        {/* Mailing address. State is the load-bearing field: it picks
+            which of the agent's per-state licenses attaches to the
+            booking confirmation, so it's surfaced prominently and saved
+            the moment it changes. */}
+        <div className="mt-4">
+          <label className="block text-sm font-semibold text-[#374151] mb-1">
+            Street address
+            <span className="ml-2 text-xs font-normal text-[#707070]">
+              {streetSaving ? 'Saving…' : streetSavedAt ? `Saved · ${formatRelativeTime(streetSavedAt)}` : ''}
+            </span>
+          </label>
+          <input
+            type="text"
+            value={street}
+            onChange={(e) => {
+              const v = e.target.value;
+              setStreet(v);
+              scheduleStreetSave(v);
+            }}
+            placeholder="123 Main St"
+            className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+          />
+        </div>
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-[#374151] mb-1">
+              City
+              <span className="ml-2 text-xs font-normal text-[#707070]">
+                {citySaving ? 'Saving…' : citySavedAt ? `Saved · ${formatRelativeTime(citySavedAt)}` : ''}
+              </span>
+            </label>
+            <input
+              type="text"
+              value={city}
+              onChange={(e) => {
+                const v = e.target.value;
+                setCity(v);
+                scheduleCitySave(v);
+              }}
+              placeholder="Dallas"
+              className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-[#374151] mb-1">
+              State
+              <span className="ml-2 text-xs font-normal text-[#707070]">
+                {addrStateSaving ? 'Saving…' : addrStateSavedAt ? `Saved · ${formatRelativeTime(addrStateSavedAt)}` : ''}
+              </span>
+            </label>
+            <select
+              value={addrState}
+              onChange={(e) => saveAddrState(e.target.value)}
+              className={`w-full px-3 py-2.5 bg-white border rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa] ${
+                addrState ? 'border-[#d0d0d0]' : 'border-[#FCD34D] bg-[#FFFBEB]'
+              }`}
+            >
+              <option value="">— Select —</option>
+              {US_STATE_CODES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-[#374151] mb-1">
+              ZIP
+              <span className="ml-2 text-xs font-normal text-[#707070]">
+                {zipSaving ? 'Saving…' : zipSavedAt ? `Saved · ${formatRelativeTime(zipSavedAt)}` : ''}
+              </span>
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={zip}
+              onChange={(e) => {
+                const v = e.target.value;
+                setZip(v);
+                scheduleZipSave(v);
+              }}
+              placeholder="75201"
+              className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+            />
+          </div>
+        </div>
+        <p className="text-[11px] text-[#707070] mt-1.5">
+          {addrState
+            ? `The booking confirmation attaches your ${addrState} license. Change the state here to attach a different one.`
+            : 'Set the state so the booking confirmation attaches your matching state license.'}
+        </p>
 
         {/* Underwriting yes/no fields. Tri-state — Yes / No / Unknown.
             Unknown is the default for manually-entered leads; lead-form
@@ -2589,6 +2909,10 @@ export default function LeadDetailPanel({
             leadEmail={lead.email || email || undefined}
             leadCode={lead.leadCode}
             leadState={lead.address?.state || null}
+            // The drawer's state picker IS the lead's state — it persists
+            // the change itself; this just keeps the profile's State select
+            // above in sync without a second write or a remount.
+            onLeadStateChange={(code) => setAddrState(normalizeUsStateCode(code))}
             scheduledAt={scheduledAt}
             scheduledAtTimeZone={appt?.scheduledAtTimeZone || null}
             meetingUrl={appt?.meetingUrl || null}

@@ -26,6 +26,15 @@ const US_STATE_CODES = [
   'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'PR',
 ] as const;
 
+const STATE_CODE_SET = new Set<string>(US_STATE_CODES);
+
+/** "a" · "a and b" · "a, b, and c" — for the autofill confirmation note. */
+function joinList(items: string[]): string {
+  if (items.length <= 1) return items[0] || '';
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
+}
+
 interface LicenseEntry {
   number: string;
   expiresOn: string | null;
@@ -37,8 +46,19 @@ interface Props {
   user: User | null;
   /** Live registry from agentProfile.licenses. Keyed by state code. */
   licenses: Record<string, LicenseEntry> | undefined;
-  /** Callback so the parent can refetch its profile after a mutation. */
-  onChanged: () => void;
+  /**
+   * Persist the next registry onto the parent's agent profile. Called
+   * with the full updated map after an add or remove.
+   *
+   * We update optimistically from the authoritative server response
+   * instead of re-reading the agent doc. The old re-read raced the
+   * just-written license: the upload succeeded (no error, form closed)
+   * but the immediate re-read didn't yet reflect the new entry, so the
+   * row stayed invisible — and the dashboard's live snapshot listener
+   * only patches `phonePaired`, so it never self-healed. Agents saw
+   * "it didn't take" until a second save happened to read fresh.
+   */
+  onChange: (next: Record<string, LicenseEntry>) => void;
 }
 
 interface FormState {
@@ -56,7 +76,7 @@ function isExpired(entry: LicenseEntry): boolean {
   return entry.expiresOn < today;
 }
 
-export default function StateLicensesSection({ user, licenses, onChanged }: Props) {
+export default function StateLicensesSection({ user, licenses, onChange }: Props) {
   const sortedStateCodes = useMemo(
     () => Object.keys(licenses || {}).sort(),
     [licenses],
@@ -73,13 +93,80 @@ export default function StateLicensesSection({ user, licenses, onChanged }: Prop
   const [error, setError] = useState<string | null>(null);
   const [pendingDeleteState, setPendingDeleteState] = useState<string | null>(null);
   const [openingPdfFor, setOpeningPdfFor] = useState<string | null>(null);
+  // Autofill: reading number/state/expiration off the picked file.
+  const [extracting, setExtracting] = useState(false);
+  const [autofillNote, setAutofillNote] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Freshest form snapshot for the async autofill callback (which is not
+  // re-created on every keystroke), so we never clobber a field the agent
+  // typed while the read was in flight.
+  const formRef = useRef(form);
+  formRef.current = form;
 
   const resetForm = useCallback(() => {
     setForm(EMPTY_FORM);
     setError(null);
+    setAutofillNote(null);
+    setExtracting(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, []);
+
+  // ── Autofill (POST /api/agent-licenses/extract) ──
+  // On file pick, read the license number / state / expiration off the
+  // document and prefill any field the agent hasn't already filled. Pure
+  // convenience — every failure is silent and manual entry still works.
+  const handleFileSelected = useCallback(async (file: File | null) => {
+    setForm((prev) => ({ ...prev, file }));
+    setAutofillNote(null);
+    if (!file || !user) return;
+    setExtracting(true);
+    try {
+      const token = await user.getIdToken();
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/agent-licenses/extract', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      const fields = data?.fields as
+        | { licenseNumber?: string | null; stateCode?: string | null; expiresOn?: string | null }
+        | null
+        | undefined;
+      if (!fields) return;
+
+      // Compare against the freshest form (formRef) so we only fill blanks.
+      const cur = formRef.current;
+      const patch: Partial<FormState> = {};
+      const filled: string[] = [];
+
+      const num = typeof fields.licenseNumber === 'string' ? fields.licenseNumber.trim() : '';
+      if (num && !cur.number.trim()) {
+        patch.number = num;
+        filled.push('license number');
+      }
+      const sc = typeof fields.stateCode === 'string' ? fields.stateCode.trim().toUpperCase() : '';
+      if (sc && STATE_CODE_SET.has(sc) && !cur.stateCode && !usedStates.has(sc)) {
+        patch.stateCode = sc;
+        filled.push('state');
+      }
+      const exp = typeof fields.expiresOn === 'string' ? fields.expiresOn.trim() : '';
+      if (exp && /^\d{4}-\d{2}-\d{2}$/.test(exp) && !cur.expiresOn) {
+        patch.expiresOn = exp;
+        filled.push('expiration');
+      }
+
+      if (filled.length) {
+        setForm((prev) => ({ ...prev, ...patch }));
+        setAutofillNote(`Filled in the ${joinList(filled)} from your file — double-check before saving.`);
+      }
+    } catch {
+      // Silent — extraction is a convenience; manual entry always works.
+    } finally {
+      setExtracting(false);
+    }
+  }, [user, usedStates]);
 
   // ── Upload (POST /api/agent-licenses/upload) ──
   const handleUpload = useCallback(async () => {
@@ -106,7 +193,17 @@ export default function StateLicensesSection({ user, licenses, onChanged }: Prop
         setError(data?.error || `Upload failed (${res.status})`);
         return;
       }
-      onChanged();
+      // Repaint optimistically from the server's authoritative entry so
+      // the new row shows immediately — no re-read race (see Props.onChange).
+      const savedStateCode =
+        (typeof data?.stateCode === 'string' && data.stateCode) || form.stateCode;
+      const savedEntry: LicenseEntry = (data?.entry as LicenseEntry) ?? {
+        number: form.number.trim(),
+        expiresOn: form.expiresOn || null,
+        pdfStoragePath: '',
+        uploadedAt: new Date().toISOString(),
+      };
+      onChange({ ...(licenses || {}), [savedStateCode]: savedEntry });
       resetForm();
       setShowAdd(false);
     } catch (err) {
@@ -115,7 +212,7 @@ export default function StateLicensesSection({ user, licenses, onChanged }: Prop
     } finally {
       setBusy(false);
     }
-  }, [user, form, onChanged, resetForm]);
+  }, [user, form, licenses, onChange, resetForm]);
 
   // ── Delete (DELETE /api/agent-licenses/[stateCode]) ──
   const handleDelete = useCallback(async (stateCode: string) => {
@@ -132,7 +229,9 @@ export default function StateLicensesSection({ user, licenses, onChanged }: Prop
         setError(data?.error || `Delete failed (${res.status})`);
         return;
       }
-      onChanged();
+      const next = { ...(licenses || {}) };
+      delete next[stateCode];
+      onChange(next);
       setPendingDeleteState(null);
     } catch (err) {
       console.error('license delete error:', err);
@@ -140,7 +239,7 @@ export default function StateLicensesSection({ user, licenses, onChanged }: Prop
     } finally {
       setBusy(false);
     }
-  }, [user, onChanged]);
+  }, [user, licenses, onChange]);
 
   // ── View PDF (GET /api/agent-licenses/[stateCode] → signed URL) ──
   const handleViewPdf = useCallback(async (stateCode: string) => {
@@ -312,14 +411,14 @@ export default function StateLicensesSection({ user, licenses, onChanged }: Prop
               ref={fileInputRef}
               type="file"
               accept="application/pdf,.pdf,image/jpeg,.jpg,.jpeg,image/png,.png"
-              onChange={(e) => setForm({ ...form, file: e.target.files?.[0] || null })}
-              disabled={busy}
+              onChange={(e) => { void handleFileSelected(e.target.files?.[0] || null); }}
+              disabled={busy || extracting}
               className="hidden"
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={busy}
-              className="px-3 py-2 text-sm font-medium text-[#005851] border border-[#005851] rounded-[5px] hover:bg-[#005851] hover:text-white transition-colors"
+              disabled={busy || extracting}
+              className="px-3 py-2 text-sm font-medium text-[#005851] border border-[#005851] rounded-[5px] hover:bg-[#005851] hover:text-white transition-colors disabled:opacity-50"
             >
               {form.file ? 'Change file' : 'Upload file'}
             </button>
@@ -329,7 +428,23 @@ export default function StateLicensesSection({ user, licenses, onChanged }: Prop
               </span>
             )}
           </div>
-          <p className="text-[11px] text-[#707070] mb-3">PDF, JPEG, or PNG · 10 MB max</p>
+          <p className="text-[11px] text-[#707070] mb-1">
+            PDF, JPEG, or PNG · 10 MB max. We&apos;ll read the license number, state, and
+            expiration off it so you don&apos;t have to type them.
+          </p>
+          {extracting && (
+            <p className="text-[11px] text-[#005851] mb-3 flex items-center gap-1.5">
+              <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z" />
+              </svg>
+              Reading your license…
+            </p>
+          )}
+          {!extracting && autofillNote && (
+            <p className="text-[11px] text-[#005851] mb-3">{autofillNote}</p>
+          )}
+          {!extracting && !autofillNote && <div className="mb-3" />}
 
           {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
 

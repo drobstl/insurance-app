@@ -4,6 +4,14 @@ import { createContext, useContext, useEffect, useRef, useState, useCallback, ty
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import {
+  type LeadTag,
+  type LeadTagColor,
+  parseLeadTags,
+  newLeadTagId,
+  normalizeTagLabel,
+  MAX_LEAD_TAGS,
+} from '../../lib/lead-tag';
 import { auth, db } from '../../firebase';
 import { isAdminEmail } from '../../lib/admin';
 import { identifyAgent, resetPostHog, captureEvent } from '../../lib/posthog';
@@ -183,6 +191,14 @@ export interface AgentProfile {
    */
   autoCreateGoogleMeet?: boolean;
   /**
+   * How the calendar (web/components/LeadsCalendar.tsx) renders the
+   * agent's Google Calendar events behind their AFL sits. 'focus'
+   * (default) = muted gray hatched busy blocks; 'normal' = each event
+   * shown with its own title in a distinct color. Persisted here so the
+   * preference follows the agent across devices.
+   */
+  calendarViewMode?: 'focus' | 'normal';
+  /**
    * How far ahead of an appointment the cron should send a push reminder
    * to the lead (Chunk 4f-extension). Defaults to 1 hour. Set to 0 to
    * disable auto push reminders entirely. The agent's manual "Send
@@ -272,6 +288,12 @@ export interface AgentProfile {
    * `rememberFifResetSme`; never touched by the settings page.
    */
   fifResetSmes?: Array<{ name: string; calendarUrl?: string }>;
+  /**
+   * Agent-defined lead tags (id + label + color), managed from the lead
+   * detail panel's tag editor. Mirrors `fifResetSmes`: an inline array on the
+   * agent doc, written via the tag CRUD callbacks below + optimistic state.
+   */
+  leadTags?: LeadTag[];
 }
 
 interface DashboardContextValue {
@@ -286,6 +308,9 @@ interface DashboardContextValue {
   dismissTip: (sectionKey: string) => Promise<void>;
   markOnboardingMilestone: (milestone: OnboardingMilestoneKey) => Promise<void>;
   rememberFifResetSme: (sme: { name: string; calendarUrl?: string }) => Promise<void>;
+  createLeadTag: (input: { label: string; color: LeadTagColor }) => Promise<LeadTag | null>;
+  updateLeadTag: (id: string, patch: { label?: string; color?: LeadTagColor }) => Promise<void>;
+  deleteLeadTag: (id: string) => Promise<void>;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
@@ -393,7 +418,13 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           licenses: data.licenses || {},
           appointmentMode: data.appointmentMode === 'video' ? 'video' : 'phone',
           defaultMeetingLink: data.defaultMeetingLink,
-          autoCreateGoogleMeet: data.autoCreateGoogleMeet === true,
+          // Tri-state: undefined = "use the default", which is ON when Google
+          // Calendar is connected (a fresh per-meeting Meet link). Only an
+          // explicit false (the agent opted out) disables it. The on-by-default
+          // decision lives in AppointmentPicker (usingAutoMeet).
+          autoCreateGoogleMeet:
+            typeof data.autoCreateGoogleMeet === 'boolean' ? data.autoCreateGoogleMeet : undefined,
+          calendarViewMode: data.calendarViewMode === 'normal' ? 'normal' : 'focus',
           reminderPushHoursBefore: typeof data.reminderPushHoursBefore === 'number'
             ? data.reminderPushHoursBefore
             : 1,
@@ -424,6 +455,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
                   return url ? { name, calendarUrl: url } : { name };
                 })
             : [],
+          leadTags: parseLeadTags(data.leadTags),
         });
       } else {
         setAgentProfile({});
@@ -582,6 +614,70 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }
   }, [user, agentProfile.fifResetSmes]);
 
+  // Lead tags — agent-defined labels. Same storage shape as
+  // rememberFifResetSme: an inline array on the agent doc, merge-written with
+  // optimistic state. Definition deletes reconcile lazily (a lead keeps a
+  // dangling tagId; resolveLeadTags drops it), so a delete never fans out
+  // writes over the book.
+  const createLeadTag = useCallback(
+    async (input: { label: string; color: LeadTagColor }): Promise<LeadTag | null> => {
+      if (!user) return null;
+      const label = normalizeTagLabel(input.label);
+      if (!label) return null;
+      const prev = agentProfile.leadTags ?? [];
+      // Reuse a same-label tag (case-insensitive) rather than near-duplicating.
+      const existing = prev.find((t) => t.label.toLowerCase() === label.toLowerCase());
+      if (existing) return existing;
+      if (prev.length >= MAX_LEAD_TAGS) return null;
+      const tag: LeadTag = { id: newLeadTagId(), label, color: input.color };
+      const next = [...prev, tag];
+      try {
+        await setDoc(doc(db, 'agents', user.uid), { leadTags: next }, { merge: true });
+        setAgentProfile((p) => ({ ...p, leadTags: next }));
+        return tag;
+      } catch (error) {
+        console.error('Error creating lead tag:', error);
+        return null;
+      }
+    },
+    [user, agentProfile.leadTags],
+  );
+
+  const updateLeadTag = useCallback(
+    async (id: string, patch: { label?: string; color?: LeadTagColor }): Promise<void> => {
+      if (!user) return;
+      const prev = agentProfile.leadTags ?? [];
+      const next = prev.map((t) => {
+        if (t.id !== id) return t;
+        const label = patch.label != null ? normalizeTagLabel(patch.label) : t.label;
+        return { ...t, label: label || t.label, color: patch.color ?? t.color };
+      });
+      try {
+        await setDoc(doc(db, 'agents', user.uid), { leadTags: next }, { merge: true });
+        setAgentProfile((p) => ({ ...p, leadTags: next }));
+      } catch (error) {
+        console.error('Error updating lead tag:', error);
+      }
+    },
+    [user, agentProfile.leadTags],
+  );
+
+  const deleteLeadTag = useCallback(
+    async (id: string): Promise<void> => {
+      if (!user) return;
+      const prev = agentProfile.leadTags ?? [];
+      const next = prev.filter((t) => t.id !== id);
+      if (next.length === prev.length) return;
+      try {
+        await setDoc(doc(db, 'agents', user.uid), { leadTags: next }, { merge: true });
+        setAgentProfile((p) => ({ ...p, leadTags: next }));
+      } catch (error) {
+        console.error('Error deleting lead tag:', error);
+      }
+    },
+    [user, agentProfile.leadTags],
+  );
+
   const isAdmin = isAdminEmail(user?.email);
 
   return (
@@ -598,6 +694,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         dismissTip,
         markOnboardingMilestone,
         rememberFifResetSme,
+        createLeadTag,
+        updateLeadTag,
+        deleteLeadTag,
       }}
     >
       {children}
