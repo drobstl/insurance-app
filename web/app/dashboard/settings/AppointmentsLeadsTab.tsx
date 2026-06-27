@@ -301,8 +301,8 @@ export default function AppointmentsLeadsTab({
               onClick={() => updateField('appointmentMode', 'phone')}
               className={`px-4 py-2 text-sm font-semibold transition-colors ${
                 (agentProfile.appointmentMode || 'phone') === 'phone'
-                  ? 'bg-[#005851] text-white'
-                  : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                  ? 'bg-[#e1f5ee] text-[#005851] ring-1 ring-inset ring-[#005851]'
+                  : 'bg-white text-[#707070] hover:bg-[#f8f8f8]'
               }`}
             >
               Phone
@@ -312,8 +312,8 @@ export default function AppointmentsLeadsTab({
               onClick={() => updateField('appointmentMode', 'video')}
               className={`px-4 py-2 text-sm font-semibold transition-colors border-l border-[#d0d0d0] ${
                 agentProfile.appointmentMode === 'video'
-                  ? 'bg-[#005851] text-white'
-                  : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                  ? 'bg-[#e1f5ee] text-[#005851] ring-1 ring-inset ring-[#005851]'
+                  : 'bg-white text-[#707070] hover:bg-[#f8f8f8]'
               }`}
             >
               Video
@@ -334,8 +334,8 @@ export default function AppointmentsLeadsTab({
               onClick={() => updateField('confirmationChannel', 'text')}
               className={`px-4 py-2 text-sm font-semibold transition-colors ${
                 (agentProfile.confirmationChannel || 'text') === 'text'
-                  ? 'bg-[#005851] text-white'
-                  : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                  ? 'bg-[#e1f5ee] text-[#005851] ring-1 ring-inset ring-[#005851]'
+                  : 'bg-white text-[#707070] hover:bg-[#f8f8f8]'
               }`}
             >
               Text
@@ -345,8 +345,8 @@ export default function AppointmentsLeadsTab({
               onClick={() => updateField('confirmationChannel', 'email')}
               className={`px-4 py-2 text-sm font-semibold transition-colors border-l border-[#d0d0d0] ${
                 agentProfile.confirmationChannel === 'email'
-                  ? 'bg-[#005851] text-white'
-                  : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                  ? 'bg-[#e1f5ee] text-[#005851] ring-1 ring-inset ring-[#005851]'
+                  : 'bg-white text-[#707070] hover:bg-[#f8f8f8]'
               }`}
             >
               Email
@@ -465,12 +465,12 @@ export default function AppointmentsLeadsTab({
                   onClick={() => updateField('dialPersistence', opt.v)}
                   className={`px-4 py-2 text-sm font-semibold transition-colors text-left ${idx > 0 ? 'border-l border-[#d0d0d0]' : ''} ${
                     active
-                      ? 'bg-[#005851] text-white'
-                      : 'bg-white text-[#0D4D4D] hover:bg-[#f8f8f8]'
+                      ? 'bg-[#e1f5ee] text-[#005851] ring-1 ring-inset ring-[#005851]'
+                      : 'bg-white text-[#707070] hover:bg-[#f8f8f8]'
                   }`}
                 >
                   <div>{opt.label}</div>
-                  <div className={`text-[10px] font-normal ${active ? 'text-white/70' : 'text-[#707070]'}`}>
+                  <div className={`text-[10px] font-normal ${active ? 'text-[#005851]/70' : 'text-[#707070]'}`}>
                     {opt.sub}
                   </div>
                 </button>
