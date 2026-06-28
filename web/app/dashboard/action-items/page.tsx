@@ -19,6 +19,7 @@ import AnniversaryReferralActionItemCard from '../../../components/AnniversaryRe
 import AppointmentOutcomeActionItemCard from '../../../components/AppointmentOutcomeActionItemCard';
 import ComplianceActionItemCard from '../../../components/ComplianceActionItemCard';
 import UpcomingAppointmentsCard from '../../../components/UpcomingAppointmentsCard';
+import { LeadFollowUpsDue } from '../../../components/LeadFollowUpsDue';
 import type {
   ActionItemDoc,
   ActionItemLane,
@@ -247,6 +248,8 @@ function ActionItemsPageInner() {
         agentBusinessCardBase64={agentProfile.businessCardBase64}
         licenses={agentProfile.licenses || {}}
       />
+
+      <LeadFollowUpsDue user={user} agentName={agentProfile.name || ''} />
 
       <div className="mb-4 -mx-1 flex items-center gap-1 overflow-x-auto">
         {LANE_ORDER.map((lane) => {
