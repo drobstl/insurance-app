@@ -33,6 +33,7 @@ import { LeadTagChips } from '../../../components/LeadTagChips';
 import { LeadFilterBar } from '../../../components/LeadFilterBar';
 import { type LeadFilters, EMPTY_LEAD_FILTERS, hasActiveFilters } from '../../../lib/lead-filters';
 import { resolveLeadTags } from '../../../lib/lead-tag';
+import { isFollowUpDue, followUpMillis, followUpChip } from '../../../lib/lead-follow-up';
 import { parseLeadFile } from '../../../lib/lead-csv-parse';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
@@ -58,6 +59,7 @@ interface Lead {
   notes?: string;
   tagIds?: string[];
   notesEntries?: Array<{ text?: string }>;
+  followUpAt?: Timestamp | null;
   // Dial-tracking fields (Chunk 4b). Denormalized at write time so
   // queue queries / sorting don't require reading dialLog[].
   lastDialAt?: Timestamp | null;
@@ -72,7 +74,7 @@ interface Lead {
 }
 
 type LeadView = 'all' | 'queue' | 'calendar';
-type LeadSortKey = 'name' | 'createdAt' | 'source' | 'priority' | 'state' | 'temperature' | 'lastContacted';
+type LeadSortKey = 'name' | 'createdAt' | 'source' | 'priority' | 'state' | 'temperature' | 'lastContacted' | 'followUpAt';
 type SortDir = 'asc' | 'desc';
 
 // Multi-page lead-form bundles route to the off-Vercel batch engine
@@ -964,6 +966,9 @@ function LeadsPageInner() {
         return t != null && t >= fromMs && t <= toMs;
       });
     }
+    if (filters.followUpDue) {
+      result = result.filter((lead) => isFollowUpDue(lead.followUpAt));
+    }
 
     const q = searchQuery.trim().toLowerCase();
     if (q) {
@@ -1002,6 +1007,10 @@ function LeadsPageInner() {
       } else if (sortKey === 'lastContacted') {
         const aT = a.lastDialAt?.toDate().getTime() ?? 0;
         const bT = b.lastDialAt?.toDate().getTime() ?? 0;
+        cmp = aT - bT;
+      } else if (sortKey === 'followUpAt') {
+        const aT = followUpMillis(a.followUpAt) ?? Number.POSITIVE_INFINITY;
+        const bT = followUpMillis(b.followUpAt) ?? Number.POSITIVE_INFINITY;
         cmp = aT - bT;
       }
       return sortDir === 'asc' ? cmp : -cmp;
@@ -1690,7 +1699,7 @@ function LeadsPageInner() {
                     onChange={(e) => {
                       const k = e.target.value as LeadSortKey;
                       setSortKey(k);
-                      setSortDir(k === 'name' || k === 'source' || k === 'state' ? 'asc' : 'desc');
+                      setSortDir(k === 'name' || k === 'source' || k === 'state' || k === 'followUpAt' ? 'asc' : 'desc');
                     }}
                     className="px-2 py-1 border border-[#d0d0d0] rounded-[5px] bg-white"
                   >
@@ -1700,6 +1709,7 @@ function LeadsPageInner() {
                     <option value="state">State</option>
                     <option value="temperature">Temperature</option>
                     <option value="lastContacted">Last contacted</option>
+                    <option value="followUpAt">Follow-up date</option>
                   </select>
                   <button
                     type="button"
@@ -2364,6 +2374,12 @@ function LeadsPageInner() {
                               <LeadTempChip temperature={lead.leadScore.temperature} />
                             )}
                             <LeadTagChips tagIds={lead.tagIds} tags={agentProfile.leadTags ?? []} />
+                            {(() => {
+                              const fu = followUpChip(lead.followUpAt);
+                              return fu ? (
+                                <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold tracking-wide rounded ${fu.classes}`}>{fu.label}</span>
+                              ) : null;
+                            })()}
                           </div>
                         </td>
                         <td className="px-5 py-3.5 text-sm text-[#444] whitespace-nowrap">{lead.phone}</td>

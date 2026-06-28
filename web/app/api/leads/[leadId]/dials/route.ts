@@ -3,6 +3,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../../lib/firebase-admin';
+import { CALLBACK_FOLLOWUP_MS } from '../../../../../lib/lead-follow-up';
 
 /**
  * Dial outcome taxonomy. Locked vocabulary so we can build queue-priority
@@ -102,11 +103,18 @@ export async function POST(
       ...(phoneDialed ? { phoneDialed } : {}),
     };
 
-    await leadRef.update({
+    const leadUpdate: Record<string, unknown> = {
       dialLog: FieldValue.arrayUnion(entry),
       lastDialAt: entry.at,
       lastDialOutcome: entry.outcome,
-    });
+    };
+    // A callback request is a promise to circle back — auto-schedule a
+    // follow-up (default +2d) so the lead resurfaces instead of relying on
+    // the agent's memory. They can adjust the date on the lead afterward.
+    if (entry.outcome === 'callback_requested') {
+      leadUpdate.followUpAt = Timestamp.fromMillis(entry.at.toMillis() + CALLBACK_FOLLOWUP_MS);
+    }
+    await leadRef.update(leadUpdate);
 
     return NextResponse.json({ ok: true, entry });
   } catch (error) {
