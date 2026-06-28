@@ -24,13 +24,19 @@
  *     quality gate, convert still succeeds; we surface a notice on
  *     Card 1 that the agent will fill the policy in afterwards.
  *
- *   Card 2 — Send welcome text
- *     Editable textarea pre-filled with the locked May 24 welcome
- *     copy. Send button is environment-aware: "Send via iMessage"
- *     on Mac, "Send via text" elsewhere. Opens the OS Messages
- *     handler via sms:; the welcome action item queued by the
- *     convert endpoint stays in the queue as a safety net if the
- *     agent never gets here.
+ *   Card 2 — Send welcome text (a WRITTEN BACKUP, not the load-
+ *     bearing step). The client is live on the phone, so the surest
+ *     delivery is the agent reading the link + code aloud while
+ *     Card 3's activation listener confirms in real time — the card
+ *     leads with that. The editable textarea (pre-filled with the
+ *     locked welcome copy) then offers, per the agent's detected
+ *     platform (web/lib/sms-url.ts): a platform-aware Send (opens the
+ *     OS Messages handler via sms:), Copy, a QR code (scan with the
+ *     phone you text from — the reliable path for Windows+Edge+Android
+ *     where the OS app-chooser dead-ends on Chrome), and a Skip link.
+ *     Every path advances to Card 3 — none can block the close. The
+ *     welcome action item queued by the convert endpoint stays in the
+ *     queue as a safety net if the agent never gets here.
  *
  *   Card 3 — Activation status
  *     Embeds <ClientActivationStatusRow variant="card" />. State
@@ -50,6 +56,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { User } from 'firebase/auth';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   APPLICATION_TYPE_OPTIONS,
   type ApplicationFormType,
@@ -57,6 +64,16 @@ import {
 import { mapExtractedApplicationToPolicyFormData } from '../lib/extracted-to-policy-form-data';
 import { runApplicationExtractionV3 } from '../lib/run-application-extraction-v3';
 import { buildCloseSaleWelcomeBody } from '../lib/welcome-sms-body';
+import {
+  type AgentPlatform,
+  detectAgentPlatform,
+  buildSmsUrlForPlatform,
+  buildSmsUrlForQr,
+  platformSupportsInlineSend,
+  platformIsMobile,
+  getSendButtonLabel,
+  getSendCaption,
+} from '../lib/sms-url';
 import { ClientActivationStatusRow } from './ClientActivationStatusRow';
 import { captureEvent } from '../lib/posthog';
 import { ANALYTICS_EVENTS } from '../lib/analytics-events';
@@ -146,12 +163,6 @@ interface Props {
 // Policy modal). The local duplicate that used to live here was
 // removed in the same PR that created the shared lib.
 
-function detectMac(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  return /Mac|iPhone|iPad|iPod/i.test(navigator.platform || '')
-    || /Mac OS X/i.test(navigator.userAgent || '');
-}
-
 // Reduce a phone string to comparable digits (strip formatting + a leading
 // US country code) so "(256)903-6757" and "1-256-903-6757" compare equal.
 // Used only to decide whether the lead's phone and the PDF's phone truly
@@ -197,7 +208,17 @@ export function CloseSaleRitual({
   const [clientId, setClientId] = useState<string | null>(null);
   const [clientCode, setClientCode] = useState<string | null>(null);
   const [welcomeBody, setWelcomeBody] = useState('');
-  const isMac = useMemo(() => detectMac(), []);
+  const [copied, setCopied] = useState(false);
+  // Full platform detection (Mac / Windows / iOS / Android / …) so Card 2
+  // can show the right Send affordance, an honest caption, and a QR / Copy
+  // escape hatch for setups where the browser `sms:` handoff dead-ends —
+  // e.g. Windows + Edge + a paired Android phone, where the OS app-chooser
+  // offers Chrome (which can't text) instead of Phone Link. Detection runs
+  // in an effect so SSR and first paint agree before we read navigator.
+  const [agentPlatform, setAgentPlatform] = useState<AgentPlatform>('unknown');
+  useEffect(() => {
+    setAgentPlatform(detectAgentPlatform());
+  }, []);
 
   // ── Household card state (Phase 2) ──
   // Insured people on the lead (besides the primary) each become their own
@@ -541,24 +562,54 @@ export function CloseSaleRitual({
     .filter((m): m is { person: CloseSalePerson; state: MemberState } => m.state?.status === 'done');
 
   // ── Card 2 send ──
-  const handleSendWelcome = useCallback(() => {
-    if (!welcomeBody) return;
-    const url = `sms:${lead.phone}${isMac ? '&' : '?'}body=${encodeURIComponent(welcomeBody)}`;
-    if (typeof window !== 'undefined') {
-      window.location.href = url;
-    }
+  // The welcome text is a WRITTEN BACKUP, not the load-bearing step: the
+  // client is live on the phone, so the surest delivery is the agent
+  // reading the link + code aloud while Card 3's activation listener
+  // confirms in real time. So every path here (Send / Copy / QR / Skip)
+  // advances to activation — none of them can block the close.
+  const smsHref = welcomeBody.trim()
+    ? buildSmsUrlForPlatform(lead.phone, welcomeBody, agentPlatform)
+    : null;
+  const qrValue = welcomeBody.trim()
+    ? buildSmsUrlForQr(lead.phone, welcomeBody)
+    : null;
+  const canInlineSend = platformSupportsInlineSend(agentPlatform);
+  const showQr = !platformIsMobile(agentPlatform) && !!qrValue;
+
+  const advanceToActivation = useCallback((channel: 'agent_phone_sms' | 'continue') => {
     // Same event the action-item welcome surfaces fire — this surface
     // value marks the on-call ritual send (no _completed counterpart
     // here; activation on Card 3 is the delivery confirmation).
     captureEvent(ANALYTICS_EVENTS.WELCOME_SEND_INITIATED, {
       surface: 'close_sale_ritual',
-      channel: 'agent_phone_sms',
+      channel,
     });
-    // Advance immediately — we have no signal-back from the OS handler,
-    // and the agent has the activation listener on Card 3 to confirm
-    // delivery via the client opening the app.
+    // Advance — we have no signal-back from the OS handler, and the
+    // activation listener on Card 3 confirms delivery via the client
+    // opening the app.
     setStage('activation');
-  }, [welcomeBody, isMac, lead.phone]);
+  }, []);
+
+  const handleSendWelcome = useCallback(() => {
+    if (!smsHref) return;
+    if (typeof window !== 'undefined') {
+      window.location.href = smsHref;
+    }
+    advanceToActivation('agent_phone_sms');
+  }, [smsHref, advanceToActivation]);
+
+  const handleCopyWelcome = useCallback(async () => {
+    if (!welcomeBody.trim()) return;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(welcomeBody);
+        setCopied(true);
+      }
+    } catch {
+      // Clipboard can be blocked; the textarea is right there to select
+      // by hand, so we fail quietly rather than throw a scary error.
+    }
+  }, [welcomeBody]);
 
   if (!open) return null;
 
@@ -807,26 +858,96 @@ export function CloseSaleRitual({
                 </div>
               )}
 
+              {/* Voice-first path — the load-bearing one. The client is on
+                  the phone right now, so reading the link + code aloud is the
+                  surest delivery; the text below is a written backup that must
+                  never block the close. */}
+              <div className="rounded-[5px] border-2 border-[#0D4D4D]/15 bg-[#f0fbf9] px-4 py-3">
+                <p className="text-sm font-semibold text-[#0D4D4D] flex items-center gap-1.5">
+                  <span aria-hidden>📞</span> They&apos;re on the phone — just read this to them
+                </p>
+                <p className="mt-1.5 text-sm text-[#2d2d2d] leading-relaxed">
+                  &ldquo;Go to <strong className="text-[#0D4D4D]">agentforlife.app/app</strong>
+                  {clientCode ? (
+                    <> and enter your code <strong className="font-mono text-[#0D4D4D]">{clientCode}</strong></>
+                  ) : null}
+                  .&rdquo;
+                </p>
+                <p className="mt-1.5 text-xs text-[#5f7a78]">
+                  Card 3 lights up the moment they open the app. The text below is their written copy — send it however&apos;s easiest.
+                </p>
+              </div>
+
               <div>
-                <label className="block text-sm font-semibold text-[#0D4D4D] mb-1">Welcome message</label>
+                <label className="block text-sm font-semibold text-[#0D4D4D] mb-1">Welcome text (written backup)</label>
                 <textarea
                   value={welcomeBody}
-                  onChange={(e) => setWelcomeBody(e.target.value)}
+                  onChange={(e) => { setWelcomeBody(e.target.value); setCopied(false); }}
                   rows={10}
                   className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm leading-relaxed focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]/30 transition-colors font-mono"
                 />
               </div>
 
+              {/* Send + Copy. Send only appears on platforms whose browser can
+                  hand an sms: URL to a messaging app; everywhere else Copy is
+                  the primary action so there's no dead button. */}
+              <div className="flex flex-wrap gap-2">
+                {canInlineSend && smsHref ? (
+                  <button
+                    type="button"
+                    onClick={handleSendWelcome}
+                    disabled={!welcomeBody.trim()}
+                    className="flex-1 min-w-[160px] px-4 py-3 bg-[#0099FF] hover:bg-[#0079CC] text-white text-sm font-semibold rounded-[5px] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                    </svg>
+                    {getSendButtonLabel(agentPlatform)}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => { void handleCopyWelcome(); }}
+                  disabled={!welcomeBody.trim()}
+                  className={`min-w-[120px] px-4 py-3 text-sm font-semibold rounded-[5px] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                    canInlineSend
+                      ? 'flex-none bg-white hover:bg-gray-50 text-[#0D4D4D]'
+                      : 'flex-1 bg-[#0099FF] hover:bg-[#0079CC] text-white'
+                  }`}
+                >
+                  {copied ? 'Copied!' : 'Copy text'}
+                </button>
+              </div>
+
+              <p className="text-xs text-[#707070] leading-relaxed">{getSendCaption(agentPlatform)}</p>
+
+              {/* QR escape hatch for desktop agents (incl. Windows + Edge +
+                  Android, where the OS app-chooser dead-ends on Chrome). Scan
+                  it with the phone you text from and Messages opens pre-filled
+                  — no Phone Link setup required. Hidden on mobile, where
+                  scanning the screen you're holding makes no sense. */}
+              {showQr && qrValue ? (
+                <details className="rounded-[5px] border border-[#e3e3e3] bg-white">
+                  <summary className="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#0D4D4D]/70 hover:text-[#0D4D4D]">
+                    Or scan with the phone you text from
+                  </summary>
+                  <div className="flex items-center gap-3 px-3 pb-3">
+                    <div className="shrink-0 rounded-md bg-white p-1.5 border border-[#ececec]">
+                      <QRCodeSVG value={qrValue} size={132} level="L" marginSize={0} />
+                    </div>
+                    <p className="text-[11px] text-[#4f4f4f] leading-snug">
+                      Point your phone&apos;s camera at this code, tap the notification, and your texting app opens with everything pre-filled — works on any phone, no setup.
+                    </p>
+                  </div>
+                </details>
+              ) : null}
+
               <button
                 type="button"
-                onClick={handleSendWelcome}
-                disabled={!welcomeBody.trim()}
-                className="w-full px-4 py-3 bg-[#0099FF] hover:bg-[#0079CC] text-white text-sm font-semibold rounded-[5px] border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                onClick={() => advanceToActivation('continue')}
+                className="w-full text-xs font-medium text-[#707070] hover:text-[#0D4D4D] underline underline-offset-2 transition-colors"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                </svg>
-                {isMac ? 'Send via iMessage' : 'Send via text'}
+                Texted it another way or read it aloud → walk them through the app now
               </button>
             </div>
 
