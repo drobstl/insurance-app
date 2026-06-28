@@ -606,6 +606,7 @@ Overage GM (~66%) is acceptable as overflow protection, not a profit center. Agg
 - **Settings:** split into 5 tab components + tabbed-panel UI overhaul so the active tab is unmistakable and connects to its content (#235/#240/#241/#243/#244); payment-protection terms (#215); Agency Logo section removed for now (#244).
 - **FIF-reset reveal:** shipped to prod gated **OFF** per-agent by default (#242) — renders great on-device; never say "FIF reset" to clients; concept-only visuals (no projected $). Resume = 3 refinements → 1 OTA, then 5 product-matched reveals.
 - **Cleanup:** 30-min training surface (#233), removed dead `/agent-guide` page (#229) and the home calendar tease (#230).
+- **Late Jun 27 (merged as the running sessions wrapped):** lead quick-wins — timestamped notes (Opt2 box+log) + clickable action-item names (#245); Close-Sale step-2 welcome text made voice-first/dummy-proof on any device (#239); **Patch as the in-app teacher** — presence + living knowledge registry + Resources link, with the Meet-Patch reveal auto-playing only on Home (#238/#248).
 - **In flight at EOD (open PRs — the still-running sessions):** #247 smart follow-up Step 1 (manual reminder synced across Leads + Action items), #246 messaging-provider architecture decision record, #210 client-import dedupe-against-the-book, #188 orphaned-booking diagnostics/repair scripts.
 
 **Recent fixes (March 2026, founding member feedback):**
