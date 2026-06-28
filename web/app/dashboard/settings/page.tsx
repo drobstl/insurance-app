@@ -39,6 +39,16 @@ export default function SettingsPage() {
   const searchParams = useSearchParams();
 
   const [activeTab, setActiveTab] = useState<Tab>('profile');
+
+  // Deep-link a specific tab via ?tab=account|profile|appointments-leads etc.,
+  // so onboarding links can drop the agent exactly where they need to be.
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && TABS.some((t) => t.key === tabParam)) {
+      setActiveTab(tabParam as Tab);
+    }
+  }, [searchParams]);
+
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<SaveMessage>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
