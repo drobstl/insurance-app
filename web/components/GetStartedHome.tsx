@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 
@@ -9,9 +8,12 @@ import { useDashboard } from '../app/dashboard/DashboardContext';
 // agent sees a short, finite "get set up" path with Patch wired in. The real
 // dashboard takes over once onboarding is complete (gated in page.tsx).
 //
-// Each step's done-state reads the real signal — onboarding milestones, the
-// paired-phone flag, and the Google Calendar integration record — so the
-// checklist is true, not a demo, and updates live as the agent acts.
+// Deliberately only THREE steps, ordered so the first-client ritual (the
+// graduation trigger) is last — so the checklist completes right as they
+// graduate, never mid-way. Each step's done-state reads the real milestone /
+// paired-phone signal, so it's true, not a demo. Deeper features (calendar,
+// coaching, retention) are taught just-in-time via Patch nudges at the moment
+// they're relevant — NOT crammed into day-one setup.
 
 type Step = {
   key: string;
@@ -29,38 +31,15 @@ function askPatch(prompt: string) {
 }
 
 export default function GetStartedHome() {
-  const { agentProfile, user } = useDashboard();
+  const { agentProfile } = useDashboard();
   const milestones = agentProfile.onboarding?.requiredMilestones;
-  const isPro = agentProfile.membershipTier === 'pro' || agentProfile.membershipTier === 'agency';
   const firstName = agentProfile.name ? agentProfile.name.split(' ')[0] : '';
-
-  // Google Calendar connection lives in a separate integration record, not on
-  // the agent profile — so fetch its status for the checklist's done-state.
-  const [calendarConnected, setCalendarConnected] = useState(false);
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    user
-      .getIdToken()
-      .then((token) =>
-        fetch('/api/integrations/google-calendar/status', { headers: { Authorization: `Bearer ${token}` } }),
-      )
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (cancelled || !data) return;
-        setCalendarConnected(data.connected === true || data.data?.hasRefreshToken === true);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
 
   const steps: Step[] = [
     {
       key: 'profile',
       title: 'Finish your profile',
-      desc: 'Your name, photo, and scheduling link',
+      desc: 'So your app shows up branded as you — your face, your card.',
       href: '/dashboard/settings?tab=profile',
       cta: 'Open profile',
       done: milestones?.profileCompleted === true,
@@ -69,25 +48,16 @@ export default function GetStartedHome() {
     {
       key: 'phone',
       title: 'Pair your phone',
-      desc: 'Push notifications and two-tap sends',
+      desc: 'So clients reach you instantly — and you get buzzed the moment a lead books.',
       href: '/dashboard/pair-phone',
       cta: 'Pair phone',
       done: agentProfile.phonePaired === true,
-      patchPrompt: 'How do I pair my phone?',
-    },
-    {
-      key: 'calendar',
-      title: 'Connect Google Calendar',
-      desc: 'Clean booking, no double-books',
-      href: '/dashboard/settings?tab=account',
-      cta: 'Connect',
-      done: calendarConnected,
-      patchPrompt: 'How do I connect Google Calendar?',
+      patchPrompt: 'How do I pair my phone, and why does it matter?',
     },
     {
       key: 'client',
       title: 'Onboard your first client',
-      desc: 'The 90-second end-of-sale ritual',
+      desc: 'The 90-second ritual — and the moment to ask for the referral.',
       href: '/dashboard/clients',
       cta: 'Add a client',
       done: milestones?.firstClientCreated === true,
@@ -98,16 +68,6 @@ export default function GetStartedHome() {
   const doneCount = steps.filter((s) => s.done).length;
   const activeIndex = steps.findIndex((s) => !s.done);
 
-  const optional = isPro
-    ? [
-        {
-          title: 'Record your intro video',
-          desc: 'Leads see a warm welcome before you meet',
-          href: '/dashboard/settings?tab=appointments-leads',
-        },
-      ]
-    : [];
-
   return (
     <div className="mt-2 max-w-2xl mx-auto">
       <div className="text-[12px] font-semibold tracking-wide text-[#0f6e56] mb-1">GET SET UP</div>
@@ -115,7 +75,7 @@ export default function GetStartedHome() {
         Welcome{firstName ? `, ${firstName}` : ''} — let&apos;s get you rolling.
       </h1>
       <p className="text-[#5a5a5a] text-sm mt-1.5">
-        A few quick things and AFL is working for you. Patch is right here if you want a hand with any of them.
+        Three quick things and AFL is working for you. Patch is right here if you want a hand with any of them.
       </p>
 
       <div className="flex items-center gap-3 mt-5 mb-3">
@@ -172,26 +132,6 @@ export default function GetStartedHome() {
           );
         })}
       </div>
-
-      {optional.length > 0 && (
-        <div className="mt-5">
-          <div className="text-[12px] font-semibold text-[#8a8a8a] uppercase tracking-wide mb-2">When you&apos;re ready</div>
-          <div className="grid sm:grid-cols-2 gap-2.5">
-            {optional.map((o) => (
-              <Link
-                key={o.title}
-                href={o.href}
-                className="block bg-white border border-[#e2e2e0] rounded-xl px-4 py-3 hover:border-[#1D9E75] transition-colors"
-              >
-                <div className="text-[13.5px] font-semibold text-[#1a1a1a]">
-                  {o.title} <span className="text-[#0d8f7a]">→</span>
-                </div>
-                <div className="text-[12px] text-[#6a6a6a]">{o.desc}</div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
         <Link href="/dashboard/resources" className="text-[#0d8f7a] font-medium hover:underline">
