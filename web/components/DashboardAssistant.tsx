@@ -473,10 +473,13 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
     if (typeof window === 'undefined' || profileLoading) return;
     const forced = new URLSearchParams(window.location.search).get('patchReveal') === '1';
     const seen = window.localStorage.getItem(PATCH_REVEAL_SEEN_KEY) === '1';
-    if (!forced && (seen || agentProfile.onboardingComplete === true)) return;
+    // Auto-play only on the Home dashboard — the reveal is a first-meeting and
+    // must never pop up (and block) on Clients/Leads/etc. ?patchReveal=1 still
+    // forces it anywhere for previewing.
+    if (!forced && (seen || agentProfile.onboardingComplete === true || pathname !== '/dashboard')) return;
     const timer = setTimeout(() => setShowReveal(true), 700);
     return () => clearTimeout(timer);
-  }, [profileLoading, agentProfile.onboardingComplete]);
+  }, [profileLoading, agentProfile.onboardingComplete, pathname]);
 
   // Fetch Google Calendar connection status once, for the calendar nudge.
   // On error we assume connected (suppresses the nudge rather than nagging).
