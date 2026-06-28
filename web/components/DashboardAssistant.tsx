@@ -7,7 +7,7 @@ import { useDashboard } from '../app/dashboard/DashboardContext';
 import { captureEvent } from '../lib/posthog';
 import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 import { getSuggestedQuestions } from '../lib/patch-knowledge';
-import { pickNudge, getDismissedNudges, dismissNudge, type PatchNudge } from '../lib/patch-nudges';
+import { pickNudge, getDismissedNudges, dismissNudge, PATCH_NUDGES, type PatchNudge } from '../lib/patch-nudges';
 
 const MotionDiv = motion.div;
 
@@ -506,6 +506,17 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
   // nudges are gone for good (localStorage).
   useEffect(() => {
     if (nudgeShownRef.current || open || showReveal || profileLoading) return;
+    // ?nudge=<id> forces a specific nudge so the bubble can be previewed.
+    const forcedId =
+      typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('nudge') : null;
+    if (forcedId) {
+      const forced = PATCH_NUDGES.find((n) => n.id === forcedId) ?? PATCH_NUDGES[0];
+      const previewTimer = setTimeout(() => {
+        setNudge(forced);
+        nudgeShownRef.current = true;
+      }, 800);
+      return () => clearTimeout(previewTimer);
+    }
     if (agentProfile.onboardingComplete !== true) return;
     if (calendarConnected === null) return;
     const picked = pickNudge(
