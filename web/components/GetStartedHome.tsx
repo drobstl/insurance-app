@@ -86,7 +86,7 @@ export default function GetStartedHome() {
           />
         </div>
         <span className="text-[13px] font-semibold text-[#0f6e56] whitespace-nowrap">
-          {doneCount === steps.length ? 'All set!' : `${doneCount} of ${steps.length}`}
+          {doneCount === steps.length ? 'Ready!' : `${doneCount} of ${steps.length}`}
         </span>
       </div>
 

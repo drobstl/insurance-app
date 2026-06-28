@@ -16,6 +16,7 @@ import NextTrainingSessionCard from '../../components/NextTrainingSessionCard';
 import BadgeProgressCard from '../../components/BadgeProgressCard';
 import WhatsNewSpotlight from '../../components/WhatsNewSpotlight';
 import GetStartedHome from '../../components/GetStartedHome';
+import GraduationCelebration from '../../components/GraduationCelebration';
 import BookHealthPopover from '../../components/BookHealthPopover';
 import BadgeCelebration from '../../components/BadgeCelebration';
 import PairPhoneBanner from '../../components/PairPhoneBanner';
@@ -286,6 +287,24 @@ export default function DashboardHomePage() {
     if (uncelebrated) setCelebrationBadge(uncelebrated);
   }, [badgeStats, user, agentProfile]);
 
+  // Celebrate the in-session moment a new agent finishes setup, then hand off to
+  // the real dashboard (GraduationCelebration). Fires only on the false→true
+  // flip — never on a normal visit. ?celebrate=1 forces it for previewing.
+  const [graduating, setGraduating] = useState(false);
+  const prevOnboardedRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    const complete = agentProfile.onboardingComplete === true;
+    const forced =
+      typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('getStarted') === '1';
+    if (prevOnboardedRef.current === false && complete && !forced) setGraduating(true);
+    prevOnboardedRef.current = complete;
+  }, [agentProfile.onboardingComplete]);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('celebrate') === '1') {
+      setGraduating(true);
+    }
+  }, []);
+
   if (loading) return null;
 
   // Brand-new agents get a calm, finite "get set up" Home instead of the full
@@ -304,6 +323,12 @@ export default function DashboardHomePage() {
 
   return (
     <div className="max-w-5xl mx-auto">
+      {graduating && (
+        <GraduationCelebration
+          firstName={agentProfile.name ? agentProfile.name.split(' ')[0] : undefined}
+          onDone={() => setGraduating(false)}
+        />
+      )}
       {!agentProfile.tipsSeen?.home && (
         <SectionTipCard onDismiss={() => dismissTip('home')}>
           This is your command center. Stats, action items, and summaries update in
