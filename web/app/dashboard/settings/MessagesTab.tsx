@@ -179,27 +179,6 @@ export default function MessagesTab({ agentProfile, updateField, user }: Message
               ))}
             </div>
           </div>
-
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <p className="text-sm font-medium text-[#000000]">Skip Warning on Single-PDF Create</p>
-              <p className="text-xs text-[#707070] mt-1">
-                When on, creating a client from a single PDF auto-sends the welcome text immediately (no confirmation step).
-              </p>
-            </div>
-            <button
-              onClick={() => updateField('skipWelcomeSmsConfirmation', !(agentProfile.skipWelcomeSmsConfirmation ?? false))}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
-                (agentProfile.skipWelcomeSmsConfirmation ?? false) ? 'bg-[#44bbaa]' : 'bg-gray-300'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
-                  (agentProfile.skipWelcomeSmsConfirmation ?? false) ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
         </div>
       </div>
 

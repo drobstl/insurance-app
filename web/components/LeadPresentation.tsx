@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import {
@@ -10,8 +10,12 @@ import {
   fmtUsd,
   firstWord,
   ageFromDob,
+  newId,
+  PAYMENT_VISIBLE_COUNT,
   type IncomeItem,
+  type ProtectionRecord,
 } from '../lib/household';
+import { fireConfetti } from '../lib/confetti';
 import { MoneyList } from './MoneyList';
 
 /** Display-only lead basics; the household/financials come from the lead doc via the hook. */
@@ -60,10 +64,26 @@ function NumField({ label, value, onChange, prefix }: { label: string; value: st
 
 const sectionLabel = (t: string) => <div className="text-sm font-semibold text-[#0F6E56] mb-2">{t}</div>;
 
+// Realistic teal highlighter — dual gradient so it reads as a marker swipe:
+// translucent (text shows through), fades at the stroke ends like the pen
+// lifting off, with a subtle top→bottom density change from tip pressure.
+// box-decoration-break: clone gives each wrapped line its own swipe.
+const HIGHLIGHTER_STYLE: CSSProperties = {
+  background:
+    'linear-gradient(104deg, rgba(69,188,170,0) 0.9%, rgba(69,188,170,0.55) 2.4%, rgba(69,188,170,0.5) 5.8%, rgba(69,188,170,0.42) 93%, rgba(69,188,170,0.62) 96%, rgba(69,188,170,0) 98%), linear-gradient(183deg, rgba(69,188,170,0) 0%, rgba(69,188,170,0.3) 7.9%, rgba(69,188,170,0) 15%)',
+  WebkitBoxDecorationBreak: 'clone',
+  boxDecorationBreak: 'clone',
+  borderRadius: '0.55em 0.4em 0.5em 0.45em',
+  padding: '0.05em 0.14em',
+  margin: '0 -0.08em',
+  color: 'inherit',
+};
+
 export default function LeadPresentation({ lead, leadId, onClose }: { lead: PresentationLead; leadId: string; onClose: () => void }) {
   const { agentProfile } = useDashboard();
   const hh = useLeadHousehold(leadId);
-  const { household, quote, patchQuote } = hh;
+  const { household, quote, patchQuote, protect } = hh;
+  const [protectedFlash, setProtectedFlash] = useState(false);
 
   // ── derived: people ──
   const youFirst = firstWord(lead.name) || 'you';
@@ -90,6 +110,10 @@ export default function LeadPresentation({ lead, leadId, onClose }: { lead: Pres
   }, [agentProfile?.licenses, leadState]);
 
   const [idx, setIdx] = useState(0);
+  // Agent-only toggle on the options slide: reveals the shorter (cheaper)
+  // payment-protection terms (9 & 6 mo) for a budget-sensitive client.
+  // Hidden by default; resets each time the deck opens.
+  const [showShortTerms, setShowShortTerms] = useState(false);
   const total = 8;
 
   useEffect(() => {
@@ -128,7 +152,7 @@ export default function LeadPresentation({ lead, leadId, onClose }: { lead: Pres
   const passingName = whoPasses === 'you' ? youFirst : spouseFirst || 'your spouse';
   const survivorKey = whoPasses === 'you' ? 'ifLead' : 'ifSpouse';
 
-  const updOpt = (tab: 'payoff' | 'payment', i: number, field: 'coverage' | 'priceYou' | 'priceSpouse', v: string) => {
+  const updOpt = (tab: 'payoff' | 'payment', i: number, field: 'coverage' | 'priceYou' | 'priceSpouse' | 'carrier', v: string) => {
     const arr = (tab === 'payoff' ? payoffOpts : paymentOpts).map((x, j) => (j === i ? { ...x, [field]: v } : x));
     patchQuote(tab === 'payoff' ? { payoffOpts: arr } : { paymentOpts: arr });
   };
@@ -154,7 +178,7 @@ export default function LeadPresentation({ lead, leadId, onClose }: { lead: Pres
     );
   };
 
-  const optionCard = (tab: 'payoff' | 'payment', opt: { label: string; coverage: string; priceYou: string; priceSpouse: string }, i: number) => {
+  const optionCard = (tab: 'payoff' | 'payment', opt: { label: string; coverage: string; priceYou: string; priceSpouse: string; carrier?: string }, i: number) => {
     const chosen = mostChosen[tab] === i;
     const priceInput = (val: string, field: 'priceYou' | 'priceSpouse', big: boolean) => (
       <input
@@ -174,6 +198,14 @@ export default function LeadPresentation({ lead, leadId, onClose }: { lead: Pres
       >
         {chosen && <span className="absolute -top-3 left-4 bg-[#0099FF] text-white text-[11px] px-2.5 py-0.5 rounded-md">Most chosen</span>}
         <div className="text-sm text-[#707070]">{opt.label}</div>
+        <div className="mt-1.5" onClick={(e) => e.stopPropagation()}>
+          <input
+            value={opt.carrier || ''}
+            onChange={(e) => updOpt(tab, i, 'carrier', e.target.value)}
+            placeholder="Carrier"
+            className="w-full text-sm font-semibold text-[#0F6E56] bg-transparent outline-none border-b border-dashed border-[#cbd5d1] focus:border-[#45bcaa] placeholder:font-normal placeholder:text-[#9CA3AF]"
+          />
+        </div>
         {couple ? (
           <div className="mt-2 space-y-1.5">
             {([['priceYou', youFirst], ['priceSpouse', spouseFirst || 'Spouse']] as const).map(([field, who]) => (
@@ -206,6 +238,32 @@ export default function LeadPresentation({ lead, leadId, onClose }: { lead: Pres
         )}
       </div>
     );
+  };
+
+  // The option currently selected ("Most chosen") on the active tab — this is
+  // what the Protect button commits.
+  const protectTab = optTab;
+  const protectOpt = (protectTab === 'payoff' ? payoffOpts : paymentOpts)[mostChosen[protectTab]];
+  const doProtect = () => {
+    if (!protectOpt) return;
+    const record: ProtectionRecord = {
+      id: newId(),
+      protectedAt: Date.now(),
+      chosen: {
+        tab: protectTab,
+        label: protectOpt.label,
+        carrier: (protectOpt.carrier || '').trim(),
+        coverage: protectOpt.coverage,
+        priceYou: protectOpt.priceYou,
+        priceSpouse: protectOpt.priceSpouse,
+        couple,
+      },
+      presented: { payoff: payoffOpts, payment: paymentOpts },
+    };
+    fireConfetti();
+    setProtectedFlash(true);
+    setTimeout(() => setProtectedFlash(false), 2600);
+    void protect(record);
   };
 
   const runwayYears = g.runwayMonths != null ? (g.runwayMonths / 12).toFixed(1) : null;
@@ -257,9 +315,11 @@ export default function LeadPresentation({ lead, leadId, onClose }: { lead: Pres
               {eyebrow('A little about me', false)}
               <h2 className="text-3xl md:text-4xl font-semibold leading-tight">You should know who&apos;s helping protect your family.</h2>
               <p className="mt-4 text-lg text-[#374151] leading-relaxed">
-                I&apos;m {agentFirst} — a licensed life insurance broker, and a family person myself. I&apos;m what&apos;s called a field
-                underwriter, which means I&apos;m independent. My only job today is to understand what your family needs, find the best
-                fit, and help you get approved — no pressure, ever.
+                I&apos;m {agentFirst} — a licensed life insurance broker, and a family person myself. I&apos;m what&apos;s called a field underwriter, which means{' '}
+                <mark style={HIGHLIGHTER_STYLE}>
+                  I&apos;m independent. My only job today is to understand what your family needs, find the best fit, and help you get approved
+                </mark>{' '}
+                — no pressure, ever.
               </p>
             </div>
           </div>
@@ -499,7 +559,47 @@ export default function LeadPresentation({ lead, leadId, onClose }: { lead: Pres
               ))}
             </div>
           </div>
-          <div className="grid md:grid-cols-3 gap-4">{(optTab === 'payoff' ? payoffOpts : paymentOpts).map((opt, i) => optionCard(optTab, opt, i))}</div>
+          {optTab === 'payoff' ? (
+            <div className="grid md:grid-cols-3 gap-4">{payoffOpts.map((opt, i) => optionCard('payoff', opt, i))}</div>
+          ) : (
+            <>
+              <div className="grid md:grid-cols-3 gap-4">
+                {paymentOpts.slice(0, PAYMENT_VISIBLE_COUNT).map((opt, i) => optionCard('payment', opt, i))}
+              </div>
+              {paymentOpts.length > PAYMENT_VISIBLE_COUNT && (
+                <div className="mt-4">
+                  <button
+                    onClick={() => setShowShortTerms((s) => !s)}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-[#005851] hover:text-[#0099FF] transition-colors"
+                  >
+                    <Icon path={P.right} className={cx('w-4 h-4 transition-transform', showShortTerms && 'rotate-90')} />
+                    {showShortTerms ? 'Hide shorter terms' : 'Show shorter terms (9 & 6 months)'}
+                  </button>
+                  {showShortTerms && (
+                    <div className="grid md:grid-cols-3 gap-4 mt-4">
+                      {paymentOpts.slice(PAYMENT_VISIBLE_COUNT).map((opt, i) => optionCard('payment', opt, i + PAYMENT_VISIBLE_COUNT))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+          <div className="mt-7 flex flex-col items-center gap-2">
+            <button
+              onClick={doProtect}
+              className="inline-flex items-center gap-2.5 bg-[#0F6E56] hover:bg-[#0c5a47] text-white font-semibold text-lg px-9 py-3.5 rounded-xl border-2 border-[#0a4a3a] border-b-[5px] shadow-lg shadow-[#0F6E56]/25 active:translate-y-px active:border-b-2 transition-all"
+            >
+              <Icon path={P.shield} className="w-6 h-6" />
+              Protect {protectOpt?.label || 'this plan'}
+            </button>
+            <p className="text-xs text-[#707070]">
+              {protectOpt?.carrier?.trim() ? (
+                <>with <span className="font-semibold text-[#0F6E56]">{protectOpt.carrier.trim()}</span> · tap a card to change the selection</>
+              ) : (
+                <>Add a carrier above · tap a card to change the selection</>
+              )}
+            </p>
+          </div>
         </div>
       ),
     },
@@ -531,6 +631,17 @@ export default function LeadPresentation({ lead, leadId, onClose }: { lead: Pres
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex flex-col" style={{ background: dark ? 'linear-gradient(160deg,#00403B 0%,#005851 100%)' : '#f7faf9' }}>
+      {protectedFlash && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center pointer-events-none px-6">
+          <div className="bg-white rounded-2xl px-10 py-8 shadow-2xl text-center max-w-sm" style={{ animation: 'fadeIn 0.3s ease' }}>
+            <div className="text-5xl mb-2">🎉</div>
+            <div className="text-2xl font-bold text-[#0F6E56]">Protected!</div>
+            <div className="text-sm text-[#707070] mt-1.5">
+              {couple && hasSpouse ? `${youFirst} & ${spouseFirst} are` : `${youFirst} ${youFirst === 'you' ? 'are' : 'is'}`} covered.
+            </div>
+          </div>
+        </div>
+      )}
       <div className={cx('flex items-center justify-end gap-4 px-5 md:px-8 py-4', dark ? 'text-white/80' : 'text-[#707070]')}>
         <span className="text-sm">{idx + 1} / {total}</span>
         <button onClick={onClose} aria-label="Close presentation" className="p-1.5 rounded-md hover:bg-black/10">

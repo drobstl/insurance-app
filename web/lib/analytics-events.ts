@@ -343,7 +343,10 @@ export type AnalyticsEventPropertiesMap = {
       // Card 2 of the Close Sale ritual — welcome text fired while the
       // client is still on the line (the load-bearing activation moment).
       | 'close_sale_ritual';
-    channel?: 'agent_phone_sms';
+    // 'agent_phone_sms' = the platform Send button fired an sms: URL.
+    // 'continue' = agent advanced via the voice-first / Copy / QR path
+    // (the written text was delivered some other way, or read aloud).
+    channel?: 'agent_phone_sms' | 'continue';
   } & GenericEventProperties;
   welcome_send_completed: {
     surface?:

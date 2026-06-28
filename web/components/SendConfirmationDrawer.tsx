@@ -3,8 +3,9 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { User } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { QRCodeSVG } from 'qrcode.react';
+import { US_STATE_CODES, normalizeUsStateCode } from '../lib/us-states';
 import { composeMessage } from '../lib/booking-confirmation';
 import { deriveLeadCode } from '../lib/lead-code-derive';
 import { canAccessLeads } from '../lib/tier-gating';
@@ -73,8 +74,15 @@ interface Props {
    * app-access block in the message body (download link + this code).
    */
   leadCode?: string;
-  /** Lead's state from PDF extraction (`address.state`). May be null/empty. */
+  /** Lead's state (`address.state`). May be null/empty. This is the
+   *  source of truth for which license attaches — the picker below
+   *  defaults to it, and editing the picker rewrites it on the lead. */
   leadState?: string | null;
+  /** Notified when the agent edits the state in the picker (after the
+   *  drawer has persisted it to the lead). Parents that show their own
+   *  state editor (LeadDetailPanel) use it to stay in sync. Optional —
+   *  persistence happens regardless of whether this is provided. */
+  onLeadStateChange?: (stateCode: string) => void;
   scheduledAt: Date;
   /** IANA TZ captured at booking time; renders time + TZ label in the message. */
   scheduledAtTimeZone?: string | null;
@@ -102,14 +110,6 @@ interface Props {
   onSent: () => void;
   onCancel: () => void;
 }
-
-const US_STATE_CODES = [
-  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'DC', 'FL', 'GA',
-  'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA',
-  'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY',
-  'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX',
-  'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'PR',
-];
 
 /**
  * Convert a base64 string + mime to a File the Web Share API accepts.
@@ -164,6 +164,7 @@ export default function SendConfirmationDrawer({
   leadEmail,
   leadCode,
   leadState,
+  onLeadStateChange,
   scheduledAt,
   scheduledAtTimeZone,
   meetingUrl,
@@ -239,6 +240,24 @@ export default function SendConfirmationDrawer({
   // from whatever it was when this drawer opened.
   const [sentFromPhone, setSentFromPhone] = useState(false);
   const initialStampRef = useRef<number | null>(null);
+  // True once this browser's own send has stamped the appointment, so
+  // the snapshot listener below treats the resulting timestamp bump as
+  // "us", not a phone-push send (otherwise it would flash "Sent from
+  // your phone" over the honest local outcome overlay).
+  const localSendRef = useRef(false);
+
+  // Post-send outcome — what ACTUALLY went out, not what we intended.
+  // Drives a brief honest overlay so the agent knows whether the card /
+  // license attached as files or rode along as tap-to-save links. Set by
+  // handleSendMobile.
+  //   - 'attached' → real file delivered via Web Share
+  //   - 'link'     → tap-to-save link appended to the SMS body
+  //   - 'skip'     → nothing to include (none on file / already sent)
+  const [sendOutcome, setSendOutcome] = useState<{
+    method: 'share' | 'sms';
+    card: 'attached' | 'link' | 'skip';
+    license: 'attached' | 'link' | 'skip';
+  } | null>(null);
 
   // Funnel: at most ONE booking_confirmation_sent per drawer open,
   // whichever channel lands first — the phone-push stamp snapshot can
@@ -279,6 +298,12 @@ export default function SendConfirmationDrawer({
         return;
       }
       if (ms !== null && ms > (initialStampRef.current ?? 0)) {
+        if (localSendRef.current) {
+          // Our own send stamped this — advance the baseline and let the
+          // local outcome overlay (not "Sent from your phone") report it.
+          initialStampRef.current = ms;
+          return;
+        }
         trackConfirmationSent('phone_push');
         setSentFromPhone(true);
       }
@@ -295,6 +320,17 @@ export default function SendConfirmationDrawer({
     }, 1800);
     return () => window.clearTimeout(t);
   }, [sentFromPhone, onSent]);
+
+  // After a local (this-browser) send, hold the honest outcome overlay
+  // briefly so the agent reads what actually went out, then close.
+  useEffect(() => {
+    if (!sendOutcome) return;
+    const t = window.setTimeout(() => {
+      onSent();
+    }, 2400);
+    return () => window.clearTimeout(t);
+  }, [sendOutcome, onSent]);
+
   const handleResendPush = useCallback(async () => {
     if (!user) return;
     setResendStatus('sending');
@@ -349,21 +385,39 @@ export default function SendConfirmationDrawer({
 
   const [message, setMessage] = useState(initialMessage);
 
-  // State for license matching. If the lead has a state from
-  // extraction, default to it; otherwise the agent picks. We let
-  // the agent override either way.
-  const initialState = (leadState || '').toUpperCase();
-  const [pickedState, setPickedState] = useState<string>(
-    initialState && US_STATE_CODES.includes(initialState) ? initialState : '',
-  );
+  // State for license matching. The picker IS the lead's state — it
+  // defaults to whatever the lead has on file, and editing it rewrites
+  // the lead (below) rather than silently attaching a different state's
+  // license. So the attached license always matches where the lead lives.
+  const [pickedState, setPickedState] = useState<string>(normalizeUsStateCode(leadState));
   const matchedLicense = pickedState ? licenses[pickedState] : null;
   const agentLicensedStates = useMemo(() => Object.keys(licenses).sort(), [licenses]);
+
+  // Persist a picker edit straight to the lead doc. Works from every
+  // drawer mount site (panel, leads list, calendar, upcoming card), so
+  // the correction sticks regardless of which surface opened the drawer.
+  const persistLeadState = useCallback(async (code: string) => {
+    if (!user || !leadId) return;
+    try {
+      await updateDoc(doc(db, 'agents', user.uid, 'leads', leadId), {
+        'address.state': code || null,
+      });
+    } catch (err) {
+      console.error('lead state write-back failed:', err);
+    }
+  }, [user, leadId]);
+
+  const handlePickStateChange = useCallback((raw: string) => {
+    const code = normalizeUsStateCode(raw);
+    setPickedState(code);
+    void persistLeadState(code);
+    onLeadStateChange?.(code);
+  }, [persistLeadState, onLeadStateChange]);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [licenseSignedUrl, setLicenseSignedUrl] = useState<string | null>(null);
-  const [hasShareApi, setHasShareApi] = useState(false);
 
   // Platform tier:
   //   - 'mobile' (iPhone/Android) → Web Share opens Messages with
@@ -385,10 +439,8 @@ export default function SendConfirmationDrawer({
     const ua = navigator.userAgent;
     if (/Mobi|Android|iPhone|iPad|iPod/i.test(ua)) {
       setPlatform('mobile');
-      if ('canShare' in navigator) setHasShareApi(true);
     } else if (/Macintosh|Mac OS X/i.test(ua)) {
       setPlatform('mac');
-      if ('canShare' in navigator) setHasShareApi(true);
     } else {
       setPlatform('other');
       // Other desktops use sms: + drag fallback, no Web Share path.
@@ -485,14 +537,16 @@ export default function SendConfirmationDrawer({
   );
 
   /** Build the `sms:` URL with recipient + body pre-filled. On macOS
-   *  this opens Messages via Continuity. */
-  const buildSmsUrl = useCallback(() => {
+   *  this opens Messages via Continuity. Defaults to the composed
+   *  message; the Android fallback passes a body augmented with
+   *  tap-to-save card/license links. */
+  const buildSmsUrl = useCallback((body: string = message) => {
     const phoneDigits = leadPhone.replace(/\D/g, '');
     if (phoneDigits.length < 7) return null;
     // iPhone/iPad URL grammar uses `&` between phone and body;
     // everything else (macOS, Android desktop) uses `?`.
     const delim = navigator.userAgent.includes('iPhone') || navigator.userAgent.includes('iPad') ? '&' : '?';
-    return `sms:${phoneDigits}${delim}body=${encodeURIComponent(message)}`;
+    return `sms:${phoneDigits}${delim}body=${encodeURIComponent(body)}`;
   }, [leadPhone, message]);
 
   // ── Send paths (one per platform tier) ──
@@ -508,6 +562,11 @@ export default function SendConfirmationDrawer({
   const handleSendMobile = useCallback(async () => {
     setError(null);
     setBusy(true);
+    // Mark that THIS browser is doing the send, so the appointment-doc
+    // snapshot listener doesn't mistake our own stamp for a phone-push
+    // send and flash the misleading "Sent from your phone" overlay over
+    // the honest local outcome.
+    localSendRef.current = true;
     try {
       // Clipboard write must happen inside the same user-gesture as
       // the share invocation. We don't fail the send if clipboard
@@ -521,37 +580,80 @@ export default function SendConfirmationDrawer({
           console.warn('clipboard write failed (non-fatal):', clipboardErr);
         }
       }
+
       const files = buildFiles();
-      if (
-        files.length > 0 &&
-        typeof navigator !== 'undefined' &&
-        'canShare' in navigator &&
-        navigator.canShare({ files, text: message })
-      ) {
+      const hasCanShare = typeof navigator !== 'undefined' && 'canShare' in navigator;
+
+      // ── Path 1 — Web Share with files + text (iOS Safari; modern
+      //    Android Chrome). The ONLY path where the card/license
+      //    physically attach, so the ONLY path that stamps them sent.
+      if (files.length > 0 && hasCanShare && navigator.canShare({ files, text: message })) {
         await navigator.share({ files, text: message });
         trackConfirmationSent('share_sheet');
         await stampSent(attachedReport);
-        onSent();
+        setSendOutcome({
+          method: 'share',
+          card: willAttachBusinessCard ? 'attached' : 'skip',
+          license: willAttachLicense ? 'attached' : 'skip',
+        });
         return;
       }
-      // No files (already-sent dedup) or canShare false: fall back to
-      // sms: which on iOS opens Messages with phone + body filled.
-      const url = buildSmsUrl();
+
+      // ── Path 2 — `sms:` fallback. Reliable on EVERY phone, and the
+      //    text is the essential payload — so this path guarantees the
+      //    confirmation text goes through. `sms:` can't carry attachments,
+      //    so (a) we append SHORT tap-to-save card/license links so the
+      //    lead still gets those too, and (b) we stamp the TRUTH — no
+      //    files physically attached (businessCard:false, licenseState:'').
+      //    This was the Android bug: the old code fell here yet stamped
+      //    `attachedReport` (intent), recording businessCard:true with
+      //    nothing sent.
+      //
+      //    The links are built from IDs we already have (no send-time
+      //    fetch) and resolve server-side via public redirect routes.
+      //    They're kept SHORT on purpose: a raw signed URL is ~700 chars
+      //    and could bloat the body enough to truncate the text. Text
+      //    stays first so it's never the thing that gets cut.
+      //
+      //    Why not a bare `navigator.share({ files })` (files-only) retry
+      //    on Android targets that reject files+text? Because a files-only
+      //    share drops the message body, and the appointment text must
+      //    always go through (Daniel, Jun 25). Links keep BOTH.
+      const extras: string[] = [];
+      if (willAttachBusinessCard && user) {
+        extras.push(`My business card: ${APP_URL}/api/agent-card-link/${user.uid}`);
+      }
+      if (willAttachLicense && user && pickedState) {
+        extras.push(`My ${pickedState} license: ${APP_URL}/api/agent-license-link/${user.uid}/${pickedState}`);
+      }
+      const body = extras.length > 0 ? `${message}\n\n${extras.join('\n')}` : message;
+
+      const url = buildSmsUrl(body);
       if (url) window.location.href = url;
       trackConfirmationSent('sms_url');
-      await stampSent(attachedReport);
-      onSent();
+      // Truthful stamp: nothing physically attached over sms:.
+      await stampSent({ businessCard: false, licenseState: '' });
+      setSendOutcome({
+        method: 'sms',
+        card: willAttachBusinessCard ? 'link' : 'skip',
+        license: willAttachLicense ? 'link' : 'skip',
+      });
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
-        // User cancelled the share sheet — don't stamp.
+        // User cancelled the share sheet — don't stamp, don't close.
+        localSendRef.current = false;
         return;
       }
       console.error('mobile send error:', err);
+      localSendRef.current = false;
       setError(err instanceof Error ? err.message : 'Send failed');
     } finally {
       setBusy(false);
     }
-  }, [buildFiles, message, stampSent, attachedReport, onSent, buildSmsUrl, leadPhone, trackConfirmationSent]);
+  }, [
+    user, buildFiles, message, stampSent, attachedReport, buildSmsUrl, leadPhone,
+    trackConfirmationSent, willAttachBusinessCard, willAttachLicense, pickedState,
+  ]);
 
   /** Email — server-side send via AFL's verified domain (Resend). The
    *  endpoint composes attachments (business card + state license),
@@ -575,7 +677,9 @@ export default function SendConfirmationDrawer({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ kind, message }),
+        // Send the picked state so the server matches the license to the
+        // lead's state authoritatively, without racing the write-back above.
+        body: JSON.stringify({ kind, message, leadState: pickedState }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -594,7 +698,7 @@ export default function SendConfirmationDrawer({
     } finally {
       setBusy(false);
     }
-  }, [user, leadHasEmail, appointmentId, kind, message, onSent, trackConfirmationSent]);
+  }, [user, leadHasEmail, appointmentId, kind, message, pickedState, onSent, trackConfirmationSent]);
 
   /** "Send from phone" deep-link URL — agent scans QR with phone, the
    *  URL opens AFL in iPhone Safari deep-linked to this drawer. */
@@ -603,9 +707,50 @@ export default function SendConfirmationDrawer({
     return `${window.location.origin}/dashboard/leads/${leadId}?openConfirmation=${appointmentId}`;
   }, [leadId, appointmentId]);
 
+  // Honest, human-readable summary of what physically went out — backs
+  // the post-send overlay. The confirmation text always goes; the card/
+  // license either attach as files (Web Share) or ride along as
+  // tap-to-save links (sms: fallback).
+  const outcomeMessage = useMemo<
+    { tone: 'ok' | 'info'; title: string; detail: string } | null
+  >(() => {
+    if (!sendOutcome) return null;
+    const o = sendOutcome;
+    // Which items (card/license) ended up in the given status.
+    const itemsWith = (...statuses: Array<typeof o.card>) => {
+      const parts: string[] = [];
+      if (statuses.includes(o.card)) parts.push('business card');
+      if (statuses.includes(o.license)) parts.push('license');
+      return parts;
+    };
+
+    if (o.method === 'share') {
+      const attached = itemsWith('attached');
+      if (attached.length === 0) {
+        return { tone: 'ok', title: 'Confirmation sent', detail: 'Pick Messages and tap send.' };
+      }
+      return {
+        tone: 'ok',
+        title: 'Card attached',
+        detail: `Your ${attached.join(' + ')} ${attached.length > 1 ? 'are' : 'is'} attached — pick Messages and tap send.`,
+      };
+    }
+
+    // sms: fallback — text always goes; card/license ride as links.
+    const linked = itemsWith('link');
+    if (linked.length > 0) {
+      return {
+        tone: 'info',
+        title: 'Sent — card link added',
+        detail: `Your message is going out. This phone can’t attach files to a text, so a tap-to-save ${linked.join(' + ')} link is in it too.`,
+      };
+    }
+    return { tone: 'ok', title: 'Confirmation sent', detail: 'Your message is on its way.' };
+  }, [sendOutcome]);
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={() => !busy && !sentFromPhone && onCancel()} />
+      <div className="absolute inset-0 bg-black/40" onClick={() => !busy && !sentFromPhone && !sendOutcome && onCancel()} />
       <div className="relative w-full max-w-lg bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {sentFromPhone && (
           <div className="absolute inset-0 z-10 bg-white flex flex-col items-center justify-center px-6 animate-in fade-in duration-300">
@@ -624,6 +769,20 @@ export default function SendConfirmationDrawer({
             <p className="text-sm text-[#555] mt-2 text-center">
               {leadName.split(/\s+/)[0] || 'Your lead'} has the confirmation.
             </p>
+          </div>
+        )}
+        {/* Honest post-send overlay — tells the agent what ACTUALLY went
+            out: card/license attached as files, or as tap-to-save links.
+            The confirmation text always goes either way. */}
+        {sendOutcome && outcomeMessage && (
+          <div className="absolute inset-0 z-10 bg-white flex flex-col items-center justify-center px-6 animate-in fade-in duration-300">
+            <div className="w-20 h-20 rounded-full bg-[#3DD6C3] flex items-center justify-center mb-4">
+              <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <p className="text-xl font-bold text-[#0D4D4D] text-center">{outcomeMessage.title}</p>
+            <p className="text-sm text-[#555] mt-2 text-center max-w-xs">{outcomeMessage.detail}</p>
           </div>
         )}
         <div className="flex items-start justify-between p-5 border-b border-[#ececec] shrink-0">
@@ -786,34 +945,38 @@ export default function SendConfirmationDrawer({
           <div className="rounded-[5px] border border-[#d0d0d0] bg-[#fafafa] p-3">
             <div className="flex items-center justify-between gap-3 mb-2">
               <div>
-                <p className="text-xs font-semibold text-[#374151]">License attachment</p>
+                <p className="text-xs font-semibold text-[#374151]">Lead&apos;s state &amp; license</p>
                 {matchedLicense && licenseAlreadySent ? (
                   <p className="text-[11px] text-[#707070] mt-0.5">
                     {pickedState} license already on file with this lead — won&apos;t re-attach.
                   </p>
                 ) : matchedLicense ? (
                   <p className="text-[11px] text-[#005851] mt-0.5">
-                    {pickedState} license #{matchedLicense.number} will be attached.
+                    Your {pickedState} license #{matchedLicense.number} attaches — matches where the lead lives.
                     {licenseLoading && (
-                      <span className="ml-1.5 text-amber-700">· Loading PDF…</span>
+                      <span className="ml-1.5 text-amber-700">· Loading…</span>
                     )}
                   </p>
                 ) : pickedState ? (
-                  <p className="text-[11px] text-amber-700 mt-0.5">
-                    You&apos;re not licensed in {pickedState}. Sending without license.
+                  <p className="text-[11px] text-amber-700 mt-0.5 font-medium">
+                    ⚠ No {pickedState} license on file — this goes out with no license. Upload it in
+                    Settings → Licenses, or correct the lead&apos;s state below.
                   </p>
                 ) : (
-                  <p className="text-[11px] text-amber-700 mt-0.5">
-                    Lead&apos;s state isn&apos;t on file. Pick the state to attach a license.
+                  <p className="text-[11px] text-amber-700 mt-0.5 font-medium">
+                    ⚠ This lead&apos;s state isn&apos;t set. Pick it below so your matching license attaches —
+                    it saves to the lead too.
                   </p>
                 )}
               </div>
             </div>
             <select
               value={pickedState}
-              onChange={(e) => setPickedState(e.target.value)}
+              onChange={(e) => handlePickStateChange(e.target.value)}
               disabled={busy}
-              className="w-full px-3 py-2 bg-white border border-[#d0d0d0] rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa]"
+              className={`w-full px-3 py-2 bg-white border rounded-[5px] text-sm focus:outline-none focus:border-[#45bcaa] ${
+                pickedState ? 'border-[#d0d0d0]' : 'border-[#FCD34D] bg-[#FFFBEB]'
+              }`}
             >
               <option value="">— Pick lead&apos;s state —</option>
               <optgroup label="States you're licensed in">
@@ -827,6 +990,10 @@ export default function SendConfirmationDrawer({
                 ))}
               </optgroup>
             </select>
+            <p className="text-[11px] text-[#707070] mt-1">
+              This is where the lead lives. Changing it updates the lead&apos;s state so the right
+              license attaches every time.
+            </p>
             {licenseSignedUrl && (
               <a
                 href={licenseSignedUrl}
@@ -878,6 +1045,18 @@ export default function SendConfirmationDrawer({
               <>
                 <strong>On your phone:</strong> Tap Send → your share sheet opens with
                 files + message ready. Pick Messages → tap send. Done.
+                {(willAttachBusinessCard || willAttachLicense) && (
+                  <span className="block mt-1 text-[#0D4D4D]/80">
+                    If your phone can’t attach files to a text, we’ll add a tap-to-save
+                    link instead so your{' '}
+                    {willAttachBusinessCard && willAttachLicense
+                      ? 'card + license'
+                      : willAttachBusinessCard
+                      ? 'card'
+                      : 'license'}{' '}
+                    still gets through.
+                  </span>
+                )}
               </>
             ) : (
               <>

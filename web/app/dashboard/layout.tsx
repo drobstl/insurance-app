@@ -1105,6 +1105,30 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             </>
           )}
 
+          {/* Help & Resources — IA-v2 trimmed Resources out of the workflow
+              groups (it lives in the avatar menu), but help/getting-started
+              content needs a persistent, obvious anchor or new agents never
+              find it. Pin it quietly at the bottom of the rail, just above
+              Settings. Only in IA-v2 mode; the flat sidebar already lists
+              Resources via NAV_ITEMS, so this would double it there. */}
+          {iaEnabled && (
+            <button
+              onClick={() => router.push('/dashboard/resources')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 ${
+                activeKey === 'resources'
+                  ? 'bg-[#daf3f0] text-[#005851]'
+                  : 'text-white/80 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+              <span className="whitespace-nowrap overflow-hidden text-sm font-semibold opacity-100 w-auto">
+                Help &amp; Resources
+              </span>
+            </button>
+          )}
+
           <button
             data-onboarding-target="nav-settings"
             onClick={() => router.push('/dashboard/settings')}

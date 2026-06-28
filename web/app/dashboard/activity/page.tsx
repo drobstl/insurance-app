@@ -24,6 +24,12 @@ interface ActivityStats {
     bookRate: number;
     deltaPct: number | null;
   };
+  advancedMarketSits: {
+    sits: number;
+    resetsSet: number;
+    ratePerSit: number;
+    deltaPct: number | null;
+  };
   sales: {
     count: number;
     apv: number;
@@ -67,6 +73,7 @@ interface ActivityStats {
     product: string | null;
     policyNumber: string | null;
     submittedAt: string | null;
+    saleDateSource: 'applicationSignedDate' | 'effectiveDate' | 'createdAt' | null;
     premium: number | null;
     premiumFrequency: string | null;
     faceAmount: number | null;
@@ -380,13 +387,13 @@ function PolicyLedger({
 }: {
   rows: ActivityStats['ledger'];
   lifecycle: ActivityStats['apvLifecycle'];
-  onUpdateDate: (clientId: string, policyId: string, field: 'issuePaidDate' | 'chargebackDate', value: string) => void;
+  onUpdateDate: (clientId: string, policyId: string, field: 'issuePaidDate' | 'chargebackDate' | 'applicationSignedDate', value: string) => void;
 }) {
   return (
     <div className="bg-white rounded-xl border-2 border-[#1A1A1A] border-r-[5px] border-b-[5px] p-5">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider">Policy ledger</h3>
-        <span className="text-xs text-[#707070]">Issue-paid &amp; chargeback dates are editable</span>
+        <span className="text-xs text-[#707070]">Submitted, issue-paid &amp; chargeback dates are editable</span>
       </div>
       {rows.length === 0 ? (
         <p className="text-sm text-[#707070] italic py-4 text-center">
@@ -415,8 +422,19 @@ function PolicyLedger({
                 const meta = LEDGER_STATUS_META[status];
                 return (
                 <tr key={r.policyId} className="border-b border-[#f1f1f1] align-middle">
-                  <td className="py-2 pr-3 text-xs text-[#707070] tabular-nums whitespace-nowrap">
-                    {r.submittedAt ? fmtDate(r.submittedAt) : '—'}
+                  <td className="py-2 pr-3 whitespace-nowrap">
+                    <LedgerDateInput
+                      value={r.submittedAt ? r.submittedAt.slice(0, 10) : null}
+                      onCommit={(v) => onUpdateDate(r.clientId, r.policyId, 'applicationSignedDate', v)}
+                    />
+                    {r.saleDateSource === 'createdAt' && (
+                      <span
+                        className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-amber-700"
+                        title="This date is the day the policy was added to AgentForLife, not a real sale date. Set the date the client signed so old policies don't count as new sales."
+                      >
+                        Confirm date
+                      </span>
+                    )}
                   </td>
                   <td className="py-2 pr-3 font-medium text-[#000000] whitespace-nowrap">{r.clientName}</td>
                   <td className="py-2 pr-3 text-[#374151] whitespace-nowrap">{r.carrier || '—'}</td>
@@ -525,7 +543,7 @@ export default function ActivityPage() {
     async (
       clientId: string,
       policyId: string,
-      field: 'issuePaidDate' | 'chargebackDate',
+      field: 'issuePaidDate' | 'chargebackDate' | 'applicationSignedDate',
       value: string,
     ) => {
       if (!user) return;
@@ -690,6 +708,23 @@ export default function ActivityPage() {
               label="Close rate"
               primary={fmtPct(stats.sales.closeRate)}
               secondary={`sales / showed · ${stats.sales.count} of ${stats.appointments.showed}`}
+            />
+          </div>
+
+          {/* Advanced market sits (FIF resets) — the per-sit discipline
+              metric: of your sits, how many did you set a reset on. The
+              count rides beside the rate, with its period delta. */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+            <HeroTile
+              label="Advanced market sit rate"
+              primary={fmtPct(stats.advancedMarketSits.ratePerSit)}
+              secondary={`reset set / sits · ${stats.advancedMarketSits.resetsSet} of ${stats.advancedMarketSits.sits}`}
+            />
+            <HeroTile
+              label="Advanced market sits set"
+              primary={String(stats.advancedMarketSits.resetsSet)}
+              secondary="reset booked on a sit this period"
+              delta={stats.advancedMarketSits.deltaPct}
             />
           </div>
 

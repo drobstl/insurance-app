@@ -5,6 +5,7 @@ import type { User } from 'firebase/auth';
 
 import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 import { captureEvent } from '../lib/posthog';
+import { ActionItemSubjectLink } from './ActionItemSubjectLink';
 import type { ActionItemDoc, ActionItemLane } from '../lib/action-item-types';
 
 /**
@@ -175,7 +176,7 @@ export default function AnniversaryReferralActionItemCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-bold text-[#0D4D4D]">
-            {laneTitle(item.lane, subjectFirst)}
+            <ActionItemSubjectLink clientId={item.clientId} prospectId={item.prospectId}>{laneTitle(item.lane, subjectFirst)}</ActionItemSubjectLink>
           </p>
           <p className="text-[12px] text-[#4f4f4f] mt-0.5">
             {phone || 'No phone on file'} · {laneSubtitle(item.lane, item.triggerReason)}

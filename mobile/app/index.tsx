@@ -134,6 +134,33 @@ export async function registerAndSavePushToken(clientCode: string): Promise<bool
   return false;
 }
 
+// Module-level throttle so rapid background/foreground toggles don't hammer
+// the seen endpoint — one ping per 60s is plenty for the "opened" signal.
+let _lastSeenPingAt = 0;
+
+/**
+ * Tell the server this client just opened their app. Best-effort,
+ * fire-and-forget, throttled. UNLIKE registerAndSavePushToken this does not
+ * require push permission, so it captures every activated client who opens —
+ * which is what the reset reveal + agent "they're in their app now" nudge
+ * key off.
+ */
+export async function pingClientSeen(clientCode: string): Promise<void> {
+  if (!clientCode) return;
+  const now = Date.now();
+  if (now - _lastSeenPingAt < 60_000) return;
+  _lastSeenPingAt = now;
+  try {
+    await fetch(`${API_BASE}/api/mobile/client-seen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientCode }),
+    });
+  } catch {
+    // best-effort — never block or surface to the user
+  }
+}
+
 export function navigateToProfile(
   agentId: string,
   clientId: string,

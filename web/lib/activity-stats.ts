@@ -4,6 +4,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { getAdminFirestore } from './firebase-admin';
 import { computeAPV } from './apv';
 import { carrierDisplayName } from './carriers';
+import { tallyAdvancedMarketSitsInWindow } from './advanced-market-sits';
 
 /**
  * Agent activity stats.
@@ -176,6 +177,16 @@ export interface ActivityStats {
     bookRate: number;       // booked / contacts (current window)
     deltaPct: number | null;
   };
+  // Advanced market sits (FIF resets) — the per-sit discipline metric.
+  // resetsSet ⊆ sits, both anchored by the sit's scheduledAt in window. The
+  // count of resets you set on a sit this period + the rate you set them.
+  // App-driven resets (no sit) are tracked separately in the reveal funnel.
+  advancedMarketSits: {
+    sits: number;
+    resetsSet: number;
+    ratePerSit: number;       // resetsSet / sits
+    deltaPct: number | null;  // resetsSet vs the prior window
+  };
   sales: {
     count: number;
     apv: number;
@@ -240,6 +251,11 @@ export interface ActivityStats {
     product: string | null;
     policyNumber: string | null;
     submittedAt: string | null;
+    /** Which policy field produced submittedAt. 'createdAt' means neither
+     *  a signed nor effective date was on the doc, so we fell back to the
+     *  Firestore write time — the ledger flags these as needing a real
+     *  date so an old import doesn't masquerade as a today sale. */
+    saleDateSource: 'applicationSignedDate' | 'effectiveDate' | 'createdAt' | null;
     premium: number | null;
     premiumFrequency: string | null;
     faceAmount: number | null;
@@ -314,6 +330,20 @@ export function policySaleDateMillis(policy: {
   return ymdMillis(policy.applicationSignedDate) ?? ymdMillis(policy.effectiveDate) ?? timestampMillis(policy.createdAt);
 }
 
+/** Which field policySaleDateMillis drew the sale date from. Mirrors the
+ *  precedence above. 'createdAt' means no real sale date was on the doc
+ *  (the bug-prone fallback the ledger surfaces for confirmation). */
+export function policySaleDateSource(policy: {
+  applicationSignedDate?: unknown;
+  effectiveDate?: unknown;
+  createdAt?: unknown;
+}): 'applicationSignedDate' | 'effectiveDate' | 'createdAt' | null {
+  if (ymdMillis(policy.applicationSignedDate) !== null) return 'applicationSignedDate';
+  if (ymdMillis(policy.effectiveDate) !== null) return 'effectiveDate';
+  if (timestampMillis(policy.createdAt) !== null) return 'createdAt';
+  return null;
+}
+
 export async function getActivityStats(
   agentId: string,
   range: ActivityRange,
@@ -368,6 +398,7 @@ export async function getActivityStats(
     status?: string;
     leadId?: string;
     clientId?: string;
+    fifResetBooked?: boolean | null;
   }
   const apptsSnap = await db
     .collection('agents')
@@ -378,8 +409,12 @@ export async function getActivityStats(
   // back to clientId when the lead has converted). Multiple appointment
   // docs for one entity = reschedules; we collapse them.
   const apptsByEntity = new Map<string, ApptDoc[]>();
+  // Flat list of every appointment doc — fed to the advanced-market-sits
+  // tally (which is per-sit, not per-entity, so it doesn't use the grouping).
+  const apptFlat: ApptDoc[] = [];
   for (const apptDoc of apptsSnap.docs) {
     const data = apptDoc.data() as ApptDoc;
+    apptFlat.push(data);
     const entityId = data.leadId || data.clientId;
     if (!entityId) continue;
     const arr = apptsByEntity.get(entityId);
@@ -498,6 +533,7 @@ export async function getActivityStats(
       // policy in a period when the SALE happened in that period.
       const saleMs = policySaleDateMillis(p);
       if (saleMs === null) continue;
+      const saleDateSource = policySaleDateSource(p);
       const apv = computeAPV(p.premiumAmount, p.premiumFrequency);
       // Honor an explicit source field if a future phase stamps one;
       // otherwise infer from context. Inference still uses the sale
@@ -553,6 +589,7 @@ export async function getActivityStats(
           product,
           policyNumber: p.policyNumber || null,
           submittedAt: new Date(saleMs).toISOString(),
+          saleDateSource,
           premium: typeof p.premiumAmount === 'number' ? p.premiumAmount : null,
           premiumFrequency: p.premiumFrequency || null,
           faceAmount: typeof p.coverageAmount === 'number' ? p.coverageAmount : null,
@@ -772,6 +809,10 @@ export async function getActivityStats(
   // Ledger newest-first by sale date.
   ledger.sort((a, b) => ((b.submittedAt || '') > (a.submittedAt || '') ? 1 : -1));
 
+  // ── Advanced market sits (FIF resets) ── per-sit discipline metric.
+  const amCurr = tallyAdvancedMarketSitsInWindow(apptFlat, fromMs, toMs);
+  const amPrev = tallyAdvancedMarketSitsInWindow(apptFlat, prevFromMs, prevToMs);
+
   return {
     range: {
       from: win.from.toISOString(),
@@ -794,6 +835,12 @@ export async function getActivityStats(
       showRate,
       bookRate,
       deltaPct: pct(booked, bookedPrev),
+    },
+    advancedMarketSits: {
+      sits: amCurr.sits,
+      resetsSet: amCurr.resetsSet,
+      ratePerSit: amCurr.sits > 0 ? amCurr.resetsSet / amCurr.sits : 0,
+      deltaPct: pct(amCurr.resetsSet, amPrev.resetsSet),
     },
     sales: {
       count: salesCount,

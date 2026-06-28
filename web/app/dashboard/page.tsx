@@ -13,8 +13,10 @@ import { computeBookHealthBreakdown } from '../../lib/book-health';
 import { computeBadges, type EarnedBadge } from '../../lib/badges';
 import SectionTipCard from '../../components/SectionTipCard';
 import NextTrainingSessionCard from '../../components/NextTrainingSessionCard';
-import HomeCalendarTease from '../../components/HomeCalendarTease';
 import BadgeProgressCard from '../../components/BadgeProgressCard';
+import WhatsNewSpotlight from '../../components/WhatsNewSpotlight';
+import GetStartedHome from '../../components/GetStartedHome';
+import GraduationCelebration from '../../components/GraduationCelebration';
 import BookHealthPopover from '../../components/BookHealthPopover';
 import BadgeCelebration from '../../components/BadgeCelebration';
 import PairPhoneBanner from '../../components/PairPhoneBanner';
@@ -285,10 +287,55 @@ export default function DashboardHomePage() {
     if (uncelebrated) setCelebrationBadge(uncelebrated);
   }, [badgeStats, user, agentProfile]);
 
+  // Celebrate the in-session moment a new agent finishes setup, then hand off to
+  // the real dashboard (GraduationCelebration). Fires only on the false→true
+  // flip — never on a normal visit. ?celebrate=1 forces it for previewing.
+  const [graduating, setGraduating] = useState(false);
+  const prevOnboardedRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    const complete = agentProfile.onboardingComplete === true;
+    const forced =
+      typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('getStarted') === '1';
+    if (prevOnboardedRef.current === false && complete && !forced) setGraduating(true);
+    prevOnboardedRef.current = complete;
+  }, [agentProfile.onboardingComplete]);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('celebrate') === '1') {
+      setGraduating(true);
+    }
+  }, []);
+
   if (loading) return null;
+
+  // Brand-new agents get a calm, finite "get set up" Home instead of the full
+  // cockpit (a $0 hero + zeroed cards is overwhelming and deflating). The real
+  // dashboard below takes over the moment onboarding is complete.
+  // ?getStarted=1 lets an already-onboarded agent preview this view.
+  const forceGetStarted =
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('getStarted') === '1';
+  // "New" = not yet onboarded AND no clients. The client checks protect any
+  // established agent whose onboarding flag was never stamped (older accounts)
+  // from being bumped to the setup screen.
+  const looksEstablished =
+    agentProfile.onboardingComplete === true ||
+    agentProfile.onboarding?.requiredMilestones?.firstClientCreated === true ||
+    clients.length > 0;
+  if (forceGetStarted || !looksEstablished) {
+    return (
+      <div className="max-w-5xl mx-auto">
+        <GetStartedHome />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto">
+      {graduating && (
+        <GraduationCelebration
+          firstName={agentProfile.name ? agentProfile.name.split(' ')[0] : undefined}
+          onDone={() => setGraduating(false)}
+        />
+      )}
       {!agentProfile.tipsSeen?.home && (
         <SectionTipCard onDismiss={() => dismissTip('home')}>
           This is your command center. Stats, action items, and summaries update in
@@ -298,6 +345,7 @@ export default function DashboardHomePage() {
       )}
       <PairPhoneBanner />
       <EarlyAdopterBanner />
+      <WhatsNewSpotlight />
       {/* ── Value Hero ─────────────────────────────────────────── */}
       {/* APV on the left; the compact Refer & Earn promo fills the empty
           space on the right (stacks below the number on mobile). See
@@ -319,8 +367,6 @@ export default function DashboardHomePage() {
           preview envs). See web/lib/training-sessions.ts and
           CONTEXT.md > Backlog > Weekly training session infrastructure. */}
       <NextTrainingSessionCard />
-
-      <HomeCalendarTease />
 
       {/* ── Three Metric Cards ─────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">

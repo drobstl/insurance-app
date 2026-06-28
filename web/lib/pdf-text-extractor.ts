@@ -1,11 +1,13 @@
 import 'server-only';
-import { PDFParse } from 'pdf-parse';
+import './pdf-dommatrix-polyfill';
+import type { PDFParse as PDFParseType } from 'pdf-parse';
 
 export async function extractTextFromPdfBase64(pdfBase64: string): Promise<string | null> {
   if (!pdfBase64 || pdfBase64.trim().length === 0) return null;
 
-  let parser: PDFParse | null = null;
+  let parser: PDFParseType | null = null;
   try {
+    const { PDFParse } = await import('pdf-parse');
     const buffer = Buffer.from(pdfBase64, 'base64');
     parser = new PDFParse({ data: buffer });
     const parsed = await parser.getText();

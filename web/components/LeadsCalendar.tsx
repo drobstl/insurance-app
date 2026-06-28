@@ -11,6 +11,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  setDoc,
   Timestamp,
   where,
 } from 'firebase/firestore';
@@ -20,6 +21,8 @@ import { useDashboard } from '../app/dashboard/DashboardContext';
 import AppointmentPicker from './AppointmentPicker';
 import SendConfirmationDrawer from './SendConfirmationDrawer';
 import type { AppointmentStatus } from '../lib/appointments';
+import { getFifResetChip } from '../lib/appointment-outcome-chip';
+import { normalizePhone } from '../lib/phone-format';
 
 /**
  * Leads → Calendar tab (v1).
@@ -165,7 +168,46 @@ function rangeLabel(weekStart: Date): string {
   return `${weekStart.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })} – ${end.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`;
 }
 
+function fmtMonthDay(d: Date): string {
+  try {
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  } catch {
+    return '';
+  }
+}
+
 const SIT_HAPPENED: AppointmentStatus[] = ['completed', 'sit_no_sale', 'sit_think_about_it'];
+
+// ── First-sit vs follow-up (derived, never stored) ────────────────────
+interface PriorSit {
+  at: Date;
+  status: AppointmentStatus;
+}
+type ApptKind =
+  | { kind: 'first' }
+  | { kind: 'follow_up'; priorStatus: AppointmentStatus; priorAt: Date };
+
+/**
+ * Classify an appointment as a first sit vs a follow-up. A follow-up = the
+ * lead has a prior SIT_HAPPENED appointment dated **strictly earlier** than
+ * this one. `priorSits` is in descending date order (the query is desc), so
+ * the first qualifying entry is the most-recent prior sit — what we surface
+ * as "last sit: …". The strict `<` handles a same-day earlier sit and
+ * auto-excludes the appointment itself (its own scheduledAt is never `<`
+ * itself), so an in-week sit that already happened doesn't self-mark.
+ */
+function classifyAppt(appt: CalAppt, priorSitsByLead: Map<string, PriorSit[]>): ApptKind {
+  const priors = priorSitsByLead.get(appt.leadId);
+  if (priors) {
+    const apptMs = appt.scheduledAt.getTime();
+    for (const p of priors) {
+      if (p.at.getTime() < apptMs) {
+        return { kind: 'follow_up', priorStatus: p.status, priorAt: p.at };
+      }
+    }
+  }
+  return { kind: 'first' };
+}
 
 // ══════════════════════════════════════════════════════════════════════
 // Data hooks
@@ -226,8 +268,9 @@ function useWeekAppointments(user: User | null, weekStart: Date): CalAppt[] {
   return appts;
 }
 
-/** Agent's Google Calendar busy-blocks for the visible week (context only). */
-function useGoogleBusy(user: User | null, weekStart: Date): { busy: BusyBlock[]; connected: boolean | null } {
+/** Agent's Google Calendar busy-blocks for the visible week (context only).
+ *  `refreshKey` re-runs the fetch after a connect/disconnect from the header. */
+function useGoogleBusy(user: User | null, weekStart: Date, refreshKey: number): { busy: BusyBlock[]; connected: boolean | null } {
   const [busy, setBusy] = useState<BusyBlock[]>([]);
   const [connected, setConnected] = useState<boolean | null>(null);
   const weekKey = weekStart.getTime();
@@ -286,9 +329,148 @@ function useGoogleBusy(user: User | null, weekStart: Date): { busy: BusyBlock[];
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, weekKey]);
+  }, [user, weekKey, refreshKey]);
 
   return { busy, connected };
+}
+
+/**
+ * Authoritative Google Calendar connection state for the header control:
+ * the connected flag + the connected Google account email. Separate from
+ * `useGoogleBusy` (which only infers connected from the events fetch) so
+ * the header can show the email and react to connect/disconnect via
+ * `refreshKey`. Mirrors the Settings → Account status call.
+ */
+interface GCalStatus {
+  connected: boolean;
+  googleEmail?: string;
+}
+function useGoogleCalendarStatus(
+  user: User | null,
+  refreshKey: number,
+): { status: GCalStatus | null; loading: boolean } {
+  const [status, setStatus] = useState<GCalStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) {
+      setStatus(null);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch('/api/integrations/google-calendar/status', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = (await res.json()) as {
+          success?: boolean;
+          connected?: boolean;
+          data?: { googleEmail?: string };
+        };
+        if (cancelled) return;
+        setStatus(
+          res.ok && data.success && data.connected
+            ? { connected: true, googleEmail: data.data?.googleEmail }
+            : { connected: false },
+        );
+      } catch (err) {
+        if (!cancelled) {
+          console.warn('google calendar status fetch failed:', err);
+          setStatus({ connected: false });
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, refreshKey]);
+
+  return { status, loading };
+}
+
+/**
+ * Prior SIT_HAPPENED appointments per lead — the raw material for tagging
+ * each block as a first sit vs a follow-up. Mirrors the leads page's
+ * past-appointment subscription (`web/app/dashboard/leads/page.tsx:442-481`):
+ * same single-field `scheduledAt` range so it reuses the default index, with
+ * the status filter done in memory. Two deliberate differences:
+ *   - Filtered to SIT_HAPPENED (which **includes** `completed`/Sold) rather
+ *     than the leads page's outcome-chip set, which excludes the sale path.
+ *   - Upper bound is **weekEnd, not now** — so a Tuesday follow-up still sees
+ *     its Monday-same-week prior sit (the strict `<` in classifyAppt keeps an
+ *     appointment from marking itself).
+ * Bounded a year back to cap the read for high-volume agents; a prior sit
+ * older than a year reads as a first sit (matches the leads-page bound).
+ * `fifResetByLead` rides along from the same snapshot, exactly like the leads
+ * page (orthogonal to the sit outcome — a reset can sit on a sold appt).
+ */
+function usePriorSits(
+  user: User | null,
+  weekStart: Date,
+): { priorSitsByLead: Map<string, PriorSit[]>; fifResetByLead: Map<string, { smeName?: string }> } {
+  const [state, setState] = useState<{
+    priorSitsByLead: Map<string, PriorSit[]>;
+    fifResetByLead: Map<string, { smeName?: string }>;
+  }>(() => ({ priorSitsByLead: new Map(), fifResetByLead: new Map() }));
+  const weekKey = weekStart.getTime();
+
+  useEffect(() => {
+    if (!user) {
+      setState({ priorSitsByLead: new Map(), fifResetByLead: new Map() });
+      return;
+    }
+    const weekEnd = addDays(weekStart, 7);
+    const oneYearAgo = addDays(weekStart, -365);
+    const q = query(
+      collection(db, 'agents', user.uid, 'appointments'),
+      where('scheduledAt', '>=', Timestamp.fromDate(oneYearAgo)),
+      where('scheduledAt', '<', Timestamp.fromDate(weekEnd)),
+      orderBy('scheduledAt', 'desc'),
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const priorSitsByLead = new Map<string, PriorSit[]>();
+        const fifResetByLead = new Map<string, { smeName?: string }>();
+        snap.forEach((d) => {
+          const v = d.data() as {
+            leadId?: string;
+            scheduledAt?: Timestamp;
+            status?: string;
+            fifResetBooked?: boolean;
+            fifResetSmeName?: string | null;
+          };
+          if (!v.leadId || !v.scheduledAt) return;
+          // FIF reset is orthogonal to the sit outcome (can ride on a sold
+          // appt), so capture it before the SIT_HAPPENED filter. First hit
+          // wins (query is desc) = the lead's most recent reset.
+          if (v.fifResetBooked === true && !fifResetByLead.has(v.leadId)) {
+            fifResetByLead.set(v.leadId, { smeName: v.fifResetSmeName ?? undefined });
+          }
+          const status = typeof v.status === 'string' ? (v.status as AppointmentStatus) : null;
+          if (!status || !SIT_HAPPENED.includes(status)) return;
+          // Built in descending order because the query is desc — classifyAppt
+          // relies on that to pick the most-recent prior sit.
+          const sit: PriorSit = { at: v.scheduledAt.toDate(), status };
+          const arr = priorSitsByLead.get(v.leadId);
+          if (arr) arr.push(sit);
+          else priorSitsByLead.set(v.leadId, [sit]);
+        });
+        setState({ priorSitsByLead, fifResetByLead });
+      },
+      (err) => console.warn('calendar prior-sits snapshot error:', err),
+    );
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, weekKey]);
+
+  return state;
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -296,14 +478,20 @@ function useGoogleBusy(user: User | null, weekStart: Date): { busy: BusyBlock[];
 // ══════════════════════════════════════════════════════════════════════
 export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => void }) {
   const router = useRouter();
-  const { user, agentProfile } = useDashboard();
+  const { user, agentProfile, setAgentProfile } = useDashboard();
 
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const weekStart = useMemo(() => startOfWeek(anchor), [anchor]);
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
 
+  // Bumped after a connect/disconnect so the busy blocks + connection status
+  // both re-fetch without a full reload.
+  const [calRefreshKey, setCalRefreshKey] = useState(0);
+
   const appts = useWeekAppointments(user, weekStart);
-  const { busy, connected } = useGoogleBusy(user, weekStart);
+  const { busy, connected } = useGoogleBusy(user, weekStart, calRefreshKey);
+  const { status: gcalStatus, loading: gcalLoading } = useGoogleCalendarStatus(user, calRefreshKey);
+  const { priorSitsByLead, fifResetByLead } = usePriorSits(user, weekStart);
 
   const [selected, setSelected] = useState<CalAppt | null>(null);
   const [reminderFor, setReminderFor] = useState<CalAppt | null>(null);
@@ -365,6 +553,13 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
         optimistic[a.id] != null ? { ...a, scheduledAt: new Date(optimistic[a.id]) } : a,
       ),
     [appts, optimistic],
+  );
+
+  // First sit vs follow-up per block. Keyed off displayAppts so an optimistic
+  // reschedule re-classifies against the dragged time (and rolls back with it).
+  const kindById = useMemo(
+    () => new Map<string, ApptKind>(displayAppts.map((a) => [a.id, classifyAppt(a, priorSitsByLead)])),
+    [displayAppts, priorSitsByLead],
   );
 
   // Week tally → the "production view" header.
@@ -490,6 +685,115 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
     [user],
   );
 
+  // ── Google Calendar: connect / disconnect + view mode (Stream 5a/5b) ──
+  // viewMode persists on the agent profile so it follows the agent across
+  // devices; default 'focus' preserves the original muted busy-block look.
+  const viewMode: 'focus' | 'normal' =
+    agentProfile.calendarViewMode === 'normal' ? 'normal' : 'focus';
+  const [gcalBusy, setGcalBusy] = useState<'connect' | 'disconnect' | null>(null);
+  const [gcalMessage, setGcalMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const setViewMode = useCallback(
+    async (mode: 'focus' | 'normal') => {
+      if (!user) return;
+      if ((agentProfile.calendarViewMode === 'normal' ? 'normal' : 'focus') === mode) return;
+      // The profile is loaded once (getDoc), so update context optimistically
+      // AND write through to Firestore so the choice sticks across reloads.
+      setAgentProfile((prev) => ({ ...prev, calendarViewMode: mode }));
+      try {
+        await setDoc(doc(db, 'agents', user.uid), { calendarViewMode: mode }, { merge: true });
+      } catch (err) {
+        console.warn('save calendar view mode failed:', err);
+      }
+    },
+    [user, agentProfile.calendarViewMode, setAgentProfile],
+  );
+
+  const handleConnectGoogle = useCallback(async () => {
+    if (!user) return;
+    setGcalBusy('connect');
+    setGcalMessage(null);
+    try {
+      const token = await user.getIdToken();
+      // Come back to whatever calendar surface we're on (the /dashboard/calendar
+      // route, or the Leads page's Calendar tab). On Leads the tab is internal
+      // state, so ask the page to reopen it via ?view=calendar.
+      let returnTo = '/dashboard/calendar';
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        if (window.location.pathname === '/dashboard/leads') params.set('view', 'calendar');
+        const qs = params.toString();
+        returnTo = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+      }
+      const res = await fetch('/api/integrations/google-calendar/auth', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ returnTo }),
+      });
+      const data = (await res.json()) as { success: boolean; authUrl?: string; error?: string };
+      if (!res.ok || !data.success || !data.authUrl) {
+        throw new Error(data.error || 'Failed to start Google Calendar connection.');
+      }
+      window.location.assign(data.authUrl);
+    } catch (err) {
+      setGcalMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Couldn’t connect Google Calendar.',
+      });
+      setGcalBusy(null);
+    }
+  }, [user]);
+
+  const handleDisconnectGoogle = useCallback(async () => {
+    if (!user) return;
+    setGcalBusy('disconnect');
+    setGcalMessage(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/integrations/google-calendar/disconnect', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json()) as { success: boolean; error?: string };
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to disconnect Google Calendar.');
+      }
+      setGcalMessage({ type: 'success', text: 'Google Calendar disconnected.' });
+      setCalRefreshKey((k) => k + 1);
+    } catch (err) {
+      setGcalMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Couldn’t disconnect Google Calendar.',
+      });
+    } finally {
+      setGcalBusy(null);
+    }
+  }, [user]);
+
+  // Consume the OAuth round-trip result (?google_calendar=success|error the
+  // callback appends to returnTo): surface a message, refresh status, then
+  // strip the params so a reload can't re-fire the toast.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get('google_calendar');
+    if (!result) return;
+    if (result === 'success') {
+      setGcalMessage({ type: 'success', text: 'Google Calendar connected.' });
+      setCalRefreshKey((k) => k + 1);
+    } else if (result === 'error') {
+      const reason = params.get('reason');
+      setGcalMessage({
+        type: 'error',
+        text: reason ? `Couldn’t connect Google Calendar: ${reason}` : 'Couldn’t connect Google Calendar.',
+      });
+    }
+    params.delete('google_calendar');
+    params.delete('reason');
+    const qs = params.toString();
+    window.history.replaceState(null, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+  }, []);
+
   if (!user) return null;
 
   return (
@@ -529,14 +833,69 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
         </div>
       </div>
 
-      {/* Google connect hint (only when we know it's not connected) */}
-      {connected === false && (
-        <button
-          onClick={() => router.push('/dashboard/settings')}
-          className="w-full mb-3 text-left text-xs text-[#005851] bg-[#daf3f0]/40 border border-[#45bcaa]/40 rounded-lg px-3 py-2 hover:bg-[#daf3f0]/70 transition-colors"
+      {/* ── Google Calendar: connect / disconnect + view toggle (5a / 5b) ── */}
+      <div className="mb-3 flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
+          {gcalStatus === null && gcalLoading ? (
+            <span className="text-xs text-[#9CA3AF]">Checking Google Calendar…</span>
+          ) : gcalStatus?.connected ? (
+            <>
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[#005851] bg-[#daf3f0]/60 border border-[#45bcaa]/40 rounded-full pl-2 pr-2.5 py-1 min-w-0">
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                <span className="truncate max-w-[180px] sm:max-w-[240px]">{gcalStatus.googleEmail || 'Google Calendar connected'}</span>
+              </span>
+              <button
+                onClick={handleDisconnectGoogle}
+                disabled={gcalBusy === 'disconnect'}
+                className="text-xs font-medium text-[#9CA3AF] hover:text-red-600 underline-offset-2 hover:underline disabled:opacity-50 transition-colors"
+              >
+                {gcalBusy === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={handleConnectGoogle}
+              disabled={gcalBusy === 'connect'}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#0D4D4D] bg-white rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] hover:bg-[#f8f8f8] transition-colors disabled:opacity-50"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              {gcalBusy === 'connect' ? 'Redirecting…' : 'Connect Google Calendar'}
+            </button>
+          )}
+        </div>
+
+        {/* View toggle — only meaningful when events exist (connected) and on
+            desktop (the mobile agenda doesn't render Google busy blocks). */}
+        {gcalStatus?.connected && !isMobile && (
+          <div className="inline-flex items-center rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] bg-white overflow-hidden text-xs font-semibold shrink-0">
+            <button
+              onClick={() => setViewMode('focus')}
+              className={`px-2.5 py-1.5 transition-colors ${viewMode === 'focus' ? 'bg-[#44bbaa] text-white' : 'text-[#0D4D4D] hover:bg-[#f8f8f8]'}`}
+              title="Dim your other Google events to gray so your booked sits stand out"
+            >
+              Focus
+            </button>
+            <button
+              onClick={() => setViewMode('normal')}
+              className={`px-2.5 py-1.5 border-l-2 border-[#1A1A1A] transition-colors ${viewMode === 'normal' ? 'bg-[#44bbaa] text-white' : 'text-[#0D4D4D] hover:bg-[#f8f8f8]'}`}
+              title="Show your Google events with their titles"
+            >
+              Normal
+            </button>
+          </div>
+        )}
+      </div>
+
+      {gcalMessage && (
+        <div
+          className={`mb-3 text-sm rounded-lg px-3 py-2 border ${
+            gcalMessage.type === 'success'
+              ? 'text-[#005851] bg-[#daf3f0]/60 border-[#45bcaa]/40'
+              : 'text-red-700 bg-red-50 border-red-200'
+          }`}
         >
-          Connect Google Calendar in Settings to see your whole day behind your booked sits.
-        </button>
+          {gcalMessage.text}
+        </div>
       )}
 
       {appts.length === 0 && (
@@ -563,14 +922,14 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
       )}
 
       {isMobile ? (
-        <AgendaWeek days={days} appts={displayAppts} onSelect={setSelected} />
+        <AgendaWeek days={days} appts={displayAppts} kindById={kindById} onSelect={setSelected} />
       ) : (
         <div className="flex gap-4 items-start">
           <div className="shrink-0 hidden lg:block">
             <MiniMonth anchor={anchor} onPick={setAnchor} apptDayKeys={apptDayKeys} weekStart={weekStart} />
-            <Legend />
+            <Legend viewMode={viewMode} />
           </div>
-          <WeekGrid days={days} appts={displayAppts} busy={visibleBusy} onSelect={setSelected} onReschedule={handleReschedule} onNewAppt={openNewAppt} />
+          <WeekGrid days={days} appts={displayAppts} busy={visibleBusy} kindById={kindById} viewMode={viewMode} onSelect={setSelected} onReschedule={handleReschedule} onNewAppt={openNewAppt} />
         </div>
       )}
 
@@ -578,6 +937,8 @@ export default function LeadsCalendar({ onGoToQueue }: { onGoToQueue?: () => voi
       {selected && (
         <ApptPopover
           appt={selected}
+          kind={kindById.get(selected.id)}
+          fifReset={fifResetByLead.get(selected.leadId)}
           onClose={() => setSelected(null)}
           onOpenLead={() => router.push(`/dashboard/leads/${selected.leadId}`)}
           onRemind={() => openReminder(selected)}
@@ -691,6 +1052,8 @@ function WeekGrid({
   days,
   appts,
   busy,
+  kindById,
+  viewMode,
   onSelect,
   onReschedule,
   onNewAppt,
@@ -698,6 +1061,8 @@ function WeekGrid({
   days: Date[];
   appts: CalAppt[];
   busy: BusyBlock[];
+  kindById: Map<string, ApptKind>;
+  viewMode: 'focus' | 'normal';
   onSelect: (a: CalAppt) => void;
   onReschedule: (appt: CalAppt, newStart: Date) => void;
   onNewAppt: (at: Date) => void;
@@ -761,6 +1126,8 @@ function WeekGrid({
               hours={hours}
               appts={appts.filter((a) => isSameDay(a.scheduledAt, d))}
               busy={busy.filter((b) => isSameDay(b.start, d))}
+              kindById={kindById}
+              viewMode={viewMode}
               onSelect={onSelect}
               draggingId={draggingId}
               isDragOver={dragOverIdx === idx}
@@ -825,6 +1192,8 @@ function DayColumn({
   hours,
   appts,
   busy,
+  kindById,
+  viewMode,
   onSelect,
   draggingId,
   isDragOver,
@@ -838,6 +1207,8 @@ function DayColumn({
   hours: number[];
   appts: CalAppt[];
   busy: BusyBlock[];
+  kindById: Map<string, ApptKind>;
+  viewMode: 'focus' | 'normal';
   onSelect: (a: CalAppt) => void;
   draggingId: string | null;
   isDragOver: boolean;
@@ -863,6 +1234,7 @@ function DayColumn({
     title: string;
     subtitle: string;
     tzLine?: string;
+    kind?: ApptKind;
     hint?: string;
   } | null>(null);
 
@@ -891,15 +1263,22 @@ function DayColumn({
         />
       ))}
 
-      {/* Google busy blocks (context). Hover shows the event's own details;
-          a click still falls through to the column to book that slot (#160) —
-          they carry no onClick, so the click bubbles to the column handler. */}
+      {/* Google events (context). Focus = muted gray busy blocks (no title);
+          Normal = each event shown with its own title in a distinct indigo so
+          it reads as "external", still clearly apart from the outcome-colored
+          AFL sits. Either way they carry no onClick, so a click bubbles to the
+          column to book that slot (#160); the hover card shows the details. */}
       {busy.map((b) => {
+        const isNormal = viewMode === 'normal';
         if (b.allDay) {
           return (
             <div
               key={b.id}
-              className="absolute left-0.5 right-0.5 top-0 text-[9px] text-[#9CA3AF] bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_4px,#eceef1_4px,#eceef1_8px)] rounded px-1 py-0.5 truncate"
+              className={`absolute left-0.5 right-0.5 top-0 rounded px-1 py-0.5 truncate text-[9px] ${
+                isNormal
+                  ? 'bg-[#EEF2FF] border border-[#c7d2fe] text-[#4338CA] font-medium'
+                  : 'text-[#9CA3AF] bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_4px,#eceef1_4px,#eceef1_8px)]'
+              }`}
               onMouseEnter={(e) => {
                 const r = e.currentTarget.getBoundingClientRect();
                 setHover({ x: r.left + r.width / 2, y: r.top, title: b.title, subtitle: 'All day · Google Calendar' });
@@ -916,7 +1295,11 @@ function DayColumn({
         return (
           <div
             key={b.id}
-            className="absolute left-0.5 right-0.5 rounded bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_5px,#e9ebee_5px,#e9ebee_10px)] border border-[#e5e7eb]"
+            className={`absolute left-0.5 right-0.5 rounded overflow-hidden ${
+              isNormal
+                ? 'bg-[#EEF2FF] border border-[#c7d2fe] px-1 py-0.5'
+                : 'bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_5px,#e9ebee_5px,#e9ebee_10px)] border border-[#e5e7eb]'
+            }`}
             style={{ top, height }}
             onMouseEnter={(e) => {
               const r = e.currentTarget.getBoundingClientRect();
@@ -929,7 +1312,18 @@ function DayColumn({
             }}
             onMouseLeave={() => setHover(null)}
             title=""
-          />
+          >
+            {isNormal && (
+              <>
+                <div className="text-[10px] font-semibold leading-tight truncate text-[#4338CA]">{b.title}</div>
+                {height > 26 && (
+                  <div className="text-[9px] leading-tight truncate text-[#6366F1]">
+                    {fmtTime(b.start)}–{fmtTime(b.end)}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         );
       })}
 
@@ -939,6 +1333,7 @@ function DayColumn({
         const meta = STATUS_META[a.status];
         const showTheir =
           a.scheduledAtTimeZone && localTz && a.scheduledAtTimeZone !== localTz;
+        const kind = kindById.get(a.id);
         return (
           <button
             key={a.id}
@@ -962,6 +1357,7 @@ function DayColumn({
                   showTheir && a.scheduledAtTimeZone
                     ? `Their time: ${fmtTime(a.scheduledAt, a.scheduledAtTimeZone)} ${tzAbbrev(a.scheduledAt, a.scheduledAtTimeZone)}`
                     : undefined,
+                kind,
                 hint: 'Drag to reschedule · click for options',
               });
             }}
@@ -974,13 +1370,32 @@ function DayColumn({
             // block; the block's details come from the portal hover card below.
             title=""
           >
-            <div className="text-[11px] font-bold leading-tight truncate">{a.leadName}</div>
+            <div className="text-[11px] font-bold leading-tight truncate pr-5">{a.leadName}</div>
             <div className="text-[10px] leading-tight truncate opacity-80">
               {fmtTime(a.scheduledAt)}
               {showTheir && a.scheduledAtTimeZone
                 ? ` · ${fmtTime(a.scheduledAt, a.scheduledAtTimeZone)} ${tzAbbrev(a.scheduledAt, a.scheduledAtTimeZone)}`
                 : ''}
             </div>
+            {/* First-sit vs follow-up marker (top-right corner). Follow-up =
+                ↻ tinted by the prior outcome (gold Thinking / blue No-sale /
+                green Sold); first sit = a faint "1st". */}
+            {kind &&
+              (kind.kind === 'follow_up' ? (
+                <span
+                  className={`absolute top-0.5 right-0.5 inline-flex items-center justify-center h-3.5 px-1 rounded-[3px] text-[9px] font-bold leading-none border ${STATUS_META[kind.priorStatus].block}`}
+                  aria-hidden
+                >
+                  ↻
+                </span>
+              ) : (
+                <span
+                  className="absolute top-0.5 right-0.5 inline-flex items-center justify-center h-3.5 px-1 rounded-[3px] text-[8px] font-bold leading-none text-[#9CA3AF] bg-white/70 border border-[#ececec]"
+                  aria-hidden
+                >
+                  1st
+                </span>
+              ))}
           </button>
         );
       })}
@@ -1011,6 +1426,7 @@ function HoverCard({
   title,
   subtitle,
   tzLine,
+  kind,
   hint,
 }: {
   x: number;
@@ -1018,6 +1434,7 @@ function HoverCard({
   title: string;
   subtitle: string;
   tzLine?: string;
+  kind?: ApptKind;
   hint?: string;
 }) {
   return (
@@ -1029,6 +1446,15 @@ function HoverCard({
         <div className="text-xs font-bold text-[#000000] truncate">{title}</div>
         <div className="text-[11px] text-[#707070] whitespace-nowrap">{subtitle}</div>
         {tzLine && <div className="text-[10px] text-[#005851] whitespace-nowrap">{tzLine}</div>}
+        {kind &&
+          (kind.kind === 'follow_up' ? (
+            <div className="text-[10px] text-[#444] whitespace-nowrap mt-0.5 flex items-center gap-1">
+              <span className={`w-1.5 h-1.5 rounded-full ${STATUS_META[kind.priorStatus].dot}`} />
+              Follow-up · last sit: {STATUS_META[kind.priorStatus].label} · {fmtMonthDay(kind.priorAt)}
+            </div>
+          ) : (
+            <div className="text-[10px] text-[#9CA3AF] whitespace-nowrap mt-0.5">First sit</div>
+          ))}
         {hint && <div className="text-[10px] text-[#9CA3AF] whitespace-nowrap mt-0.5">{hint}</div>}
       </div>
     </div>
@@ -1041,10 +1467,12 @@ function HoverCard({
 function AgendaWeek({
   days,
   appts,
+  kindById,
   onSelect,
 }: {
   days: Date[];
   appts: CalAppt[];
+  kindById: Map<string, ApptKind>;
   onSelect: (a: CalAppt) => void;
 }) {
   const today = new Date();
@@ -1074,6 +1502,7 @@ function AgendaWeek({
                 {dayAppts.map((a) => {
                   const meta = STATUS_META[a.status];
                   const showTheir = a.scheduledAtTimeZone && localTz && a.scheduledAtTimeZone !== localTz;
+                  const kind = kindById.get(a.id);
                   return (
                     <li key={a.id}>
                       <button
@@ -1089,6 +1518,18 @@ function AgendaWeek({
                               ? ` · their ${fmtTime(a.scheduledAt, a.scheduledAtTimeZone)}`
                               : ''}
                           </div>
+                          {kind &&
+                            (kind.kind === 'follow_up' ? (
+                              <span
+                                className={`mt-1 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${STATUS_META[kind.priorStatus].block}`}
+                              >
+                                ↻ {STATUS_META[kind.priorStatus].label} · {fmtMonthDay(kind.priorAt)}
+                              </span>
+                            ) : (
+                              <span className="mt-1 inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded text-[#9CA3AF] bg-gray-50 border border-[#ececec]">
+                                1st
+                              </span>
+                            ))}
                         </div>
                         <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${meta.block}`}>
                           {meta.label}
@@ -1174,7 +1615,7 @@ function MiniMonth({
   );
 }
 
-function Legend() {
+function Legend({ viewMode }: { viewMode: 'focus' | 'normal' }) {
   const items: Array<{ key: AppointmentStatus; label: string }> = [
     { key: 'scheduled', label: 'Booked' },
     { key: 'completed', label: 'Sold' },
@@ -1191,8 +1632,12 @@ function Legend() {
         </div>
       ))}
       <div className="flex items-center gap-2 pt-1 border-t border-[#f0f0f0]">
-        <span className="w-2.5 h-2.5 rounded-sm bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_2px,#e9ebee_2px,#e9ebee_4px)]" />
-        <span className="text-[#707070]">Google (busy)</span>
+        {viewMode === 'normal' ? (
+          <span className="w-2.5 h-2.5 rounded-sm bg-[#EEF2FF] border border-[#c7d2fe]" />
+        ) : (
+          <span className="w-2.5 h-2.5 rounded-sm bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_2px,#e9ebee_2px,#e9ebee_4px)]" />
+        )}
+        <span className="text-[#707070]">{viewMode === 'normal' ? 'Google event' : 'Google (busy)'}</span>
       </div>
     </div>
   );
@@ -1203,16 +1648,21 @@ function Legend() {
 // ══════════════════════════════════════════════════════════════════════
 function ApptPopover({
   appt,
+  kind,
+  fifReset,
   onClose,
   onOpenLead,
   onRemind,
 }: {
   appt: CalAppt;
+  kind?: ApptKind;
+  fifReset?: { smeName?: string };
   onClose: () => void;
   onOpenLead: () => void;
   onRemind: () => void;
 }) {
   const meta = STATUS_META[appt.status];
+  const fifChip = fifReset ? getFifResetChip(fifReset.smeName) : null;
   const localTz = browserTz();
   const showTheir = appt.scheduledAtTimeZone && localTz && appt.scheduledAtTimeZone !== localTz;
   const end = new Date(appt.scheduledAt.getTime() + appt.durationMinutes * 60000);
@@ -1241,10 +1691,30 @@ function ApptPopover({
           <span className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-full border ${meta.block}`}>{meta.label}</span>
         </div>
 
+        {/* First sit vs follow-up — and, orthogonally, a booked FIF reset
+            (which lives on the SME's external calendar, never its own block). */}
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          {kind &&
+            (kind.kind === 'follow_up' ? (
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_META[kind.priorStatus].block}`}>
+                ↻ Follow-up · last sit: {STATUS_META[kind.priorStatus].label} · {fmtMonthDay(kind.priorAt)}
+              </span>
+            ) : (
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border text-[#005851] bg-[#daf3f0] border-[#45bcaa]/40">
+                First presentation
+              </span>
+            ))}
+          {fifChip && (
+            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${fifChip.classes}`}>
+              {fifChip.label}
+            </span>
+          )}
+        </div>
+
         <div className="grid grid-cols-2 gap-2">
           {appt.leadPhone && (
             <a
-              href={`tel:${appt.leadPhone}`}
+              href={`tel:${normalizePhone(appt.leadPhone)}`}
               className="col-span-1 grid place-items-center py-2.5 text-sm font-semibold text-white bg-[#44bbaa] hover:bg-[#005751] rounded-lg border-2 border-[#1A1A1A] border-r-[3px] border-b-[3px] transition-colors"
             >
               Call

@@ -54,6 +54,8 @@ interface Policy {
   amountOfProtection?: number;
   protectionUnit?: 'months' | 'years';
   effectiveDate?: string;
+  /** YYYY-MM-DD the client signed; preferred sale date in activity stats. */
+  applicationSignedDate?: string;
   issuePaidDate?: string;
   chargebackDate?: string;
   status: 'Active' | 'Pending' | 'Lapsed';
