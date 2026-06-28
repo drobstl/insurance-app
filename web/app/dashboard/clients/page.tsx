@@ -4263,6 +4263,12 @@ export default function ClientsPage() {
     const allCreated: { clientId: string; phone: string; firstName: string; clientCode: string }[] = [];
     const chunks: ImportRow[][] = [];
     let serverPolicyCount = 0;
+    // Duplicates caught against the existing book: confident matches folded
+    // into the client already on file (merged), uncertain name-only matches
+    // created but flagged for the "Review imported clients" screen.
+    let mergedCount = 0;
+    let mergedPolicyCount = 0;
+    let flaggedCount = 0;
     for (let i = 0; i < importData.length; i += IMPORT_BATCH_SIZE) {
       chunks.push(importData.slice(i, i + IMPORT_BATCH_SIZE));
     }
@@ -4282,6 +4288,9 @@ export default function ClientsPage() {
         const data = await res.json();
         if (Array.isArray(data.created)) allCreated.push(...data.created);
         if (typeof data.totalPolicies === 'number') serverPolicyCount += data.totalPolicies;
+        if (Array.isArray(data.merged)) mergedCount += data.merged.length;
+        if (typeof data.totalPoliciesMerged === 'number') mergedPolicyCount += data.totalPoliciesMerged;
+        if (Array.isArray(data.flaggedForReview)) flaggedCount += data.flaggedForReview.length;
         setImportProgress(Math.round(((c + 1) / chunks.length) * 100));
       }
 
@@ -4302,14 +4311,31 @@ export default function ClientsPage() {
           });
         }
       }
-      const parts = [`${clientCount} client${clientCount !== 1 ? 's' : ''}`];
-      if (policyCount > 0) parts.push(`${policyCount} ${policyCount !== 1 ? 'policies' : 'policy'}`);
-      setImportSuccess(`Successfully imported ${parts.join(' and ')}!`);
+      let message: string;
+      if (clientCount === 0 && mergedCount > 0) {
+        // The re-import case: everyone was already on file. Say so plainly
+        // so it's obvious the importer recognized them (no new duplicates).
+        message = `All ${mergedCount} record${mergedCount !== 1 ? 's were' : ' was'} already in your book — updated in place, no duplicates created.`;
+      } else {
+        const parts = [`${clientCount} client${clientCount !== 1 ? 's' : ''}`];
+        if (policyCount > 0) parts.push(`${policyCount} ${policyCount !== 1 ? 'policies' : 'policy'}`);
+        message = `Successfully imported ${parts.join(' and ')}!`;
+        if (mergedCount > 0) {
+          const polNote = mergedPolicyCount > 0
+            ? ` (${mergedPolicyCount} new ${mergedPolicyCount !== 1 ? 'policies' : 'policy'} added)`
+            : '';
+          message += ` ${mergedCount} already in your book ${mergedCount !== 1 ? 'were' : 'was'} updated${polNote}.`;
+        }
+      }
+      if (flaggedCount > 0) {
+        message += ` ${flaggedCount} possible duplicate${flaggedCount !== 1 ? 's' : ''} flagged — see “Review imported clients”.`;
+      }
+      setImportSuccess(message);
       setJustImportedClients(allCreated);
       setImportData([]);
       setImportFileStatuses([]);
       clearImportNotice();
-      if (policyCount > 0) refreshSummaries();
+      if (policyCount > 0 || mergedPolicyCount > 0) refreshSummaries();
     } catch (err) {
       console.error('Error importing clients:', err);
       showImportNotice('import_failed', {
