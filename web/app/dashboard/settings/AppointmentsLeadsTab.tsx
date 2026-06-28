@@ -295,14 +295,14 @@ export default function AppointmentsLeadsTab({
           <label className="block text-xs font-semibold text-[#374151] mb-2">
             Most of your appointments are:
           </label>
-          <div className="inline-flex rounded-[5px] border border-[#d0d0d0] overflow-hidden">
+          <div className="inline-flex gap-1 rounded-[8px] bg-[#eef0ee] p-1">
             <button
               type="button"
               onClick={() => updateField('appointmentMode', 'phone')}
-              className={`px-4 py-2 text-sm font-semibold transition-colors ${
+              className={`rounded-[6px] px-4 py-2 text-sm font-semibold transition-colors ${
                 (agentProfile.appointmentMode || 'phone') === 'phone'
-                  ? 'bg-[#e1f5ee] text-[#005851] ring-1 ring-inset ring-[#005851]'
-                  : 'bg-white text-[#707070] hover:bg-[#f8f8f8]'
+                  ? 'bg-white text-[#005851] shadow-sm'
+                  : 'text-[#707070] hover:text-[#005851]'
               }`}
             >
               Phone
@@ -310,10 +310,10 @@ export default function AppointmentsLeadsTab({
             <button
               type="button"
               onClick={() => updateField('appointmentMode', 'video')}
-              className={`px-4 py-2 text-sm font-semibold transition-colors border-l border-[#d0d0d0] ${
+              className={`rounded-[6px] px-4 py-2 text-sm font-semibold transition-colors ${
                 agentProfile.appointmentMode === 'video'
-                  ? 'bg-[#e1f5ee] text-[#005851] ring-1 ring-inset ring-[#005851]'
-                  : 'bg-white text-[#707070] hover:bg-[#f8f8f8]'
+                  ? 'bg-white text-[#005851] shadow-sm'
+                  : 'text-[#707070] hover:text-[#005851]'
               }`}
             >
               Video
@@ -328,14 +328,14 @@ export default function AppointmentsLeadsTab({
           <label className="block text-xs font-semibold text-[#374151] mb-2">
             Send booking confirmations by:
           </label>
-          <div className="inline-flex rounded-[5px] border border-[#d0d0d0] overflow-hidden">
+          <div className="inline-flex gap-1 rounded-[8px] bg-[#eef0ee] p-1">
             <button
               type="button"
               onClick={() => updateField('confirmationChannel', 'text')}
-              className={`px-4 py-2 text-sm font-semibold transition-colors ${
+              className={`rounded-[6px] px-4 py-2 text-sm font-semibold transition-colors ${
                 (agentProfile.confirmationChannel || 'text') === 'text'
-                  ? 'bg-[#e1f5ee] text-[#005851] ring-1 ring-inset ring-[#005851]'
-                  : 'bg-white text-[#707070] hover:bg-[#f8f8f8]'
+                  ? 'bg-white text-[#005851] shadow-sm'
+                  : 'text-[#707070] hover:text-[#005851]'
               }`}
             >
               Text
@@ -343,10 +343,10 @@ export default function AppointmentsLeadsTab({
             <button
               type="button"
               onClick={() => updateField('confirmationChannel', 'email')}
-              className={`px-4 py-2 text-sm font-semibold transition-colors border-l border-[#d0d0d0] ${
+              className={`rounded-[6px] px-4 py-2 text-sm font-semibold transition-colors ${
                 agentProfile.confirmationChannel === 'email'
-                  ? 'bg-[#e1f5ee] text-[#005851] ring-1 ring-inset ring-[#005851]'
-                  : 'bg-white text-[#707070] hover:bg-[#f8f8f8]'
+                  ? 'bg-white text-[#005851] shadow-sm'
+                  : 'text-[#707070] hover:text-[#005851]'
               }`}
             >
               Email
@@ -451,7 +451,7 @@ export default function AppointmentsLeadsTab({
           <p className="text-[11px] text-[#707070] mb-3">
             How many times to dial a lead before the call queue moves on. Counts no-answer and voicemail outcomes; booked / wrong-number / not-interested / do-not-call / callback always advance immediately.
           </p>
-          <div className="inline-flex rounded-[5px] border border-[#d0d0d0] overflow-hidden">
+          <div className="inline-flex gap-1 rounded-[8px] bg-[#eef0ee] p-1">
             {([
               { v: 1, label: 'Single', sub: '1 attempt' },
               { v: 2, label: 'Double', sub: '2 attempts' },
@@ -463,10 +463,10 @@ export default function AppointmentsLeadsTab({
                   key={opt.v}
                   type="button"
                   onClick={() => updateField('dialPersistence', opt.v)}
-                  className={`px-4 py-2 text-sm font-semibold transition-colors text-left ${idx > 0 ? 'border-l border-[#d0d0d0]' : ''} ${
+                  className={`rounded-[6px] px-4 py-2 text-sm font-semibold transition-colors text-left ${
                     active
-                      ? 'bg-[#e1f5ee] text-[#005851] ring-1 ring-inset ring-[#005851]'
-                      : 'bg-white text-[#707070] hover:bg-[#f8f8f8]'
+                      ? 'bg-white text-[#005851] shadow-sm'
+                      : 'text-[#707070] hover:text-[#005851]'
                   }`}
                 >
                   <div>{opt.label}</div>

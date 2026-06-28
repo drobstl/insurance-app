@@ -8,7 +8,7 @@ import analytics from '@react-native-firebase/analytics';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
-import { getSession, registerAndSavePushToken } from './index';
+import { getSession, registerAndSavePushToken, pingClientSeen } from './index';
 
 // Configure how notifications are presented when the app is in the foreground.
 // shouldSetBadge is false because the user is already in the app — no need for
@@ -124,6 +124,18 @@ export default function RootLayout() {
     Notifications.setBadgeCountAsync(0).catch(() => {});
     Notifications.dismissAllNotificationsAsync().catch(() => {});
 
+    // Fire the "opened" signal once on mount — a cold launch starts in the
+    // 'active' state, which never emits a 'change' event, so the listener
+    // below alone would miss the very first open.
+    (async () => {
+      try {
+        const session = await getSession();
+        if (session?.clientCode) pingClientSeen(session.clientCode);
+      } catch {
+        // best-effort
+      }
+    })();
+
     const handleAppStateChange = async (nextState: AppStateStatus) => {
       if (nextState === 'active') {
         Notifications.setBadgeCountAsync(0).catch(() => {});
@@ -132,6 +144,7 @@ export default function RootLayout() {
           const session = await getSession();
           if (session?.clientCode) {
             registerAndSavePushToken(session.clientCode).catch(() => {});
+            pingClientSeen(session.clientCode);
           }
         } catch {
           // Silently ignore -- best-effort refresh

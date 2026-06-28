@@ -646,17 +646,18 @@ export default function SettingsPage() {
       <div className={showPhonePreview ? 'flex gap-8 items-start' : ''}>
       <div className={showPhonePreview ? 'flex-1 min-w-0' : ''}>
 
-      {/* Tab Bar */}
-      <div className="flex gap-1 sm:gap-2 mb-6 border-b-2 border-gray-200 overflow-x-auto">
+      {/* Tabbed panel — tabs cap the content well below them */}
+      <div className="rounded-[14px] border border-gray-200 bg-white overflow-hidden">
+      <div className="flex flex-wrap gap-1.5 p-2.5 border-b border-gray-200">
         {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             data-onboarding-target={tab.key === 'profile' ? 'settings-tab-profile' : tab.key === 'branding' ? 'settings-tab-branding' : undefined}
-            className={`relative -mb-0.5 whitespace-nowrap px-3 sm:px-5 py-3 text-sm sm:text-base font-semibold border-b-[3px] transition-colors ${
+            className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
               activeTab === tab.key
-                ? 'border-[#005851] text-[#005851]'
-                : 'border-transparent text-[#707070] hover:text-[#005851] hover:border-[#c8c8c8]'
+                ? 'bg-[#005851] text-white shadow-sm'
+                : 'text-[#6b7280] hover:bg-gray-100 hover:text-[#005851]'
             }`}
           >
             {tab.label}
@@ -664,6 +665,7 @@ export default function SettingsPage() {
         ))}
       </div>
 
+      <div className="bg-[#f6f7f8] p-4 sm:p-5">
       {activeTab === 'profile' && (
         <ProfileTab
           agentProfile={agentProfile}
@@ -729,6 +731,8 @@ export default function SettingsPage() {
           onDisconnectCalendar={handleGoogleCalendarDisconnect}
         />
       )}
+      </div>
+      </div>
 
       {/* Save Bar */}
       <div className="mt-6 flex items-center justify-between">

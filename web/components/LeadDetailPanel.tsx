@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { LeadTagEditor } from './LeadTagEditor';
+import { LeadNotesLog } from './LeadNotesLog';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import AppointmentPicker from './AppointmentPicker';
 import DoNotContactToggle from './DoNotContactToggle';
@@ -60,6 +61,8 @@ interface Lead {
   formType?: string;
   notes?: string;
   notesUpdatedAt?: Timestamp | null;
+  // Timestamped notes log (Option 2) — appended entries, each auto-stamped.
+  notesEntries?: Array<{ id: string; text: string; at: Timestamp }>;
   // Agent-defined labels (ids into agentProfile.leadTags).
   tagIds?: string[];
   monthlyMortgageAmount?: number;
@@ -2431,6 +2434,7 @@ export default function LeadDetailPanel({
             rows={6}
             className="w-full px-3 py-2.5 bg-white border border-[#d0d0d0] rounded-[5px] text-sm leading-relaxed focus:outline-none focus:border-[#45bcaa]"
           />
+          <LeadNotesLog user={user} leadId={leadId} entries={lead.notesEntries} />
         </div>
       </div>
 
