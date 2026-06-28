@@ -313,7 +313,14 @@ export default function DashboardHomePage() {
   // ?getStarted=1 lets an already-onboarded agent preview this view.
   const forceGetStarted =
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('getStarted') === '1';
-  if (forceGetStarted || agentProfile.onboardingComplete !== true) {
+  // "New" = not yet onboarded AND no clients. The client checks protect any
+  // established agent whose onboarding flag was never stamped (older accounts)
+  // from being bumped to the setup screen.
+  const looksEstablished =
+    agentProfile.onboardingComplete === true ||
+    agentProfile.onboarding?.requiredMilestones?.firstClientCreated === true ||
+    clients.length > 0;
+  if (forceGetStarted || !looksEstablished) {
     return (
       <div className="max-w-5xl mx-auto">
         <GetStartedHome />
