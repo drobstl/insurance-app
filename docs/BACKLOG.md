@@ -199,6 +199,9 @@ When a backlog item ships, move it here with its PR # and date. Older items get 
 
 | Item | PR | Shipped |
 |---|---|---|
+| **Patch as the in-app teacher** — presence (drag/reveal) + living knowledge registry + Resources link; Meet-Patch reveal auto-plays only on Home | #238, #248 | Jun 27 |
+| Lead quick-wins — timestamped notes (Opt2 box+log) + clickable action-item names | #245 | Jun 27 |
+| Close-Sale step-2 welcome text made voice-first / dummy-proof on any device (Windows+Edge+Android) | #239 | Jun 27 |
 | **Lead-profile Present deck** — screen-shared, no-sales-chrome fact-finder (v1/v2, present-gating), household fact-finder + profile editor, multi-person `people[]` model; + a Present **"Protect" recap + carrier capture** at close. *(Phase 2 next: link `people[]` → real client docs.)* | #201, #204, #205, #206, #207, #208, #209, #236 | Jun 23–27 |
 | **Settings 5-tab reorg + tabbed-panel UI overhaul** — split into 5 tab components; solid active tab that connects to its content; affordance clarity; payment-protection terms; Agency Logo section removed for now | #215, #235, #240, #241, #243, #244 | Jun 24–27 |
 | **Leads upgrade roadmap** — CIE Symmetry 2-page ingestion (grouping moved into the GCF for serverless reliability), tags, filters, reimport update-in-place, queue follow-up resurfacing, DOMMatrix polyfill so multi-page PDF import stops 500ing | #226, #237, #227, #228, #190, #202, #192, #231, #234 | Jun 17–27 |
