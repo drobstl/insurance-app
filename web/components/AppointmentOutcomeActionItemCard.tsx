@@ -5,6 +5,7 @@ import type { User } from 'firebase/auth';
 
 import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 import { captureEvent } from '../lib/posthog';
+import { ActionItemSubjectLink } from './ActionItemSubjectLink';
 import type {
   ActionItemDoc,
   ActionItemSuggestedAction,
@@ -274,7 +275,7 @@ export default function AppointmentOutcomeActionItemCard({
             How did your meeting with {subjectFirstName} go?
           </p>
           <p className="mt-0.5 text-xs text-[#5f5f5f]">
-            {subjectName} · {scheduledLabel}
+            <ActionItemSubjectLink clientId={item.clientId} prospectId={item.prospectId}>{subjectName}</ActionItemSubjectLink> · {scheduledLabel}
           </p>
         </div>
         <span className="inline-block shrink-0 rounded bg-[#f0f0f0] px-2 py-0.5 text-[10px] font-bold text-[#5f5f5f]">
