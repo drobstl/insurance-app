@@ -57,6 +57,7 @@ interface Lead {
   monthlyMortgageAmount?: number;
   notes?: string;
   tagIds?: string[];
+  notesEntries?: Array<{ text?: string }>;
   // Dial-tracking fields (Chunk 4b). Denormalized at write time so
   // queue queries / sorting don't require reading dialLog[].
   lastDialAt?: Timestamp | null;
@@ -979,6 +980,7 @@ function LeadsPageInner() {
           lead.notes,
         ];
         if (fields.some((f) => typeof f === 'string' && f.toLowerCase().includes(q))) return true;
+        if ((lead.notesEntries ?? []).some((e) => (e.text ?? '').toLowerCase().includes(q))) return true;
         return resolveLeadTags(lead.tagIds, tagDefs).some((t) => t.label.toLowerCase().includes(q));
       });
     }
