@@ -7,6 +7,7 @@ import { useDashboard } from '../app/dashboard/DashboardContext';
 import { captureEvent } from '../lib/posthog';
 import { ANALYTICS_EVENTS } from '../lib/analytics-events';
 import { getSuggestedQuestions } from '../lib/patch-knowledge';
+import { pickNudge, getDismissedNudges, dismissNudge, type PatchNudge } from '../lib/patch-nudges';
 
 const MotionDiv = motion.div;
 
@@ -290,6 +291,9 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [showReveal, setShowReveal] = useState(false);
+  const [nudge, setNudge] = useState<PatchNudge | null>(null);
+  const [calendarConnected, setCalendarConnected] = useState<boolean | null>(null);
+  const nudgeShownRef = useRef(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
@@ -474,6 +478,53 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
     return () => clearTimeout(timer);
   }, [profileLoading, agentProfile.onboardingComplete]);
 
+  // Fetch Google Calendar connection status once, for the calendar nudge.
+  // On error we assume connected (suppresses the nudge rather than nagging).
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    user
+      .getIdToken()
+      .then((token) =>
+        fetch('/api/integrations/google-calendar/status', { headers: { Authorization: `Bearer ${token}` } }),
+      )
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        setCalendarConnected(data ? data.connected === true || data.data?.hasRefreshToken === true : true);
+      })
+      .catch(() => {
+        if (!cancelled) setCalendarConnected(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // Just-in-time nudge engine: at most one gentle, earned nudge per session, for
+  // established agents only, never while the panel or reveal is up. Dismissed
+  // nudges are gone for good (localStorage).
+  useEffect(() => {
+    if (nudgeShownRef.current || open || showReveal || profileLoading) return;
+    if (agentProfile.onboardingComplete !== true) return;
+    if (calendarConnected === null) return;
+    const picked = pickNudge(
+      {
+        pathname: pathname || '',
+        tier: agentProfile.membershipTier || '',
+        phonePaired: agentProfile.phonePaired === true,
+        calendarConnected: calendarConnected === true,
+      },
+      getDismissedNudges(),
+    );
+    if (!picked) return;
+    const timer = setTimeout(() => {
+      setNudge(picked);
+      nudgeShownRef.current = true;
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [pathname, agentProfile, calendarConnected, open, showReveal, profileLoading]);
+
   const sendMessage = useCallback(
     async (text: string) => {
       if (!user || !text.trim() || streaming) return;
@@ -608,6 +659,57 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
           }}
         />
       )}
+
+      {/* Just-in-time nudge bubble — tethered above the Patch button */}
+      <AnimatePresence>
+        {nudge && !open && !showReveal && (
+          <motion.div
+            key="patch-nudge"
+            initial={{ opacity: 0, y: 12, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.97 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed right-4 md:right-5 bottom-[150px] md:bottom-[74px] z-40 w-[268px] bg-white rounded-[12px] border border-[#e0e0e0] shadow-[0_6px_20px_rgba(0,0,0,0.14)] p-3"
+          >
+            <div className="flex items-start gap-2.5">
+              <div className="w-7 h-7 rounded-full bg-[#e1f5ee] flex items-center justify-center shrink-0 mt-0.5 overflow-hidden">
+                <PatchMascot size={22} />
+              </div>
+              <p className="text-[13px] text-[#2a2a2a] leading-snug flex-1">{nudge.message}</p>
+              <button
+                onClick={() => {
+                  dismissNudge(nudge.id);
+                  setNudge(null);
+                }}
+                aria-label="Dismiss tip"
+                className="text-[#b0b0b0] hover:text-[#666] shrink-0 p-0.5 -mr-0.5 -mt-0.5"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="mt-2.5 pl-[38px]">
+              <a
+                href={nudge.cta.href}
+                onClick={(e) => {
+                  if (nudge.cta.patchPrompt) {
+                    e.preventDefault();
+                    window.dispatchEvent(
+                      new CustomEvent('afl:open-patch-assistant', { detail: { prompt: nudge.cta.patchPrompt } }),
+                    );
+                  }
+                  dismissNudge(nudge.id);
+                  setNudge(null);
+                }}
+                className="inline-block bg-[#005851] text-white text-[12.5px] font-medium rounded-lg px-3 py-1.5 hover:bg-[#003d38] transition-colors"
+              >
+                {nudge.cta.label}
+              </a>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Floating mascot button */}
       <motion.button
