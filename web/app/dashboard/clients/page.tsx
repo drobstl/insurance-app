@@ -1270,6 +1270,20 @@ export default function ClientsPage() {
     return () => unsub();
   }, [user]);
 
+  // Deep-link: open a client's detail panel when arriving via
+  // /dashboard/clients?client=<id> (e.g. clicking a name on the action-items
+  // page). Waits for the list to load, then consumes the param so a later
+  // snapshot re-render can't reopen it after the agent closes the panel.
+  useEffect(() => {
+    const id = searchParams.get('client');
+    if (!id || clientsLoading) return;
+    const c = clients.find((x) => x.id === id);
+    if (c) {
+      setSelectedClient(c);
+      router.replace('/dashboard/clients', { scroll: false });
+    }
+  }, [searchParams, clients, clientsLoading, router]);
+
   // Fetch policies for selected client via Admin SDK API route
   useEffect(() => {
     if (!user || !selectedClient) {

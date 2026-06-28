@@ -17,6 +17,7 @@ import {
   getSendButtonLabel,
 } from '../lib/sms-url';
 import SuppressionStatusChip from './SuppressionStatusChip';
+import { ActionItemSubjectLink } from './ActionItemSubjectLink';
 import SuppressionOverrideModal from './SuppressionOverrideModal';
 
 /**
@@ -237,7 +238,7 @@ export default function RetentionTextActionItemCard({
     <article className={`rounded-xl border-2 px-4 py-3 transition-colors ${styles.container}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-bold text-[#0D4D4D]">Text {subjectFirst}</p>
+          <p className="text-sm font-bold text-[#0D4D4D]">Text <ActionItemSubjectLink clientId={item.clientId} prospectId={item.prospectId}>{subjectFirst}</ActionItemSubjectLink></p>
           <p className="text-[12px] text-[#4f4f4f] mt-0.5 flex flex-wrap items-center gap-1.5">
             <span>{phone || 'No phone on file'} · retention · call unanswered</span>
             <SuppressionStatusChip
