@@ -45,6 +45,8 @@ export interface LeadFilters {
   /** Inclusive createdAt range, YYYY-MM-DD; null = open-ended. */
   dateFrom: string | null;
   dateTo: string | null;
+  /** Only leads with a follow-up due now (followUpAt <= now). */
+  followUpDue: boolean;
 }
 
 export const EMPTY_LEAD_FILTERS: LeadFilters = {
@@ -53,6 +55,7 @@ export const EMPTY_LEAD_FILTERS: LeadFilters = {
   state: null,
   dateFrom: null,
   dateTo: null,
+  followUpDue: false,
 };
 
 export function hasActiveFilters(f: LeadFilters): boolean {
@@ -61,7 +64,8 @@ export function hasActiveFilters(f: LeadFilters): boolean {
     f.tagIds.length > 0 ||
     !!f.state ||
     !!f.dateFrom ||
-    !!f.dateTo
+    !!f.dateTo ||
+    f.followUpDue
   );
 }
 
@@ -71,6 +75,7 @@ export function activeFilterCount(f: LeadFilters): number {
     f.statuses.length +
     f.tagIds.length +
     (f.state ? 1 : 0) +
-    (f.dateFrom || f.dateTo ? 1 : 0)
+    (f.dateFrom || f.dateTo ? 1 : 0) +
+    (f.followUpDue ? 1 : 0)
   );
 }
