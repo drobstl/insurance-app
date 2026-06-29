@@ -16,6 +16,8 @@ import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
 import AppointmentPicker from '../../../components/AppointmentPicker';
 import SendConfirmationDrawer from '../../../components/SendConfirmationDrawer';
+import LeadsPairPhoneBanner from '../../../components/LeadsPairPhoneBanner';
+import FirstBookingPairCelebration from '../../../components/FirstBookingPairCelebration';
 import LeadDetailPanel from '../../../components/LeadDetailPanel';
 import { CloseSaleRitual, type CloseSaleLead } from '../../../components/CloseSaleRitual';
 import LeadsCalendar from '../../../components/LeadsCalendar';
@@ -1246,6 +1248,34 @@ function LeadsPageInner() {
   // agent can fire the SMS while the lead is still on the line.
   const [bookingForLead, setBookingForLead] = useState<Lead | null>(null);
   const [confirmingLead, setConfirmingLead] = useState<{ lead: Lead; appointmentId: string; scheduledAt: Date } | null>(null);
+  // First-booking pairing celebration: a one-time joyful nudge shown after an
+  // unpaired agent books a sit-down. We capture the lead's first name when the
+  // booking lands (confirmingLead goes non-null) but only REVEAL it once the
+  // confirmation drawer closes, so the celebration never stacks on the drawer.
+  // Gated to unpaired + text-channel agents, once per agent (per-uid flag).
+  const [pairCelebrationName, setPairCelebrationName] = useState<string | null>(null);
+  const pendingPairCelebrationRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!confirmingLead || !user) return;
+    if (agentProfile.phonePaired || agentProfile.confirmationChannel === 'email') return;
+    if (typeof window === 'undefined') return;
+    if (window.localStorage.getItem(`pair-celebration-shown-${user.uid}`) === 'true') return;
+    pendingPairCelebrationRef.current =
+      (confirmingLead.lead.name || '').trim().split(/\s+/)[0] || 'your lead';
+  }, [confirmingLead, user, agentProfile.phonePaired, agentProfile.confirmationChannel]);
+
+  // Reveal the celebration (if one is pending) after the drawer closes, and
+  // stamp the per-agent flag so it only ever fires once.
+  const revealPairCelebration = useCallback(() => {
+    const name = pendingPairCelebrationRef.current;
+    if (!name) return;
+    pendingPairCelebrationRef.current = null;
+    if (user && typeof window !== 'undefined') {
+      window.localStorage.setItem(`pair-celebration-shown-${user.uid}`, 'true');
+    }
+    setPairCelebrationName(name);
+  }, [user]);
   // Close Sale ritual state — modal hosted at the page level so it
   // survives the LeadDetailPanel re-mount that Card 1's convert
   // triggers (snapshot drops the converted lead from queueLeads →
@@ -1434,6 +1464,10 @@ function LeadsPageInner() {
       <div className="relative">
         {/* ── List surface ── */}
         <div className={SLIDE_TRANSITION} style={listSurfaceStyle}>
+          {/* Pair-phone banner — only on the main list view so Call mode /
+              Calendar stay focused. Self-gates on unpaired + text channel,
+              and vanishes for good once the phone is paired. */}
+          {view === 'all' && <LeadsPairPhoneBanner />}
           {/* Action bar */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
             <div className="flex items-center gap-2">
@@ -1472,6 +1506,26 @@ function LeadsPageInner() {
                 </svg>
                 {uploading ? 'Reading…' : 'Upload Leads'}
               </label>
+              {/* Pinned pairing door — always present (survives the banner's
+                  dismissal) until the phone is paired; hidden for agents who
+                  send confirmations by email and don't need a phone. The soft
+                  pulse-dot draws the eye without shouting. */}
+              {!agentProfile.phonePaired && agentProfile.confirmationChannel !== 'email' && (
+                <button
+                  type="button"
+                  onClick={() => router.push('/dashboard/pair-phone')}
+                  title={agentProfile.pushRevoked
+                    ? 'Your phone dropped off — reconnect to get booking alerts back'
+                    : 'Set up your phone to send booking confirmations in two taps'}
+                  className="relative px-4 py-2.5 bg-white text-[#0D4D4D] font-semibold rounded-lg border-2 border-[#0D4D4D] border-r-[3px] border-b-[3px] transition-colors hover:bg-[#f4f9f9] flex items-center gap-2 text-sm"
+                >
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#3DD6C3] animate-pulse" />
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  {agentProfile.pushRevoked ? 'Reconnect phone' : 'Set up phone'}
+                </button>
+              )}
             </div>
           </div>
 
@@ -2528,8 +2582,17 @@ function LeadsPageInner() {
             agentBusinessCardBase64={agentProfile.businessCardBase64}
             licenses={agentProfile.licenses || {}}
             attachmentsSent={confirmingLead.lead.attachmentsSent}
-            onSent={() => setConfirmingLead(null)}
-            onCancel={() => setConfirmingLead(null)}
+            onSent={() => { setConfirmingLead(null); revealPairCelebration(); }}
+            onCancel={() => { setConfirmingLead(null); revealPairCelebration(); }}
+          />
+        )}
+
+        {/* First-booking pairing celebration — revealed once the confirmation
+            drawer closes, for an unpaired agent who just booked a sit-down. */}
+        {pairCelebrationName && (
+          <FirstBookingPairCelebration
+            firstName={pairCelebrationName}
+            onClose={() => setPairCelebrationName(null)}
           />
         )}
 
