@@ -15,8 +15,18 @@ export const RESET_REVEAL_SHOWN_AT = 'resetRevealShownAt';
 export const RESET_REVEAL_DISMISSED_AT = 'resetRevealDismissedAt';
 export const RESET_REVEAL_ENGAGED_AT = 'resetRevealEngagedAt';
 
-/** At most one reveal per client per ~quarter (after a show, dismiss, or engage). */
-export const RESET_REVEAL_COOLDOWN_MS = 90 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+/**
+ * Cadence — a gentle, repeated nudge, not a quarterly event. After the client
+ * has SEEN or DISMISSED the reveal (but not bitten), re-surface it after this
+ * gap: persistent ("approaching a nag") without hitting every single app-open.
+ */
+export const RESET_REVEAL_NUDGE_COOLDOWN_MS = 7 * DAY_MS;
+/**
+ * Once the client taps "See if I qualify" they're in the funnel — back off for
+ * a good while so we're never nagging someone who already acted.
+ */
+export const RESET_REVEAL_ENGAGED_COOLDOWN_MS = 60 * DAY_MS;
 
 export interface ResetRevealData {
   firstName: string;
@@ -81,7 +91,8 @@ export function resolveResetSchedulingUrl(agentData: Record<string, unknown>): s
 
 export interface ResetRevealDecisionOpts {
   now?: number;
-  cooldownMs?: number;
+  nudgeCooldownMs?: number;
+  engagedCooldownMs?: number;
 }
 
 /**
@@ -94,7 +105,8 @@ export function buildResetRevealDecision(
   opts: ResetRevealDecisionOpts = {},
 ): ResetRevealDecision {
   const now = opts.now ?? Date.now();
-  const cooldown = opts.cooldownMs ?? RESET_REVEAL_COOLDOWN_MS;
+  const nudgeCooldown = opts.nudgeCooldownMs ?? RESET_REVEAL_NUDGE_COOLDOWN_MS;
+  const engagedCooldown = opts.engagedCooldownMs ?? RESET_REVEAL_ENGAGED_COOLDOWN_MS;
 
   // Gate 0 — the agent has switched the reveal on. Defaults OFF, so a deploy
   // never fires it for anyone until an agent explicitly opts in (and points it
@@ -105,13 +117,21 @@ export function buildResetRevealDecision(
   // experience; unactivated clients are still in the onboarding funnel.
   if (!toMs(clientData.clientActivatedAt)) return { show: false, reason: 'not_activated' };
 
-  // Gate 2 — event, not nag. Cool down after any prior show / dismiss / engage.
-  const lastTouch = Math.max(
+  // Gate 2 — cadence. A gentle, repeated nudge: re-surface a week after the last
+  // show/dismiss until they bite. But once they've engaged (tapped "see if I
+  // qualify") they're in the funnel — back off for much longer, so we never nag
+  // someone who already acted.
+  const engagedAt = toMs(clientData[RESET_REVEAL_ENGAGED_AT]);
+  if (engagedAt && now - engagedAt < engagedCooldown) {
+    return { show: false, reason: 'engaged_recently' };
+  }
+  const lastNudge = Math.max(
     toMs(clientData[RESET_REVEAL_SHOWN_AT]) ?? 0,
     toMs(clientData[RESET_REVEAL_DISMISSED_AT]) ?? 0,
-    toMs(clientData[RESET_REVEAL_ENGAGED_AT]) ?? 0,
   );
-  if (lastTouch && now - lastTouch < cooldown) return { show: false, reason: 'cooldown' };
+  if (lastNudge && now - lastNudge < nudgeCooldown) {
+    return { show: false, reason: 'cooldown' };
+  }
 
   const mortgage = clientData.mortgageDetails;
   const mortgageBalance =
