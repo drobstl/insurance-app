@@ -69,6 +69,33 @@ export function hasActiveFilters(f: LeadFilters): boolean {
   );
 }
 
+const STATUS_SET = new Set<string>(LEAD_STATUS_OPTIONS.map((o) => o.key));
+
+/**
+ * Coerce an untrusted value (e.g. a filter snapshot read back off a saved
+ * segment on the agent doc) into a valid `LeadFilters`, dropping anything
+ * malformed. Always returns a fresh object — safe to feed straight into
+ * `setFilters`.
+ */
+export function coerceLeadFilters(value: unknown): LeadFilters {
+  if (!value || typeof value !== 'object') return { ...EMPTY_LEAD_FILTERS };
+  const r = value as Record<string, unknown>;
+  const statuses = Array.isArray(r.statuses)
+    ? (r.statuses.filter((s) => typeof s === 'string' && STATUS_SET.has(s)) as LeadStatusFilter[])
+    : [];
+  const tagIds = Array.isArray(r.tagIds)
+    ? (r.tagIds.filter((t) => typeof t === 'string') as string[])
+    : [];
+  return {
+    statuses,
+    tagIds,
+    state: typeof r.state === 'string' && r.state ? r.state : null,
+    dateFrom: typeof r.dateFrom === 'string' && r.dateFrom ? r.dateFrom : null,
+    dateTo: typeof r.dateTo === 'string' && r.dateTo ? r.dateTo : null,
+    followUpDue: r.followUpDue === true,
+  };
+}
+
 /** A "date" range counts as one active filter even when both ends are set. */
 export function activeFilterCount(f: LeadFilters): number {
   return (

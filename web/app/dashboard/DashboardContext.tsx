@@ -12,6 +12,13 @@ import {
   normalizeTagLabel,
   MAX_LEAD_TAGS,
 } from '../../lib/lead-tag';
+import {
+  type SavedLeadSegment,
+  parseLeadSegments,
+  newLeadSegmentId,
+  normalizeSegmentName,
+  MAX_LEAD_SEGMENTS,
+} from '../../lib/lead-segment';
 import { auth, db } from '../../firebase';
 import { isAdminEmail } from '../../lib/admin';
 import { identifyAgent, resetPostHog, captureEvent } from '../../lib/posthog';
@@ -323,6 +330,12 @@ export interface AgentProfile {
    * agent doc, written via the tag CRUD callbacks below + optimistic state.
    */
   leadTags?: LeadTag[];
+  /**
+   * Saved lead lists ("segments") — named snapshots of the All-leads view's
+   * search + filters + sort. Same inline-array-on-the-agent-doc pattern as
+   * `leadTags`, written via the segment CRUD callbacks below + optimistic state.
+   */
+  savedLeadSegments?: SavedLeadSegment[];
 }
 
 interface DashboardContextValue {
@@ -340,6 +353,9 @@ interface DashboardContextValue {
   createLeadTag: (input: { label: string; color: LeadTagColor }) => Promise<LeadTag | null>;
   updateLeadTag: (id: string, patch: { label?: string; color?: LeadTagColor }) => Promise<void>;
   deleteLeadTag: (id: string) => Promise<void>;
+  saveLeadSegment: (input: Omit<SavedLeadSegment, 'id'>) => Promise<SavedLeadSegment | null>;
+  renameLeadSegment: (id: string, name: string) => Promise<void>;
+  deleteLeadSegment: (id: string) => Promise<void>;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
@@ -492,6 +508,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
                 })
             : [],
           leadTags: parseLeadTags(data.leadTags),
+          savedLeadSegments: parseLeadSegments(data.savedLeadSegments),
           resetRevealEnabled: data.resetRevealEnabled === true,
         });
       } else {
@@ -716,6 +733,62 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     [user, agentProfile.leadTags],
   );
 
+  // Saved lead lists ("segments"). Same storage shape as leadTags: an inline
+  // array on the agent doc, merge-written with optimistic state.
+  const saveLeadSegment = useCallback(
+    async (input: Omit<SavedLeadSegment, 'id'>): Promise<SavedLeadSegment | null> => {
+      if (!user) return null;
+      const name = normalizeSegmentName(input.name);
+      if (!name) return null;
+      const prev = agentProfile.savedLeadSegments ?? [];
+      if (prev.length >= MAX_LEAD_SEGMENTS) return null;
+      const segment: SavedLeadSegment = { ...input, name, id: newLeadSegmentId() };
+      const next = [...prev, segment];
+      try {
+        await setDoc(doc(db, 'agents', user.uid), { savedLeadSegments: next }, { merge: true });
+        setAgentProfile((p) => ({ ...p, savedLeadSegments: next }));
+        return segment;
+      } catch (error) {
+        console.error('Error saving lead segment:', error);
+        return null;
+      }
+    },
+    [user, agentProfile.savedLeadSegments],
+  );
+
+  const renameLeadSegment = useCallback(
+    async (id: string, name: string): Promise<void> => {
+      if (!user) return;
+      const clean = normalizeSegmentName(name);
+      if (!clean) return;
+      const prev = agentProfile.savedLeadSegments ?? [];
+      const next = prev.map((s) => (s.id === id ? { ...s, name: clean } : s));
+      try {
+        await setDoc(doc(db, 'agents', user.uid), { savedLeadSegments: next }, { merge: true });
+        setAgentProfile((p) => ({ ...p, savedLeadSegments: next }));
+      } catch (error) {
+        console.error('Error renaming lead segment:', error);
+      }
+    },
+    [user, agentProfile.savedLeadSegments],
+  );
+
+  const deleteLeadSegment = useCallback(
+    async (id: string): Promise<void> => {
+      if (!user) return;
+      const prev = agentProfile.savedLeadSegments ?? [];
+      const next = prev.filter((s) => s.id !== id);
+      if (next.length === prev.length) return;
+      try {
+        await setDoc(doc(db, 'agents', user.uid), { savedLeadSegments: next }, { merge: true });
+        setAgentProfile((p) => ({ ...p, savedLeadSegments: next }));
+      } catch (error) {
+        console.error('Error deleting lead segment:', error);
+      }
+    },
+    [user, agentProfile.savedLeadSegments],
+  );
+
   const isAdmin = isAdminEmail(user?.email);
 
   return (
@@ -735,6 +808,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         createLeadTag,
         updateLeadTag,
         deleteLeadTag,
+        saveLeadSegment,
+        renameLeadSegment,
+        deleteLeadSegment,
       }}
     >
       {children}
