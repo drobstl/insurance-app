@@ -265,6 +265,15 @@ export interface AgentProfile {
    */
   phonePaired?: boolean;
   /**
+   * Derived: whether this agent WAS paired and then had push revoked —
+   * `pushPermissionRevokedAt` is stamped (and the token cleared) when Expo
+   * returns DeviceNotRegistered on a send. Lets the pair prompts say
+   * "Reconnect — your phone dropped off" instead of a first-time "Set up".
+   * Mutually exclusive with `phonePaired` (re-registration clears the
+   * timestamp).
+   */
+  pushRevoked?: boolean;
+  /**
    * FirstPromoter affiliate enrollment, populated when the agent
    * clicks "Get my link" on /dashboard/refer-and-earn. Written by
    * `/api/affiliate/create` after creating (or recovering) a promoter
@@ -442,6 +451,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             data.pushToken &&
             !data.pushPermissionRevokedAt,
           ),
+          pushRevoked: Boolean(data.pushPermissionRevokedAt),
           affiliate: data.affiliate && typeof data.affiliate === 'object' ? data.affiliate : undefined,
           fifResetSmes: Array.isArray(data.fifResetSmes)
             ? (data.fifResetSmes as Array<{ name?: unknown; calendarUrl?: unknown }>)
@@ -498,6 +508,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             data.pushToken &&
             !data.pushPermissionRevokedAt,
           ),
+          pushRevoked: Boolean(data.pushPermissionRevokedAt),
         }));
       },
       (err) => {

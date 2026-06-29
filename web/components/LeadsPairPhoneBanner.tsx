@@ -78,10 +78,14 @@ export default function LeadsPairPhoneBanner() {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-white font-semibold text-sm">
-          Your booked leads can show up warm — straight from your phone.
+          {agentProfile.pushRevoked
+            ? 'Your phone dropped off — booking alerts stopped reaching it.'
+            : 'Your booked leads can show up warm — straight from your phone.'}
         </p>
         <p className="text-white/75 text-xs mt-0.5">
-          Pair once. When a lead books, you get a tap-to-send text with their confirmation and your prep page — your intro video, client stories, a quick intake.
+          {agentProfile.pushRevoked
+            ? 'Reconnect once to get tap-to-send confirmations back — takes about a minute.'
+            : 'Pair once. When a lead books, you get a tap-to-send text with their confirmation and your prep page — your intro video, client stories, a quick intake.'}
         </p>
       </div>
       <button
@@ -89,7 +93,7 @@ export default function LeadsPairPhoneBanner() {
         onClick={() => router.push('/dashboard/pair-phone')}
         className="bg-[#3DD6C3] text-[#0D4D4D] px-4 py-2 rounded-md text-sm font-semibold whitespace-nowrap hover:bg-[#5fe0d0] transition-colors"
       >
-        Set up
+        {agentProfile.pushRevoked ? 'Reconnect' : 'Set up'}
       </button>
       <button
         type="button"

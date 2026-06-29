@@ -1514,14 +1514,16 @@ function LeadsPageInner() {
                 <button
                   type="button"
                   onClick={() => router.push('/dashboard/pair-phone')}
-                  title="Set up your phone to send booking confirmations in two taps"
+                  title={agentProfile.pushRevoked
+                    ? 'Your phone dropped off — reconnect to get booking alerts back'
+                    : 'Set up your phone to send booking confirmations in two taps'}
                   className="relative px-4 py-2.5 bg-white text-[#0D4D4D] font-semibold rounded-lg border-2 border-[#0D4D4D] border-r-[3px] border-b-[3px] transition-colors hover:bg-[#f4f9f9] flex items-center gap-2 text-sm"
                 >
                   <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#3DD6C3] animate-pulse" />
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
                   </svg>
-                  Set up phone
+                  {agentProfile.pushRevoked ? 'Reconnect phone' : 'Set up phone'}
                 </button>
               )}
             </div>
