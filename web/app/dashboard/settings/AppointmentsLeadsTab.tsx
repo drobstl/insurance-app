@@ -526,6 +526,25 @@ export default function AppointmentsLeadsTab({
           </div>
         </div>
 
+        {/* Call from your computer — links to the standalone, setup-aware
+            guide (Apple Continuity / Microsoft Phone Link). Web-only, no
+            app-store work; opens in a new tab so the agent keeps their
+            place in the dashboard. */}
+        <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+          <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Call from your computer</h3>
+          <p className="text-[11px] text-[#707070] mb-3">
+            Dial your leads straight from your computer — ringing out through your own phone and number, so more calls get answered. One quick setup; we&apos;ll show the exact steps for your device.
+          </p>
+          <a
+            href="/call-from-computer"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-block bg-[#005851] hover:bg-[#004440] text-white text-xs font-semibold rounded-[5px] px-3 py-2"
+          >
+            Set it up &rarr;
+          </a>
+        </div>
+
         {/* Lead-home videos (Chunk 3). Per-agent overrides for the
             intro / FAQ / case-study slots rendered in the mobile
             lead-home screen. */}
