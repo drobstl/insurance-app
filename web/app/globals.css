@@ -254,3 +254,30 @@ input[type="range"].slider-thumb:focus::-webkit-slider-thumb {
 .belt-enter-left  { animation: settingsBeltEnterLeft 320ms cubic-bezier(0.4, 0, 0.2, 1); }
 .belt-exit-left   { animation: settingsBeltExitLeft 320ms cubic-bezier(0.4, 0, 0.2, 1); }
 .belt-exit-right  { animation: settingsBeltExitRight 320ms cubic-bezier(0.4, 0, 0.2, 1); }
+
+/* Settings v2 prototype skin — restyles the reused section cards/headers
+   into the mock's design language (accent edge + big sentence-case titles)
+   WITHOUT editing the shared tab components. Scoped to .settings-skin, so
+   the live /dashboard/settings is completely untouched. */
+.settings-skin .bg-white.border.p-5 {
+  border-radius: 14px;
+  border-color: #ececec;
+  border-left: 3px solid #44bbaa;
+  padding: 1.25rem 1.4rem;
+}
+.settings-skin h3.uppercase {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 0.5rem;
+}
+/* The little teal "group" headers (Messages you send / Runs automatically)
+   read fine, but lift them to match. */
+.settings-skin h2.uppercase {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.95rem;
+  color: #005851;
+}
