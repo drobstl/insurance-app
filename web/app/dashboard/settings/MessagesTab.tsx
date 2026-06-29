@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef, useEffect, type RefObject } from 'react';
 import type { User } from 'firebase/auth';
 import type { AgentProfile } from '../DashboardContext';
 import { DEFAULT_DIAL_SCRIPT, SCRIPT_TOKEN_HINTS, SCRIPT_CONDITION_HINTS } from '../../../lib/dial-script';
@@ -12,7 +13,73 @@ interface MessagesTabProps {
   user: User | null;
 }
 
+function InsertChips({
+  tokens,
+  onInsert,
+  variant = 'teal',
+  label = 'Tap to insert:',
+}: {
+  tokens: Array<{ token: string; description?: string }>;
+  onInsert: (token: string) => void;
+  variant?: 'teal' | 'amber';
+  label?: string;
+}) {
+  const styles =
+    variant === 'amber'
+      ? 'bg-[#fef8ec] text-[#92400e] hover:border-[#fcd34d] hover:bg-[#fdf1d8]'
+      : 'bg-[#eef6f4] text-[#005851] hover:border-[#45bcaa] hover:bg-[#daf3f0]';
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+      <span className="text-[11px] text-[#707070] mr-0.5">{label}</span>
+      {tokens.map((t) => (
+        <button
+          key={t.token}
+          type="button"
+          title={t.description}
+          onClick={() => onInsert(t.token)}
+          className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-medium border border-transparent transition-colors cursor-pointer ${styles}`}
+        >
+          {t.token}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function MessagesTab({ agentProfile, updateField, user }: MessagesTabProps) {
+  const introRef = useRef<HTMLTextAreaElement>(null);
+  const dialRef = useRef<HTMLTextAreaElement>(null);
+  const referralRef = useRef<HTMLTextAreaElement>(null);
+  const welcomeRef = useRef<HTMLTextAreaElement>(null);
+  const annivRef = useRef<HTMLTextAreaElement>(null);
+  const pendingCaret = useRef<{ el: HTMLTextAreaElement; pos: number } | null>(null);
+
+  // After a chip inserts a token and the parent re-renders with the new
+  // value, drop the caret right after the inserted token so the agent can
+  // keep typing where they left off.
+  useEffect(() => {
+    const p = pendingCaret.current;
+    if (p) {
+      p.el.focus();
+      p.el.setSelectionRange(p.pos, p.pos);
+      pendingCaret.current = null;
+    }
+  });
+
+  function insertToken<K extends keyof AgentProfile>(
+    ref: RefObject<HTMLTextAreaElement | null>,
+    field: K,
+    current: string,
+    token: string,
+  ) {
+    const el = ref.current;
+    const start = el?.selectionStart ?? current.length;
+    const end = el?.selectionEnd ?? current.length;
+    const next = current.slice(0, start) + token + current.slice(end);
+    if (el) pendingCaret.current = { el, pos: start + token.length };
+    updateField(field, next as AgentProfile[K]);
+  }
+
   return (
     <div className="space-y-5">
       {/* AI Assistant */}
@@ -50,6 +117,7 @@ export default function MessagesTab({ agentProfile, updateField, user }: Message
         <div>
           <label className="block text-sm font-medium text-[#000000] mb-1.5">Message Template</label>
           <textarea
+            ref={introRef}
             value={agentProfile.introTextTemplate || ''}
             onChange={(e) => updateField('introTextTemplate', e.target.value)}
             placeholder={DEFAULT_INTRO_TEXT}
@@ -59,22 +127,18 @@ export default function MessagesTab({ agentProfile, updateField, user }: Message
           <p className="text-xs text-[#707070] mt-1.5">
             The optional teed-up text you can fire off to a new lead before your first call &mdash; it sends from your own phone. Leave blank to use the default shown above.
           </p>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {INTRO_TOKEN_HINTS.map((h) => (
-              <span
-                key={h.token}
-                title={h.description}
-                className="inline-flex items-center px-2 py-0.5 rounded bg-[#daf3f0] text-[#005851] text-xs font-medium"
-              >
-                {h.token}
-              </span>
-            ))}
-          </div>
-          {INTRO_CONDITION_HINTS.map((h) => (
-            <p key={h.token} className="text-[11px] text-[#707070] mt-2 leading-snug">
-              <span className="font-mono text-[#005851]">{h.token}</span> &mdash; {h.description}
-            </p>
-          ))}
+          <InsertChips
+            tokens={INTRO_TOKEN_HINTS}
+            onInsert={(t) => insertToken(introRef, 'introTextTemplate', agentProfile.introTextTemplate || '', t)}
+          />
+          {INTRO_CONDITION_HINTS.length > 0 && (
+            <InsertChips
+              tokens={INTRO_CONDITION_HINTS}
+              variant="amber"
+              label="Auto-switching blocks:"
+              onInsert={(t) => insertToken(introRef, 'introTextTemplate', agentProfile.introTextTemplate || '', t)}
+            />
+          )}
         </div>
       </div>
 
@@ -91,6 +155,7 @@ export default function MessagesTab({ agentProfile, updateField, user }: Message
             Shown on the lead page while you&apos;re on a call. Personalized per lead via tokens.
           </p>
           <textarea
+            ref={dialRef}
             value={agentProfile.dialScript ?? ''}
             onChange={(e) => updateField('dialScript', e.target.value)}
             placeholder={DEFAULT_DIAL_SCRIPT}
@@ -100,31 +165,16 @@ export default function MessagesTab({ agentProfile, updateField, user }: Message
           <p className="text-[11px] text-[#707070] mt-2">
             Leave empty to use the default. Tokens are case-insensitive.
           </p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {SCRIPT_TOKEN_HINTS.map((t) => (
-              <span
-                key={t.token}
-                title={t.description}
-                className="inline-block px-2 py-0.5 text-[10px] font-mono rounded bg-[#daf3f0]/60 text-[#005851] border border-[#45bcaa]/30 cursor-help"
-              >
-                {t.token}
-              </span>
-            ))}
-          </div>
-          <p className="text-[11px] text-[#707070] mt-3 mb-1">
-            Auto-switching blocks — show/hide based on the lead and your settings:
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {SCRIPT_CONDITION_HINTS.map((t) => (
-              <span
-                key={t.token}
-                title={t.description}
-                className="inline-block px-2 py-0.5 text-[10px] font-mono rounded bg-[#FEF3C7]/70 text-[#92400E] border border-[#FCD34D]/60 cursor-help"
-              >
-                {t.token}
-              </span>
-            ))}
-          </div>
+          <InsertChips
+            tokens={SCRIPT_TOKEN_HINTS}
+            onInsert={(t) => insertToken(dialRef, 'dialScript', agentProfile.dialScript ?? '', t)}
+          />
+          <InsertChips
+            tokens={SCRIPT_CONDITION_HINTS}
+            variant="amber"
+            label="Auto-switching blocks:"
+            onInsert={(t) => insertToken(dialRef, 'dialScript', agentProfile.dialScript ?? '', t)}
+          />
         </div>
       )}
 
@@ -132,23 +182,22 @@ export default function MessagesTab({ agentProfile, updateField, user }: Message
       <div className="bg-white rounded-[5px] border border-gray-200 p-5">
         <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Referral Message Template</h3>
         <textarea
+          ref={referralRef}
           value={agentProfile.referralMessage || ''}
           onChange={(e) => updateField('referralMessage', e.target.value)}
           placeholder="Hey [referral], wanted to connect you with my insurance agent [agent]. They just got my family's finances protected and I thought they might be able to help you too. They'll probably reach out — super easy to talk to."
           rows={4}
           className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa] resize-none"
         />
-        <div className="flex flex-wrap gap-2 mt-2">
-          {['[referral]', '[agent]', '[client]'].map((tag) => (
-            <span
-              key={tag}
-              className="inline-flex items-center px-2 py-0.5 rounded bg-[#daf3f0] text-[#005851] text-xs font-medium"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
-        <p className="text-xs text-[#707070] mt-1.5">Unless you change it, this is the default message clients send when they refer someone. Use the placeholders above; they&rsquo;re replaced with real names when sent.</p>
+        <InsertChips
+          tokens={[
+            { token: '[referral]', description: 'The person being referred' },
+            { token: '[agent]', description: 'Your name' },
+            { token: '[client]', description: 'The client sending it' },
+          ]}
+          onInsert={(t) => insertToken(referralRef, 'referralMessage', agentProfile.referralMessage || '', t)}
+        />
+        <p className="text-xs text-[#707070] mt-1.5">Unless you change it, this is the default message clients send when they refer someone. The placeholders are replaced with real names when sent.</p>
       </div>
 
       {/* Client Welcome Text */}
@@ -158,6 +207,7 @@ export default function MessagesTab({ agentProfile, updateField, user }: Message
           <div>
             <label className="block text-sm font-medium text-[#000000] mb-1.5">Message Template</label>
             <textarea
+              ref={welcomeRef}
               value={agentProfile.welcomeSmsTemplate || ''}
               onChange={(e) => updateField('welcomeSmsTemplate', e.target.value)}
               placeholder={"Hey {{firstName}}! {{agentName}} here — let's get you set up (takes a minute):\n\n1. Download the app: https://agentforlife.app/app\n2. Open it and enter your code: {{code}}\n3. Tap Allow on notifications so I can reach you with important updates\n4. Tap Activate, then Send — I'll text you right back\n\nThat's it! Your app's already personalized for you. 👍"}
@@ -168,16 +218,14 @@ export default function MessagesTab({ agentProfile, updateField, user }: Message
               Used for client welcome texts when you add a client (including single-PDF create).
               Leave blank to use the default message.
             </p>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {['{{firstName}}', '{{code}}', '{{agentName}}'].map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex items-center px-2 py-0.5 rounded bg-[#daf3f0] text-[#005851] text-xs font-medium"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
+            <InsertChips
+              tokens={[
+                { token: '{{firstName}}', description: 'Client first name' },
+                { token: '{{code}}', description: 'Their app login code' },
+                { token: '{{agentName}}', description: 'Your name' },
+              ]}
+              onInsert={(t) => insertToken(welcomeRef, 'welcomeSmsTemplate', agentProfile.welcomeSmsTemplate || '', t)}
+            />
           </div>
         </div>
       </div>
@@ -275,24 +323,25 @@ export default function MessagesTab({ agentProfile, updateField, user }: Message
             <div>
               <label className="block text-xs font-medium text-[#000000] mb-1">Message Template</label>
               <textarea
+                ref={annivRef}
                 value={agentProfile.anniversaryMessageCustom || ''}
                 onChange={(e) => updateField('anniversaryMessageCustom', e.target.value)}
                 placeholder={`Hi {{firstName}}, your {{policyLabel}} anniversary is coming up. I'd love to check in and make sure everything still fits. — {{agentName}}`}
                 rows={4}
                 className="w-full px-3 py-2 border border-gray-200 rounded-[5px] text-sm text-[#000000] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#44bbaa] focus:border-transparent resize-y"
               />
+              <InsertChips
+                tokens={[
+                  { token: '{{firstName}}', description: 'Client first name' },
+                  { token: '{{policyLabel}}', description: 'Policy description' },
+                  { token: '{{agentName}}', description: 'Your name' },
+                  { token: '{{schedulingNote}}', description: 'Scheduling link' },
+                ]}
+                onInsert={(t) => insertToken(annivRef, 'anniversaryMessageCustom', agentProfile.anniversaryMessageCustom || '', t)}
+              />
               {agentProfile.anniversaryMessageStyle === 'custom' && !agentProfile.anniversaryMessageCustom?.trim() && (
                 <p className="text-xs text-amber-600 mt-1">Please enter a message template before saving.</p>
               )}
-            </div>
-            <div className="bg-[#f8fafb] rounded-[5px] p-3 border border-gray-100">
-              <p className="text-xs font-medium text-[#005851] mb-1.5">Available Placeholders</p>
-              <div className="grid grid-cols-2 gap-1.5 text-xs text-[#707070]">
-                <span><code className="bg-white px-1 py-0.5 rounded border border-gray-200 text-[#005851]">{`{{firstName}}`}</code> Client first name</span>
-                <span><code className="bg-white px-1 py-0.5 rounded border border-gray-200 text-[#005851]">{`{{policyLabel}}`}</code> Policy description</span>
-                <span><code className="bg-white px-1 py-0.5 rounded border border-gray-200 text-[#005851]">{`{{agentName}}`}</code> Your name</span>
-                <span><code className="bg-white px-1 py-0.5 rounded border border-gray-200 text-[#005851]">{`{{schedulingNote}}`}</code> Scheduling link</span>
-              </div>
             </div>
           </div>
         )}
