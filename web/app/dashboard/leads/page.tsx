@@ -33,9 +33,12 @@ import type { LeadScore } from '../../../lib/lead-assessment';
 import { LeadTempChip } from '../../../components/LeadTempChip';
 import { LeadTagChips } from '../../../components/LeadTagChips';
 import { LeadFilterBar } from '../../../components/LeadFilterBar';
-import { type LeadFilters, EMPTY_LEAD_FILTERS, hasActiveFilters } from '../../../lib/lead-filters';
+import SavedLeadsBar from '../../../components/SavedLeadsBar';
+import { type LeadFilters, EMPTY_LEAD_FILTERS, hasActiveFilters, coerceLeadFilters } from '../../../lib/lead-filters';
+import { type SavedLeadSegment } from '../../../lib/lead-segment';
 import { resolveLeadTags } from '../../../lib/lead-tag';
 import { isFollowUpDue, followUpMillis, followUpChip } from '../../../lib/lead-follow-up';
+import { isUsStateCode, US_STATE_NAMES } from '../../../lib/us-states';
 import { parseLeadFile } from '../../../lib/lead-csv-parse';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
@@ -52,6 +55,8 @@ interface Lead {
   // detail page handles those.
   address?: { street?: string; city?: string; state?: string; zip?: string };
   email?: string;
+  // Lead's age in years, populated by the PDF extractor on import. Sortable.
+  ageYears?: number;
   createdAt?: Timestamp | null;
   appDownloadedAt?: string | null;
   assessmentCompletedAt?: Timestamp | null;
@@ -76,7 +81,7 @@ interface Lead {
 }
 
 type LeadView = 'all' | 'queue' | 'calendar';
-type LeadSortKey = 'name' | 'createdAt' | 'source' | 'priority' | 'state' | 'temperature' | 'lastContacted' | 'followUpAt';
+type LeadSortKey = 'name' | 'createdAt' | 'source' | 'priority' | 'state' | 'temperature' | 'lastContacted' | 'followUpAt' | 'ageYears' | 'appDownloadedAt' | 'assessmentCompletedAt';
 type SortDir = 'asc' | 'desc';
 
 // Multi-page lead-form bundles route to the off-Vercel batch engine
@@ -205,7 +210,7 @@ export default function LeadsPage() {
 function LeadsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, agentProfile, isAdmin } = useDashboard();
+  const { user, agentProfile, isAdmin, saveLeadSegment, deleteLeadSegment } = useDashboard();
 
   // Right-pane selection (desktop call-queue view only). The URL param
   // is the source of truth so refresh + back/forward + shareable links
@@ -972,23 +977,33 @@ function LeadsPageInner() {
       result = result.filter((lead) => isFollowUpDue(lead.followUpAt));
     }
 
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
+    // Multi-word AND: every whitespace-separated term must match SOME field
+    // (so "texas hot" = leads in TX that are also hot). The 2-letter state
+    // code is expanded to its full name (TX → "Texas") so a typed-out state
+    // matches, and temperature ('hot'/'warm'/'cool') is searchable.
+    const terms = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (terms.length) {
       const tagDefs = agentProfile.leadTags ?? [];
       result = result.filter((lead) => {
-        const fields = [
+        const stateCode = (lead.address?.state ?? '').toUpperCase();
+        const stateName = isUsStateCode(stateCode) ? US_STATE_NAMES[stateCode] : '';
+        const haystack = [
           lead.name,
           lead.phone,
           lead.leadCode,
           lead.formType,
           lead.email,
           lead.address?.state,
+          stateName,
           lead.address?.city,
           lead.notes,
-        ];
-        if (fields.some((f) => typeof f === 'string' && f.toLowerCase().includes(q))) return true;
-        if ((lead.notesEntries ?? []).some((e) => (e.text ?? '').toLowerCase().includes(q))) return true;
-        return resolveLeadTags(lead.tagIds, tagDefs).some((t) => t.label.toLowerCase().includes(q));
+          lead.leadScore?.temperature,
+          ...(lead.notesEntries ?? []).map((e) => e.text),
+          ...resolveLeadTags(lead.tagIds, tagDefs).map((t) => t.label),
+        ]
+          .filter((f): f is string => typeof f === 'string')
+          .map((f) => f.toLowerCase());
+        return terms.every((term) => haystack.some((f) => f.includes(term)));
       });
     }
 
@@ -1014,6 +1029,18 @@ function LeadsPageInner() {
         const aT = followUpMillis(a.followUpAt) ?? Number.POSITIVE_INFINITY;
         const bT = followUpMillis(b.followUpAt) ?? Number.POSITIVE_INFINITY;
         cmp = aT - bT;
+      } else if (sortKey === 'ageYears') {
+        const aA = a.ageYears ?? Number.NEGATIVE_INFINITY;
+        const bA = b.ageYears ?? Number.NEGATIVE_INFINITY;
+        cmp = aA - bA;
+      } else if (sortKey === 'appDownloadedAt') {
+        const aT = a.appDownloadedAt ? Date.parse(a.appDownloadedAt) : 0;
+        const bT = b.appDownloadedAt ? Date.parse(b.appDownloadedAt) : 0;
+        cmp = aT - bT;
+      } else if (sortKey === 'assessmentCompletedAt') {
+        const aT = a.assessmentCompletedAt?.toDate().getTime() ?? 0;
+        const bT = b.assessmentCompletedAt?.toDate().getTime() ?? 0;
+        cmp = aT - bT;
       }
       return sortDir === 'asc' ? cmp : -cmp;
     });
@@ -1032,6 +1059,30 @@ function LeadsPageInner() {
       return key;
     });
   }, []);
+
+  // ── Saved lists ("segments") ──
+  // Apply re-applies a saved snapshot to the All-leads view in one shot.
+  // coerceLeadFilters defends against a stale/malformed stored filter.
+  const applySegment = useCallback((seg: SavedLeadSegment) => {
+    setFilters(coerceLeadFilters(seg.filters));
+    setSearchQuery(seg.searchQuery);
+    setSortKey(seg.sortKey as LeadSortKey);
+    setSortDir(seg.sortDir);
+  }, []);
+
+  const handleSaveSegment = useCallback(
+    (name: string) =>
+      saveLeadSegment({ name, filters, searchQuery, sortKey, sortDir }),
+    [saveLeadSegment, filters, searchQuery, sortKey, sortDir],
+  );
+
+  // Worth saving only when the view differs from the default (some search,
+  // some active filter, or a non-default sort — but not the Call-next preview).
+  const canSaveSegment =
+    !!searchQuery.trim() ||
+    hasActiveFilters(filters) ||
+    (sortKey !== 'createdAt' && sortKey !== 'priority') ||
+    (sortKey === 'createdAt' && sortDir !== 'desc');
 
   // Per-lead dial-session counter. Drives the dial-persistence setting
   // (1/2/3 attempts before auto-advance). Incremented every time the
@@ -1764,6 +1815,9 @@ function LeadsPageInner() {
                     <option value="temperature">Temperature</option>
                     <option value="lastContacted">Last contacted</option>
                     <option value="followUpAt">Follow-up date</option>
+                    <option value="ageYears">Lead age</option>
+                    <option value="appDownloadedAt">App downloaded</option>
+                    <option value="assessmentCompletedAt">Assessment completed</option>
                   </select>
                   <button
                     type="button"
@@ -1775,6 +1829,14 @@ function LeadsPageInner() {
                     {sortDir === 'asc' ? '↑' : '↓'}
                   </button>
                 </div>
+                <SavedLeadsBar
+                  segments={agentProfile.savedLeadSegments ?? []}
+                  current={{ filters, searchQuery, sortKey, sortDir }}
+                  canSave={canSaveSegment}
+                  onApply={applySegment}
+                  onSave={handleSaveSegment}
+                  onDelete={deleteLeadSegment}
+                />
               </div>
             )}
           </div>
