@@ -24,12 +24,12 @@ import AccountTab from './AccountTab';
 
 type Tab = 'you' | 'appointments' | 'leads' | 'messages' | 'account';
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'you', label: 'You' },
-  { key: 'appointments', label: 'Appointments' },
-  { key: 'leads', label: 'Leads & dialer' },
-  { key: 'messages', label: 'Messages & automation' },
-  { key: 'account', label: 'Account' },
+const TABS: { key: Tab; label: string; subtitle: string }[] = [
+  { key: 'you', label: 'You', subtitle: 'Who you are and how you show up' },
+  { key: 'appointments', label: 'Appointments', subtitle: 'How you book, confirm, and remind' },
+  { key: 'leads', label: 'Leads & dialer', subtitle: 'Your scripts, dialing, and lead-home videos' },
+  { key: 'messages', label: 'Messages & automation', subtitle: 'What goes out, and what runs on its own' },
+  { key: 'account', label: 'Account', subtitle: 'Billing, login, and connections' },
 ];
 
 // Old tab keys still arrive from deep links (onboarding, GetStartedHome,
@@ -59,6 +59,17 @@ export default function SettingsPage() {
       setActiveTab(resolved);
     }
   }, [searchParams]);
+
+  // Tab-switch motion: the content slides in from the side you moved toward
+  // along the bar, so flipping tabs reads like a conveyor. Direction is
+  // computed against the previous tab's index before the effect updates it.
+  const activeTabIndex = TABS.findIndex((t) => t.key === activeTab);
+  const prevTabIndexRef = useRef(activeTabIndex);
+  const slideDirection = activeTabIndex >= prevTabIndexRef.current ? 'right' : 'left';
+  useEffect(() => {
+    prevTabIndexRef.current = activeTabIndex;
+  }, [activeTabIndex]);
+  const activeSubtitle = TABS[activeTabIndex]?.subtitle ?? '';
 
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<SaveMessage>(null);
@@ -689,7 +700,11 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      <div className="bg-[#f6f7f8] p-4 sm:p-5">
+      <div className="bg-[#f6f7f8] p-4 sm:p-5 overflow-hidden">
+      <div key={activeTab} className={slideDirection === 'right' ? 'settings-slide-right' : 'settings-slide-left'}>
+      {activeSubtitle && (
+        <p className="text-sm text-[#707070] mb-4 -mt-0.5">{activeSubtitle}</p>
+      )}
       {activeTab === 'you' && (
         <div className="space-y-5">
           <ProfileTab
@@ -776,6 +791,7 @@ export default function SettingsPage() {
           onDisconnectCalendar={handleGoogleCalendarDisconnect}
         />
       )}
+      </div>
       </div>
       </div>
 
