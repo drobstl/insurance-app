@@ -34,6 +34,14 @@ const EXPO_PUSH_ENDPOINT = 'https://exp.host/--/api/v2/push/send';
 export const PUSH_PERMISSION_REVOKED_FIELD = 'pushPermissionRevokedAt' as const;
 
 /**
+ * Firestore field stamped when we email an AGENT that their own device push
+ * token went dead, so the "reconnect your phone" alert fires at most once per
+ * drop. Cleared on a successful re-registration (see agent-push-token/register)
+ * so a later drop re-alerts. Only meaningful on agent docs.
+ */
+export const PHONE_RECONNECT_ALERT_FIELD = 'phoneReconnectAlertSentAt' as const;
+
+/**
  * Expo push receipt error codes that mean the token is permanently dead and
  * must be invalidated. Kept conservative on purpose — we only invalidate on
  * codes Expo explicitly tells us to "stop sending messages to the
