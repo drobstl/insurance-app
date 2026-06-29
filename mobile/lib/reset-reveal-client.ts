@@ -1,4 +1,5 @@
 import { API_BASE } from './api-base';
+import type { ResetProductId } from './reset-products';
 
 /** Mirrors the server's ResetRevealData (web/lib/reset-reveal.ts). */
 export interface ResetRevealData {
@@ -9,6 +10,9 @@ export interface ResetRevealData {
   monthlyPayment: number | null;
   hasRealNumbers: boolean;
   schedulingUrl: string;
+  /** Which of the five reset doors to show. Optional for back-compat with an
+   *  older server payload — defaults to the DFL/mortgage story when absent. */
+  product?: ResetProductId;
 }
 
 export type ResetRevealEvent = 'shown' | 'dismissed' | 'engaged';
