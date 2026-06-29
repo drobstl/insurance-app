@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 
 /**
  * ComputerCallingSetup — setup-aware guide for dialing leads from a
@@ -39,9 +39,12 @@ function detectOS(): OS {
   return 'other';
 }
 
-const OS_LABEL: Record<OS, string> = { mac: 'Mac', win: 'Windows', other: 'Other' };
+// Read the detected OS via useSyncExternalStore so SSR renders nothing
+// selected (server snapshot = null) and the client swaps in the real value
+// after hydration — no setState-in-effect, no hydration mismatch.
+const NOOP_SUBSCRIBE = () => () => {};
 
-const TEAL = '#0D4D4D';
+const OS_LABEL: Record<OS, string> = { mac: 'Mac', win: 'Windows', other: 'Other' };
 
 function LaptopIcon({ className }: { className?: string }) {
   return (
@@ -160,29 +163,14 @@ function Em({ children }: { children: React.ReactNode }) {
   return <span className="font-medium text-gray-900">{children}</span>;
 }
 
-export default function ComputerCallingSetup() {
-  // `os` stays null on the server + first client paint so SSR and hydration
-  // agree; the effect fills in the detected value right after mount.
-  const [os, setOs] = useState<OS | null>(null);
-  const [detected, setDetected] = useState<OS | null>(null);
-  const [phone, setPhone] = useState<Phone | null>(null);
+// The "prove it works" test call. Its own component, keyed by the setup in
+// the parent, so switching the computer/phone remounts it with fresh state
+// (no reset effect needed). Only rendered for combos that actually bridge.
+function TestCall({ os }: { os: OS }) {
   const [stage, setStage] = useState<TestStage>('input');
   const [num, setNum] = useState('');
   const [hint, setHint] = useState(false);
 
-  useEffect(() => {
-    const d = detectOS();
-    setDetected(d);
-    setOs(d);
-  }, []);
-
-  // Any change to the setup resets the test loop + its hint.
-  useEffect(() => {
-    setStage('input');
-    setHint(false);
-  }, [os, phone]);
-
-  const working = (os === 'mac' && phone === 'iphone') || (os === 'win' && phone === 'android');
   const digits = num.replace(/\D/g, '');
   const canCall = digits.length >= 7;
 
@@ -196,6 +184,96 @@ export default function ComputerCallingSetup() {
     window.location.href = `tel:${digits}`;
     setStage('confirm');
   };
+
+  return (
+    <div className="mt-4 rounded-lg bg-[#F8F9FA] p-4">
+      <div className="mb-2.5 flex items-center gap-1.5 text-sm font-medium text-gray-900">
+        <PhoneCheckIcon className="h-4 w-4 text-[#0D4D4D]" /> Prove it works — ring your own phone
+      </div>
+      {stage === 'input' && (
+        <div>
+          <div className="flex gap-2">
+            <input
+              type="tel"
+              inputMode="tel"
+              value={num}
+              onChange={(e) => {
+                setNum(e.target.value);
+                setHint(false);
+              }}
+              placeholder="(415) 555-0172"
+              aria-label="Your phone number"
+              className="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-[#0D4D4D] focus:outline-none focus:ring-1 focus:ring-[#0D4D4D]"
+            />
+            <button
+              type="button"
+              onClick={handleTestCall}
+              className="whitespace-nowrap rounded-lg bg-[#0D4D4D] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0a3d3d]"
+            >
+              Call my phone
+            </button>
+          </div>
+          {hint && <p className="mt-2 text-xs text-gray-500">Enter your phone number first.</p>}
+        </div>
+      )}
+      {stage === 'confirm' && (
+        <div>
+          <p className="mb-2.5 text-sm text-gray-700">
+            Calling <Em>{num || 'your phone'}</Em> … did your phone start ringing?
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setStage('works')}
+              className="rounded-lg bg-[#0D4D4D] px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0a3d3d]"
+            >
+              Yes, it rang
+            </button>
+            <button
+              type="button"
+              onClick={() => setStage('nope')}
+              className="rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-gray-300"
+            >
+              No, nothing
+            </button>
+          </div>
+        </div>
+      )}
+      {stage === 'works' && (
+        <div className="flex items-center gap-2 text-sm font-medium text-emerald-700">
+          <CheckCircleIcon className="h-5 w-5" /> You&rsquo;re set. Your lead calls will ring out through your phone.
+        </div>
+      )}
+      {stage === 'nope' && (
+        <div>
+          <p className="mb-1.5 text-sm text-gray-600">No ring usually means one thing&rsquo;s off:</p>
+          <ul className="mb-2.5 list-disc pl-5 text-sm leading-relaxed text-gray-600">
+            <li>{os === 'mac' ? 'same Apple Account and Wi-Fi on both' : 'Bluetooth paired to your PC'}</li>
+            <li>the calls toggle is switched on</li>
+          </ul>
+          <button
+            type="button"
+            onClick={() => setStage('input')}
+            className="rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-gray-300"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function ComputerCallingSetup() {
+  // `detected` is null on the server + first client paint (so SSR/hydration
+  // agree), then the client snapshot fills in the real OS. `override` lets
+  // the agent correct it; the effective OS is the override when set.
+  const detected = useSyncExternalStore<OS | null>(NOOP_SUBSCRIBE, detectOS, () => null);
+  const [override, setOverride] = useState<OS | null>(null);
+  const os = override ?? detected;
+  const [phone, setPhone] = useState<Phone | null>(null);
+
+  const working = (os === 'mac' && phone === 'iphone') || (os === 'win' && phone === 'android');
 
   let path: React.ReactNode;
   if (!phone) {
@@ -299,7 +377,7 @@ export default function ComputerCallingSetup() {
           <Segmented
             ariaLabel="Your computer"
             value={os}
-            onChange={setOs}
+            onChange={setOverride}
             options={[
               { val: 'mac', label: 'Mac' },
               { val: 'win', label: 'Windows' },
@@ -326,83 +404,7 @@ export default function ComputerCallingSetup() {
 
       {path}
 
-      {working && (
-        <div className="mt-4 rounded-lg bg-[#F8F9FA] p-4">
-          <div className="mb-2.5 flex items-center gap-1.5 text-sm font-medium text-gray-900">
-            <PhoneCheckIcon className="h-4 w-4 text-[#0D4D4D]" /> Prove it works — ring your own phone
-          </div>
-          {stage === 'input' && (
-            <div>
-              <div className="flex gap-2">
-                <input
-                  type="tel"
-                  inputMode="tel"
-                  value={num}
-                  onChange={(e) => {
-                    setNum(e.target.value);
-                    setHint(false);
-                  }}
-                  placeholder="(415) 555-0172"
-                  aria-label="Your phone number"
-                  className="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-[#0D4D4D] focus:outline-none focus:ring-1 focus:ring-[#0D4D4D]"
-                />
-                <button
-                  type="button"
-                  onClick={handleTestCall}
-                  className="whitespace-nowrap rounded-lg bg-[#0D4D4D] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0a3d3d]"
-                >
-                  Call my phone
-                </button>
-              </div>
-              {hint && <p className="mt-2 text-xs text-gray-500">Enter your phone number first.</p>}
-            </div>
-          )}
-          {stage === 'confirm' && (
-            <div>
-              <p className="mb-2.5 text-sm text-gray-700">
-                Calling <Em>{num || 'your phone'}</Em> … did your phone start ringing?
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStage('works')}
-                  className="rounded-lg bg-[#0D4D4D] px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0a3d3d]"
-                >
-                  Yes, it rang
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStage('nope')}
-                  className="rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-gray-300"
-                >
-                  No, nothing
-                </button>
-              </div>
-            </div>
-          )}
-          {stage === 'works' && (
-            <div className="flex items-center gap-2 text-sm font-medium text-emerald-700">
-              <CheckCircleIcon className="h-5 w-5" /> You&rsquo;re set. Your lead calls will ring out through your phone.
-            </div>
-          )}
-          {stage === 'nope' && (
-            <div>
-              <p className="mb-1.5 text-sm text-gray-600">No ring usually means one thing&rsquo;s off:</p>
-              <ul className="mb-2.5 list-disc pl-5 text-sm leading-relaxed text-gray-600">
-                <li>{os === 'mac' ? 'same Apple Account and Wi-Fi on both' : 'Bluetooth paired to your PC'}</li>
-                <li>the calls toggle is switched on</li>
-              </ul>
-              <button
-                type="button"
-                onClick={() => setStage('input')}
-                className="rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-gray-300"
-              >
-                Try again
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+      {working && os && <TestCall key={`${os}-${phone}`} os={os} />}
 
       <div className="mt-5 flex gap-2 border-t border-gray-100 pt-4">
         <InfoIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-400" />
