@@ -87,11 +87,6 @@ export default function MessagesTab({ agentProfile, updateField, user, view }: M
     <div className="space-y-5">
       {view === 'dialer' && (
       <>
-      <div className="pt-1">
-        <h2 className="text-[13px] font-bold uppercase tracking-wider text-[#005851]">Lead outreach</h2>
-        <p className="text-xs text-[#707070] mt-0.5">Texts and scripts for working new leads.</p>
-      </div>
-
       {/* Lead Intro Text */}
       <div className="bg-white rounded-[5px] border border-gray-200 p-5">
         <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Lead Intro Text</h3>
