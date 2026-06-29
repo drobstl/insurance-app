@@ -24,11 +24,13 @@ function RecordButton({
   heading,
   filenameBase,
   disabled,
+  label = 'Record a video now',
 }: {
   onRecorded: (file: File) => void;
   heading: string;
   filenameBase: string;
   disabled?: boolean;
+  label?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -40,7 +42,7 @@ function RecordButton({
         className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-[5px] border border-[#005851] text-[#005851] hover:bg-[#005851]/5 disabled:opacity-50 disabled:cursor-default whitespace-nowrap"
       >
         <span className="h-2 w-2 rounded-full bg-red-500" />
-        Record
+        {label}
       </button>
       <RecordVideoModal
         open={open}
@@ -119,13 +121,13 @@ function LeadVideoList({
           );
         })}
       </ul>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <input
           type="text"
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
           placeholder={kind === 'faq' ? 'e.g. Is this a sales pitch?' : 'e.g. How a real client handled this'}
-          className="flex-1 px-3 py-2 bg-white border border-[#d0d0d0] rounded-[5px] text-xs focus:outline-none focus:border-[#45bcaa]"
+          className="flex-1 min-w-[180px] px-3 py-2 bg-white border border-[#d0d0d0] rounded-[5px] text-xs focus:outline-none focus:border-[#45bcaa]"
         />
         <label className={addingProgress !== null ? 'pointer-events-none' : ''}>
           <input
@@ -146,9 +148,10 @@ function LeadVideoList({
               ? 'bg-gray-200 text-gray-500 cursor-default'
               : 'bg-[#005851] hover:bg-[#004440] text-white'
           }`}>
-            {addingProgress !== null ? `Uploading… ${addingProgress}%` : '+ Add'}
+            {addingProgress !== null ? `Uploading… ${addingProgress}%` : 'Upload a saved video'}
           </span>
         </label>
+        <span className="text-xs text-[#707070]">or</span>
         <RecordButton
           disabled={addingProgress !== null}
           heading={kind === 'faq' ? 'Record an FAQ video' : 'Record a case-study video'}
@@ -658,7 +661,7 @@ export default function AppointmentsLeadsTab({
               maxLength={120}
               className="w-full px-3 py-2 text-sm border border-[#d0d0d0] rounded-[5px] focus:outline-none focus:border-[#45bcaa] mb-2"
             />
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex flex-wrap items-center gap-2 mt-1">
               <label className="inline-block">
                 <input
                   type="file"
@@ -679,9 +682,10 @@ export default function AppointmentsLeadsTab({
                 }`}>
                   {leadVideoBusy === 'intro'
                     ? `Uploading… ${leadVideoProgress.intro ?? 0}%`
-                    : (agentProfile.leadContent?.intro?.url ? 'Replace' : 'Upload intro video')}
+                    : (agentProfile.leadContent?.intro?.url ? 'Replace saved video' : 'Upload a saved video')}
                 </span>
               </label>
+              <span className="text-xs text-[#707070]">or</span>
               <RecordButton
                 disabled={leadVideoBusy === 'intro'}
                 heading="Record your intro video"
@@ -708,7 +712,7 @@ export default function AppointmentsLeadsTab({
                       className="mt-0.5 disabled:opacity-40"
                     />
                     <span className="text-sm text-[#374151] leading-snug">
-                      Include my app link + the lead&apos;s login code in booking confirmations
+                      Include AgentForLife app link automatically when sending booking confirmations
                       <span className={`block text-[11px] mt-0.5 ${hasIntro ? 'text-[#707070]' : 'text-amber-700'}`}>
                         {hasIntro
                           ? 'Booked leads get a one-tap link to your branded prep page — your intro video plus a couple of quick questions — before you ever meet.'
