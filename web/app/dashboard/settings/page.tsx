@@ -22,12 +22,13 @@ import MessagesTab from './MessagesTab';
 import AppointmentsLeadsTab from './AppointmentsLeadsTab';
 import AccountTab from './AccountTab';
 
-type Tab = 'you' | 'messages' | 'appointments-leads' | 'account';
+type Tab = 'you' | 'appointments' | 'leads' | 'messages' | 'account';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'you', label: 'You' },
-  { key: 'messages', label: 'Messages' },
-  { key: 'appointments-leads', label: 'Appointments & Leads' },
+  { key: 'appointments', label: 'Appointments' },
+  { key: 'leads', label: 'Leads & dialer' },
+  { key: 'messages', label: 'Messages & automation' },
   { key: 'account', label: 'Account' },
 ];
 
@@ -36,6 +37,7 @@ const TABS: { key: Tab; label: string }[] = [
 const TAB_ALIASES: Record<string, Tab> = {
   profile: 'you',
   branding: 'you',
+  'appointments-leads': 'appointments',
 };
 
 export default function SettingsPage() {
@@ -585,13 +587,13 @@ export default function SettingsPage() {
 
   // Deep link: the live-call dial-script popup links to
   // /dashboard/settings#dial-script ("Edit script in Settings"). The
-  // dial-script card lives on the Messages tab, so once the profile has
-  // loaded, switch to that tab and scroll the card into view.
+  // dial-script card lives on the Leads & dialer tab, so once the profile
+  // has loaded, switch to that tab and scroll the card into view.
   useEffect(() => {
     if (loading) return;
     if (typeof window === 'undefined') return;
     if (window.location.hash !== '#dial-script') return;
-    setActiveTab('messages');
+    setActiveTab('leads');
     const t = window.setTimeout(() => {
       document.getElementById('dial-script')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 120);
@@ -708,22 +710,44 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {activeTab === 'messages' && (
-        <MessagesTab
-          agentProfile={agentProfile}
-          updateField={updateField}
-          user={user}
-        />
-      )}
-
-      {activeTab === 'appointments-leads' && (
+      {activeTab === 'appointments' && (
         <AppointmentsLeadsTab
+          view="appointments"
           agentProfile={agentProfile}
           updateField={updateField}
           user={user}
           setAgentProfile={setAgentProfile}
           setSaveMessage={setSaveMessage}
           googleCalendarStatus={googleCalendarStatus}
+        />
+      )}
+
+      {activeTab === 'leads' && (
+        <div className="space-y-5">
+          <MessagesTab
+            view="dialer"
+            agentProfile={agentProfile}
+            updateField={updateField}
+            user={user}
+          />
+          <AppointmentsLeadsTab
+            view="leads"
+            agentProfile={agentProfile}
+            updateField={updateField}
+            user={user}
+            setAgentProfile={setAgentProfile}
+            setSaveMessage={setSaveMessage}
+            googleCalendarStatus={googleCalendarStatus}
+          />
+        </div>
+      )}
+
+      {activeTab === 'messages' && (
+        <MessagesTab
+          view="messages"
+          agentProfile={agentProfile}
+          updateField={updateField}
+          user={user}
         />
       )}
 
