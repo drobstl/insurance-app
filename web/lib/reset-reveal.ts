@@ -8,6 +8,8 @@
 // illustrations and belong to the licensed specialist, not an auto-played
 // card. The reveal copy frames the upside conceptually around these facts.
 
+import { matchResetProduct, type ResetProductId } from './reset-products';
+
 /** Cadence fields stamped on the client doc — keep the reveal an event, not a nag. */
 export const RESET_REVEAL_SHOWN_AT = 'resetRevealShownAt';
 export const RESET_REVEAL_DISMISSED_AT = 'resetRevealDismissedAt';
@@ -27,6 +29,12 @@ export interface ResetRevealData {
   hasRealNumbers: boolean;
   /** Specialist calendar, else the agent's own calendar, else '' (agent follows up). */
   schedulingUrl: string;
+  /**
+   * Which of the five reset doors to show this client (DFL / Annuity / QFA /
+   * IUL / IBC). Agent-facing id only — the app maps it to client-facing copy +
+   * a concept visual. Booking is a single intake, so this just picks the story.
+   */
+  product: ResetProductId;
 }
 
 export type ResetRevealDecision =
@@ -124,6 +132,7 @@ export function buildResetRevealDecision(
       monthlyPayment,
       hasRealNumbers: mortgageBalance != null,
       schedulingUrl: resolveResetSchedulingUrl(agentData),
+      product: matchResetProduct(clientData).product,
     },
   };
 }
