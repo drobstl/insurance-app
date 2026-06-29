@@ -25,9 +25,18 @@ const TUS_ENDPOINT = 'https://video.bunnycdn.com/tusupload';
 const TUS_AUTH_TTL_SECONDS = 60 * 60 * 24; // 24 h — gives plenty of resume window for a paused upload.
 
 function getConfig() {
-  const libraryId = process.env.BUNNY_STREAM_LIBRARY_ID;
-  const apiKey = process.env.BUNNY_STREAM_API_KEY;
-  const cdnHostname = process.env.BUNNY_STREAM_CDN_HOSTNAME;
+  // .trim() every value: a trailing newline pasted into the Vercel env
+  // (a known hazard in this project — it silently killed PostHog for
+  // months, fixed the same way in #143) breaks the TUS upload in a
+  // particularly sneaky way. Bunny TRIMS the AccessKey request header,
+  // so createVideo still returns 200; but the TUS AuthorizationSignature
+  // is sha256(libraryId + apiKey + expire + videoId), and a stray
+  // newline inside that hashed string makes the signature mismatch
+  // Bunny's server-side hash → every upload 401s on creation. Trimming
+  // here makes the whole pipeline immune regardless of what's in Vercel.
+  const libraryId = process.env.BUNNY_STREAM_LIBRARY_ID?.trim();
+  const apiKey = process.env.BUNNY_STREAM_API_KEY?.trim();
+  const cdnHostname = process.env.BUNNY_STREAM_CDN_HOSTNAME?.trim();
   if (!libraryId || !apiKey || !cdnHostname) {
     throw new Error(
       'Bunny Stream is not configured: set BUNNY_STREAM_LIBRARY_ID, BUNNY_STREAM_API_KEY, BUNNY_STREAM_CDN_HOSTNAME.',
