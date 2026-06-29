@@ -10,16 +10,18 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 
-// DFL concept visual — the interest split. A tall "to the bank" column melts
-// down while "back to you" rises to take its place. Concept only: no figures,
-// no payoff date — just the shape of the trade.
+// DFL concept visual — the interest split, told in dollar signs. The tall "to
+// the bank" column drops and its $ squeeze down small; "back to you" rises and
+// fills with full-size $. Concept only: $ are a money glyph, never an amount —
+// no figures, no payoff date.
 
 const CANVAS_W = 300;
 const CANVAS_H = 184;
 const BAR_W = 66;
 const MAX_BAR = 116;
-const BASE_Y = 150; // baseline the bars sit on
+const BASE_Y = 150;
 const MINT = '#3DD6C3';
+const DOLLARS = [0, 1, 2, 3, 4];
 
 export interface ResetVisualProps {
   playKey?: number | string;
@@ -42,12 +44,12 @@ export default function ResetMortgageMelt({ playKey }: ResetVisualProps) {
     );
   }, [playKey, t, pop]);
 
-  const bankStyle = useAnimatedStyle(() => ({
-    height: interpolate(t.value, [0, 1], [0.92, 0.22]) * MAX_BAR,
-  }));
-  const youStyle = useAnimatedStyle(() => ({
-    height: interpolate(t.value, [0, 1], [0.22, 0.92]) * MAX_BAR + pop.value * 6,
-  }));
+  // Bar heights — the bank melts down, you rise up.
+  const bankFillStyle = useAnimatedStyle(() => ({ height: interpolate(t.value, [0, 1], [0.9, 0.24]) * MAX_BAR }));
+  const youFillStyle = useAnimatedStyle(() => ({ height: interpolate(t.value, [0, 1], [0.24, 0.9]) * MAX_BAR + pop.value * 6 }));
+  // The $ scale with their bar: squeezed small when low, full size when high.
+  const bankDollarStyle = useAnimatedStyle(() => ({ transform: [{ scale: interpolate(t.value, [0, 1], [1, 0.45]) }] }));
+  const youDollarStyle = useAnimatedStyle(() => ({ transform: [{ scale: interpolate(t.value, [0, 1], [0.45, 1]) }] }));
   const arrowStyle = useAnimatedStyle(() => ({
     opacity: interpolate(t.value, [0.25, 0.55], [0, 1], 'clamp'),
     transform: [{ translateX: interpolate(t.value, [0.25, 1], [-6, 6], 'clamp') }],
@@ -55,19 +57,27 @@ export default function ResetMortgageMelt({ playKey }: ResetVisualProps) {
 
   return (
     <View style={styles.canvas} pointerEvents="none">
-      {/* to the bank — melts down */}
+      {/* to the bank — melts down, $ squeeze small */}
       <View style={[styles.col, { left: 34 }]}>
         <View style={styles.track} />
-        <Animated.View style={[styles.fill, styles.bankFill, bankStyle]} />
+        <Animated.View style={[styles.fill, styles.bankFill, bankFillStyle]}>
+          {DOLLARS.map((i) => (
+            <Animated.Text key={i} style={[styles.dollar, styles.bankDollar, bankDollarStyle]}>$</Animated.Text>
+          ))}
+        </Animated.View>
       </View>
 
       {/* transfer arrow */}
       <Animated.Text style={[styles.arrow, arrowStyle]}>→</Animated.Text>
 
-      {/* back to you — rises */}
+      {/* back to you — rises, fills with full-size $ */}
       <View style={[styles.col, { right: 34 }]}>
         <View style={styles.track} />
-        <Animated.View style={[styles.fill, styles.youFill, youStyle]} />
+        <Animated.View style={[styles.fill, styles.youFill, youFillStyle]}>
+          {DOLLARS.map((i) => (
+            <Animated.Text key={i} style={[styles.dollar, styles.youDollar, youDollarStyle]}>$</Animated.Text>
+          ))}
+        </Animated.View>
       </View>
 
       <Text style={[styles.label, styles.bankLabel]}>to the bank</Text>
@@ -87,9 +97,21 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  fill: { position: 'absolute', bottom: 0, width: BAR_W, borderRadius: 9 },
-  bankFill: { backgroundColor: 'rgba(255,255,255,0.26)' },
+  fill: {
+    position: 'absolute',
+    bottom: 0,
+    width: BAR_W,
+    borderRadius: 9,
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingVertical: 5,
+  },
+  bankFill: { backgroundColor: 'rgba(255,255,255,0.22)' },
   youFill: { backgroundColor: MINT },
+  dollar: { fontSize: 16, fontWeight: '800', lineHeight: 20, marginVertical: 1 },
+  bankDollar: { color: 'rgba(255,255,255,0.6)' },
+  youDollar: { color: '#04342C' },
   arrow: {
     position: 'absolute',
     top: BASE_Y - MAX_BAR / 2 - 14,
