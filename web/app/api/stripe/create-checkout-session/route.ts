@@ -5,6 +5,7 @@ import {
   PRICING_TIERS,
   isStripeBillableTier,
   resolveStripePriceId,
+  type BillingInterval,
 } from '../../../../lib/pricing';
 
 /**
@@ -79,8 +80,10 @@ export async function POST(request: NextRequest) {
       tier?: unknown;
       referralCode?: unknown;
       returnPath?: unknown;
+      interval?: unknown;
     };
     const tier = typeof body.tier === 'string' ? body.tier.trim() : '';
+    const interval: BillingInterval = body.interval === 'annual' ? 'annual' : 'monthly';
     const referralCode =
       typeof body.referralCode === 'string' && body.referralCode.trim().length > 0
         ? body.referralCode.trim()
@@ -110,13 +113,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const priceId = resolveStripePriceId(tier);
+    const priceId = resolveStripePriceId(tier, interval);
     if (!priceId) {
-      const envVar = PRICING_TIERS[tier].stripePriceIdEnvVar;
-      console.error(`[stripe-checkout] price id not configured`, { tier, envVar });
+      const envVar =
+        interval === 'annual'
+          ? PRICING_TIERS[tier].stripePriceIdAnnualEnvVar
+          : PRICING_TIERS[tier].stripePriceIdEnvVar;
+      console.error(`[stripe-checkout] price id not configured`, { tier, interval, envVar });
       return NextResponse.json(
         {
-          error: `Pricing for "${tier}" is not configured. Set ${envVar} in environment.`,
+          error: `${interval === 'annual' ? 'Annual pricing' : 'Pricing'} for "${tier}" is not configured.${envVar ? ` Set ${envVar} in environment.` : ''}`,
         },
         { status: 500 },
       );
@@ -173,6 +179,7 @@ export async function POST(request: NextRequest) {
       metadata: {
         firebaseUserId: userId,
         tier,
+        billingInterval: interval,
         ...(referralCode ? { referralCode } : {}),
         ...(affiliateTid ? { fp_tid: affiliateTid } : {}),
       },
@@ -180,6 +187,7 @@ export async function POST(request: NextRequest) {
         metadata: {
           firebaseUserId: userId,
           tier,
+          billingInterval: interval,
           ...(referralCode ? { referralCode } : {}),
           ...(affiliateTid ? { fp_tid: affiliateTid } : {}),
         },
