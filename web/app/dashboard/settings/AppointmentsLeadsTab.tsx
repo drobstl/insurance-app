@@ -708,7 +708,7 @@ export default function AppointmentsLeadsTab({
                       className="mt-0.5 disabled:opacity-40"
                     />
                     <span className="text-sm text-[#374151] leading-snug">
-                      Include my app link + the lead&apos;s login code in booking confirmations
+                      Include AgentForLife app link automatically when sending booking confirmations
                       <span className={`block text-[11px] mt-0.5 ${hasIntro ? 'text-[#707070]' : 'text-amber-700'}`}>
                         {hasIntro
                           ? 'Booked leads get a one-tap link to your branded prep page — your intro video plus a couple of quick questions — before you ever meet.'
