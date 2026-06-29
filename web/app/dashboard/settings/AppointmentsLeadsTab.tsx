@@ -6,12 +6,52 @@ import type { User } from 'firebase/auth';
 import { Upload as TusUpload } from 'tus-js-client';
 import type { AgentProfile } from '../DashboardContext';
 import { canAccessLeads } from '../../../lib/tier-gating';
+import RecordVideoModal from './RecordVideoModal';
 import {
   MAX_LEAD_VIDEO_BYTES,
   type LeadVideoItem,
   type GoogleCalendarStatusResponse,
   type SaveMessage,
 } from './settingsHelpers';
+
+/**
+ * "Record" button + its webcam modal. Manages only its own open state;
+ * the recorded File is handed straight to onRecorded, which routes it
+ * through the same uploadLeadVideo path a picked file uses.
+ */
+function RecordButton({
+  onRecorded,
+  heading,
+  filenameBase,
+  disabled,
+}: {
+  onRecorded: (file: File) => void;
+  heading: string;
+  filenameBase: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        disabled={disabled}
+        className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-[5px] border border-[#005851] text-[#005851] hover:bg-[#005851]/5 disabled:opacity-50 disabled:cursor-default whitespace-nowrap"
+      >
+        <span className="h-2 w-2 rounded-full bg-red-500" />
+        Record
+      </button>
+      <RecordVideoModal
+        open={open}
+        onClose={() => setOpen(false)}
+        onRecorded={onRecorded}
+        heading={heading}
+        filenameBase={filenameBase}
+      />
+    </>
+  );
+}
 
 /**
  * Reusable upload list for FAQ + case-study video slots. Renders one
@@ -109,6 +149,12 @@ function LeadVideoList({
             {addingProgress !== null ? `Uploading… ${addingProgress}%` : '+ Add'}
           </span>
         </label>
+        <RecordButton
+          disabled={addingProgress !== null}
+          heading={kind === 'faq' ? 'Record an FAQ video' : 'Record a case-study video'}
+          filenameBase={kind}
+          onRecorded={handleNewFile}
+        />
       </div>
     </div>
   );
@@ -141,6 +187,16 @@ export default function AppointmentsLeadsTab({
   // The string lives here rather than on agentProfile so typing
   // doesn't trigger Firestore writes on every keystroke.
   const [introTitleDraft, setIntroTitleDraft] = useState<string>('');
+
+  // Resolve the intro card title once, shared by the Upload and Record
+  // paths: the agent's draft, else the saved title, else the default.
+  const introTitle = useCallback(
+    () =>
+      introTitleDraft.trim() ||
+      agentProfile.leadContent?.intro?.title ||
+      'Welcome — what to do next',
+    [introTitleDraft, agentProfile.leadContent?.intro?.title],
+  );
 
   const uploadLeadVideo = useCallback(async (params: {
     file: File;
@@ -602,33 +658,37 @@ export default function AppointmentsLeadsTab({
               maxLength={120}
               className="w-full px-3 py-2 text-sm border border-[#d0d0d0] rounded-[5px] focus:outline-none focus:border-[#45bcaa] mb-2"
             />
-            <label className="inline-block mt-1">
-              <input
-                type="file"
-                accept="video/mp4,video/quicktime,video/webm"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) {
-                    const title =
-                      introTitleDraft.trim() ||
-                      agentProfile.leadContent?.intro?.title ||
-                      'Welcome — what to do next';
-                    void uploadLeadVideo({ file: f, slot: 'intro', title });
-                    e.currentTarget.value = '';
-                  }
-                }}
+            <div className="flex items-center gap-2 mt-1">
+              <label className="inline-block">
+                <input
+                  type="file"
+                  accept="video/mp4,video/quicktime,video/webm"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) {
+                      void uploadLeadVideo({ file: f, slot: 'intro', title: introTitle() });
+                      e.currentTarget.value = '';
+                    }
+                  }}
+                />
+                <span className={`inline-block px-3 py-2 text-xs font-semibold rounded-[5px] cursor-pointer whitespace-nowrap ${
+                  leadVideoBusy === 'intro'
+                    ? 'bg-gray-200 text-gray-500 cursor-default'
+                    : 'bg-[#005851] hover:bg-[#004440] text-white'
+                }`}>
+                  {leadVideoBusy === 'intro'
+                    ? `Uploading… ${leadVideoProgress.intro ?? 0}%`
+                    : (agentProfile.leadContent?.intro?.url ? 'Replace' : 'Upload intro video')}
+                </span>
+              </label>
+              <RecordButton
+                disabled={leadVideoBusy === 'intro'}
+                heading="Record your intro video"
+                filenameBase="intro"
+                onRecorded={(file) => void uploadLeadVideo({ file, slot: 'intro', title: introTitle() })}
               />
-              <span className={`inline-block px-3 py-2 text-xs font-semibold rounded-[5px] cursor-pointer whitespace-nowrap ${
-                leadVideoBusy === 'intro'
-                  ? 'bg-gray-200 text-gray-500 cursor-default'
-                  : 'bg-[#005851] hover:bg-[#004440] text-white'
-              }`}>
-                {leadVideoBusy === 'intro'
-                  ? `Uploading… ${leadVideoProgress.intro ?? 0}%`
-                  : (agentProfile.leadContent?.intro?.url ? 'Replace' : 'Upload intro video')}
-              </span>
-            </label>
+            </div>
 
             {/* App-link toggle (gated on a real intro video). Default
                 ON for Pro+, but locked until the agent records an intro
@@ -687,7 +747,7 @@ export default function AppointmentsLeadsTab({
             <p className="text-xs text-red-600 mt-3">{leadVideoError}</p>
           )}
           <p className="text-[10px] text-[#707070] mt-3">
-            .mp4, .mov, or .webm. Up to 1 GB per video. Uploads stream directly to Bunny.net for transcoding and smooth playback on the lead-home screen.
+            Record straight from your webcam, or upload a .mp4, .mov, or .webm (up to 1 GB). Either way it streams to Bunny.net for transcoding and smooth playback on the lead-home screen.
           </p>
         </div>
       </>}
