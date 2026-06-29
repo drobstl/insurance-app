@@ -346,7 +346,8 @@ const styles = StyleSheet.create({
   holdsSteady: {
     position: 'absolute',
     left: PAD_X + PLOT_W * 0.5 - 44,
-    top: PAD_TOP + PLOT_H * 0.36,
+    // Float clearly above the your-money plateau (which sits at ~0.49), not on it.
+    top: PAD_TOP + PLOT_H * 0.2,
     backgroundColor: 'rgba(61,214,195,0.16)',
     borderColor: 'rgba(61,214,195,0.5)',
     borderWidth: 1,
