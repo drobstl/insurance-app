@@ -313,18 +313,18 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
   const [dragging, setDragging] = useState(false);
   const firstUserMessageReportedRef = useRef(false);
 
-  // Tilt: two 10deg nods back-to-back, then rest, then random delay and repeat
+  // Tilt: two nods back-to-back, then rest, then random delay and repeat
   useEffect(() => {
     if (open) return;
     const timers: ReturnType<typeof setTimeout>[] = [];
     const scheduleTilt = () => {
       timers.push(
         setTimeout(() => {
-          setTiltDeg(10);
+          setTiltDeg(22);
           timers.push(setTimeout(() => {
             setTiltDeg(0);
             timers.push(setTimeout(() => {
-              setTiltDeg(10);
+              setTiltDeg(22);
               timers.push(setTimeout(() => {
                 setTiltDeg(0);
                 scheduleTilt();
