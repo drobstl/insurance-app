@@ -206,6 +206,18 @@ export function LeadFilterBar({
           )}
       </div>
 
+      <button
+        type="button"
+        onClick={() => onChange({ ...filters, followUpDue: !filters.followUpDue })}
+        className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-[5px] border ${
+          filters.followUpDue
+            ? 'border-[#F0B100] bg-[#FFF4D6] text-[#92500D]'
+            : 'border-[#d0d0d0] bg-white text-[#707070] hover:border-[#45bcaa]'
+        }`}
+      >
+        Follow-ups due
+      </button>
+
       {hasActiveFilters(filters) && (
         <button
           type="button"

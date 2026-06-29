@@ -8,6 +8,8 @@ import {
   Image,
   Modal,
   Linking,
+  useWindowDimensions,
+  type GestureResponderEvent,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -18,13 +20,42 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ResetRevealData } from '../lib/reset-reveal-client';
+import ResetGrowthGraph from './ResetGrowthGraph';
+import ResetMortgageMelt from './ResetMortgageMelt';
+import ResetMoneyLoop from './ResetMoneyLoop';
+import ResetTaxBucket from './ResetTaxBucket';
+import ResetGuidance from './ResetGuidance';
+import {
+  resetDeck,
+  RESET_OPENER,
+  RESET_ASK_HEADLINE,
+  RESET_ASK_CTA,
+  type ResetVisual,
+} from '../lib/reset-products';
 
 const fmtUsd = (n: number) => '$' + Math.round(n).toLocaleString('en-US');
 
-// How long each beat holds before auto-advancing (ms). The final ask beat
-// rests (0) — the client acts or dismisses from there.
-const BEAT_MS = [2600, 3200, 3000, 3600, 3200, 0];
-const LAST = BEAT_MS.length - 1;
+// The reveal is six tap-through beats (see `beats` below). Keep in sync.
+const BEAT_COUNT = 6;
+const LAST = BEAT_COUNT - 1;
+
+// Each product's beat 4 draws its own concept visual. All take a `playKey` so
+// the animation restarts when the client taps into the beat.
+function renderVisual(visual: ResetVisual, playKey: number) {
+  switch (visual) {
+    case 'melt':
+      return <ResetMortgageMelt playKey={playKey} />;
+    case 'loop':
+      return <ResetMoneyLoop playKey={playKey} />;
+    case 'bucket':
+      return <ResetTaxBucket playKey={playKey} />;
+    case 'guidance':
+      return <ResetGuidance playKey={playKey} />;
+    case 'graph':
+    default:
+      return <ResetGrowthGraph playKey={playKey} />;
+  }
+}
 
 export interface ResetRevealProps {
   visible: boolean;
@@ -34,15 +65,21 @@ export interface ResetRevealProps {
 }
 
 /**
- * The in-app reset reveal — a full-screen, auto-playing story built from the
- * client's own numbers, framed as something their agent made for them.
+ * The in-app reset reveal — a full-screen, tap-through story framed as something
+ * the client's agent made for them. The server matches the client to one of five
+ * doors (data.product); this renders that door's copy + concept visual.
  *
- * Compliance: shows their real mortgage balance / payment (their own facts) and
- * keeps the time + growth conceptual. It never renders a projected payoff date,
- * cash value, or return — those are the licensed specialist's illustration.
+ * The client paces it: tap the right side for the next beat, the left side to
+ * go back. (No auto-play — it was too fast.)
+ *
+ * Compliance: the DFL door shows their real mortgage balance / payment (their
+ * own facts); every visual is concept-only. It never renders a projected payoff
+ * date, cash value, tax outcome, or return — those are the licensed
+ * specialist's illustration.
  */
 export default function ResetReveal({ visible, data, onEngage, onDismiss }: ResetRevealProps) {
   const [idx, setIdx] = useState(0);
+  const { width } = useWindowDimensions();
   const beatOpacity = useSharedValue(0);
   const beatTranslateY = useSharedValue(14);
 
@@ -59,22 +96,17 @@ export default function ResetReveal({ visible, data, onEngage, onDismiss }: Rese
     beatTranslateY.value = withSpring(0, { damping: 16, stiffness: 120 });
   }, [idx, visible, beatOpacity, beatTranslateY]);
 
-  // Auto-advance until the final beat.
-  useEffect(() => {
-    if (!visible) return;
-    const hold = BEAT_MS[idx] ?? 3000;
-    if (!hold) return;
-    const t = setTimeout(() => setIdx((i) => Math.min(i + 1, LAST)), hold);
-    return () => clearTimeout(t);
-  }, [visible, idx]);
-
   const beatStyle = useAnimatedStyle(() => ({
     opacity: beatOpacity.value,
     transform: [{ translateY: beatTranslateY.value }],
   }));
 
-  const advance = () => {
-    if (idx < LAST) setIdx((i) => i + 1);
+  // Tap-to-advance: the left third goes back, the rest goes forward
+  // (stories-style). Buttons sit on top and capture their own taps.
+  const handleTap = (e: GestureResponderEvent) => {
+    const x = e.nativeEvent.locationX;
+    if (x < width * 0.32) setIdx((i) => Math.max(i - 1, 0));
+    else setIdx((i) => Math.min(i + 1, LAST));
   };
 
   const handleEngage = () => {
@@ -88,31 +120,48 @@ export default function ResetReveal({ visible, data, onEngage, onDismiss }: Rese
     data.agentPhotoBase64 !== 'undefined' &&
     data.agentPhotoBase64 !== 'null';
 
+  const deck = resetDeck(data.product);
+  const firstName = data.firstName || 'friend';
+  const showMortgageFact = !!deck.usesMortgageFact && data.hasRealNumbers && data.mortgageBalance != null;
+
   const beats: React.ReactNode[] = [
-    <Text key="b0" style={styles.headline}>A lot can change in a few years, {data.firstName || 'friend'}.</Text>,
-    <View key="b1" style={styles.center}>
-      <Text style={styles.eyebrow}>your mortgage today</Text>
-      {data.hasRealNumbers && data.mortgageBalance != null ? (
-        <Text style={styles.big}>{fmtUsd(data.mortgageBalance)}</Text>
-      ) : (
-        <Text style={styles.headline}>the biggest check you write.</Text>
-      )}
-      {data.monthlyPayment != null ? (
-        <Text style={styles.sub}>{fmtUsd(data.monthlyPayment)} a month, year after year.</Text>
-      ) : null}
+    // 1 — opener
+    <Text key="b0" style={styles.headline}>{RESET_OPENER.replace('{name}', firstName)}</Text>,
+    // 2 — the hook. DFL shows the client's real mortgage number; the rest frame
+    // the concept in words.
+    deck.usesMortgageFact ? (
+      <View key="b1" style={styles.center}>
+        {deck.hookEyebrow ? <Text style={styles.eyebrow}>{deck.hookEyebrow}</Text> : null}
+        {showMortgageFact ? (
+          <Text style={styles.big}>{fmtUsd(data.mortgageBalance as number)}</Text>
+        ) : (
+          <Text style={styles.headline}>{deck.hookHeadline}</Text>
+        )}
+        {data.monthlyPayment != null ? (
+          <Text style={styles.sub}>{fmtUsd(data.monthlyPayment)} a month, year after year.</Text>
+        ) : null}
+      </View>
+    ) : (
+      <Text key="b1" style={styles.headline}>{deck.hookHeadline}</Text>
+    ),
+    // 3 — the turn
+    <Text key="b2" style={styles.headline}>{deck.turn}</Text>,
+    // 4 — the concept visual + the line that lands with it
+    <View key="b3" style={styles.center}>
+      <Text style={[styles.headline, styles.graphHeadline]}>{deck.visualHeadline}</Text>
+      {renderVisual(deck.visual, idx)}
+      <Text style={styles.sub}>{deck.visualCaption}</Text>
     </View>,
-    <Text key="b2" style={styles.headline}>What if it didn&apos;t have to take decades?</Text>,
-    <Text key="b3" style={styles.headline}>
-      Imagine that payment working for you instead — growing where a market drop can&apos;t touch it.
-    </Text>,
+    // 5 — the payoff
     <View key="b4" style={styles.center}>
-      <Text style={styles.headline}>Mortgage handled. Retirement handled.</Text>
-      <Text style={styles.sub}>On the income you already make.</Text>
+      <Text style={styles.headline}>{deck.payoffHeadline}</Text>
+      <Text style={styles.sub}>{deck.payoffSub}</Text>
     </View>,
+    // 6 — the ask
     <View key="b5" style={styles.center}>
-      <Text style={styles.headline}>Since we set up your coverage, new options opened up.</Text>
+      <Text style={styles.headline}>{RESET_ASK_HEADLINE}</Text>
       <TouchableOpacity style={styles.cta} onPress={handleEngage} activeOpacity={0.85}>
-        <Text style={styles.ctaText}>See if my family qualifies</Text>
+        <Text style={styles.ctaText}>{RESET_ASK_CTA}</Text>
       </TouchableOpacity>
       {!data.hasRealNumbers ? (
         <Text style={styles.subSmall}>A 10-minute look — we&apos;ll map your numbers together.</Text>
@@ -137,9 +186,9 @@ export default function ResetReveal({ visible, data, onEngage, onDismiss }: Rese
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        <Pressable style={styles.fill} onPress={advance}>
+        <Pressable style={styles.fill} onPress={handleTap}>
           <View style={styles.dots}>
-            {BEAT_MS.map((_, i) => (
+            {Array.from({ length: BEAT_COUNT }).map((_, i) => (
               <View key={i} style={[styles.dot, i === idx ? styles.dotActive : null]} />
             ))}
           </View>
@@ -219,6 +268,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 34,
   },
+  graphHeadline: { fontSize: 23, lineHeight: 30, marginBottom: 18 },
   big: { color: '#FFFFFF', fontSize: 44, fontWeight: '800', marginVertical: 6 },
   sub: { color: '#9FE1CB', fontSize: 15, textAlign: 'center', marginTop: 14, lineHeight: 22 },
   subSmall: { color: '#9FE1CB', fontSize: 13, textAlign: 'center', marginTop: 12, paddingHorizontal: 16 },

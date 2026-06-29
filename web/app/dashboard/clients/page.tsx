@@ -7325,6 +7325,7 @@ export default function ClientsPage() {
               onFlagAtRisk={() => { refreshPolicies(); }}
               agentName={agentProfile.name}
               hasSchedulingUrl={!!agentProfile.schedulingUrl}
+              resetRevealEnabled={!!agentProfile.resetRevealEnabled}
               clientPushToken={clientPushToken === undefined ? null : clientPushToken}
               householdMembers={selectedHouseholdMembers}
               onSelectHouseholdMember={handleSelectClient}
@@ -7387,6 +7388,7 @@ export default function ClientsPage() {
               onFlagAtRisk={() => { refreshPolicies(); }}
               agentName={agentProfile.name}
               hasSchedulingUrl={!!agentProfile.schedulingUrl}
+              resetRevealEnabled={!!agentProfile.resetRevealEnabled}
               clientPushToken={clientPushToken === undefined ? null : clientPushToken}
               householdMembers={selectedHouseholdMembers}
               onSelectHouseholdMember={handleSelectClient}

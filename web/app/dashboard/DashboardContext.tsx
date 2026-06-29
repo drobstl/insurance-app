@@ -298,6 +298,11 @@ export interface AgentProfile {
    */
   fifResetSmes?: Array<{ name: string; calendarUrl?: string }>;
   /**
+   * Agent has switched the in-app reset reveal on (default off). Gates the
+   * per-client "advanced market sit" product picker in the client detail.
+   */
+  resetRevealEnabled?: boolean;
+  /**
    * Agent-defined lead tags (id + label + color), managed from the lead
    * detail panel's tag editor. Mirrors `fifResetSmes`: an inline array on the
    * agent doc, written via the tag CRUD callbacks below + optimistic state.
@@ -466,6 +471,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
                 })
             : [],
           leadTags: parseLeadTags(data.leadTags),
+          resetRevealEnabled: data.resetRevealEnabled === true,
         });
       } else {
         setAgentProfile({});

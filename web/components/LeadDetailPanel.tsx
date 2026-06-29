@@ -17,6 +17,7 @@ import {
 import { db } from '../firebase';
 import { LeadTagEditor } from './LeadTagEditor';
 import { LeadNotesLog } from './LeadNotesLog';
+import { LeadFollowUpControl } from './LeadFollowUpControl';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import AppointmentPicker from './AppointmentPicker';
 import DoNotContactToggle from './DoNotContactToggle';
@@ -63,6 +64,8 @@ interface Lead {
   notesUpdatedAt?: Timestamp | null;
   // Timestamped notes log (Option 2) — appended entries, each auto-stamped.
   notesEntries?: Array<{ id: string; text: string; at: Timestamp }>;
+  followUpAt?: Timestamp | null;
+  followUpNote?: string;
   // Agent-defined labels (ids into agentProfile.leadTags).
   tagIds?: string[];
   monthlyMortgageAmount?: number;
@@ -1659,6 +1662,16 @@ export default function LeadDetailPanel({
             tags={agentProfile.leadTags ?? []}
             onCreateTag={createLeadTag}
             onDeleteTag={deleteLeadTag}
+          />
+        </div>
+
+        {/* Follow-up reminder — manual side of smart follow-up (Step 1) */}
+        <div className="px-5 pt-3">
+          <LeadFollowUpControl
+            user={user}
+            leadId={lead.id}
+            followUpAt={lead.followUpAt}
+            followUpNote={lead.followUpNote}
           />
         </div>
 

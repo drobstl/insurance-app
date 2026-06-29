@@ -13,6 +13,7 @@ import {
 } from '../lib/client-language';
 import { formatClientDisplayName } from '../lib/name-utils';
 import { relationshipLabel } from '../lib/household-shared';
+import { RESET_PRODUCTS, RESET_PRODUCT_IDS, type ResetProductId } from '../lib/reset-products';
 
 interface Client {
   id: string;
@@ -37,6 +38,8 @@ interface Client {
   householdRole?: 'primary' | 'member';
   householdRelationship?: string;
   householdPrimaryName?: string;
+  /** Agent's pinned reset product for this client; unset = auto-match. */
+  resetProductOverride?: ResetProductId;
 }
 
 interface Policy {
@@ -102,6 +105,8 @@ interface ClientDetailModalProps {
   householdMembers?: Client[];
   /** Open another household member's detail. */
   onSelectHouseholdMember?: (client: Client) => void;
+  /** Agent has the reset reveal on → show the per-client product picker. */
+  resetRevealEnabled?: boolean;
 }
 
 export default function ClientDetailModal({
@@ -122,6 +127,7 @@ export default function ClientDetailModal({
   displayMode = 'modal',
   householdMembers = [],
   onSelectHouseholdMember,
+  resetRevealEnabled,
 }: ClientDetailModalProps) {
   const isPane = displayMode === 'pane';
   const formatPremiumCurrency = (amount: number) => {
@@ -343,6 +349,34 @@ export default function ClientDetailModal({
       setClearingReferral(false);
     }
   }, [client]);
+
+  // ── Reset reveal: agent-pinned product for this client (unset = auto-match) ──
+  const [resetOverride, setResetOverride] = useState<string>('');
+  const [resetOverrideSaved, setResetOverrideSaved] = useState(false);
+  useEffect(() => {
+    setResetOverride(client?.resetProductOverride ?? '');
+    setResetOverrideSaved(false);
+  }, [client?.id, client?.resetProductOverride]);
+
+  const handleResetOverrideChange = useCallback(
+    async (value: string) => {
+      if (!client) return;
+      setResetOverride(value);
+      setResetOverrideSaved(false);
+      try {
+        const firestore = await import('firebase/firestore');
+        const { db } = await import('../firebase');
+        await firestore.updateDoc(
+          firestore.doc(db, 'agents', client.agentId, 'clients', client.id),
+          { resetProductOverride: value ? value : firestore.deleteField() },
+        );
+        setResetOverrideSaved(true);
+      } catch (err) {
+        console.error('reset product override save failed:', err);
+      }
+    },
+    [client],
+  );
 
   const handleClose = useCallback(() => {
     if (isPane) {
@@ -1364,6 +1398,44 @@ export default function ClientDetailModal({
 
           {/* Divider */}
           <div className="border-t border-gray-200" />
+
+          {/* Advanced market sit — which reset door this client sees in their app */}
+          {resetRevealEnabled && client && (
+            <>
+              <div className="px-6 pt-5 pb-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <svg className="w-4 h-4 text-[#005851]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
+                  </svg>
+                  <h3 className="text-sm font-bold text-[#005851] uppercase tracking-wider">Advanced market sit</h3>
+                </div>
+                <p className="text-xs text-[#707070] mb-3">
+                  Which door this client sees in their app. <span className="font-medium">Auto</span> picks from their mortgage &amp; savings on file — override any time. Never shown to the client by name.
+                </p>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={resetOverride}
+                    onChange={(e) => handleResetOverrideChange(e.target.value)}
+                    className="flex-1 rounded-[5px] border border-gray-200 bg-white px-3 py-2 text-sm text-[#0D4D4D] focus:border-[#45bcaa] focus:outline-none"
+                  >
+                    <option value="">Auto — we choose</option>
+                    {RESET_PRODUCT_IDS.map((id) => (
+                      <option key={id} value={id}>{RESET_PRODUCTS[id].agentLabel}</option>
+                    ))}
+                  </select>
+                  {resetOverrideSaved && (
+                    <span className="text-[11px] font-semibold text-[#45bcaa] whitespace-nowrap">Saved ✓</span>
+                  )}
+                </div>
+                {resetOverride && (
+                  <p className="text-[11px] text-[#a0a0a0] mt-2">
+                    {RESET_PRODUCTS[resetOverride as ResetProductId]?.agentHint}
+                  </p>
+                )}
+              </div>
+              <div className="border-t border-gray-200" />
+            </>
+          )}
 
           {/* Household Section (Phase 2) — linked clients from the same lead */}
           {(client?.householdRole || householdMembers.length > 0) && (
