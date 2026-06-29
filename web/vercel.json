@@ -79,6 +79,10 @@
     {
       "path": "/api/cron/trial-lifecycle",
       "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/cron/lead-follow-up-signals",
+      "schedule": "15 13 * * *"
     }
   ]
 }
