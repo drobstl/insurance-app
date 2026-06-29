@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence, useReducedMotion, type PanInfo } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, animate as animateMotionValue, useReducedMotion } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import { useDashboard } from '../app/dashboard/DashboardContext';
 import { captureEvent } from '../lib/posthog';
@@ -24,7 +24,6 @@ const LINK_REGEX = /(\[[^\]]+\]\([^)]+\))/g;
 const LINK_MATCH_REGEX = /^\[([^\]]+)\]\(([^)]+)\)$/;
 const BOLD_REGEX = /(\*\*[^*]+\*\*)/g;
 const BOLD_MATCH_REGEX = /^\*\*([^*]+)\*\*$/;
-const PATCH_DRAG_HOLD_MS = 280;
 const PATCH_OFFSET_STORAGE_KEY = 'patch-fab-offset-v1';
 const PATCH_BUTTON_SIZE_PX = 44;
 const PATCH_MIN_MARGIN_PX = 12;
@@ -302,11 +301,13 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const dragHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressClickRef = useRef(false);
-  const [fabOffset, setFabOffset] = useState({ x: 0, y: 0 });
-  const [dragArmed, setDragArmed] = useState(false);
-  const [enableSnapAnim, setEnableSnapAnim] = useState(false);
+  // Patch's position is driven by motion values the drag writes to directly, so
+  // a drop sticks (binding x/y via `animate` instead fights the drag and snaps
+  // him back to the corner — the old bug).
+  const dragX = useMotionValue(0);
+  const dragY = useMotionValue(0);
+  const [dragging, setDragging] = useState(false);
   const firstUserMessageReportedRef = useRef(false);
 
   // Tilt: two 10deg nods back-to-back, then rest, then random delay and repeat
@@ -403,38 +404,32 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
     return nearest;
   }, []);
 
+  // Restore Patch's saved spot, and keep him on-screen on resize.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const raw = window.localStorage.getItem(PATCH_OFFSET_STORAGE_KEY);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw) as { x?: number; y?: number };
-      const x = typeof parsed.x === 'number' ? parsed.x : 0;
-      const y = typeof parsed.y === 'number' ? parsed.y : 0;
-      setFabOffset(clampFabOffset({ x, y }));
-    } catch {
-      // Ignore malformed local state and use defaults.
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as { x?: number; y?: number };
+        const clamped = clampFabOffset({
+          x: typeof parsed.x === 'number' ? parsed.x : 0,
+          y: typeof parsed.y === 'number' ? parsed.y : 0,
+        });
+        dragX.set(clamped.x);
+        dragY.set(clamped.y);
+      } catch {
+        // Ignore malformed local state and use defaults.
+      }
     }
-  }, [clampFabOffset]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(PATCH_OFFSET_STORAGE_KEY, JSON.stringify(fabOffset));
-  }, [fabOffset]);
-
-  useEffect(() => {
     const handleResize = () => {
-      setFabOffset((prev) => clampFabOffset(prev));
+      const clamped = clampFabOffset({ x: dragX.get(), y: dragY.get() });
+      dragX.set(clamped.x);
+      dragY.set(clamped.y);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clampFabOffset]);
-
-  const clearDragHoldTimer = useCallback(() => {
-    if (!dragHoldTimerRef.current) return;
-    clearTimeout(dragHoldTimerRef.current);
-    dragHoldTimerRef.current = null;
-  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -641,26 +636,15 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
     sendMessage(input);
   };
 
-  const handleFabPointerDown = () => {
-    clearDragHoldTimer();
-    dragHoldTimerRef.current = setTimeout(() => {
-      setDragArmed(true);
-      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-        navigator.vibrate(8);
-      }
-    }, PATCH_DRAG_HOLD_MS);
-  };
-
-  const handleFabPointerUpOrCancel = () => {
-    clearDragHoldTimer();
-    setDragArmed(false);
-  };
-
-  const handleFabDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+  const handleFabDragEnd = () => {
     suppressClickRef.current = true;
-    setDragArmed(false);
-    setEnableSnapAnim(true);
-    setFabOffset((prev) => snapNearCorner(clampFabOffset({ x: prev.x + info.offset.x, y: prev.y + info.offset.y })));
+    setDragging(false);
+    const settled = snapNearCorner(clampFabOffset({ x: dragX.get(), y: dragY.get() }));
+    animateMotionValue(dragX, settled.x, { type: 'spring', stiffness: 520, damping: 34 });
+    animateMotionValue(dragY, settled.y, { type: 'spring', stiffness: 520, damping: 34 });
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(PATCH_OFFSET_STORAGE_KEY, JSON.stringify(settled));
+    }
   };
 
   return (
@@ -728,7 +712,7 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
       {/* Floating mascot button */}
       <motion.button
         data-onboarding-target="patch-launcher"
-        style={{ pointerEvents: showReveal ? 'none' : 'auto' }}
+        style={{ x: dragX, y: dragY, pointerEvents: showReveal ? 'none' : 'auto' }}
         onClick={() => {
           if (suppressClickRef.current) {
             suppressClickRef.current = false;
@@ -742,30 +726,26 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
             return next;
           });
         }}
-        onPointerDown={handleFabPointerDown}
-        onPointerUp={handleFabPointerUpOrCancel}
-        onPointerCancel={handleFabPointerUpOrCancel}
-        drag={dragArmed}
+        drag
         dragMomentum={false}
         dragElastic={0}
         onDragStart={() => {
           suppressClickRef.current = true;
+          setDragging(true);
         }}
         onDragEnd={handleFabDragEnd}
         className={`fixed bottom-24 md:bottom-5 right-4 md:right-5 z-50 w-11 h-11 rounded-full flex items-center justify-center bg-transparent border p-0 transition-shadow ${
-          dragArmed
-            ? 'border-[#3DD6C3] ring-2 ring-[#3DD6C3]/60 shadow-[0_12px_30px_rgba(0,0,0,0.22)]'
-            : 'border-gray-200/80 shadow-[0_4px_12px_rgba(0,0,0,0.12)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.15)]'
+          dragging
+            ? 'cursor-grabbing border-[#1D9E75] ring-4 ring-[#1D9E75]/70 shadow-[0_16px_40px_rgba(0,0,0,0.32)]'
+            : 'cursor-grab border-gray-200/80 shadow-[0_4px_12px_rgba(0,0,0,0.12)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.15)]'
         }`}
-        animate={{ rotate: open ? 0 : tiltDeg, x: fabOffset.x, y: fabOffset.y, scale: dragArmed ? 1.1 : 1, opacity: showReveal ? 0 : 1 }}
+        animate={{ rotate: open ? 0 : tiltDeg, scale: dragging ? 1.22 : 1, opacity: showReveal ? 0 : 1 }}
         transition={{
           opacity: { duration: 0.3 },
           rotate: { duration: 0.35, ease: 'easeInOut' },
-          scale: { type: 'spring', stiffness: 500, damping: 28 },
-          x: enableSnapAnim ? { type: 'spring', stiffness: 520, damping: 34 } : { duration: 0 },
-          y: enableSnapAnim ? { type: 'spring', stiffness: 520, damping: 34 } : { duration: 0 },
+          scale: { type: 'spring', stiffness: 500, damping: 22 },
         }}
-        whileHover={{ scale: dragArmed ? 1.1 : 1.08 }}
+        whileHover={{ scale: dragging ? 1.22 : 1.08 }}
         aria-label={open ? 'Close Patch' : 'Open Patch'}
       >
         <AnimatePresence mode="wait">
