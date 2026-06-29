@@ -1103,10 +1103,19 @@ function LeadsPageInner() {
   const queueLeads = useMemo<Lead[]>(() => {
     const persistence = agentProfile.dialPersistence ?? 1;
 
+    // Scope the dial queue to the agent's current filtered list (search +
+    // filters + applied saved list). When nothing is filtered, filteredLeads
+    // is the whole book, so this set contains every lead and the intersection
+    // is a no-op — the queue only narrows when a list/filter is active. The
+    // queue keeps its OWN call-order (never-dialed → oldest-call) over that
+    // subset; the segment's sort only orders the All-leads view, not dialing.
+    const inScope = new Set(filteredLeads.map((l) => l.id));
+
     type Scored = { lead: Lead; score: number };
     const scored: Scored[] = [];
 
     for (const lead of leads) {
+      if (!inScope.has(lead.id)) continue;
       if (lead.convertedToClientId) continue;
       const out = lead.lastDialOutcome;
       // Keep worked-but-unresolved leads callable: if the lead's most recent
@@ -1154,7 +1163,11 @@ function LeadsPageInner() {
     return scored
       .sort((a, b) => b.score - a.score)
       .map(({ lead }) => lead);
-  }, [leads, agentProfile.dialPersistence, pastOutcomeByLead, nextApptByLead]);
+  }, [leads, filteredLeads, agentProfile.dialPersistence, pastOutcomeByLead, nextApptByLead]);
+
+  // True when an active search/filter/saved-list is scoping the dial queue to
+  // a subset of the book (drives the "calling your filtered list" indicator).
+  const queueScoped = hasActiveFilters(filters) || !!searchQuery.trim();
 
   // "Call next" sort for the All list reuses the exact queue priority
   // order, so the list previews who Start-calling will dial first.
@@ -1614,6 +1627,14 @@ function LeadsPageInner() {
                   <span className="text-sm font-semibold text-[#005851]">
                     Calling · <span className="text-[#44bbaa]">{queueLeads.length}</span> in queue
                   </span>
+                  {queueScoped && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#daf3f0] text-[#005851] text-xs font-semibold border border-[#44bbaa]">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L14 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 018 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+                      </svg>
+                      your filtered list
+                    </span>
+                  )}
                 </>
               ) : view === 'calendar' ? (
                 <button
@@ -1695,6 +1716,7 @@ function LeadsPageInner() {
                         captureEvent(ANALYTICS_EVENTS.CALL_MODE_STARTED, {
                           entry: 'start_calling',
                           queue_count: queueLeads.length,
+                          scoped: queueScoped,
                         });
                         setView('queue');
                       }}
@@ -1734,6 +1756,7 @@ function LeadsPageInner() {
                     captureEvent(ANALYTICS_EVENTS.CALL_MODE_STARTED, {
                       entry: 'call_queue_tab',
                       queue_count: queueLeads.length,
+                      scoped: queueScoped,
                     });
                   }
                   setView('queue');
