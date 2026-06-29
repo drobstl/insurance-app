@@ -82,33 +82,9 @@ export default function MessagesTab({ agentProfile, updateField, user }: Message
 
   return (
     <div className="space-y-5">
-      {/* AI Assistant */}
-      <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-        <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">AI Assistant</h3>
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <p className="text-sm font-medium text-[#000000]">
-              {agentProfile.aiAssistantEnabled !== false ? 'Enabled' : 'Disabled'}
-            </p>
-            <p className="text-xs text-[#707070] mt-1">
-              {agentProfile.aiAssistantEnabled !== false
-                ? 'The AI assistant will automatically draft referral outreach messages, conservation scripts, and anniversary check-ins for you.'
-                : 'AI features are off. You\'ll compose all outreach and follow-up messages manually.'}
-            </p>
-          </div>
-          <button
-            onClick={() => updateField('aiAssistantEnabled', !agentProfile.aiAssistantEnabled)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
-              agentProfile.aiAssistantEnabled !== false ? 'bg-[#44bbaa]' : 'bg-gray-300'
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
-                agentProfile.aiAssistantEnabled !== false ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            />
-          </button>
-        </div>
+      <div className="pt-1">
+        <h2 className="text-[13px] font-bold uppercase tracking-wider text-[#005851]">Lead outreach</h2>
+        <p className="text-xs text-[#707070] mt-0.5">Texts and scripts for working new leads.</p>
       </div>
 
       {/* Lead Intro Text */}
@@ -177,6 +153,11 @@ export default function MessagesTab({ agentProfile, updateField, user }: Message
           />
         </div>
       )}
+
+      <div className="pt-1">
+        <h2 className="text-[13px] font-bold uppercase tracking-wider text-[#005851]">Messages you send</h2>
+        <p className="text-xs text-[#707070] mt-0.5">Templates clients and referrals receive from you.</p>
+      </div>
 
       {/* Referral Message */}
       <div className="bg-white rounded-[5px] border border-gray-200 p-5">
@@ -345,6 +326,40 @@ export default function MessagesTab({ agentProfile, updateField, user }: Message
             </div>
           </div>
         )}
+      </div>
+
+      <div className="pt-1">
+        <h2 className="text-[13px] font-bold uppercase tracking-wider text-[#005851]">Runs automatically</h2>
+        <p className="text-xs text-[#707070] mt-0.5">Things AFL does on its own — switch each on or off.</p>
+      </div>
+
+      {/* AI Assistant */}
+      <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+        <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">AI Assistant</h3>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <p className="text-sm font-medium text-[#000000]">
+              {agentProfile.aiAssistantEnabled !== false ? 'Enabled' : 'Disabled'}
+            </p>
+            <p className="text-xs text-[#707070] mt-1">
+              {agentProfile.aiAssistantEnabled !== false
+                ? 'The AI assistant will automatically draft referral outreach messages, conservation scripts, and anniversary check-ins for you.'
+                : 'AI features are off. You\'ll compose all outreach and follow-up messages manually.'}
+            </p>
+          </div>
+          <button
+            onClick={() => updateField('aiAssistantEnabled', !agentProfile.aiAssistantEnabled)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
+              agentProfile.aiAssistantEnabled !== false ? 'bg-[#44bbaa]' : 'bg-gray-300'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
+                agentProfile.aiAssistantEnabled !== false ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       {/* Holiday Cards */}
