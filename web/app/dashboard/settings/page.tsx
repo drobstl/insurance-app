@@ -121,6 +121,7 @@ export default function SettingsPage() {
     forwardInboundSms: agentProfile.forwardInboundSms ?? true,
     confirmationChannel: agentProfile.confirmationChannel === 'email' ? 'email' : 'text',
     includeAppAccessInConfirmations: agentProfile.includeAppAccessInConfirmations ?? true,
+    resetRevealEnabled: agentProfile.resetRevealEnabled ?? false,
   }), [
     agentProfile.name,
     agentProfile.phoneNumber,
@@ -150,6 +151,7 @@ export default function SettingsPage() {
     agentProfile.forwardInboundSms,
     agentProfile.confirmationChannel,
     agentProfile.includeAppAccessInConfirmations,
+    agentProfile.resetRevealEnabled,
   ]);
 
   const loadGoogleDriveStatus = useCallback(async () => {
@@ -429,6 +431,7 @@ export default function SettingsPage() {
         appointmentMode: agentProfile.appointmentMode === 'video' ? 'video' : 'phone',
         defaultMeetingLink: (agentProfile.defaultMeetingLink || '').trim(),
         autoCreateGoogleMeet: agentProfile.autoCreateGoogleMeet ?? true,
+        resetRevealEnabled: agentProfile.resetRevealEnabled ?? false,
         reminderPushHoursBefore: (() => {
           const raw = Number(agentProfile.reminderPushHoursBefore ?? 1);
           if (!Number.isFinite(raw)) return 1;
