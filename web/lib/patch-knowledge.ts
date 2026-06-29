@@ -202,6 +202,21 @@ export const PATCH_FEATURES: PatchFeature[] = [
     ],
   },
   {
+    key: 'advanced-market-sits',
+    title: 'Advanced Market Sits',
+    route: '/dashboard/settings',
+    tier: 'all',
+    what: 'An opt-in in-app reveal that re-engages your existing clients into a second, advanced-market conversation — built from their own mortgage and savings.',
+    why: 'The cheapest appointment you can set: no new lead, no cold call. Turns closed clients into bigger advanced-market cases and reactivates the quiet ones.',
+    details: [
+      'Turn it on in Settings → Appointments & Leads (off by default, per agent).',
+      'AFL matches each client to the right door automatically: debt → debt-free life, savings → market protection, plus tax-free retirement income, an old-401(k) plan, and be-your-own-bank.',
+      "Override any client's door from their profile in one tap.",
+      'When the client taps "See if I qualify," it books a sit on your scheduling calendar. Track booked sits on the Activity page.',
+      'Concept-only by design: no projected dollars or dates on screen; the licensed specialist presents the real numbers. Never call it "FIF reset" to a client.',
+    ],
+  },
+  {
     key: 'feedback',
     title: 'Feedback',
     route: '/dashboard/feedback',
@@ -215,6 +230,13 @@ export const PATCH_FEATURES: PatchFeature[] = [
 // agent would want to discover. Patch mentions these when relevant, and the
 // dashboard "what's new" spotlight renders the same list.
 export const PATCH_WHATS_NEW: WhatsNewEntry[] = [
+  {
+    date: '2026-06-29',
+    title: 'Advanced Market Sits',
+    summary:
+      'Your existing clients can now get a personal in-app nudge into a second, advanced-market conversation. Turn it on in Settings → Appointments & Leads.',
+    route: '/dashboard/settings',
+  },
   {
     date: '2026-06-26',
     title: 'Lead tags',
