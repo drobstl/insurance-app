@@ -106,6 +106,12 @@ export async function POST(req: NextRequest) {
       assessmentAnswers: cleanAnswers,
       assessmentCompletedAt: FieldValue.serverTimestamp(),
       leadScore,
+      // Smart follow-up (Step 2): finishing the in-app assessment is a strong
+      // "warm right now" signal — auto-surface the lead in the agent's
+      // Follow-ups-due (followUpAt <= now) so they reach out while it's hot.
+      // Overwrites any prior date because this is the freshest reason to call.
+      followUpAt: FieldValue.serverTimestamp(),
+      followUpNote: 'Just finished the in-app assessment — reach out while warm',
     });
 
     // Activity-feed entry on the agent's `leadActivity` subcollection. The
