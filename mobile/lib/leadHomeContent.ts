@@ -31,8 +31,12 @@ export interface LeadHomeContent {
   assessment: LeadAssessmentQuestion[];
 }
 
-export async function fetchLeadHomeContent(agentId: string): Promise<LeadHomeContent> {
-  const url = `${API_BASE}/api/mobile/lead-content?agentId=${encodeURIComponent(agentId)}`;
+export async function fetchLeadHomeContent(agentId: string, leadId?: string): Promise<LeadHomeContent> {
+  // leadId lets the server read the lead's age and pick an age-appropriate
+  // default FAQ video. Optional — omitting it just means no age-targeted FAQ.
+  const qs = new URLSearchParams({ agentId });
+  if (leadId) qs.set('leadId', leadId);
+  const url = `${API_BASE}/api/mobile/lead-content?${qs.toString()}`;
   const res = await fetch(url, { method: 'GET' });
   if (!res.ok) {
     throw new Error(`lead-content fetch failed (${res.status})`);
