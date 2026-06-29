@@ -73,13 +73,15 @@ function PatchMascot({ size = 40, animated = false, winkTrigger }: { size?: numb
         <img
           src="/patch-face.png"
           alt="Patch"
-          className="absolute inset-0 w-full h-full object-contain"
+          draggable={false}
+          className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
           style={{ opacity: showWink ? 0 : 1 }}
         />
         <img
           src="/patch-face-wink.png"
           alt="Patch winking"
-          className="absolute inset-0 w-full h-full object-contain"
+          draggable={false}
+          className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
           style={{ opacity: showWink ? 1 : 0 }}
         />
       </div>
@@ -89,8 +91,9 @@ function PatchMascot({ size = 40, animated = false, winkTrigger }: { size?: numb
     <img
       src="/patch-face.png"
       alt="Patch"
+      draggable={false}
       style={{ width: size, height: size }}
-      className="object-contain"
+      className="object-contain pointer-events-none select-none"
     />
   );
 }
@@ -715,7 +718,7 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
       {/* Floating mascot button */}
       <motion.button
         data-onboarding-target="patch-launcher"
-        style={{ x: dragX, y: dragY, pointerEvents: showReveal ? 'none' : 'auto' }}
+        style={{ x: dragX, y: dragY, pointerEvents: showReveal ? 'none' : 'auto', touchAction: 'none', userSelect: 'none' }}
         onClick={() => {
           if (suppressClickRef.current) {
             suppressClickRef.current = false;
