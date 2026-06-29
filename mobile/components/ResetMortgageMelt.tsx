@@ -21,7 +21,6 @@ const BAR_W = 66;
 const MAX_BAR = 116;
 const BASE_Y = 150;
 const MINT = '#3DD6C3';
-const DOLLARS = [0, 1, 2, 3, 4];
 
 export interface ResetVisualProps {
   playKey?: number | string;
@@ -61,9 +60,7 @@ export default function ResetMortgageMelt({ playKey }: ResetVisualProps) {
       <View style={[styles.col, { left: 34 }]}>
         <View style={styles.track} />
         <Animated.View style={[styles.fill, styles.bankFill, bankFillStyle]}>
-          {DOLLARS.map((i) => (
-            <Animated.Text key={i} style={[styles.dollar, styles.bankDollar, bankDollarStyle]}>$</Animated.Text>
-          ))}
+          <Animated.Text style={[styles.dollar, styles.bankDollar, bankDollarStyle]}>$</Animated.Text>
         </Animated.View>
       </View>
 
@@ -74,9 +71,7 @@ export default function ResetMortgageMelt({ playKey }: ResetVisualProps) {
       <View style={[styles.col, { right: 34 }]}>
         <View style={styles.track} />
         <Animated.View style={[styles.fill, styles.youFill, youFillStyle]}>
-          {DOLLARS.map((i) => (
-            <Animated.Text key={i} style={[styles.dollar, styles.youDollar, youDollarStyle]}>$</Animated.Text>
-          ))}
+          <Animated.Text style={[styles.dollar, styles.youDollar, youDollarStyle]}>$</Animated.Text>
         </Animated.View>
       </View>
 
@@ -103,13 +98,12 @@ const styles = StyleSheet.create({
     width: BAR_W,
     borderRadius: 9,
     overflow: 'hidden',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 5,
   },
   bankFill: { backgroundColor: 'rgba(255,255,255,0.22)' },
   youFill: { backgroundColor: MINT },
-  dollar: { fontSize: 16, fontWeight: '800', lineHeight: 20, marginVertical: 1 },
+  dollar: { fontSize: 34, fontWeight: '800', lineHeight: 38 },
   bankDollar: { color: 'rgba(255,255,255,0.6)' },
   youDollar: { color: '#04342C' },
   arrow: {
