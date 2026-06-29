@@ -290,6 +290,10 @@ type DuplicateMatchInfo = {
 };
 
 interface ImportRow {
+  /** Which selected file produced this row — lets the agent remove one
+   *  file's rows from an accumulated batch. Optional: the Google-Drive
+   *  path doesn't set it (those rows aren't individually removable). */
+  sourceFileId?: string;
   name: string;
   owner?: string;
   email: string;
@@ -348,6 +352,9 @@ interface ImportFileStatus {
   rejectedRows: number;
   error?: string;
   notes?: string[];
+  /** Set when the file failed because it's password-protected — drives
+   *  the "set aside, add one at a time" callout + handoff. */
+  lockReason?: 'pdf_encrypted_unsupported';
 }
 
 interface ImportNotice {
@@ -985,6 +992,18 @@ export default function ClientsPage() {
   const [importProgress, setImportProgress] = useState(0);
   const [importSuccess, setImportSuccess] = useState('');
   const [importFileStatuses, setImportFileStatuses] = useState<ImportFileStatus[]>([]);
+  // Locked (password-protected) PDFs that failed the bulk parse. Kept in
+  // memory so we can hand the exact File to the single-file Add Client
+  // flow (which reads edit-locked PDFs fine). A File can't survive a page
+  // reload, so this is session-scoped.
+  const [lockedImportFiles, setLockedImportFiles] = useState<Map<string, File>>(new Map());
+  // Snapshot of locked files captured at import time so the post-import
+  // results screen can still offer them after importData/statuses clear.
+  const [postImportLockedFiles, setPostImportLockedFiles] = useState<{ id: string; file: File }[]>([]);
+  const [dismissedLockedReminder, setDismissedLockedReminder] = useState(false);
+  // Cross-reload hint (filenames only — the File itself is gone after a
+  // reload) so we can still nudge the agent to re-add a locked file.
+  const [reloadLockedHint, setReloadLockedHint] = useState<{ count: number; names: string[] } | null>(null);
   const [importSessionStartedAt, setImportSessionStartedAt] = useState<number | null>(null);
   const [importDragActive, setImportDragActive] = useState(false);
   const [selectedImportRowIndex, setSelectedImportRowIndex] = useState(0);
@@ -3733,10 +3752,48 @@ export default function ClientsPage() {
     );
   }, []);
 
-  const processImportSources = useCallback(async (sources: ImportSourceFile[]) => {
-    if (!user || sources.length === 0) return;
-    if (sources.length > MAX_FILES_PER_IMPORT) {
+  // Drop one file from an accumulated batch: its parsed rows, its status
+  // row, and any retained locked File. The "Import N clients" count and the
+  // status pills derive from importData/importFileStatuses, so they
+  // recompute automatically.
+  const removeImportFile = useCallback((sourceFileId: string) => {
+    setImportData((prev) => prev.filter((row) => row.sourceFileId !== sourceFileId));
+    setImportFileStatuses((prev) => prev.filter((status) => status.sourceFileId !== sourceFileId));
+    setLockedImportFiles((prev) => {
+      if (!prev.has(sourceFileId)) return prev;
+      const next = new Map(prev);
+      next.delete(sourceFileId);
+      return next;
+    });
+  }, []);
+
+  const processImportSources = useCallback(async (incomingSources: ImportSourceFile[]) => {
+    if (!user || incomingSources.length === 0) return;
+
+    // Accumulate across multiple picks/drops instead of replacing the
+    // pending batch, so an agent can gather files across folders (the OS
+    // picker can't multi-select across folders). Everything below operates
+    // on `sources` = only the genuinely-new files; already-pending files
+    // (de-duped by sourceFileId) are left untouched.
+    const existingIds = new Set(importFileStatuses.map((s) => s.sourceFileId));
+    const sources = incomingSources.filter((s) => !existingIds.has(s.sourceFileId));
+    if (sources.length === 0) {
+      showImportNotice('files_added', { items: ['Those files are already in your list.'] });
+      return;
+    }
+    if (importFileStatuses.length + sources.length > MAX_FILES_PER_IMPORT) {
       showImportNotice('file_limit');
+      setImportSuccess('');
+      return;
+    }
+    // Enforce the no-mixed-batch (PDF vs spreadsheet/CSV) rule across the
+    // whole pending set, not just this drop.
+    const combinedMixError = getBulkBatchMixValidationError([
+      ...importFileStatuses.map((s) => s.fileType),
+      ...sources.map((s) => s.fileType),
+    ]);
+    if (combinedMixError) {
+      showImportNotice('mixed_batch_blocked', { items: [combinedMixError] });
       setImportSuccess('');
       return;
     }
@@ -3746,20 +3803,20 @@ export default function ClientsPage() {
     clearImportNotice();
     showImportNotice('processing_started');
     setImportSuccess('');
-    setImportData([]);
     setImportProgress(0);
     setImportSessionStartedAt(startedAt);
-    setImportFileStatuses(
-      sources.map((source) => ({
+    setImportFileStatuses((prev) => [
+      ...prev,
+      ...sources.map((source) => ({
         sourceFileId: source.sourceFileId,
         name: source.file.name,
         fileType: source.fileType,
-        state: 'queued',
+        state: 'queued' as const,
         loadedRows: 0,
         rejectedRows: 0,
         notes: [],
       })),
-    );
+    ]);
 
     const fileTypeCounts = {
       pdf: sources.filter((s) => s.fileType === 'pdf').length,
@@ -3856,7 +3913,10 @@ export default function ClientsPage() {
           warningFiles.add(source.sourceFileId);
           addImportFileNote(source.sourceFileId, note);
         }
-        setImportData((prev) => [...prev, ...quality.accepted]);
+        setImportData((prev) => [
+          ...prev,
+          ...quality.accepted.map((row) => ({ ...row, sourceFileId: source.sourceFileId })),
+        ]);
         loadedRows += quality.accepted.length;
         parsedFiles += 1;
         updateImportFileStatus(source.sourceFileId, {
@@ -3876,10 +3936,19 @@ export default function ClientsPage() {
       } catch (err) {
         failedFiles += 1;
         let message = 'Failed to parse file. Please try again.';
+        let lockReason: ImportFileStatus['lockReason'];
         if (isTimeoutError(err)) {
           message = 'Request timed out while parsing this file. Please retry.';
         } else if (err instanceof BulkImportTerminalError && err.reason === 'pdf_encrypted_unsupported') {
           message = BULK_ENCRYPTED_PDF_UNSUPPORTED_MESSAGE;
+          lockReason = 'pdf_encrypted_unsupported';
+          // Keep the File so the agent can hand it to the single-file Add
+          // Client flow in one click (it reads edit-locked PDFs fine).
+          setLockedImportFiles((prev) => {
+            const next = new Map(prev);
+            next.set(source.sourceFileId, source.file);
+            return next;
+          });
         } else if (err instanceof Error) {
           if (err.message.includes('client token') || err.message.includes('Vercel Blob')) {
             message = 'Upload service temporarily unavailable. Please try again.';
@@ -3887,7 +3956,7 @@ export default function ClientsPage() {
             message = err.message;
           }
         }
-        updateImportFileStatus(source.sourceFileId, { state: 'failed', error: message });
+        updateImportFileStatus(source.sourceFileId, { state: 'failed', error: message, lockReason });
         captureEvent(ANALYTICS_EVENTS.BULK_IMPORT_FILE_PARSED, {
           source: 'local_bulk',
           file_type: source.fileType,
@@ -3955,7 +4024,7 @@ export default function ClientsPage() {
     });
 
     setParsingBob(false);
-  }, [addImportFileNote, bulkPdfConcurrencyLimit, clearImportNotice, parseBobSourceFile, parseSingleCsv, showImportNotice, updateImportFileStatus, user]);
+  }, [addImportFileNote, bulkPdfConcurrencyLimit, clearImportNotice, getBulkBatchMixValidationError, importFileStatuses, parseBobSourceFile, parseSingleCsv, showImportNotice, updateImportFileStatus, user]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -4332,6 +4401,20 @@ export default function ClientsPage() {
       }
       setImportSuccess(message);
       setJustImportedClients(allCreated);
+      // Carry locked (password-protected) files forward to the results
+      // screen so they're not lost when the pending lists clear below.
+      const lockedStragglers = Array.from(lockedImportFiles.entries()).map(([id, file]) => ({ id, file }));
+      setPostImportLockedFiles(lockedStragglers);
+      if (lockedStragglers.length > 0) {
+        try {
+          window.localStorage.setItem('bulkImport.lockedStragglers', JSON.stringify({
+            count: lockedStragglers.length,
+            names: lockedStragglers.map((s) => s.file.name),
+          }));
+        } catch { /* localStorage unavailable — the in-session banner still works */ }
+        setDismissedLockedReminder(false);
+      }
+      setLockedImportFiles(new Map());
       setImportData([]);
       setImportFileStatuses([]);
       clearImportNotice();
@@ -4344,7 +4427,7 @@ export default function ClientsPage() {
     } finally {
       setImporting(false);
     }
-  }, [user, importData, importSessionStartedAt, refreshSummaries, clearImportNotice, showImportNotice]);
+  }, [user, importData, importSessionStartedAt, lockedImportFiles, refreshSummaries, clearImportNotice, showImportNotice]);
 
   useEffect(() => {
     if (importSuccess && importModalScrollRef.current) {
@@ -4360,6 +4443,38 @@ export default function ClientsPage() {
       importReviewSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }, [importData.length, isImportModalOpen, parsingBob]);
+
+  // One-click handoff: send a locked file to the single-file Add Client
+  // flow with the File pre-staged, so the agent doesn't have to find it
+  // again. resetAddFlowState (inside handleStartAddFlow) clears the staged
+  // file first, so we set it AFTER — last write wins in the same batch.
+  const handleAddLockedFile = useCallback((file: File, sourceFileId: string) => {
+    setIsImportModalOpen(false);
+    setImportSuccess('');
+    handleStartAddFlow();
+    setClientStagedFile(file);
+    setPostImportLockedFiles((prev) => prev.filter((s) => s.id !== sourceFileId));
+    setLockedImportFiles((prev) => {
+      if (!prev.has(sourceFileId)) return prev;
+      const next = new Map(prev);
+      next.delete(sourceFileId);
+      return next;
+    });
+  }, [handleStartAddFlow]);
+
+  // Hydrate the cross-reload locked-file hint once on mount. The File is
+  // gone after a reload, so this can only remind the agent (by filename)
+  // to re-add it — not one-click it.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem('bulkImport.lockedStragglers');
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { count?: number; names?: string[] };
+      if (parsed && typeof parsed.count === 'number' && parsed.count > 0) {
+        setReloadLockedHint({ count: parsed.count, names: Array.isArray(parsed.names) ? parsed.names : [] });
+      }
+    } catch { /* ignore malformed hint */ }
+  }, []);
 
   // ─── Share Code Handler ──────────────────────────────────
 
@@ -4886,6 +5001,61 @@ export default function ClientsPage() {
         </div>
       )}
 
+      {/* Safety net: don't let a locked (password-protected) file from a
+          bulk import get forgotten. In-session we still hold the File and
+          can one-click it; after a reload we can only name it and prompt a
+          re-pick (a File can't survive a reload). */}
+      {!isImportModalOpen && !isAddFlowActive && !dismissedLockedReminder && postImportLockedFiles.length > 0 && (
+        <div className="mb-4 flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-[5px]">
+          <div className="flex items-center gap-3 min-w-0">
+            <svg className="w-5 h-5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+            <p className="text-sm text-amber-800 min-w-0 truncate">
+              {postImportLockedFiles.length} locked file{postImportLockedFiles.length !== 1 ? 's' : ''} from your import still {postImportLockedFiles.length !== 1 ? 'need' : 'needs'} adding.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => { const first = postImportLockedFiles[0]; handleAddLockedFile(first.file, first.id); }}
+              className="px-4 py-1.5 bg-[#44bbaa] hover:bg-[#005751] text-white text-sm font-semibold rounded-[5px] transition-colors"
+            >
+              Add now
+            </button>
+            <button
+              onClick={() => { setDismissedLockedReminder(true); setPostImportLockedFiles([]); try { window.localStorage.removeItem('bulkImport.lockedStragglers'); } catch { /* noop */ } }}
+              className="p-1 rounded hover:bg-amber-100 text-amber-700 transition-colors"
+              aria-label="Dismiss"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        </div>
+      )}
+      {!isImportModalOpen && !isAddFlowActive && !dismissedLockedReminder && postImportLockedFiles.length === 0 && reloadLockedHint && (
+        <div className="mb-4 flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-[5px]">
+          <div className="flex items-center gap-3 min-w-0">
+            <svg className="w-5 h-5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+            <p className="text-sm text-amber-800 min-w-0 truncate">
+              {reloadLockedHint.count} file{reloadLockedHint.count !== 1 ? 's' : ''} from your last import {reloadLockedHint.count !== 1 ? 'were' : 'was'} locked{reloadLockedHint.names.length ? ` (${reloadLockedHint.names.join(', ')})` : ''} — add {reloadLockedHint.count !== 1 ? 'them' : 'it'} one at a time.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => { setReloadLockedHint(null); try { window.localStorage.removeItem('bulkImport.lockedStragglers'); } catch { /* noop */ } handleStartAddFlow(); }}
+              className="px-4 py-1.5 bg-[#44bbaa] hover:bg-[#005751] text-white text-sm font-semibold rounded-[5px] transition-colors"
+            >
+              Add a client
+            </button>
+            <button
+              onClick={() => { setDismissedLockedReminder(true); setReloadLockedHint(null); try { window.localStorage.removeItem('bulkImport.lockedStragglers'); } catch { /* noop */ } }}
+              className="p-1 rounded hover:bg-amber-100 text-amber-700 transition-colors"
+              aria-label="Dismiss"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className={isImportModalOpen || isAddFlowActive ? 'overflow-x-visible' : 'overflow-x-clip'}>
         <div
           className="flex transition-transform duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
@@ -5012,6 +5182,35 @@ export default function ClientsPage() {
                     </div>
                     <p className="text-lg font-bold text-[#000000] mb-2">{importSuccess}</p>
                   </div>
+                  {postImportLockedFiles.length > 0 && (
+                    <div className="rounded-[5px] border border-amber-200 bg-amber-50 px-4 py-3 text-left space-y-2.5">
+                      <div className="flex items-start gap-2">
+                        <svg className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                        <div>
+                          <p className="text-sm font-semibold text-amber-800">
+                            {postImportLockedFiles.length} locked file{postImportLockedFiles.length !== 1 ? 's' : ''} couldn&apos;t be read in bulk
+                          </p>
+                          <p className="text-xs text-amber-700 leading-relaxed mt-0.5">
+                            They&apos;re password-protected. Add each one here — we&apos;ll load the exact file for you, so there&apos;s nothing to find again.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        {postImportLockedFiles.map(({ id, file }) => (
+                          <div key={id} className="flex items-center justify-between gap-3 bg-white rounded-[5px] border border-amber-200 px-3 py-2">
+                            <span className="text-xs text-[#3a3a3a] truncate" title={file.name}>{file.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleAddLockedFile(file, id)}
+                              className="shrink-0 px-3 py-1.5 bg-[#44bbaa] hover:bg-[#005751] text-white text-xs font-semibold rounded-[5px] transition-colors"
+                            >
+                              Unlock &amp; add this file
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {/* Mode 2 (May 9, 2026) — bulk-import drip release.
                       The legacy "Send intro to N clients" bulk-blast path
                       was removed because it bypassed the drip and
@@ -5229,11 +5428,18 @@ export default function ClientsPage() {
                         </div>
                       </div>
                       <div className="divide-y divide-[#f0f0f0]">
-                        {importFileStatuses.map((status) => (
+                        {importFileStatuses.map((status) => {
+                          const isLocked = status.lockReason === 'pdf_encrypted_unsupported';
+                          return (
                           <div key={status.sourceFileId} className="px-4 py-2 flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <p className="text-xs font-medium text-[#000000] truncate">{status.name}</p>
-                              {status.error ? (
+                              {isLocked ? (
+                                <p className="text-[11px] text-amber-700 leading-relaxed flex items-start gap-1">
+                                  <svg className="w-3 h-3 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                  <span>Locked (password-protected). Set aside — import the rest, then add this one in the next step.</span>
+                                </p>
+                              ) : status.error ? (
                                 <p className="text-[11px] text-red-600 leading-relaxed">{toPlainEnglishImportFailureReason(status.error)}</p>
                               ) : (
                                 <p className="text-[11px] text-[#707070]">
@@ -5254,21 +5460,63 @@ export default function ClientsPage() {
                                 </div>
                               )}
                             </div>
-                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
-                              status.state === 'succeeded'
-                                ? 'bg-green-50 text-green-700'
-                                : status.state === 'failed'
-                                  ? 'bg-red-50 text-red-700'
-                                  : status.state === 'parsing'
-                                    ? 'bg-blue-50 text-blue-700'
-                                    : 'bg-gray-100 text-gray-600'
-                            }`}>
-                              {status.state === 'queued'
-                                ? 'queued'
-                                : status.state === 'parsing'
-                                  ? 'processing'
-                                  : status.state}
-                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
+                                isLocked
+                                  ? 'bg-amber-50 text-amber-700'
+                                  : status.state === 'succeeded'
+                                    ? 'bg-green-50 text-green-700'
+                                    : status.state === 'failed'
+                                      ? 'bg-red-50 text-red-700'
+                                      : status.state === 'parsing'
+                                        ? 'bg-blue-50 text-blue-700'
+                                        : 'bg-gray-100 text-gray-600'
+                              }`}>
+                                {isLocked
+                                  ? 'locked'
+                                  : status.state === 'queued'
+                                    ? 'queued'
+                                    : status.state === 'parsing'
+                                      ? 'processing'
+                                      : status.state}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => removeImportFile(status.sourceFileId)}
+                                disabled={importing || parsingBob}
+                                aria-label={`Remove ${status.name}`}
+                                title="Remove this file"
+                                className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                              </button>
+                            </div>
+                          </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {!parsingBob && importData.length === 0 && lockedImportFiles.size > 0 && (
+                    <div className="rounded-[5px] border border-amber-200 bg-amber-50 px-4 py-3 space-y-2.5">
+                      <p className="text-sm font-semibold text-amber-800">
+                        {lockedImportFiles.size === 1 ? 'This file is password-protected' : 'These files are password-protected'}
+                      </p>
+                      <p className="text-xs text-amber-700 leading-relaxed">
+                        We can&apos;t open locked files in a bulk batch. Add {lockedImportFiles.size === 1 ? 'it' : 'each one'} here — we&apos;ll load the exact file for you.
+                      </p>
+                      <div className="space-y-1.5">
+                        {Array.from(lockedImportFiles.entries()).map(([id, file]) => (
+                          <div key={id} className="flex items-center justify-between gap-3 bg-white rounded-[5px] border border-amber-200 px-3 py-2">
+                            <span className="text-xs text-[#3a3a3a] truncate" title={file.name}>{file.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleAddLockedFile(file, id)}
+                              className="shrink-0 px-3 py-1.5 bg-[#44bbaa] hover:bg-[#005751] text-white text-xs font-semibold rounded-[5px] transition-colors"
+                            >
+                              Unlock &amp; add this file
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -5443,6 +5691,8 @@ export default function ClientsPage() {
                             setImportData([]);
                             clearImportNotice();
                             setImportFileStatuses([]);
+                            setLockedImportFiles(new Map());
+                            setPostImportLockedFiles([]);
                             setSelectedImportRowIndex(0);
                             batchDismissedRef.current = true;
                             setBatchNotification(null);
