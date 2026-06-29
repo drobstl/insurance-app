@@ -236,6 +236,21 @@ export interface AgentProfile {
     caseStudies?: Array<{ id: string; title: string; url: string; iframeUrl?: string; thumbnailUrl?: string; videoId?: string; updatedAt?: string }>;
   };
   /**
+   * Whether the FAQ / case-study sections appear on the lead-home screen.
+   * Tri-state, resolved identically here and in /api/mobile/lead-content:
+   *   - undefined → show ONLY if the agent has ≥1 real video in that slot
+   *     (a brand-new agent's leads see nothing until there's real content —
+   *     no "Coming soon" platform-default placeholders).
+   *   - true  → always show (uploaded videos, else platform defaults).
+   *   - false → always hide, even if videos exist.
+   * The toggle lets an agent suppress a section, or opt into platform
+   * defaults (e.g. future animated default FAQs) before they've recorded
+   * their own. Persisted top-level at `agents/{agentId}.showLeadFaqs` /
+   * `.showLeadCaseStudies`. Intro is intentionally not gated this way.
+   */
+  showLeadFaqs?: boolean;
+  showLeadCaseStudies?: boolean;
+  /**
    * Per-agent dial-script template shown as an overlay during a live
    * call. Supports `{agentfirstname}`, `{leadname}`, `{leadage}` etc.
    * (see web/lib/dial-script.ts). Empty/undefined falls back to
@@ -447,6 +462,12 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           // preserve a literal `false` so an explicit opt-out survives.
           includeAppAccessInConfirmations: data.includeAppAccessInConfirmations,
           leadContent: data.leadContent || undefined,
+          // Tri-state visibility for the lead-home FAQ / case-study sections.
+          // Preserve a literal boolean; undefined = "show only if real videos
+          // exist" (resolved in /api/mobile/lead-content). MUST load here or
+          // autosave would write undefined back and erase an explicit choice.
+          showLeadFaqs: typeof data.showLeadFaqs === 'boolean' ? data.showLeadFaqs : undefined,
+          showLeadCaseStudies: typeof data.showLeadCaseStudies === 'boolean' ? data.showLeadCaseStudies : undefined,
           dialScript: typeof data.dialScript === 'string' ? data.dialScript : undefined,
           dialPersistence: (data.dialPersistence === 2 || data.dialPersistence === 3)
             ? data.dialPersistence

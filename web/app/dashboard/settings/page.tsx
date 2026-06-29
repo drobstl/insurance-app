@@ -122,6 +122,9 @@ export default function SettingsPage() {
     confirmationChannel: agentProfile.confirmationChannel === 'email' ? 'email' : 'text',
     includeAppAccessInConfirmations: agentProfile.includeAppAccessInConfirmations ?? true,
     resetRevealEnabled: agentProfile.resetRevealEnabled ?? false,
+    // Tri-state: null preserves "undefined = show only if real videos exist".
+    showLeadFaqs: agentProfile.showLeadFaqs ?? null,
+    showLeadCaseStudies: agentProfile.showLeadCaseStudies ?? null,
   }), [
     agentProfile.name,
     agentProfile.phoneNumber,
@@ -152,6 +155,8 @@ export default function SettingsPage() {
     agentProfile.confirmationChannel,
     agentProfile.includeAppAccessInConfirmations,
     agentProfile.resetRevealEnabled,
+    agentProfile.showLeadFaqs,
+    agentProfile.showLeadCaseStudies,
   ]);
 
   const loadGoogleDriveStatus = useCallback(async () => {
@@ -451,6 +456,11 @@ export default function SettingsPage() {
         // false. The app link is still gated on a real intro video at
         // send time, so ON here never produces an empty prep page.
         includeAppAccessInConfirmations: agentProfile.includeAppAccessInConfirmations ?? true,
+        // Lead-home section visibility. null = undefined = "show only if the
+        // agent has a real video in that slot" (resolved in the mobile
+        // manifest). An explicit true/false is the agent's override.
+        showLeadFaqs: agentProfile.showLeadFaqs ?? null,
+        showLeadCaseStudies: agentProfile.showLeadCaseStudies ?? null,
       }, { merge: true });
 
       if (isFirstTimePhone) {
