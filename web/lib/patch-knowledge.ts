@@ -204,7 +204,7 @@ export const PATCH_FEATURES: PatchFeature[] = [
   {
     key: 'advanced-market-sits',
     title: 'Advanced Market Sits',
-    route: '/dashboard/settings',
+    route: '/dashboard/settings?tab=appointments-leads',
     tier: 'all',
     what: 'An opt-in in-app reveal that re-engages your existing clients into a second, advanced-market conversation — built from their own mortgage and savings.',
     why: 'The cheapest appointment you can set: no new lead, no cold call. Turns closed clients into bigger advanced-market cases and reactivates the quiet ones.',
@@ -235,7 +235,7 @@ export const PATCH_WHATS_NEW: WhatsNewEntry[] = [
     title: 'Advanced Market Sits',
     summary:
       'Your existing clients can now get a personal in-app nudge into a second, advanced-market conversation. Turn it on in Settings → Appointments & Leads.',
-    route: '/dashboard/settings',
+    route: '/dashboard/settings?tab=appointments-leads',
   },
   {
     date: '2026-06-26',
