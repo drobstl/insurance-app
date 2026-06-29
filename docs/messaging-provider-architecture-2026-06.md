@@ -1,5 +1,12 @@
 # Messaging Provider Architecture — Decision Record (June 2026)
 
+> **Status: PARKED (Jun 29 2026).** Daniel parked the custom/virtual-numbers
+> build — status quo stays "agents dial/text from their own phone," revisit
+> at scale. This record is **not** being implemented now; it stands as the
+> contract for whenever the work picks back up. The shipped Close Sale
+> welcome path (device `sms:` + Copy/QR, PR #239) is unaffected and remains
+> the welcome mechanism.
+
 ## Purpose
 
 Multiple parallel sessions are converging on the same surface — sending
