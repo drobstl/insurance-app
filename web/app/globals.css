@@ -243,18 +243,14 @@ input[type="range"].slider-thumb:focus::-webkit-slider-thumb {
 }
 .animate-bounce-soft { animation: bounceSoft 1.2s ease-in-out infinite; }
 
-/* Settings tab switch — content slides in from the side you moved toward,
-   so flipping tabs reads like a conveyor. Honors reduced-motion. */
-@keyframes settingsSlideInRight {
-  from { opacity: 0; transform: translateX(26px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-@keyframes settingsSlideInLeft {
-  from { opacity: 0; transform: translateX(-26px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-.settings-slide-right { animation: settingsSlideInRight 240ms cubic-bezier(0.22, 1, 0.36, 1); }
-.settings-slide-left  { animation: settingsSlideInLeft 240ms cubic-bezier(0.22, 1, 0.36, 1); }
-@media (prefers-reduced-motion: reduce) {
-  .settings-slide-right, .settings-slide-left { animation: none; }
-}
+/* Settings tab switch — a conveyor belt. The incoming panel slides in
+   from one side while the outgoing panel slides off the other, so the
+   two move together. JS skips the belt under reduced-motion. */
+@keyframes settingsBeltEnterRight { from { transform: translateX(100%); }  to { transform: translateX(0); } }
+@keyframes settingsBeltEnterLeft  { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+@keyframes settingsBeltExitLeft   { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+@keyframes settingsBeltExitRight  { from { transform: translateX(0); } to { transform: translateX(100%); } }
+.belt-enter-right { animation: settingsBeltEnterRight 320ms cubic-bezier(0.4, 0, 0.2, 1); }
+.belt-enter-left  { animation: settingsBeltEnterLeft 320ms cubic-bezier(0.4, 0, 0.2, 1); }
+.belt-exit-left   { animation: settingsBeltExitLeft 320ms cubic-bezier(0.4, 0, 0.2, 1); }
+.belt-exit-right  { animation: settingsBeltExitRight 320ms cubic-bezier(0.4, 0, 0.2, 1); }
