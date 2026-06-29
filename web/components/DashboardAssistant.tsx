@@ -528,6 +528,7 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
         tier: agentProfile.membershipTier || '',
         phonePaired: agentProfile.phonePaired === true,
         calendarConnected: calendarConnected === true,
+        isDesktop: typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches,
       },
       getDismissedNudges(),
     );
@@ -706,6 +707,8 @@ export default function DashboardAssistant({ onFirstUserMessage }: DashboardAssi
             <div className="mt-2.5 pl-[38px]">
               <a
                 href={nudge.cta.href}
+                target={nudge.cta.newTab ? '_blank' : undefined}
+                rel={nudge.cta.newTab ? 'noreferrer' : undefined}
                 onClick={(e) => {
                   if (nudge.cta.patchPrompt) {
                     e.preventDefault();

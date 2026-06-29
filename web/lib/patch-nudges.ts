@@ -17,6 +17,8 @@ export interface NudgeContext {
   phonePaired: boolean;
   /** fetched from the google-calendar integration status */
   calendarConnected: boolean;
+  /** desktop viewport — gates computer-only guidance (e.g. call-from-computer) */
+  isDesktop: boolean;
 }
 
 export interface PatchNudge {
@@ -25,7 +27,7 @@ export interface PatchNudge {
   priority: number;
   /** one line, plain English, sells the why */
   message: string;
-  cta: { label: string; href?: string; patchPrompt?: string };
+  cta: { label: string; href?: string; patchPrompt?: string; newTab?: boolean };
   when: (ctx: NudgeContext) => boolean;
 }
 
@@ -47,6 +49,17 @@ export const PATCH_NUDGES: PatchNudge[] = [
     message: 'Connect your calendar so booking a lead never double-books you.',
     cta: { label: 'Connect', href: '/dashboard/settings?tab=account' },
     when: (c) => isProTier(c.tier) && !c.calendarConnected && onLeadsOrCalendar(c.pathname),
+  },
+  {
+    // Desktop-only: the agent is dialing from a computer, where AFL's
+    // `tel:` links can route through their own phone (Continuity / Phone
+    // Link). Opens the standalone setup guide in a new tab so they keep
+    // their place in the queue.
+    id: 'call-from-computer',
+    priority: 60,
+    message: 'On a computer? Dial leads straight from here — they ring out through your own phone and number, so more get picked up.',
+    cta: { label: 'Set it up', href: '/call-from-computer', newTab: true },
+    when: (c) => c.isDesktop && c.pathname.startsWith('/dashboard/leads'),
   },
 ];
 
