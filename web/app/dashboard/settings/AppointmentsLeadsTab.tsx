@@ -68,6 +68,8 @@ function LeadVideoList({
   addingProgress,
   onUpload,
   onDelete,
+  shownToLeads,
+  onShownChange,
 }: {
   kind: 'faq' | 'caseStudy';
   label: string;
@@ -76,6 +78,9 @@ function LeadVideoList({
   addingProgress: number | null;
   onUpload: (file: File, slotId: string, title: string) => void;
   onDelete: (slotId: string) => void;
+  /** Whether this whole section currently appears on the lead-home. */
+  shownToLeads: boolean;
+  onShownChange: (checked: boolean) => void;
 }) {
   const [newTitle, setNewTitle] = useState('');
   const handleNewFile = useCallback((file: File) => {
@@ -88,6 +93,29 @@ function LeadVideoList({
   return (
     <div className="mb-5 pb-5 border-b border-[#ececec] last:border-b-0 last:pb-0 last:mb-0">
       <h4 className="text-xs font-semibold text-[#374151] mb-2">{label}</h4>
+
+      {/* Per-section visibility. A section is hidden from leads until the
+          agent has a real video here (or explicitly turns it on), so day-1
+          agents never show "Coming soon" placeholders. */}
+      <label className="flex items-start gap-2 mb-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={shownToLeads}
+          onChange={(e) => onShownChange(e.target.checked)}
+          className="mt-0.5"
+        />
+        <span className="text-[11px] text-[#374151] leading-snug">
+          Show this section on your leads&apos; home page
+          <span className="block text-[10px] text-[#9aa0a6] mt-0.5">
+            {shownToLeads
+              ? 'Your leads will see it.'
+              : items.length > 0
+              ? 'Hidden from your leads, even though you have videos here.'
+              : 'Hidden — add a video above and it appears automatically, or check this to include it now.'}
+          </span>
+        </span>
+      </label>
+
       {items.length === 0 && (
         <p className="text-[11px] text-[#707070] mb-2">No videos uploaded yet.</p>
       )}
@@ -725,7 +753,9 @@ export default function AppointmentsLeadsTab({
             })()}
           </div>
 
-          {/* FAQs */}
+          {/* FAQs. shownToLeads mirrors the manifest's resolveSection: a
+              section is visible unless explicitly off, and on-by-default only
+              once there's a real video (or the agent opted in). */}
           <LeadVideoList
             kind="faq"
             label="FAQ videos"
@@ -734,6 +764,11 @@ export default function AppointmentsLeadsTab({
             addingProgress={leadVideoBusy?.startsWith('faq:') ? (leadVideoProgress[leadVideoBusy] ?? 0) : null}
             onUpload={(file, slotId, title) => uploadLeadVideo({ file, slot: 'faq', slotId, title })}
             onDelete={(slotId) => deleteLeadVideo('faq', slotId)}
+            shownToLeads={
+              agentProfile.showLeadFaqs !== false &&
+              ((agentProfile.leadContent?.faqs?.length ?? 0) > 0 || agentProfile.showLeadFaqs === true)
+            }
+            onShownChange={(checked) => updateField('showLeadFaqs', checked)}
           />
 
           {/* Case studies */}
@@ -745,6 +780,11 @@ export default function AppointmentsLeadsTab({
             addingProgress={leadVideoBusy?.startsWith('caseStudy:') ? (leadVideoProgress[leadVideoBusy] ?? 0) : null}
             onUpload={(file, slotId, title) => uploadLeadVideo({ file, slot: 'caseStudy', slotId, title })}
             onDelete={(slotId) => deleteLeadVideo('caseStudy', slotId)}
+            shownToLeads={
+              agentProfile.showLeadCaseStudies !== false &&
+              ((agentProfile.leadContent?.caseStudies?.length ?? 0) > 0 || agentProfile.showLeadCaseStudies === true)
+            }
+            onShownChange={(checked) => updateField('showLeadCaseStudies', checked)}
           />
 
           {leadVideoError && (
