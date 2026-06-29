@@ -71,6 +71,7 @@ function LeadVideoList({
   onDelete,
   shownToLeads,
   onShownChange,
+  platformDefaultNote,
 }: {
   kind: 'faq' | 'caseStudy';
   label: string;
@@ -82,6 +83,9 @@ function LeadVideoList({
   /** Whether this whole section currently appears on the lead-home. */
   shownToLeads: boolean;
   onShownChange: (checked: boolean) => void;
+  /** Shown when the section is on with no uploads — explains the platform
+   *  default that leads see in that case (e.g. the age-aware FAQ video). */
+  platformDefaultNote?: string;
 }) {
   const [newTitle, setNewTitle] = useState('');
   const handleNewFile = useCallback((file: File) => {
@@ -109,7 +113,7 @@ function LeadVideoList({
           Show this section on your leads&apos; home page
           <span className="block text-[10px] text-[#9aa0a6] mt-0.5">
             {shownToLeads
-              ? 'Your leads will see it.'
+              ? (items.length === 0 && platformDefaultNote ? platformDefaultNote : 'Your leads will see it.')
               : items.length > 0
               ? 'Hidden from your leads, even though you have videos here.'
               : 'Hidden — add a video above and it appears automatically, or check this to include it now.'}
@@ -793,9 +797,10 @@ export default function AppointmentsLeadsTab({
             })()}
           </div>
 
-          {/* FAQs. shownToLeads mirrors the manifest's resolveSection: a
-              section is visible unless explicitly off, and on-by-default only
-              once there's a real video (or the agent opted in). */}
+          {/* FAQs. Now ON by default: there's a real, age-aware platform
+              default (a younger-lead "do I need this now?" video) that serves
+              automatically unless the agent opts out or uploads their own.
+              Mirrors the manifest's resolveFaqs(). */}
           <LeadVideoList
             kind="faq"
             label="FAQ videos"
@@ -804,11 +809,9 @@ export default function AppointmentsLeadsTab({
             addingProgress={leadVideoBusy?.startsWith('faq:') ? (leadVideoProgress[leadVideoBusy] ?? 0) : null}
             onUpload={(file, slotId, title) => uploadLeadVideo({ file, slot: 'faq', slotId, title })}
             onDelete={(slotId) => deleteLeadVideo('faq', slotId)}
-            shownToLeads={
-              agentProfile.showLeadFaqs !== false &&
-              ((agentProfile.leadContent?.faqs?.length ?? 0) > 0 || agentProfile.showLeadFaqs === true)
-            }
+            shownToLeads={agentProfile.showLeadFaqs !== false}
             onShownChange={(checked) => updateField('showLeadFaqs', checked)}
+            platformDefaultNote="Younger leads automatically see our default FAQ video (“do I need this now?”). Upload your own to replace it, or uncheck to hide."
           />
 
           {/* Case studies */}

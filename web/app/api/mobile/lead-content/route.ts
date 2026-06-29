@@ -32,6 +32,32 @@ const PLATFORM_DEFAULTS = {
   ],
 };
 
+// Age-aware platform-default FAQ videos. Real, hosted clips (Bunny Stream)
+// that play automatically when the agent hasn't recorded their own FAQ. We
+// only serve an age-appropriate one — the "do I need this now?" clip is
+// written for younger leads, so it only goes to leads under YOUNG_FAQ_MAX_AGE.
+// (An over-40 "cost / approval" companion will slot in here later.)
+// videoId lives in the AFL Bunny library (672807); URLs are public CDN paths.
+const YOUNG_FAQ_MAX_AGE = 40;
+const YOUNG_FAQ_DEFAULT = {
+  id: 'faq-default-young',
+  title: 'I’m young and healthy — do I really need this now?',
+  url: 'https://vz-a54402da-888.b-cdn.net/7b3ebe94-fbd8-453e-ba92-6007fa8848dd/playlist.m3u8',
+  iframeUrl: 'https://iframe.mediadelivery.net/embed/672807/7b3ebe94-fbd8-453e-ba92-6007fa8848dd',
+  thumbnailUrl: 'https://vz-a54402da-888.b-cdn.net/7b3ebe94-fbd8-453e-ba92-6007fa8848dd/thumbnail.jpg',
+  videoId: '7b3ebe94-fbd8-453e-ba92-6007fa8848dd',
+  durationSec: 57,
+};
+
+// Whole years from a YYYY-MM-DD date of birth; undefined if missing/invalid.
+function ageFromDob(dob?: unknown): number | undefined {
+  if (typeof dob !== 'string' || !dob.trim()) return undefined;
+  const d = new Date(dob);
+  if (Number.isNaN(d.getTime())) return undefined;
+  const a = Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 3600 * 1000));
+  return a > 0 && a < 120 ? a : undefined;
+}
+
 /**
  * GET /api/mobile/lead-content?agentId=…
  *
@@ -52,6 +78,10 @@ export async function GET(req: NextRequest) {
 
     const url = new URL(req.url);
     const agentId = (url.searchParams.get('agentId') || '').trim();
+    // The lead's own id (mobile session `clientId`). Lets us read their age
+    // server-side to pick the age-appropriate default FAQ. Optional — old app
+    // builds that don't send it simply get no age-targeted default.
+    const leadId = (url.searchParams.get('leadId') || '').trim();
 
     let agentOverrides: {
       intro?: { url?: string; durationSec?: number; title?: string };
@@ -63,6 +93,7 @@ export async function GET(req: NextRequest) {
     // leadContent). undefined = "show only if real videos exist".
     let showFaqs: boolean | undefined;
     let showCaseStudies: boolean | undefined;
+    let leadAge: number | undefined;
 
     if (agentId) {
       const db = getAdminFirestore();
@@ -73,6 +104,17 @@ export async function GET(req: NextRequest) {
       }
       if (typeof data?.showLeadFaqs === 'boolean') showFaqs = data.showLeadFaqs;
       if (typeof data?.showLeadCaseStudies === 'boolean') showCaseStudies = data.showLeadCaseStudies;
+
+      // Read the lead's age (from dateOfBirth) to age-target default FAQs.
+      // Best-effort: a missing lead / missing DOB just leaves age undefined.
+      if (leadId) {
+        try {
+          const leadSnap = await db.collection('agents').doc(agentId).collection('leads').doc(leadId).get();
+          leadAge = ageFromDob(leadSnap.data()?.dateOfBirth);
+        } catch {
+          /* ignore — age stays undefined */
+        }
+      }
     }
 
     // Resolve a section to the array the lead-home should render. The mobile
@@ -90,9 +132,20 @@ export async function GET(req: NextRequest) {
       return show === true ? defaults : [];
     };
 
+    // FAQ is age-aware. Unless the agent opted out (false) or uploaded their
+    // own, leads under YOUNG_FAQ_MAX_AGE get the real "do I need this now?"
+    // clip automatically; everyone else (older, or unknown age) gets nothing
+    // until the companion videos exist. No "Coming soon" placeholders.
+    const resolveFaqs = (): Array<Record<string, unknown>> => {
+      if (showFaqs === false) return [];
+      if (agentOverrides.faqs && agentOverrides.faqs.length > 0) return agentOverrides.faqs;
+      if (leadAge !== undefined && leadAge < YOUNG_FAQ_MAX_AGE) return [YOUNG_FAQ_DEFAULT];
+      return [];
+    };
+
     return NextResponse.json({
       mainVideo: { ...PLATFORM_DEFAULTS.intro, ...(agentOverrides.intro || {}) },
-      faqs: resolveSection(showFaqs, agentOverrides.faqs, PLATFORM_DEFAULTS.faqs),
+      faqs: resolveFaqs(),
       caseStudies: resolveSection(showCaseStudies, agentOverrides.caseStudies, PLATFORM_DEFAULTS.caseStudies),
       // Strip scoring metadata (dimension/points) — the lead's app only needs
       // prompts + choice labels; scoring stays server-side.

@@ -94,7 +94,9 @@ export default function LeadHomeScreen() {
           setContentLoading(false);
           return;
         }
-        const c = await fetchLeadHomeContent(agentId);
+        // Pass the lead's id so the server can serve an age-appropriate
+        // default FAQ video (it reads the lead's date of birth).
+        const c = await fetchLeadHomeContent(agentId, session?.clientId);
         if (!cancelled) {
           setContent(c);
           setContentLoading(false);
