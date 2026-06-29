@@ -16,6 +16,8 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   withSpring,
+  withRepeat,
+  interpolate,
   Easing,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -82,6 +84,7 @@ export default function ResetReveal({ visible, data, onEngage, onDismiss }: Rese
   const { width } = useWindowDimensions();
   const beatOpacity = useSharedValue(0);
   const beatTranslateY = useSharedValue(14);
+  const hintPulse = useSharedValue(0);
 
   // Start fresh each time it opens.
   useEffect(() => {
@@ -99,6 +102,24 @@ export default function ResetReveal({ visible, data, onEngage, onDismiss }: Rese
   const beatStyle = useAnimatedStyle(() => ({
     opacity: beatOpacity.value,
     transform: [{ translateY: beatTranslateY.value }],
+  }));
+
+  // A gentle, looping "you can tap" cue — without it a first-timer has no way to
+  // know the screen advances on tap.
+  useEffect(() => {
+    if (!visible) return;
+    hintPulse.value = 0;
+    hintPulse.value = withRepeat(
+      withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true,
+    );
+  }, [visible, hintPulse]);
+  const hintStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(hintPulse.value, [0, 1], [0.4, 0.95]),
+  }));
+  const hintChevronStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: interpolate(hintPulse.value, [0, 1], [0, 5]) }],
   }));
 
   // Tap-to-advance: the left third goes back, the rest goes forward
@@ -205,6 +226,13 @@ export default function ResetReveal({ visible, data, onEngage, onDismiss }: Rese
             <Animated.View style={[styles.beatWrap, beatStyle]}>{beats[idx]}</Animated.View>
           </View>
 
+          {idx < LAST ? (
+            <Animated.View style={[styles.tapHint, hintStyle]} pointerEvents="none">
+              <Text style={styles.tapHintText}>Tap to continue</Text>
+              <Animated.Text style={[styles.tapHintChevron, hintChevronStyle]}>›</Animated.Text>
+            </Animated.View>
+          ) : null}
+
           <View style={styles.badge}>
             {hasPhoto ? (
               <Image
@@ -281,6 +309,17 @@ const styles = StyleSheet.create({
   },
   ctaText: { color: '#04342C', fontSize: 16, fontWeight: '700' },
   notnow: { color: '#9FE1CB', fontSize: 14, marginTop: 18, opacity: 0.85 },
+  tapHint: {
+    position: 'absolute',
+    bottom: 92,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tapHintText: { color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '600', letterSpacing: 0.2 },
+  tapHintChevron: { color: '#3DD6C3', fontSize: 18, fontWeight: '800', marginLeft: 5, marginTop: -1 },
   badge: {
     position: 'absolute',
     bottom: 44,
