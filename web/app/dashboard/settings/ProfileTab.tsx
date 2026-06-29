@@ -6,7 +6,6 @@ import type { AgentProfile } from '../DashboardContext';
 import StateLicensesSection from '../../../components/StateLicensesSection';
 import {
   formatPhoneNumber,
-  detectSchedulingPlatform,
   readFileAsDataUrl,
   type SaveMessage,
 } from './settingsHelpers';
@@ -35,10 +34,6 @@ export default function ProfileTab({
   setZoom,
 }: ProfileTabProps) {
   const photoInputRef = useRef<HTMLInputElement>(null);
-
-  const schedulingPlatform = agentProfile.schedulingUrl
-    ? detectSchedulingPlatform(agentProfile.schedulingUrl)
-    : null;
 
   return (
     <div className="space-y-5">
@@ -153,32 +148,6 @@ export default function ProfileTab({
               />
             </button>
           </div>
-        </div>
-      </div>
-
-      {/* Scheduling URL */}
-      <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-        <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Scheduling Link</h3>
-        <div>
-          <input
-            type="url"
-            value={agentProfile.schedulingUrl || ''}
-            onChange={(e) => updateField('schedulingUrl', e.target.value)}
-            placeholder="https://calendly.com/your-name"
-            className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
-          />
-          {agentProfile.schedulingUrl && !agentProfile.schedulingUrl.startsWith('https://') && (
-            <p className="text-xs text-red-500 mt-1.5">URL must start with https://</p>
-          )}
-          {schedulingPlatform && (
-            <p className="text-xs text-[#45bcaa] mt-1.5 flex items-center gap-1">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              Detected: {schedulingPlatform}
-            </p>
-          )}
-          <p className="text-xs text-[#707070] mt-1.5">Supports Calendly, Cal.com, Acuity, and Google Calendar links.</p>
         </div>
       </div>
 

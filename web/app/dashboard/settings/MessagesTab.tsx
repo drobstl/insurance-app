@@ -11,6 +11,9 @@ interface MessagesTabProps {
   agentProfile: AgentProfile;
   updateField: <K extends keyof AgentProfile>(key: K, value: AgentProfile[K]) => void;
   user: User | null;
+  /** 'dialer' = lead outreach (intro text + dial script) for the Leads
+      tab; 'messages' = templates you send + the automations. */
+  view: 'messages' | 'dialer';
 }
 
 function InsertChips({
@@ -46,7 +49,7 @@ function InsertChips({
   );
 }
 
-export default function MessagesTab({ agentProfile, updateField, user }: MessagesTabProps) {
+export default function MessagesTab({ agentProfile, updateField, user, view }: MessagesTabProps) {
   const introRef = useRef<HTMLTextAreaElement>(null);
   const dialRef = useRef<HTMLTextAreaElement>(null);
   const referralRef = useRef<HTMLTextAreaElement>(null);
@@ -82,6 +85,8 @@ export default function MessagesTab({ agentProfile, updateField, user }: Message
 
   return (
     <div className="space-y-5">
+      {view === 'dialer' && (
+      <>
       <div className="pt-1">
         <h2 className="text-[13px] font-bold uppercase tracking-wider text-[#005851]">Lead outreach</h2>
         <p className="text-xs text-[#707070] mt-0.5">Texts and scripts for working new leads.</p>
@@ -154,6 +159,11 @@ export default function MessagesTab({ agentProfile, updateField, user }: Message
         </div>
       )}
 
+      </>
+      )}
+
+      {view === 'messages' && (
+      <>
       <div className="pt-1">
         <h2 className="text-[13px] font-bold uppercase tracking-wider text-[#005851]">Messages you send</h2>
         <p className="text-xs text-[#707070] mt-0.5">Templates clients and referrals receive from you.</p>
@@ -415,6 +425,8 @@ export default function MessagesTab({ agentProfile, updateField, user }: Message
           </button>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

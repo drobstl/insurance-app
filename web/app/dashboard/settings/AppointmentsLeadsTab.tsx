@@ -9,6 +9,7 @@ import { canAccessLeads } from '../../../lib/tier-gating';
 import RecordVideoModal from './RecordVideoModal';
 import {
   MAX_LEAD_VIDEO_BYTES,
+  detectSchedulingPlatform,
   type LeadVideoItem,
   type GoogleCalendarStatusResponse,
   type SaveMessage,
@@ -199,6 +200,9 @@ interface AppointmentsLeadsTabProps {
   setSaveMessage: (m: SaveMessage) => void;
   /** Read-only — drives the "requires Google Calendar" hint on auto-Meet. */
   googleCalendarStatus: GoogleCalendarStatusResponse['data'] | null;
+  /** Which half of the old combined tab to render: appointment defaults,
+      or the Pro-gated dialer + lead-home surfaces. */
+  view: 'appointments' | 'leads';
 }
 
 export default function AppointmentsLeadsTab({
@@ -208,7 +212,11 @@ export default function AppointmentsLeadsTab({
   setAgentProfile,
   setSaveMessage,
   googleCalendarStatus,
+  view,
 }: AppointmentsLeadsTabProps) {
+  const schedulingPlatform = agentProfile.schedulingUrl
+    ? detectSchedulingPlatform(agentProfile.schedulingUrl)
+    : null;
   // ── Lead-home video uploads (Bunny.net Stream + TUS) ──
   const [leadVideoBusy, setLeadVideoBusy] = useState<string | null>(null);
   const [leadVideoProgress, setLeadVideoProgress] = useState<Record<string, number>>({});
@@ -374,51 +382,32 @@ export default function AppointmentsLeadsTab({
 
   return (
     <div className="space-y-5">
-      {/* Advanced Market Sits — the in-app reveal that re-engages existing clients */}
+      {view === 'appointments' && (
+      <>
+      {/* Scheduling link — moved here from the You tab; it's how clients book you. */}
       <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-        <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Advanced Market Sits</h3>
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <p className="text-sm font-medium text-[#000000]">
-              {agentProfile.resetRevealEnabled ? 'On — your clients can see it' : 'Off'}
+        <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Scheduling link</h3>
+        <div>
+          <input
+            type="url"
+            value={agentProfile.schedulingUrl || ''}
+            onChange={(e) => updateField('schedulingUrl', e.target.value)}
+            placeholder="https://calendly.com/your-name"
+            className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
+          />
+          {agentProfile.schedulingUrl && !agentProfile.schedulingUrl.startsWith('https://') && (
+            <p className="text-xs text-red-500 mt-1.5">URL must start with https://</p>
+          )}
+          {schedulingPlatform && (
+            <p className="text-xs text-[#45bcaa] mt-1.5 flex items-center gap-1">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Detected: {schedulingPlatform}
             </p>
-            <p className="text-xs text-[#707070] mt-1">
-              When on, your activated clients get a short, personal nudge in their app &mdash; built from their own
-              mortgage and savings &mdash; inviting them back for a second, advanced-market conversation. The cheapest
-              appointment you&apos;ll ever set: no new lead, no cold call.
-            </p>
-          </div>
-          <button
-            onClick={() => updateField('resetRevealEnabled', !agentProfile.resetRevealEnabled)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
-              agentProfile.resetRevealEnabled ? 'bg-[#44bbaa]' : 'bg-gray-300'
-            }`}
-            aria-label="Toggle Advanced Market Sits"
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
-                agentProfile.resetRevealEnabled ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            />
-          </button>
+          )}
+          <p className="text-xs text-[#707070] mt-1.5">Supports Calendly, Cal.com, Acuity, and Google Calendar links.</p>
         </div>
-
-        <div className="mt-4 bg-[#f7faf9] rounded-[5px] p-3">
-          <p className="text-[11px] font-semibold text-[#005851] uppercase tracking-wide mb-1.5">How it works</p>
-          <ol className="list-decimal pl-4 text-xs text-[#0D4D4D] leading-relaxed space-y-1">
-            <li>Flip it on (this switch).</li>
-            <li>
-              AFL matches each client to the right door automatically &mdash; debt &rarr; debt-free life, savings &rarr;
-              market protection, plus three more.
-            </li>
-            <li>Steer any client to a specific door from their profile, in one tap.</li>
-            <li>When they tap &ldquo;See if I qualify,&rdquo; it books a sit on your scheduling calendar.</li>
-          </ol>
-        </div>
-        <p className="text-[11px] text-[#9aa0a6] leading-relaxed mt-2">
-          Off by default. The visuals stay concept-only &mdash; no projected dollar amounts; your licensed specialist
-          presents the real numbers. Track booked sits on your Activity page.
-        </p>
       </div>
 
       {/* Appointment defaults — phone vs video, default meeting link, auto-Meet */}
@@ -567,13 +556,64 @@ export default function AppointmentsLeadsTab({
         )}
       </div>
 
+      {/* Advanced Market Sits — the in-app reveal that re-engages existing clients */}
+      <div className="bg-white rounded-[5px] border border-gray-200 p-5">
+        <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Advanced Market Sits</h3>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <p className="text-sm font-medium text-[#000000]">
+              {agentProfile.resetRevealEnabled ? 'On — your clients can see it' : 'Off'}
+            </p>
+            <p className="text-xs text-[#707070] mt-1">
+              When on, your activated clients get a short, personal nudge in their app &mdash; built from their own
+              mortgage and savings &mdash; inviting them back for a second, advanced-market conversation. The cheapest
+              appointment you&apos;ll ever set: no new lead, no cold call.
+            </p>
+          </div>
+          <button
+            onClick={() => updateField('resetRevealEnabled', !agentProfile.resetRevealEnabled)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
+              agentProfile.resetRevealEnabled ? 'bg-[#44bbaa]' : 'bg-gray-300'
+            }`}
+            aria-label="Toggle Advanced Market Sits"
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
+                agentProfile.resetRevealEnabled ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+
+        <div className="mt-4 bg-[#f7faf9] rounded-[5px] p-3">
+          <p className="text-[11px] font-semibold text-[#005851] uppercase tracking-wide mb-1.5">How it works</p>
+          <ol className="list-decimal pl-4 text-xs text-[#0D4D4D] leading-relaxed space-y-1">
+            <li>Flip it on (this switch).</li>
+            <li>
+              AFL matches each client to the right door automatically &mdash; debt &rarr; debt-free life, savings &rarr;
+              market protection, plus three more.
+            </li>
+            <li>Steer any client to a specific door from their profile, in one tap.</li>
+            <li>When they tap &ldquo;See if I qualify,&rdquo; it books a sit on your scheduling calendar.</li>
+          </ol>
+        </div>
+        <p className="text-[11px] text-[#9aa0a6] leading-relaxed mt-2">
+          Off by default. The visuals stay concept-only &mdash; no projected dollar amounts; your licensed specialist
+          presents the real numbers. Track booked sits on your Activity page.
+        </p>
+      </div>
+      </>
+      )}
+
+      {view === 'leads' && (
+      <>
       {/* Lead-mode-gated settings: Dial persistence + Lead-home videos.
           Both control surfaces that only exist when the agent can
           actually access Leads — gated by the global flag + admin-only
           mode + tier (Pro+). See web/lib/tier-gating.ts. The Dial script
-          (same gate) lives on the Messages tab. Hides entirely otherwise;
-          reappears the moment any axis of the gate opens (env flip, admin
-          grant, tier upgrade). */}
+          (same gate) lives alongside these on the Leads tab. Hides entirely
+          otherwise; reappears the moment any axis of the gate opens (env
+          flip, admin grant, tier upgrade). */}
       {canAccessLeads(agentProfile.membershipTier, user?.email, agentProfile.trialEndsAt) && <>
         {/* Dial persistence — how many attempts on a lead before the
             call queue auto-advances. Transient outcomes (no answer,
@@ -795,6 +835,8 @@ export default function AppointmentsLeadsTab({
           </p>
         </div>
       </>}
+      </>
+      )}
     </div>
   );
 }
