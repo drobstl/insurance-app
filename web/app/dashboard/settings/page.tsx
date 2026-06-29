@@ -22,15 +22,21 @@ import MessagesTab from './MessagesTab';
 import AppointmentsLeadsTab from './AppointmentsLeadsTab';
 import AccountTab from './AccountTab';
 
-type Tab = 'profile' | 'branding' | 'messages' | 'appointments-leads' | 'account';
+type Tab = 'you' | 'messages' | 'appointments-leads' | 'account';
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'profile', label: 'Profile' },
-  { key: 'branding', label: 'Branding' },
+  { key: 'you', label: 'You' },
   { key: 'messages', label: 'Messages' },
   { key: 'appointments-leads', label: 'Appointments & Leads' },
   { key: 'account', label: 'Account' },
 ];
+
+// Old tab keys still arrive from deep links (onboarding, GetStartedHome,
+// patch nudges). Map them onto the regrouped tabs so nothing 404s a tab.
+const TAB_ALIASES: Record<string, Tab> = {
+  profile: 'you',
+  branding: 'you',
+};
 
 export default function SettingsPage() {
   const { user, agentProfile, setAgentProfile, loading } = useDashboard();
@@ -38,14 +44,17 @@ export default function SettingsPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState<Tab>('profile');
+  const [activeTab, setActiveTab] = useState<Tab>('you');
 
-  // Deep-link a specific tab via ?tab=account|profile|appointments-leads etc.,
+  // Deep-link a specific tab via ?tab=account|you|appointments-leads etc.,
   // so onboarding links can drop the agent exactly where they need to be.
+  // Legacy keys (profile, branding) resolve through TAB_ALIASES.
   useEffect(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam && TABS.some((t) => t.key === tabParam)) {
-      setActiveTab(tabParam as Tab);
+    if (!tabParam) return;
+    const resolved = (TAB_ALIASES[tabParam] ?? tabParam) as Tab;
+    if (TABS.some((t) => t.key === resolved)) {
+      setActiveTab(resolved);
     }
   }, [searchParams]);
 
@@ -611,7 +620,7 @@ export default function SettingsPage() {
   if (loading) return null;
 
   const agentFirstName = agentProfile.name?.split(' ')[0] || 'Agent';
-  const showPhonePreview = activeTab === 'profile' || activeTab === 'branding';
+  const showPhonePreview = activeTab === 'you';
 
   return (
     <div className={`mx-auto ${showPhonePreview ? 'max-w-5xl' : 'max-w-2xl'}`}>
@@ -666,7 +675,7 @@ export default function SettingsPage() {
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            data-onboarding-target={tab.key === 'profile' ? 'settings-tab-profile' : tab.key === 'branding' ? 'settings-tab-branding' : undefined}
+            data-onboarding-target={tab.key === 'you' ? 'settings-tab-profile' : undefined}
             className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
               activeTab === tab.key
                 ? 'bg-[#005851] text-white shadow-sm'
@@ -679,25 +688,24 @@ export default function SettingsPage() {
       </div>
 
       <div className="bg-[#f6f7f8] p-4 sm:p-5">
-      {activeTab === 'profile' && (
-        <ProfileTab
-          agentProfile={agentProfile}
-          updateField={updateField}
-          user={user}
-          setSaveMessage={setSaveMessage}
-          onChangeEmail={() => { setActiveTab('account'); setShowEmailSection(true); }}
-          setCropImageSrc={setCropImageSrc}
-          setCrop={setCrop}
-          setZoom={setZoom}
-        />
-      )}
-
-      {activeTab === 'branding' && (
-        <BrandingTab
-          agentProfile={agentProfile}
-          updateField={updateField}
-          handleImageUpload={handleImageUpload}
-        />
+      {activeTab === 'you' && (
+        <div className="space-y-5">
+          <ProfileTab
+            agentProfile={agentProfile}
+            updateField={updateField}
+            user={user}
+            setSaveMessage={setSaveMessage}
+            onChangeEmail={() => { setActiveTab('account'); setShowEmailSection(true); }}
+            setCropImageSrc={setCropImageSrc}
+            setCrop={setCrop}
+            setZoom={setZoom}
+          />
+          <BrandingTab
+            agentProfile={agentProfile}
+            updateField={updateField}
+            handleImageUpload={handleImageUpload}
+          />
+        </div>
       )}
 
       {activeTab === 'messages' && (
