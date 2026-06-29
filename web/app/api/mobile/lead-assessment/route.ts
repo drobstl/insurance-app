@@ -112,6 +112,9 @@ export async function POST(req: NextRequest) {
       // Overwrites any prior date because this is the freshest reason to call.
       followUpAt: FieldValue.serverTimestamp(),
       followUpNote: 'Just finished the in-app assessment — reach out while warm',
+      // System-suggested (not agent-set) → the Action items surface groups it
+      // under "Suggested", separate from the agent's own follow-ups.
+      autoFollowUpReason: 'assessment_completed',
     });
 
     // Activity-feed entry on the agent's `leadActivity` subcollection. The

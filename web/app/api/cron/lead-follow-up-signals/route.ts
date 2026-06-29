@@ -29,7 +29,7 @@ import { getAdminFirestore } from '../../../../lib/firebase-admin';
  * Auth: Vercel cron `Authorization: Bearer ${CRON_SECRET}`.
  */
 
-const COLD_DAYS = 21;
+const COLD_DAYS = 5;
 const COOLDOWN_DAYS = 30;
 const PER_AGENT_LIMIT = 400;
 
