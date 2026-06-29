@@ -3,7 +3,10 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
-import { PUSH_PERMISSION_REVOKED_FIELD } from '../../../../lib/push-permission-lifecycle';
+import {
+  PUSH_PERMISSION_REVOKED_FIELD,
+  PHONE_RECONNECT_ALERT_FIELD,
+} from '../../../../lib/push-permission-lifecycle';
 
 /**
  * POST /api/agent-push-token/register
@@ -52,6 +55,9 @@ export async function POST(req: NextRequest) {
       pushToken,
       pushTokenUpdatedAt: FieldValue.serverTimestamp(),
       [PUSH_PERMISSION_REVOKED_FIELD]: FieldValue.delete(),
+      // A fresh pairing means any prior "reconnect your phone" alert is
+      // resolved — clear the once-guard so a future drop re-alerts.
+      [PHONE_RECONNECT_ALERT_FIELD]: FieldValue.delete(),
     });
 
     return NextResponse.json({ ok: true });
