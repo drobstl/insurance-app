@@ -374,7 +374,7 @@ export default function MessagesTab({ agentProfile, updateField, user, view }: M
           <div className="flex-1">
             <p className="text-sm font-medium text-[#000000]">Auto-Send Holiday Cards</p>
             <p className="text-xs text-[#707070] mt-1">
-              Automatically send branded holiday greetings to all your clients during major holidays.
+              Out of sight is out of mind &mdash; and out of referrals. This sends every client a branded greeting at the big holidays, automatically, so you stay the agent they remember (and refer to) without lifting a finger.
             </p>
           </div>
           <button
@@ -402,8 +402,8 @@ export default function MessagesTab({ agentProfile, updateField, user, view }: M
             </p>
             <p className="text-xs text-[#707070] mt-1">
               {agentProfile.policyReviewAIEnabled !== false
-                ? 'When a policy hits its 1-year anniversary, AI will automatically reach out to your client to schedule a review call. ROP and Graded policies are always skipped.'
-                : 'Anniversary review campaigns are off. You\'ll need to reach out to clients manually for policy reviews.'}
+                ? 'Every policy gets a check-in at its 1-year mark — AI reaches out and books the review for you. That\'s how the book stays on the books instead of quietly lapsing, and how you catch the rewrites worth more than the first sale. ROP and Graded are skipped.'
+                : 'A policy nobody reviews quietly lapses — and you eat the chargeback. Turn this on and every policy gets an automatic 1-year check-in: AI books the review, you catch the saves and rewrites before they slip. Off means chasing anniversaries by hand, or missing them.'}
             </p>
           </div>
           <button
