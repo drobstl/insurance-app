@@ -648,16 +648,23 @@ export default function SettingsV2Page() {
   if (loading) return null;
 
   const agentFirstName = agentProfile.name?.split(' ')[0] || 'Agent';
-  const showPhonePreview = activeTab === 'you';
+  // Keep the preview column present on every tab so nav + content never
+  // shift position when you switch tabs (the layout stays locked).
+  const showPhonePreview = true;
 
   // One tab's content (subtitle + sections). Rendered for the active tab,
   // and also for the leaving tab during a belt transition so both can
   // slide at once.
   function renderTabBody(tab: Tab) {
-    const subtitle = TABS.find((t) => t.key === tab)?.subtitle ?? '';
+    const meta = TABS.find((t) => t.key === tab);
     return (
       <>
-        {subtitle && <p className="text-sm text-[#707070] mb-4">{subtitle}</p>}
+        {meta && (
+          <div className="mb-5">
+            <h2 className="text-xl font-bold text-[#1a1a1a]">{meta.label}</h2>
+            <p className="text-sm text-[#4b5563] mt-0.5">{meta.subtitle}</p>
+          </div>
+        )}
         {tab === 'you' && (
           <div className="space-y-5">
             <ProfileTab
