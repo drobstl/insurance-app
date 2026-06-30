@@ -874,7 +874,7 @@ export function CloseSaleRitual({
                   .&rdquo;
                 </p>
                 <p className="mt-1.5 text-xs text-[#5f7a78]">
-                  Card 3 lights up the moment they open the app. The text below is their written copy — send it however&apos;s easiest.
+                  This drops your prep page in their pocket — your intro video and client stories, so they show up warm. Card 3 lights up the moment they open the app. The text below is their written copy — send it however&apos;s easiest.
                 </p>
               </div>
 
