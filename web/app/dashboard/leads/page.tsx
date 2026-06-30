@@ -1865,8 +1865,10 @@ function LeadsPageInner() {
           </div>
           )}
 
-          {/* PDF drop-zone */}
-          {view !== 'calendar' && (
+          {/* PDF drop-zone — hidden while dialing (queue) so the call list and
+              disposition controls sit at the top; upload still lives in the
+              action bar and the All view. */}
+          {view === 'all' && (
           <div
             ref={consentBoxRef}
             onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
