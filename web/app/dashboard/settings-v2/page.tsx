@@ -648,9 +648,12 @@ export default function SettingsV2Page() {
   if (loading) return null;
 
   const agentFirstName = agentProfile.name?.split(' ')[0] || 'Agent';
-  // Keep the preview column present on every tab so nav + content never
-  // shift position when you switch tabs (the layout stays locked).
-  const showPhonePreview = true;
+  // The phone is a live mirror of the CLIENT app, so it only shows where
+  // what you're editing actually changes it — You, Appointments, Messages.
+  // On Leads & dialer (lead-facing) and Account it's hidden, but its column
+  // stays reserved so the layout never shifts. (Lead-home preview is next.)
+  const showPhonePreview =
+    activeTab === 'you' || activeTab === 'appointments' || activeTab === 'messages';
 
   // One tab's content (subtitle + sections). Rendered for the active tab,
   // and also for the leaving tab during a belt transition so both can
@@ -753,7 +756,7 @@ export default function SettingsV2Page() {
   }
 
   return (
-    <div className={`mx-auto ${showPhonePreview ? 'max-w-6xl' : 'max-w-4xl'}`}>
+    <div className="mx-auto max-w-6xl">
       {/* Floating autosave indicator. Pinned to viewport so the agent
           gets feedback wherever they're editing (the Save Settings bar
           + status text at the bottom of the page is too far away to
@@ -1121,6 +1124,9 @@ export default function SettingsV2Page() {
           </div>
           <p className="text-[10px] text-[#9CA3AF] text-center mt-2">Updates live as you edit</p>
         </div>
+      )}
+      {!showPhonePreview && (
+        <div className="hidden md:block w-[280px] shrink-0" aria-hidden />
       )}
 
       </div>
