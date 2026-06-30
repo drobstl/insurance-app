@@ -35,6 +35,7 @@ import type { LeadScore } from '../../../lib/lead-assessment';
 import { LeadTempChip } from '../../../components/LeadTempChip';
 import { LeadTagChips } from '../../../components/LeadTagChips';
 import { LeadFilterBar } from '../../../components/LeadFilterBar';
+import { SmartLeadSearch } from '../../../components/SmartLeadSearch';
 import SavedLeadsBar from '../../../components/SavedLeadsBar';
 import { type LeadFilters, EMPTY_LEAD_FILTERS, hasActiveFilters, coerceLeadFilters } from '../../../lib/lead-filters';
 import { type SavedLeadSegment } from '../../../lib/lead-segment';
@@ -1864,30 +1865,15 @@ function LeadsPageInner() {
                 because the queue's purpose is "who should I call next"
                 — searching by name there would defeat the priority sort. */}
             {view === 'all' && (
-              <div className="relative w-full max-w-xs mb-1.5">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#707070]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Search leads…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-8 py-1.5 bg-white rounded-[5px] border border-[#d0d0d0] text-sm text-[#000000] placeholder-[#707070] focus:outline-none focus:border-[#45bcaa]"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full text-[#707070] hover:bg-gray-100 flex items-center justify-center"
-                    aria-label="Clear search"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </div>
+              <SmartLeadSearch
+                user={user}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                filters={filters}
+                setFilters={setFilters}
+                tags={agentProfile.leadTags ?? []}
+                availableStates={availableStates}
+              />
             )}
             {view === 'all' && (
               <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
