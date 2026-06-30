@@ -7,6 +7,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
+import type { AgentProfile } from '../DashboardContext';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 import {
@@ -39,6 +40,59 @@ const TAB_ALIASES: Record<string, Tab> = {
   branding: 'you',
   'appointments-leads': 'appointments',
 };
+
+/* The Leads & dialer mirror: what a booked lead sees in their lead-home —
+   the agent's intro video, FAQs, and a quick intake. Reflects the agent's
+   real leadContent so editing the tab updates the preview. */
+function LeadHomePreview({ agentProfile }: { agentProfile: AgentProfile }) {
+  const lc = agentProfile.leadContent;
+  const introTitle = lc?.intro?.title || 'Welcome — what to do next';
+  const hasIntro = !!(lc?.intro?.url || lc?.intro?.iframeUrl);
+  const faqs = lc?.faqs ?? [];
+  const faqRows = faqs.length ? faqs.slice(0, 2).map((f) => f.title) : ['Is this a sales pitch?'];
+  return (
+    <div className="hidden md:block w-[280px] shrink-0 sticky top-6">
+      <p className="text-xs text-[#707070] font-semibold uppercase tracking-wide text-center mb-3">Lead Home Preview</p>
+      <div className="w-[260px] mx-auto bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl border-4 border-[#2a2a2a]">
+        <div className="w-full h-[520px] rounded-[2.5rem] overflow-hidden flex flex-col bg-[#F8F9FA]">
+          <div className="bg-[#0D4D4D] px-4 pt-5 pb-4">
+            <p className="text-white/70 text-[9px] font-medium">Get ready for your call with</p>
+            <p className="text-white text-[14px] font-bold leading-tight">{agentProfile.name || 'Your Agent'}</p>
+          </div>
+          <div className="flex-1 px-3 py-3 overflow-hidden space-y-2.5">
+            <div className="bg-white rounded-[10px] overflow-hidden shadow-sm">
+              <div className="relative h-[92px] bg-[#0D4D4D] flex items-center justify-center">
+                <div className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center">
+                  <span style={{ borderLeft: '9px solid #0D4D4D', borderTop: '6px solid transparent', borderBottom: '6px solid transparent', marginLeft: 2, display: 'inline-block' }} />
+                </div>
+              </div>
+              <div className="px-3 py-2">
+                <p className="text-[11px] font-bold text-[#2D3748] leading-snug">{introTitle}</p>
+                {!hasIntro && <p className="text-[8px] text-[#9CA3AF] mt-0.5">Add an intro video to fill this</p>}
+              </div>
+            </div>
+            <div>
+              <p className="text-[8px] font-bold uppercase tracking-wide text-[#9CA3AF] mb-1">Questions, answered</p>
+              {faqRows.map((title, i) => (
+                <div key={i} className="bg-white rounded-md px-2.5 py-1.5 mb-1 flex items-center gap-2 shadow-sm">
+                  <span className="w-5 h-5 rounded bg-[#eef6f4] flex items-center justify-center shrink-0">
+                    <span style={{ borderLeft: '6px solid #0f6e56', borderTop: '4px solid transparent', borderBottom: '4px solid transparent', marginLeft: 2, display: 'inline-block' }} />
+                  </span>
+                  <p className="text-[10px] text-[#374151] truncate">{title}</p>
+                </div>
+              ))}
+            </div>
+            <div className="bg-white rounded-md px-2.5 py-2 shadow-sm">
+              <p className="text-[10px] font-semibold text-[#2D3748]">A few quick questions</p>
+              <p className="text-[8px] text-[#9CA3AF] mt-0.5">So you can prep before you ever meet</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p className="text-[10px] text-[#9CA3AF] text-center mt-2">What your booked leads see</p>
+    </div>
+  );
+}
 
 export default function SettingsV2Page() {
   const { user, agentProfile, setAgentProfile, loading } = useDashboard();
@@ -654,6 +708,9 @@ export default function SettingsV2Page() {
   // stays reserved so the layout never shifts. (Lead-home preview is next.)
   const showPhonePreview =
     activeTab === 'you' || activeTab === 'appointments' || activeTab === 'messages';
+  // Leads & dialer is lead-facing, so its mirror is the lead-home (what a
+  // booked lead sees), not the client card.
+  const showLeadPreview = activeTab === 'leads';
 
   // One tab's content (subtitle + sections). Rendered for the active tab,
   // and also for the leaving tab during a belt transition so both can
@@ -1125,7 +1182,10 @@ export default function SettingsV2Page() {
           <p className="text-[10px] text-[#9CA3AF] text-center mt-2">Updates live as you edit</p>
         </div>
       )}
-      {!showPhonePreview && (
+      {showLeadPreview && (
+        <LeadHomePreview agentProfile={agentProfile} />
+      )}
+      {!showPhonePreview && !showLeadPreview && (
         <div className="hidden md:block w-[280px] shrink-0" aria-hidden />
       )}
 
