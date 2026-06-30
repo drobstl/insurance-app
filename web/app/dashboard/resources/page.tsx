@@ -50,7 +50,7 @@ const FAQ_ITEMS = [
   },
 ];
 
-type WalkthroughId = 'onboarding' | 'bulkImport';
+type WalkthroughId = 'onboarding' | 'bulkImport' | 'referrals' | 'rewrites' | 'retention';
 
 const WALKTHROUGHS: {
   id: WalkthroughId;
@@ -76,19 +76,43 @@ const WALKTHROUGHS: {
     modalTitle: 'Bulk Import walkthrough',
     modalSubtitle: 'How to migrate your existing book into AFL.',
   },
+  {
+    id: 'referrals',
+    title: 'Referrals — the AI that works your introductions',
+    description: 'What your client taps, the iMessage the AI sends in your voice, how it qualifies and books the referral — and where you can jump in any time.',
+    duration: '~45 sec',
+    modalTitle: 'How the referral AI works',
+    modalSubtitle: 'What your client taps, what the AI sends, and where it lands.',
+  },
+  {
+    id: 'rewrites',
+    title: 'Rewrites — turn your back book into new business',
+    description: 'How AFL watches every policy’s 1-year anniversary and texts the client to revisit their rate, so old business becomes new business on autopilot.',
+    duration: '~45 sec',
+    modalTitle: 'How Rewrites work',
+    modalSubtitle: 'The 1-year anniversary outreach, end to end.',
+  },
+  {
+    id: 'retention',
+    title: 'Retention — never lose a policy to a lapse',
+    description: 'Flag an at-risk policy or forward a carrier lapse notice, and AFL runs the save: the right carrier number, the outreach drip, and the tracking — all in one place.',
+    duration: '~45 sec',
+    modalTitle: 'How Retention works',
+    modalSubtitle: 'Flagging an at-risk policy and the save engine that follows.',
+  },
 ];
 
 export default function ResourcesPage() {
   const [activeWalkthrough, setActiveWalkthrough] = useState<WalkthroughId | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
-  // Deep link: /dashboard/resources?watch=onboarding|bulkImport opens that
-  // walkthrough on load, so Patch can hand an agent a one-click "watch this."
+  // Deep link: /dashboard/resources?watch=<id> opens that walkthrough on load,
+  // so Patch can hand an agent a one-click "watch this."
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const watch = new URLSearchParams(window.location.search).get('watch');
-    if (watch === 'onboarding' || watch === 'bulkImport') {
-      setActiveWalkthrough(watch);
+    if (watch && WALKTHROUGHS.some((w) => w.id === watch)) {
+      setActiveWalkthrough(watch as WalkthroughId);
     }
   }, []);
 

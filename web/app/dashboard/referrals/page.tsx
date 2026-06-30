@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { collection, doc, onSnapshot, query, orderBy, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
+import { FeatureWalkthrough } from '../../../components/FeatureWalkthrough';
 import { useDashboard } from '../DashboardContext';
 import SectionTipCard from '../../../components/SectionTipCard';
 
@@ -271,6 +272,13 @@ export default function ReferralsPage() {
                 <h3 className="text-base font-bold text-[#000000] mb-1">No referrals yet</h3>
                 <p className="text-sm text-[#707070]">Here&rsquo;s how the referral system works:</p>
               </div>
+
+              <FeatureWalkthrough
+                walkthrough="referrals"
+                label="Watch how referrals work"
+                modalTitle="How the referral AI works"
+                modalSubtitle="What your client taps, what the AI sends, and where it lands."
+              />
 
               <div className="space-y-3">
                 <div className="flex items-start gap-3 bg-[#f8f8f8] rounded-[5px] p-3.5">

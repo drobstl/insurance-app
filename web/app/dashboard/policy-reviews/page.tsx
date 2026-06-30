@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { collection, doc, onSnapshot, query, orderBy, Timestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
+import { FeatureWalkthrough } from '../../../components/FeatureWalkthrough';
 import { useDashboard } from '../DashboardContext';
 import SectionTipCard from '../../../components/SectionTipCard';
 import { captureEvent } from '../../../lib/posthog';
@@ -484,7 +485,15 @@ export default function PolicyReviewsPage() {
             <svg className="w-8 h-8 text-[#3DD6C3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
           </div>
           <h3 className="text-lg font-bold text-[#0D4D4D] mb-2">No Rewrites Yet</h3>
-          <p className="text-[#6B7280] text-sm max-w-md mx-auto">When your clients&apos; policies hit their 1-year anniversary, AI will automatically reach out to schedule a review. Campaigns will appear here.</p>
+          <p className="text-[#6B7280] text-sm max-w-md mx-auto mb-6">When your clients&apos; policies hit their 1-year anniversary, AI will automatically reach out to schedule a review. Campaigns will appear here.</p>
+          <div className="max-w-md mx-auto">
+            <FeatureWalkthrough
+              walkthrough="rewrites"
+              label="Watch how Rewrites work"
+              modalTitle="How Rewrites work"
+              modalSubtitle="The 1-year anniversary outreach, end to end."
+            />
+          </div>
         </div>
       )}
 
