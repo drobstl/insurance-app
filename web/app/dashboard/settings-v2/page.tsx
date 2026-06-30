@@ -728,6 +728,7 @@ export default function SettingsV2Page() {
         {tab === 'you' && (
           <div className="space-y-5">
             <ProfileTab
+              clean
               agentProfile={agentProfile}
               updateField={updateField}
               user={user}
