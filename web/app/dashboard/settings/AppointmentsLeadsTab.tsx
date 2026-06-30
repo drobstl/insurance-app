@@ -566,65 +566,68 @@ export default function AppointmentsLeadsTab({
 
       {/* Advanced Market Sits — the in-app reveal that re-engages existing clients */}
       {clean ? (
-      <div className="space-y-3">
-        <div className="bg-white rounded-xl border border-[#ededed] overflow-hidden">
-          <ToggleRow
-            icon={<IconTrendingUp />}
-            title="Advanced Market Sits"
-            description="Turn your existing clients into second appointments — a personal in-app nudge built from their own numbers. No new lead, no cold call."
-            on={!!agentProfile.resetRevealEnabled}
-            onToggle={() => updateField('resetRevealEnabled', !agentProfile.resetRevealEnabled)}
-          />
-        </div>
-        {/* "What your client sees" — a faithful slice of the real in-app
-            reveal (mobile/components/ResetReveal.tsx): dark teal + mint,
-            concept-only, ending in "See if my family qualifies". */}
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-2">What your client sees</p>
-          <div className="rounded-2xl p-4" style={{ background: 'linear-gradient(160deg, #0D4D4D, #072E2C)' }}>
-            <div className="flex gap-1 mb-3">
-              <span className="h-1 w-4 rounded-full bg-[#3DD6C3]" />
-              <span className="h-1 w-1.5 rounded-full bg-white/25" />
-              <span className="h-1 w-1.5 rounded-full bg-white/25" />
-              <span className="h-1 w-1.5 rounded-full bg-white/25" />
-              <span className="h-1 w-1.5 rounded-full bg-white/25" />
-              <span className="h-1 w-1.5 rounded-full bg-white/25" />
-            </div>
-            <p className="text-white text-[15px] font-bold leading-snug max-w-[330px]">When the market crashes, your savings don&rsquo;t.</p>
-            <svg viewBox="0 0 260 86" className="w-full max-w-[300px] mt-3" fill="none" aria-hidden="true">
-              <polyline points="8,66 60,46 120,78 175,64 252,58" stroke="rgba(255,255,255,0.34)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <polyline points="8,70 60,50 120,46 175,44 252,16" stroke="#3DD6C3" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-              <circle cx="252" cy="16" r="4" fill="#3DD6C3" />
-              <text x="250" y="11" textAnchor="end" fill="#3DD6C3" fontSize="9">your money</text>
-              <text x="250" y="74" textAnchor="end" fill="rgba(255,255,255,0.45)" fontSize="9">the market</text>
-            </svg>
-            <p className="text-[#9FE1CB] text-[12px] mt-2">It holds through the dips, then keeps climbing.</p>
-            <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#3DD6C3] px-3 py-1.5">
-              <span className="text-[#04342C] text-[11px] font-bold">See if my family qualifies</span>
-            </div>
-            <div className="flex items-center gap-2 mt-3">
-              <div className="w-6 h-6 rounded-full bg-[#3DD6C3]/25 border border-[#3DD6C3] flex items-center justify-center text-[#3DD6C3] text-[10px] font-bold">{agentProfile.name?.charAt(0)?.toUpperCase() || 'A'}</div>
-              <span className="text-white/70 text-[11px]">from your agent, {agentProfile.name?.split(' ')[0] || 'your agent'}</span>
+      <div className="bg-white rounded-xl border border-[#ededed] overflow-hidden">
+        <ToggleRow
+          icon={<IconTrendingUp />}
+          title="Advanced Market Sits"
+          description="Turn your existing clients into second appointments — a personal in-app nudge built from their own numbers. No new lead, no cold call."
+          on={!!agentProfile.resetRevealEnabled}
+          onToggle={() => updateField('resetRevealEnabled', !agentProfile.resetRevealEnabled)}
+        />
+        <div className="p-5 flex flex-col sm:flex-row gap-6">
+          {/* What your client sees — a faithful slice of the real in-app
+              reveal (mobile/components/ResetReveal.tsx), shown in a phone. */}
+          <div className="mx-auto sm:mx-0 shrink-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-2 text-center">What your client sees</p>
+            <div className="w-[188px] bg-[#1a1a1a] rounded-[2rem] p-2 shadow-xl border-4 border-[#2a2a2a]">
+              <div className="rounded-[1.5rem] overflow-hidden" style={{ background: 'linear-gradient(160deg, #0D4D4D, #072E2C)' }}>
+                <div className="px-3.5 pt-4 pb-4 min-h-[362px] flex flex-col">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex gap-1">
+                      <span className="h-1 w-4 rounded-full bg-[#3DD6C3]" />
+                      <span className="h-1 w-1.5 rounded-full bg-white/25" />
+                      <span className="h-1 w-1.5 rounded-full bg-white/25" />
+                      <span className="h-1 w-1.5 rounded-full bg-white/25" />
+                      <span className="h-1 w-1.5 rounded-full bg-white/25" />
+                      <span className="h-1 w-1.5 rounded-full bg-white/25" />
+                    </div>
+                    <span className="text-white/40 text-[11px]">✕</span>
+                  </div>
+                  <p className="text-white text-[14px] font-bold leading-snug">When the market crashes, your savings don&rsquo;t.</p>
+                  <svg viewBox="0 0 160 70" className="w-full mt-3" fill="none" aria-hidden="true">
+                    <polyline points="6,54 38,38 74,64 110,52 154,48" stroke="rgba(255,255,255,0.34)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <polyline points="6,58 38,42 74,38 110,36 154,12" stroke="#3DD6C3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <circle cx="154" cy="12" r="3.5" fill="#3DD6C3" />
+                    <text x="152" y="9" textAnchor="end" fill="#3DD6C3" fontSize="7">your money</text>
+                    <text x="152" y="63" textAnchor="end" fill="rgba(255,255,255,0.45)" fontSize="7">the market</text>
+                  </svg>
+                  <p className="text-[#9FE1CB] text-[11px] mt-2 leading-snug">It holds through the dips, then keeps climbing.</p>
+                  <div className="flex-1" />
+                  <div className="rounded-full bg-[#3DD6C3] py-2 text-center mt-3">
+                    <span className="text-[#04342C] text-[11px] font-bold">See if my family qualifies</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-3">
+                    <div className="w-5 h-5 rounded-full bg-[#3DD6C3]/25 border border-[#3DD6C3] flex items-center justify-center text-[#3DD6C3] text-[9px] font-bold">{agentProfile.name?.charAt(0)?.toUpperCase() || 'A'}</div>
+                    <span className="text-white/70 text-[9px]">from your agent, {agentProfile.name?.split(' ')[0] || 'your agent'}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          <p className="text-[12px] text-[#6b7280] mt-2 leading-snug">A concept-only story in their app, matched to each client &mdash; AFL picks the right one of five paths, and one tap books the sit on your calendar.</p>
+          {/* How it works + caveat — flows beside the phone, no separate box */}
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-semibold text-[#005851] uppercase tracking-wide mb-2">How it works</p>
+            <ol className="list-decimal pl-4 text-[13px] text-[#374151] leading-relaxed space-y-1.5">
+              <li>Flip it on (this switch).</li>
+              <li>AFL matches each client to the right path &mdash; debt &rarr; debt-free life, savings &rarr; market protection, plus three more.</li>
+              <li>Steer any client to a specific path from their profile, in one tap.</li>
+              <li>When they tap &ldquo;See if my family qualifies,&rdquo; it books a sit on your calendar.</li>
+            </ol>
+            <p className="text-[12px] text-[#9aa0a6] leading-relaxed mt-4">
+              Off by default. Visuals stay concept-only &mdash; no projected dollar amounts; your licensed specialist runs the real numbers. Track booked sits on your Activity page.
+            </p>
+          </div>
         </div>
-        <div className="bg-[#f7faf9] rounded-xl p-4 border border-[#ededed]">
-          <p className="text-[11px] font-semibold text-[#005851] uppercase tracking-wide mb-1.5">How it works</p>
-          <ol className="list-decimal pl-4 text-xs text-[#0D4D4D] leading-relaxed space-y-1">
-            <li>Flip it on (this switch).</li>
-            <li>
-              AFL matches each client to the right door automatically &mdash; debt &rarr; debt-free life, savings &rarr;
-              market protection, plus three more.
-            </li>
-            <li>Steer any client to a specific door from their profile, in one tap.</li>
-            <li>When they tap &ldquo;See if I qualify,&rdquo; it books a sit on your scheduling calendar.</li>
-          </ol>
-        </div>
-        <p className="text-[11px] text-[#9aa0a6] leading-relaxed">
-          Off by default. The visuals stay concept-only &mdash; no projected dollar amounts; your licensed specialist
-          presents the real numbers. Track booked sits on your Activity page.
-        </p>
       </div>
       ) : (
       <div className="bg-white rounded-[5px] border border-gray-200 p-5">
