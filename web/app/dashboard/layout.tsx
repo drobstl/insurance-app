@@ -1050,6 +1050,25 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             );
           })()}
 
+          {agentProfile.isAgencyOwner && (
+            <>
+              <div className="my-2 mx-1 border-t border-white/15" />
+              <button
+                onClick={() => router.push('/dashboard/team')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[5px] transition-all duration-200 ${
+                  pathname.startsWith('/dashboard/team')
+                    ? 'bg-white/15 text-white'
+                    : 'text-white/80 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197" />
+                </svg>
+                <span className="whitespace-nowrap overflow-hidden text-sm font-semibold flex-1 text-left">My Team</span>
+              </button>
+            </>
+          )}
+
           {isAdmin && (
             <>
               <div className="my-2 mx-1 border-t border-white/15" />
