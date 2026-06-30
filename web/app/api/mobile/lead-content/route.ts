@@ -32,6 +32,43 @@ const PLATFORM_DEFAULTS = {
   ],
 };
 
+// Age-aware platform-default FAQ videos. Real, hosted clips (Bunny Stream)
+// that play automatically when the agent hasn't recorded their own FAQ.
+//   - Under 40: the "do I need this now?" clip — explicitly written for
+//     younger leads, so only confirmed under-40s get it.
+//   - 40+ OR unknown age: the "cost & approval" clip — age-neutral (it never
+//     mentions age), so it's the safe default for older leads AND for the many
+//     leads with no date of birth on file.
+// videoIds live in the AFL Bunny library (672807); URLs are public CDN paths.
+const YOUNG_FAQ_MAX_AGE = 40;
+const YOUNG_FAQ_DEFAULT = {
+  id: 'faq-default-young',
+  title: 'I’m young and healthy — do I really need this now?',
+  url: 'https://vz-a54402da-888.b-cdn.net/7b3ebe94-fbd8-453e-ba92-6007fa8848dd/playlist.m3u8',
+  iframeUrl: 'https://iframe.mediadelivery.net/embed/672807/7b3ebe94-fbd8-453e-ba92-6007fa8848dd',
+  thumbnailUrl: 'https://vz-a54402da-888.b-cdn.net/7b3ebe94-fbd8-453e-ba92-6007fa8848dd/thumbnail.jpg',
+  videoId: '7b3ebe94-fbd8-453e-ba92-6007fa8848dd',
+  durationSec: 57,
+};
+const COST_FAQ_DEFAULT = {
+  id: 'faq-default-cost',
+  title: 'Won’t this cost too much — and would I even qualify?',
+  url: 'https://vz-a54402da-888.b-cdn.net/eed95098-f294-488d-a8c9-04d1412d0794/playlist.m3u8',
+  iframeUrl: 'https://iframe.mediadelivery.net/embed/672807/eed95098-f294-488d-a8c9-04d1412d0794',
+  thumbnailUrl: 'https://vz-a54402da-888.b-cdn.net/eed95098-f294-488d-a8c9-04d1412d0794/thumbnail.jpg',
+  videoId: 'eed95098-f294-488d-a8c9-04d1412d0794',
+  durationSec: 53,
+};
+
+// Whole years from a YYYY-MM-DD date of birth; undefined if missing/invalid.
+function ageFromDob(dob?: unknown): number | undefined {
+  if (typeof dob !== 'string' || !dob.trim()) return undefined;
+  const d = new Date(dob);
+  if (Number.isNaN(d.getTime())) return undefined;
+  const a = Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 3600 * 1000));
+  return a > 0 && a < 120 ? a : undefined;
+}
+
 /**
  * GET /api/mobile/lead-content?agentId=…
  *
@@ -52,6 +89,10 @@ export async function GET(req: NextRequest) {
 
     const url = new URL(req.url);
     const agentId = (url.searchParams.get('agentId') || '').trim();
+    // The lead's own id (mobile session `clientId`). Lets us read their age
+    // server-side to pick the age-appropriate default FAQ. Optional — old app
+    // builds that don't send it simply get no age-targeted default.
+    const leadId = (url.searchParams.get('leadId') || '').trim();
 
     let agentOverrides: {
       intro?: { url?: string; durationSec?: number; title?: string };
@@ -63,6 +104,7 @@ export async function GET(req: NextRequest) {
     // leadContent). undefined = "show only if real videos exist".
     let showFaqs: boolean | undefined;
     let showCaseStudies: boolean | undefined;
+    let leadAge: number | undefined;
 
     if (agentId) {
       const db = getAdminFirestore();
@@ -73,6 +115,17 @@ export async function GET(req: NextRequest) {
       }
       if (typeof data?.showLeadFaqs === 'boolean') showFaqs = data.showLeadFaqs;
       if (typeof data?.showLeadCaseStudies === 'boolean') showCaseStudies = data.showLeadCaseStudies;
+
+      // Read the lead's age (from dateOfBirth) to age-target default FAQs.
+      // Best-effort: a missing lead / missing DOB just leaves age undefined.
+      if (leadId) {
+        try {
+          const leadSnap = await db.collection('agents').doc(agentId).collection('leads').doc(leadId).get();
+          leadAge = ageFromDob(leadSnap.data()?.dateOfBirth);
+        } catch {
+          /* ignore — age stays undefined */
+        }
+      }
     }
 
     // Resolve a section to the array the lead-home should render. The mobile
@@ -90,9 +143,20 @@ export async function GET(req: NextRequest) {
       return show === true ? defaults : [];
     };
 
+    // FAQ is age-aware. Unless the agent opted out (false) or uploaded their
+    // own, every lead gets a real default clip: confirmed under-40s get the
+    // age-specific "do I need this now?" video; everyone else (40+, or unknown
+    // age) gets the age-neutral "cost & approval" video. No placeholders.
+    const resolveFaqs = (): Array<Record<string, unknown>> => {
+      if (showFaqs === false) return [];
+      if (agentOverrides.faqs && agentOverrides.faqs.length > 0) return agentOverrides.faqs;
+      if (leadAge !== undefined && leadAge < YOUNG_FAQ_MAX_AGE) return [YOUNG_FAQ_DEFAULT];
+      return [COST_FAQ_DEFAULT];
+    };
+
     return NextResponse.json({
       mainVideo: { ...PLATFORM_DEFAULTS.intro, ...(agentOverrides.intro || {}) },
-      faqs: resolveSection(showFaqs, agentOverrides.faqs, PLATFORM_DEFAULTS.faqs),
+      faqs: resolveFaqs(),
       caseStudies: resolveSection(showCaseStudies, agentOverrides.caseStudies, PLATFORM_DEFAULTS.caseStudies),
       // Strip scoring metadata (dimension/points) — the lead's app only needs
       // prompts + choice labels; scoring stays server-side.

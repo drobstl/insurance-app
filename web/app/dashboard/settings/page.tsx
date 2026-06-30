@@ -7,6 +7,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { db } from '../../../firebase';
 import { useDashboard } from '../DashboardContext';
+import type { AgentProfile } from '../DashboardContext';
 import { captureEvent } from '../../../lib/posthog';
 import { ANALYTICS_EVENTS } from '../../../lib/analytics-events';
 import {
@@ -24,12 +25,12 @@ import AccountTab from './AccountTab';
 
 type Tab = 'you' | 'appointments' | 'leads' | 'messages' | 'account';
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'you', label: 'You' },
-  { key: 'appointments', label: 'Appointments' },
-  { key: 'leads', label: 'Leads & dialer' },
-  { key: 'messages', label: 'Messages & automation' },
-  { key: 'account', label: 'Account' },
+const TABS: { key: Tab; label: string; subtitle: string }[] = [
+  { key: 'you', label: 'You', subtitle: 'Who you are and how you show up' },
+  { key: 'appointments', label: 'Appointments', subtitle: 'How you book, confirm, and remind' },
+  { key: 'leads', label: 'Leads & dialer', subtitle: 'Your scripts, dialing, and lead-home videos' },
+  { key: 'messages', label: 'Messages & automation', subtitle: 'What goes out, and what runs on its own' },
+  { key: 'account', label: 'Account', subtitle: 'Billing, login, and connections' },
 ];
 
 // Old tab keys still arrive from deep links (onboarding, GetStartedHome,
@@ -39,6 +40,82 @@ const TAB_ALIASES: Record<string, Tab> = {
   branding: 'you',
   'appointments-leads': 'appointments',
 };
+
+/* The Leads & dialer mirror: what a booked lead sees in their lead-home —
+   the agent's intro video, FAQs, and a quick intake. Reflects the agent's
+   real leadContent so editing the tab updates the preview. */
+function LeadHomePreview({ agentProfile }: { agentProfile: AgentProfile }) {
+  const lc = agentProfile.leadContent;
+  const introTitle = lc?.intro?.title || 'Welcome — what to do next';
+  const introPlayable = !!(lc?.intro?.url || lc?.intro?.iframeUrl);
+  const introThumb = lc?.intro?.thumbnailUrl;
+  const faqs = lc?.faqs ?? [];
+  const faqItems: Array<{ title: string; thumbnailUrl?: string }> = faqs.length
+    ? faqs.slice(0, 2)
+    : [{ title: 'Is this a sales pitch?' }, { title: 'How long does this take?' }];
+  const qCount = (lc as { assessment?: unknown[] } | undefined)?.assessment?.length ?? 7;
+  const agentFirst = agentProfile.name?.split(' ')[0] || 'your agent';
+  return (
+    <div className="hidden md:block w-[280px] shrink-0 sticky top-6">
+      <p className="text-xs text-[#707070] font-semibold uppercase tracking-wide text-center mb-3">Lead Home Preview</p>
+      <div className="w-[260px] mx-auto bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl border-4 border-[#2a2a2a]">
+        <div className="w-full h-[520px] rounded-[2.5rem] overflow-hidden flex flex-col bg-[#F8F9FA]">
+          {/* Header — the lead-home greets the lead by name */}
+          <div className="bg-[#0D4D4D] px-4 pt-5 pb-4">
+            <p className="text-white/70 text-[10px] font-medium">Welcome, Sarah</p>
+            <p className="text-white text-[14px] font-bold leading-tight">{agentProfile.name || 'Your Agent'}</p>
+          </div>
+          <div className="flex-1 px-3 py-3 overflow-hidden space-y-3">
+            {/* Intro video — big teal play tile, badge top-right, title at bottom */}
+            <div className="relative rounded-[12px] overflow-hidden bg-[#0D4D4D] min-h-[116px] p-3 flex flex-col justify-end">
+              {introThumb && (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={introThumb} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-black/10" />
+                </>
+              )}
+              <span className="absolute top-2.5 right-2.5 z-10 w-7 h-7 rounded-full bg-[#3DD6C3] flex items-center justify-center text-[#0D4D4D] text-[10px]">▶</span>
+              <p className="relative z-10 text-white text-[13px] font-bold leading-snug">{introTitle}</p>
+              {!introPlayable && <p className="relative z-10 text-white/55 text-[8px] mt-0.5">Coming soon</p>}
+            </div>
+            {/* Step 1 — quick assessment (comes before the FAQs) */}
+            <div>
+              <p className="text-[#0f7d68] text-[9px] font-bold uppercase tracking-[0.1em] mb-1.5">Step 1</p>
+              <div className="rounded-[12px] bg-[#3DD6C3] px-3 py-2.5 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[#063b35] text-[12px] font-bold">Quick assessment</p>
+                  <p className="text-[#0D4D4D]/80 text-[9px] mt-0.5 leading-snug">{qCount} quick yes-or-no questions so {agentFirst} doesn&rsquo;t have to ask the basics on the call.</p>
+                </div>
+                <span className="text-[#063b35] text-[15px] font-bold shrink-0">&rarr;</span>
+              </div>
+            </div>
+            {/* Step 2 — FAQ tiles, 2-up */}
+            <div>
+              <p className="text-[#0f7d68] text-[9px] font-bold uppercase tracking-[0.1em] mb-1.5">Step 2 &middot; Common questions</p>
+              <div className="grid grid-cols-2 gap-2">
+                {faqItems.map((f, i) => (
+                  <div key={i} className="relative rounded-[10px] overflow-hidden bg-[#0D4D4D] min-h-[64px] p-2 flex flex-col justify-end">
+                    {f.thumbnailUrl && (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={f.thumbnailUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-black/10" />
+                      </>
+                    )}
+                    <span className="absolute top-1.5 right-1.5 z-10 w-5 h-5 rounded-full bg-[#3DD6C3] flex items-center justify-center text-[#0D4D4D] text-[8px]">▶</span>
+                    <p className="relative z-10 text-white text-[9px] font-semibold leading-snug">{f.title}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p className="text-[10px] text-[#9CA3AF] text-center mt-2">What your booked leads see</p>
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const { user, agentProfile, setAgentProfile, loading } = useDashboard();
@@ -59,6 +136,32 @@ export default function SettingsPage() {
       setActiveTab(resolved);
     }
   }, [searchParams]);
+
+  const activeTabIndex = TABS.findIndex((t) => t.key === activeTab);
+
+  // Tab-switch motion: a conveyor belt. The outgoing panel slides off one
+  // side while the incoming slides in from the other. `belt` holds the
+  // leaving tab + direction during the ~320ms transition — only then are
+  // two panels rendered at once. Skipped entirely under reduced-motion.
+  const [belt, setBelt] = useState<{ from: Tab; dir: 'left' | 'right' } | null>(null);
+  const beltTimerRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (beltTimerRef.current) window.clearTimeout(beltTimerRef.current);
+  }, []);
+
+  function goToTab(key: Tab) {
+    if (key === activeTab) return;
+    const toIndex = TABS.findIndex((t) => t.key === key);
+    const reduce =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (!reduce) {
+      setBelt({ from: activeTab, dir: toIndex > activeTabIndex ? 'right' : 'left' });
+      if (beltTimerRef.current) window.clearTimeout(beltTimerRef.current);
+      beltTimerRef.current = window.setTimeout(() => setBelt(null), 320);
+    }
+    setActiveTab(key);
+  }
 
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<SaveMessage>(null);
@@ -622,10 +725,121 @@ export default function SettingsPage() {
   if (loading) return null;
 
   const agentFirstName = agentProfile.name?.split(' ')[0] || 'Agent';
-  const showPhonePreview = activeTab === 'you';
+  // The phone is a live mirror of the CLIENT app, so it only shows where
+  // what you're editing actually changes it — You, Appointments, Messages.
+  // On Leads & dialer (lead-facing) and Account it's hidden, but its column
+  // stays reserved so the layout never shifts. (Lead-home preview is next.)
+  const showPhonePreview =
+    activeTab === 'you' || activeTab === 'appointments' || activeTab === 'messages';
+  // Leads & dialer is lead-facing, so its mirror is the lead-home (what a
+  // booked lead sees), not the client card.
+  const showLeadPreview = activeTab === 'leads';
+
+  // One tab's content (subtitle + sections). Rendered for the active tab,
+  // and also for the leaving tab during a belt transition so both can
+  // slide at once.
+  function renderTabBody(tab: Tab) {
+    const meta = TABS.find((t) => t.key === tab);
+    return (
+      <>
+        {meta && (
+          <div className="mb-6 pb-4 border-b border-gray-200">
+            <h2 className="text-xl font-semibold text-[#111827] tracking-tight">{meta.label}</h2>
+            <p className="text-sm text-[#4b5563] mt-1">{meta.subtitle}</p>
+          </div>
+        )}
+        {tab === 'you' && (
+          <div className="space-y-5">
+            <ProfileTab
+              clean
+              agentProfile={agentProfile}
+              updateField={updateField}
+              user={user}
+              setSaveMessage={setSaveMessage}
+              onChangeEmail={() => { goToTab('account'); setShowEmailSection(true); }}
+              setCropImageSrc={setCropImageSrc}
+              setCrop={setCrop}
+              setZoom={setZoom}
+            />
+            <BrandingTab
+              agentProfile={agentProfile}
+              updateField={updateField}
+              handleImageUpload={handleImageUpload}
+            />
+          </div>
+        )}
+        {tab === 'appointments' && (
+          <AppointmentsLeadsTab
+            view="appointments"
+            clean
+            agentProfile={agentProfile}
+            updateField={updateField}
+            user={user}
+            setAgentProfile={setAgentProfile}
+            setSaveMessage={setSaveMessage}
+            googleCalendarStatus={googleCalendarStatus}
+          />
+        )}
+        {tab === 'leads' && (
+          <div className="space-y-5">
+            <MessagesTab
+              view="dialer"
+              agentProfile={agentProfile}
+              updateField={updateField}
+              user={user}
+            />
+            <AppointmentsLeadsTab
+              view="leads"
+              clean
+              agentProfile={agentProfile}
+              updateField={updateField}
+              user={user}
+              setAgentProfile={setAgentProfile}
+              setSaveMessage={setSaveMessage}
+              googleCalendarStatus={googleCalendarStatus}
+            />
+          </div>
+        )}
+        {tab === 'messages' && (
+          <MessagesTab
+            view="messages"
+            clean
+            agentProfile={agentProfile}
+            updateField={updateField}
+            user={user}
+          />
+        )}
+        {tab === 'account' && (
+          <AccountTab
+            agentProfile={agentProfile}
+            user={user}
+            setAgentProfile={setAgentProfile}
+            showEmailSection={showEmailSection}
+            setShowEmailSection={setShowEmailSection}
+            portalLoading={portalLoading}
+            onManageSubscription={() => setShowCancelWarning(true)}
+            googleDriveLoading={googleDriveLoading}
+            googleDriveStatus={googleDriveStatus}
+            googleDriveConnecting={googleDriveConnecting}
+            googleDriveDisconnecting={googleDriveDisconnecting}
+            googleDriveError={googleDriveError}
+            onConnectDrive={handleGoogleDriveConnect}
+            onDisconnectDrive={handleGoogleDriveDisconnect}
+            googleCalendarLoading={googleCalendarLoading}
+            googleCalendarStatus={googleCalendarStatus}
+            googleCalendarConnecting={googleCalendarConnecting}
+            googleCalendarDisconnecting={googleCalendarDisconnecting}
+            googleCalendarError={googleCalendarError}
+            onConnectCalendar={handleGoogleCalendarConnect}
+            onDisconnectCalendar={handleGoogleCalendarDisconnect}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
-    <div className={`mx-auto ${showPhonePreview ? 'max-w-5xl' : 'max-w-2xl'}`}>
+    <div className="mx-auto max-w-6xl">
       {/* Floating autosave indicator. Pinned to viewport so the agent
           gets feedback wherever they're editing (the Save Settings bar
           + status text at the bottom of the page is too far away to
@@ -664,119 +878,44 @@ export default function SettingsPage() {
       )}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#000000]">Settings</h1>
-        <p className="text-[#707070] text-sm mt-1">Manage your profile, branding, and account preferences.</p>
       </div>
 
-      <div className={showPhonePreview ? 'flex gap-8 items-start' : ''}>
-      <div className={showPhonePreview ? 'flex-1 min-w-0' : ''}>
+      <div className="flex gap-6 items-start">
 
-      {/* Tabbed panel — tabs cap the content well below them */}
-      <div className="rounded-[14px] border border-gray-200 bg-white overflow-hidden">
-      <div className="flex flex-wrap gap-1.5 p-2.5 border-b border-gray-200">
+      {/* Locked left nav rail */}
+      <nav className="hidden sm:block flex-none w-[196px] sticky top-6 space-y-1">
         {TABS.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => goToTab(tab.key)}
             data-onboarding-target={tab.key === 'you' ? 'settings-tab-profile' : undefined}
-            className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+            className={`block w-full text-left px-3.5 py-2.5 rounded-[10px] text-sm font-medium transition-colors ${
               activeTab === tab.key
-                ? 'bg-[#005851] text-white shadow-sm'
+                ? 'bg-[#005851] text-white'
                 : 'text-[#6b7280] hover:bg-gray-100 hover:text-[#005851]'
             }`}
           >
             {tab.label}
           </button>
         ))}
-      </div>
+      </nav>
 
-      <div className="bg-[#f6f7f8] p-4 sm:p-5">
-      {activeTab === 'you' && (
-        <div className="space-y-5">
-          <ProfileTab
-            agentProfile={agentProfile}
-            updateField={updateField}
-            user={user}
-            setSaveMessage={setSaveMessage}
-            onChangeEmail={() => { setActiveTab('account'); setShowEmailSection(true); }}
-            setCropImageSrc={setCropImageSrc}
-            setCrop={setCrop}
-            setZoom={setZoom}
-          />
-          <BrandingTab
-            agentProfile={agentProfile}
-            updateField={updateField}
-            handleImageUpload={handleImageUpload}
-          />
+      {/* Content column */}
+      <div className="flex-1 min-w-0">
+      <div className="settings-skin relative overflow-hidden">
+        <div
+          key={activeTab}
+          className={belt ? (belt.dir === 'right' ? 'belt-enter-right' : 'belt-enter-left') : ''}
+        >
+          {renderTabBody(activeTab)}
         </div>
-      )}
-
-      {activeTab === 'appointments' && (
-        <AppointmentsLeadsTab
-          view="appointments"
-          agentProfile={agentProfile}
-          updateField={updateField}
-          user={user}
-          setAgentProfile={setAgentProfile}
-          setSaveMessage={setSaveMessage}
-          googleCalendarStatus={googleCalendarStatus}
-        />
-      )}
-
-      {activeTab === 'leads' && (
-        <div className="space-y-5">
-          <MessagesTab
-            view="dialer"
-            agentProfile={agentProfile}
-            updateField={updateField}
-            user={user}
-          />
-          <AppointmentsLeadsTab
-            view="leads"
-            agentProfile={agentProfile}
-            updateField={updateField}
-            user={user}
-            setAgentProfile={setAgentProfile}
-            setSaveMessage={setSaveMessage}
-            googleCalendarStatus={googleCalendarStatus}
-          />
-        </div>
-      )}
-
-      {activeTab === 'messages' && (
-        <MessagesTab
-          view="messages"
-          agentProfile={agentProfile}
-          updateField={updateField}
-          user={user}
-        />
-      )}
-
-      {activeTab === 'account' && (
-        <AccountTab
-          agentProfile={agentProfile}
-          user={user}
-          setAgentProfile={setAgentProfile}
-          showEmailSection={showEmailSection}
-          setShowEmailSection={setShowEmailSection}
-          portalLoading={portalLoading}
-          onManageSubscription={() => setShowCancelWarning(true)}
-          googleDriveLoading={googleDriveLoading}
-          googleDriveStatus={googleDriveStatus}
-          googleDriveConnecting={googleDriveConnecting}
-          googleDriveDisconnecting={googleDriveDisconnecting}
-          googleDriveError={googleDriveError}
-          onConnectDrive={handleGoogleDriveConnect}
-          onDisconnectDrive={handleGoogleDriveDisconnect}
-          googleCalendarLoading={googleCalendarLoading}
-          googleCalendarStatus={googleCalendarStatus}
-          googleCalendarConnecting={googleCalendarConnecting}
-          googleCalendarDisconnecting={googleCalendarDisconnecting}
-          googleCalendarError={googleCalendarError}
-          onConnectCalendar={handleGoogleCalendarConnect}
-          onDisconnectCalendar={handleGoogleCalendarDisconnect}
-        />
-      )}
-      </div>
+        {belt && (
+          <div className="absolute inset-0" aria-hidden>
+            <div className={belt.dir === 'right' ? 'belt-exit-left' : 'belt-exit-right'}>
+              {renderTabBody(belt.from)}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Save Bar */}
@@ -1068,6 +1207,12 @@ export default function SettingsPage() {
           </div>
           <p className="text-[10px] text-[#9CA3AF] text-center mt-2">Updates live as you edit</p>
         </div>
+      )}
+      {showLeadPreview && (
+        <LeadHomePreview agentProfile={agentProfile} />
+      )}
+      {!showPhonePreview && !showLeadPreview && (
+        <div className="hidden md:block w-[280px] shrink-0" aria-hidden />
       )}
 
       </div>

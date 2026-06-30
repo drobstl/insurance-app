@@ -6,6 +6,7 @@ import type { AgentProfile } from '../DashboardContext';
 import { DEFAULT_DIAL_SCRIPT, SCRIPT_TOKEN_HINTS, SCRIPT_CONDITION_HINTS } from '../../../lib/dial-script';
 import { DEFAULT_INTRO_TEXT, INTRO_TOKEN_HINTS, INTRO_CONDITION_HINTS } from '../../../lib/lead-intro-text';
 import { canAccessLeads } from '../../../lib/tier-gating';
+import { ToggleRow, IconSparkle, IconEnvelope, IconRepeat } from './SettingsRow';
 
 interface MessagesTabProps {
   agentProfile: AgentProfile;
@@ -14,6 +15,9 @@ interface MessagesTabProps {
   /** 'dialer' = lead outreach (intro text + dial script) for the Leads
       tab; 'messages' = templates you send + the automations. */
   view: 'messages' | 'dialer';
+  /** Best-in-class restyle (the settings-v2 preview): renders the
+      automations as a clean row list instead of stacked cards. */
+  clean?: boolean;
 }
 
 function InsertChips({
@@ -49,7 +53,39 @@ function InsertChips({
   );
 }
 
-export default function MessagesTab({ agentProfile, updateField, user, view }: MessagesTabProps) {
+/* Expandable "what your client gets" for an automation row: a push-
+   notification preview (the real message the client receives) + the real
+   cadence. Used as the ToggleRow `detail`. */
+function AutomationDetail({ pushTitle, pushBody, when }: { pushTitle: string; pushBody: string; when: string }) {
+  return (
+    <div className="flex flex-col sm:flex-row gap-5 items-start">
+      <div className="sm:w-[240px] shrink-0">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-2">What your client gets</p>
+        <div className="rounded-2xl bg-[#e9eaed] p-2.5">
+          <div className="rounded-xl bg-white px-3 py-2 shadow-sm flex gap-2.5 items-start">
+            <div className="w-7 h-7 rounded-lg bg-[#005851] shrink-0 flex items-center justify-center text-white text-[11px] font-bold">∞</div>
+            <div className="min-w-0">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-[11px] font-bold text-[#1a1a1a]">{pushTitle}</p>
+                <span className="text-[9px] text-[#9ca3af]">now</span>
+              </div>
+              <p className="text-[11px] text-[#374151] leading-snug mt-0.5">{pushBody}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="flex items-start gap-2.5">
+        <svg className="h-[15px] w-[15px] shrink-0 mt-0.5 text-[#0f6e56]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+        <div>
+          <p className="text-[11px] font-semibold text-[#005851] uppercase tracking-wide mb-0.5">When it happens</p>
+          <p className="text-[13px] text-[#374151] leading-relaxed">{when}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function MessagesTab({ agentProfile, updateField, user, view, clean }: MessagesTabProps) {
   const introRef = useRef<HTMLTextAreaElement>(null);
   const dialRef = useRef<HTMLTextAreaElement>(null);
   const referralRef = useRef<HTMLTextAreaElement>(null);
@@ -87,11 +123,6 @@ export default function MessagesTab({ agentProfile, updateField, user, view }: M
     <div className="space-y-5">
       {view === 'dialer' && (
       <>
-      <div className="pt-1">
-        <h2 className="text-[13px] font-bold uppercase tracking-wider text-[#005851]">Lead outreach</h2>
-        <p className="text-xs text-[#707070] mt-0.5">Texts and scripts for working new leads.</p>
-      </div>
-
       {/* Lead Intro Text */}
       <div className="bg-white rounded-[5px] border border-gray-200 p-5">
         <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Lead Intro Text</h3>
@@ -343,6 +374,46 @@ export default function MessagesTab({ agentProfile, updateField, user, view }: M
         <p className="text-xs text-[#707070] mt-0.5">Things AFL does on its own — switch each on or off.</p>
       </div>
 
+      {clean ? (
+        <div className="bg-white rounded-xl border border-[#ededed] overflow-hidden">
+          <ToggleRow
+            icon={<IconSparkle />}
+            title="AI assistant"
+            description="Drafts your referral outreach, conservation scripts, and check-ins — automatically."
+            on={agentProfile.aiAssistantEnabled !== false}
+            onToggle={() => updateField('aiAssistantEnabled', !agentProfile.aiAssistantEnabled)}
+          />
+          <ToggleRow
+            icon={<IconEnvelope />}
+            title="Holiday cards"
+            description="Stay top of mind — branded greetings sent to every client for you."
+            on={!!agentProfile.autoHolidayCards}
+            onToggle={() => updateField('autoHolidayCards', !agentProfile.autoHolidayCards)}
+            detail={
+              <AutomationDetail
+                pushTitle="Christmas Greetings"
+                pushBody="Merry Christmas, [name]! Wishing you and your family a season full of warmth, joy, and time together. — [you]"
+                when="Once on each of 5 holidays a year — New Year's, Valentine's, July 4th, Thanksgiving, and Christmas."
+              />
+            }
+          />
+          <ToggleRow
+            icon={<IconRepeat />}
+            title="Rewrite campaigns"
+            description="AI books the 1-year review so policies don't lapse — and you catch the rewrites."
+            on={agentProfile.policyReviewAIEnabled !== false}
+            onToggle={() => updateField('policyReviewAIEnabled', !(agentProfile.policyReviewAIEnabled !== false))}
+            detail={
+              <AutomationDetail
+                pushTitle="Policy Check-In"
+                pushBody="Hi [name], it's time for your annual review on [your policy]. A lot can change in a year — I'd love to make sure your coverage still fits your life. — [you]"
+                when="You get a heads-up email 3 days before each policy's anniversary; the client gets a check-in the day after. Once per policy, every year."
+              />
+            }
+          />
+        </div>
+      ) : (
+      <>
       {/* AI Assistant */}
       <div className="bg-white rounded-[5px] border border-gray-200 p-5">
         <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">AI Assistant</h3>
@@ -379,7 +450,7 @@ export default function MessagesTab({ agentProfile, updateField, user, view }: M
           <div className="flex-1">
             <p className="text-sm font-medium text-[#000000]">Auto-Send Holiday Cards</p>
             <p className="text-xs text-[#707070] mt-1">
-              Automatically send branded holiday greetings to all your clients during major holidays.
+              Out of sight is out of mind &mdash; and out of referrals. This sends every client a branded greeting at the big holidays, automatically, so you stay the agent they remember (and refer to) without lifting a finger.
             </p>
           </div>
           <button
@@ -407,8 +478,8 @@ export default function MessagesTab({ agentProfile, updateField, user, view }: M
             </p>
             <p className="text-xs text-[#707070] mt-1">
               {agentProfile.policyReviewAIEnabled !== false
-                ? 'When a policy hits its 1-year anniversary, AI will automatically reach out to your client to schedule a review call. ROP and Graded policies are always skipped.'
-                : 'Anniversary review campaigns are off. You\'ll need to reach out to clients manually for policy reviews.'}
+                ? 'Every policy gets a check-in at its 1-year mark — AI reaches out and books the review for you. That\'s how the book stays on the books instead of quietly lapsing, and how you catch the rewrites worth more than the first sale. ROP and Graded are skipped.'
+                : 'A policy nobody reviews quietly lapses — and you eat the chargeback. Turn this on and every policy gets an automatic 1-year check-in: AI books the review, you catch the saves and rewrites before they slip. Off means chasing anniversaries by hand, or missing them.'}
             </p>
           </div>
           <button
@@ -425,6 +496,8 @@ export default function MessagesTab({ agentProfile, updateField, user, view }: M
           </button>
         </div>
       </div>
+      </>
+      )}
       </>
       )}
     </div>

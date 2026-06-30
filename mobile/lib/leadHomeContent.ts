@@ -16,6 +16,7 @@ export interface LeadVideoSlot {
   title: string;
   url: string;
   durationSec: number;
+  thumbnailUrl?: string;
 }
 
 export interface LeadAssessmentQuestion {
@@ -31,8 +32,12 @@ export interface LeadHomeContent {
   assessment: LeadAssessmentQuestion[];
 }
 
-export async function fetchLeadHomeContent(agentId: string): Promise<LeadHomeContent> {
-  const url = `${API_BASE}/api/mobile/lead-content?agentId=${encodeURIComponent(agentId)}`;
+export async function fetchLeadHomeContent(agentId: string, leadId?: string): Promise<LeadHomeContent> {
+  // leadId lets the server read the lead's age and pick an age-appropriate
+  // default FAQ video. Optional — omitting it just means no age-targeted FAQ.
+  const qs = new URLSearchParams({ agentId });
+  if (leadId) qs.set('leadId', leadId);
+  const url = `${API_BASE}/api/mobile/lead-content?${qs.toString()}`;
   const res = await fetch(url, { method: 'GET' });
   if (!res.ok) {
     throw new Error(`lead-content fetch failed (${res.status})`);
@@ -43,21 +48,24 @@ export async function fetchLeadHomeContent(agentId: string): Promise<LeadHomeCon
       title: data.mainVideo?.title || '',
       url: data.mainVideo?.url || '',
       durationSec: typeof data.mainVideo?.durationSec === 'number' ? data.mainVideo.durationSec : 0,
+      thumbnailUrl: data.mainVideo?.thumbnailUrl || undefined,
     },
     faqs: Array.isArray(data.faqs)
-      ? data.faqs.map((f: { id?: string; title?: string; url?: string; durationSec?: number }) => ({
+      ? data.faqs.map((f: { id?: string; title?: string; url?: string; durationSec?: number; thumbnailUrl?: string }) => ({
           id: f.id,
           title: f.title || '',
           url: f.url || '',
           durationSec: typeof f.durationSec === 'number' ? f.durationSec : 0,
+          thumbnailUrl: f.thumbnailUrl || undefined,
         }))
       : [],
     caseStudies: Array.isArray(data.caseStudies)
-      ? data.caseStudies.map((c: { id?: string; title?: string; url?: string; durationSec?: number }) => ({
+      ? data.caseStudies.map((c: { id?: string; title?: string; url?: string; durationSec?: number; thumbnailUrl?: string }) => ({
           id: c.id,
           title: c.title || '',
           url: c.url || '',
           durationSec: typeof c.durationSec === 'number' ? c.durationSec : 0,
+          thumbnailUrl: c.thumbnailUrl || undefined,
         }))
       : [],
     assessment: Array.isArray(data.assessment)

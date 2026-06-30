@@ -242,3 +242,49 @@ input[type="range"].slider-thumb:focus::-webkit-slider-thumb {
   50%      { transform: translateY(3px); }
 }
 .animate-bounce-soft { animation: bounceSoft 1.2s ease-in-out infinite; }
+
+/* Settings tab switch — a conveyor belt. The incoming panel slides in
+   from one side while the outgoing panel slides off the other, so the
+   two move together. JS skips the belt under reduced-motion. */
+@keyframes settingsBeltEnterRight { from { transform: translateX(100%); }  to { transform: translateX(0); } }
+@keyframes settingsBeltEnterLeft  { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+@keyframes settingsBeltExitLeft   { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+@keyframes settingsBeltExitRight  { from { transform: translateX(0); } to { transform: translateX(100%); } }
+.belt-enter-right { animation: settingsBeltEnterRight 320ms cubic-bezier(0.4, 0, 0.2, 1); }
+.belt-enter-left  { animation: settingsBeltEnterLeft 320ms cubic-bezier(0.4, 0, 0.2, 1); }
+.belt-exit-left   { animation: settingsBeltExitLeft 320ms cubic-bezier(0.4, 0, 0.2, 1); }
+.belt-exit-right  { animation: settingsBeltExitRight 320ms cubic-bezier(0.4, 0, 0.2, 1); }
+
+/* Settings v2 prototype skin — restyles the reused section cards/headers
+   into the mock's design language (accent edge + big sentence-case titles)
+   WITHOUT editing the shared tab components. Scoped to .settings-skin, so
+   the live /dashboard/settings is completely untouched. */
+/* Restraint pass: no accent stripe, no second font, no decoration —
+   hierarchy comes from a single typeface, weight, and whitespace. */
+.settings-skin .bg-white.border.p-5 {
+  border-radius: 12px;
+  border-color: #ededed;
+  padding: 1.25rem 1.4rem;
+}
+/* Card titles: restrained — one step below the section header, same
+   typeface as the body. */
+.settings-skin h3.uppercase {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 0.4rem;
+}
+/* Group headers become quiet neutral eyebrows (a divider, not a competing
+   headline); their one-line descriptions are dropped to cut clutter. */
+.settings-skin h2.uppercase {
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+}
+.settings-skin h2.uppercase + p {
+  display: none;
+}

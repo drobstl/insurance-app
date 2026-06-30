@@ -94,7 +94,9 @@ export default function LeadHomeScreen() {
           setContentLoading(false);
           return;
         }
-        const c = await fetchLeadHomeContent(agentId);
+        // Pass the lead's id so the server can serve an age-appropriate
+        // default FAQ video (it reads the lead's date of birth).
+        const c = await fetchLeadHomeContent(agentId, session?.clientId);
         if (!cancelled) {
           setContent(c);
           setContentLoading(false);
@@ -272,7 +274,7 @@ export default function LeadHomeScreen() {
               <Text style={styles.assessmentSubtitle}>
                 {assessmentCompleted
                   ? `${agentFirstName} will review your answers before your call.`
-                  : `${content?.assessment?.length || 10} quick questions so ${agentFirstName} doesn't have to ask the basics on the call.`}
+                  : `${content?.assessment?.length || 7} quick yes-or-no questions so ${agentFirstName} doesn't have to ask the basics on the call.`}
               </Text>
             </View>
             {!assessmentCompleted && <Text style={styles.assessmentArrow}>→</Text>}
@@ -441,6 +443,12 @@ function VideoTile({
       disabled={disabled}
       activeOpacity={0.85}
     >
+      {slot.thumbnailUrl ? (
+        <>
+          <Image source={{ uri: slot.thumbnailUrl }} style={styles.videoThumb} resizeMode="cover" />
+          <View style={styles.videoThumbScrim} />
+        </>
+      ) : null}
       <View style={styles.videoPlayBadge}>
         <Text style={styles.videoPlayBadgeText}>▶</Text>
       </View>
@@ -529,6 +537,7 @@ const styles = StyleSheet.create({
   videoTile: {
     backgroundColor: '#0D4D4D',
     borderRadius: 16,
+    overflow: 'hidden',
     padding: 16,
     // Was 120 — too tight on the narrow FAQ two-up grid: a 2-line
     // title at the bottom would visually crash into the top-left play
@@ -542,6 +551,22 @@ const styles = StyleSheet.create({
   },
   videoTileDisabled: {
     opacity: 0.65,
+  },
+  videoThumb: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  videoThumbScrim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    // Dark teal scrim so the play badge + title stay legible over any frame.
+    backgroundColor: 'rgba(7, 46, 44, 0.42)',
   },
   videoPlayBadge: {
     width: 44,

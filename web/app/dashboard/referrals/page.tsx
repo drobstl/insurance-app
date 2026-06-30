@@ -169,11 +169,11 @@ export default function ReferralsPage() {
             <h3 className="text-sm font-semibold text-[#000000] mb-1">AI Referral Assistant</h3>
             {aiAssistantEnabled ? (
               <p className="text-sm text-[#707070]">
-                Referral texts are handled by AI via iMessage — responding as you, building trust through conversation, and booking appointments.
+                Every referral gets texted the moment it lands — as you, from a real iMessage — qualified in conversation and booked on your calendar. Nothing slips, nothing goes cold; you just show up to appointments that are already set.
               </p>
             ) : canEnableAi ? (
               <p className="text-sm text-[#707070]">
-                Enable AI to automatically text referrals via iMessage, have qualifying conversations, and book appointments — all as you.
+                Referrals are the warmest leads you&rsquo;ll ever get &mdash; and they go cold fast. Turn this on and every one gets texted the instant it lands, as you, from a real iMessage: qualified, and booked on your calendar, around the clock. While other agents let referrals sit for three days, yours are already on the books.
               </p>
             ) : (
               <div className="space-y-1.5">
@@ -221,6 +221,29 @@ export default function ReferralsPage() {
             <span className="text-xs text-[#707070]">iMessage with SMS fallback</span>
           </div>
         )}
+        <div className="mt-4 pt-4 border-t border-[#ececec] grid sm:grid-cols-[210px_1fr] gap-5 items-start">
+          {/* What your referral sees — a representative AI opener as an iMessage */}
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-2">What your referral sees</p>
+            <div className="rounded-2xl bg-[#f3f4f6] p-3">
+              <p className="text-[9px] text-center text-[#9ca3af] mb-2">Messages &middot; iMessage</p>
+              <div className="flex justify-start">
+                <div className="max-w-[90%] rounded-[16px] rounded-bl-[5px] bg-white px-3 py-2 shadow-sm">
+                  <p className="text-[#1a1a1a] text-[11.5px] leading-snug">Hey [referral], glad we could continue here after the group chat with [your client]. Quick question &mdash; would it make sense to chat for a few minutes and see if there&rsquo;s anything I might be able to help with?</p>
+                </div>
+              </div>
+              <p className="text-[9px] text-[#9ca3af] mt-1.5">A real text from your number &mdash; written fresh by AI, in your voice.</p>
+            </div>
+          </div>
+          {/* When it happens */}
+          <div className="flex items-start gap-2.5">
+            <svg className="h-[15px] w-[15px] shrink-0 mt-0.5 text-[#0f6e56]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+            <div>
+              <p className="text-[11px] font-semibold text-[#005851] uppercase tracking-wide mb-0.5">When it happens</p>
+              <p className="text-[13px] text-[#374151] leading-relaxed">The AI texts a new referral about a minute after they come in, with one follow-up two days later &mdash; then it hands off to you. Two messages, max.</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Referrals List */}

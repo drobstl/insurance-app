@@ -109,16 +109,19 @@ export function segmentMatchesState(
   );
 }
 
-// Order-independent comparison of the two array fields so a re-applied segment
-// still reads as "active" regardless of selection order.
+// Order-independent comparison of the multi-select fields so a re-applied
+// segment still reads as "active" regardless of selection order. Runs the
+// value through coerceLeadFilters first so every field is normalized and any
+// added filter is automatically included in the comparison.
 function normalizeFiltersForCompare(f: LeadFilters) {
+  const c = coerceLeadFilters(f);
   return {
-    statuses: [...f.statuses].sort(),
-    tagIds: [...f.tagIds].sort(),
-    state: f.state ?? null,
-    dateFrom: f.dateFrom ?? null,
-    dateTo: f.dateTo ?? null,
-    followUpDue: !!f.followUpDue,
+    ...c,
+    statuses: [...c.statuses].sort(),
+    tagIds: [...c.tagIds].sort(),
+    states: [...c.states].sort(),
+    temperatures: [...c.temperatures].sort(),
+    dialOutcomes: [...c.dialOutcomes].sort(),
   };
 }
 

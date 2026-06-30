@@ -143,7 +143,7 @@ export default function PairPhonePage() {
             <div>
               <p className="text-[#0D4D4D] font-semibold">Your phone is paired.</p>
               <p className="text-[#555] text-sm mt-0.5">
-                When a lead books, your phone will buzz with a notification.
+                When a lead books, your phone buzzes with a tap-to-send text &mdash; their confirmation plus your prep page (your intro video and client stories) &mdash; so they show up warm.
               </p>
             </div>
           </div>
@@ -251,9 +251,10 @@ export default function PairPhonePage() {
     <div className="max-w-2xl mx-auto py-10 px-6">
       <h1 className="text-2xl font-bold text-[#0D4D4D] mb-2">Set up my phone</h1>
       <p className="text-[#555] mb-8 leading-relaxed">
-        When a lead books an appointment, your phone will buzz with a notification.
-        Tap it and the message to your lead is ready to send — no typing, no copy
-        and paste. Set it up once and you’re done.
+        When a lead books, your phone buzzes — tap it and a text to your lead is ready
+        to send: their confirmation plus your prep page (your intro video and client
+        stories) that warms them up before you ever meet. No typing, no copy and paste.
+        Set it up once and you’re done.
       </p>
 
       {/* Step 1 — Install */}

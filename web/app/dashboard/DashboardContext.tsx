@@ -127,6 +127,12 @@ export interface AgentProfile {
    */
   trialEndsAt?: number;
   trialStartedAt?: number;
+  /**
+   * Absolute timestamp (ms) when a scheduled comp/subscription cancellation
+   * fires. Drives the "your free Pro is ending" banner in its final 10 days.
+   * Null/undefined when no hard cancel is scheduled.
+   */
+  subscriptionCancelAt?: number;
   agencyName?: string;
   /** National Producer Number — read aloud for ID verification on calls. */
   npn?: string;
@@ -433,6 +439,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           membershipTier: typeof data.membershipTier === 'string' ? data.membershipTier : undefined,
           trialEndsAt: tsToMillis(data.trialEndsAt),
           trialStartedAt: tsToMillis(data.trialStartedAt),
+          subscriptionCancelAt: tsToMillis(data.subscriptionCancelAt),
           agencyName: data.agencyName,
           npn: typeof data.npn === 'string' ? data.npn : undefined,
           agencyLogoBase64: data.agencyLogoBase64,

@@ -14,6 +14,7 @@ import {
   type GoogleCalendarStatusResponse,
   type SaveMessage,
 } from './settingsHelpers';
+import { ToggleRow, IconTrendingUp } from './SettingsRow';
 
 /**
  * "Record" button + its webcam modal. Manages only its own open state;
@@ -71,6 +72,7 @@ function LeadVideoList({
   onDelete,
   shownToLeads,
   onShownChange,
+  platformDefaultNote,
 }: {
   kind: 'faq' | 'caseStudy';
   label: string;
@@ -82,6 +84,9 @@ function LeadVideoList({
   /** Whether this whole section currently appears on the lead-home. */
   shownToLeads: boolean;
   onShownChange: (checked: boolean) => void;
+  /** Shown when the section is on with no uploads — explains the platform
+   *  default that leads see in that case (e.g. the age-aware FAQ video). */
+  platformDefaultNote?: string;
 }) {
   const [newTitle, setNewTitle] = useState('');
   const handleNewFile = useCallback((file: File) => {
@@ -109,7 +114,7 @@ function LeadVideoList({
           Show this section on your leads&apos; home page
           <span className="block text-[10px] text-[#9aa0a6] mt-0.5">
             {shownToLeads
-              ? 'Your leads will see it.'
+              ? (items.length === 0 && platformDefaultNote ? platformDefaultNote : 'Your leads will see it.')
               : items.length > 0
               ? 'Hidden from your leads, even though you have videos here.'
               : 'Hidden — add a video above and it appears automatically, or check this to include it now.'}
@@ -203,6 +208,8 @@ interface AppointmentsLeadsTabProps {
   /** Which half of the old combined tab to render: appointment defaults,
       or the Pro-gated dialer + lead-home surfaces. */
   view: 'appointments' | 'leads';
+  /** Best-in-class restyle (settings-v2): clean rows for toggles. */
+  clean?: boolean;
 }
 
 export default function AppointmentsLeadsTab({
@@ -213,6 +220,7 @@ export default function AppointmentsLeadsTab({
   setSaveMessage,
   googleCalendarStatus,
   view,
+  clean,
 }: AppointmentsLeadsTabProps) {
   const schedulingPlatform = agentProfile.schedulingUrl
     ? detectSchedulingPlatform(agentProfile.schedulingUrl)
@@ -557,6 +565,78 @@ export default function AppointmentsLeadsTab({
       </div>
 
       {/* Advanced Market Sits — the in-app reveal that re-engages existing clients */}
+      {clean ? (
+      <div className="bg-white rounded-xl border border-[#ededed] overflow-hidden">
+        <ToggleRow
+          icon={<IconTrendingUp />}
+          title="Advanced Market Sits"
+          description="Turn your existing clients into second appointments — a personal in-app nudge built from their own numbers. No new lead, no cold call."
+          on={!!agentProfile.resetRevealEnabled}
+          onToggle={() => updateField('resetRevealEnabled', !agentProfile.resetRevealEnabled)}
+        />
+        <div className="p-5 flex flex-col sm:flex-row gap-6">
+          {/* What your client sees — a faithful slice of the real in-app
+              reveal (mobile/components/ResetReveal.tsx), shown in a phone. */}
+          <div className="mx-auto sm:mx-0 shrink-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-2 text-center">What your client sees</p>
+            <div className="w-[188px] bg-[#1a1a1a] rounded-[2rem] p-2 shadow-xl border-4 border-[#2a2a2a]">
+              <div className="rounded-[1.5rem] overflow-hidden" style={{ background: 'linear-gradient(160deg, #0D4D4D, #072E2C)' }}>
+                <div className="px-3.5 pt-4 pb-4 min-h-[362px] flex flex-col">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex gap-1">
+                      <span className="h-1 w-4 rounded-full bg-[#3DD6C3]" />
+                      <span className="h-1 w-1.5 rounded-full bg-white/25" />
+                      <span className="h-1 w-1.5 rounded-full bg-white/25" />
+                      <span className="h-1 w-1.5 rounded-full bg-white/25" />
+                      <span className="h-1 w-1.5 rounded-full bg-white/25" />
+                      <span className="h-1 w-1.5 rounded-full bg-white/25" />
+                    </div>
+                    <span className="text-white/40 text-[11px]">✕</span>
+                  </div>
+                  <p className="text-white text-[14px] font-bold leading-snug">When the market crashes, your savings don&rsquo;t.</p>
+                  <svg viewBox="0 0 160 70" className="w-full mt-3" fill="none" aria-hidden="true">
+                    <polyline points="6,54 38,38 74,64 110,52 154,48" stroke="rgba(255,255,255,0.34)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <polyline points="6,58 38,42 74,38 110,36 154,12" stroke="#3DD6C3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <circle cx="154" cy="12" r="3.5" fill="#3DD6C3" />
+                    <text x="152" y="9" textAnchor="end" fill="#3DD6C3" fontSize="7">your money</text>
+                    <text x="152" y="63" textAnchor="end" fill="rgba(255,255,255,0.45)" fontSize="7">the market</text>
+                  </svg>
+                  <p className="text-[#9FE1CB] text-[11px] mt-2 leading-snug">It holds through the dips, then keeps climbing.</p>
+                  <div className="flex-1" />
+                  <div className="rounded-full bg-[#3DD6C3] py-2 text-center mt-3">
+                    <span className="text-[#04342C] text-[11px] font-bold">See if my family qualifies</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-3">
+                    <div className="w-5 h-5 rounded-full bg-[#3DD6C3]/25 border border-[#3DD6C3] flex items-center justify-center text-[#3DD6C3] text-[9px] font-bold">{agentProfile.name?.charAt(0)?.toUpperCase() || 'A'}</div>
+                    <span className="text-white/70 text-[9px]">from your agent, {agentProfile.name?.split(' ')[0] || 'your agent'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* How it works + caveat — flows beside the phone, no separate box */}
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-semibold text-[#005851] uppercase tracking-wide mb-2">How it works</p>
+            <ol className="list-decimal pl-4 text-[13px] text-[#374151] leading-relaxed space-y-1.5">
+              <li>Flip it on (this switch).</li>
+              <li>AFL matches each client to the right path &mdash; debt &rarr; debt-free life, savings &rarr; market protection, plus three more.</li>
+              <li>Steer any client to a specific path from their profile, in one tap.</li>
+              <li>When they tap &ldquo;See if my family qualifies,&rdquo; it books a sit on your calendar.</li>
+            </ol>
+            <div className="mt-4 flex items-start gap-2.5">
+              <svg className="h-[15px] w-[15px] shrink-0 mt-0.5 text-[#0f6e56]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+              <div>
+                <p className="text-[11px] font-semibold text-[#005851] uppercase tracking-wide mb-0.5">When it happens</p>
+                <p className="text-[13px] text-[#374151] leading-relaxed">It surfaces to each activated client when they open the app &mdash; reappearing about once a week until they tap through, then resting 60 days. Quietly resets each year.</p>
+              </div>
+            </div>
+            <p className="text-[12px] text-[#9aa0a6] leading-relaxed mt-4">
+              Off by default. Visuals stay concept-only &mdash; no projected dollar amounts; your licensed specialist runs the real numbers. Track booked sits on your Activity page.
+            </p>
+          </div>
+        </div>
+      </div>
+      ) : (
       <div className="bg-white rounded-[5px] border border-gray-200 p-5">
         <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Advanced Market Sits</h3>
         <div className="flex items-start justify-between gap-4">
@@ -564,10 +644,8 @@ export default function AppointmentsLeadsTab({
             <p className="text-sm font-medium text-[#000000]">
               {agentProfile.resetRevealEnabled ? 'On — your clients can see it' : 'Off'}
             </p>
-            <p className="text-xs text-[#707070] mt-1">
-              When on, your activated clients get a short, personal nudge in their app &mdash; built from their own
-              mortgage and savings &mdash; inviting them back for a second, advanced-market conversation. The cheapest
-              appointment you&apos;ll ever set: no new lead, no cold call.
+            <p className="text-[13px] text-[#4b5563] mt-1 leading-relaxed">
+              Your book is full of second appointments you&rsquo;re not setting. Flip this on and your existing clients get a personal nudge in their app &mdash; built from their own mortgage and savings &mdash; inviting them back for an advanced-market conversation. No new lead, no cold call: the cheapest appointment you&rsquo;ll ever book, from people who already trust you. Most agents sell a client once and move on &mdash; you keep selling the same relationship.
             </p>
           </div>
           <button
@@ -602,6 +680,7 @@ export default function AppointmentsLeadsTab({
           presents the real numbers. Track booked sits on your Activity page.
         </p>
       </div>
+      )}
       </>
       )}
 
@@ -623,7 +702,7 @@ export default function AppointmentsLeadsTab({
         <div className="bg-white rounded-[5px] border border-gray-200 p-5">
           <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Dial persistence</h3>
           <p className="text-[11px] text-[#707070] mb-3">
-            How many times to dial a lead before the call queue moves on. Counts no-answer and voicemail outcomes; booked / wrong-number / not-interested / do-not-call / callback always advance immediately.
+            Most booked appointments come on the 2nd or 3rd dial, not the 1st &mdash; this sets how hard the queue works each lead before it moves on. Counts no-answer and voicemail; booked / wrong-number / not-interested / do-not-call / callback always advance immediately.
           </p>
           <div className="inline-flex gap-1 rounded-[8px] bg-[#eef0ee] p-1">
             {([
@@ -660,7 +739,7 @@ export default function AppointmentsLeadsTab({
         <div className="bg-white rounded-[5px] border border-gray-200 p-5">
           <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Call from your computer</h3>
           <p className="text-[11px] text-[#707070] mb-3">
-            Dial your leads straight from your computer — ringing out through your own phone and number, so more calls get answered. One quick setup; we&apos;ll show the exact steps for your device.
+            Dial straight from your keyboard &mdash; but the call rings out through your own phone and number, so leads see a number they recognize and more calls get answered. No juggling two devices. One quick setup; we&apos;ll show the exact steps for your device.
           </p>
           <a
             href="/call-from-computer"
@@ -676,9 +755,9 @@ export default function AppointmentsLeadsTab({
             intro / FAQ / case-study slots rendered in the mobile
             lead-home screen. */}
         <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-          <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Lead-home videos</h3>
-          <p className="text-[11px] text-[#707070] mb-4">
-            These videos play in your leads&apos; AFL app after they log in with their phone code. Without uploads the lead-home looks empty.
+          <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Pre-sell your leads</h3>
+          <p className="text-[13px] text-[#4b5563] mb-4 leading-relaxed">
+            This is selling in 2026, not 1996. Every lead you book gets a private home inside your AgentForLife app &mdash; your intro, real client stories, and a quick intake &mdash; and how they use it tells you who&rsquo;s worth your time. A lead who downloads it is going to show up; one who finishes the intake is ready to buy. So your hours go to the leads that pay, not the ghosts &mdash; an edge no one else in the industry is handing you. Leads log in with just their phone number. Turn it on with an intro video below; leave it empty and that screen stays blank.
           </p>
 
           {/* Intro slot */}
@@ -793,9 +872,10 @@ export default function AppointmentsLeadsTab({
             })()}
           </div>
 
-          {/* FAQs. shownToLeads mirrors the manifest's resolveSection: a
-              section is visible unless explicitly off, and on-by-default only
-              once there's a real video (or the agent opted in). */}
+          {/* FAQs. Now ON by default: there's a real, age-aware platform
+              default (a younger-lead "do I need this now?" video) that serves
+              automatically unless the agent opts out or uploads their own.
+              Mirrors the manifest's resolveFaqs(). */}
           <LeadVideoList
             kind="faq"
             label="FAQ videos"
@@ -804,11 +884,9 @@ export default function AppointmentsLeadsTab({
             addingProgress={leadVideoBusy?.startsWith('faq:') ? (leadVideoProgress[leadVideoBusy] ?? 0) : null}
             onUpload={(file, slotId, title) => uploadLeadVideo({ file, slot: 'faq', slotId, title })}
             onDelete={(slotId) => deleteLeadVideo('faq', slotId)}
-            shownToLeads={
-              agentProfile.showLeadFaqs !== false &&
-              ((agentProfile.leadContent?.faqs?.length ?? 0) > 0 || agentProfile.showLeadFaqs === true)
-            }
+            shownToLeads={agentProfile.showLeadFaqs !== false}
             onShownChange={(checked) => updateField('showLeadFaqs', checked)}
+            platformDefaultNote="Leads automatically see a default FAQ video matched to their age. Upload your own to replace it, or uncheck to hide."
           />
 
           {/* Case studies */}
