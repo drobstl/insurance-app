@@ -52,7 +52,7 @@ export default function SavedLeadsBar({
       <span className="font-semibold uppercase tracking-wider text-[#9CA3AF]">Lists</span>
 
       {segments.length === 0 && !naming && (
-        <span className="text-[#9CA3AF] italic">none saved yet</span>
+        <span className="text-[#9CA3AF] italic">none yet — save a search to dial that segment in one tap</span>
       )}
 
       {segments.map((seg) => {
@@ -132,6 +132,7 @@ export default function SavedLeadsBar({
           <button
             type="button"
             onClick={() => setNaming(true)}
+            title="Save this search, filters, and sort as a one-tap list — e.g. warm leads, or no-reply 30 days — so you start each session dialing the right leads first."
             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-dashed border-[#d0d0d0] text-[#707070] hover:border-[#45bcaa] hover:text-[#005851] font-semibold"
           >
             + Save list

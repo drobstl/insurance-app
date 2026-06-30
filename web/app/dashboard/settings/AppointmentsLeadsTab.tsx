@@ -625,7 +625,7 @@ export default function AppointmentsLeadsTab({
         <div className="bg-white rounded-[5px] border border-gray-200 p-5">
           <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Dial persistence</h3>
           <p className="text-[11px] text-[#707070] mb-3">
-            How many times to dial a lead before the call queue moves on. Counts no-answer and voicemail outcomes; booked / wrong-number / not-interested / do-not-call / callback always advance immediately.
+            Most booked appointments come on the 2nd or 3rd dial, not the 1st &mdash; this sets how hard the queue works each lead before it moves on. Counts no-answer and voicemail; booked / wrong-number / not-interested / do-not-call / callback always advance immediately.
           </p>
           <div className="inline-flex gap-1 rounded-[8px] bg-[#eef0ee] p-1">
             {([
@@ -662,7 +662,7 @@ export default function AppointmentsLeadsTab({
         <div className="bg-white rounded-[5px] border border-gray-200 p-5">
           <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Call from your computer</h3>
           <p className="text-[11px] text-[#707070] mb-3">
-            Dial your leads straight from your computer — ringing out through your own phone and number, so more calls get answered. One quick setup; we&apos;ll show the exact steps for your device.
+            Dial straight from your keyboard &mdash; but the call rings out through your own phone and number, so leads see a number they recognize and more calls get answered. No juggling two devices. One quick setup; we&apos;ll show the exact steps for your device.
           </p>
           <a
             href="/call-from-computer"
