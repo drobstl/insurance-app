@@ -41,6 +41,7 @@ export async function GET(req: NextRequest) {
           clientCount: clientsSnap.data().count,
           subscriptionStatus: (data.subscriptionStatus as string) || '—',
           isAgencyOwner: data.isAgencyOwner === true,
+          agencyOwnerId: typeof data.agencyOwnerId === 'string' ? data.agencyOwnerId : null,
         };
       })
     );

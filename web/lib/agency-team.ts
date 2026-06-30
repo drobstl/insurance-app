@@ -12,10 +12,13 @@ import {
  * Agency layer — the "lightweight" model (NOT pooled-seat billing).
  *
  * An agency owner is just an agent flagged `isAgencyOwner: true`. Their
- * downline = every agent who signed up with the owner's invite code, i.e.
- * `agents.where('referredByAgent', '==', ownerUid)` (the same link the
- * signup flow already stamps). Each downline agent keeps their own
- * individual subscription; nothing is pooled.
+ * downline = every agent whose `agencyOwnerId` points at the owner's uid:
+ * `agents.where('agencyOwnerId', '==', ownerUid)`. `agencyOwnerId` is a
+ * dedicated team-membership field (set by a link signup OR an admin
+ * assignment) — deliberately SEPARATE from `referredByAgent`, which is
+ * referral/affiliate credit and must not be entangled with team structure.
+ * Each downline agent keeps their own individual subscription; nothing is
+ * pooled.
  *
  * This module is the read-only data layer for the owner's "My Team"
  * dashboard: each member's headline metrics (reused from getActivityStats)
@@ -60,11 +63,11 @@ export interface DownlineMember {
   name: string;
 }
 
-/** Agents linked to this owner via their invite code (referredByAgent). */
+/** Agents on this owner's team (agencyOwnerId == ownerUid). */
 export async function getDownlineMembers(ownerUid: string): Promise<DownlineMember[]> {
   const snap = await getAdminFirestore()
     .collection('agents')
-    .where('referredByAgent', '==', ownerUid)
+    .where('agencyOwnerId', '==', ownerUid)
     .get();
   return snap.docs.map((d) => {
     const data = d.data() ?? {};

@@ -141,7 +141,10 @@ async function fulfillPendingSignup(
     emailLower: email,
     createdAt: FieldValue.serverTimestamp(),
   };
-  if (pending.referrerId) profileSeed.referredByAgent = pending.referrerId;
+  if (pending.referrerId) {
+    profileSeed.referredByAgent = pending.referrerId; // referral/affiliate credit
+    profileSeed.agencyOwnerId = pending.referrerId; // team membership (link signup → owner's downline)
+  }
   await db.collection('agents').doc(userId).set(profileSeed, { merge: true });
 
   await pendingRef.set(
