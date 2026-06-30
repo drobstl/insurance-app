@@ -265,19 +265,28 @@ input[type="range"].slider-thumb:focus::-webkit-slider-thumb {
   border-left: 3px solid #44bbaa;
   padding: 1.25rem 1.4rem;
 }
+/* Card titles: the brand display font (Museo Sans Cond), smaller than the
+   section header — so titles read as a different species from body text,
+   and sit clearly below the section. */
 .settings-skin h3.uppercase {
+  font-family: 'Museo Sans Cond', system-ui, sans-serif;
   text-transform: none;
   letter-spacing: 0;
-  font-size: 1.0625rem;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 500;
   color: #1a1a1a;
   margin-bottom: 0.5rem;
 }
-/* The little teal "group" headers (Messages you send / Runs automatically)
-   read fine, but lift them to match. */
+/* Group headers ("Messages you send" / "Runs automatically") become quiet
+   uppercase eyebrows — a divider, not a competing headline — and their
+   one-line descriptions are dropped to cut text clutter. */
 .settings-skin h2.uppercase {
-  text-transform: none;
-  letter-spacing: 0;
-  font-size: 0.95rem;
-  color: #005851;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6f9a92;
+}
+.settings-skin h2.uppercase + p {
+  display: none;
 }

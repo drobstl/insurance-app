@@ -660,9 +660,9 @@ export default function SettingsV2Page() {
     return (
       <>
         {meta && (
-          <div className="mb-5">
-            <h2 className="text-xl font-bold text-[#1a1a1a]">{meta.label}</h2>
-            <p className="text-sm text-[#4b5563] mt-0.5">{meta.subtitle}</p>
+          <div className="mb-6 pb-4 border-b border-gray-200">
+            <h2 className="text-[26px] leading-tight text-[#1a1a1a]" style={{ fontFamily: "'Museo Sans Cond', system-ui, sans-serif", fontWeight: 500 }}>{meta.label}</h2>
+            <p className="text-sm text-[#4b5563] mt-1">{meta.subtitle}</p>
           </div>
         )}
         {tab === 'you' && (
