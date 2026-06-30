@@ -152,8 +152,20 @@ export async function POST(request: NextRequest) {
       : null;
 
     if (isFounding && !foundingCouponId) {
+      // Refuse rather than overcharge. A founding member was promised the
+      // $49 rate; charging them full $99 because an env var is missing is a
+      // money/trust bug, not a degraded-mode fallback. Fail loudly so the
+      // misconfiguration surfaces (and so they retry once it's fixed) — far
+      // better than silently double-charging and having to refund.
       console.error(
-        '[upgrade-tier] founding user but STRIPE_COUPON_ID_FOUNDING is not set — they would be overcharged. Falling back to no-coupon (which is wrong; fix the env var).',
+        '[upgrade-tier] founding user but STRIPE_COUPON_ID_FOUNDING is not set — refusing to upgrade rather than overcharge. Fix the env var.',
+      );
+      return NextResponse.json(
+        {
+          error:
+            'Your founding-member discount could not be applied right now. We have not charged you. Please try again shortly or contact support.',
+        },
+        { status: 503 },
       );
     }
 

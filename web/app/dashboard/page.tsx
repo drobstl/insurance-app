@@ -21,6 +21,7 @@ import BookHealthPopover from '../../components/BookHealthPopover';
 import BadgeCelebration from '../../components/BadgeCelebration';
 import PairPhoneBanner from '../../components/PairPhoneBanner';
 import EarlyAdopterBanner from '../../components/EarlyAdopterBanner';
+import ProEndingBanner from '../../components/ProEndingBanner';
 import ReferEarnPromoCard from '../../components/ReferEarnPromoCard';
 
 interface ActivityItem {
@@ -345,6 +346,7 @@ export default function DashboardHomePage() {
       )}
       <PairPhoneBanner />
       <EarlyAdopterBanner />
+      <ProEndingBanner />
       <WhatsNewSpotlight />
       {/* ── Value Hero ─────────────────────────────────────────── */}
       {/* APV on the left; the compact Refer & Earn promo fills the empty

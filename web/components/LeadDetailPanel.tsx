@@ -40,6 +40,7 @@ import {
   getFifResetChip,
   isAppointmentOutcomeChipStatus,
 } from '../lib/appointment-outcome-chip';
+import { isLeadCreditEligible, getLeadCreditChip, LEAD_CREDIT_NOTE } from '../lib/lead-credit-chip';
 import { DIMENSION_MAX, type LeadScore } from '../lib/lead-assessment';
 import { LeadTempChip } from './LeadTempChip';
 import { isDerivedLeadCode } from '../lib/lead-code-derive';
@@ -1635,7 +1636,15 @@ export default function LeadDetailPanel({
                   {fifResetChip.label}
                 </span>
               )}
+              {isLeadCreditEligible(lead.ageYears, lead.dateOfBirth) && (
+                <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${getLeadCreditChip().classes}`}>
+                  {getLeadCreditChip().label}
+                </span>
+              )}
             </div>
+            {isLeadCreditEligible(lead.ageYears, lead.dateOfBirth) && (
+              <p className="text-[13px] font-semibold text-[#9A5B00] mt-1 leading-snug">{LEAD_CREDIT_NOTE}</p>
+            )}
             {lead.leadScore && (
               <p className="text-[13px] text-[#374151] mt-1 leading-snug">{lead.leadScore.summary}</p>
             )}
