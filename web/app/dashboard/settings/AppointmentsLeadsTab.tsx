@@ -623,6 +623,13 @@ export default function AppointmentsLeadsTab({
               <li>Steer any client to a specific path from their profile, in one tap.</li>
               <li>When they tap &ldquo;See if my family qualifies,&rdquo; it books a sit on your calendar.</li>
             </ol>
+            <div className="mt-4 flex items-start gap-2.5">
+              <svg className="h-[15px] w-[15px] shrink-0 mt-0.5 text-[#0f6e56]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+              <div>
+                <p className="text-[11px] font-semibold text-[#005851] uppercase tracking-wide mb-0.5">When it happens</p>
+                <p className="text-[13px] text-[#374151] leading-relaxed">It surfaces to each activated client when they open the app &mdash; reappearing about once a week until they tap through, then resting 60 days. Quietly resets each year.</p>
+              </div>
+            </div>
             <p className="text-[12px] text-[#9aa0a6] leading-relaxed mt-4">
               Off by default. Visuals stay concept-only &mdash; no projected dollar amounts; your licensed specialist runs the real numbers. Track booked sits on your Activity page.
             </p>
