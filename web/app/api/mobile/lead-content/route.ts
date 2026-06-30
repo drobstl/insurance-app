@@ -4,6 +4,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '../../../../lib/firebase-admin';
 import { checkRateLimit, getClientIp } from '../../../../lib/rate-limit';
 import { DEFAULT_ASSESSMENT, type AssessmentQuestion } from '../../../../lib/lead-assessment';
+import {
+  YOUNG_FAQ_MAX_AGE,
+  LEAD_FAQ_DEFAULT_YOUNG,
+  LEAD_FAQ_DEFAULT_COST,
+  LEAD_FAQ_DEFAULT_WORK,
+} from '../../../../lib/lead-faq-defaults';
 
 const MAX_ATTEMPTS = 30;
 const WINDOW_MS = 60_000;
@@ -32,44 +38,8 @@ const PLATFORM_DEFAULTS = {
   ],
 };
 
-// Age-aware platform-default FAQ videos. Real, hosted clips (Bunny Stream)
-// that play automatically when the agent hasn't recorded their own FAQ.
-//   - Under 40: the "do I need this now?" clip — explicitly written for
-//     younger leads, so only confirmed under-40s get it.
-//   - 40+ OR unknown age: the "cost & approval" clip — age-neutral (it never
-//     mentions age), so it's the safe default for older leads AND for the many
-//     leads with no date of birth on file.
-// videoIds live in the AFL Bunny library (672807); URLs are public CDN paths.
-const YOUNG_FAQ_MAX_AGE = 40;
-const YOUNG_FAQ_DEFAULT = {
-  id: 'faq-default-young',
-  title: 'I’m young and healthy — do I really need this now?',
-  url: 'https://vz-a54402da-888.b-cdn.net/7b3ebe94-fbd8-453e-ba92-6007fa8848dd/playlist.m3u8',
-  iframeUrl: 'https://iframe.mediadelivery.net/embed/672807/7b3ebe94-fbd8-453e-ba92-6007fa8848dd',
-  thumbnailUrl: 'https://vz-a54402da-888.b-cdn.net/7b3ebe94-fbd8-453e-ba92-6007fa8848dd/thumbnail.jpg',
-  videoId: '7b3ebe94-fbd8-453e-ba92-6007fa8848dd',
-  durationSec: 57,
-};
-const COST_FAQ_DEFAULT = {
-  id: 'faq-default-cost',
-  title: 'Won’t this cost too much — and would I even qualify?',
-  url: 'https://vz-a54402da-888.b-cdn.net/eed95098-f294-488d-a8c9-04d1412d0794/playlist.m3u8',
-  iframeUrl: 'https://iframe.mediadelivery.net/embed/672807/eed95098-f294-488d-a8c9-04d1412d0794',
-  thumbnailUrl: 'https://vz-a54402da-888.b-cdn.net/eed95098-f294-488d-a8c9-04d1412d0794/thumbnail.jpg',
-  videoId: 'eed95098-f294-488d-a8c9-04d1412d0794',
-  durationSec: 53,
-};
-// Universal — shown to every lead (alongside their age-aware clip), since the
-// "I already have coverage through work" myth isn't age-specific.
-const WORK_FAQ_DEFAULT = {
-  id: 'faq-default-work',
-  title: 'Don’t I already have enough through work?',
-  url: 'https://vz-a54402da-888.b-cdn.net/179478cb-9a68-4adc-951f-91088056e8f7/playlist.m3u8',
-  iframeUrl: 'https://iframe.mediadelivery.net/embed/672807/179478cb-9a68-4adc-951f-91088056e8f7',
-  thumbnailUrl: 'https://vz-a54402da-888.b-cdn.net/179478cb-9a68-4adc-951f-91088056e8f7/thumbnail.jpg',
-  videoId: '179478cb-9a68-4adc-951f-91088056e8f7',
-  durationSec: 55,
-};
+// The age-aware + universal default FAQ videos now live in the shared module
+// `lib/lead-faq-defaults.ts` (single source of truth with the Settings preview).
 
 // Whole years from a YYYY-MM-DD date of birth; undefined if missing/invalid.
 function ageFromDob(dob?: unknown): number | undefined {
@@ -159,11 +129,11 @@ export async function GET(req: NextRequest) {
     // "do I need this now?"; everyone else, incl. unknown age → "cost &
     // approval"), plus the universal "coverage through work" clip. No
     // placeholders. Mobile shows up to two FAQ tiles, so this fills both.
-    const resolveFaqs = (): Array<Record<string, unknown>> => {
+    const resolveFaqs = (): unknown[] => {
       if (showFaqs === false) return [];
       if (agentOverrides.faqs && agentOverrides.faqs.length > 0) return agentOverrides.faqs;
-      const ageAware = leadAge !== undefined && leadAge < YOUNG_FAQ_MAX_AGE ? YOUNG_FAQ_DEFAULT : COST_FAQ_DEFAULT;
-      return [ageAware, WORK_FAQ_DEFAULT];
+      const ageAware = leadAge !== undefined && leadAge < YOUNG_FAQ_MAX_AGE ? LEAD_FAQ_DEFAULT_YOUNG : LEAD_FAQ_DEFAULT_COST;
+      return [ageAware, LEAD_FAQ_DEFAULT_WORK];
     };
 
     return NextResponse.json({
