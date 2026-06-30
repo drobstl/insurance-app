@@ -1,0 +1,26 @@
+{
+  "name": "lead-faq-videos",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Remotion source for the lead-home default FAQ videos (young / cost / work). Renders silent clips; voiceover is recorded + synced separately (see README).",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render:young": "remotion render src/index.ts FaqYoungV2 out/faq-young.mp4 --codec=h264 --pixel-format=yuv420p --crf=20 --image-format=jpeg",
+    "render:cost": "remotion render src/index.ts FaqOlder out/faq-cost.mp4 --codec=h264 --pixel-format=yuv420p --crf=20 --image-format=jpeg",
+    "render:work": "remotion render src/index.ts FaqWork out/faq-work.mp4 --codec=h264 --pixel-format=yuv420p --crf=20 --image-format=jpeg",
+    "render:all": "npm run render:young && npm run render:cost && npm run render:work",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.483",
+    "@remotion/google-fonts": "4.0.483",
+    "@remotion/media-utils": "4.0.483",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "4.0.483"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.3",
+    "typescript": "5.9.2"
+  }
+}
