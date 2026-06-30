@@ -748,6 +748,7 @@ export default function SettingsV2Page() {
         {tab === 'appointments' && (
           <AppointmentsLeadsTab
             view="appointments"
+            clean
             agentProfile={agentProfile}
             updateField={updateField}
             user={user}
@@ -766,6 +767,7 @@ export default function SettingsV2Page() {
             />
             <AppointmentsLeadsTab
               view="leads"
+              clean
               agentProfile={agentProfile}
               updateField={updateField}
               user={user}

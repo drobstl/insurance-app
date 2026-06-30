@@ -14,6 +14,7 @@ import {
   type GoogleCalendarStatusResponse,
   type SaveMessage,
 } from './settingsHelpers';
+import { ToggleRow, IconTrendingUp } from './SettingsRow';
 
 /**
  * "Record" button + its webcam modal. Manages only its own open state;
@@ -207,6 +208,8 @@ interface AppointmentsLeadsTabProps {
   /** Which half of the old combined tab to render: appointment defaults,
       or the Pro-gated dialer + lead-home surfaces. */
   view: 'appointments' | 'leads';
+  /** Best-in-class restyle (settings-v2): clean rows for toggles. */
+  clean?: boolean;
 }
 
 export default function AppointmentsLeadsTab({
@@ -217,6 +220,7 @@ export default function AppointmentsLeadsTab({
   setSaveMessage,
   googleCalendarStatus,
   view,
+  clean,
 }: AppointmentsLeadsTabProps) {
   const schedulingPlatform = agentProfile.schedulingUrl
     ? detectSchedulingPlatform(agentProfile.schedulingUrl)
@@ -561,6 +565,35 @@ export default function AppointmentsLeadsTab({
       </div>
 
       {/* Advanced Market Sits — the in-app reveal that re-engages existing clients */}
+      {clean ? (
+      <div className="space-y-3">
+        <div className="bg-white rounded-xl border border-[#ededed] overflow-hidden">
+          <ToggleRow
+            icon={<IconTrendingUp />}
+            title="Advanced Market Sits"
+            description="Turn your existing clients into second appointments — a personal in-app nudge built from their own numbers. No new lead, no cold call."
+            on={!!agentProfile.resetRevealEnabled}
+            onToggle={() => updateField('resetRevealEnabled', !agentProfile.resetRevealEnabled)}
+          />
+        </div>
+        <div className="bg-[#f7faf9] rounded-xl p-4 border border-[#ededed]">
+          <p className="text-[11px] font-semibold text-[#005851] uppercase tracking-wide mb-1.5">How it works</p>
+          <ol className="list-decimal pl-4 text-xs text-[#0D4D4D] leading-relaxed space-y-1">
+            <li>Flip it on (this switch).</li>
+            <li>
+              AFL matches each client to the right door automatically &mdash; debt &rarr; debt-free life, savings &rarr;
+              market protection, plus three more.
+            </li>
+            <li>Steer any client to a specific door from their profile, in one tap.</li>
+            <li>When they tap &ldquo;See if I qualify,&rdquo; it books a sit on your scheduling calendar.</li>
+          </ol>
+        </div>
+        <p className="text-[11px] text-[#9aa0a6] leading-relaxed">
+          Off by default. The visuals stay concept-only &mdash; no projected dollar amounts; your licensed specialist
+          presents the real numbers. Track booked sits on your Activity page.
+        </p>
+      </div>
+      ) : (
       <div className="bg-white rounded-[5px] border border-gray-200 p-5">
         <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-4">Advanced Market Sits</h3>
         <div className="flex items-start justify-between gap-4">
@@ -604,6 +637,7 @@ export default function AppointmentsLeadsTab({
           presents the real numbers. Track booked sits on your Activity page.
         </p>
       </div>
+      )}
       </>
       )}
 
