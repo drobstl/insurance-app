@@ -53,6 +53,38 @@ function InsertChips({
   );
 }
 
+/* Expandable "what your client gets" for an automation row: a push-
+   notification preview (the real message the client receives) + the real
+   cadence. Used as the ToggleRow `detail`. */
+function AutomationDetail({ pushTitle, pushBody, when }: { pushTitle: string; pushBody: string; when: string }) {
+  return (
+    <div className="flex flex-col sm:flex-row gap-5 items-start">
+      <div className="sm:w-[240px] shrink-0">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-2">What your client gets</p>
+        <div className="rounded-2xl bg-[#e9eaed] p-2.5">
+          <div className="rounded-xl bg-white px-3 py-2 shadow-sm flex gap-2.5 items-start">
+            <div className="w-7 h-7 rounded-lg bg-[#005851] shrink-0 flex items-center justify-center text-white text-[11px] font-bold">∞</div>
+            <div className="min-w-0">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-[11px] font-bold text-[#1a1a1a]">{pushTitle}</p>
+                <span className="text-[9px] text-[#9ca3af]">now</span>
+              </div>
+              <p className="text-[11px] text-[#374151] leading-snug mt-0.5">{pushBody}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="flex items-start gap-2.5">
+        <svg className="h-[15px] w-[15px] shrink-0 mt-0.5 text-[#0f6e56]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+        <div>
+          <p className="text-[11px] font-semibold text-[#005851] uppercase tracking-wide mb-0.5">When it happens</p>
+          <p className="text-[13px] text-[#374151] leading-relaxed">{when}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MessagesTab({ agentProfile, updateField, user, view, clean }: MessagesTabProps) {
   const introRef = useRef<HTMLTextAreaElement>(null);
   const dialRef = useRef<HTMLTextAreaElement>(null);
@@ -357,6 +389,13 @@ export default function MessagesTab({ agentProfile, updateField, user, view, cle
             description="Stay top of mind — branded greetings sent to every client for you."
             on={!!agentProfile.autoHolidayCards}
             onToggle={() => updateField('autoHolidayCards', !agentProfile.autoHolidayCards)}
+            detail={
+              <AutomationDetail
+                pushTitle="Christmas Greetings"
+                pushBody="Merry Christmas, [name]! Wishing you and your family a season full of warmth, joy, and time together. — [you]"
+                when="Once on each of 5 holidays a year — New Year's, Valentine's, July 4th, Thanksgiving, and Christmas."
+              />
+            }
           />
           <ToggleRow
             icon={<IconRepeat />}
@@ -364,6 +403,13 @@ export default function MessagesTab({ agentProfile, updateField, user, view, cle
             description="AI books the 1-year review so policies don't lapse — and you catch the rewrites."
             on={agentProfile.policyReviewAIEnabled !== false}
             onToggle={() => updateField('policyReviewAIEnabled', !(agentProfile.policyReviewAIEnabled !== false))}
+            detail={
+              <AutomationDetail
+                pushTitle="Policy Check-In"
+                pushBody="Hi [name], it's time for your annual review on [your policy]. A lot can change in a year — I'd love to make sure your coverage still fits your life. — [you]"
+                when="You get a heads-up email 3 days before each policy's anniversary; the client gets a check-in the day after. Once per policy, every year."
+              />
+            }
           />
         </div>
       ) : (
