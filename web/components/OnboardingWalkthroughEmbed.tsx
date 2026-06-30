@@ -4,10 +4,20 @@ import { useEffect, useState } from 'react';
 
 const ONBOARDING_URL = process.env.NEXT_PUBLIC_ONBOARDING_WALKTHROUGH_LOOM_URL;
 const BULK_IMPORT_URL = process.env.NEXT_PUBLIC_BULK_IMPORT_WALKTHROUGH_LOOM_URL;
+// Feature explainer walkthroughs surfaced in each feature's empty state (and
+// listed in Resources → Video Tutorials). Each is gated on its own env var: an
+// unset URL shows a tasteful "coming soon" until the Loom is recorded and the
+// var is set in Vercel (NEXT_PUBLIC_* bakes at build, so it needs a redeploy).
+const REFERRALS_URL = process.env.NEXT_PUBLIC_REFERRALS_WALKTHROUGH_LOOM_URL;
+const REWRITES_URL = process.env.NEXT_PUBLIC_REWRITES_WALKTHROUGH_LOOM_URL;
+const RETENTION_URL = process.env.NEXT_PUBLIC_RETENTION_WALKTHROUGH_LOOM_URL;
 
 export const WALKTHROUGH_URLS = {
   onboarding: ONBOARDING_URL,
   bulkImport: BULK_IMPORT_URL,
+  referrals: REFERRALS_URL,
+  rewrites: REWRITES_URL,
+  retention: RETENTION_URL,
 } as const;
 
 export type WalkthroughKey = keyof typeof WALKTHROUGH_URLS;
