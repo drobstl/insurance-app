@@ -886,7 +886,7 @@ export default function AppointmentsLeadsTab({
             onDelete={(slotId) => deleteLeadVideo('faq', slotId)}
             shownToLeads={agentProfile.showLeadFaqs !== false}
             onShownChange={(checked) => updateField('showLeadFaqs', checked)}
-            platformDefaultNote="Younger leads automatically see our default FAQ video (“do I need this now?”). Upload your own to replace it, or uncheck to hide."
+            platformDefaultNote="Leads automatically see a default FAQ video matched to their age. Upload your own to replace it, or uncheck to hide."
           />
 
           {/* Case studies */}
