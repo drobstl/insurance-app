@@ -47,44 +47,49 @@ const TAB_ALIASES: Record<string, Tab> = {
 function LeadHomePreview({ agentProfile }: { agentProfile: AgentProfile }) {
   const lc = agentProfile.leadContent;
   const introTitle = lc?.intro?.title || 'Welcome — what to do next';
-  const hasIntro = !!(lc?.intro?.url || lc?.intro?.iframeUrl);
+  const introPlayable = !!(lc?.intro?.url || lc?.intro?.iframeUrl);
   const faqs = lc?.faqs ?? [];
-  const faqRows = faqs.length ? faqs.slice(0, 2).map((f) => f.title) : ['Is this a sales pitch?'];
+  const faqTiles = faqs.length ? faqs.slice(0, 2).map((f) => f.title) : ['Is this a sales pitch?', 'How long does this take?'];
+  const agentFirst = agentProfile.name?.split(' ')[0] || 'your agent';
   return (
     <div className="hidden md:block w-[280px] shrink-0 sticky top-6">
       <p className="text-xs text-[#707070] font-semibold uppercase tracking-wide text-center mb-3">Lead Home Preview</p>
       <div className="w-[260px] mx-auto bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl border-4 border-[#2a2a2a]">
         <div className="w-full h-[520px] rounded-[2.5rem] overflow-hidden flex flex-col bg-[#F8F9FA]">
+          {/* Header — the lead-home greets the lead by name */}
           <div className="bg-[#0D4D4D] px-4 pt-5 pb-4">
-            <p className="text-white/70 text-[9px] font-medium">Get ready for your call with</p>
+            <p className="text-white/70 text-[10px] font-medium">Welcome, Sarah</p>
             <p className="text-white text-[14px] font-bold leading-tight">{agentProfile.name || 'Your Agent'}</p>
           </div>
-          <div className="flex-1 px-3 py-3 overflow-hidden space-y-2.5">
-            <div className="bg-white rounded-[10px] overflow-hidden shadow-sm">
-              <div className="relative h-[92px] bg-[#0D4D4D] flex items-center justify-center">
-                <div className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center">
-                  <span style={{ borderLeft: '9px solid #0D4D4D', borderTop: '6px solid transparent', borderBottom: '6px solid transparent', marginLeft: 2, display: 'inline-block' }} />
-                </div>
-              </div>
-              <div className="px-3 py-2">
-                <p className="text-[11px] font-bold text-[#2D3748] leading-snug">{introTitle}</p>
-                {!hasIntro && <p className="text-[8px] text-[#9CA3AF] mt-0.5">Add an intro video to fill this</p>}
-              </div>
+          <div className="flex-1 px-3 py-3 overflow-hidden space-y-3">
+            {/* Intro video — big teal play tile, badge top-right, title at bottom */}
+            <div className="relative rounded-[12px] bg-[#0D4D4D] min-h-[116px] p-3 flex flex-col justify-end">
+              <span className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-[#3DD6C3] flex items-center justify-center text-[#0D4D4D] text-[10px]">▶</span>
+              <p className="text-white text-[13px] font-bold leading-snug">{introTitle}</p>
+              {!introPlayable && <p className="text-white/55 text-[8px] mt-0.5">Coming soon</p>}
             </div>
+            {/* Step 1 — quick assessment (comes before the FAQs) */}
             <div>
-              <p className="text-[8px] font-bold uppercase tracking-wide text-[#9CA3AF] mb-1">Questions, answered</p>
-              {faqRows.map((title, i) => (
-                <div key={i} className="bg-white rounded-md px-2.5 py-1.5 mb-1 flex items-center gap-2 shadow-sm">
-                  <span className="w-5 h-5 rounded bg-[#eef6f4] flex items-center justify-center shrink-0">
-                    <span style={{ borderLeft: '6px solid #0f6e56', borderTop: '4px solid transparent', borderBottom: '4px solid transparent', marginLeft: 2, display: 'inline-block' }} />
-                  </span>
-                  <p className="text-[10px] text-[#374151] truncate">{title}</p>
+              <p className="text-[#0f7d68] text-[9px] font-bold uppercase tracking-[0.1em] mb-1.5">Step 1</p>
+              <div className="rounded-[12px] bg-[#3DD6C3] px-3 py-2.5 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[#063b35] text-[12px] font-bold">Quick assessment</p>
+                  <p className="text-[#0D4D4D]/80 text-[9px] mt-0.5 leading-snug">10 quick questions so {agentFirst} doesn&rsquo;t have to ask the basics on the call.</p>
                 </div>
-              ))}
+                <span className="text-[#063b35] text-[15px] font-bold shrink-0">&rarr;</span>
+              </div>
             </div>
-            <div className="bg-white rounded-md px-2.5 py-2 shadow-sm">
-              <p className="text-[10px] font-semibold text-[#2D3748]">A few quick questions</p>
-              <p className="text-[8px] text-[#9CA3AF] mt-0.5">So you can prep before you ever meet</p>
+            {/* Step 2 — FAQ tiles, 2-up */}
+            <div>
+              <p className="text-[#0f7d68] text-[9px] font-bold uppercase tracking-[0.1em] mb-1.5">Step 2 &middot; Common questions</p>
+              <div className="grid grid-cols-2 gap-2">
+                {faqTiles.map((t, i) => (
+                  <div key={i} className="relative rounded-[10px] bg-[#0D4D4D] min-h-[64px] p-2 flex flex-col justify-end">
+                    <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#3DD6C3] flex items-center justify-center text-[#0D4D4D] text-[8px]">▶</span>
+                    <p className="text-white text-[9px] font-semibold leading-snug">{t}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
