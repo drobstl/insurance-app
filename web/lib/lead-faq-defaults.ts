@@ -25,8 +25,10 @@ export interface LeadFaqDefault {
 }
 
 export const LEAD_FAQ_DEFAULT_YOUNG: LeadFaqDefault = {
+  // Short titles: these render on small FAQ tiles (mobile clamps to 2 lines),
+  // so anything longer truncates mid-sentence. Keep them punchy.
   id: 'faq-default-young',
-  title: 'I’m young and healthy — do I really need this now?',
+  title: 'Do I really need this now?',
   url: 'https://vz-a54402da-888.b-cdn.net/7b3ebe94-fbd8-453e-ba92-6007fa8848dd/playlist.m3u8',
   iframeUrl: 'https://iframe.mediadelivery.net/embed/672807/7b3ebe94-fbd8-453e-ba92-6007fa8848dd',
   thumbnailUrl: 'https://vz-a54402da-888.b-cdn.net/7b3ebe94-fbd8-453e-ba92-6007fa8848dd/thumbnail.jpg',
@@ -36,7 +38,7 @@ export const LEAD_FAQ_DEFAULT_YOUNG: LeadFaqDefault = {
 
 export const LEAD_FAQ_DEFAULT_COST: LeadFaqDefault = {
   id: 'faq-default-cost',
-  title: 'Won’t this cost too much — and would I even qualify?',
+  title: 'Too expensive? Will I qualify?',
   url: 'https://vz-a54402da-888.b-cdn.net/eed95098-f294-488d-a8c9-04d1412d0794/playlist.m3u8',
   iframeUrl: 'https://iframe.mediadelivery.net/embed/672807/eed95098-f294-488d-a8c9-04d1412d0794',
   thumbnailUrl: 'https://vz-a54402da-888.b-cdn.net/eed95098-f294-488d-a8c9-04d1412d0794/thumbnail.jpg',
@@ -46,7 +48,7 @@ export const LEAD_FAQ_DEFAULT_COST: LeadFaqDefault = {
 
 export const LEAD_FAQ_DEFAULT_WORK: LeadFaqDefault = {
   id: 'faq-default-work',
-  title: 'Don’t I already have enough through work?',
+  title: 'Aren’t I covered through work?',
   url: 'https://vz-a54402da-888.b-cdn.net/179478cb-9a68-4adc-951f-91088056e8f7/playlist.m3u8',
   iframeUrl: 'https://iframe.mediadelivery.net/embed/672807/179478cb-9a68-4adc-951f-91088056e8f7',
   thumbnailUrl: 'https://vz-a54402da-888.b-cdn.net/179478cb-9a68-4adc-951f-91088056e8f7/thumbnail.jpg',
