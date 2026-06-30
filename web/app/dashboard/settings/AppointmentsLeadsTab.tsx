@@ -576,6 +576,39 @@ export default function AppointmentsLeadsTab({
             onToggle={() => updateField('resetRevealEnabled', !agentProfile.resetRevealEnabled)}
           />
         </div>
+        {/* "What your client sees" — a faithful slice of the real in-app
+            reveal (mobile/components/ResetReveal.tsx): dark teal + mint,
+            concept-only, ending in "See if my family qualifies". */}
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-2">What your client sees</p>
+          <div className="rounded-2xl p-4" style={{ background: 'linear-gradient(160deg, #0D4D4D, #072E2C)' }}>
+            <div className="flex gap-1 mb-3">
+              <span className="h-1 w-4 rounded-full bg-[#3DD6C3]" />
+              <span className="h-1 w-1.5 rounded-full bg-white/25" />
+              <span className="h-1 w-1.5 rounded-full bg-white/25" />
+              <span className="h-1 w-1.5 rounded-full bg-white/25" />
+              <span className="h-1 w-1.5 rounded-full bg-white/25" />
+              <span className="h-1 w-1.5 rounded-full bg-white/25" />
+            </div>
+            <p className="text-white text-[15px] font-bold leading-snug max-w-[330px]">When the market crashes, your savings don&rsquo;t.</p>
+            <svg viewBox="0 0 260 86" className="w-full max-w-[300px] mt-3" fill="none" aria-hidden="true">
+              <polyline points="8,66 60,46 120,78 175,64 252,58" stroke="rgba(255,255,255,0.34)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <polyline points="8,70 60,50 120,46 175,44 252,16" stroke="#3DD6C3" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="252" cy="16" r="4" fill="#3DD6C3" />
+              <text x="250" y="11" textAnchor="end" fill="#3DD6C3" fontSize="9">your money</text>
+              <text x="250" y="74" textAnchor="end" fill="rgba(255,255,255,0.45)" fontSize="9">the market</text>
+            </svg>
+            <p className="text-[#9FE1CB] text-[12px] mt-2">It holds through the dips, then keeps climbing.</p>
+            <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#3DD6C3] px-3 py-1.5">
+              <span className="text-[#04342C] text-[11px] font-bold">See if my family qualifies</span>
+            </div>
+            <div className="flex items-center gap-2 mt-3">
+              <div className="w-6 h-6 rounded-full bg-[#3DD6C3]/25 border border-[#3DD6C3] flex items-center justify-center text-[#3DD6C3] text-[10px] font-bold">{agentProfile.name?.charAt(0)?.toUpperCase() || 'A'}</div>
+              <span className="text-white/70 text-[11px]">from your agent, {agentProfile.name?.split(' ')[0] || 'your agent'}</span>
+            </div>
+          </div>
+          <p className="text-[12px] text-[#6b7280] mt-2 leading-snug">A concept-only story in their app, matched to each client &mdash; AFL picks the right one of five paths, and one tap books the sit on your calendar.</p>
+        </div>
         <div className="bg-[#f7faf9] rounded-xl p-4 border border-[#ededed]">
           <p className="text-[11px] font-semibold text-[#005851] uppercase tracking-wide mb-1.5">How it works</p>
           <ol className="list-decimal pl-4 text-xs text-[#0D4D4D] leading-relaxed space-y-1">
