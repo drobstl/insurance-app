@@ -30,6 +30,7 @@ import {
   isAppointmentOutcomeChipStatus,
 } from '../../../lib/appointment-outcome-chip';
 import { isLeadCreditEligible, getLeadCreditChip, LEAD_CREDIT_NOTE } from '../../../lib/lead-credit-chip';
+import { ageFromDob } from '../../../lib/household';
 import type { LeadScore } from '../../../lib/lead-assessment';
 import { LeadTempChip } from '../../../components/LeadTempChip';
 import { LeadTagChips } from '../../../components/LeadTagChips';
@@ -58,9 +59,16 @@ interface Lead {
   email?: string;
   // Lead's age in years, populated by the PDF extractor on import. Sortable.
   ageYears?: number;
+  // Underwriting fields off the lead doc — surfaced here so the filter bar /
+  // natural-language search can narrow on them (age range, smoker, gender).
+  dateOfBirth?: string;
+  gender?: 'M' | 'F';
+  smokerStatus?: 'Y' | 'N';
   createdAt?: Timestamp | null;
   appDownloadedAt?: string | null;
   assessmentCompletedAt?: Timestamp | null;
+  // Stamped when the teed-up first-touch SMS is sent (drives "Intro sent").
+  introTextSentAt?: Timestamp | null;
   leadScore?: LeadScore | null;
   convertedToClientId?: string | null;
   monthlyMortgageAmount?: number;
@@ -963,8 +971,13 @@ function LeadsPageInner() {
     if (filters.tagIds.length) {
       result = result.filter((lead) => filters.tagIds.every((id) => (lead.tagIds ?? []).includes(id)));
     }
-    if (filters.state) {
-      result = result.filter((lead) => (lead.address?.state ?? '').toUpperCase() === filters.state);
+    if (filters.states.length) {
+      const want = new Set(filters.states.map((s) => s.toUpperCase()));
+      result = result.filter((lead) => want.has((lead.address?.state ?? '').toUpperCase()));
+    }
+    if (filters.city) {
+      const needle = filters.city.toLowerCase();
+      result = result.filter((lead) => (lead.address?.city ?? '').toLowerCase().includes(needle));
     }
     if (filters.dateFrom || filters.dateTo) {
       const fromMs = filters.dateFrom ? Date.parse(`${filters.dateFrom}T00:00:00`) : -Infinity;
@@ -974,8 +987,71 @@ function LeadsPageInner() {
         return t != null && t >= fromMs && t <= toMs;
       });
     }
+    if (filters.temperatures.length) {
+      const want = new Set(filters.temperatures);
+      result = result.filter((lead) => {
+        const t = lead.leadScore?.temperature;
+        return !!t && want.has(t);
+      });
+    }
+    if (filters.dialOutcomes.length) {
+      const want = new Set<string>(filters.dialOutcomes);
+      result = result.filter((lead) => !!lead.lastDialOutcome && want.has(lead.lastDialOutcome));
+    }
+    if (filters.creditEligible) {
+      result = result.filter((lead) => isLeadCreditEligible(lead.ageYears, lead.dateOfBirth));
+    }
+    if (filters.ageMin != null || filters.ageMax != null) {
+      const lo = filters.ageMin ?? -Infinity;
+      const hi = filters.ageMax ?? Infinity;
+      result = result.filter((lead) => {
+        const age = lead.ageYears ?? ageFromDob(lead.dateOfBirth);
+        return typeof age === 'number' && age >= lo && age <= hi;
+      });
+    }
+    if (filters.appDownloaded) {
+      const want = filters.appDownloaded === 'yes';
+      result = result.filter((lead) => !!lead.appDownloadedAt === want);
+    }
+    if (filters.assessmentCompleted) {
+      const want = filters.assessmentCompleted === 'yes';
+      result = result.filter((lead) => !!lead.assessmentCompletedAt === want);
+    }
+    if (filters.introSent) {
+      const want = filters.introSent === 'yes';
+      result = result.filter((lead) => !!lead.introTextSentAt === want);
+    }
+    if (filters.smoker) {
+      result = result.filter((lead) => lead.smokerStatus === filters.smoker);
+    }
+    if (filters.gender) {
+      result = result.filter((lead) => lead.gender === filters.gender);
+    }
+    if (filters.hasMortgage) {
+      result = result.filter((lead) => (lead.monthlyMortgageAmount ?? 0) > 0);
+    }
+    if (filters.neverContacted) {
+      result = result.filter((lead) => !lead.lastDialAt);
+    }
+    if (filters.notContactedDays != null) {
+      const cutoff = Date.now() - filters.notContactedDays * 86400000;
+      result = result.filter((lead) => {
+        const t = lead.lastDialAt?.toDate().getTime();
+        return t == null || t < cutoff;
+      });
+    }
+    if (filters.contactedWithinDays != null) {
+      const cutoff = Date.now() - filters.contactedWithinDays * 86400000;
+      result = result.filter((lead) => {
+        const t = lead.lastDialAt?.toDate().getTime();
+        return t != null && t >= cutoff;
+      });
+    }
     if (filters.followUpDue) {
       result = result.filter((lead) => isFollowUpDue(lead.followUpAt));
+    }
+    if (filters.hasFollowUp) {
+      result = result.filter((lead) => followUpMillis(lead.followUpAt) != null);
     }
 
     // Multi-word AND: every whitespace-separated term must match SOME field
