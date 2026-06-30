@@ -4,6 +4,7 @@ import { useRef } from 'react';
 import type { User } from 'firebase/auth';
 import type { AgentProfile } from '../DashboardContext';
 import StateLicensesSection from '../../../components/StateLicensesSection';
+import { Switch, IconForward } from './SettingsRow';
 import {
   formatPhoneNumber,
   readFileAsDataUrl,
@@ -21,6 +22,8 @@ interface ProfileTabProps {
   setCropImageSrc: (src: string | null) => void;
   setCrop: (c: { x: number; y: number }) => void;
   setZoom: (z: number) => void;
+  /** Best-in-class restyle (settings-v2): clean rows for toggles. */
+  clean?: boolean;
 }
 
 export default function ProfileTab({
@@ -32,6 +35,7 @@ export default function ProfileTab({
   setCropImageSrc,
   setCrop,
   setZoom,
+  clean,
 }: ProfileTabProps) {
   const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -127,6 +131,18 @@ export default function ProfileTab({
               className="w-full px-3 py-2 rounded-[5px] border border-gray-200 text-sm focus:outline-none focus:border-[#45bcaa] focus:ring-1 focus:ring-[#45bcaa]"
             />
           </div>
+          {clean ? (
+            <div className="flex items-start justify-between gap-4 pt-4 border-t border-[#f1f1f1]">
+              <div className="flex items-start gap-3.5 min-w-0">
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef6f4] text-[#0f6e56]"><IconForward /></span>
+                <div className="min-w-0">
+                  <p className="text-[15px] font-semibold text-[#111827]">Forward AFL texts to my cell</p>
+                  <p className="text-[13px] text-[#6b7280] mt-0.5 leading-snug">Out-of-the-blue client texts get copied to your phone so you can reply directly.</p>
+                </div>
+              </div>
+              <Switch on={agentProfile.forwardInboundSms ?? true} onClick={() => updateField('forwardInboundSms', !(agentProfile.forwardInboundSms ?? true))} />
+            </div>
+          ) : (
           <div className="flex items-start justify-between gap-4 pt-2 border-t border-gray-100">
             <div className="flex-1">
               <p className="text-sm font-medium text-[#000000]">Forward AFL texts to my cell</p>
@@ -148,6 +164,7 @@ export default function ProfileTab({
               />
             </button>
           </div>
+          )}
         </div>
       </div>
 
