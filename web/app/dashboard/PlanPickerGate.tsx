@@ -1,9 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDashboard } from './DashboardContext';
 import { isTrialActive } from '../../lib/tier-gating';
 import { PRICING_TIERS } from '../../lib/pricing';
+import { captureEvent } from '../../lib/posthog';
+import { ANALYTICS_EVENTS } from '../../lib/analytics-events';
 
 /**
  * PlanPickerGate — the day-12 "back wall" of the no-card trial
@@ -36,6 +38,7 @@ type PendingChoice = 'growth' | 'pro' | 'free' | null;
 export default function PlanPickerGate() {
   const { user, agentProfile } = useDashboard();
   const [pending, setPending] = useState<PendingChoice>(null);
+  const [billingInterval, setBillingInterval] = useState<'monthly' | 'annual'>('monthly');
   const [error, setError] = useState<string | null>(null);
 
   const trialEndsAtMs =
@@ -48,6 +51,15 @@ export default function PlanPickerGate() {
     return trialEndsAtMs - Date.now() <= PICKER_WINDOW_MS;
   }, [user, agentProfile.membershipTier, trialEndsAtMs]);
 
+  // Choice-point denominator — fire once when the wall first appears.
+  // Lives above the early return so it obeys the rules of hooks; the
+  // `show` guard keeps it from firing for agents who never see the gate.
+  useEffect(() => {
+    if (!show || trialEndsAtMs == null) return;
+    const d = Math.max(1, Math.ceil((trialEndsAtMs - Date.now()) / DAY_MS));
+    captureEvent(ANALYTICS_EVENTS.PLAN_PICKER_SHOWN, { days_left: d });
+  }, [show, trialEndsAtMs]);
+
   if (!show) return null;
 
   const daysLeft = trialEndsAtMs
@@ -58,16 +70,32 @@ export default function PlanPickerGate() {
   const pro = PRICING_TIERS.pro;
   const free = PRICING_TIERS.free;
 
+  // Annual toggle — only surfaces where NEXT_PUBLIC_ANNUAL_BILLING_ENABLED
+  // is set AND the tier actually has an annual SKU (priceAnnual). Picks
+  // the annual price + interval for checkout when toggled to Annual.
+  const annualEnabled = process.env.NEXT_PUBLIC_ANNUAL_BILLING_ENABLED === 'true';
+  const showAnnual = annualEnabled && billingInterval === 'annual';
+  const priceFor = (tier: typeof growth) =>
+    showAnnual && typeof tier.priceAnnual === 'number'
+      ? { amount: tier.priceAnnual, unit: '/yr' }
+      : { amount: tier.priceMonthly, unit: '/mo' };
+
   const startCheckout = async (tier: 'growth' | 'pro') => {
     if (!user || pending) return;
     setError(null);
     setPending(tier);
+    const interval = showAnnual ? 'annual' : 'monthly';
+    captureEvent(ANALYTICS_EVENTS.PLAN_PICKER_CHOICE, {
+      choice: tier,
+      days_left: daysLeft,
+      billing_interval: interval,
+    });
     try {
       const token = await user.getIdToken();
       const res = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ tier, returnPath: '/dashboard' }),
+        body: JSON.stringify({ tier, returnPath: '/dashboard', interval }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && typeof data?.url === 'string') {
@@ -86,6 +114,7 @@ export default function PlanPickerGate() {
     if (!user || pending) return;
     setError(null);
     setPending('free');
+    captureEvent(ANALYTICS_EVENTS.PLAN_PICKER_CHOICE, { choice: 'free', days_left: daysLeft });
     try {
       const token = await user.getIdToken();
       const res = await fetch('/api/trial/stay-free', {
@@ -123,6 +152,33 @@ export default function PlanPickerGate() {
           </p>
         </div>
 
+        {annualEnabled && (
+          <div className="flex justify-center mt-5">
+            <div className="inline-flex rounded-full border border-[#d0d0d0] bg-[#f3f3f3] p-1">
+              <button
+                type="button"
+                onClick={() => setBillingInterval('monthly')}
+                disabled={busy}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-full transition-colors disabled:opacity-60 ${
+                  billingInterval === 'monthly' ? 'bg-white text-[#005851] shadow-sm' : 'text-[#6B7280]'
+                }`}
+              >
+                Monthly
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillingInterval('annual')}
+                disabled={busy}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-full transition-colors disabled:opacity-60 ${
+                  billingInterval === 'annual' ? 'bg-white text-[#005851] shadow-sm' : 'text-[#6B7280]'
+                }`}
+              >
+                Annual <span className="text-[#44bbaa]">· 2 months free</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {error && (
           <div className="mx-6 mt-5 sm:mx-8 rounded-[6px] border border-[#FCA5A5] bg-[#FEF2F2] px-4 py-3">
             <p className="text-sm text-[#B91C1C]">{error}</p>
@@ -139,8 +195,8 @@ export default function PlanPickerGate() {
             <h3 className="text-lg font-bold text-[#005851]">{growth.name}</h3>
             <p className="text-xs text-[#6B7280] mb-3">{growth.tagline}</p>
             <p className="mb-4">
-              <span className="text-3xl font-extrabold text-[#0D4D4D]">${growth.priceMonthly}</span>
-              <span className="text-sm text-[#6B7280]">/mo</span>
+              <span className="text-3xl font-extrabold text-[#0D4D4D]">${priceFor(growth).amount}</span>
+              <span className="text-sm text-[#6B7280]">{priceFor(growth).unit}</span>
             </p>
             <ul className="space-y-2 mb-5 flex-1">
               {growth.bullets.slice(0, 4).map((b) => (
@@ -166,8 +222,8 @@ export default function PlanPickerGate() {
             <h3 className="text-lg font-bold text-[#005851]">{pro.name}</h3>
             <p className="text-xs text-[#6B7280] mb-3">{pro.tagline}</p>
             <p className="mb-4">
-              <span className="text-3xl font-extrabold text-[#0D4D4D]">${pro.priceMonthly}</span>
-              <span className="text-sm text-[#6B7280]">/mo</span>
+              <span className="text-3xl font-extrabold text-[#0D4D4D]">${priceFor(pro).amount}</span>
+              <span className="text-sm text-[#6B7280]">{priceFor(pro).unit}</span>
             </p>
             <ul className="space-y-2 mb-5 flex-1">
               {pro.bullets.slice(0, 4).map((b) => (

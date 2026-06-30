@@ -6,6 +6,8 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { stripe } from '../../../../lib/stripe';
 import { getAdminAuth, getAdminFirestore } from '../../../../lib/firebase-admin';
 import { notifyFounderOfSignup } from '../../../../lib/founder-signup-alert';
+import { captureServerEvent } from '../../../../lib/posthog-server';
+import { ANALYTICS_EVENTS } from '../../../../lib/analytics-events';
 
 /**
  * POST /api/signup/trial
@@ -154,6 +156,18 @@ export async function POST(request: NextRequest) {
     if (fpTid) profile.affiliateTid = fpTid;
 
     await db.collection('agents').doc(uid).set(profile, { merge: true });
+
+    // Funnel denominator — fired AFTER the trial doc commits so it lines
+    // up with the later server-side conversion events (subscription_
+    // activated / trial_converted) on the same person (distinct_id = uid).
+    // Best-effort and awaited per lib/posthog-server.ts (a fire-and-forget
+    // fetch can be frozen when the Vercel function suspends post-response).
+    await captureServerEvent(uid, ANALYTICS_EVENTS.TRIAL_STARTED, {
+      source: 'no_card_trial',
+      new_account: true,
+      referred: referrerId != null,
+      has_affiliate: fpTid != null,
+    });
 
     // Founder alert — fire-and-forget; never blocks the signup.
     void notifyFounderOfSignup({

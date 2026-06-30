@@ -8,6 +8,7 @@ import {
   PRICING_TIERS,
   isStripeBillableTier,
   resolveStripePriceId,
+  type BillingInterval,
 } from '../../../../lib/pricing';
 
 /**
@@ -42,6 +43,7 @@ interface StartCheckoutBody {
   tier?: unknown;
   refCode?: unknown;
   fp_tid?: unknown;
+  interval?: unknown;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -73,6 +75,7 @@ export async function POST(request: NextRequest) {
       typeof body.fp_tid === 'string' && body.fp_tid.trim().length > 0
         ? body.fp_tid.trim()
         : null;
+    const interval: BillingInterval = body.interval === 'annual' ? 'annual' : 'monthly';
 
     if (!email || !EMAIL_RE.test(email)) {
       return NextResponse.json({ error: 'invalid_email' }, { status: 400 });
@@ -112,10 +115,13 @@ export async function POST(request: NextRequest) {
       // user-not-found is the happy path — keep going.
     }
 
-    const priceId = resolveStripePriceId(tier);
+    const priceId = resolveStripePriceId(tier, interval);
     if (!priceId) {
-      const envVar = PRICING_TIERS[tier].stripePriceIdEnvVar;
-      console.error('[signup/start-checkout] price id not configured', { tier, envVar });
+      const envVar =
+        interval === 'annual'
+          ? PRICING_TIERS[tier].stripePriceIdAnnualEnvVar
+          : PRICING_TIERS[tier].stripePriceIdEnvVar;
+      console.error('[signup/start-checkout] price id not configured', { tier, interval, envVar });
       return NextResponse.json({ error: 'pricing_not_configured' }, { status: 500 });
     }
 
@@ -149,6 +155,7 @@ export async function POST(request: NextRequest) {
       metadata: {
         pendingSignupEmail: email,
         tier,
+        billingInterval: interval,
         ...(refCode ? { referralCode: refCode } : {}),
         ...(fpTid ? { fp_tid: fpTid } : {}),
       },
@@ -156,6 +163,7 @@ export async function POST(request: NextRequest) {
         metadata: {
           pendingSignupEmail: email,
           tier,
+          billingInterval: interval,
           ...(refCode ? { referralCode: refCode } : {}),
           ...(fpTid ? { fp_tid: fpTid } : {}),
         },
@@ -176,6 +184,7 @@ export async function POST(request: NextRequest) {
       emailLower: email,
       name,
       tier,
+      interval,
       refCode,
       referrerId,
       status: 'pending',

@@ -53,6 +53,11 @@ export type PricingTierId = 'free' | 'starter' | 'growth' | 'pro' | 'agency';
 // Free is not Stripe-billable (no card, $0), same as Agency (sales-led).
 export type StripeBillableTierId = Exclude<PricingTierId, 'agency' | 'free'>;
 
+// Billing cadence. Annual is priced "2 months free" — see
+// ANNUAL_MONTHS_CHARGED. A tier only offers annual if it defines
+// `priceAnnual` + `stripePriceIdAnnualEnvVar`.
+export type BillingInterval = 'monthly' | 'annual';
+
 export interface PricingTier {
   id: PricingTierId;
   name: string;
@@ -87,6 +92,13 @@ export interface PricingTier {
    *  card describes the eventual product; the badge + disabled
    *  button communicate that it's not bookable yet. */
   comingSoon?: boolean;
+  /** Annual price in whole USD/year. Omitted for tiers with no annual
+   *  SKU (Starter is legacy/closed; Agency is sales-led). "2 months
+   *  free" framing: priceAnnual = priceMonthly × ANNUAL_MONTHS_CHARGED. */
+  priceAnnual?: number;
+  /** Env var holding the Stripe **annual** Price ID. Omitted = this tier
+   *  has no annual SKU. Resolved the same way as the monthly id. */
+  stripePriceIdAnnualEnvVar?: string;
 }
 
 export const PRICING_TIERS: Readonly<Record<PricingTierId, PricingTier>> = {
@@ -153,6 +165,9 @@ export const PRICING_TIERS: Readonly<Record<PricingTierId, PricingTier>> = {
     bestFor: 'Established producer focused on retaining + monetizing the book they already have',
     isStripeBillable: true,
     stripePriceIdEnvVar: 'STRIPE_PRICE_ID_GROWTH_MONTHLY',
+    // $49/mo × 10 = $490/yr ("2 months free").
+    priceAnnual: 490,
+    stripePriceIdAnnualEnvVar: 'STRIPE_PRICE_ID_GROWTH_ANNUAL',
     emphasis: 'popular',
   },
   pro: {
@@ -174,6 +189,9 @@ export const PRICING_TIERS: Readonly<Record<PricingTierId, PricingTier>> = {
     bestFor: 'Producer running a lead pipeline who wants unlimited AI coaching on their calls',
     isStripeBillable: true,
     stripePriceIdEnvVar: 'STRIPE_PRICE_ID_PRO_MONTHLY',
+    // $99/mo × 10 = $990/yr ("2 months free").
+    priceAnnual: 990,
+    stripePriceIdAnnualEnvVar: 'STRIPE_PRICE_ID_PRO_ANNUAL',
     comingSoon: true,
   },
   agency: {
@@ -212,6 +230,21 @@ export const PRICING_TIER_ORDER: readonly PricingTierId[] = [
  *  conversation counter ships. */
 export const OVERAGE_USD_PER_CONVERSATION = 0.5;
 
+/** Annual billing charges this many months up front — i.e. "2 months
+ *  free" (10 months charged for 12). Single source of truth: change
+ *  this (and each tier's `priceAnnual`) to retune the annual discount.
+ *  A flat 10% off would be ~10.8 months; we use the cleaner, stronger
+ *  2-months-free convention. */
+export const ANNUAL_MONTHS_CHARGED = 10;
+
+/** Whole-dollar savings of paying annually vs 12× monthly, or 0 if the
+ *  tier has no annual SKU. UI uses this for the "save $X" badge. */
+export function annualSavingsUsd(tierId: PricingTierId): number {
+  const tier = PRICING_TIERS[tierId];
+  if (typeof tier.priceAnnual !== 'number') return 0;
+  return Math.max(0, tier.priceMonthly * 12 - tier.priceAnnual);
+}
+
 /** Sales contact for Agency tier inquiries. Used as the `mailto:`
  *  target on the Agency tier card's CTA. */
 export const AGENCY_SALES_EMAIL = 'support@agentforlife.app';
@@ -236,8 +269,17 @@ export function isPricingTierId(id: string): id is PricingTierId {
  *  configured env var, or `null` if unset. The route handlers
  *  treat `null` as a 500 since pricing should never be deployed
  *  without Stripe configured. */
-export function resolveStripePriceId(tierId: StripeBillableTierId): string | null {
-  const envVar = PRICING_TIERS[tierId].stripePriceIdEnvVar;
+export function resolveStripePriceId(
+  tierId: StripeBillableTierId,
+  interval: BillingInterval = 'monthly',
+): string | null {
+  const tier = PRICING_TIERS[tierId];
+  const envVar =
+    interval === 'annual' ? tier.stripePriceIdAnnualEnvVar : tier.stripePriceIdEnvVar;
+  // No annual env var configured = this tier has no annual SKU (or the
+  // annual Stripe Price hasn't been created yet). Callers treat null as
+  // "not available", so annual stays dormant until the env var is set.
+  if (!envVar) return null;
   const value = process.env[envVar];
   return value && value.trim().length > 0 ? value.trim() : null;
 }
@@ -248,7 +290,10 @@ export function resolveStripePriceId(tierId: StripeBillableTierId): string | nul
 export function tierIdFromStripePriceId(priceId: string | null | undefined): StripeBillableTierId | null {
   if (!priceId) return null;
   for (const tierId of ['starter', 'growth', 'pro'] as const) {
-    if (resolveStripePriceId(tierId) === priceId) return tierId;
+    // A tier owns BOTH its monthly and annual Price IDs — match either so
+    // the webhook assigns the right tier regardless of billing cadence.
+    if (resolveStripePriceId(tierId, 'monthly') === priceId) return tierId;
+    if (resolveStripePriceId(tierId, 'annual') === priceId) return tierId;
   }
   return null;
 }

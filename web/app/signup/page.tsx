@@ -85,6 +85,9 @@ function SignupPageInner() {
 
   const tierParam = searchParams.get('tier');
   const selectedTier = tierParam && isStripeBillableTier(tierParam) ? tierParam : null;
+  // Billing cadence carried from /pricing (e.g. ?tier=growth&interval=annual).
+  // Defaults to monthly; the trial form (no tier) ignores it.
+  const billingInterval = searchParams.get('interval') === 'annual' ? 'annual' : 'monthly';
   const selectedTierInfo = selectedTier ? PRICING_TIERS[selectedTier] : null;
   // Coming-soon tiers cannot be purchased — even via a bookmarked
   // /signup?tier=pro URL. Mirror of the server-side block in
@@ -181,6 +184,7 @@ function SignupPageInner() {
           email: email.trim().toLowerCase(),
           name: name.trim(),
           tier: selectedTier,
+          interval: billingInterval,
           refCode,
           fp_tid: fpTid,
         }),
