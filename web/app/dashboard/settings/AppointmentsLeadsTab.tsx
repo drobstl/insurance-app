@@ -568,10 +568,8 @@ export default function AppointmentsLeadsTab({
             <p className="text-sm font-medium text-[#000000]">
               {agentProfile.resetRevealEnabled ? 'On — your clients can see it' : 'Off'}
             </p>
-            <p className="text-xs text-[#707070] mt-1">
-              When on, your activated clients get a short, personal nudge in their app &mdash; built from their own
-              mortgage and savings &mdash; inviting them back for a second, advanced-market conversation. The cheapest
-              appointment you&apos;ll ever set: no new lead, no cold call.
+            <p className="text-[13px] text-[#4b5563] mt-1 leading-relaxed">
+              Your book is full of second appointments you&rsquo;re not setting. Flip this on and your existing clients get a personal nudge in their app &mdash; built from their own mortgage and savings &mdash; inviting them back for an advanced-market conversation. No new lead, no cold call: the cheapest appointment you&rsquo;ll ever book, from people who already trust you. Most agents sell a client once and move on &mdash; you keep selling the same relationship.
             </p>
           </div>
           <button
