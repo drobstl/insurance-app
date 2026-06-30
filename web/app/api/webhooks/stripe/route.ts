@@ -494,6 +494,13 @@ async function handleSubscriptionDeleted(subscriptionData: any, stripeEventId: s
       stripeCustomerId: subscriptionData.customer,
       subscriptionId: subscriptionData.id,
       stripeSubscriptionStatus: 'canceled',
+      // Drop to Free now that the subscription has actually ended (this is
+      // the deleted event, not a scheduled cancel — anyone paid through the
+      // period kept Pro until now). The gates read `membershipTier`, so
+      // without this a canceled account would keep Pro tools AND keep firing
+      // the whole-book outreach crons. Free = data-preserved, engine-paused
+      // per the May 30 Growth Lock: they keep their book, outbound stops.
+      membershipTier: 'free',
     },
     { merge: true }
   );
