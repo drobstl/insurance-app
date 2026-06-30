@@ -717,6 +717,7 @@ export default function SettingsV2Page() {
         {tab === 'messages' && (
           <MessagesTab
             view="messages"
+            clean
             agentProfile={agentProfile}
             updateField={updateField}
             user={user}
