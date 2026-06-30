@@ -1681,6 +1681,13 @@ export default function LeadDetailPanel({
             leadId={lead.id}
             followUpAt={lead.followUpAt}
             followUpNote={lead.followUpNote}
+            booked={
+              !!lead.convertedToClientId ||
+              appointments.some((a) => {
+                const t = a.scheduledAt?.toMillis();
+                return a.status === 'scheduled' && typeof t === 'number' && t > Date.now();
+              })
+            }
           />
         </div>
 
