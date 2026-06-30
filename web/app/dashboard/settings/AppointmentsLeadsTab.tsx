@@ -680,9 +680,9 @@ export default function AppointmentsLeadsTab({
             intro / FAQ / case-study slots rendered in the mobile
             lead-home screen. */}
         <div className="bg-white rounded-[5px] border border-gray-200 p-5">
-          <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Lead-home videos</h3>
-          <p className="text-[11px] text-[#707070] mb-4">
-            These videos play in your leads&apos; AFL app after they log in with their phone code. Without uploads the lead-home looks empty.
+          <h3 className="text-sm font-semibold text-[#005851] uppercase tracking-wide mb-1">Pre-sell your leads</h3>
+          <p className="text-[13px] text-[#4b5563] mb-4 leading-relaxed">
+            New to the industry: every lead you book gets a private home inside your AgentForLife app &mdash; your intro, real client stories, and a quick intake &mdash; that warms them up before your first call, so they show up already trusting you. It&rsquo;s a first appointment that runs itself. Add an intro video below to switch it on (leads log in with the one-tap code from their booking text); leave it empty and that screen stays blank.
           </p>
 
           {/* Intro slot */}
